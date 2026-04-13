@@ -92,6 +92,60 @@ export async function buildComplianceSummaryForFacility(facilityId: number) {
   };
 }
 
+export async function buildComplianceSummaryForEmployee(employeeId: number, organizationId: number) {
+  const [employee] = await db.select().from(employeesTable).where(
+    and(eq(employeesTable.id, employeeId), eq(employeesTable.organizationId, organizationId))
+  );
+  if (!employee) return null;
+
+  const trainingRecords = await db
+    .select({ record: trainingRecordsTable, trainingType: trainingTypesTable })
+    .from(trainingRecordsTable)
+    .leftJoin(trainingTypesTable, eq(trainingRecordsTable.trainingTypeId, trainingTypesTable.id))
+    .where(eq(trainingRecordsTable.employeeId, employeeId));
+
+  const allStatuses = trainingRecords.map(r => r.record.status);
+  const compliantCount = allStatuses.filter(s => s === "compliant").length;
+  const dueSoonCount = allStatuses.filter(s => s === "due_soon").length;
+  const expiredCount = allStatuses.filter(s => s === "expired").length;
+  const missingCount = allStatuses.filter(s => s === "missing").length;
+  const total = allStatuses.length;
+  const complianceScore = total > 0 ? Math.round((compliantCount / total) * 100) : 100;
+
+  const currentYear = new Date().getFullYear();
+  const practicums = await db.select().from(practicumsTable).where(
+    and(eq(practicumsTable.employeeId, employeeId), eq(practicumsTable.practicumYear, currentYear))
+  );
+  const practicumStatus = practicums[0]?.status ?? "missing";
+
+  const hourBucket = await db.select().from(trainingHourBucketsTable).where(
+    and(
+      eq(trainingHourBucketsTable.employeeId, employeeId),
+      eq(trainingHourBucketsTable.trainingYear, currentYear)
+    )
+  );
+  const annualHoursStatus = hourBucket[0]?.status ?? "incomplete";
+  const annualHoursCompleted = hourBucket[0]?.completedHours ?? "0";
+  const annualHoursRequired = hourBucket[0]?.requiredHours ?? "12";
+
+  return {
+    employeeId,
+    employeeName: `${employee.firstName} ${employee.lastName}`,
+    facilityId: employee.facilityId,
+    total,
+    compliantCount,
+    dueSoonCount,
+    expiredCount,
+    missingCount,
+    complianceScore,
+    practicumStatus,
+    annualHoursStatus,
+    annualHoursCompleted,
+    annualHoursRequired,
+    trainingRecords: trainingRecords.map(r => ({ ...r.record, trainingType: r.trainingType })),
+  };
+}
+
 export async function generateAlertsForOrganization(organizationId: number, facilityId?: number) {
   const today = new Date();
   const alertWindows = [7, 14, 30, 60, 90];

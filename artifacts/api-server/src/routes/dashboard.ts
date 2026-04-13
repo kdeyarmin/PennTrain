@@ -154,7 +154,7 @@ router.get("/dashboard/upcoming-due-dates", requireAuth, async (req, res): Promi
     return dueDate >= today && dueDate <= future;
   });
 
-  res.json({ count: upcoming.length, records: upcoming, daysAhead: days });
+  res.json(upcoming);
 });
 
 router.get("/dashboard/recent-activity", requireAuth, async (req, res): Promise<void> => {

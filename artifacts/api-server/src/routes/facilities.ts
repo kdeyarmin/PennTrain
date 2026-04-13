@@ -81,7 +81,9 @@ router.get("/facilities/:id", requireAuth, async (req, res): Promise<void> => {
 
 router.patch("/facilities/:id", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (!user || !["platform_admin", "org_admin"].includes(user.role)) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
 
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const [existing] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, id));

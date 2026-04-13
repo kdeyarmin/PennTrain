@@ -32,6 +32,20 @@ router.get("/alerts", requireAuth, async (req, res): Promise<void> => {
   res.json(alerts);
 });
 
+router.get("/alerts/:id", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const [alert] = await db.select().from(alertsTable).where(eq(alertsTable.id, id));
+  if (!alert) { res.status(404).json({ error: "Alert not found" }); return; }
+
+  if (user.role !== "platform_admin" && user.organizationId !== alert.organizationId) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+  res.json(alert);
+});
+
 router.post("/alerts/generate", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user || !["platform_admin", "org_admin"].includes(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
@@ -114,5 +128,34 @@ async function handleBulkUpdate(req: Request, res: Response): Promise<void> {
 
 router.patch("/alerts/bulk", requireAuth, (req, res) => handleBulkUpdate(req, res));
 router.post("/alerts/bulk-update", requireAuth, (req, res) => handleBulkUpdate(req, res));
+
+router.patch("/alerts/:id", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const [existing] = await db.select().from(alertsTable).where(eq(alertsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Alert not found" }); return; }
+  if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  const { status, assignedToUserId } = req.body as { status?: string; assignedToUserId?: number | null };
+  const setValues: Partial<typeof alertsTable.$inferInsert> = {};
+  if (status && ["open", "dismissed", "resolved"].includes(status)) {
+    setValues.status = status as "open" | "dismissed" | "resolved";
+    if (status === "resolved") setValues.resolvedAt = new Date().toISOString();
+  }
+  if (assignedToUserId !== undefined) {
+    setValues.assignedToUserId = assignedToUserId ?? null;
+  }
+
+  if (Object.keys(setValues).length === 0) {
+    res.status(400).json({ error: "No valid fields to update" }); return;
+  }
+
+  const [updated] = await db.update(alertsTable).set(setValues).where(eq(alertsTable.id, id)).returning();
+  res.json(updated);
+});
 
 export default router;
