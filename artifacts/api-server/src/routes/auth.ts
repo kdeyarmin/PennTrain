@@ -4,15 +4,24 @@ import { usersTable, organizationsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { hashPassword, verifyPassword, sanitizeUser, requireAuth, getCurrentUser } from "../lib/auth";
 import { logAudit } from "../lib/audit";
+import { z } from "zod";
+import { validateBody } from "../lib/validate";
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+const impersonateOrgSchema = z.object({
+  organizationId: z.coerce.number().int().positive(),
+});
 
 const router: IRouter = Router();
 
 router.post("/auth/login", async (req, res): Promise<void> => {
-  const { email, password } = req.body;
-  if (!email || !password) {
-    res.status(400).json({ error: "Email and password required" });
-    return;
-  }
+  const body = validateBody(loginSchema, req, res);
+  if (!body) return;
+  const { email, password } = body;
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
   if (!user || !user.isActive) {
@@ -56,13 +65,14 @@ router.post("/auth/impersonate-org", requireAuth, async (req, res): Promise<void
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   if (user.role !== "platform_admin") { res.status(403).json({ error: "Only platform admins can impersonate organizations" }); return; }
 
-  const { organizationId } = req.body;
-  if (!organizationId) { res.status(400).json({ error: "organizationId required" }); return; }
+  const impBody = validateBody(impersonateOrgSchema, req, res);
+  if (!impBody) return;
+  const { organizationId } = impBody;
 
-  const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.id, Number(organizationId)));
+  const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.id, organizationId));
   if (!org) { res.status(404).json({ error: "Organization not found" }); return; }
 
-  req.session.impersonatingOrgId = Number(organizationId);
+  req.session.impersonatingOrgId = organizationId;
   await logAudit(req, "organization", org.id, "impersonate_start", null, null, org.id);
   res.json({ message: `Now viewing as organization: ${org.name}`, organization: org });
 });

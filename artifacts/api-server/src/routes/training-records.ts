@@ -5,6 +5,40 @@ import { eq, and, inArray } from "drizzle-orm";
 import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 import { calculateTrainingStatus, calculateDueDate } from "../lib/compliance";
+import { z } from "zod";
+import { validateBody, validateQuery } from "../lib/validate";
+
+const createTrainingRecordSchema = z.object({
+  employeeId: z.coerce.number().int().positive(),
+  trainingTypeId: z.coerce.number().int().positive(),
+  facilityId: z.coerce.number().int().positive(),
+  organizationId: z.coerce.number().int().positive().optional(),
+  completionDate: z.string().nullish(),
+  notes: z.string().nullish(),
+  trainerName: z.string().nullish(),
+  trainerCredentials: z.string().nullish(),
+  trainingProvider: z.string().nullish(),
+  certificateNumber: z.string().nullish(),
+  score: z.string().nullish(),
+  hours: z.string().nullish(),
+  completionMethod: z.enum(["in_person", "online", "hybrid", "manual_entry"]).nullish(),
+  documentRequired: z.boolean().nullish(),
+});
+
+const patchTrainingRecordSchema = z.object({
+  completionDate: z.string().nullish(),
+  notes: z.string().nullish(),
+  trainerName: z.string().nullish(),
+  trainerCredentials: z.string().nullish(),
+  trainingProvider: z.string().nullish(),
+  certificateNumber: z.string().nullish(),
+  score: z.string().nullish(),
+  hours: z.string().nullish(),
+  completionMethod: z.enum(["in_person", "online", "hybrid", "manual_entry"]).nullish(),
+  documentRequired: z.boolean().nullish(),
+  status: z.enum(["compliant", "due_soon", "expired", "missing", "not_applicable", "pending_review"]).optional(),
+  dueDate: z.string().nullish(),
+});
 
 const router: IRouter = Router();
 
@@ -65,17 +99,16 @@ router.post("/training-records", requireAuth, async (req, res): Promise<void> =>
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
-  const { employeeId, trainingTypeId, facilityId, completionDate, notes, trainerName, trainerCredentials, trainingProvider, certificateNumber, score, hours, completionMethod, documentRequired } = req.body;
-  if (!employeeId || !trainingTypeId || !facilityId) {
-    res.status(400).json({ error: "Required fields: employeeId, trainingTypeId, facilityId" }); return;
-  }
+  const body = validateBody(createTrainingRecordSchema, req, res);
+  if (!body) return;
+
+  const { employeeId, trainingTypeId, facilityId, completionDate, notes, trainerName, trainerCredentials, trainingProvider, certificateNumber, score, hours, completionMethod, documentRequired } = body;
 
   // Derive organizationId from session, not client body
   let resolvedOrgId: number;
   if (user.role === "platform_admin") {
-    const bodyOrgId = req.body.organizationId;
-    if (!bodyOrgId) { res.status(400).json({ error: "organizationId required for platform_admin" }); return; }
-    resolvedOrgId = Number(bodyOrgId);
+    if (!body.organizationId) { res.status(400).json({ error: "organizationId required for platform_admin" }); return; }
+    resolvedOrgId = body.organizationId;
   } else {
     if (!user.organizationId) { res.status(403).json({ error: "User has no organization" }); return; }
     resolvedOrgId = user.organizationId;
@@ -97,15 +130,25 @@ router.post("/training-records", requireAuth, async (req, res): Promise<void> =>
   const dueDate = calculateDueDate(completionDate ?? null, trainingType?.renewalIntervalDays ?? null);
   const status = calculateTrainingStatus(completionDate ?? null, trainingType?.renewalIntervalDays ?? null, trainingType?.warningDaysDefault ?? 90);
 
-  const [record] = await db.insert(trainingRecordsTable).values({
+  const insertValues: typeof trainingRecordsTable.$inferInsert = {
     organizationId: resolvedOrgId,
     facilityId: Number(facilityId),
     employeeId: Number(employeeId),
     trainingTypeId: Number(trainingTypeId),
-    completionDate, dueDate, status, notes, trainerName, trainerCredentials, trainingProvider,
-    certificateNumber, score, hours, completionMethod,
+    completionDate: completionDate ?? null,
+    dueDate: dueDate,
+    status,
+    notes: notes ?? null,
+    trainerName: trainerName ?? null,
+    trainerCredentials: trainerCredentials ?? null,
+    trainingProvider: trainingProvider ?? null,
+    certificateNumber: certificateNumber ?? null,
+    score: score != null ? String(score) : null,
+    hours: hours != null ? String(hours) : null,
+    completionMethod: completionMethod ?? null,
     documentRequired: documentRequired ?? trainingType?.documentRequired ?? false,
-  }).returning();
+  };
+  const [record] = await db.insert(trainingRecordsTable).values(insertValues).returning();
 
   await logAudit(req, "training_record", record.id, "create", null, record, resolvedOrgId);
   res.status(201).json({ ...record, trainingType });
@@ -151,10 +194,13 @@ router.patch("/training-records/:id", requireAuth, async (req, res): Promise<voi
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
+  const patchBody = validateBody(patchTrainingRecordSchema, req, res);
+  if (!patchBody) return;
+
   const updates: Partial<typeof trainingRecordsTable.$inferInsert> = {};
-  const allowed = ["completionDate", "notes", "trainerName", "trainerCredentials", "trainingProvider", "certificateNumber", "score", "hours", "completionMethod", "documentRequired", "status", "dueDate"];
+  const allowed = ["completionDate", "notes", "trainerName", "trainerCredentials", "trainingProvider", "certificateNumber", "score", "hours", "completionMethod", "documentRequired", "status", "dueDate"] as const;
   for (const field of allowed) {
-    if (req.body[field] !== undefined) (updates as Record<string, unknown>)[field] = req.body[field];
+    if (patchBody[field] !== undefined) (updates as Record<string, unknown>)[field] = patchBody[field];
   }
 
   if (updates.completionDate !== undefined || updates.dueDate === undefined) {

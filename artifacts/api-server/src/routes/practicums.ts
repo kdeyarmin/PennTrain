@@ -4,6 +4,38 @@ import { practicumsTable, employeesTable, facilitiesTable } from "@workspace/db"
 import { eq, and, inArray } from "drizzle-orm";
 import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { logAudit } from "../lib/audit";
+import { z } from "zod";
+import { validateBody } from "../lib/validate";
+
+const createPracticumSchema = z.object({
+  employeeId: z.coerce.number().int().positive(),
+  facilityId: z.coerce.number().int().positive(),
+  practicumYear: z.coerce.number().int().min(2000).max(2100),
+  organizationId: z.coerce.number().int().positive().optional(),
+  completionDate: z.string().optional().nullable(),
+  observedBy: z.string().optional().nullable(),
+  marReviewCompleted: z.boolean().optional(),
+  directObservationCompleted: z.boolean().optional(),
+  remediationRequired: z.boolean().optional(),
+  remediationNotes: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  dueDate: z.string().optional().nullable(),
+  status: z.enum(["compliant", "due_soon", "expired", "missing"]).optional(),
+});
+
+const patchPracticumSchema = z.object({
+  completionDate: z.string().optional().nullable(),
+  observedBy: z.string().optional().nullable(),
+  marReviewCompleted: z.boolean().optional(),
+  directObservationCompleted: z.boolean().optional(),
+  remediationRequired: z.boolean().optional(),
+  remediationNotes: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  dueDate: z.string().optional().nullable(),
+  status: z.enum(["compliant", "due_soon", "expired", "missing"]).optional(),
+  verifiedByUserId: z.number().int().optional().nullable(),
+  verifiedAt: z.string().optional().nullable(),
+});
 
 const router: IRouter = Router();
 
@@ -61,17 +93,16 @@ router.post("/practicums", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
-  const { employeeId, facilityId, practicumYear, completionDate, observedBy, marReviewCompleted, directObservationCompleted, remediationRequired, remediationNotes, notes, dueDate, status } = req.body;
-  if (!employeeId || !facilityId || !practicumYear) {
-    res.status(400).json({ error: "Required fields: employeeId, facilityId, practicumYear" }); return;
-  }
+  const body = validateBody(createPracticumSchema, req, res);
+  if (!body) return;
+
+  const { employeeId, facilityId, practicumYear, completionDate, observedBy, marReviewCompleted, directObservationCompleted, remediationRequired, remediationNotes, notes, dueDate, status } = body;
 
   // Derive organizationId from session, not client body
   let resolvedOrgId: number;
   if (user.role === "platform_admin") {
-    const bodyOrgId = req.body.organizationId;
-    if (!bodyOrgId) { res.status(400).json({ error: "organizationId required for platform_admin" }); return; }
-    resolvedOrgId = Number(bodyOrgId);
+    if (!body.organizationId) { res.status(400).json({ error: "organizationId required for platform_admin" }); return; }
+    resolvedOrgId = body.organizationId;
   } else {
     if (!user.organizationId) { res.status(403).json({ error: "User has no organization" }); return; }
     resolvedOrgId = user.organizationId;
@@ -140,10 +171,13 @@ router.patch("/practicums/:id", requireAuth, async (req, res): Promise<void> => 
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
+  const patchBody = validateBody(patchPracticumSchema, req, res);
+  if (!patchBody) return;
+
   const updates: Partial<typeof practicumsTable.$inferInsert> = {};
-  const allowed = ["completionDate", "observedBy", "marReviewCompleted", "directObservationCompleted", "remediationRequired", "remediationNotes", "notes", "dueDate", "status", "verifiedByUserId", "verifiedAt"];
+  const allowed = ["completionDate", "observedBy", "marReviewCompleted", "directObservationCompleted", "remediationRequired", "remediationNotes", "notes", "dueDate", "status", "verifiedByUserId", "verifiedAt"] as const;
   for (const field of allowed) {
-    if (req.body[field] !== undefined) (updates as Record<string, unknown>)[field] = req.body[field];
+    if (patchBody[field] !== undefined) (updates as Record<string, unknown>)[field] = patchBody[field];
   }
 
   if (updates.completionDate && !updates.status) {

@@ -34,6 +34,9 @@ export default function Employees() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
   const { user } = useAuth();
+  const basePath = user?.role === "platform_admin" ? "/admin/employees"
+    : user?.role === "trainer" ? "/trainer/employees"
+    : "/app/employees";
 
   const { data: employees, isLoading } = useListEmployees({
     facilityId: facilityId && facilityId !== "all" ? Number(facilityId) : undefined,
@@ -162,7 +165,7 @@ export default function Employees() {
                     {paginated.map(emp => (
                       <tr key={emp.id} className="border-t hover:bg-muted/30">
                         <td className="p-3">
-                          <Link href={`/employees/${emp.id}`}>
+                          <Link href={`${basePath}/${emp.id}`}>
                             <span className="font-medium hover:underline cursor-pointer">
                               {emp.lastName}, {emp.firstName}
                             </span>
@@ -182,7 +185,7 @@ export default function Employees() {
                           </div>
                         </td>
                         <td className="p-3">
-                          <Link href={`/employees/${emp.id}`}>
+                          <Link href={`${basePath}/${emp.id}`}>
                             <ChevronRight className="h-4 w-4 text-muted-foreground cursor-pointer" />
                           </Link>
                         </td>
