@@ -32,7 +32,7 @@ const upload = multer({
     if (allowed.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error("File type not allowed. Accepted: PDF, JPG, PNG, DOC, DOCX"));
+      cb(new Error("File type not allowed. Accepted: PDF, JPG, PNG"));
     }
   },
 });
@@ -166,13 +166,21 @@ router.get("/documents/file/:filename", requireAuth, async (req, res): Promise<v
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
 
   const filename = req.params.filename as string;
-  // Validate the filename is in the DB and user has access to it
   const fileUrl = `/api/documents/file/${filename}`;
   const [doc] = await db.select().from(trainingDocumentsTable).where(eq(trainingDocumentsTable.fileUrl, fileUrl));
   if (!doc) { res.status(404).json({ error: "File not found" }); return; }
 
   if (user.role !== "platform_admin" && user.organizationId !== doc.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  if (user.role === "employee") {
+    const [selfEmp] = await db.select().from(employeesTable).where(
+      and(eq(employeesTable.email, user.email ?? ""), eq(employeesTable.organizationId, user.organizationId ?? 0))
+    );
+    if (!selfEmp || doc.employeeId !== selfEmp.id) {
+      res.status(403).json({ error: "Forbidden" }); return;
+    }
   }
 
   const filePath = path.join(UPLOAD_DIR, filename);
@@ -192,6 +200,14 @@ router.get("/documents/:id", requireAuth, async (req, res): Promise<void> => {
   if (!doc) { res.status(404).json({ error: "Document not found" }); return; }
   if (user.role !== "platform_admin" && user.organizationId !== doc.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
+  }
+  if (user.role === "employee") {
+    const [selfEmp] = await db.select().from(employeesTable).where(
+      and(eq(employeesTable.email, user.email ?? ""), eq(employeesTable.organizationId, user.organizationId ?? 0))
+    );
+    if (!selfEmp || doc.employeeId !== selfEmp.id) {
+      res.status(403).json({ error: "Forbidden" }); return;
+    }
   }
   res.json(doc);
 });

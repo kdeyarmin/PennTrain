@@ -153,6 +153,14 @@ router.get("/training-hours/:employeeId/:year", requireAuth, async (req, res): P
   if (user.role !== "platform_admin" && user.organizationId !== emp.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
+  if (user.role === "employee") {
+    const [selfEmp] = await db.select().from(employeesTable).where(
+      and(eq(employeesTable.email, user.email ?? ""), eq(employeesTable.organizationId, user.organizationId ?? 0))
+    );
+    if (!selfEmp || selfEmp.id !== employeeId) {
+      res.status(403).json({ error: "Forbidden" }); return;
+    }
+  }
 
   const [bucket] = await db.select().from(trainingHourBucketsTable)
     .where(and(

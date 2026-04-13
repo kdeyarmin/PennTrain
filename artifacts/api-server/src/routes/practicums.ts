@@ -116,6 +116,14 @@ router.get("/practicums/:id", requireAuth, async (req, res): Promise<void> => {
   if (user.role !== "platform_admin" && user.organizationId !== practicum.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
+  if (user.role === "employee") {
+    const [selfEmp] = await db.select().from(employeesTable).where(
+      and(eq(employeesTable.email, user.email ?? ""), eq(employeesTable.organizationId, user.organizationId ?? 0))
+    );
+    if (!selfEmp || practicum.employeeId !== selfEmp.id) {
+      res.status(403).json({ error: "Forbidden" }); return;
+    }
+  }
   res.json(practicum);
 });
 

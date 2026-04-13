@@ -126,6 +126,14 @@ router.get("/training-records/:id", requireAuth, async (req, res): Promise<void>
   if (user.role !== "platform_admin" && user.organizationId !== result.record.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
+  if (user.role === "employee") {
+    const [selfEmp] = await db.select().from(employeesTable).where(
+      and(eq(employeesTable.email, user.email ?? ""), eq(employeesTable.organizationId, user.organizationId ?? 0))
+    );
+    if (!selfEmp || result.record.employeeId !== selfEmp.id) {
+      res.status(403).json({ error: "Forbidden" }); return;
+    }
+  }
 
   res.json({ ...result.record, trainingType: result.trainingType });
 });
