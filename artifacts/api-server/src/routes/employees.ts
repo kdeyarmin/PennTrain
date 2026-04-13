@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { employeesTable, trainingRecordsTable, trainingTypesTable, practicumsTable, trainingHourBucketsTable, trainingDocumentsTable, facilitiesTable } from "@workspace/db";
-import { eq, and, or, ilike, inArray } from "drizzle-orm";
+import { eq, and, or, ilike, inArray, SQL } from "drizzle-orm";
 import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 import { validateBody } from "../lib/validate";
@@ -17,13 +17,13 @@ router.get("/employees", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
-  let query = db.select().from(employeesTable).$dynamic();
+  const conditions: SQL[] = [];
 
   if (user.role !== "platform_admin") {
     if (!user.organizationId) { res.json([]); return; }
-    query = query.where(eq(employeesTable.organizationId, user.organizationId));
+    conditions.push(eq(employeesTable.organizationId, user.organizationId));
   } else if (req.query.organizationId) {
-    query = query.where(eq(employeesTable.organizationId, Number(req.query.organizationId)));
+    conditions.push(eq(employeesTable.organizationId, Number(req.query.organizationId)));
   }
 
   if (["facility_manager", "trainer"].includes(user.role)) {
@@ -31,7 +31,7 @@ router.get("/employees", requireAuth, async (req, res): Promise<void> => {
     if (!assignedFacilityIds || assignedFacilityIds.length === 0) {
       res.json([]); return;
     }
-    query = query.where(inArray(employeesTable.facilityId, assignedFacilityIds));
+    conditions.push(inArray(employeesTable.facilityId, assignedFacilityIds));
   }
 
   if (req.query.facilityId) {
@@ -42,23 +42,25 @@ router.get("/employees", requireAuth, async (req, res): Promise<void> => {
       );
       if (!facility) { res.status(403).json({ error: "Forbidden" }); return; }
     }
-    query = query.where(eq(employeesTable.facilityId, facilityId));
+    conditions.push(eq(employeesTable.facilityId, facilityId));
   }
   if (req.query.status && typeof req.query.status === "string") {
-    query = query.where(eq(employeesTable.status, req.query.status as "active" | "inactive" | "terminated" | "on_leave"));
+    conditions.push(eq(employeesTable.status, req.query.status as "active" | "inactive" | "terminated" | "on_leave"));
   }
   if (req.query.administersMedications !== undefined) {
-    query = query.where(eq(employeesTable.administersMedications, req.query.administersMedications === "true"));
+    conditions.push(eq(employeesTable.administersMedications, req.query.administersMedications === "true"));
   }
   if (req.query.trainerStatus !== undefined) {
-    query = query.where(eq(employeesTable.trainerStatus, req.query.trainerStatus === "true"));
+    conditions.push(eq(employeesTable.trainerStatus, req.query.trainerStatus === "true"));
   }
   if (req.query.search && typeof req.query.search === "string") {
     const s = `%${req.query.search}%`;
-    query = query.where(or(ilike(employeesTable.firstName, s), ilike(employeesTable.lastName, s), ilike(employeesTable.jobTitle, s)));
+    conditions.push(or(ilike(employeesTable.firstName, s), ilike(employeesTable.lastName, s), ilike(employeesTable.jobTitle, s))!);
   }
 
-  const employees = await query.orderBy(employeesTable.lastName, employeesTable.firstName);
+  const employees = await db.select().from(employeesTable)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(employeesTable.lastName, employeesTable.firstName);
   res.json(employees);
 });
 

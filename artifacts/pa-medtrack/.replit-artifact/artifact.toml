@@ -12,10 +12,10 @@ version = "1.0.0"
 [[services]]
 name = "web"
 paths = [ "/" ]
-localPort = 8080
+localPort = 8081
 
 [services.development]
-run = "pnpm --filter @workspace/api-server run dev"
+run = "pnpm --filter @workspace/pa-medtrack run dev"
 
 [services.production]
 build = [ "pnpm", "--filter", "@workspace/pa-medtrack", "run", "build" ]
@@ -27,5 +27,5 @@ from = "/*"
 to = "/index.html"
 
 [services.env]
-PORT = "8080"
+PORT = "8081"
 BASE_PATH = "/"

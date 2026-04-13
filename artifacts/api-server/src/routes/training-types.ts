@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { trainingTypesTable } from "@workspace/db";
-import { eq, or } from "drizzle-orm";
+import { eq, or, and, SQL } from "drizzle-orm";
 import { requireAuth, getCurrentUser } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 
@@ -11,23 +11,25 @@ router.get("/training-types", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  let query = db.select().from(trainingTypesTable).$dynamic();
+  const conditions: SQL[] = [];
 
   if (user.role !== "platform_admin") {
-    query = query.where(
+    conditions.push(
       or(
         eq(trainingTypesTable.isSystemDefault, true),
         user.organizationId ? eq(trainingTypesTable.organizationId, user.organizationId) : eq(trainingTypesTable.isSystemDefault, true),
-      )
+      )!
     );
   }
 
-  if (req.query.isActive !== undefined) query = query.where(eq(trainingTypesTable.isActive, req.query.isActive === "true"));
+  if (req.query.isActive !== undefined) conditions.push(eq(trainingTypesTable.isActive, req.query.isActive === "true"));
   if (req.query.appliesToFacilityType && typeof req.query.appliesToFacilityType === "string") {
-    query = query.where(eq(trainingTypesTable.appliesToFacilityType, req.query.appliesToFacilityType as "PCH" | "ALR" | "BOTH"));
+    conditions.push(eq(trainingTypesTable.appliesToFacilityType, req.query.appliesToFacilityType as "PCH" | "ALR" | "BOTH"));
   }
 
-  const types = await query.orderBy(trainingTypesTable.sortOrder, trainingTypesTable.name);
+  const types = await db.select().from(trainingTypesTable)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(trainingTypesTable.sortOrder, trainingTypesTable.name);
   res.json(types);
 });
 

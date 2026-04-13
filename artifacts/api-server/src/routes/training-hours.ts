@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { trainingHourBucketsTable, facilitiesTable, employeesTable } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, SQL } from "drizzle-orm";
 import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 
@@ -19,13 +19,13 @@ router.get("/training-hours", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  let query = db.select().from(trainingHourBucketsTable).$dynamic();
+  const conditions: SQL[] = [];
 
   if (user.role !== "platform_admin") {
     if (!user.organizationId) { res.json([]); return; }
-    query = query.where(eq(trainingHourBucketsTable.organizationId, user.organizationId));
+    conditions.push(eq(trainingHourBucketsTable.organizationId, user.organizationId));
   } else if (req.query.organizationId) {
-    query = query.where(eq(trainingHourBucketsTable.organizationId, Number(req.query.organizationId)));
+    conditions.push(eq(trainingHourBucketsTable.organizationId, Number(req.query.organizationId)));
   }
 
   if (user.role === "employee") {
@@ -33,13 +33,13 @@ router.get("/training-hours", requireAuth, async (req, res): Promise<void> => {
       and(eq(employeesTable.email, user.email ?? ""), eq(employeesTable.organizationId, user.organizationId ?? 0))
     );
     if (!emp) { res.json([]); return; }
-    query = query.where(eq(trainingHourBucketsTable.employeeId, emp.id));
+    conditions.push(eq(trainingHourBucketsTable.employeeId, emp.id));
   } else if (["facility_manager", "trainer"].includes(user.role)) {
     const assignedFacilityIds = await getAssignedFacilityIds(user);
     if (!assignedFacilityIds || assignedFacilityIds.length === 0) {
       res.json([]); return;
     }
-    query = query.where(inArray(trainingHourBucketsTable.facilityId, assignedFacilityIds));
+    conditions.push(inArray(trainingHourBucketsTable.facilityId, assignedFacilityIds));
   }
 
   if (req.query.facilityId) {
@@ -50,16 +50,18 @@ router.get("/training-hours", requireAuth, async (req, res): Promise<void> => {
       );
       if (!fac) { res.status(403).json({ error: "Forbidden" }); return; }
     }
-    query = query.where(eq(trainingHourBucketsTable.facilityId, facilityId));
+    conditions.push(eq(trainingHourBucketsTable.facilityId, facilityId));
   }
   if (req.query.employeeId) {
-    query = query.where(eq(trainingHourBucketsTable.employeeId, Number(req.query.employeeId)));
+    conditions.push(eq(trainingHourBucketsTable.employeeId, Number(req.query.employeeId)));
   }
   if (req.query.year) {
-    query = query.where(eq(trainingHourBucketsTable.trainingYear, Number(req.query.year)));
+    conditions.push(eq(trainingHourBucketsTable.trainingYear, Number(req.query.year)));
   }
 
-  const buckets = await query.orderBy(trainingHourBucketsTable.trainingYear, trainingHourBucketsTable.employeeId);
+  const buckets = await db.select().from(trainingHourBucketsTable)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(trainingHourBucketsTable.trainingYear, trainingHourBucketsTable.employeeId);
   res.json(buckets);
 });
 

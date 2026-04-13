@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { practicumsTable, employeesTable, facilitiesTable } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, SQL } from "drizzle-orm";
 import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 import { z } from "zod";
@@ -43,13 +43,13 @@ router.get("/practicums", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  let query = db.select().from(practicumsTable).$dynamic();
+  const conditions: SQL[] = [];
 
   if (user.role !== "platform_admin") {
     if (!user.organizationId) { res.json([]); return; }
-    query = query.where(eq(practicumsTable.organizationId, user.organizationId));
+    conditions.push(eq(practicumsTable.organizationId, user.organizationId));
   } else if (req.query.organizationId) {
-    query = query.where(eq(practicumsTable.organizationId, Number(req.query.organizationId)));
+    conditions.push(eq(practicumsTable.organizationId, Number(req.query.organizationId)));
   }
 
   if (user.role === "employee") {
@@ -57,13 +57,13 @@ router.get("/practicums", requireAuth, async (req, res): Promise<void> => {
       and(eq(employeesTable.email, user.email ?? ""), eq(employeesTable.organizationId, user.organizationId ?? 0))
     );
     if (!emp) { res.json([]); return; }
-    query = query.where(eq(practicumsTable.employeeId, emp.id));
+    conditions.push(eq(practicumsTable.employeeId, emp.id));
   } else if (["facility_manager", "trainer"].includes(user.role)) {
     const assignedFacilityIds = await getAssignedFacilityIds(user);
     if (!assignedFacilityIds || assignedFacilityIds.length === 0) {
       res.json([]); return;
     }
-    query = query.where(inArray(practicumsTable.facilityId, assignedFacilityIds));
+    conditions.push(inArray(practicumsTable.facilityId, assignedFacilityIds));
   }
 
   if (req.query.facilityId) {
@@ -74,16 +74,18 @@ router.get("/practicums", requireAuth, async (req, res): Promise<void> => {
       );
       if (!facility) { res.status(403).json({ error: "Forbidden" }); return; }
     }
-    query = query.where(eq(practicumsTable.facilityId, facilityId));
+    conditions.push(eq(practicumsTable.facilityId, facilityId));
   }
-  if (req.query.employeeId) query = query.where(eq(practicumsTable.employeeId, Number(req.query.employeeId)));
+  if (req.query.employeeId) conditions.push(eq(practicumsTable.employeeId, Number(req.query.employeeId)));
   const yearParam = req.query.year ?? req.query.practicumYear;
-  if (yearParam) query = query.where(eq(practicumsTable.practicumYear, Number(yearParam)));
+  if (yearParam) conditions.push(eq(practicumsTable.practicumYear, Number(yearParam)));
   if (req.query.status && typeof req.query.status === "string") {
-    query = query.where(eq(practicumsTable.status, req.query.status as "compliant" | "due_soon" | "expired" | "missing"));
+    conditions.push(eq(practicumsTable.status, req.query.status as "compliant" | "due_soon" | "expired" | "missing"));
   }
 
-  const practicums = await query.orderBy(practicumsTable.practicumYear, practicumsTable.employeeId);
+  const practicums = await db.select().from(practicumsTable)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(practicumsTable.practicumYear, practicumsTable.employeeId);
   res.json(practicums);
 });
 

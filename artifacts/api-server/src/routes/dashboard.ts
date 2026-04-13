@@ -4,7 +4,7 @@ import {
   organizationsTable, facilitiesTable, employeesTable,
   trainingRecordsTable, practicumsTable, alertsTable, trainingHourBucketsTable,
 } from "@workspace/db";
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, count, SQL } from "drizzle-orm";
 import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { buildComplianceSummaryForFacility } from "../lib/compliance";
 
@@ -131,10 +131,8 @@ router.get("/dashboard/compliance-by-facility", requireAuth, async (req, res): P
 
   let facilities;
   if (user.role === "platform_admin") {
-    const q = db.select().from(facilitiesTable).$dynamic();
-    facilities = await (req.query.organizationId
-      ? q.where(eq(facilitiesTable.organizationId, Number(req.query.organizationId)))
-      : q);
+    facilities = await db.select().from(facilitiesTable)
+      .where(req.query.organizationId ? eq(facilitiesTable.organizationId, Number(req.query.organizationId)) : undefined);
   } else if (user.organizationId) {
     facilities = await db.select().from(facilitiesTable).where(eq(facilitiesTable.organizationId, user.organizationId));
     // Restrict facility_manager and trainer to only their assigned facilities
@@ -161,23 +159,20 @@ router.get("/dashboard/upcoming-due-dates", requireAuth, async (req, res): Promi
   const future = new Date(today);
   future.setDate(future.getDate() + days);
 
-  let trainingQuery = db.select({
+  const upcomingCond: SQL | undefined = user.role !== "platform_admin"
+    ? (user.organizationId ? eq(trainingRecordsTable.organizationId, user.organizationId) : undefined)
+    : (req.query.organizationId ? eq(trainingRecordsTable.organizationId, Number(req.query.organizationId)) : undefined);
+
+  if (user.role !== "platform_admin" && !user.organizationId) { res.json([]); return; }
+
+  let records = await db.select({
     id: trainingRecordsTable.id,
     employeeId: trainingRecordsTable.employeeId,
     facilityId: trainingRecordsTable.facilityId,
     organizationId: trainingRecordsTable.organizationId,
     dueDate: trainingRecordsTable.dueDate,
     status: trainingRecordsTable.status,
-  }).from(trainingRecordsTable).$dynamic();
-
-  if (user.role !== "platform_admin") {
-    if (!user.organizationId) { res.json([]); return; }
-    trainingQuery = trainingQuery.where(eq(trainingRecordsTable.organizationId, user.organizationId));
-  } else if (req.query.organizationId) {
-    trainingQuery = trainingQuery.where(eq(trainingRecordsTable.organizationId, Number(req.query.organizationId)));
-  }
-
-  let records = await trainingQuery;
+  }).from(trainingRecordsTable).where(upcomingCond);
 
   // Restrict facility_manager and trainer to only their assigned facilities
   if (["facility_manager", "trainer"].includes(user.role)) {
@@ -204,16 +199,13 @@ router.get("/dashboard/recent-activity", requireAuth, async (req, res): Promise<
   const since = new Date();
   since.setDate(since.getDate() - 30);
 
-  let query = db.select().from(trainingRecordsTable).$dynamic();
+  const recentCond: SQL | undefined = user.role !== "platform_admin"
+    ? (user.organizationId ? eq(trainingRecordsTable.organizationId, user.organizationId) : undefined)
+    : (req.query.organizationId ? eq(trainingRecordsTable.organizationId, Number(req.query.organizationId)) : undefined);
 
-  if (user.role !== "platform_admin") {
-    if (!user.organizationId) { res.json([]); return; }
-    query = query.where(eq(trainingRecordsTable.organizationId, user.organizationId));
-  } else if (req.query.organizationId) {
-    query = query.where(eq(trainingRecordsTable.organizationId, Number(req.query.organizationId)));
-  }
+  if (user.role !== "platform_admin" && !user.organizationId) { res.json([]); return; }
 
-  let records = await query;
+  let records = await db.select().from(trainingRecordsTable).where(recentCond);
 
   // Restrict facility_manager and trainer to only their assigned facilities
   if (["facility_manager", "trainer"].includes(user.role)) {
@@ -247,17 +239,15 @@ router.get("/dashboard/compliance-trends", requireAuth, async (req, res): Promis
 
   const months = Math.min(Number(req.query.months) || 6, 24);
 
-  let allRecords = await (() => {
-    if (user.role === "platform_admin") {
-      const q = db.select().from(trainingRecordsTable).$dynamic();
-      return req.query.organizationId
-        ? q.where(eq(trainingRecordsTable.organizationId, Number(req.query.organizationId)))
-        : q;
-    } else {
-      if (!user.organizationId) return Promise.resolve([] as (typeof trainingRecordsTable.$inferSelect)[]);
-      return db.select().from(trainingRecordsTable).where(eq(trainingRecordsTable.organizationId, user.organizationId));
-    }
-  })();
+  const trendCond: SQL | undefined = user.role === "platform_admin"
+    ? (req.query.organizationId ? eq(trainingRecordsTable.organizationId, Number(req.query.organizationId)) : undefined)
+    : (user.organizationId ? eq(trainingRecordsTable.organizationId, user.organizationId) : undefined);
+
+  if (user.role !== "platform_admin" && !user.organizationId) {
+    res.json([]); return;
+  }
+
+  let allRecords = await db.select().from(trainingRecordsTable).where(trendCond);
 
   // Restrict facility_manager and trainer to only their assigned facilities
   if (["facility_manager", "trainer"].includes(user.role)) {

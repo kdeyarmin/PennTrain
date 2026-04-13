@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { facilitiesTable, employeesTable, trainingRecordsTable, practicumsTable, trainingHourBucketsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray, SQL } from "drizzle-orm";
 import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 import { buildComplianceSummaryForFacility } from "../lib/compliance";
@@ -12,33 +12,36 @@ router.get("/facilities", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  let query = db.select().from(facilitiesTable).$dynamic();
+  const conditions: SQL[] = [];
 
   if (user.role === "platform_admin") {
-    if (req.query.organizationId) query = query.where(eq(facilitiesTable.organizationId, Number(req.query.organizationId)));
+    if (req.query.organizationId) conditions.push(eq(facilitiesTable.organizationId, Number(req.query.organizationId)));
   } else if (user.organizationId) {
-    query = query.where(eq(facilitiesTable.organizationId, user.organizationId));
-    // For facility_manager/trainer: further restrict to assigned facilities
-    const assignedIds = await getAssignedFacilityIds(user);
-    if (assignedIds !== null) {
-      if (assignedIds.length === 0) { res.json([]); return; }
-      const allFacilities = await query.orderBy(facilitiesTable.name);
-      res.json(allFacilities.filter(f => assignedIds.includes(f.id)));
-      return;
-    }
+    conditions.push(eq(facilitiesTable.organizationId, user.organizationId));
   } else {
     res.json([]); return;
   }
 
   if (req.query.facilityType && typeof req.query.facilityType === "string") {
-    query = query.where(eq(facilitiesTable.facilityType, req.query.facilityType as "PCH" | "ALR"));
+    conditions.push(eq(facilitiesTable.facilityType, req.query.facilityType as "PCH" | "ALR"));
   }
   if (req.query.isActive !== undefined) {
-    query = query.where(eq(facilitiesTable.isActive, req.query.isActive === "true"));
+    conditions.push(eq(facilitiesTable.isActive, req.query.isActive === "true"));
   }
 
-  const facilities = await query.orderBy(facilitiesTable.name);
-  res.json(facilities);
+  const allFacilities = await db.select().from(facilitiesTable)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(facilitiesTable.name);
+
+  // For facility_manager/trainer: further restrict to assigned facilities
+  const assignedIds = await getAssignedFacilityIds(user);
+  if (assignedIds !== null) {
+    if (assignedIds.length === 0) { res.json([]); return; }
+    res.json(allFacilities.filter(f => assignedIds.includes(f.id)));
+    return;
+  }
+
+  res.json(allFacilities);
 });
 
 router.post("/facilities", requireAuth, async (req, res): Promise<void> => {

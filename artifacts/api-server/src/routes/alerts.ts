@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import { alertsTable } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, SQL } from "drizzle-orm";
 import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { generateAlertsForOrganization } from "../lib/compliance";
 
@@ -27,32 +27,33 @@ router.get("/alerts", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  let query = db.select().from(alertsTable).$dynamic();
+  const conditions: SQL[] = [];
 
   if (user.role !== "platform_admin") {
     if (!user.organizationId) { res.json([]); return; }
-    query = query.where(eq(alertsTable.organizationId, user.organizationId));
+    conditions.push(eq(alertsTable.organizationId, user.organizationId));
   } else if (req.query.organizationId) {
-    query = query.where(eq(alertsTable.organizationId, Number(req.query.organizationId)));
+    conditions.push(eq(alertsTable.organizationId, Number(req.query.organizationId)));
   }
 
-  if (req.query.facilityId) query = query.where(eq(alertsTable.facilityId, Number(req.query.facilityId)));
-  if (req.query.status && typeof req.query.status === "string") {
-    query = query.where(eq(alertsTable.status, req.query.status as "open" | "dismissed" | "resolved"));
-  }
-  if (req.query.severity && typeof req.query.severity === "string") {
-    query = query.where(eq(alertsTable.severity, req.query.severity as "info" | "warning" | "critical"));
-  }
-
-  let alerts = await query.orderBy(alertsTable.createdAt);
-
-  // Scope facility_manager/trainer to their assigned facilities
+  // Facility-assignment scoping for facility_manager/trainer
   if (["facility_manager", "trainer"].includes(user.role)) {
     const assignedIds = await getAssignedFacilityIds(user);
-    if (assignedIds !== null) {
-      alerts = alerts.filter(a => a.facilityId !== null && assignedIds.includes(a.facilityId));
-    }
+    if (!assignedIds || assignedIds.length === 0) { res.json([]); return; }
+    conditions.push(inArray(alertsTable.facilityId, assignedIds));
   }
+
+  if (req.query.facilityId) conditions.push(eq(alertsTable.facilityId, Number(req.query.facilityId)));
+  if (req.query.status && typeof req.query.status === "string") {
+    conditions.push(eq(alertsTable.status, req.query.status as "open" | "dismissed" | "resolved"));
+  }
+  if (req.query.severity && typeof req.query.severity === "string") {
+    conditions.push(eq(alertsTable.severity, req.query.severity as "info" | "warning" | "critical"));
+  }
+
+  const alerts = await db.select().from(alertsTable)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(alertsTable.createdAt);
 
   res.json(alerts);
 });
@@ -78,95 +79,52 @@ router.post("/alerts/generate", requireAuth, async (req, res): Promise<void> => 
   if (!user || !["platform_admin", "org_admin"].includes(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const organizationId = user.role === "platform_admin" ? Number(req.body.organizationId) : user.organizationId;
-  if (!organizationId) { res.status(400).json({ error: "Organization ID required" }); return; }
+  if (!organizationId) { res.status(400).json({ error: "organizationId required" }); return; }
 
-  await generateAlertsForOrganization(organizationId);
-  res.json({ message: "Alerts generated" });
+  const count = await generateAlertsForOrganization(organizationId);
+  res.json({ generated: count, organizationId });
 });
 
-router.patch("/alerts/:id/dismiss", requireAuth, async (req, res): Promise<void> => {
+router.post("/alerts", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (!user || !["platform_admin", "org_admin", "facility_manager"].includes(user.role)) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
 
-  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
-  const [existing] = await db.select().from(alertsTable).where(eq(alertsTable.id, id));
-  if (!existing) { res.status(404).json({ error: "Alert not found" }); return; }
-  if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
-  if (!await assertAlertFacilityAccess(user, existing, res)) return;
+  const { facilityId, employeeId, alertType, severity, title, message } = req.body;
+  if (!alertType || !severity || !message) {
+    res.status(400).json({ error: "Required: alertType, severity, message" }); return;
+  }
 
-  const [updated] = await db.update(alertsTable).set({ status: "dismissed" }).where(eq(alertsTable.id, id)).returning();
-  res.json(updated);
+  let resolvedOrgId: number;
+  if (user.role === "platform_admin") {
+    const bodyOrgId = req.body.organizationId;
+    if (!bodyOrgId) { res.status(400).json({ error: "organizationId required for platform_admin" }); return; }
+    resolvedOrgId = Number(bodyOrgId);
+  } else {
+    if (!user.organizationId) { res.status(400).json({ error: "No organization" }); return; }
+    resolvedOrgId = user.organizationId;
+  }
+
+  if (["facility_manager", "trainer"].includes(user.role) && facilityId) {
+    const assignedIds = await getAssignedFacilityIds(user);
+    if (assignedIds !== null && !assignedIds.includes(Number(facilityId))) {
+      res.status(403).json({ error: "Forbidden: not assigned to this facility" }); return;
+    }
+  }
+
+  const [alert] = await db.insert(alertsTable).values({
+    organizationId: resolvedOrgId,
+    facilityId: facilityId ? Number(facilityId) : null,
+    employeeId: employeeId ? Number(employeeId) : null,
+    alertType, severity,
+    title: title ?? message,
+    message,
+    status: "open",
+  }).returning();
+
+  res.status(201).json(alert);
 });
-
-router.patch("/alerts/:id/resolve", requireAuth, async (req, res): Promise<void> => {
-  const user = await getCurrentUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-
-  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
-  const [existing] = await db.select().from(alertsTable).where(eq(alertsTable.id, id));
-  if (!existing) { res.status(404).json({ error: "Alert not found" }); return; }
-  if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
-  if (!await assertAlertFacilityAccess(user, existing, res)) return;
-
-  const [updated] = await db.update(alertsTable).set({
-    status: "resolved",
-    resolvedAt: new Date().toISOString(),
-  }).where(eq(alertsTable.id, id)).returning();
-  res.json(updated);
-});
-
-router.patch("/alerts/:id/assign", requireAuth, async (req, res): Promise<void> => {
-  const user = await getCurrentUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (!["platform_admin", "org_admin", "facility_manager"].includes(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
-
-  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
-  const { assignedToUserId } = req.body;
-
-  const [existing] = await db.select().from(alertsTable).where(eq(alertsTable.id, id));
-  if (!existing) { res.status(404).json({ error: "Alert not found" }); return; }
-  if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
-  if (!await assertAlertFacilityAccess(user, existing, res)) return;
-
-  const [updated] = await db.update(alertsTable)
-    .set({ assignedToUserId: assignedToUserId ?? null })
-    .where(eq(alertsTable.id, id))
-    .returning();
-  res.json(updated);
-});
-
-async function handleBulkUpdate(req: Request, res: Response): Promise<void> {
-  const user = await getCurrentUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (!["platform_admin", "org_admin", "facility_manager"].includes(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
-
-  const { ids, status } = req.body as { ids?: number[]; status?: string };
-  if (!Array.isArray(ids) || ids.length === 0) { res.status(400).json({ error: "ids array required" }); return; }
-  if (!status || !["dismissed", "resolved", "open"].includes(status)) { res.status(400).json({ error: "Valid status required" }); return; }
-
-  // Fetch all referenced alerts to enforce org + facility-assignment scoping
-  const existingAlerts = await db.select().from(alertsTable).where(inArray(alertsTable.id, ids));
-  const assignedIds = ["facility_manager", "trainer"].includes(user.role) ? await getAssignedFacilityIds(user) : null;
-
-  const allowedIds = existingAlerts
-    .filter(a => {
-      if (user.role !== "platform_admin" && user.organizationId !== a.organizationId) return false;
-      if (assignedIds !== null && a.facilityId !== null && !assignedIds.includes(a.facilityId)) return false;
-      return true;
-    })
-    .map(a => a.id);
-
-  if (allowedIds.length === 0) { res.status(403).json({ error: "Forbidden: no accessible alerts in request" }); return; }
-
-  const setValues: Partial<typeof alertsTable.$inferInsert> = { status: status as "open" | "dismissed" | "resolved" };
-  if (status === "resolved") setValues.resolvedAt = new Date().toISOString();
-
-  const updated = await db.update(alertsTable).set(setValues).where(inArray(alertsTable.id, allowedIds)).returning();
-  res.json({ updated: updated.length });
-}
-
-router.patch("/alerts/bulk", requireAuth, (req, res) => handleBulkUpdate(req, res));
-router.post("/alerts/bulk-update", requireAuth, (req, res) => handleBulkUpdate(req, res));
 
 router.patch("/alerts/:id", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
@@ -175,27 +133,67 @@ router.patch("/alerts/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const [existing] = await db.select().from(alertsTable).where(eq(alertsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Alert not found" }); return; }
+
   if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
   if (!await assertAlertFacilityAccess(user, existing, res)) return;
 
-  const { status, assignedToUserId } = req.body as { status?: string; assignedToUserId?: number | null };
-  const setValues: Partial<typeof alertsTable.$inferInsert> = {};
-  if (status && ["open", "dismissed", "resolved"].includes(status)) {
-    setValues.status = status as "open" | "dismissed" | "resolved";
-    if (status === "resolved") setValues.resolvedAt = new Date().toISOString();
-  }
-  if (assignedToUserId !== undefined) {
-    setValues.assignedToUserId = assignedToUserId ?? null;
-  }
+  const { status, severity, message } = req.body as {
+    status?: "open" | "dismissed" | "resolved";
+    severity?: "info" | "warning" | "critical";
+    message?: string;
+  };
 
-  if (Object.keys(setValues).length === 0) {
-    res.status(400).json({ error: "No valid fields to update" }); return;
-  }
+  const updates: Partial<typeof alertsTable.$inferInsert> = {};
+  if (status !== undefined) updates.status = status;
+  if (severity !== undefined) updates.severity = severity;
+  if (message !== undefined) updates.message = message;
 
-  const [updated] = await db.update(alertsTable).set(setValues).where(eq(alertsTable.id, id)).returning();
+  const [updated] = await db.update(alertsTable).set(updates).where(eq(alertsTable.id, id)).returning();
   res.json(updated);
+});
+
+router.delete("/alerts/:id", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user || !["platform_admin", "org_admin", "facility_manager"].includes(user.role)) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const [existing] = await db.select().from(alertsTable).where(eq(alertsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Alert not found" }); return; }
+
+  if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+  if (!await assertAlertFacilityAccess(user, existing, res)) return;
+
+  await db.delete(alertsTable).where(eq(alertsTable.id, id));
+  res.status(204).send();
+});
+
+router.post("/alerts/bulk-dismiss", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user || !["platform_admin", "org_admin", "facility_manager"].includes(user.role)) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  const { ids } = req.body as { ids?: number[] };
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: "ids array required" }); return;
+  }
+
+  const alerts = await db.select().from(alertsTable).where(inArray(alertsTable.id, ids));
+  for (const alert of alerts) {
+    if (user.role !== "platform_admin" && user.organizationId !== alert.organizationId) {
+      res.status(403).json({ error: "Forbidden: cross-org alert in bulk request" }); return;
+    }
+    if (!await assertAlertFacilityAccess(user, alert, res)) return;
+  }
+
+  await db.update(alertsTable).set({ status: "dismissed" }).where(inArray(alertsTable.id, ids));
+  res.json({ dismissed: ids.length });
 });
 
 export default router;

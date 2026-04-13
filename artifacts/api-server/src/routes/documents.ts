@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { trainingDocumentsTable, facilitiesTable, employeesTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray, SQL } from "drizzle-orm";
 import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 import multer from "multer";
@@ -44,32 +44,25 @@ router.get("/documents", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
-  let query = db.select().from(trainingDocumentsTable).$dynamic();
+  const conditions: SQL[] = [];
 
   if (user.role === "employee") {
-    // Employees always see only their own documents — derive identity from session
     if (!user.organizationId) { res.json([]); return; }
     const [selfEmp] = await db.select().from(employeesTable).where(
       and(eq(employeesTable.email, user.email), eq(employeesTable.organizationId, user.organizationId))
     );
     if (!selfEmp) { res.json([]); return; }
-    query = query.where(
-      and(
-        eq(trainingDocumentsTable.organizationId, user.organizationId),
-        eq(trainingDocumentsTable.employeeId, selfEmp.id)
-      )
-    );
+    conditions.push(eq(trainingDocumentsTable.organizationId, user.organizationId));
+    conditions.push(eq(trainingDocumentsTable.employeeId, selfEmp.id));
   } else {
     if (user.role !== "platform_admin") {
       if (!user.organizationId) { res.json([]); return; }
-      query = query.where(eq(trainingDocumentsTable.organizationId, user.organizationId));
+      conditions.push(eq(trainingDocumentsTable.organizationId, user.organizationId));
     } else if (req.query.organizationId) {
-      query = query.where(eq(trainingDocumentsTable.organizationId, Number(req.query.organizationId)));
+      conditions.push(eq(trainingDocumentsTable.organizationId, Number(req.query.organizationId)));
     }
 
-    // Restrict facility_manager and trainer to only their assigned facilities
     if (["facility_manager", "trainer"].includes(user.role)) {
-      const { getAssignedFacilityIds } = await import("../lib/auth");
       const assignedFacilityIds = await getAssignedFacilityIds(user);
       if (assignedFacilityIds !== null) {
         if (assignedFacilityIds.length === 0) { res.json([]); return; }
@@ -78,17 +71,9 @@ router.get("/documents", requireAuth, async (req, res): Promise<void> => {
           if (!assignedFacilityIds.includes(reqFacilityId)) {
             res.status(403).json({ error: "Forbidden: not assigned to this facility" }); return;
           }
-          query = query.where(eq(trainingDocumentsTable.facilityId, reqFacilityId));
+          conditions.push(eq(trainingDocumentsTable.facilityId, reqFacilityId));
         } else {
-          // Filter to all assigned facilities using in-memory post-filter (drizzle doesn't support inArray easily here)
-          const docs = await query.orderBy(trainingDocumentsTable.createdAt);
-          const filtered = docs.filter(d => d.facilityId !== null && assignedFacilityIds.includes(d.facilityId));
-          if (req.query.employeeId) {
-            res.json(filtered.filter(d => d.employeeId === Number(req.query.employeeId)));
-          } else {
-            res.json(filtered);
-          }
-          return;
+          conditions.push(inArray(trainingDocumentsTable.facilityId, assignedFacilityIds));
         }
       }
     } else if (req.query.facilityId) {
@@ -99,20 +84,22 @@ router.get("/documents", requireAuth, async (req, res): Promise<void> => {
         );
         if (!fac) { res.status(403).json({ error: "Forbidden" }); return; }
       }
-      query = query.where(eq(trainingDocumentsTable.facilityId, facilityId));
+      conditions.push(eq(trainingDocumentsTable.facilityId, facilityId));
     }
     if (req.query.employeeId) {
-      query = query.where(eq(trainingDocumentsTable.employeeId, Number(req.query.employeeId)));
+      conditions.push(eq(trainingDocumentsTable.employeeId, Number(req.query.employeeId)));
     }
   }
   if (req.query.trainingRecordId) {
-    query = query.where(eq(trainingDocumentsTable.trainingRecordId, Number(req.query.trainingRecordId)));
+    conditions.push(eq(trainingDocumentsTable.trainingRecordId, Number(req.query.trainingRecordId)));
   }
   if (req.query.documentType && typeof req.query.documentType === "string") {
-    query = query.where(eq(trainingDocumentsTable.documentType, req.query.documentType as "certificate" | "roster" | "practicum_form" | "transcript" | "other"));
+    conditions.push(eq(trainingDocumentsTable.documentType, req.query.documentType as "certificate" | "roster" | "practicum_form" | "transcript" | "other"));
   }
 
-  const docs = await query.orderBy(trainingDocumentsTable.createdAt);
+  const docs = await db.select().from(trainingDocumentsTable)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(trainingDocumentsTable.createdAt);
   res.json(docs);
 });
 

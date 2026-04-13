@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and, SQL } from "drizzle-orm";
 import { requireAuth, getCurrentUser, hashPassword, verifyPassword, sanitizeUser } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 
@@ -16,23 +16,26 @@ router.get("/users", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
-  let query = db.select().from(usersTable).$dynamic();
+  const conditions: SQL[] = [];
 
   if (user.role !== "platform_admin") {
     if (!user.organizationId) { res.json([]); return; }
-    query = query.where(eq(usersTable.organizationId, user.organizationId));
+    conditions.push(eq(usersTable.organizationId, user.organizationId));
   } else if (req.query.organizationId) {
-    query = query.where(eq(usersTable.organizationId, Number(req.query.organizationId)));
+    conditions.push(eq(usersTable.organizationId, Number(req.query.organizationId)));
   }
 
   if (req.query.role && typeof req.query.role === "string") {
-    query = query.where(eq(usersTable.role, req.query.role as UserRole));
+    conditions.push(eq(usersTable.role, req.query.role as UserRole));
   }
   if (req.query.isActive !== undefined) {
-    query = query.where(eq(usersTable.isActive, req.query.isActive === "true"));
+    conditions.push(eq(usersTable.isActive, req.query.isActive === "true"));
   }
 
-  const users = await query.orderBy(usersTable.lastName, usersTable.firstName);
+  const users = await db.select().from(usersTable)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(usersTable.lastName, usersTable.firstName);
+
   res.json(users.map(sanitizeUser));
 });
 

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { facilityUserAssignmentsTable, usersTable, facilitiesTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, SQL } from "drizzle-orm";
 import { requireAuth, getCurrentUser } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -11,7 +11,19 @@ router.get("/facility-user-assignments", requireAuth, async (req, res): Promise<
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   if (!["platform_admin", "org_admin", "facility_manager"].includes(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
 
-  let query = db.select({
+  const conditions: SQL[] = [];
+
+  if (req.query.facilityId) {
+    conditions.push(eq(facilityUserAssignmentsTable.facilityId, Number(req.query.facilityId)));
+  } else if (req.query.userId) {
+    conditions.push(eq(facilityUserAssignmentsTable.userId, Number(req.query.userId)));
+  }
+
+  if (user.role !== "platform_admin" && user.organizationId) {
+    conditions.push(eq(facilitiesTable.organizationId, user.organizationId));
+  }
+
+  const assignments = await db.select({
     id: facilityUserAssignmentsTable.id,
     userId: facilityUserAssignmentsTable.userId,
     facilityId: facilityUserAssignmentsTable.facilityId,
@@ -24,19 +36,7 @@ router.get("/facility-user-assignments", requireAuth, async (req, res): Promise<
     .from(facilityUserAssignmentsTable)
     .innerJoin(usersTable, eq(facilityUserAssignmentsTable.userId, usersTable.id))
     .innerJoin(facilitiesTable, eq(facilityUserAssignmentsTable.facilityId, facilitiesTable.id))
-    .$dynamic();
-
-  if (req.query.facilityId) {
-    query = query.where(eq(facilityUserAssignmentsTable.facilityId, Number(req.query.facilityId)));
-  } else if (req.query.userId) {
-    query = query.where(eq(facilityUserAssignmentsTable.userId, Number(req.query.userId)));
-  }
-
-  if (user.role !== "platform_admin" && user.organizationId) {
-    query = query.where(eq(facilitiesTable.organizationId, user.organizationId));
-  }
-
-  const assignments = await query;
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
   res.json(assignments);
 });
 

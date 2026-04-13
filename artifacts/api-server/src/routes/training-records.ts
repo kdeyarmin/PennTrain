@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { trainingRecordsTable, trainingTypesTable, employeesTable, facilitiesTable } from "@workspace/db";
-import { eq, and, inArray, or, isNull } from "drizzle-orm";
+import { eq, and, inArray, or, isNull, SQL } from "drizzle-orm";
 import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 import { calculateTrainingStatus, calculateDueDate } from "../lib/compliance";
@@ -46,17 +46,13 @@ router.get("/training-records", requireAuth, async (req, res): Promise<void> => 
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  let query = db
-    .select({ record: trainingRecordsTable, trainingType: trainingTypesTable })
-    .from(trainingRecordsTable)
-    .leftJoin(trainingTypesTable, eq(trainingRecordsTable.trainingTypeId, trainingTypesTable.id))
-    .$dynamic();
+  const conditions: SQL[] = [];
 
   if (user.role !== "platform_admin") {
     if (!user.organizationId) { res.json([]); return; }
-    query = query.where(eq(trainingRecordsTable.organizationId, user.organizationId));
+    conditions.push(eq(trainingRecordsTable.organizationId, user.organizationId));
   } else if (req.query.organizationId) {
-    query = query.where(eq(trainingRecordsTable.organizationId, Number(req.query.organizationId)));
+    conditions.push(eq(trainingRecordsTable.organizationId, Number(req.query.organizationId)));
   }
 
   if (user.role === "employee") {
@@ -64,13 +60,13 @@ router.get("/training-records", requireAuth, async (req, res): Promise<void> => 
       and(eq(employeesTable.email, user.email ?? ""), eq(employeesTable.organizationId, user.organizationId ?? 0))
     );
     if (!emp) { res.json([]); return; }
-    query = query.where(eq(trainingRecordsTable.employeeId, emp.id));
+    conditions.push(eq(trainingRecordsTable.employeeId, emp.id));
   } else if (["facility_manager", "trainer"].includes(user.role)) {
     const assignedFacilityIds = await getAssignedFacilityIds(user);
     if (!assignedFacilityIds || assignedFacilityIds.length === 0) {
       res.json([]); return;
     }
-    query = query.where(inArray(trainingRecordsTable.facilityId, assignedFacilityIds));
+    conditions.push(inArray(trainingRecordsTable.facilityId, assignedFacilityIds));
   }
 
   if (req.query.facilityId) {
@@ -81,15 +77,19 @@ router.get("/training-records", requireAuth, async (req, res): Promise<void> => 
       );
       if (!facility) { res.status(403).json({ error: "Forbidden" }); return; }
     }
-    query = query.where(eq(trainingRecordsTable.facilityId, facilityId));
+    conditions.push(eq(trainingRecordsTable.facilityId, facilityId));
   }
-  if (req.query.employeeId) query = query.where(eq(trainingRecordsTable.employeeId, Number(req.query.employeeId)));
+  if (req.query.employeeId) conditions.push(eq(trainingRecordsTable.employeeId, Number(req.query.employeeId)));
   if (req.query.status && typeof req.query.status === "string") {
-    query = query.where(eq(trainingRecordsTable.status, req.query.status as "compliant" | "due_soon" | "expired" | "missing" | "not_applicable" | "pending_review"));
+    conditions.push(eq(trainingRecordsTable.status, req.query.status as "compliant" | "due_soon" | "expired" | "missing" | "not_applicable" | "pending_review"));
   }
-  if (req.query.trainingTypeId) query = query.where(eq(trainingRecordsTable.trainingTypeId, Number(req.query.trainingTypeId)));
+  if (req.query.trainingTypeId) conditions.push(eq(trainingRecordsTable.trainingTypeId, Number(req.query.trainingTypeId)));
 
-  const records = await query;
+  const records = await db
+    .select({ record: trainingRecordsTable, trainingType: trainingTypesTable })
+    .from(trainingRecordsTable)
+    .leftJoin(trainingTypesTable, eq(trainingRecordsTable.trainingTypeId, trainingTypesTable.id))
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
   res.json(records.map(r => ({ ...r.record, trainingType: r.trainingType })));
 });
 
@@ -301,23 +301,23 @@ router.get("/training-matrix", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
-  let employeeQuery = db.select().from(employeesTable).where(eq(employeesTable.status, "active")).$dynamic();
+  const empConditions: SQL[] = [eq(employeesTable.status, "active")];
 
   if (user.role !== "platform_admin") {
     if (!user.organizationId) { res.json([]); return; }
-    employeeQuery = employeeQuery.where(eq(employeesTable.organizationId, user.organizationId));
+    empConditions.push(eq(employeesTable.organizationId, user.organizationId));
   } else if (req.query.organizationId) {
-    employeeQuery = employeeQuery.where(eq(employeesTable.organizationId, Number(req.query.organizationId)));
+    empConditions.push(eq(employeesTable.organizationId, Number(req.query.organizationId)));
   }
 
   if (req.query.facilityId) {
-    employeeQuery = employeeQuery.where(eq(employeesTable.facilityId, Number(req.query.facilityId)));
+    empConditions.push(eq(employeesTable.facilityId, Number(req.query.facilityId)));
   }
   if (req.query.administersMedications !== undefined) {
-    employeeQuery = employeeQuery.where(eq(employeesTable.administersMedications, req.query.administersMedications === "true"));
+    empConditions.push(eq(employeesTable.administersMedications, req.query.administersMedications === "true"));
   }
   if (req.query.trainerOnly !== undefined) {
-    employeeQuery = employeeQuery.where(eq(employeesTable.trainerStatus, req.query.trainerOnly === "true"));
+    empConditions.push(eq(employeesTable.trainerStatus, req.query.trainerOnly === "true"));
   }
 
   if (["facility_manager", "trainer"].includes(user.role)) {
@@ -325,10 +325,12 @@ router.get("/training-matrix", requireAuth, async (req, res): Promise<void> => {
     if (!assignedFacilityIds || assignedFacilityIds.length === 0) {
       res.json([]); return;
     }
-    employeeQuery = employeeQuery.where(inArray(employeesTable.facilityId, assignedFacilityIds));
+    empConditions.push(inArray(employeesTable.facilityId, assignedFacilityIds));
   }
 
-  const employees = await employeeQuery.orderBy(employeesTable.lastName, employeesTable.firstName);
+  const employees = await db.select().from(employeesTable)
+    .where(and(...empConditions))
+    .orderBy(employeesTable.lastName, employeesTable.firstName);
 
   // Scope training types to system defaults or org-specific (prevents cross-tenant type leakage)
   const orgId = user.role === "platform_admin"
@@ -342,11 +344,12 @@ router.get("/training-matrix", requireAuth, async (req, res): Promise<void> => {
     : eq(trainingTypesTable.isActive, true);
   const trainingTypes = await db.select().from(trainingTypesTable).where(trainingTypeFilter);
 
-  let recordsQuery = db.select().from(trainingRecordsTable).$dynamic();
+  const recConditions: SQL[] = [];
   if (user.role !== "platform_admin" && user.organizationId) {
-    recordsQuery = recordsQuery.where(eq(trainingRecordsTable.organizationId, user.organizationId));
+    recConditions.push(eq(trainingRecordsTable.organizationId, user.organizationId));
   }
-  const records = await recordsQuery;
+  const records = await db.select().from(trainingRecordsTable)
+    .where(recConditions.length > 0 ? and(...recConditions) : undefined);
 
   const matrix = employees.map(emp => {
     const empRecords = records.filter(r => r.employeeId === emp.id);

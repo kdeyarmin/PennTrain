@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { organizationsTable, facilitiesTable, employeesTable, trainingRecordsTable, alertsTable } from "@workspace/db";
-import { eq, ilike, and, count, sql } from "drizzle-orm";
+import { eq, ilike, and, count, sql, SQL } from "drizzle-orm";
 import { requireAuth, getCurrentUser } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 
@@ -12,21 +12,23 @@ router.get("/organizations", requireAuth, async (req, res): Promise<void> => {
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
 
   const { status, search } = req.query;
-  let query = db.select().from(organizationsTable).$dynamic();
+  const conditions: SQL[] = [];
 
   if (user.role !== "platform_admin") {
     if (!user.organizationId) { res.json([]); return; }
-    query = query.where(eq(organizationsTable.id, user.organizationId));
+    conditions.push(eq(organizationsTable.id, user.organizationId));
   } else {
     if (status && typeof status === "string") {
-      query = query.where(eq(organizationsTable.subscriptionStatus, status as "trial" | "active" | "past_due" | "canceled"));
+      conditions.push(eq(organizationsTable.subscriptionStatus, status as "trial" | "active" | "past_due" | "canceled"));
     }
     if (search && typeof search === "string") {
-      query = query.where(ilike(organizationsTable.name, `%${search}%`));
+      conditions.push(ilike(organizationsTable.name, `%${search}%`));
     }
   }
 
-  const orgs = await query.orderBy(organizationsTable.name);
+  const orgs = await db.select().from(organizationsTable)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(organizationsTable.name);
   res.json(orgs);
 });
 

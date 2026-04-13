@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { auditLogsTable } from "@workspace/db";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and, SQL } from "drizzle-orm";
 import { requireAuth, getCurrentUser } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -10,30 +10,35 @@ router.get("/audit-logs", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user || !["platform_admin", "org_admin"].includes(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
 
-  let query = db.select().from(auditLogsTable).$dynamic();
+  const conditions: SQL[] = [];
 
   if (user.role !== "platform_admin") {
     if (!user.organizationId) { res.json([]); return; }
-    query = query.where(eq(auditLogsTable.organizationId, user.organizationId));
+    conditions.push(eq(auditLogsTable.organizationId, user.organizationId));
   } else if (req.query.organizationId) {
-    query = query.where(eq(auditLogsTable.organizationId, Number(req.query.organizationId)));
+    conditions.push(eq(auditLogsTable.organizationId, Number(req.query.organizationId)));
   }
 
   if (req.query.entityType && typeof req.query.entityType === "string") {
-    query = query.where(eq(auditLogsTable.entityType, req.query.entityType));
+    conditions.push(eq(auditLogsTable.entityType, req.query.entityType));
   }
   if (req.query.entityId && typeof req.query.entityId === "string") {
-    query = query.where(eq(auditLogsTable.entityId, req.query.entityId));
+    conditions.push(eq(auditLogsTable.entityId, req.query.entityId));
   }
   if (req.query.userId) {
-    query = query.where(eq(auditLogsTable.userId, Number(req.query.userId)));
+    conditions.push(eq(auditLogsTable.userId, Number(req.query.userId)));
   }
   if (req.query.action && typeof req.query.action === "string") {
-    query = query.where(eq(auditLogsTable.action, req.query.action));
+    conditions.push(eq(auditLogsTable.action, req.query.action));
   }
 
   const limit = Math.min(Number(req.query.limit) || 100, 500);
-  const logs = await query.orderBy(auditLogsTable.createdAt).limit(limit);
+  const query = db.select().from(auditLogsTable)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(auditLogsTable.createdAt)
+    .limit(limit);
+
+  const logs = await query;
   res.json(logs);
 });
 
