@@ -92,6 +92,22 @@ router.post("/training-hours", requireAuth, async (req, res): Promise<void> => {
     resolvedOrgId = user.organizationId;
   }
 
+  // Validate employee belongs to the resolved organization
+  const [emp] = await db.select().from(employeesTable).where(
+    and(eq(employeesTable.id, employeeId), eq(employeesTable.organizationId, resolvedOrgId))
+  );
+  if (!emp) {
+    res.status(403).json({ error: "Forbidden: employee does not belong to your organization" }); return;
+  }
+
+  // Validate facility belongs to the resolved organization
+  const [fac] = await db.select().from(facilitiesTable).where(
+    and(eq(facilitiesTable.id, facilityId), eq(facilitiesTable.organizationId, resolvedOrgId))
+  );
+  if (!fac) {
+    res.status(403).json({ error: "Forbidden: facility does not belong to your organization" }); return;
+  }
+
   // Enforce facility-assignment restriction for facility_manager and trainer
   if (["facility_manager", "trainer"].includes(user.role)) {
     const assignedIds = await getAssignedFacilityIds(user);
@@ -196,11 +212,15 @@ router.get("/training-hours/:employeeId/:year", requireAuth, async (req, res): P
     }
   }
 
-  const [bucket] = await db.select().from(trainingHourBucketsTable)
-    .where(and(
-      eq(trainingHourBucketsTable.employeeId, employeeId),
-      eq(trainingHourBucketsTable.trainingYear, year)
-    ));
+  // Include org scoping to prevent cross-tenant injection reads
+  const bucketWhere = and(
+    eq(trainingHourBucketsTable.employeeId, employeeId),
+    eq(trainingHourBucketsTable.trainingYear, year),
+    ...(user.role !== "platform_admin" && user.organizationId
+      ? [eq(trainingHourBucketsTable.organizationId, user.organizationId)]
+      : [])
+  );
+  const [bucket] = await db.select().from(trainingHourBucketsTable).where(bucketWhere);
 
   if (!bucket) {
     // Derive required hours from facility type (PCH=12, ALR=16)
