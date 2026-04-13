@@ -19,6 +19,11 @@ declare module "express-session" {
   }
 }
 
+export type EffectiveUser = typeof usersTable.$inferSelect & {
+  _realRole?: string;
+  _isImpersonating?: boolean;
+};
+
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   if (!req.session.userId) {
     res.status(401).json({ error: "Unauthorized" });
@@ -43,10 +48,29 @@ export async function requireRole(...roles: string[]) {
   };
 }
 
-export async function getCurrentUser(req: Request): Promise<typeof usersTable.$inferSelect | null> {
+/**
+ * Returns the effective user for the current request.
+ * If a platform_admin is impersonating an org, they receive an effective user
+ * with role=org_admin and organizationId=impersonatingOrgId for all data filtering.
+ * The real role is preserved in _realRole.
+ */
+export async function getCurrentUser(req: Request): Promise<EffectiveUser | null> {
   if (!req.session.userId) return null;
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.session.userId));
-  return user ?? null;
+  if (!user) return null;
+
+  const impersonatingOrgId = req.session.impersonatingOrgId;
+  if (impersonatingOrgId && user.role === "platform_admin") {
+    return {
+      ...user,
+      role: "org_admin",
+      organizationId: impersonatingOrgId,
+      _realRole: "platform_admin",
+      _isImpersonating: true,
+    } as EffectiveUser;
+  }
+
+  return user as EffectiveUser;
 }
 
 export function sanitizeUser(user: typeof usersTable.$inferSelect) {
@@ -61,7 +85,7 @@ export function sanitizeUser(user: typeof usersTable.$inferSelect) {
  * - facility_manager/trainer: restricted to their facility_user_assignments rows
  * - employee: their own facilityId (passed in)
  */
-export async function getAssignedFacilityIds(user: typeof usersTable.$inferSelect): Promise<number[] | null> {
+export async function getAssignedFacilityIds(user: EffectiveUser): Promise<number[] | null> {
   if (user.role === "platform_admin" || user.role === "org_admin") return null;
   const rows = await db
     .select({ facilityId: facilityUserAssignmentsTable.facilityId })

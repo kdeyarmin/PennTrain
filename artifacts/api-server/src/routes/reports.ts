@@ -9,14 +9,23 @@ import { requireAuth, getCurrentUser } from "../lib/auth";
 
 const router: IRouter = Router();
 
-function getOrgFilter(user: { role: string; organizationId: number | null }, queryOrgId?: string) {
-  if (user.role === "platform_admin" && queryOrgId) return Number(queryOrgId);
+function getOrgFilter(user: { role: string; organizationId: number | null; _realRole?: string }, queryOrgId?: string) {
+  if ((user._realRole === "platform_admin" || user.role === "platform_admin") && queryOrgId) return Number(queryOrgId);
   return user.organizationId ?? null;
+}
+
+function isEmployee(user: { role: string }): boolean {
+  return user.role === "employee";
+}
+
+function isPlatformAdmin(user: { role: string; _realRole?: string }): boolean {
+  return user.role === "platform_admin" || user._realRole === "platform_admin";
 }
 
 router.get("/reports/medication-administration", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isEmployee(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
@@ -38,6 +47,7 @@ router.get("/reports/medication-administration", requireAuth, async (req, res): 
 router.get("/reports/annual-practicum", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isEmployee(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
@@ -65,6 +75,7 @@ router.get("/reports/annual-practicum", requireAuth, async (req, res): Promise<v
 router.get("/reports/training-hours", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isEmployee(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
@@ -79,6 +90,7 @@ router.get("/reports/training-hours", requireAuth, async (req, res): Promise<voi
 router.get("/reports/trainer-certification", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isEmployee(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
@@ -94,6 +106,7 @@ router.get("/reports/trainer-certification", requireAuth, async (req, res): Prom
 router.get("/reports/expiring-certifications", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isEmployee(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
@@ -109,6 +122,7 @@ router.get("/reports/expiring-certifications", requireAuth, async (req, res): Pr
 router.get("/reports/overdue-training", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isEmployee(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
@@ -124,6 +138,7 @@ router.get("/reports/overdue-training", requireAuth, async (req, res): Promise<v
 router.get("/reports/new-employee-training", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isEmployee(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
@@ -138,6 +153,7 @@ router.get("/reports/new-employee-training", requireAuth, async (req, res): Prom
 router.get("/reports/facility-compliance", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isEmployee(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
@@ -197,6 +213,7 @@ router.get("/reports/employee-compliance/:employeeId", requireAuth, async (req, 
 router.get("/reports/document-audit", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isEmployee(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
@@ -217,6 +234,7 @@ router.get("/reports/document-audit", requireAuth, async (req, res): Promise<voi
 router.get("/reports/survey-readiness", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isEmployee(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
@@ -280,6 +298,7 @@ async function getTrainingRecordsForEmployees(employeeIds: number[], orgId: numb
 router.get("/reports/compliance-summary", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isEmployee(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
   const facilityId = req.query.facilityId ? Number(req.query.facilityId) : undefined;
@@ -314,6 +333,7 @@ router.get("/reports/compliance-summary", requireAuth, async (req, res): Promise
 router.get("/reports/expired-training", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isEmployee(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
@@ -330,6 +350,7 @@ router.get("/reports/expired-training", requireAuth, async (req, res): Promise<v
 router.get("/reports/due-soon", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isEmployee(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
@@ -345,6 +366,7 @@ router.get("/reports/due-soon", requireAuth, async (req, res): Promise<void> => 
 router.get("/reports/missing-documents", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isEmployee(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
@@ -360,6 +382,7 @@ router.get("/reports/missing-documents", requireAuth, async (req, res): Promise<
 router.get("/reports/practicum-status", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isEmployee(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
   const year = Number(req.query.year) || new Date().getFullYear();
@@ -385,6 +408,7 @@ router.get("/reports/practicum-status", requireAuth, async (req, res): Promise<v
 router.get("/reports/annual-hours", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isEmployee(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
   const year = Number(req.query.year) || new Date().getFullYear();
@@ -412,7 +436,14 @@ router.get("/reports/employee-transcript", requireAuth, async (req, res): Promis
 
   const [employee] = await db.select().from(employeesTable).where(eq(employeesTable.id, employeeId));
   if (!employee) { res.status(404).json({ error: "Employee not found" }); return; }
-  if (user.role !== "platform_admin" && user.organizationId !== employee.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!isPlatformAdmin(user as { role: string; _realRole?: string }) && user.organizationId !== employee.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  if (user.role === "employee") {
+    const [selfEmp] = await db.select().from(employeesTable).where(
+      and(eq(employeesTable.email, user.email ?? ""), eq(employeesTable.organizationId, user.organizationId ?? 0))
+    );
+    if (!selfEmp || selfEmp.id !== employeeId) { res.status(403).json({ error: "Employees may only view their own transcript" }); return; }
+  }
 
   const currentYear = new Date().getFullYear();
   const [trainingRecords, practicums, annualHours, documents] = await Promise.all([

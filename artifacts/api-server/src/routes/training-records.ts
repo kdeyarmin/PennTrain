@@ -25,7 +25,13 @@ router.get("/training-records", requireAuth, async (req, res): Promise<void> => 
     query = query.where(eq(trainingRecordsTable.organizationId, Number(req.query.organizationId)));
   }
 
-  if (["facility_manager", "trainer"].includes(user.role)) {
+  if (user.role === "employee") {
+    const [emp] = await db.select().from(employeesTable).where(
+      and(eq(employeesTable.email, user.email ?? ""), eq(employeesTable.organizationId, user.organizationId ?? 0))
+    );
+    if (!emp) { res.json([]); return; }
+    query = query.where(eq(trainingRecordsTable.employeeId, emp.id));
+  } else if (["facility_manager", "trainer"].includes(user.role)) {
     const assignedFacilityIds = await getAssignedFacilityIds(user);
     if (!assignedFacilityIds || assignedFacilityIds.length === 0) {
       res.json([]); return;

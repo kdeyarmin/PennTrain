@@ -55,7 +55,7 @@ export default function OrganizationDetail() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [_impersonating, setImpersonating] = useState(false);
+  const [, setImpersonating] = useState(false);
 
   const { data: org, isLoading: orgLoading } = useQuery<Organization>({
     queryKey: ["organization", id],
@@ -102,7 +102,7 @@ export default function OrganizationDetail() {
       setImpersonating(true);
       queryClient.invalidateQueries();
       toast({ title: `Viewing as: ${data.organization?.name ?? org?.name}`, description: "You are now viewing this organization's data." });
-      navigate("/dashboard");
+      navigate("/");
     },
     onError: () => {
       toast({ title: "Failed to switch organization view", variant: "destructive" });

@@ -70,7 +70,8 @@ router.post("/auth/impersonate-org", requireAuth, async (req, res): Promise<void
 router.post("/auth/stop-impersonation", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (user.role !== "platform_admin") { res.status(403).json({ error: "Forbidden" }); return; }
+  const realRole = (user as { _realRole?: string })._realRole ?? user.role;
+  if (realRole !== "platform_admin") { res.status(403).json({ error: "Forbidden" }); return; }
 
   const prevOrgId = req.session.impersonatingOrgId;
   delete req.session.impersonatingOrgId;

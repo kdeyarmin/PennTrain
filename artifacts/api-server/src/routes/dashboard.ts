@@ -13,12 +13,14 @@ const router: IRouter = Router();
 router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (user.role === "employee") { res.status(403).json({ error: "Forbidden" }); return; }
 
-  const orgId = user.role === "platform_admin"
-    ? (req.query.organizationId ? Number(req.query.organizationId) : null)
-    : user.organizationId;
+  const effectiveUser = user as { _realRole?: string; role: string; organizationId: number | null };
+  const orgId = (effectiveUser._realRole === "platform_admin" || effectiveUser.role === "platform_admin")
+    ? (req.query.organizationId ? Number(req.query.organizationId) : (effectiveUser.organizationId ?? null))
+    : effectiveUser.organizationId;
 
-  if (user.role === "platform_admin" && !orgId) {
+  if (effectiveUser._realRole === "platform_admin" && !orgId) {
     const orgs = await db.select().from(organizationsTable);
     const facilities = await db.select().from(facilitiesTable);
     const employees = await db.select().from(employeesTable).where(eq(employeesTable.status, "active"));
