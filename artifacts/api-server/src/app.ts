@@ -13,6 +13,10 @@ const __dirname = path.dirname(__filename);
 
 const app: Express = express();
 
+// Trust the first proxy (required for secure session cookies behind TLS-terminating proxies
+// such as nginx, Replit's edge, or any load balancer that terminates HTTPS).
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,
@@ -35,20 +39,29 @@ app.use(
 
 const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
   ? process.env.CORS_ALLOWED_ORIGINS.split(",").map(o => o.trim())
-  : null;
+  : [];
 
 app.use(cors({
   origin: (origin, callback) => {
+    // Same-origin requests have no Origin header — always allow
     if (!origin) {
       callback(null, true);
       return;
     }
+    // In development, allow all origins
     if (process.env.NODE_ENV !== "production") {
       callback(null, true);
       return;
     }
-    if (allowedOrigins && allowedOrigins.includes(origin)) {
+    // In production: allow explicitly configured origins.
+    // If CORS_ALLOWED_ORIGINS is empty, fall back to same-origin only
+    // (requests without Origin header) which is safe for server-rendered UIs.
+    if (allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
       callback(null, true);
+    } else if (allowedOrigins.length === 0) {
+      // No explicit origins configured — reject cross-origin browser requests
+      // (same-origin fetch already passes via the !origin branch above)
+      callback(new Error("Not allowed by CORS"));
     } else {
       callback(new Error("Not allowed by CORS"));
     }
