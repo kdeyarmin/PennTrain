@@ -37,8 +37,19 @@ router.post("/facilities", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user || !["platform_admin", "org_admin"].includes(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
 
-  const { organizationId, name, facilityType, licenseNumber, address, city, state, zip, phone, administratorName, administratorEmail } = req.body;
-  if (!organizationId || !name || !facilityType) { res.status(400).json({ error: "Organization ID, name, and facility type required" }); return; }
+  const { name, facilityType, licenseNumber, address, city, state, zip, phone, administratorName, administratorEmail } = req.body;
+  if (!name || !facilityType) { res.status(400).json({ error: "Name and facility type required" }); return; }
+
+  // Derive organizationId from session (never trust client body) for non-platform_admin
+  let organizationId: number;
+  if (user.role === "platform_admin") {
+    const bodyOrgId = Number(req.body.organizationId);
+    if (!bodyOrgId) { res.status(400).json({ error: "Organization ID required" }); return; }
+    organizationId = bodyOrgId;
+  } else {
+    if (!user.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
+    organizationId = user.organizationId;
+  }
 
   const [facility] = await db.insert(facilitiesTable).values({
     organizationId, name, facilityType, licenseNumber, address, city, state, zip, phone, administratorName, administratorEmail,
@@ -100,6 +111,13 @@ router.get("/facilities/:id/compliance-summary", requireAuth, async (req, res): 
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
 
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+
+  const [facility] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, id));
+  if (!facility) { res.status(404).json({ error: "Facility not found" }); return; }
+  if (user.role !== "platform_admin" && user.organizationId !== facility.organizationId) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
   const summary = await buildComplianceSummaryForFacility(id);
   if (!summary) { res.status(404).json({ error: "Facility not found" }); return; }
   res.json(summary);
