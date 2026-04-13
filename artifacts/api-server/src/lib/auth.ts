@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import type { Request, Response, NextFunction } from "express";
 import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db";
+import { usersTable, facilityUserAssignmentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 export async function hashPassword(password: string): Promise<string> {
@@ -51,4 +51,20 @@ export async function getCurrentUser(req: Request): Promise<typeof usersTable.$i
 export function sanitizeUser(user: typeof usersTable.$inferSelect) {
   const { passwordHash: _, ...safe } = user;
   return safe;
+}
+
+/**
+ * Returns the set of facility IDs a user is allowed to access.
+ * - platform_admin: null (no restriction, all facilities)
+ * - org_admin: null (no restriction within org — org filter applied elsewhere)
+ * - facility_manager/trainer: restricted to their facility_user_assignments rows
+ * - employee: their own facilityId (passed in)
+ */
+export async function getAssignedFacilityIds(user: typeof usersTable.$inferSelect): Promise<number[] | null> {
+  if (user.role === "platform_admin" || user.role === "org_admin") return null;
+  const rows = await db
+    .select({ facilityId: facilityUserAssignmentsTable.facilityId })
+    .from(facilityUserAssignmentsTable)
+    .where(eq(facilityUserAssignmentsTable.userId, user.id));
+  return rows.map(r => r.facilityId);
 }

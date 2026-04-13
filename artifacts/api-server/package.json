@@ -21,7 +21,8 @@
     "express-session": "^1.19.0",
     "multer": "^2.1.1",
     "pino": "^9",
-    "pino-http": "^10"
+    "pino-http": "^10",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@replit/vite-plugin-runtime-error-modal": "catalog:",

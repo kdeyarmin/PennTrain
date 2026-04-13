@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { facilitiesTable, employeesTable, trainingRecordsTable, practicumsTable, trainingHourBucketsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
-import { requireAuth, getCurrentUser } from "../lib/auth";
+import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 import { buildComplianceSummaryForFacility } from "../lib/compliance";
 
@@ -18,6 +18,14 @@ router.get("/facilities", requireAuth, async (req, res): Promise<void> => {
     if (req.query.organizationId) query = query.where(eq(facilitiesTable.organizationId, Number(req.query.organizationId)));
   } else if (user.organizationId) {
     query = query.where(eq(facilitiesTable.organizationId, user.organizationId));
+    // For facility_manager/trainer: further restrict to assigned facilities
+    const assignedIds = await getAssignedFacilityIds(user);
+    if (assignedIds !== null) {
+      if (assignedIds.length === 0) { res.json([]); return; }
+      const allFacilities = await query.orderBy(facilitiesTable.name);
+      res.json(allFacilities.filter(f => assignedIds.includes(f.id)));
+      return;
+    }
   } else {
     res.json([]); return;
   }

@@ -214,6 +214,59 @@ router.get("/reports/document-audit", requireAuth, async (req, res): Promise<voi
   });
 });
 
+router.get("/reports/survey-readiness", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const orgId = getOrgFilter(user, req.query.organizationId as string);
+  if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
+
+  const [employees, allRecords, allPracticums, allDocs, allBuckets, facilities] = await Promise.all([
+    db.select().from(employeesTable).where(and(eq(employeesTable.organizationId, orgId), eq(employeesTable.status, "active"))),
+    db.select().from(trainingRecordsTable).where(eq(trainingRecordsTable.organizationId, orgId)),
+    db.select().from(practicumsTable).where(and(eq(practicumsTable.organizationId, orgId), eq(practicumsTable.practicumYear, new Date().getFullYear()))),
+    db.select().from(trainingDocumentsTable).where(eq(trainingDocumentsTable.organizationId, orgId)),
+    db.select().from(trainingHourBucketsTable).where(and(eq(trainingHourBucketsTable.organizationId, orgId), eq(trainingHourBucketsTable.trainingYear, new Date().getFullYear()))),
+    db.select().from(facilitiesTable).where(eq(facilitiesTable.organizationId, orgId)),
+  ]);
+
+  const totalActive = employees.length;
+  const medAdminStaff = employees.filter(e => e.administersMedications).length;
+  const trainers = employees.filter(e => e.trainerStatus).length;
+  const compliantRecords = allRecords.filter(r => r.status === "compliant").length;
+  const expiredRecords = allRecords.filter(r => r.status === "expired").length;
+  const dueSoonRecords = allRecords.filter(r => r.status === "due_soon").length;
+  const practicumsCompliant = allPracticums.filter(p => p.status === "compliant").length;
+  const bucketsCompliant = allBuckets.filter(b => Number(b.completedHours) >= Number(b.requiredHours)).length;
+  const overallScore = allRecords.length > 0 ? Math.round((compliantRecords / allRecords.length) * 100) : 100;
+
+  const readinessChecks = [
+    { check: "All medication administration staff have current certifications", status: expiredRecords === 0 ? "pass" : "fail", detail: `${expiredRecords} expired certification(s)` },
+    { check: "Annual practicums completed for all med admin staff", status: practicumsCompliant >= medAdminStaff ? "pass" : (practicumsCompliant > 0 ? "partial" : "fail"), detail: `${practicumsCompliant}/${medAdminStaff} completed` },
+    { check: "Annual training hours requirements met", status: bucketsCompliant >= totalActive ? "pass" : (bucketsCompliant > 0 ? "partial" : "fail"), detail: `${bucketsCompliant}/${totalActive} staff met requirement` },
+    { check: "Supporting documentation uploaded", status: allDocs.length > 0 ? "pass" : "fail", detail: `${allDocs.length} document(s) on file` },
+    { check: "No certifications due within 30 days", status: dueSoonRecords === 0 ? "pass" : "warning", detail: `${dueSoonRecords} certification(s) due soon` },
+    { check: "Designated trainers on staff", status: trainers > 0 ? "pass" : "fail", detail: `${trainers} trainer(s) designated` },
+  ];
+
+  const passCount = readinessChecks.filter(c => c.status === "pass").length;
+  const surveyReadinessScore = Math.round((passCount / readinessChecks.length) * 100);
+
+  res.json({
+    reportType: "survey_readiness",
+    overallComplianceScore: overallScore,
+    surveyReadinessScore,
+    totalFacilities: facilities.length,
+    totalActiveStaff: totalActive,
+    medAdminStaff,
+    trainers,
+    compliantRecords,
+    expiredRecords,
+    dueSoonRecords,
+    readinessChecks,
+    generatedAt: new Date().toISOString(),
+  });
+});
+
 async function getTrainingRecordsForEmployees(employeeIds: number[], orgId: number) {
   if (employeeIds.length === 0) return [];
   return db

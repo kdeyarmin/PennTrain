@@ -4,6 +4,8 @@ import { employeesTable, trainingRecordsTable, trainingTypesTable, practicumsTab
 import { eq, and, or, ilike } from "drizzle-orm";
 import { requireAuth, getCurrentUser } from "../lib/auth";
 import { logAudit } from "../lib/audit";
+import { validateBody } from "../lib/validate";
+import { z } from "zod";
 
 const router: IRouter = Router();
 
@@ -52,22 +54,40 @@ router.get("/employees", requireAuth, async (req, res): Promise<void> => {
   res.json(employees);
 });
 
+const createEmployeeSchema = z.object({
+  facilityId: z.number({ invalid_type_error: "facilityId must be a number" }),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  jobTitle: z.string().min(1),
+  status: z.enum(["active", "inactive", "terminated", "on_leave"]).default("active"),
+  administersMedications: z.boolean().default(false),
+  trainerStatus: z.boolean().default(false),
+  employeeNumber: z.string().nullish(),
+  email: z.string().email().nullish(),
+  phone: z.string().nullish(),
+  hireDate: z.string().nullish(),
+  terminationDate: z.string().nullish(),
+  department: z.string().nullish(),
+  notes: z.string().nullish(),
+  organizationId: z.number().optional(),
+});
+
 router.post("/employees", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user || !["platform_admin", "org_admin", "facility_manager"].includes(user.role)) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
-  const { facilityId, firstName, lastName, jobTitle, status, administersMedications, trainerStatus, employeeNumber, email, phone, hireDate, terminationDate, department, notes } = req.body;
-  if (!facilityId || !firstName || !lastName || !jobTitle) {
-    res.status(400).json({ error: "Required fields: facilityId, firstName, lastName, jobTitle" }); return;
-  }
+  const body = validateBody(createEmployeeSchema, req, res);
+  if (!body) return;
+
+  const { facilityId, firstName, lastName, jobTitle, status, administersMedications, trainerStatus, employeeNumber, email, phone, hireDate, terminationDate, department, notes } = body;
 
   // Derive organizationId from server-side session, not client body
   let resolvedOrgId: number;
   if (user.role === "platform_admin") {
     // Platform admin must supply organizationId explicitly
-    const bodyOrgId = req.body.organizationId;
+    const bodyOrgId = body.organizationId;
     if (!bodyOrgId) { res.status(400).json({ error: "organizationId required for platform_admin" }); return; }
     resolvedOrgId = Number(bodyOrgId);
   } else {
