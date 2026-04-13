@@ -147,6 +147,14 @@ router.get("/employees/:id", requireAuth, async (req, res): Promise<void> => {
       res.status(403).json({ error: "Forbidden" }); return;
     }
   }
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null && employee.facilityId !== null) {
+      if (!assignedFacilityIds.includes(employee.facilityId)) {
+        res.status(403).json({ error: "Forbidden" }); return;
+      }
+    }
+  }
   res.json(employee);
 });
 
