@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { trainingRecordsTable, trainingTypesTable, employeesTable, facilitiesTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
-import { requireAuth, getCurrentUser } from "../lib/auth";
+import { eq, and, inArray } from "drizzle-orm";
+import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 import { calculateTrainingStatus, calculateDueDate } from "../lib/compliance";
 
@@ -23,6 +23,13 @@ router.get("/training-records", requireAuth, async (req, res): Promise<void> => 
     query = query.where(eq(trainingRecordsTable.organizationId, user.organizationId));
   } else if (req.query.organizationId) {
     query = query.where(eq(trainingRecordsTable.organizationId, Number(req.query.organizationId)));
+  }
+
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds && assignedFacilityIds.length > 0) {
+      query = query.where(inArray(trainingRecordsTable.facilityId, assignedFacilityIds));
+    }
   }
 
   if (req.query.facilityId) {

@@ -35,7 +35,7 @@ export default function Login() {
           setLocation("/me");
         }
       },
-      onError: (error: any) => {
+      onError: (error: { error?: string } & Record<string, unknown>) => {
         toast({
           variant: "destructive",
           title: "Login failed",

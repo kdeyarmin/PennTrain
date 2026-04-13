@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { practicumsTable, employeesTable, facilitiesTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
-import { requireAuth, getCurrentUser } from "../lib/auth";
+import { eq, and, inArray } from "drizzle-orm";
+import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
@@ -20,6 +20,13 @@ router.get("/practicums", requireAuth, async (req, res): Promise<void> => {
     query = query.where(eq(practicumsTable.organizationId, Number(req.query.organizationId)));
   }
 
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds && assignedFacilityIds.length > 0) {
+      query = query.where(inArray(practicumsTable.facilityId, assignedFacilityIds));
+    }
+  }
+
   if (req.query.facilityId) {
     const facilityId = Number(req.query.facilityId);
     if (user.role !== "platform_admin" && user.organizationId) {
@@ -31,7 +38,8 @@ router.get("/practicums", requireAuth, async (req, res): Promise<void> => {
     query = query.where(eq(practicumsTable.facilityId, facilityId));
   }
   if (req.query.employeeId) query = query.where(eq(practicumsTable.employeeId, Number(req.query.employeeId)));
-  if (req.query.practicumYear) query = query.where(eq(practicumsTable.practicumYear, Number(req.query.practicumYear)));
+  const yearParam = req.query.year ?? req.query.practicumYear;
+  if (yearParam) query = query.where(eq(practicumsTable.practicumYear, Number(yearParam)));
   if (req.query.status && typeof req.query.status === "string") {
     query = query.where(eq(practicumsTable.status, req.query.status as "compliant" | "due_soon" | "expired" | "missing"));
   }
