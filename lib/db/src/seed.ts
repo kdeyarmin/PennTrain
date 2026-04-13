@@ -34,6 +34,7 @@ async function seed() {
   await db.delete(alertsTable);
   await db.delete(trainingHourBucketsTable);
   await db.delete(practicumsTable);
+  await db.delete(trainingDocumentsTable);
   await db.delete(trainingRecordsTable);
   await db.delete(trainingTypesTable);
   await db.delete(facilityUserAssignmentsTable);
@@ -42,7 +43,7 @@ async function seed() {
   await db.delete(usersTable);
   await db.delete(organizationsTable);
 
-  // --- Organizations ---
+  // --- Organizations: exactly 2 ---
   const [sunrise] = await db.insert(organizationsTable).values({
     name: "Sunrise Healthcare Group",
     slug: "sunrise-healthcare",
@@ -73,22 +74,6 @@ async function seed() {
     planName: "Starter",
     maxFacilities: 5,
     maxUsers: 30,
-  }).returning();
-
-  const [valleycare] = await db.insert(organizationsTable).values({
-    name: "Valley Care Residences",
-    slug: "valley-care",
-    contactName: "Thomas Greenberg",
-    contactEmail: "tgreenberg@valleycare.com",
-    contactPhone: "610-555-0300",
-    address: "500 Valley Road",
-    city: "Allentown",
-    state: "PA",
-    zip: "18101",
-    subscriptionStatus: "active",
-    planName: "Starter",
-    maxFacilities: 3,
-    maxUsers: 25,
   }).returning();
 
   // --- Users ---
@@ -142,6 +127,17 @@ async function seed() {
     isActive: true,
   }).returning();
 
+  // Employee self-service demo user — linked to Alice Johnson via email
+  await db.insert(usersTable).values({
+    email: "alice.johnson@sunrisemanor.com",
+    passwordHash: await hash("demo123"),
+    firstName: "Alice",
+    lastName: "Johnson",
+    role: "employee",
+    organizationId: sunrise.id,
+    isActive: true,
+  });
+
   await db.insert(usersTable).values({
     email: "admin@maplegrove.com",
     passwordHash: await hash("demo123"),
@@ -152,17 +148,7 @@ async function seed() {
     isActive: true,
   });
 
-  await db.insert(usersTable).values({
-    email: "admin@valleycare.com",
-    passwordHash: await hash("demo123"),
-    firstName: "Thomas",
-    lastName: "Greenberg",
-    role: "org_admin",
-    organizationId: valleycare.id,
-    isActive: true,
-  });
-
-  // --- Facilities: 4 for Sunrise, 2 for Maple Grove, 1 for Valley Care = 7 total ---
+  // --- Facilities: 4 for Sunrise + 2 for Maple Grove = 6 total ---
   const [manor] = await db.insert(facilitiesTable).values({
     organizationId: sunrise.id,
     name: "Sunrise Manor",
@@ -247,21 +233,7 @@ async function seed() {
     administratorEmail: "ncole@maplegroveeast.com",
   }).returning();
 
-  const [valleyMain] = await db.insert(facilitiesTable).values({
-    organizationId: valleycare.id,
-    name: "Valley Care Main",
-    facilityType: "PCH",
-    licenseNumber: "PCH-2020-0065",
-    address: "500 Valley Road",
-    city: "Allentown",
-    state: "PA",
-    zip: "18101",
-    phone: "610-555-0301",
-    administratorName: "Thomas Greenberg",
-    administratorEmail: "tgreenberg@valleycare.com",
-  }).returning();
-
-  // --- Facility User Assignments (for demo facility_manager and trainer accounts) ---
+  // --- Facility User Assignments ---
   // manager@sunrisemanor.com manages Sunrise Manor + Sunrise Ridge PCH
   // manager2@sunrisegard.com manages Sunrise Gardens ALR + Sunrise Pavilion ALR
   // trainer@sunrisehealthcare.com trains at all 4 Sunrise facilities
@@ -412,19 +384,20 @@ async function seed() {
   function daysFromNow(n: number) { const d = new Date(today); d.setDate(d.getDate() + n); return d.toISOString().split("T")[0]; }
 
   // ========== SUNRISE MANOR employees (12) ==========
+  // Note: Alice Johnson email set to match employee demo user
   const manorEmployeeData = [
-    { firstName: "Alice", lastName: "Johnson", jobTitle: "Medication Aide", administersMedications: true, trainerStatus: false, hireDate: daysAgo(730), department: "Nursing", status: "active" as const },
-    { firstName: "Bob", lastName: "Smith", jobTitle: "Medication Aide", administersMedications: true, trainerStatus: false, hireDate: daysAgo(400), department: "Nursing", status: "active" as const },
-    { firstName: "Carol", lastName: "Davis", jobTitle: "Lead Trainer / Medication Aide", administersMedications: true, trainerStatus: true, hireDate: daysAgo(900), department: "Nursing", status: "active" as const },
-    { firstName: "Derek", lastName: "Wilson", jobTitle: "Caregiver", administersMedications: false, trainerStatus: false, hireDate: daysAgo(200), department: "Direct Care", status: "active" as const },
-    { firstName: "Emily", lastName: "Brown", jobTitle: "Medication Aide", administersMedications: true, trainerStatus: false, hireDate: daysAgo(60), department: "Nursing", status: "active" as const },
-    { firstName: "Frank", lastName: "Miller", jobTitle: "CNA", administersMedications: false, trainerStatus: false, hireDate: daysAgo(500), department: "Direct Care", status: "active" as const },
-    { firstName: "Gina", lastName: "Russo", jobTitle: "Medication Aide", administersMedications: true, trainerStatus: false, hireDate: daysAgo(850), department: "Nursing", status: "active" as const },
-    { firstName: "Harold", lastName: "Patel", jobTitle: "Activities Director", administersMedications: false, trainerStatus: false, hireDate: daysAgo(1100), department: "Activities", status: "active" as const },
-    { firstName: "Irene", lastName: "Nguyen", jobTitle: "Medication Aide", administersMedications: true, trainerStatus: false, hireDate: daysAgo(280), department: "Nursing", status: "active" as const },
-    { firstName: "James", lastName: "O'Brien", jobTitle: "Caregiver", administersMedications: false, trainerStatus: false, hireDate: daysAgo(180), department: "Direct Care", status: "active" as const },
-    { firstName: "Keisha", lastName: "Monroe", jobTitle: "LPN", administersMedications: true, trainerStatus: false, hireDate: daysAgo(620), department: "Nursing", status: "active" as const },
-    { firstName: "Luis", lastName: "Vargas", jobTitle: "CNA", administersMedications: false, trainerStatus: false, hireDate: daysAgo(90), department: "Direct Care", status: "on_leave" as const },
+    { firstName: "Alice", lastName: "Johnson", email: "alice.johnson@sunrisemanor.com", jobTitle: "Medication Aide", administersMedications: true, trainerStatus: false, hireDate: daysAgo(730), department: "Nursing", status: "active" as const },
+    { firstName: "Bob", lastName: "Smith", email: null, jobTitle: "Medication Aide", administersMedications: true, trainerStatus: false, hireDate: daysAgo(400), department: "Nursing", status: "active" as const },
+    { firstName: "Carol", lastName: "Davis", email: null, jobTitle: "Lead Trainer / Medication Aide", administersMedications: true, trainerStatus: true, hireDate: daysAgo(900), department: "Nursing", status: "active" as const },
+    { firstName: "Derek", lastName: "Wilson", email: null, jobTitle: "Caregiver", administersMedications: false, trainerStatus: false, hireDate: daysAgo(200), department: "Direct Care", status: "active" as const },
+    { firstName: "Emily", lastName: "Brown", email: null, jobTitle: "Medication Aide", administersMedications: true, trainerStatus: false, hireDate: daysAgo(60), department: "Nursing", status: "active" as const },
+    { firstName: "Frank", lastName: "Miller", email: null, jobTitle: "CNA", administersMedications: false, trainerStatus: false, hireDate: daysAgo(500), department: "Direct Care", status: "active" as const },
+    { firstName: "Gina", lastName: "Russo", email: null, jobTitle: "Medication Aide", administersMedications: true, trainerStatus: false, hireDate: daysAgo(850), department: "Nursing", status: "active" as const },
+    { firstName: "Harold", lastName: "Patel", email: null, jobTitle: "Activities Director", administersMedications: false, trainerStatus: false, hireDate: daysAgo(1100), department: "Activities", status: "active" as const },
+    { firstName: "Irene", lastName: "Nguyen", email: null, jobTitle: "Medication Aide", administersMedications: true, trainerStatus: false, hireDate: daysAgo(280), department: "Nursing", status: "active" as const },
+    { firstName: "James", lastName: "O'Brien", email: null, jobTitle: "Caregiver", administersMedications: false, trainerStatus: false, hireDate: daysAgo(180), department: "Direct Care", status: "active" as const },
+    { firstName: "Keisha", lastName: "Monroe", email: null, jobTitle: "LPN", administersMedications: true, trainerStatus: false, hireDate: daysAgo(620), department: "Nursing", status: "active" as const },
+    { firstName: "Luis", lastName: "Vargas", email: null, jobTitle: "CNA", administersMedications: false, trainerStatus: false, hireDate: daysAgo(90), department: "Direct Care", status: "on_leave" as const },
   ];
 
   const manorEmployees = [];
@@ -547,29 +520,7 @@ async function seed() {
     mapleEastEmployees.push(e);
   }
 
-  // ========== VALLEY CARE MAIN employees (7) ==========
-  const valleyEmployeeData = [
-    { firstName: "Yvonne", lastName: "Byrd", jobTitle: "Medication Aide", administersMedications: true, trainerStatus: false, hireDate: daysAgo(560), department: "Nursing", status: "active" as const },
-    { firstName: "Zachary", lastName: "Cole", jobTitle: "Medication Aide", administersMedications: true, trainerStatus: false, hireDate: daysAgo(200), department: "Nursing", status: "active" as const },
-    { firstName: "Amanda", lastName: "Frost", jobTitle: "Lead Trainer", administersMedications: true, trainerStatus: true, hireDate: daysAgo(720), department: "Nursing", status: "active" as const },
-    { firstName: "Brad", lastName: "Knox", jobTitle: "Caregiver", administersMedications: false, trainerStatus: false, hireDate: daysAgo(85), department: "Direct Care", status: "active" as const },
-    { firstName: "Chloe", lastName: "Ingram", jobTitle: "CNA", administersMedications: false, trainerStatus: false, hireDate: daysAgo(390), department: "Direct Care", status: "active" as const },
-    { firstName: "Dylan", lastName: "Marsh", jobTitle: "Medication Aide", administersMedications: true, trainerStatus: false, hireDate: daysAgo(130), department: "Nursing", status: "active" as const },
-    { firstName: "Elena", lastName: "Wise", jobTitle: "Activities Director", administersMedications: false, trainerStatus: false, hireDate: daysAgo(640), department: "Activities", status: "active" as const },
-  ];
-
-  const valleyEmployees = [];
-  for (const emp of valleyEmployeeData) {
-    const [e]: Employee[] = await db.insert(employeesTable).values({
-      organizationId: valleycare.id,
-      facilityId: valleyMain.id,
-      employeeNumber: `VC-${String(valleyEmployees.length + 7001).padStart(4, "0")}`,
-      ...emp,
-    }).returning();
-    valleyEmployees.push(e);
-  }
-
-  // Total employees: 12 + 10 + 6 + 5 + 8 + 5 + 7 = 53
+  // Total employees: 12 + 10 + 6 + 5 + 8 + 5 = 46
 
   const currentYear = today.getFullYear();
   const [alice, bob, carol, derek, emily, frank, gina, harold, irene, james, keisha, luis] = manorEmployees;
@@ -578,7 +529,6 @@ async function seed() {
   const [xena, yusuf, zoe, aaron, bette] = pavilionEmployees;
   const [karen, larry, mary, nathan, olivia, peter, rosa, sam] = mapleEmployees;
   const [tina, uma, vincent, wendy, xavier] = mapleEastEmployees;
-  const [yvonne, zachary, amanda, brad, chloe, dylan, elena] = valleyEmployees;
 
   // --- Training Records ---
   type TrainingRecord = {
@@ -590,7 +540,7 @@ async function seed() {
   };
 
   const trainingRecords: TrainingRecord[] = [
-    // Sunrise Manor - Alice (compliant)
+    // Sunrise Manor - Alice (compliant; demo employee user)
     { employee: alice, trainingType: medAdminInit, completionDate: daysAgo(600), facilityId: manor.id, orgId: sunrise.id },
     { employee: alice, trainingType: medAdminPracticum, completionDate: daysAgo(20), facilityId: manor.id, orgId: sunrise.id },
     { employee: alice, trainingType: diabetesEd, completionDate: daysAgo(45), facilityId: manor.id, orgId: sunrise.id },
@@ -685,18 +635,6 @@ async function seed() {
     // Maple Grove East - Xavier
     { employee: xavier, trainingType: medAdminInit, completionDate: daysAgo(420), facilityId: mapleEast.id, orgId: maplegrove.id },
     { employee: xavier, trainingType: medAdminPracticum, completionDate: null, facilityId: mapleEast.id, orgId: maplegrove.id },
-
-    // Valley Care - Yvonne
-    { employee: yvonne, trainingType: medAdminInit, completionDate: daysAgo(560), facilityId: valleyMain.id, orgId: valleycare.id },
-    { employee: yvonne, trainingType: medAdminPracticum, completionDate: daysAgo(200), facilityId: valleyMain.id, orgId: valleycare.id },
-    // Valley Care - Zachary
-    { employee: zachary, trainingType: medAdminInit, completionDate: daysAgo(200), facilityId: valleyMain.id, orgId: valleycare.id },
-    { employee: zachary, trainingType: medAdminPracticum, completionDate: null, facilityId: valleyMain.id, orgId: valleycare.id },
-    // Valley Care - Amanda (trainer)
-    { employee: amanda, trainingType: trainerInit, completionDate: daysAgo(720), facilityId: valleyMain.id, orgId: valleycare.id },
-    { employee: amanda, trainingType: trainerRecert, completionDate: daysAgo(350), facilityId: valleyMain.id, orgId: valleycare.id },
-    // Valley Care - Dylan
-    { employee: dylan, trainingType: medAdminInit, completionDate: null, facilityId: valleyMain.id, orgId: valleycare.id },
   ];
 
   for (const tr of trainingRecords) {
@@ -756,9 +694,6 @@ async function seed() {
 
     { employee: tina, orgId: maplegrove.id, facilityId: mapleEast.id, completionDate: daysAgo(70), status: "compliant", observedBy: "Vincent Lamb" },
     { employee: xavier, orgId: maplegrove.id, facilityId: mapleEast.id, completionDate: null, status: "missing" },
-
-    { employee: yvonne, orgId: valleycare.id, facilityId: valleyMain.id, completionDate: daysAgo(200), status: "compliant", observedBy: "Amanda Frost" },
-    { employee: zachary, orgId: valleycare.id, facilityId: valleyMain.id, completionDate: null, status: "missing" },
   ];
 
   for (const p of practicumData) {
@@ -787,7 +722,7 @@ async function seed() {
   };
 
   const hourBucketData: HourBucket[] = [
-    // Sunrise Manor (PCH)
+    // Sunrise Manor (PCH) — 12 hrs required
     { employee: alice, orgId: sunrise.id, facilityId: manor.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
     { employee: bob, orgId: sunrise.id, facilityId: manor.id, completed: "6.0", status: "incomplete", facilityType: "PCH" },
     { employee: carol, orgId: sunrise.id, facilityId: manor.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
@@ -800,7 +735,7 @@ async function seed() {
     { employee: james, orgId: sunrise.id, facilityId: manor.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
     { employee: keisha, orgId: sunrise.id, facilityId: manor.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
     { employee: luis, orgId: sunrise.id, facilityId: manor.id, completed: "4.0", status: "incomplete", facilityType: "PCH" },
-    // Sunrise Gardens (ALR) - requires 16 hrs
+    // Sunrise Gardens (ALR) — 16 hrs required
     { employee: grace, orgId: sunrise.id, facilityId: gardens.id, completed: "16.0", status: "compliant", facilityType: "ALR" },
     { employee: henry, orgId: sunrise.id, facilityId: gardens.id, completed: "16.0", status: "compliant", facilityType: "ALR" },
     { employee: isabel, orgId: sunrise.id, facilityId: gardens.id, completed: "14.5", status: "due_soon", facilityType: "ALR" },
@@ -811,20 +746,20 @@ async function seed() {
     { employee: oscar, orgId: sunrise.id, facilityId: gardens.id, completed: "10.0", status: "incomplete", facilityType: "ALR" },
     { employee: paula, orgId: sunrise.id, facilityId: gardens.id, completed: "1.5", status: "incomplete", facilityType: "ALR" },
     { employee: quinn, orgId: sunrise.id, facilityId: gardens.id, completed: "3.0", status: "incomplete", facilityType: "ALR" },
-    // Sunrise Ridge (PCH)
+    // Sunrise Ridge (PCH) — 12 hrs required
     { employee: rachel, orgId: sunrise.id, facilityId: ridge.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
     { employee: steven, orgId: sunrise.id, facilityId: ridge.id, completed: "2.0", status: "incomplete", facilityType: "PCH" },
     { employee: teresa, orgId: sunrise.id, facilityId: ridge.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
     { employee: ulysses, orgId: sunrise.id, facilityId: ridge.id, completed: "5.5", status: "incomplete", facilityType: "PCH" },
     { employee: victoria, orgId: sunrise.id, facilityId: ridge.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
     { employee: walter, orgId: sunrise.id, facilityId: ridge.id, completed: "9.0", status: "incomplete", facilityType: "PCH" },
-    // Sunrise Pavilion (ALR) - requires 16 hrs
+    // Sunrise Pavilion (ALR) — 16 hrs required
     { employee: xena, orgId: sunrise.id, facilityId: pavilion.id, completed: "16.0", status: "compliant", facilityType: "ALR" },
     { employee: yusuf, orgId: sunrise.id, facilityId: pavilion.id, completed: "6.0", status: "incomplete", facilityType: "ALR" },
     { employee: zoe, orgId: sunrise.id, facilityId: pavilion.id, completed: "16.0", status: "compliant", facilityType: "ALR" },
     { employee: aaron, orgId: sunrise.id, facilityId: pavilion.id, completed: "12.0", status: "incomplete", facilityType: "ALR" },
     { employee: bette, orgId: sunrise.id, facilityId: pavilion.id, completed: "8.0", status: "incomplete", facilityType: "ALR" },
-    // Maple Grove Residence (PCH)
+    // Maple Grove Residence (PCH) — 12 hrs required
     { employee: karen, orgId: maplegrove.id, facilityId: mapleFacility.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
     { employee: larry, orgId: maplegrove.id, facilityId: mapleFacility.id, completed: "8.0", status: "incomplete", facilityType: "PCH" },
     { employee: mary, orgId: maplegrove.id, facilityId: mapleFacility.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
@@ -833,20 +768,12 @@ async function seed() {
     { employee: peter, orgId: maplegrove.id, facilityId: mapleFacility.id, completed: "10.0", status: "incomplete", facilityType: "PCH" },
     { employee: rosa, orgId: maplegrove.id, facilityId: mapleFacility.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
     { employee: sam, orgId: maplegrove.id, facilityId: mapleFacility.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
-    // Maple Grove East (ALR) - requires 16 hrs
+    // Maple Grove East (ALR) — 16 hrs required
     { employee: tina, orgId: maplegrove.id, facilityId: mapleEast.id, completed: "16.0", status: "compliant", facilityType: "ALR" },
     { employee: uma, orgId: maplegrove.id, facilityId: mapleEast.id, completed: "7.5", status: "incomplete", facilityType: "ALR" },
     { employee: vincent, orgId: maplegrove.id, facilityId: mapleEast.id, completed: "16.0", status: "compliant", facilityType: "ALR" },
     { employee: wendy, orgId: maplegrove.id, facilityId: mapleEast.id, completed: "14.5", status: "due_soon", facilityType: "ALR" },
     { employee: xavier, orgId: maplegrove.id, facilityId: mapleEast.id, completed: "9.5", status: "incomplete", facilityType: "ALR" },
-    // Valley Care Main (PCH)
-    { employee: yvonne, orgId: valleycare.id, facilityId: valleyMain.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
-    { employee: zachary, orgId: valleycare.id, facilityId: valleyMain.id, completed: "6.5", status: "incomplete", facilityType: "PCH" },
-    { employee: amanda, orgId: valleycare.id, facilityId: valleyMain.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
-    { employee: brad, orgId: valleycare.id, facilityId: valleyMain.id, completed: "3.0", status: "incomplete", facilityType: "PCH" },
-    { employee: chloe, orgId: valleycare.id, facilityId: valleyMain.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
-    { employee: dylan, orgId: valleycare.id, facilityId: valleyMain.id, completed: "4.0", status: "incomplete", facilityType: "PCH" },
-    { employee: elena, orgId: valleycare.id, facilityId: valleyMain.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
   ];
 
   for (const b of hourBucketData) {
@@ -982,40 +909,10 @@ async function seed() {
       severity: "critical",
       status: "open",
     },
-    {
-      organizationId: valleycare.id,
-      facilityId: valleyMain.id,
-      employeeId: dylan.id,
-      alertType: "missing_document",
-      title: "Initial Medication Training Missing - Dylan Marsh",
-      message: "Dylan Marsh (hired 130 days ago) has not completed initial medication administration training.",
-      severity: "warning",
-      status: "open",
-    },
-    {
-      organizationId: valleycare.id,
-      facilityId: valleyMain.id,
-      employeeId: zachary.id,
-      alertType: "overdue",
-      title: "Annual Practicum Missing - Zachary Cole",
-      message: "Zachary Cole has not completed the current year annual practicum.",
-      severity: "critical",
-      status: "open",
-    },
-    {
-      organizationId: valleycare.id,
-      facilityId: valleyMain.id,
-      alertType: "due_30",
-      title: "Facility License Expiring - Valley Care Main",
-      message: "Valley Care Main facility license (PCH-2020-0065) expires on 2026-04-15.",
-      severity: "warning",
-      status: "open",
-    },
   ]);
 
   // --- Training Documents ---
   await db.insert(trainingDocumentsTable).values([
-    // Sunrise Manor - Alice: med admin init certificate
     {
       organizationId: sunrise.id,
       facilityId: manor.id,
@@ -1026,7 +923,6 @@ async function seed() {
       fileSize: 45000,
       documentType: "certificate",
     },
-    // Sunrise Manor - Alice: practicum form
     {
       organizationId: sunrise.id,
       facilityId: manor.id,
@@ -1037,7 +933,6 @@ async function seed() {
       fileSize: 32000,
       documentType: "practicum_form",
     },
-    // Sunrise Manor - Carol: trainer certificate
     {
       organizationId: sunrise.id,
       facilityId: manor.id,
@@ -1048,7 +943,6 @@ async function seed() {
       fileSize: 55000,
       documentType: "certificate",
     },
-    // Sunrise Manor - Bob: transcript
     {
       organizationId: sunrise.id,
       facilityId: manor.id,
@@ -1059,7 +953,6 @@ async function seed() {
       fileSize: 28000,
       documentType: "transcript",
     },
-    // Sunrise Gardens - Grace: med admin certificate
     {
       organizationId: sunrise.id,
       facilityId: gardens.id,
@@ -1070,7 +963,6 @@ async function seed() {
       fileSize: 40000,
       documentType: "certificate",
     },
-    // Sunrise Gardens - Henry: training roster
     {
       organizationId: sunrise.id,
       facilityId: gardens.id,
@@ -1081,7 +973,6 @@ async function seed() {
       fileSize: 62000,
       documentType: "roster",
     },
-    // Pavilion - Xena: practicum form
     {
       organizationId: sunrise.id,
       facilityId: pavilion.id,
@@ -1092,7 +983,6 @@ async function seed() {
       fileSize: 35000,
       documentType: "practicum_form",
     },
-    // Maple Grove - Karen: med admin certificate
     {
       organizationId: maplegrove.id,
       facilityId: mapleFacility.id,
@@ -1103,7 +993,6 @@ async function seed() {
       fileSize: 43000,
       documentType: "certificate",
     },
-    // Maple Grove - Larry: transcript
     {
       organizationId: maplegrove.id,
       facilityId: mapleFacility.id,
@@ -1114,42 +1003,21 @@ async function seed() {
       fileSize: 29000,
       documentType: "transcript",
     },
-    // Valley Care - Yvonne: med admin certificate
-    {
-      organizationId: valleycare.id,
-      facilityId: valleyMain.id,
-      employeeId: yvonne.id,
-      fileName: "yvonne_med_admin_certificate_2025.pdf",
-      fileUrl: "/api/documents/file/yvonne_med_admin_certificate_2025.pdf",
-      fileType: "application/pdf",
-      fileSize: 47000,
-      documentType: "certificate",
-    },
-    // Valley Care - Zachary: practicum form (missing - shows gap)
-    {
-      organizationId: valleycare.id,
-      facilityId: valleyMain.id,
-      employeeId: zachary.id,
-      fileName: "zachary_prior_year_practicum_2024.pdf",
-      fileUrl: "/api/documents/file/zachary_prior_year_practicum_2024.pdf",
-      fileType: "application/pdf",
-      fileSize: 31000,
-      documentType: "practicum_form",
-    },
   ]);
 
   console.log("Database seeded successfully!");
-  console.log("\nOrganizations: 3 (Sunrise Healthcare, Maple Grove, Valley Care)");
-  console.log("Facilities: 7 (4 Sunrise, 2 Maple Grove, 1 Valley Care)");
-  console.log("Employees: 53 total");
-  console.log("Training Documents: 11 (realistic proof documents across orgs and facilities)");
+  console.log("\nOrganizations: 2 (Sunrise Healthcare, Maple Grove)");
+  console.log("Facilities: 6 (4 Sunrise, 2 Maple Grove)");
+  console.log("Employees: 46 total (12+10+6+5 Sunrise, 8+5 Maple Grove)");
+  console.log("Training Documents: 9 realistic proof documents across orgs and facilities");
   console.log("\nDemo credentials:");
-  console.log("  Platform Admin: admin@pamedtrack.com / admin123");
-  console.log("  Org Admin:      admin@sunrisehealthcare.com / demo123");
-  console.log("  Facility Mgr:   manager@sunrisemanor.com / demo123");
-  console.log("  Trainer:        trainer@sunrisehealthcare.com / demo123");
-  console.log("  Org Admin 2:    admin@maplegrove.com / demo123");
-  console.log("  Org Admin 3:    admin@valleycare.com / demo123");
+  console.log("  Platform Admin:  admin@pamedtrack.com / admin123");
+  console.log("  Org Admin:       admin@sunrisehealthcare.com / demo123");
+  console.log("  Facility Mgr:    manager@sunrisemanor.com / demo123  (Manor + Ridge)");
+  console.log("  Facility Mgr 2:  manager2@sunrisegard.com / demo123  (Gardens + Pavilion)");
+  console.log("  Trainer:         trainer@sunrisehealthcare.com / demo123  (all 4 Sunrise)");
+  console.log("  Employee:        alice.johnson@sunrisemanor.com / demo123  (self-service)");
+  console.log("  Org Admin 2:     admin@maplegrove.com / demo123");
   process.exit(0);
 }
 
