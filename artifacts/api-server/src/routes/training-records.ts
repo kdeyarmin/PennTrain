@@ -126,6 +126,14 @@ router.post("/training-records", requireAuth, async (req, res): Promise<void> =>
   );
   if (!facility) { res.status(400).json({ error: "Facility not found in your organization" }); return; }
 
+  // Enforce facility-assignment check for facility_manager/trainer
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null && !assignedFacilityIds.includes(Number(facilityId))) {
+      res.status(403).json({ error: "Forbidden: not assigned to this facility" }); return;
+    }
+  }
+
   const [trainingType] = await db.select().from(trainingTypesTable).where(eq(trainingTypesTable.id, Number(trainingTypeId)));
   const dueDate = calculateDueDate(completionDate ?? null, trainingType?.renewalIntervalDays ?? null);
   const status = calculateTrainingStatus(completionDate ?? null, trainingType?.renewalIntervalDays ?? null, trainingType?.warningDaysDefault ?? 90);
@@ -192,6 +200,14 @@ router.patch("/training-records/:id", requireAuth, async (req, res): Promise<voi
   if (!existing) { res.status(404).json({ error: "Training record not found" }); return; }
   if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  // Enforce facility-assignment check for facility_manager/trainer
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null && existing.facilityId !== null && !assignedFacilityIds.includes(existing.facilityId)) {
+      res.status(403).json({ error: "Forbidden: not assigned to this facility" }); return;
+    }
   }
 
   const patchBody = validateBody(patchTrainingRecordSchema, req, res);

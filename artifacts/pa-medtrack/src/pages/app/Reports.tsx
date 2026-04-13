@@ -223,43 +223,38 @@ function flattenToRows(data: unknown, reportId: string): string[][] {
   }
 
   if (reportId === "compliance-summary") {
-    const summary = d.summary as Record<string, unknown> | undefined;
-    if (!summary) return [["No summary data available"]];
-    const byType = (d.byType as Array<Record<string, unknown>>) ?? [];
-    const summaryRows = [
+    const totalRecords = d.totalRecords ?? d.total;
+    return [
       ["Metric", "Value"],
-      ["Total Records", String(summary.total ?? "")],
-      ["Compliant", String(summary.compliant ?? "")],
-      ["Expired", String(summary.expired ?? "")],
-      ["Due Soon", String(summary.dueSoon ?? "")],
-      ["Compliance %", `${String(summary.compliancePercentage ?? "")}%`],
-      [],
-      ["Training Type", "Total", "Compliant", "Expired", "Due Soon"],
-      ...byType.map(t => [
-        String(t.trainingType ?? t.typeName ?? ""),
-        String(t.total ?? ""),
-        String(t.compliant ?? ""),
-        String(t.expired ?? ""),
-        String(t.dueSoon ?? ""),
-      ]),
+      ["Total Employees", String(d.totalEmployees ?? "")],
+      ["Total Records", String(totalRecords ?? "")],
+      ["Compliant", String(d.compliantCount ?? "")],
+      ["Expired", String(d.expiredCount ?? "")],
+      ["Due Soon", String(d.dueSoonCount ?? "")],
+      ["Compliance %", `${String(d.compliancePercentage ?? "")}%`],
+      ["Generated At", String(d.generatedAt ?? "")],
     ];
-    return summaryRows;
   }
 
   if (reportId === "employee-transcript") {
     const employee = d.employee as Record<string, unknown> | undefined;
-    const records = (d.records as Array<Record<string, unknown>>) ?? [];
-    const empRow = employee ? [["Employee", `${employee.firstName} ${employee.lastName}`]] : [];
-    if (records.length === 0) return [...empRow, ["No training records found"]];
-    const headers = ["Training Type", "Completed Date", "Expiration Date", "Status", "Notes"];
-    const rows = records.map(r => [
-      String(r.trainingTypeName ?? r.trainingType ?? ""),
-      String(r.completedDate ?? ""),
-      String(r.expirationDate ?? ""),
+    const trainingRecords = (d.trainingRecords as Array<Record<string, unknown>>) ?? [];
+    const empName = employee ? `${employee.firstName} ${employee.lastName}` : "Unknown";
+    const headers = ["Training Type", "Completion Date", "Due Date", "Status", "Trainer", "Notes"];
+    const rows = trainingRecords.map(r => [
+      String(r.trainingTypeName ?? ""),
+      String(r.completionDate ?? ""),
+      String(r.dueDate ?? ""),
       String(r.status ?? ""),
+      String(r.trainerName ?? ""),
       String(r.notes ?? ""),
     ]);
-    return [...empRow, [], [String(records.length) + " records"], headers, ...rows];
+    return [
+      ["Employee", empName],
+      [],
+      headers,
+      ...rows.length ? rows : [["No training records found"]],
+    ];
   }
 
   const records = (

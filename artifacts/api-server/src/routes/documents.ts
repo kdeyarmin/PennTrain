@@ -44,39 +44,42 @@ router.get("/documents", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
-  if (user.role === "employee" && !req.query.employeeId) {
-    res.status(403).json({ error: "Forbidden: employeeId filter required for employee role" }); return;
-  }
-
   let query = db.select().from(trainingDocumentsTable).$dynamic();
 
-  if (user.role !== "platform_admin") {
+  if (user.role === "employee") {
+    // Employees always see only their own documents — derive identity from session
     if (!user.organizationId) { res.json([]); return; }
-    query = query.where(eq(trainingDocumentsTable.organizationId, user.organizationId));
-  } else if (req.query.organizationId) {
-    query = query.where(eq(trainingDocumentsTable.organizationId, Number(req.query.organizationId)));
-  }
+    const [selfEmp] = await db.select().from(employeesTable).where(
+      and(eq(employeesTable.email, user.email), eq(employeesTable.organizationId, user.organizationId))
+    );
+    if (!selfEmp) { res.json([]); return; }
+    query = query.where(
+      and(
+        eq(trainingDocumentsTable.organizationId, user.organizationId),
+        eq(trainingDocumentsTable.employeeId, selfEmp.id)
+      )
+    );
+  } else {
+    if (user.role !== "platform_admin") {
+      if (!user.organizationId) { res.json([]); return; }
+      query = query.where(eq(trainingDocumentsTable.organizationId, user.organizationId));
+    } else if (req.query.organizationId) {
+      query = query.where(eq(trainingDocumentsTable.organizationId, Number(req.query.organizationId)));
+    }
 
-  if (req.query.facilityId) {
-    const facilityId = Number(req.query.facilityId);
-    if (user.role !== "platform_admin" && user.organizationId) {
-      const [fac] = await db.select().from(facilitiesTable).where(
-        and(eq(facilitiesTable.id, facilityId), eq(facilitiesTable.organizationId, user.organizationId))
-      );
-      if (!fac) { res.status(403).json({ error: "Forbidden" }); return; }
-    }
-    query = query.where(eq(trainingDocumentsTable.facilityId, facilityId));
-  }
-  if (req.query.employeeId) {
-    const employeeId = Number(req.query.employeeId);
-    if (user.role === "employee") {
-      const [linkedEmployee] = await db.select().from(employeesTable)
-        .where(and(eq(employeesTable.email, user.email), eq(employeesTable.id, employeeId)));
-      if (!linkedEmployee) {
-        res.status(403).json({ error: "Forbidden" }); return;
+    if (req.query.facilityId) {
+      const facilityId = Number(req.query.facilityId);
+      if (user.role !== "platform_admin" && user.organizationId) {
+        const [fac] = await db.select().from(facilitiesTable).where(
+          and(eq(facilitiesTable.id, facilityId), eq(facilitiesTable.organizationId, user.organizationId))
+        );
+        if (!fac) { res.status(403).json({ error: "Forbidden" }); return; }
       }
+      query = query.where(eq(trainingDocumentsTable.facilityId, facilityId));
     }
-    query = query.where(eq(trainingDocumentsTable.employeeId, employeeId));
+    if (req.query.employeeId) {
+      query = query.where(eq(trainingDocumentsTable.employeeId, Number(req.query.employeeId)));
+    }
   }
   if (req.query.trainingRecordId) {
     query = query.where(eq(trainingDocumentsTable.trainingRecordId, Number(req.query.trainingRecordId)));

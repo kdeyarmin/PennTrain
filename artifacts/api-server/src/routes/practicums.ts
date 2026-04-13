@@ -120,6 +120,14 @@ router.post("/practicums", requireAuth, async (req, res): Promise<void> => {
   );
   if (!facility) { res.status(400).json({ error: "Facility not found in your organization" }); return; }
 
+  // Enforce facility-assignment check for facility_manager/trainer
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null && !assignedFacilityIds.includes(Number(facilityId))) {
+      res.status(403).json({ error: "Forbidden: not assigned to this facility" }); return;
+    }
+  }
+
   const [practicum] = await db.insert(practicumsTable).values({
     organizationId: resolvedOrgId,
     facilityId: Number(facilityId),
@@ -169,6 +177,14 @@ router.patch("/practicums/:id", requireAuth, async (req, res): Promise<void> => 
   if (!existing) { res.status(404).json({ error: "Practicum not found" }); return; }
   if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  // Enforce facility-assignment check for facility_manager/trainer
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null && existing.facilityId !== null && !assignedFacilityIds.includes(existing.facilityId)) {
+      res.status(403).json({ error: "Forbidden: not assigned to this facility" }); return;
+    }
   }
 
   const patchBody = validateBody(patchPracticumSchema, req, res);
