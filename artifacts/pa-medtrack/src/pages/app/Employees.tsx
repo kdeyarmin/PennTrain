@@ -4,7 +4,6 @@ import {
   useCreateEmployee, useUpdateEmployee, useDeleteEmployee
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -166,7 +165,7 @@ export default function Employees() {
   }
 
   const sortIndicator = (field: SortField) =>
-    sortField === field ? (sortDir === "asc" ? " ↑" : " ↓") : "";
+    sortField === field ? (sortDir === "asc" ? " \u2191" : " \u2193") : "";
 
   const openCreate = () => {
     setEditEmp(null);
@@ -226,154 +225,170 @@ export default function Employees() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="page-header flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Employees</h1>
-          <p className="text-muted-foreground">Manage staff and track their compliance status.</p>
+          <h1>Employees</h1>
+          <p>Manage staff and track their compliance status.</p>
         </div>
         {canManage && (
-          <Button onClick={openCreate}>
+          <Button onClick={openCreate} className="shadow-sm">
             <UserPlus className="mr-2 h-4 w-4" /> Add Employee
           </Button>
         )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex gap-3 flex-wrap">
-            <div className="relative flex-1 min-w-48">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search employees..."
-                value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1); }}
-                className="pl-9"
-              />
-            </div>
-            <Select value={facilityId} onValueChange={v => { setFacilityId(v); setPage(1); }}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="All Facilities" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Facilities</SelectItem>
-                {facilities?.map(f => (
-                  <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={status} onValueChange={v => { setStatus(v); setPage(1); }}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="All Statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-                <SelectItem value="terminated">Terminated</SelectItem>
-                <SelectItem value="on_leave">On Leave</SelectItem>
-              </SelectContent>
-            </Select>
+      <div className="premium-card">
+        <div className="filter-bar">
+          <div className="relative flex-1 min-w-48">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search employees..."
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              className="pl-9 h-9 bg-card"
+            />
           </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-2">
-              {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded" />)}
-            </div>
-          ) : paginated.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No employees found.</p>
-          ) : (
-            <>
-              <div className="rounded-md border overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="text-left p-3 cursor-pointer hover:bg-muted" onClick={() => toggleSort("lastName")}>
-                        Name{sortIndicator("lastName")}
-                      </th>
-                      <th className="text-left p-3 cursor-pointer hover:bg-muted" onClick={() => toggleSort("jobTitle")}>
-                        Role{sortIndicator("jobTitle")}
-                      </th>
-                      <th className="text-left p-3 cursor-pointer hover:bg-muted" onClick={() => toggleSort("status")}>
-                        Status{sortIndicator("status")}
-                      </th>
-                      <th className="text-left p-3 cursor-pointer hover:bg-muted" onClick={() => toggleSort("hireDate")}>
-                        Hire Date{sortIndicator("hireDate")}
-                      </th>
-                      <th className="text-left p-3">Tags</th>
-                      <th className="p-3" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginated.map(emp => (
-                      <tr key={emp.id} className="border-t hover:bg-muted/30">
-                        <td className="p-3">
-                          <Link href={`${basePath}/${emp.id}`}>
-                            <span className="font-medium hover:underline cursor-pointer">
-                              {emp.lastName}, {emp.firstName}
-                            </span>
-                          </Link>
-                        </td>
-                        <td className="p-3 text-muted-foreground">{emp.jobTitle ?? "—"}</td>
-                        <td className="p-3">
-                          <StatusBadge status={emp.status} type="employee" />
-                        </td>
-                        <td className="p-3 text-muted-foreground">
-                          {emp.hireDate ? new Date(emp.hireDate).toLocaleDateString() : "—"}
-                        </td>
-                        <td className="p-3">
-                          <div className="flex gap-1">
-                            {emp.administersMedications && <Badge variant="secondary" className="text-xs">Med Admin</Badge>}
-                            {emp.trainerStatus && <Badge variant="outline" className="text-xs">Trainer</Badge>}
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          <div className="flex items-center gap-1 justify-end">
-                            {canManage && (
-                              <>
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={e => openEdit(e, emp)}>
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-destructive hover:text-destructive"
-                                  onClick={e => { e.preventDefault(); e.stopPropagation(); setDeleteEmp(emp); }}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </>
-                            )}
-                            <Link href={`${basePath}/${emp.id}`}>
-                              <ChevronRight className="h-4 w-4 text-muted-foreground cursor-pointer" />
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-sm text-muted-foreground">
-                  Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)} of {sorted.length} employees
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-sm">Page {page} of {totalPages}</span>
-                  <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+          <Select value={facilityId} onValueChange={v => { setFacilityId(v); setPage(1); }}>
+            <SelectTrigger className="w-48 h-9 bg-card">
+              <SelectValue placeholder="All Facilities" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Facilities</SelectItem>
+              {facilities?.map(f => (
+                <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={status} onValueChange={v => { setStatus(v); setPage(1); }}>
+            <SelectTrigger className="w-40 h-9 bg-card">
+              <SelectValue placeholder="All Statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+              <SelectItem value="terminated">Terminated</SelectItem>
+              <SelectItem value="on_leave">On Leave</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        {isLoading ? (
+          <div className="p-6 space-y-3">
+            {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
+          </div>
+        ) : paginated.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <Users className="h-10 w-10 text-muted-foreground/30 mb-3" />
+            <p className="text-sm font-medium text-muted-foreground">No employees found</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">Try adjusting your search or filters</p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-hidden">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th className="sortable" onClick={() => toggleSort("lastName")} onKeyDown={e => e.key === "Enter" && toggleSort("lastName")} tabIndex={0} role="columnheader" aria-sort={sortField === "lastName" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+                      Name{sortIndicator("lastName")}
+                    </th>
+                    <th className="sortable" onClick={() => toggleSort("jobTitle")} onKeyDown={e => e.key === "Enter" && toggleSort("jobTitle")} tabIndex={0} role="columnheader" aria-sort={sortField === "jobTitle" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+                      Role{sortIndicator("jobTitle")}
+                    </th>
+                    <th className="sortable" onClick={() => toggleSort("status")} onKeyDown={e => e.key === "Enter" && toggleSort("status")} tabIndex={0} role="columnheader" aria-sort={sortField === "status" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+                      Status{sortIndicator("status")}
+                    </th>
+                    <th className="sortable" onClick={() => toggleSort("hireDate")} onKeyDown={e => e.key === "Enter" && toggleSort("hireDate")} tabIndex={0} role="columnheader" aria-sort={sortField === "hireDate" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+                      Hire Date{sortIndicator("hireDate")}
+                    </th>
+                    <th>Tags</th>
+                    <th className="w-24" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginated.map(emp => (
+                    <tr key={emp.id}>
+                      <td>
+                        <Link href={`${basePath}/${emp.id}`}>
+                          <div className="flex items-center gap-3 cursor-pointer">
+                            <div className="h-8 w-8 rounded-full bg-primary/8 flex items-center justify-center text-[11px] font-semibold text-primary shrink-0">
+                              {emp.firstName[0]}{emp.lastName[0]}
+                            </div>
+                            <div>
+                              <span className="font-medium text-foreground hover:text-primary transition-colors">
+                                {emp.lastName}, {emp.firstName}
+                              </span>
+                              {emp.email && (
+                                <p className="text-[11px] text-muted-foreground mt-0.5">{emp.email}</p>
+                              )}
+                            </div>
+                          </div>
+                        </Link>
+                      </td>
+                      <td className="text-muted-foreground">{emp.jobTitle ?? "\u2014"}</td>
+                      <td>
+                        <StatusBadge status={emp.status} type="employee" />
+                      </td>
+                      <td className="text-muted-foreground">
+                        {emp.hireDate ? new Date(emp.hireDate).toLocaleDateString() : "\u2014"}
+                      </td>
+                      <td>
+                        <div className="flex gap-1.5">
+                          {emp.administersMedications && (
+                            <Badge variant="secondary" className="text-[10px] font-medium bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50">Med Admin</Badge>
+                          )}
+                          {emp.trainerStatus && (
+                            <Badge variant="outline" className="text-[10px] font-medium">Trainer</Badge>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-0.5 justify-end">
+                          {canManage && (
+                            <>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={e => openEdit(e, emp)} aria-label={`Edit ${emp.firstName} ${emp.lastName}`}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                onClick={e => { e.preventDefault(); e.stopPropagation(); setDeleteEmp(emp); }}
+                                aria-label={`Delete ${emp.firstName} ${emp.lastName}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          )}
+                          <Link href={`${basePath}/${emp.id}`}>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground/40 cursor-pointer" />
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center justify-between px-5 py-4 border-t border-border/60">
+              <p className="text-[13px] text-muted-foreground">
+                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}\u2013{Math.min(page * PAGE_SIZE, sorted.length)}</span> of {sorted.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-[13px] text-muted-foreground px-2">Page {page} of {totalPages}</span>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
         <Users className="h-4 w-4" />
         <span>{filtered.length} employee{filtered.length !== 1 ? "s" : ""} total</span>
       </div>
@@ -384,38 +399,38 @@ export default function Employees() {
             <DialogTitle>{editEmp ? "Edit Employee" : "Add Employee"}</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
-            <div className="space-y-1">
-              <Label>First Name *</Label>
-              <Input value={form.firstName} onChange={e => field("firstName", e.target.value)} placeholder="Jane" />
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">First Name *</Label>
+              <Input value={form.firstName} onChange={e => field("firstName", e.target.value)} placeholder="Jane" className="h-9" />
             </div>
-            <div className="space-y-1">
-              <Label>Last Name *</Label>
-              <Input value={form.lastName} onChange={e => field("lastName", e.target.value)} placeholder="Smith" />
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Last Name *</Label>
+              <Input value={form.lastName} onChange={e => field("lastName", e.target.value)} placeholder="Smith" className="h-9" />
             </div>
-            <div className="space-y-1">
-              <Label>Email</Label>
-              <Input type="email" value={form.email} onChange={e => field("email", e.target.value)} placeholder="jane@example.com" />
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Email</Label>
+              <Input type="email" value={form.email} onChange={e => field("email", e.target.value)} placeholder="jane@example.com" className="h-9" />
             </div>
-            <div className="space-y-1">
-              <Label>Phone</Label>
-              <Input value={form.phone} onChange={e => field("phone", e.target.value)} placeholder="(215) 555-0100" />
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Phone</Label>
+              <Input value={form.phone} onChange={e => field("phone", e.target.value)} placeholder="(215) 555-0100" className="h-9" />
             </div>
-            <div className="space-y-1">
-              <Label>Job Title</Label>
-              <Input value={form.jobTitle} onChange={e => field("jobTitle", e.target.value)} placeholder="Medication Aide" />
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Job Title</Label>
+              <Input value={form.jobTitle} onChange={e => field("jobTitle", e.target.value)} placeholder="Medication Aide" className="h-9" />
             </div>
-            <div className="space-y-1">
-              <Label>Department</Label>
-              <Input value={form.department} onChange={e => field("department", e.target.value)} placeholder="Nursing" />
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Department</Label>
+              <Input value={form.department} onChange={e => field("department", e.target.value)} placeholder="Nursing" className="h-9" />
             </div>
-            <div className="space-y-1">
-              <Label>Employee Number</Label>
-              <Input value={form.employeeNumber} onChange={e => field("employeeNumber", e.target.value)} placeholder="EMP-001" />
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Employee Number</Label>
+              <Input value={form.employeeNumber} onChange={e => field("employeeNumber", e.target.value)} placeholder="EMP-001" className="h-9" />
             </div>
-            <div className="space-y-1">
-              <Label>Facility</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Facility</Label>
               <Select value={form.facilityId} onValueChange={v => field("facilityId", v)}>
-                <SelectTrigger><SelectValue placeholder="Select facility" /></SelectTrigger>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No facility</SelectItem>
                   {facilities?.map(f => (
@@ -424,14 +439,14 @@ export default function Employees() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
-              <Label>Hire Date</Label>
-              <Input type="date" value={form.hireDate} onChange={e => field("hireDate", e.target.value)} />
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Hire Date</Label>
+              <Input type="date" value={form.hireDate} onChange={e => field("hireDate", e.target.value)} className="h-9" />
             </div>
-            <div className="space-y-1">
-              <Label>Status</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Status</Label>
               <Select value={form.status} onValueChange={v => field("status", v as EmpFormData["status"])}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="inactive">Inactive</SelectItem>
@@ -440,30 +455,30 @@ export default function Employees() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="col-span-2 flex gap-6">
-              <label className="flex items-center gap-2 cursor-pointer">
+            <div className="col-span-2 flex gap-6 pt-1">
+              <label className="flex items-center gap-2.5 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={form.administersMedications}
                   onChange={e => field("administersMedications", e.target.checked)}
-                  className="h-4 w-4"
+                  className="h-4 w-4 rounded border-border"
                 />
-                <span className="text-sm">Administers Medications</span>
+                <span className="text-[13px]">Administers Medications</span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2.5 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={form.trainerStatus}
                   onChange={e => field("trainerStatus", e.target.checked)}
-                  className="h-4 w-4"
+                  className="h-4 w-4 rounded border-border"
                 />
-                <span className="text-sm">Designated Trainer</span>
+                <span className="text-[13px]">Designated Trainer</span>
               </label>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowForm(false); setEditEmp(null); }}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={creating || updating}>
+            <Button onClick={handleSubmit} disabled={creating || updating} className="shadow-sm">
               {creating || updating ? "Saving..." : editEmp ? "Save Changes" : "Create Employee"}
             </Button>
           </DialogFooter>

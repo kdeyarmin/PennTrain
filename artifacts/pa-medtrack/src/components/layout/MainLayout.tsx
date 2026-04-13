@@ -35,7 +35,7 @@ function ImpersonationBanner() {
   if (!status?.impersonating) return null;
 
   return (
-    <div className="bg-amber-500 text-amber-950 px-4 py-2 flex items-center justify-between text-sm font-medium">
+    <div className="bg-amber-500 text-amber-950 px-6 py-2.5 flex items-center justify-between text-sm font-medium">
       <div className="flex items-center gap-2">
         <Eye className="h-4 w-4" />
         <span>Viewing as: <strong>{status.organizationName}</strong></span>
@@ -60,13 +60,16 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   if (isLoading) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
       </div>
     );
   }
 
   if (!isAuthenticated) {
-    return null; // Will redirect in AuthProvider
+    return null;
   }
 
   return (
@@ -75,8 +78,8 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col min-w-0">
         <ImpersonationBanner />
         <Header />
-        <main className="flex-1 overflow-auto p-6 bg-muted/20">
-          <div className="mx-auto max-w-7xl">
+        <main className="flex-1 overflow-auto bg-background">
+          <div className="mx-auto max-w-[1400px] px-8 py-8">
             {children}
           </div>
         </main>

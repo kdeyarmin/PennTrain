@@ -23,7 +23,7 @@ pnpm workspace monorepo using TypeScript. The Express API server serves both the
 - **Monorepo**: pnpm workspaces
 - **Node.js**: 24
 - **API framework**: Express 5
-- **Frontend**: React 18, Vite 7, Tailwind CSS v4, shadcn/ui, Wouter routing
+- **Frontend**: React 18, Vite 7, Tailwind CSS v4, shadcn/ui, Wouter routing, premium design system with custom CSS utility classes (stat-card, premium-card, data-table, filter-bar, page-header, section-title)
 - **Database**: PostgreSQL + Drizzle ORM
 - **Auth**: Session-based (express-session + bcryptjs), cookie `httpOnly`
 - **Validation**: Zod, drizzle-zod

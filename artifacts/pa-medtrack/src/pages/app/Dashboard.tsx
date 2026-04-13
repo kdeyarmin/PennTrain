@@ -1,183 +1,244 @@
-import { useGetDashboardSummary, useListAlerts, useListFacilities, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
+import { useGetDashboardSummary, useListAlerts, useListFacilities } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/auth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Building2, Users, AlertTriangle, CheckCircle, Clock, XCircle, AlertCircle, ChevronRight } from "lucide-react";
+import { Building2, Users, AlertTriangle, CheckCircle, Clock, XCircle, AlertCircle, ChevronRight, TrendingUp, Shield, Activity } from "lucide-react";
 import { Link } from "wouter";
-import { queryClient } from "@/lib/queryClient";
 
 export default function OrgDashboard() {
   const { user } = useAuth();
   const { data: summary, isLoading: summaryLoading } = useGetDashboardSummary({});
   const { data: alerts } = useListAlerts({ status: "open" });
   const { data: facilities } = useListFacilities({});
-  const logoutMutation = useLogout({});
 
   const criticalAlerts = alerts?.filter(a => a.severity === "critical") ?? [];
+  const compliancePct = summary?.compliancePercentage ?? 100;
+
+  const complianceColor = compliancePct >= 90 ? "text-emerald-600" : compliancePct >= 75 ? "text-amber-600" : "text-red-600";
+  const complianceBg = compliancePct >= 90 ? "bg-emerald-500" : compliancePct >= 75 ? "bg-amber-500" : "bg-red-500";
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Compliance Dashboard</h1>
-          <p className="text-muted-foreground">
-            Welcome back, {user?.firstName}. Here's your organization's compliance overview.
-          </p>
-        </div>
+    <div className="space-y-8">
+      <div className="page-header">
+        <h1>Compliance Dashboard</h1>
+        <p>Welcome back, {user?.firstName}. Here's your compliance overview.</p>
       </div>
 
       {criticalAlerts.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="font-semibold text-red-800">
+        <div className="rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 p-5 flex items-start gap-4">
+          <div className="h-10 w-10 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
+            <AlertCircle className="h-5 w-5 text-red-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-red-900">
               {criticalAlerts.length} Critical Alert{criticalAlerts.length > 1 ? "s" : ""} Require Attention
             </p>
-            <p className="text-sm text-red-700 mt-1">{criticalAlerts[0]?.title}</p>
+            <p className="text-sm text-red-700/80 mt-0.5">{criticalAlerts[0]?.title}</p>
           </div>
           <Link href="/app/alerts">
-            <Button variant="outline" size="sm" className="border-red-300 text-red-700 hover:bg-red-100">
+            <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white shadow-sm">
               View Alerts
             </Button>
           </Link>
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-                <span className="text-2xl font-bold text-green-700">{summaryLoading ? "—" : summary?.compliantCount ?? 0}</span>
-              </div>
-              <p className="text-sm text-muted-foreground">Compliant</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="stat-card">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="stat-label">Compliant</p>
+              <p className="stat-value text-emerald-600">{summaryLoading ? "..." : summary?.compliantCount ?? 0}</p>
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-yellow-600" />
-                <span className="text-2xl font-bold text-yellow-700">{summaryLoading ? "—" : summary?.dueSoon30Count ?? 0}</span>
-              </div>
-              <p className="text-sm text-muted-foreground">Due Soon</p>
+            <div className="stat-icon bg-emerald-50">
+              <CheckCircle className="h-5 w-5 text-emerald-600" />
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <XCircle className="h-5 w-5 text-red-600" />
-                <span className="text-2xl font-bold text-red-700">{summaryLoading ? "—" : summary?.expiredCount ?? 0}</span>
-              </div>
-              <p className="text-sm text-muted-foreground">Expired</p>
+          </div>
+          <div className="mt-3 flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
+            <TrendingUp className="h-3.5 w-3.5" />
+            <span>On track</span>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="stat-label">Due Soon</p>
+              <p className="stat-value text-amber-600">{summaryLoading ? "..." : summary?.dueSoon30Count ?? 0}</p>
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-gray-500" />
-                <span className="text-2xl font-bold text-gray-700">{summaryLoading ? "—" : summary?.missingDocumentCount ?? 0}</span>
-              </div>
-              <p className="text-sm text-muted-foreground">Missing</p>
+            <div className="stat-icon bg-amber-50">
+              <Clock className="h-5 w-5 text-amber-600" />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="mt-3 flex items-center gap-1.5 text-xs text-amber-600 font-medium">
+            <Activity className="h-3.5 w-3.5" />
+            <span>Within 30 days</span>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="stat-label">Expired</p>
+              <p className="stat-value text-red-600">{summaryLoading ? "..." : summary?.expiredCount ?? 0}</p>
+            </div>
+            <div className="stat-icon bg-red-50">
+              <XCircle className="h-5 w-5 text-red-600" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-center gap-1.5 text-xs text-red-600 font-medium">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            <span>Needs renewal</span>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="stat-label">Missing Docs</p>
+              <p className="stat-value text-slate-600">{summaryLoading ? "..." : summary?.missingDocumentCount ?? 0}</p>
+            </div>
+            <div className="stat-icon bg-slate-100">
+              <AlertTriangle className="h-5 w-5 text-slate-500" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+            <Shield className="h-3.5 w-3.5" />
+            <span>Action required</span>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Overall Compliance Score</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-end gap-3">
-              <span className="text-5xl font-bold text-primary">{summary?.compliancePercentage ?? 100}%</span>
-              <span className="text-muted-foreground mb-1">of training records compliant</span>
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div className="lg:col-span-3 premium-card">
+          <div className="p-6 border-b border-border/60">
+            <h3 className="section-title">Overall Compliance Score</h3>
+          </div>
+          <div className="p-6">
+            <div className="flex items-end gap-4 mb-5">
+              <span className={`text-5xl font-bold tracking-tighter ${complianceColor}`}>{compliancePct}%</span>
+              <span className="text-sm text-muted-foreground mb-1.5">of training records compliant</span>
             </div>
-            <Progress value={summary?.compliancePercentage ?? 100} className="h-3" />
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                <span>{summary?.totalEmployees ?? 0} Active Staff</span>
+            <div className="relative h-3 w-full rounded-full bg-muted overflow-hidden">
+              <div
+                className={`absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out ${complianceBg}`}
+                style={{ width: `${compliancePct}%` }}
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-4 mt-6">
+              <div className="rounded-lg bg-muted/50 p-3.5">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <Users className="h-4 w-4" />
+                  <span className="text-xs font-medium">Active Staff</span>
+                </div>
+                <p className="text-xl font-bold">{summary?.totalEmployees ?? 0}</p>
               </div>
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-                <span>{summary?.openAlertsCount ?? 0} Open Alerts</span>
+              <div className="rounded-lg bg-muted/50 p-3.5">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span className="text-xs font-medium">Open Alerts</span>
+                </div>
+                <p className="text-xl font-bold">{summary?.openAlertsCount ?? 0}</p>
               </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-muted-foreground" />
-                <span>{summary?.totalMedAdminStaff ?? 0} Med Admin Staff</span>
+              <div className="rounded-lg bg-muted/50 p-3.5">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <Shield className="h-4 w-4" />
+                  <span className="text-xs font-medium">Med Admin</span>
+                </div>
+                <p className="text-xl font-bold">{summary?.totalMedAdminStaff ?? 0}</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Recent Alerts</CardTitle>
+        <div className="lg:col-span-2 premium-card flex flex-col">
+          <div className="p-6 border-b border-border/60 flex items-center justify-between">
+            <h3 className="section-title">Recent Alerts</h3>
             <Link href="/app/alerts">
-              <Button variant="ghost" size="sm">View All <ChevronRight className="ml-1 h-4 w-4" /></Button>
+              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground -mr-2">
+                View All <ChevronRight className="ml-1 h-3.5 w-3.5" />
+              </Button>
             </Link>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
+          </div>
+          <div className="flex-1 p-4">
+            <div className="space-y-2">
               {alerts?.slice(0, 5).map(alert => (
-                <div key={alert.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                  <div className={`h-2 w-2 rounded-full mt-2 shrink-0 ${alert.severity === "critical" ? "bg-red-500" : alert.severity === "warning" ? "bg-yellow-500" : "bg-blue-500"}`} />
+                <div key={alert.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
+                  <div className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${
+                    alert.severity === "critical" ? "bg-red-500" : alert.severity === "warning" ? "bg-amber-500" : "bg-blue-500"
+                  }`} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium leading-tight">{alert.title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{alert.message}</p>
+                    <p className="text-[13px] font-medium leading-snug">{alert.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{alert.message}</p>
                   </div>
+                  <Badge variant="outline" className={`text-[10px] shrink-0 ${
+                    alert.severity === "critical" ? "border-red-200 text-red-600 bg-red-50" :
+                    alert.severity === "warning" ? "border-amber-200 text-amber-600 bg-amber-50" :
+                    "border-blue-200 text-blue-600 bg-blue-50"
+                  }`}>
+                    {alert.severity}
+                  </Badge>
                 </div>
               ))}
               {(!alerts || alerts.length === 0) && (
-                <p className="text-sm text-muted-foreground text-center py-4">No open alerts. Great work!</p>
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <CheckCircle className="h-8 w-8 text-emerald-400 mb-2" />
+                  <p className="text-sm font-medium text-muted-foreground">No open alerts</p>
+                  <p className="text-xs text-muted-foreground/60">Great work keeping compliant!</p>
+                </div>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Facilities</CardTitle>
+      <div className="premium-card">
+        <div className="p-6 border-b border-border/60 flex items-center justify-between">
+          <h3 className="section-title">
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+            Facilities
+          </h3>
           <Link href="/app/facilities">
-            <Button variant="ghost" size="sm">View All <ChevronRight className="ml-1 h-4 w-4" /></Button>
+            <Button variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground -mr-2">
+              View All <ChevronRight className="ml-1 h-3.5 w-3.5" />
+            </Button>
           </Link>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {facilities?.slice(0, 5).map(facility => (
-              <Link key={facility.id} href={`/app/facilities/${facility.id}`}>
-                <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 border transition-colors cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
-                      <Building2 className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">{facility.name}</p>
-                      <p className="text-xs text-muted-foreground">{facility.facilityType} — License: {facility.licenseNumber ?? "N/A"}</p>
-                    </div>
+        </div>
+        <div className="divide-y divide-border/60">
+          {facilities?.slice(0, 5).map(facility => (
+            <Link key={facility.id} href={`/app/facilities/${facility.id}`}>
+              <div className="flex items-center justify-between px-6 py-4 hover:bg-muted/40 transition-colors cursor-pointer">
+                <div className="flex items-center gap-4">
+                  <div className="h-10 w-10 rounded-lg bg-primary/8 flex items-center justify-center">
+                    <Building2 className="h-5 w-5 text-primary/70" />
                   </div>
-                  <Badge variant="outline">{facility.isActive ? "Active" : "Inactive"}</Badge>
+                  <div>
+                    <p className="text-[13px] font-semibold">{facility.name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {facility.facilityType} {facility.licenseNumber ? `· ${facility.licenseNumber}` : ""}
+                    </p>
+                  </div>
                 </div>
-              </Link>
-            ))}
-            {(!facilities || facilities.length === 0) && (
-              <p className="text-sm text-muted-foreground text-center py-4">No facilities found.</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                <div className="flex items-center gap-3">
+                  <Badge variant="outline" className={`text-[10px] font-medium ${
+                    facility.isActive
+                      ? "border-emerald-200 text-emerald-700 bg-emerald-50"
+                      : "border-slate-200 text-slate-500 bg-slate-50"
+                  }`}>
+                    {facility.isActive ? "Active" : "Inactive"}
+                  </Badge>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
+                </div>
+              </div>
+            </Link>
+          ))}
+          {(!facilities || facilities.length === 0) && (
+            <div className="px-6 py-12 text-center">
+              <p className="text-sm text-muted-foreground">No facilities found.</p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
