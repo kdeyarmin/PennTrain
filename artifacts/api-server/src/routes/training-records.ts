@@ -154,7 +154,7 @@ router.patch("/training-records/:id", requireAuth, async (req, res): Promise<voi
   res.json(updated);
 });
 
-router.patch("/training-records/:id/verify", requireAuth, async (req, res): Promise<void> => {
+async function handleVerifyTrainingRecord(req: import("express").Request, res: import("express").Response): Promise<void> {
   const user = await getCurrentUser(req);
   if (!user || !["platform_admin", "org_admin", "facility_manager"].includes(user.role)) {
     res.status(403).json({ error: "Forbidden" }); return;
@@ -173,7 +173,10 @@ router.patch("/training-records/:id/verify", requireAuth, async (req, res): Prom
     .returning();
   await logAudit(req, "training_record", id, "verify", existing, updated, existing.organizationId);
   res.json(updated);
-});
+}
+
+router.post("/training-records/:id/verify", requireAuth, (req, res) => handleVerifyTrainingRecord(req, res));
+router.patch("/training-records/:id/verify", requireAuth, (req, res) => handleVerifyTrainingRecord(req, res));
 
 router.delete("/training-records/:id", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
@@ -191,6 +194,78 @@ router.delete("/training-records/:id", requireAuth, async (req, res): Promise<vo
   await db.delete(trainingRecordsTable).where(eq(trainingRecordsTable.id, id));
   await logAudit(req, "training_record", id, "delete", existing, null, existing.organizationId);
   res.sendStatus(204);
+});
+
+router.get("/training-matrix", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  if (user.role === "employee") {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  let employeeQuery = db.select().from(employeesTable).where(eq(employeesTable.status, "active")).$dynamic();
+
+  if (user.role !== "platform_admin") {
+    if (!user.organizationId) { res.json([]); return; }
+    employeeQuery = employeeQuery.where(eq(employeesTable.organizationId, user.organizationId));
+  } else if (req.query.organizationId) {
+    employeeQuery = employeeQuery.where(eq(employeesTable.organizationId, Number(req.query.organizationId)));
+  }
+
+  if (req.query.facilityId) {
+    employeeQuery = employeeQuery.where(eq(employeesTable.facilityId, Number(req.query.facilityId)));
+  }
+  if (req.query.administersMedications !== undefined) {
+    employeeQuery = employeeQuery.where(eq(employeesTable.administersMedications, req.query.administersMedications === "true"));
+  }
+  if (req.query.trainerOnly !== undefined) {
+    employeeQuery = employeeQuery.where(eq(employeesTable.trainerStatus, req.query.trainerOnly === "true"));
+  }
+
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds && assignedFacilityIds.length > 0) {
+      employeeQuery = employeeQuery.where(inArray(employeesTable.facilityId, assignedFacilityIds));
+    }
+  }
+
+  const employees = await employeeQuery.orderBy(employeesTable.lastName, employeesTable.firstName);
+
+  const trainingTypes = await db.select().from(trainingTypesTable).where(eq(trainingTypesTable.isActive, true));
+
+  let recordsQuery = db.select().from(trainingRecordsTable).$dynamic();
+  if (user.role !== "platform_admin" && user.organizationId) {
+    recordsQuery = recordsQuery.where(eq(trainingRecordsTable.organizationId, user.organizationId));
+  }
+  const records = await recordsQuery;
+
+  const matrix = employees.map(emp => {
+    const empRecords = records.filter(r => r.employeeId === emp.id);
+    const trainingStatus = trainingTypes.map(tt => {
+      const record = empRecords.find(r => r.trainingTypeId === tt.id);
+      return {
+        trainingTypeId: tt.id,
+        trainingTypeName: tt.name,
+        status: record?.status ?? "missing",
+        lastCompletionDate: record?.completionDate ?? null,
+        dueDate: record?.dueDate ?? null,
+        expirationDate: null,
+      };
+    });
+    return {
+      employeeId: emp.id,
+      employeeFirstName: emp.firstName,
+      employeeLastName: emp.lastName,
+      jobTitle: emp.jobTitle,
+      facilityId: emp.facilityId,
+      administersMedications: emp.administersMedications,
+      trainerStatus: emp.trainerStatus,
+      trainingStatus,
+    };
+  });
+
+  res.json(matrix);
 });
 
 export default router;

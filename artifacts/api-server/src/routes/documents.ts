@@ -44,6 +44,10 @@ router.get("/documents", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
+  if (user.role === "employee" && !req.query.employeeId) {
+    res.status(403).json({ error: "Forbidden: employeeId filter required for employee role" }); return;
+  }
+
   let query = db.select().from(trainingDocumentsTable).$dynamic();
 
   if (user.role !== "platform_admin") {

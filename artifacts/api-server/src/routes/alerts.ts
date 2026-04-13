@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import { alertsTable } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
@@ -91,7 +91,7 @@ router.patch("/alerts/:id/assign", requireAuth, async (req, res): Promise<void> 
   res.json(updated);
 });
 
-router.patch("/alerts/bulk", requireAuth, async (req, res): Promise<void> => {
+async function handleBulkUpdate(req: Request, res: Response): Promise<void> {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   if (!["platform_admin", "org_admin", "facility_manager"].includes(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
@@ -110,6 +110,9 @@ router.patch("/alerts/bulk", requireAuth, async (req, res): Promise<void> => {
 
   const updated = await db.update(alertsTable).set(setValues).where(whereClause).returning();
   res.json({ updated: updated.length });
-});
+}
+
+router.patch("/alerts/bulk", requireAuth, (req, res) => handleBulkUpdate(req, res));
+router.post("/alerts/bulk-update", requireAuth, (req, res) => handleBulkUpdate(req, res));
 
 export default router;
