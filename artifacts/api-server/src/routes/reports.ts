@@ -218,6 +218,17 @@ router.get("/reports/employee-compliance/:employeeId", requireAuth, async (req, 
   const [employee] = await db.select().from(employeesTable).where(eq(employeesTable.id, employeeId));
   if (!employee) { res.status(404).json({ error: "Employee not found" }); return; }
   if (user.role !== "platform_admin" && user.organizationId !== employee.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
+  // Employee role may only view their own compliance report
+  if (user.role === "employee" && user.email !== employee.email) {
+    res.status(403).json({ error: "Forbidden: employees may only view their own compliance report" }); return;
+  }
+  // facility_manager/trainer may only view employees in their assigned facilities
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedIds = await getAssignedFacilityIds(user);
+    if (assignedIds !== null && employee.facilityId !== null && !assignedIds.includes(employee.facilityId)) {
+      res.status(403).json({ error: "Forbidden: employee not in your assigned facilities" }); return;
+    }
+  }
 
   const records = await db
     .select({ record: trainingRecordsTable, trainingType: trainingTypesTable })

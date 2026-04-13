@@ -133,6 +133,13 @@ router.get("/facilities/:id/compliance-summary", requireAuth, async (req, res): 
   if (user.role !== "platform_admin" && user.organizationId !== facility.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
+  // facility_manager/trainer may only view compliance summary for their assigned facilities
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedIds = await getAssignedFacilityIds(user);
+    if (assignedIds !== null && !assignedIds.includes(id)) {
+      res.status(403).json({ error: "Forbidden: facility not in your assigned facilities" }); return;
+    }
+  }
 
   const summary = await buildComplianceSummaryForFacility(id);
   if (!summary) { res.status(404).json({ error: "Facility not found" }); return; }
