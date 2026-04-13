@@ -29,6 +29,8 @@ import Settings from "@/pages/app/Settings";
 
 import TrainerDashboard from "@/pages/trainer/TrainerDashboard";
 import TrainerClasses from "@/pages/trainer/TrainerClasses";
+import ClassDetail from "@/pages/trainer/ClassDetail";
+import RetrainingMonitor from "@/pages/trainer/RetrainingMonitor";
 import EmployeeDashboard from "@/pages/employee/EmployeeDashboard";
 import MyTrainings from "@/pages/employee/MyTrainings";
 
@@ -178,6 +180,12 @@ function Router() {
       </Route>
       <Route path="/trainer/classes">
         {() => <ProtectedRoute component={TrainerClasses} allowedRoles={["trainer"]} />}
+      </Route>
+      <Route path="/trainer/classes/:id">
+        {() => <ProtectedRoute component={ClassDetail} allowedRoles={["trainer"]} />}
+      </Route>
+      <Route path="/trainer/retraining">
+        {() => <ProtectedRoute component={RetrainingMonitor} allowedRoles={["trainer"]} />}
       </Route>
       <Route path="/trainer/facilities">
         {() => <ProtectedRoute component={Facilities} allowedRoles={["trainer"]} />}

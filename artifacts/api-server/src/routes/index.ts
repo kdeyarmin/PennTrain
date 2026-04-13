@@ -16,6 +16,7 @@ import dashboardRouter from "./dashboard";
 import reportsRouter from "./reports";
 import documentsRouter from "./documents";
 import trainingHoursRouter from "./training-hours";
+import trainingClassesRouter from "./training-classes";
 
 const router: IRouter = Router();
 
@@ -23,6 +24,7 @@ router.use(healthRouter);
 router.use(authRouter);
 router.use(organizationsRouter);
 router.use(organizationSettingsRouter);
+router.use(trainingClassesRouter);
 router.use(facilitiesRouter);
 router.use(facilityUserAssignmentsRouter);
 router.use(employeesRouter);

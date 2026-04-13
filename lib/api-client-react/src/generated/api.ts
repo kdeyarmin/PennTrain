@@ -18,6 +18,8 @@ import type {
 
 import type {
   ActivityItem,
+  AddClassAttendees200,
+  AddClassAttendeesBody,
   Alert,
   AnnualHoursReportRow,
   AuditLogList,
@@ -25,6 +27,7 @@ import type {
   BulkUpdateAlertsBody,
   BulkUpdateResult,
   ChangePasswordBody,
+  CompleteTrainingClass200,
   ComplianceSummaryReport,
   CreateEmployeeBody,
   CreateFacilityBody,
@@ -32,10 +35,12 @@ import type {
   CreateFacilityUserAssignmentBody,
   CreateOrganizationBody,
   CreatePracticumBody,
+  CreateTrainingClassBody,
   CreateTrainingRecordBody,
   CreateTrainingTypeBody,
   CreateUserBody,
   DashboardSummary,
+  DeleteTrainingClass200,
   DueSoonReportRow,
   Employee,
   EmployeeComplianceSummary,
@@ -45,6 +50,7 @@ import type {
   Facility,
   FacilityComplianceScore,
   FacilityComplianceSummary,
+  FacilityRetrainingStatus,
   GenerateAlertsBody,
   GetAnnualHoursReportParams,
   GetComplianceByFacilityParams,
@@ -78,6 +84,7 @@ import type {
   ListFacilityUserAssignmentsParams,
   ListOrganizationsParams,
   ListPracticumsParams,
+  ListTrainingClassesParams,
   ListTrainingHoursParams,
   ListTrainingRecordsParams,
   ListTrainingTypesParams,
@@ -92,6 +99,8 @@ import type {
   PracticumReportRow,
   SurveyReadinessReport,
   TrainerCertReportRow,
+  TrainingClass,
+  TrainingClassDetail,
   TrainingDocument,
   TrainingHourBucket,
   TrainingMatrix,
@@ -105,9 +114,12 @@ import type {
   UpdateOrganizationSettings200,
   UpdateOrganizationSettingsBody,
   UpdatePracticumBody,
+  UpdateTrainingClassBody,
   UpdateTrainingRecordBody,
   UpdateTrainingTypeBody,
   UpdateUserBody,
+  UploadClassRoster200,
+  UploadClassRosterBody,
   UploadDocumentBody,
   UpsertTrainingHoursBody,
   User,
@@ -7214,6 +7226,795 @@ export function useGetTrainingMatrixReport<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetTrainingMatrixReportQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List training classes
+ */
+export const getListTrainingClassesUrl = (
+  params?: ListTrainingClassesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/training-classes?${stringifiedParams}`
+    : `/api/training-classes`;
+};
+
+export const listTrainingClasses = async (
+  params?: ListTrainingClassesParams,
+  options?: RequestInit,
+): Promise<TrainingClass[]> => {
+  return customFetch<TrainingClass[]>(getListTrainingClassesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListTrainingClassesQueryKey = (
+  params?: ListTrainingClassesParams,
+) => {
+  return [`/api/training-classes`, ...(params ? [params] : [])] as const;
+};
+
+export const getListTrainingClassesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listTrainingClasses>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListTrainingClassesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTrainingClasses>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListTrainingClassesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listTrainingClasses>>
+  > = ({ signal }) =>
+    listTrainingClasses(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listTrainingClasses>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListTrainingClassesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listTrainingClasses>>
+>;
+export type ListTrainingClassesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List training classes
+ */
+
+export function useListTrainingClasses<
+  TData = Awaited<ReturnType<typeof listTrainingClasses>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListTrainingClassesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTrainingClasses>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListTrainingClassesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a new training class
+ */
+export const getCreateTrainingClassUrl = () => {
+  return `/api/training-classes`;
+};
+
+export const createTrainingClass = async (
+  createTrainingClassBody: CreateTrainingClassBody,
+  options?: RequestInit,
+): Promise<TrainingClass> => {
+  return customFetch<TrainingClass>(getCreateTrainingClassUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createTrainingClassBody),
+  });
+};
+
+export const getCreateTrainingClassMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTrainingClass>>,
+    TError,
+    { data: BodyType<CreateTrainingClassBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createTrainingClass>>,
+  TError,
+  { data: BodyType<CreateTrainingClassBody> },
+  TContext
+> => {
+  const mutationKey = ["createTrainingClass"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createTrainingClass>>,
+    { data: BodyType<CreateTrainingClassBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createTrainingClass(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateTrainingClassMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createTrainingClass>>
+>;
+export type CreateTrainingClassMutationBody = BodyType<CreateTrainingClassBody>;
+export type CreateTrainingClassMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a new training class
+ */
+export const useCreateTrainingClass = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTrainingClass>>,
+    TError,
+    { data: BodyType<CreateTrainingClassBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createTrainingClass>>,
+  TError,
+  { data: BodyType<CreateTrainingClassBody> },
+  TContext
+> => {
+  return useMutation(getCreateTrainingClassMutationOptions(options));
+};
+
+/**
+ * @summary Get training class by ID with attendees
+ */
+export const getGetTrainingClassUrl = (id: number) => {
+  return `/api/training-classes/${id}`;
+};
+
+export const getTrainingClass = async (
+  id: number,
+  options?: RequestInit,
+): Promise<TrainingClassDetail> => {
+  return customFetch<TrainingClassDetail>(getGetTrainingClassUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetTrainingClassQueryKey = (id: number) => {
+  return [`/api/training-classes/${id}`] as const;
+};
+
+export const getGetTrainingClassQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTrainingClass>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTrainingClass>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetTrainingClassQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getTrainingClass>>
+  > = ({ signal }) => getTrainingClass(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTrainingClass>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTrainingClassQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTrainingClass>>
+>;
+export type GetTrainingClassQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get training class by ID with attendees
+ */
+
+export function useGetTrainingClass<
+  TData = Awaited<ReturnType<typeof getTrainingClass>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTrainingClass>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTrainingClassQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update a training class
+ */
+export const getUpdateTrainingClassUrl = (id: number) => {
+  return `/api/training-classes/${id}`;
+};
+
+export const updateTrainingClass = async (
+  id: number,
+  updateTrainingClassBody: UpdateTrainingClassBody,
+  options?: RequestInit,
+): Promise<TrainingClass> => {
+  return customFetch<TrainingClass>(getUpdateTrainingClassUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateTrainingClassBody),
+  });
+};
+
+export const getUpdateTrainingClassMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTrainingClass>>,
+    TError,
+    { id: number; data: BodyType<UpdateTrainingClassBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateTrainingClass>>,
+  TError,
+  { id: number; data: BodyType<UpdateTrainingClassBody> },
+  TContext
+> => {
+  const mutationKey = ["updateTrainingClass"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateTrainingClass>>,
+    { id: number; data: BodyType<UpdateTrainingClassBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateTrainingClass(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateTrainingClassMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateTrainingClass>>
+>;
+export type UpdateTrainingClassMutationBody = BodyType<UpdateTrainingClassBody>;
+export type UpdateTrainingClassMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a training class
+ */
+export const useUpdateTrainingClass = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTrainingClass>>,
+    TError,
+    { id: number; data: BodyType<UpdateTrainingClassBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateTrainingClass>>,
+  TError,
+  { id: number; data: BodyType<UpdateTrainingClassBody> },
+  TContext
+> => {
+  return useMutation(getUpdateTrainingClassMutationOptions(options));
+};
+
+/**
+ * @summary Delete a training class
+ */
+export const getDeleteTrainingClassUrl = (id: number) => {
+  return `/api/training-classes/${id}`;
+};
+
+export const deleteTrainingClass = async (
+  id: number,
+  options?: RequestInit,
+): Promise<DeleteTrainingClass200> => {
+  return customFetch<DeleteTrainingClass200>(getDeleteTrainingClassUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteTrainingClassMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTrainingClass>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteTrainingClass>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteTrainingClass"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteTrainingClass>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteTrainingClass(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteTrainingClassMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteTrainingClass>>
+>;
+
+export type DeleteTrainingClassMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a training class
+ */
+export const useDeleteTrainingClass = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTrainingClass>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteTrainingClass>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteTrainingClassMutationOptions(options));
+};
+
+/**
+ * @summary Add attendees to a training class
+ */
+export const getAddClassAttendeesUrl = (id: number) => {
+  return `/api/training-classes/${id}/attendees`;
+};
+
+export const addClassAttendees = async (
+  id: number,
+  addClassAttendeesBody: AddClassAttendeesBody,
+  options?: RequestInit,
+): Promise<AddClassAttendees200> => {
+  return customFetch<AddClassAttendees200>(getAddClassAttendeesUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(addClassAttendeesBody),
+  });
+};
+
+export const getAddClassAttendeesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addClassAttendees>>,
+    TError,
+    { id: number; data: BodyType<AddClassAttendeesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addClassAttendees>>,
+  TError,
+  { id: number; data: BodyType<AddClassAttendeesBody> },
+  TContext
+> => {
+  const mutationKey = ["addClassAttendees"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addClassAttendees>>,
+    { id: number; data: BodyType<AddClassAttendeesBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return addClassAttendees(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddClassAttendeesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addClassAttendees>>
+>;
+export type AddClassAttendeesMutationBody = BodyType<AddClassAttendeesBody>;
+export type AddClassAttendeesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add attendees to a training class
+ */
+export const useAddClassAttendees = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addClassAttendees>>,
+    TError,
+    { id: number; data: BodyType<AddClassAttendeesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addClassAttendees>>,
+  TError,
+  { id: number; data: BodyType<AddClassAttendeesBody> },
+  TContext
+> => {
+  return useMutation(getAddClassAttendeesMutationOptions(options));
+};
+
+/**
+ * @summary Complete a class and create training records for attendees
+ */
+export const getCompleteTrainingClassUrl = (id: number) => {
+  return `/api/training-classes/${id}/complete`;
+};
+
+export const completeTrainingClass = async (
+  id: number,
+  options?: RequestInit,
+): Promise<CompleteTrainingClass200> => {
+  return customFetch<CompleteTrainingClass200>(
+    getCompleteTrainingClassUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getCompleteTrainingClassMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeTrainingClass>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof completeTrainingClass>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["completeTrainingClass"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof completeTrainingClass>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return completeTrainingClass(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CompleteTrainingClassMutationResult = NonNullable<
+  Awaited<ReturnType<typeof completeTrainingClass>>
+>;
+
+export type CompleteTrainingClassMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Complete a class and create training records for attendees
+ */
+export const useCompleteTrainingClass = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeTrainingClass>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof completeTrainingClass>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getCompleteTrainingClassMutationOptions(options));
+};
+
+/**
+ * @summary Upload a roster PDF to a training class
+ */
+export const getUploadClassRosterUrl = (id: number) => {
+  return `/api/training-classes/${id}/roster`;
+};
+
+export const uploadClassRoster = async (
+  id: number,
+  uploadClassRosterBody: UploadClassRosterBody,
+  options?: RequestInit,
+): Promise<UploadClassRoster200> => {
+  const formData = new FormData();
+  if (uploadClassRosterBody.file !== undefined) {
+    formData.append(`file`, uploadClassRosterBody.file);
+  }
+
+  return customFetch<UploadClassRoster200>(getUploadClassRosterUrl(id), {
+    ...options,
+    method: "POST",
+    body: formData,
+  });
+};
+
+export const getUploadClassRosterMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadClassRoster>>,
+    TError,
+    { id: number; data: BodyType<UploadClassRosterBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadClassRoster>>,
+  TError,
+  { id: number; data: BodyType<UploadClassRosterBody> },
+  TContext
+> => {
+  const mutationKey = ["uploadClassRoster"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadClassRoster>>,
+    { id: number; data: BodyType<UploadClassRosterBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return uploadClassRoster(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadClassRosterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadClassRoster>>
+>;
+export type UploadClassRosterMutationBody = BodyType<UploadClassRosterBody>;
+export type UploadClassRosterMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Upload a roster PDF to a training class
+ */
+export const useUploadClassRoster = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadClassRoster>>,
+    TError,
+    { id: number; data: BodyType<UploadClassRosterBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof uploadClassRoster>>,
+  TError,
+  { id: number; data: BodyType<UploadClassRosterBody> },
+  TContext
+> => {
+  return useMutation(getUploadClassRosterMutationOptions(options));
+};
+
+/**
+ * @summary Get retraining status for all facilities
+ */
+export const getGetFacilitiesRetrainingStatusUrl = () => {
+  return `/api/facilities/retraining-status`;
+};
+
+export const getFacilitiesRetrainingStatus = async (
+  options?: RequestInit,
+): Promise<FacilityRetrainingStatus[]> => {
+  return customFetch<FacilityRetrainingStatus[]>(
+    getGetFacilitiesRetrainingStatusUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetFacilitiesRetrainingStatusQueryKey = () => {
+  return [`/api/facilities/retraining-status`] as const;
+};
+
+export const getGetFacilitiesRetrainingStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFacilitiesRetrainingStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFacilitiesRetrainingStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetFacilitiesRetrainingStatusQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getFacilitiesRetrainingStatus>>
+  > = ({ signal }) =>
+    getFacilitiesRetrainingStatus({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFacilitiesRetrainingStatus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFacilitiesRetrainingStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFacilitiesRetrainingStatus>>
+>;
+export type GetFacilitiesRetrainingStatusQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get retraining status for all facilities
+ */
+
+export function useGetFacilitiesRetrainingStatus<
+  TData = Awaited<ReturnType<typeof getFacilitiesRetrainingStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFacilitiesRetrainingStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFacilitiesRetrainingStatusQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

@@ -1170,6 +1170,137 @@ export interface OrgComplianceReport {
   facilitySummaries: FacilityComplianceSummary[];
 }
 
+export type TrainingClassStatus =
+  (typeof TrainingClassStatus)[keyof typeof TrainingClassStatus];
+
+export const TrainingClassStatus = {
+  draft: "draft",
+  completed: "completed",
+  cancelled: "cancelled",
+} as const;
+
+export interface TrainingClass {
+  id: number;
+  organizationId: number;
+  /** @nullable */
+  facilityId?: number | null;
+  trainerUserId: number;
+  trainingTypeId: number;
+  className: string;
+  classDate: string;
+  /** @nullable */
+  location?: string | null;
+  durationHours: string;
+  status: TrainingClassStatus;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  rosterDocumentId?: number | null;
+  trainingTypeName?: string;
+  /** @nullable */
+  facilityName?: string | null;
+  attendeeCount?: number;
+  createdAt?: string;
+}
+
+export type TrainingClassDetailStatus =
+  (typeof TrainingClassDetailStatus)[keyof typeof TrainingClassDetailStatus];
+
+export const TrainingClassDetailStatus = {
+  draft: "draft",
+  completed: "completed",
+  cancelled: "cancelled",
+} as const;
+
+export type TrainingClassDetailAttendeesItem = {
+  id?: number;
+  employeeId?: number;
+  employeeName?: string;
+  /** @nullable */
+  facilityName?: string | null;
+  attended?: boolean;
+  /** @nullable */
+  trainingRecordId?: number | null;
+};
+
+export interface TrainingClassDetail {
+  id: number;
+  organizationId: number;
+  /** @nullable */
+  facilityId?: number | null;
+  trainerUserId: number;
+  trainingTypeId: number;
+  className: string;
+  classDate: string;
+  /** @nullable */
+  location?: string | null;
+  durationHours: string;
+  status: TrainingClassDetailStatus;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  rosterDocumentId?: number | null;
+  trainingTypeName?: string;
+  /** @nullable */
+  facilityName?: string | null;
+  attendees: TrainingClassDetailAttendeesItem[];
+  createdAt?: string;
+}
+
+export interface CreateTrainingClassBody {
+  trainingTypeId: number;
+  className: string;
+  classDate: string;
+  facilityId?: number;
+  location?: string;
+  durationHours?: string;
+  notes?: string;
+}
+
+export type UpdateTrainingClassBodyStatus =
+  (typeof UpdateTrainingClassBodyStatus)[keyof typeof UpdateTrainingClassBodyStatus];
+
+export const UpdateTrainingClassBodyStatus = {
+  draft: "draft",
+  completed: "completed",
+  cancelled: "cancelled",
+} as const;
+
+export interface UpdateTrainingClassBody {
+  className?: string;
+  classDate?: string;
+  /** @nullable */
+  facilityId?: number | null;
+  location?: string;
+  durationHours?: string;
+  notes?: string;
+  status?: UpdateTrainingClassBodyStatus;
+}
+
+export type FacilityRetrainingStatusOverallStatus =
+  (typeof FacilityRetrainingStatusOverallStatus)[keyof typeof FacilityRetrainingStatusOverallStatus];
+
+export const FacilityRetrainingStatusOverallStatus = {
+  compliant: "compliant",
+  due_soon: "due_soon",
+  expired: "expired",
+  critical: "critical",
+} as const;
+
+export interface FacilityRetrainingStatus {
+  facilityId: number;
+  facilityName: string;
+  facilityType: string;
+  totalMedAdminStaff: number;
+  compliantCount: number;
+  dueSoonCount: number;
+  expiredCount: number;
+  missingCount: number;
+  /** @nullable */
+  nextExpiryDate?: string | null;
+  overallStatus: FacilityRetrainingStatusOverallStatus;
+}
+
 export type ImpersonateOrgBody = {
   organizationId: number;
 };
@@ -1427,6 +1558,49 @@ export type GetTrainingMatrixReport200 = {
   matrix?: GetTrainingMatrixReport200MatrixItem[];
   employeeCount?: number;
   generatedAt?: string;
+};
+
+export type ListTrainingClassesParams = {
+  facilityId?: number;
+  trainingTypeId?: number;
+  status?: ListTrainingClassesStatus;
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+export type ListTrainingClassesStatus =
+  (typeof ListTrainingClassesStatus)[keyof typeof ListTrainingClassesStatus];
+
+export const ListTrainingClassesStatus = {
+  draft: "draft",
+  completed: "completed",
+  cancelled: "cancelled",
+} as const;
+
+export type DeleteTrainingClass200 = {
+  success?: boolean;
+};
+
+export type AddClassAttendeesBody = {
+  employeeIds: number[];
+};
+
+export type AddClassAttendees200 = {
+  added?: number;
+};
+
+export type CompleteTrainingClass200 = {
+  classId?: number;
+  recordsCreated?: number;
+};
+
+export type UploadClassRosterBody = {
+  file?: Blob;
+};
+
+export type UploadClassRoster200 = {
+  documentId?: number;
+  fileName?: string;
 };
 
 export type ListTrainingHoursParams = {

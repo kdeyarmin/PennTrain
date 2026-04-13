@@ -42,7 +42,7 @@ pnpm workspace monorepo using TypeScript. The Express API server serves both the
 - `platform_admin` — routes: `/admin`, `/admin/organizations`, `/admin/organizations/:id`, `/admin/facilities`, `/admin/facilities/:id`, `/admin/employees`, `/admin/employees/:id`, `/admin/alerts`, `/admin/users`, `/admin/audit`
 - `org_admin` — routes: `/app`, `/app/facilities`, `/app/facilities/:id`, `/app/employees`, `/app/employees/:id`, `/app/training-matrix`, `/app/practicums`, `/app/alerts`, `/app/reports`, `/app/users`, `/app/documents`, `/app/settings`, `/app/audit`
 - `facility_manager` — same as org_admin
-- `trainer` — routes: `/trainer`, `/trainer/classes`, `/trainer/facilities`, `/trainer/employees`
+- `trainer` — routes: `/trainer`, `/trainer/classes`, `/trainer/classes/:id`, `/trainer/retraining`, `/trainer/facilities`, `/trainer/employees`
 - `employee` — routes: `/me`, `/me/trainings`, `/me/documents`
 
 ## Security / Tenant Isolation
@@ -74,7 +74,7 @@ pnpm workspace monorepo using TypeScript. The Express API server serves both the
 
 ## Database Schema
 
-Tables: `users`, `organizations`, `facilities`, `employees`, `training_types`, `employee_training_records`, `practicums`, `training_documents`, `alerts`, `audit_logs`, `employee_training_hour_buckets`, `facility_user_assignments`, `organization_settings`
+Tables: `users`, `organizations`, `facilities`, `employees`, `training_types`, `employee_training_records`, `practicums`, `training_documents`, `alerts`, `audit_logs`, `employee_training_hour_buckets`, `facility_user_assignments`, `organization_settings`, `training_classes`, `training_class_attendees`
 
 ## API Routes
 
@@ -89,6 +89,8 @@ All routes prefixed with `/api/`:
 - `GET/POST /practicums`, `GET/PUT/DELETE /practicums/:id`
 - `GET /documents`, `GET/DELETE /documents/:id`
 - `GET /alerts`, `PATCH /alerts/:id/dismiss`, `PATCH /alerts/:id/resolve`, `PATCH /alerts/bulk-update`, `POST /alerts/generate`
+- `GET/POST /training-classes`, `GET/PATCH/DELETE /training-classes/:id`, `POST /training-classes/:id/attendees`, `POST /training-classes/:id/complete`, `POST /training-classes/:id/roster`
+- `GET /facilities/retraining-status`
 - `GET /audit-logs`
 - `GET/POST /users`, `GET/PUT/DELETE /users/:id`
 - `GET /dashboard/summary`

@@ -11,3 +11,4 @@ export * from "./audit-logs";
 export * from "./training-hours";
 export * from "./facility-user-assignments";
 export * from "./organization-settings";
+export * from "./training-classes";

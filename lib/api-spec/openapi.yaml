@@ -34,6 +34,8 @@ tags:
     description: User management
   - name: audit
     description: Audit logs
+  - name: training-classes
+    description: Training class sessions managed by trainers
   - name: dashboard
     description: Dashboard summaries
 
@@ -1886,6 +1888,230 @@ paths:
                   generatedAt:
                     type: string
 
+  # Training Classes
+  /training-classes:
+    get:
+      operationId: listTrainingClasses
+      tags: [training-classes]
+      summary: List training classes
+      parameters:
+        - name: facilityId
+          in: query
+          schema:
+            type: integer
+        - name: trainingTypeId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, completed, cancelled]
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of training classes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TrainingClass"
+    post:
+      operationId: createTrainingClass
+      tags: [training-classes]
+      summary: Create a new training class
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTrainingClassBody"
+      responses:
+        "201":
+          description: Training class created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainingClass"
+
+  /training-classes/{id}:
+    get:
+      operationId: getTrainingClass
+      tags: [training-classes]
+      summary: Get training class by ID with attendees
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Training class with attendees
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainingClassDetail"
+    patch:
+      operationId: updateTrainingClass
+      tags: [training-classes]
+      summary: Update a training class
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTrainingClassBody"
+      responses:
+        "200":
+          description: Updated training class
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainingClass"
+    delete:
+      operationId: deleteTrainingClass
+      tags: [training-classes]
+      summary: Delete a training class
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /training-classes/{id}/attendees:
+    post:
+      operationId: addClassAttendees
+      tags: [training-classes]
+      summary: Add attendees to a training class
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employeeIds]
+              properties:
+                employeeIds:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        "200":
+          description: Attendees added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  added:
+                    type: integer
+
+  /training-classes/{id}/complete:
+    post:
+      operationId: completeTrainingClass
+      tags: [training-classes]
+      summary: Complete a class and create training records for attendees
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Class completed, training records created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  classId:
+                    type: integer
+                  recordsCreated:
+                    type: integer
+
+  /training-classes/{id}/roster:
+    post:
+      operationId: uploadClassRoster
+      tags: [training-classes]
+      summary: Upload a roster PDF to a training class
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Roster uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documentId:
+                    type: integer
+                  fileName:
+                    type: string
+
+  /facilities/retraining-status:
+    get:
+      operationId: getFacilitiesRetrainingStatus
+      tags: [training-classes]
+      summary: Get retraining status for all facilities
+      responses:
+        "200":
+          description: Facility retraining status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FacilityRetrainingStatus"
+
   # Training Hour Buckets
   /training-hours:
     get:
@@ -3601,3 +3827,184 @@ components:
         - totalEmployees
         - overallCompliancePercentage
         - facilitySummaries
+
+    TrainingClass:
+      type: object
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        facilityId:
+          type: ["integer", "null"]
+        trainerUserId:
+          type: integer
+        trainingTypeId:
+          type: integer
+        className:
+          type: string
+        classDate:
+          type: string
+        location:
+          type: ["string", "null"]
+        durationHours:
+          type: string
+        status:
+          type: string
+          enum: [draft, completed, cancelled]
+        notes:
+          type: ["string", "null"]
+        rosterDocumentId:
+          type: ["integer", "null"]
+        trainingTypeName:
+          type: string
+        facilityName:
+          type: ["string", "null"]
+        attendeeCount:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - id
+        - organizationId
+        - trainerUserId
+        - trainingTypeId
+        - className
+        - classDate
+        - durationHours
+        - status
+
+    TrainingClassDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        facilityId:
+          type: ["integer", "null"]
+        trainerUserId:
+          type: integer
+        trainingTypeId:
+          type: integer
+        className:
+          type: string
+        classDate:
+          type: string
+        location:
+          type: ["string", "null"]
+        durationHours:
+          type: string
+        status:
+          type: string
+          enum: [draft, completed, cancelled]
+        notes:
+          type: ["string", "null"]
+        rosterDocumentId:
+          type: ["integer", "null"]
+        trainingTypeName:
+          type: string
+        facilityName:
+          type: ["string", "null"]
+        attendees:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              employeeId:
+                type: integer
+              employeeName:
+                type: string
+              facilityName:
+                type: ["string", "null"]
+              attended:
+                type: boolean
+              trainingRecordId:
+                type: ["integer", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - organizationId
+        - trainerUserId
+        - trainingTypeId
+        - className
+        - classDate
+        - durationHours
+        - status
+        - attendees
+
+    CreateTrainingClassBody:
+      type: object
+      required: [trainingTypeId, className, classDate]
+      properties:
+        trainingTypeId:
+          type: integer
+        className:
+          type: string
+        classDate:
+          type: string
+        facilityId:
+          type: integer
+        location:
+          type: string
+        durationHours:
+          type: string
+        notes:
+          type: string
+
+    UpdateTrainingClassBody:
+      type: object
+      properties:
+        className:
+          type: string
+        classDate:
+          type: string
+        facilityId:
+          type: ["integer", "null"]
+        location:
+          type: string
+        durationHours:
+          type: string
+        notes:
+          type: string
+        status:
+          type: string
+          enum: [draft, completed, cancelled]
+
+    FacilityRetrainingStatus:
+      type: object
+      properties:
+        facilityId:
+          type: integer
+        facilityName:
+          type: string
+        facilityType:
+          type: string
+        totalMedAdminStaff:
+          type: integer
+        compliantCount:
+          type: integer
+        dueSoonCount:
+          type: integer
+        expiredCount:
+          type: integer
+        missingCount:
+          type: integer
+        nextExpiryDate:
+          type: ["string", "null"]
+        overallStatus:
+          type: string
+          enum: [compliant, due_soon, expired, critical]
+      required:
+        - facilityId
+        - facilityName
+        - facilityType
+        - totalMedAdminStaff
+        - compliantCount
+        - dueSoonCount
+        - expiredCount
+        - missingCount
+        - overallStatus

@@ -91,7 +91,18 @@ export function Sidebar() {
       {
         items: [
           { href: "/trainer", label: "Dashboard", icon: LayoutDashboard },
+        ]
+      },
+      {
+        title: "Training",
+        items: [
           { href: "/trainer/classes", label: "My Classes", icon: GraduationCap },
+          { href: "/trainer/retraining", label: "Retraining Monitor", icon: ShieldAlert },
+        ]
+      },
+      {
+        title: "Directory",
+        items: [
           { href: "/trainer/facilities", label: "Facilities", icon: Building2 },
           { href: "/trainer/employees", label: "Employees", icon: Users },
         ]

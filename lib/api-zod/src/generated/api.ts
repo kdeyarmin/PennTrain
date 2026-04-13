@@ -2319,6 +2319,196 @@ export const GetTrainingMatrixReportResponse = zod.object({
 });
 
 /**
+ * @summary List training classes
+ */
+export const ListTrainingClassesQueryParams = zod.object({
+  facilityId: zod.coerce.number().optional(),
+  trainingTypeId: zod.coerce.number().optional(),
+  status: zod.enum(["draft", "completed", "cancelled"]).optional(),
+  dateFrom: zod.coerce.string().optional(),
+  dateTo: zod.coerce.string().optional(),
+});
+
+export const ListTrainingClassesResponseItem = zod.object({
+  id: zod.number(),
+  organizationId: zod.number(),
+  facilityId: zod.number().nullish(),
+  trainerUserId: zod.number(),
+  trainingTypeId: zod.number(),
+  className: zod.string(),
+  classDate: zod.string(),
+  location: zod.string().nullish(),
+  durationHours: zod.string(),
+  status: zod.enum(["draft", "completed", "cancelled"]),
+  notes: zod.string().nullish(),
+  rosterDocumentId: zod.number().nullish(),
+  trainingTypeName: zod.string().optional(),
+  facilityName: zod.string().nullish(),
+  attendeeCount: zod.number().optional(),
+  createdAt: zod.string().optional(),
+});
+export const ListTrainingClassesResponse = zod.array(
+  ListTrainingClassesResponseItem,
+);
+
+/**
+ * @summary Create a new training class
+ */
+export const CreateTrainingClassBody = zod.object({
+  trainingTypeId: zod.number(),
+  className: zod.string(),
+  classDate: zod.string(),
+  facilityId: zod.number().optional(),
+  location: zod.string().optional(),
+  durationHours: zod.string().optional(),
+  notes: zod.string().optional(),
+});
+
+/**
+ * @summary Get training class by ID with attendees
+ */
+export const GetTrainingClassParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetTrainingClassResponse = zod.object({
+  id: zod.number(),
+  organizationId: zod.number(),
+  facilityId: zod.number().nullish(),
+  trainerUserId: zod.number(),
+  trainingTypeId: zod.number(),
+  className: zod.string(),
+  classDate: zod.string(),
+  location: zod.string().nullish(),
+  durationHours: zod.string(),
+  status: zod.enum(["draft", "completed", "cancelled"]),
+  notes: zod.string().nullish(),
+  rosterDocumentId: zod.number().nullish(),
+  trainingTypeName: zod.string().optional(),
+  facilityName: zod.string().nullish(),
+  attendees: zod.array(
+    zod.object({
+      id: zod.number().optional(),
+      employeeId: zod.number().optional(),
+      employeeName: zod.string().optional(),
+      facilityName: zod.string().nullish(),
+      attended: zod.boolean().optional(),
+      trainingRecordId: zod.number().nullish(),
+    }),
+  ),
+  createdAt: zod.string().optional(),
+});
+
+/**
+ * @summary Update a training class
+ */
+export const UpdateTrainingClassParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateTrainingClassBody = zod.object({
+  className: zod.string().optional(),
+  classDate: zod.string().optional(),
+  facilityId: zod.number().nullish(),
+  location: zod.string().optional(),
+  durationHours: zod.string().optional(),
+  notes: zod.string().optional(),
+  status: zod.enum(["draft", "completed", "cancelled"]).optional(),
+});
+
+export const UpdateTrainingClassResponse = zod.object({
+  id: zod.number(),
+  organizationId: zod.number(),
+  facilityId: zod.number().nullish(),
+  trainerUserId: zod.number(),
+  trainingTypeId: zod.number(),
+  className: zod.string(),
+  classDate: zod.string(),
+  location: zod.string().nullish(),
+  durationHours: zod.string(),
+  status: zod.enum(["draft", "completed", "cancelled"]),
+  notes: zod.string().nullish(),
+  rosterDocumentId: zod.number().nullish(),
+  trainingTypeName: zod.string().optional(),
+  facilityName: zod.string().nullish(),
+  attendeeCount: zod.number().optional(),
+  createdAt: zod.string().optional(),
+});
+
+/**
+ * @summary Delete a training class
+ */
+export const DeleteTrainingClassParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteTrainingClassResponse = zod.object({
+  success: zod.boolean().optional(),
+});
+
+/**
+ * @summary Add attendees to a training class
+ */
+export const AddClassAttendeesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AddClassAttendeesBody = zod.object({
+  employeeIds: zod.array(zod.number()),
+});
+
+export const AddClassAttendeesResponse = zod.object({
+  added: zod.number().optional(),
+});
+
+/**
+ * @summary Complete a class and create training records for attendees
+ */
+export const CompleteTrainingClassParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CompleteTrainingClassResponse = zod.object({
+  classId: zod.number().optional(),
+  recordsCreated: zod.number().optional(),
+});
+
+/**
+ * @summary Upload a roster PDF to a training class
+ */
+export const UploadClassRosterParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UploadClassRosterBody = zod.object({
+  file: zod.instanceof(File).optional(),
+});
+
+export const UploadClassRosterResponse = zod.object({
+  documentId: zod.number().optional(),
+  fileName: zod.string().optional(),
+});
+
+/**
+ * @summary Get retraining status for all facilities
+ */
+export const GetFacilitiesRetrainingStatusResponseItem = zod.object({
+  facilityId: zod.number(),
+  facilityName: zod.string(),
+  facilityType: zod.string(),
+  totalMedAdminStaff: zod.number(),
+  compliantCount: zod.number(),
+  dueSoonCount: zod.number(),
+  expiredCount: zod.number(),
+  missingCount: zod.number(),
+  nextExpiryDate: zod.string().nullish(),
+  overallStatus: zod.enum(["compliant", "due_soon", "expired", "critical"]),
+});
+export const GetFacilitiesRetrainingStatusResponse = zod.array(
+  GetFacilitiesRetrainingStatusResponseItem,
+);
+
+/**
  * @summary List annual training hour buckets
  */
 export const ListTrainingHoursQueryParams = zod.object({
