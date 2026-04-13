@@ -185,6 +185,12 @@ router.get("/training-records/:id", requireAuth, async (req, res): Promise<void>
       res.status(403).json({ error: "Forbidden" }); return;
     }
   }
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null && result.record.facilityId !== null && !assignedFacilityIds.includes(result.record.facilityId)) {
+      res.status(403).json({ error: "Forbidden: not assigned to this facility" }); return;
+    }
+  }
 
   res.json({ ...result.record, trainingType: result.trainingType });
 });

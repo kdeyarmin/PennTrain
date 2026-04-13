@@ -67,7 +67,31 @@ router.get("/documents", requireAuth, async (req, res): Promise<void> => {
       query = query.where(eq(trainingDocumentsTable.organizationId, Number(req.query.organizationId)));
     }
 
-    if (req.query.facilityId) {
+    // Restrict facility_manager and trainer to only their assigned facilities
+    if (["facility_manager", "trainer"].includes(user.role)) {
+      const { getAssignedFacilityIds } = await import("../lib/auth");
+      const assignedFacilityIds = await getAssignedFacilityIds(user);
+      if (assignedFacilityIds !== null) {
+        if (assignedFacilityIds.length === 0) { res.json([]); return; }
+        if (req.query.facilityId) {
+          const reqFacilityId = Number(req.query.facilityId);
+          if (!assignedFacilityIds.includes(reqFacilityId)) {
+            res.status(403).json({ error: "Forbidden: not assigned to this facility" }); return;
+          }
+          query = query.where(eq(trainingDocumentsTable.facilityId, reqFacilityId));
+        } else {
+          // Filter to all assigned facilities using in-memory post-filter (drizzle doesn't support inArray easily here)
+          const docs = await query.orderBy(trainingDocumentsTable.createdAt);
+          const filtered = docs.filter(d => d.facilityId !== null && assignedFacilityIds.includes(d.facilityId));
+          if (req.query.employeeId) {
+            res.json(filtered.filter(d => d.employeeId === Number(req.query.employeeId)));
+          } else {
+            res.json(filtered);
+          }
+          return;
+        }
+      }
+    } else if (req.query.facilityId) {
       const facilityId = Number(req.query.facilityId);
       if (user.role !== "platform_admin" && user.organizationId) {
         const [fac] = await db.select().from(facilitiesTable).where(
@@ -224,6 +248,13 @@ router.get("/documents/:id", requireAuth, async (req, res): Promise<void> => {
       res.status(403).json({ error: "Forbidden" }); return;
     }
   }
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const { getAssignedFacilityIds } = await import("../lib/auth");
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null && doc.facilityId !== null && !assignedFacilityIds.includes(doc.facilityId)) {
+      res.status(403).json({ error: "Forbidden: not assigned to this facility" }); return;
+    }
+  }
   res.json(doc);
 });
 
@@ -238,6 +269,13 @@ router.delete("/documents/:id", requireAuth, async (req, res): Promise<void> => 
   if (!doc) { res.status(404).json({ error: "Document not found" }); return; }
   if (user.role !== "platform_admin" && user.organizationId !== doc.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
+  }
+  if (user.role === "facility_manager") {
+    const { getAssignedFacilityIds } = await import("../lib/auth");
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null && doc.facilityId !== null && !assignedFacilityIds.includes(doc.facilityId)) {
+      res.status(403).json({ error: "Forbidden: not assigned to this facility" }); return;
+    }
   }
 
   // Delete file from disk

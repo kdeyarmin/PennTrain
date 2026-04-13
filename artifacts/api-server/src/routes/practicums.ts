@@ -163,6 +163,12 @@ router.get("/practicums/:id", requireAuth, async (req, res): Promise<void> => {
       res.status(403).json({ error: "Forbidden" }); return;
     }
   }
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null && practicum.facilityId !== null && !assignedFacilityIds.includes(practicum.facilityId)) {
+      res.status(403).json({ error: "Forbidden: not assigned to this facility" }); return;
+    }
+  }
   res.json(practicum);
 });
 
