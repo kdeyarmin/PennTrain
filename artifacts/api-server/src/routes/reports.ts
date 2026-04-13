@@ -277,4 +277,130 @@ async function getTrainingRecordsForEmployees(employeeIds: number[], orgId: numb
     .then(rows => rows.filter(r => employeeIds.includes(r.record.employeeId)));
 }
 
+router.get("/reports/compliance-summary", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const orgId = getOrgFilter(user, req.query.organizationId as string);
+  if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
+  const facilityId = req.query.facilityId ? Number(req.query.facilityId) : undefined;
+
+  let empQuery = db.select().from(employeesTable).where(
+    and(eq(employeesTable.organizationId, orgId), eq(employeesTable.status, "active"))
+  );
+  const employees = await empQuery;
+  const filtered = facilityId ? employees.filter(e => e.facilityId === facilityId) : employees;
+
+  const records = await getTrainingRecordsForEmployees(filtered.map(e => e.id), orgId);
+  const statuses = records.map(r => r.record.status);
+  const compliantCount = statuses.filter(s => s === "compliant").length;
+  const expiredCount = statuses.filter(s => s === "expired").length;
+  const dueSoonCount = statuses.filter(s => s === "due_soon").length;
+  const total = statuses.length;
+
+  res.json({
+    reportType: "compliance_summary",
+    organizationId: orgId,
+    facilityId: facilityId ?? null,
+    totalEmployees: filtered.length,
+    totalRecords: total,
+    compliantCount,
+    expiredCount,
+    dueSoonCount,
+    compliancePercentage: total > 0 ? Math.round((compliantCount / total) * 100) : 100,
+    generatedAt: new Date().toISOString(),
+  });
+});
+
+router.get("/reports/expired-training", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const orgId = getOrgFilter(user, req.query.organizationId as string);
+  if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
+
+  let query = db
+    .select({ record: trainingRecordsTable, trainingType: trainingTypesTable })
+    .from(trainingRecordsTable)
+    .leftJoin(trainingTypesTable, eq(trainingRecordsTable.trainingTypeId, trainingTypesTable.id))
+    .where(and(eq(trainingRecordsTable.organizationId, orgId), eq(trainingRecordsTable.status, "expired")));
+
+  const records = await query;
+  res.json({ reportType: "expired_training", records: records.map(r => ({ ...r.record, trainingTypeName: r.trainingType?.name })), generatedAt: new Date().toISOString() });
+});
+
+router.get("/reports/due-soon", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const orgId = getOrgFilter(user, req.query.organizationId as string);
+  if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
+
+  const records = await db
+    .select({ record: trainingRecordsTable, trainingType: trainingTypesTable })
+    .from(trainingRecordsTable)
+    .leftJoin(trainingTypesTable, eq(trainingRecordsTable.trainingTypeId, trainingTypesTable.id))
+    .where(and(eq(trainingRecordsTable.organizationId, orgId), eq(trainingRecordsTable.status, "due_soon")));
+
+  res.json({ reportType: "due_soon", records: records.map(r => ({ ...r.record, trainingTypeName: r.trainingType?.name })), generatedAt: new Date().toISOString() });
+});
+
+router.get("/reports/missing-documents", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const orgId = getOrgFilter(user, req.query.organizationId as string);
+  if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
+
+  const records = await db
+    .select({ record: trainingRecordsTable, trainingType: trainingTypesTable })
+    .from(trainingRecordsTable)
+    .leftJoin(trainingTypesTable, eq(trainingRecordsTable.trainingTypeId, trainingTypesTable.id))
+    .where(and(eq(trainingRecordsTable.organizationId, orgId), eq(trainingRecordsTable.status, "missing")));
+
+  res.json({ reportType: "missing_documents", records: records.map(r => ({ ...r.record, trainingTypeName: r.trainingType?.name })), generatedAt: new Date().toISOString() });
+});
+
+router.get("/reports/practicum-status", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const orgId = getOrgFilter(user, req.query.organizationId as string);
+  if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
+  const year = Number(req.query.year) || new Date().getFullYear();
+
+  const practicums = await db.select().from(practicumsTable).where(
+    and(eq(practicumsTable.organizationId, orgId), eq(practicumsTable.practicumYear, year))
+  );
+  const employees = await db.select().from(employeesTable).where(
+    and(eq(employeesTable.organizationId, orgId), eq(employeesTable.administersMedications, true))
+  );
+
+  res.json({
+    reportType: "practicum_status",
+    year,
+    practicums,
+    employees,
+    compliantCount: practicums.filter(p => p.status === "compliant").length,
+    pendingCount: practicums.filter(p => p.status !== "compliant").length,
+    generatedAt: new Date().toISOString(),
+  });
+});
+
+router.get("/reports/annual-hours", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const orgId = getOrgFilter(user, req.query.organizationId as string);
+  if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
+  const year = Number(req.query.year) || new Date().getFullYear();
+
+  const buckets = await db.select().from(trainingHourBucketsTable).where(
+    and(eq(trainingHourBucketsTable.organizationId, orgId), eq(trainingHourBucketsTable.trainingYear, year))
+  );
+
+  res.json({
+    reportType: "annual_hours",
+    year,
+    buckets,
+    compliantCount: buckets.filter(b => b.status === "compliant").length,
+    incompleteCount: buckets.filter(b => b.status === "incomplete").length,
+    generatedAt: new Date().toISOString(),
+  });
+});
+
 export default router;

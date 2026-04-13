@@ -22,9 +22,10 @@ router.get("/practicums", requireAuth, async (req, res): Promise<void> => {
 
   if (["facility_manager", "trainer"].includes(user.role)) {
     const assignedFacilityIds = await getAssignedFacilityIds(user);
-    if (assignedFacilityIds && assignedFacilityIds.length > 0) {
-      query = query.where(inArray(practicumsTable.facilityId, assignedFacilityIds));
+    if (!assignedFacilityIds || assignedFacilityIds.length === 0) {
+      res.json([]); return;
     }
+    query = query.where(inArray(practicumsTable.facilityId, assignedFacilityIds));
   }
 
   if (req.query.facilityId) {

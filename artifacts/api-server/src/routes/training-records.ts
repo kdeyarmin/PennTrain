@@ -27,9 +27,10 @@ router.get("/training-records", requireAuth, async (req, res): Promise<void> => 
 
   if (["facility_manager", "trainer"].includes(user.role)) {
     const assignedFacilityIds = await getAssignedFacilityIds(user);
-    if (assignedFacilityIds && assignedFacilityIds.length > 0) {
-      query = query.where(inArray(trainingRecordsTable.facilityId, assignedFacilityIds));
+    if (!assignedFacilityIds || assignedFacilityIds.length === 0) {
+      res.json([]); return;
     }
+    query = query.where(inArray(trainingRecordsTable.facilityId, assignedFacilityIds));
   }
 
   if (req.query.facilityId) {
@@ -225,9 +226,10 @@ router.get("/training-matrix", requireAuth, async (req, res): Promise<void> => {
 
   if (["facility_manager", "trainer"].includes(user.role)) {
     const assignedFacilityIds = await getAssignedFacilityIds(user);
-    if (assignedFacilityIds && assignedFacilityIds.length > 0) {
-      employeeQuery = employeeQuery.where(inArray(employeesTable.facilityId, assignedFacilityIds));
+    if (!assignedFacilityIds || assignedFacilityIds.length === 0) {
+      res.json([]); return;
     }
+    employeeQuery = employeeQuery.where(inArray(employeesTable.facilityId, assignedFacilityIds));
   }
 
   const employees = await employeeQuery.orderBy(employeesTable.lastName, employeesTable.firstName);

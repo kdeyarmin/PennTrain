@@ -15,6 +15,7 @@ import usersRouter from "./users";
 import dashboardRouter from "./dashboard";
 import reportsRouter from "./reports";
 import documentsRouter from "./documents";
+import trainingHoursRouter from "./training-hours";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(usersRouter);
 router.use(dashboardRouter);
 router.use(reportsRouter);
 router.use(documentsRouter);
+router.use(trainingHoursRouter);
 
 export default router;

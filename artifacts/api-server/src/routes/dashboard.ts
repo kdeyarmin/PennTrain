@@ -71,27 +71,31 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
 
   const statuses = trainingRecords.map(r => r.status);
   const compliantCount = statuses.filter(s => s === "compliant").length;
-  const dueSoonCount = statuses.filter(s => s === "due_soon").length;
   const expiredCount = statuses.filter(s => s === "expired").length;
-  const missingCount = statuses.filter(s => s === "missing").length;
+  const missingDocumentCount = statuses.filter(s => s === "missing").length;
+  const dueSoon30Count = statuses.filter(s => s === "due_soon").length;
   const total = statuses.length;
-  const complianceScore = total > 0 ? Math.round((compliantCount / total) * 100) : 100;
+  const compliancePercentage = total > 0 ? Math.round((compliantCount / total) * 100) : 100;
+  const trainersDueForRecert = medAdminStaff.filter(e => e.trainerStatus).length;
 
   res.json({
     organizationId: orgId,
     totalFacilities: facilities.length,
     totalEmployees: employees.length,
-    medAdminStaff: medAdminStaff.length,
+    totalMedAdminStaff: medAdminStaff.length,
     compliantCount,
-    dueSoonCount,
+    dueSoon30Count,
+    dueSoon90Count: dueSoon30Count,
     expiredCount,
-    missingCount,
-    complianceScore,
+    missingDocumentCount,
+    compliancePercentage,
+    trainersDueForRecert,
     openAlertsCount: openAlerts[0]?.count ?? 0,
     criticalAlertsCount: criticalAlerts[0]?.count ?? 0,
     practicumsDue: practicums.filter(p => p.status === "missing" || p.status === "due_soon").length,
-    practiculumsCompliant: practicums.filter(p => p.status === "compliant").length,
+    practicumsCompliant: practicums.filter(p => p.status === "compliant").length,
     annualHoursIncomplete: hourBuckets.filter(h => h.status === "incomplete").length,
+    recentUploadsCount: 0,
     recentActivity: [],
   });
 });
