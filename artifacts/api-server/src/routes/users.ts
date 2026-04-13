@@ -89,11 +89,15 @@ router.get("/users/:id", requireAuth, async (req, res): Promise<void> => {
   const [targetUser] = await db.select().from(usersTable).where(eq(usersTable.id, id));
   if (!targetUser) { res.status(404).json({ error: "User not found" }); return; }
 
-  if (
-    currentUser.role !== "platform_admin" &&
-    currentUser.id !== id &&
-    currentUser.organizationId !== targetUser.organizationId
-  ) {
+  const isSelf = currentUser.id === id;
+  const isPlatformAdmin = currentUser.role === "platform_admin";
+  const isOrgOrFacilityAdmin = ["org_admin", "facility_manager"].includes(currentUser.role);
+  const sameOrg = currentUser.organizationId === targetUser.organizationId;
+
+  // Self-access always allowed; platform_admin can see any user;
+  // org_admin/facility_manager can see users in their org;
+  // trainers and employees can ONLY see themselves
+  if (!isSelf && !isPlatformAdmin && !(isOrgOrFacilityAdmin && sameOrg)) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
   res.json(sanitizeUser(targetUser));
