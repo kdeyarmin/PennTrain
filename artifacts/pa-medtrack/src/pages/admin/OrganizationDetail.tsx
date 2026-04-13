@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRoute, Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,101 +7,46 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Building, Building2, LogIn } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-
-interface Organization {
-  id: number;
-  name: string;
-  slug: string;
-  contactName: string | null;
-  contactEmail: string | null;
-  contactPhone: string | null;
-  address: string | null;
-  city: string | null;
-  state: string | null;
-  zip: string | null;
-  subscriptionStatus: string;
-  planName: string | null;
-  maxFacilities: number | null;
-  maxUsers: number | null;
-  isActive: boolean;
-}
-
-interface OrgStats {
-  organizationId: number;
-  totalFacilities: number;
-  totalEmployees: number;
-  totalMedAdminStaff: number;
-  compliantCount: number;
-  dueSoonCount: number;
-  expiredCount: number;
-  compliancePercentage: number;
-  openAlertsCount: number;
-}
-
-interface Facility {
-  id: number;
-  name: string;
-  facilityType: string;
-  licenseNumber: string | null;
-  city: string | null;
-  state: string | null;
-  isActive: boolean;
-}
+import {
+  useGetOrganization,
+  useGetOrganizationStats,
+  useListFacilities,
+} from "@workspace/api-client-react";
+import { impersonateOrg } from "@workspace/api-client-react";
+import { useMutation } from "@tanstack/react-query";
 
 export default function OrganizationDetail() {
   const [, params] = useRoute("/admin/organizations/:id");
-  const id = params?.id;
+  const id = params?.id ? Number(params.id) : undefined;
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setImpersonating] = useState(false);
 
-  const { data: org, isLoading: orgLoading } = useQuery<Organization>({
-    queryKey: ["organization", id],
-    queryFn: async () => {
-      const res = await fetch(`/api/organizations/${id}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Organization not found");
-      return res.json();
-    },
-    enabled: !!id,
+  const { data: org, isLoading: orgLoading } = useGetOrganization(id ?? 0, {
+    query: { enabled: !!id } as never,
   });
 
-  const { data: stats, isLoading: statsLoading } = useQuery<OrgStats>({
-    queryKey: ["organization-stats", id],
-    queryFn: async () => {
-      const res = await fetch(`/api/organizations/${id}/stats`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load stats");
-      return res.json();
-    },
-    enabled: !!id,
+  const { data: stats, isLoading: statsLoading } = useGetOrganizationStats(id ?? 0, {
+    query: { enabled: !!id } as never,
   });
 
-  const { data: facilities, isLoading: facLoading } = useQuery<Facility[]>({
-    queryKey: ["facilities-for-org", id],
-    queryFn: async () => {
-      const res = await fetch(`/api/facilities?organizationId=${id}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load facilities");
-      return res.json();
-    },
-    enabled: !!id,
-  });
+  const { data: facilities, isLoading: facLoading } = useListFacilities(
+    { organizationId: id },
+    { query: { enabled: !!id } as never }
+  );
 
   const impersonateMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/auth/impersonate-org", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ organizationId: Number(id) }),
-      });
-      if (!res.ok) throw new Error("Failed to start impersonation");
-      return res.json();
+      return impersonateOrg({ organizationId: id! });
     },
-    onSuccess: (data) => {
+    onSuccess: (data: { organization?: { name?: string } }) => {
       setImpersonating(true);
       queryClient.invalidateQueries();
-      toast({ title: `Viewing as: ${data.organization?.name ?? org?.name}`, description: "You are now viewing this organization's data." });
+      toast({
+        title: `Viewing as: ${data.organization?.name ?? org?.name}`,
+        description: "You are now viewing this organization's data.",
+      });
       navigate("/");
     },
     onError: () => {
@@ -164,7 +109,6 @@ export default function OrganizationDetail() {
                   {org.subscriptionStatus}
                 </Badge>
                 {org.planName && <Badge variant="outline">{org.planName}</Badge>}
-                {!org.isActive && <Badge variant="destructive">Inactive</Badge>}
               </div>
             </div>
             <Button

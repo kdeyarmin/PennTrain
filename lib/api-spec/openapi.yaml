@@ -77,6 +77,47 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /auth/impersonate-org:
+    post:
+      operationId: impersonateOrg
+      tags: [auth]
+      summary: Platform admin impersonates an organization context
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organizationId]
+              properties:
+                organizationId:
+                  type: integer
+      responses:
+        "200":
+          description: Impersonation context activated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  organization:
+                    $ref: "#/components/schemas/Organization"
+
+  /auth/stop-impersonation:
+    post:
+      operationId: stopImpersonation
+      tags: [auth]
+      summary: Stop impersonating an organization and return to platform_admin context
+      responses:
+        "200":
+          description: Impersonation stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
   /auth/logout:
     post:
       operationId: logout
@@ -230,6 +271,68 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OrganizationStats"
+
+  /organizations/{id}/settings:
+    get:
+      operationId: getOrganizationSettings
+      tags: [organizations]
+      summary: Get organization settings
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Organization settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  organizationId:
+                    type: integer
+                  alertWindowDays:
+                    type: integer
+                  defaultTrainingFrequencyMonths:
+                    type: integer
+                  requirePracticumForMedAdmin:
+                    type: boolean
+                  minAnnualTrainingHours:
+                    type: integer
+    put:
+      operationId: updateOrganizationSettings
+      tags: [organizations]
+      summary: Update organization settings
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                alertWindowDays:
+                  type: integer
+                defaultTrainingFrequencyMonths:
+                  type: integer
+                requirePracticumForMedAdmin:
+                  type: boolean
+                minAnnualTrainingHours:
+                  type: integer
+      responses:
+        "200":
+          description: Settings updated
+          content:
+            application/json:
+              schema:
+                type: object
 
   # Facilities
   /facilities:
@@ -1350,6 +1453,144 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ActivityItem"
+
+  /dashboard/compliance-trends:
+    get:
+      operationId: getComplianceTrends
+      tags: [dashboard]
+      summary: Get compliance trends over the past N months
+      parameters:
+        - name: organizationId
+          in: query
+          schema:
+            type: integer
+        - name: months
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Compliance trends data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  trend:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        month:
+                          type: string
+                        compliant:
+                          type: integer
+                        expired:
+                          type: integer
+                        dueSoon:
+                          type: integer
+                        total:
+                          type: integer
+                  snapshot:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      compliant:
+                        type: integer
+                      expired:
+                        type: integer
+                      dueSoon:
+                        type: integer
+                      compliancePercentage:
+                        type: number
+                  generatedAt:
+                    type: string
+
+  # Facility User Assignments
+  /facility-user-assignments:
+    get:
+      operationId: listFacilityUserAssignments
+      tags: [facilities]
+      summary: List facility user assignments
+      parameters:
+        - name: facilityId
+          in: query
+          schema:
+            type: integer
+        - name: userId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Facility user assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    userId:
+                      type: integer
+                    facilityId:
+                      type: integer
+                    createdAt:
+                      type: string
+                    userFirstName:
+                      type: string
+                      nullable: true
+                    userLastName:
+                      type: string
+                      nullable: true
+                    userRole:
+                      type: string
+                      nullable: true
+                    facilityName:
+                      type: string
+    post:
+      operationId: createFacilityUserAssignment
+      tags: [facilities]
+      summary: Assign a user to a facility
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, facilityId]
+              properties:
+                userId:
+                  type: integer
+                facilityId:
+                  type: integer
+      responses:
+        "201":
+          description: Assignment created
+          content:
+            application/json:
+              schema:
+                type: object
+        "409":
+          description: Assignment already exists
+
+  /facility-user-assignments/{id}:
+    delete:
+      operationId: deleteFacilityUserAssignment
+      tags: [facilities]
+      summary: Remove a facility user assignment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Assignment deleted
 
   # Reports
   /reports/compliance-summary:

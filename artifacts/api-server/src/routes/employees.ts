@@ -235,6 +235,12 @@ router.get("/employees/:id/compliance-summary", requireAuth, async (req, res): P
   if (user.role !== "platform_admin" && user.organizationId !== employee.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedIds = await getAssignedFacilityIds(user);
+    if (assignedIds !== null && employee.facilityId !== null && !assignedIds.includes(employee.facilityId)) {
+      res.status(403).json({ error: "Forbidden: employee not in your assigned facilities" }); return;
+    }
+  }
 
   const trainingRecords = await db
     .select({ record: trainingRecordsTable, trainingType: trainingTypesTable })
@@ -274,6 +280,12 @@ router.get("/employees/:id/transcript", requireAuth, async (req, res): Promise<v
   if (!employee) { res.status(404).json({ error: "Employee not found" }); return; }
   if (user.role !== "platform_admin" && user.organizationId !== employee.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
+  }
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedIds = await getAssignedFacilityIds(user);
+    if (assignedIds !== null && employee.facilityId !== null && !assignedIds.includes(employee.facilityId)) {
+      res.status(403).json({ error: "Forbidden: employee not in your assigned facilities" }); return;
+    }
   }
 
   const trainingRecords = await db

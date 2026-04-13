@@ -28,6 +28,8 @@ import type {
   ComplianceSummaryReport,
   CreateEmployeeBody,
   CreateFacilityBody,
+  CreateFacilityUserAssignment201,
+  CreateFacilityUserAssignmentBody,
   CreateOrganizationBody,
   CreatePracticumBody,
   CreateTrainingRecordBody,
@@ -47,12 +49,15 @@ import type {
   GetAnnualHoursReportParams,
   GetComplianceByFacilityParams,
   GetComplianceSummaryReportParams,
+  GetComplianceTrends200,
+  GetComplianceTrendsParams,
   GetDashboardSummaryParams,
   GetDueSoonReportParams,
   GetEmployeeTranscriptParams,
   GetExpiredTrainingReportParams,
   GetMissingDocumentsReportParams,
   GetOrgComplianceReportParams,
+  GetOrganizationSettings200,
   GetPracticumStatusReportParams,
   GetRecentActivityParams,
   GetSurveyReadinessReportParams,
@@ -62,11 +67,15 @@ import type {
   GetTrainingMatrixReportParams,
   GetUpcomingDueDatesParams,
   HealthStatus,
+  ImpersonateOrg200,
+  ImpersonateOrgBody,
   ListAlertsParams,
   ListAuditLogsParams,
   ListDocumentsParams,
   ListEmployeesParams,
   ListFacilitiesParams,
+  ListFacilityUserAssignments200Item,
+  ListFacilityUserAssignmentsParams,
   ListOrganizationsParams,
   ListPracticumsParams,
   ListTrainingHoursParams,
@@ -93,6 +102,8 @@ import type {
   UpdateEmployeeBody,
   UpdateFacilityBody,
   UpdateOrganizationBody,
+  UpdateOrganizationSettings200,
+  UpdateOrganizationSettingsBody,
   UpdatePracticumBody,
   UpdateTrainingRecordBody,
   UpdateTrainingTypeBody,
@@ -270,6 +281,173 @@ export const useLogin = <
   TContext
 > => {
   return useMutation(getLoginMutationOptions(options));
+};
+
+/**
+ * @summary Platform admin impersonates an organization context
+ */
+export const getImpersonateOrgUrl = () => {
+  return `/api/auth/impersonate-org`;
+};
+
+export const impersonateOrg = async (
+  impersonateOrgBody: ImpersonateOrgBody,
+  options?: RequestInit,
+): Promise<ImpersonateOrg200> => {
+  return customFetch<ImpersonateOrg200>(getImpersonateOrgUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(impersonateOrgBody),
+  });
+};
+
+export const getImpersonateOrgMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof impersonateOrg>>,
+    TError,
+    { data: BodyType<ImpersonateOrgBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof impersonateOrg>>,
+  TError,
+  { data: BodyType<ImpersonateOrgBody> },
+  TContext
+> => {
+  const mutationKey = ["impersonateOrg"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof impersonateOrg>>,
+    { data: BodyType<ImpersonateOrgBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return impersonateOrg(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ImpersonateOrgMutationResult = NonNullable<
+  Awaited<ReturnType<typeof impersonateOrg>>
+>;
+export type ImpersonateOrgMutationBody = BodyType<ImpersonateOrgBody>;
+export type ImpersonateOrgMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Platform admin impersonates an organization context
+ */
+export const useImpersonateOrg = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof impersonateOrg>>,
+    TError,
+    { data: BodyType<ImpersonateOrgBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof impersonateOrg>>,
+  TError,
+  { data: BodyType<ImpersonateOrgBody> },
+  TContext
+> => {
+  return useMutation(getImpersonateOrgMutationOptions(options));
+};
+
+/**
+ * @summary Stop impersonating an organization and return to platform_admin context
+ */
+export const getStopImpersonationUrl = () => {
+  return `/api/auth/stop-impersonation`;
+};
+
+export const stopImpersonation = async (
+  options?: RequestInit,
+): Promise<MessageResponse> => {
+  return customFetch<MessageResponse>(getStopImpersonationUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getStopImpersonationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof stopImpersonation>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof stopImpersonation>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["stopImpersonation"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof stopImpersonation>>,
+    void
+  > = () => {
+    return stopImpersonation(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type StopImpersonationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof stopImpersonation>>
+>;
+
+export type StopImpersonationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Stop impersonating an organization and return to platform_admin context
+ */
+export const useStopImpersonation = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof stopImpersonation>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof stopImpersonation>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getStopImpersonationMutationOptions(options));
 };
 
 /**
@@ -944,6 +1122,189 @@ export function useGetOrganizationStats<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get organization settings
+ */
+export const getGetOrganizationSettingsUrl = (id: number) => {
+  return `/api/organizations/${id}/settings`;
+};
+
+export const getOrganizationSettings = async (
+  id: number,
+  options?: RequestInit,
+): Promise<GetOrganizationSettings200> => {
+  return customFetch<GetOrganizationSettings200>(
+    getGetOrganizationSettingsUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetOrganizationSettingsQueryKey = (id: number) => {
+  return [`/api/organizations/${id}/settings`] as const;
+};
+
+export const getGetOrganizationSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOrganizationSettings>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOrganizationSettings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetOrganizationSettingsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getOrganizationSettings>>
+  > = ({ signal }) =>
+    getOrganizationSettings(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOrganizationSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetOrganizationSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOrganizationSettings>>
+>;
+export type GetOrganizationSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get organization settings
+ */
+
+export function useGetOrganizationSettings<
+  TData = Awaited<ReturnType<typeof getOrganizationSettings>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOrganizationSettings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetOrganizationSettingsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update organization settings
+ */
+export const getUpdateOrganizationSettingsUrl = (id: number) => {
+  return `/api/organizations/${id}/settings`;
+};
+
+export const updateOrganizationSettings = async (
+  id: number,
+  updateOrganizationSettingsBody: UpdateOrganizationSettingsBody,
+  options?: RequestInit,
+): Promise<UpdateOrganizationSettings200> => {
+  return customFetch<UpdateOrganizationSettings200>(
+    getUpdateOrganizationSettingsUrl(id),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateOrganizationSettingsBody),
+    },
+  );
+};
+
+export const getUpdateOrganizationSettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateOrganizationSettings>>,
+    TError,
+    { id: number; data: BodyType<UpdateOrganizationSettingsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateOrganizationSettings>>,
+  TError,
+  { id: number; data: BodyType<UpdateOrganizationSettingsBody> },
+  TContext
+> => {
+  const mutationKey = ["updateOrganizationSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateOrganizationSettings>>,
+    { id: number; data: BodyType<UpdateOrganizationSettingsBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateOrganizationSettings(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateOrganizationSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateOrganizationSettings>>
+>;
+export type UpdateOrganizationSettingsMutationBody =
+  BodyType<UpdateOrganizationSettingsBody>;
+export type UpdateOrganizationSettingsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update organization settings
+ */
+export const useUpdateOrganizationSettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateOrganizationSettings>>,
+    TError,
+    { id: number; data: BodyType<UpdateOrganizationSettingsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateOrganizationSettings>>,
+  TError,
+  { id: number; data: BodyType<UpdateOrganizationSettingsBody> },
+  TContext
+> => {
+  return useMutation(getUpdateOrganizationSettingsMutationOptions(options));
+};
 
 /**
  * @summary List facilities
@@ -5317,6 +5678,395 @@ export function useGetRecentActivity<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get compliance trends over the past N months
+ */
+export const getGetComplianceTrendsUrl = (
+  params?: GetComplianceTrendsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/dashboard/compliance-trends?${stringifiedParams}`
+    : `/api/dashboard/compliance-trends`;
+};
+
+export const getComplianceTrends = async (
+  params?: GetComplianceTrendsParams,
+  options?: RequestInit,
+): Promise<GetComplianceTrends200> => {
+  return customFetch<GetComplianceTrends200>(
+    getGetComplianceTrendsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetComplianceTrendsQueryKey = (
+  params?: GetComplianceTrendsParams,
+) => {
+  return [
+    `/api/dashboard/compliance-trends`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetComplianceTrendsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getComplianceTrends>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetComplianceTrendsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getComplianceTrends>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetComplianceTrendsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getComplianceTrends>>
+  > = ({ signal }) =>
+    getComplianceTrends(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getComplianceTrends>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetComplianceTrendsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getComplianceTrends>>
+>;
+export type GetComplianceTrendsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get compliance trends over the past N months
+ */
+
+export function useGetComplianceTrends<
+  TData = Awaited<ReturnType<typeof getComplianceTrends>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetComplianceTrendsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getComplianceTrends>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetComplianceTrendsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List facility user assignments
+ */
+export const getListFacilityUserAssignmentsUrl = (
+  params?: ListFacilityUserAssignmentsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/facility-user-assignments?${stringifiedParams}`
+    : `/api/facility-user-assignments`;
+};
+
+export const listFacilityUserAssignments = async (
+  params?: ListFacilityUserAssignmentsParams,
+  options?: RequestInit,
+): Promise<ListFacilityUserAssignments200Item[]> => {
+  return customFetch<ListFacilityUserAssignments200Item[]>(
+    getListFacilityUserAssignmentsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListFacilityUserAssignmentsQueryKey = (
+  params?: ListFacilityUserAssignmentsParams,
+) => {
+  return [
+    `/api/facility-user-assignments`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getListFacilityUserAssignmentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listFacilityUserAssignments>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListFacilityUserAssignmentsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listFacilityUserAssignments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListFacilityUserAssignmentsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listFacilityUserAssignments>>
+  > = ({ signal }) =>
+    listFacilityUserAssignments(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listFacilityUserAssignments>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListFacilityUserAssignmentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listFacilityUserAssignments>>
+>;
+export type ListFacilityUserAssignmentsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List facility user assignments
+ */
+
+export function useListFacilityUserAssignments<
+  TData = Awaited<ReturnType<typeof listFacilityUserAssignments>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListFacilityUserAssignmentsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listFacilityUserAssignments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListFacilityUserAssignmentsQueryOptions(
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Assign a user to a facility
+ */
+export const getCreateFacilityUserAssignmentUrl = () => {
+  return `/api/facility-user-assignments`;
+};
+
+export const createFacilityUserAssignment = async (
+  createFacilityUserAssignmentBody: CreateFacilityUserAssignmentBody,
+  options?: RequestInit,
+): Promise<CreateFacilityUserAssignment201> => {
+  return customFetch<CreateFacilityUserAssignment201>(
+    getCreateFacilityUserAssignmentUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(createFacilityUserAssignmentBody),
+    },
+  );
+};
+
+export const getCreateFacilityUserAssignmentMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFacilityUserAssignment>>,
+    TError,
+    { data: BodyType<CreateFacilityUserAssignmentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createFacilityUserAssignment>>,
+  TError,
+  { data: BodyType<CreateFacilityUserAssignmentBody> },
+  TContext
+> => {
+  const mutationKey = ["createFacilityUserAssignment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createFacilityUserAssignment>>,
+    { data: BodyType<CreateFacilityUserAssignmentBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createFacilityUserAssignment(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateFacilityUserAssignmentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createFacilityUserAssignment>>
+>;
+export type CreateFacilityUserAssignmentMutationBody =
+  BodyType<CreateFacilityUserAssignmentBody>;
+export type CreateFacilityUserAssignmentMutationError = ErrorType<void>;
+
+/**
+ * @summary Assign a user to a facility
+ */
+export const useCreateFacilityUserAssignment = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFacilityUserAssignment>>,
+    TError,
+    { data: BodyType<CreateFacilityUserAssignmentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createFacilityUserAssignment>>,
+  TError,
+  { data: BodyType<CreateFacilityUserAssignmentBody> },
+  TContext
+> => {
+  return useMutation(getCreateFacilityUserAssignmentMutationOptions(options));
+};
+
+/**
+ * @summary Remove a facility user assignment
+ */
+export const getDeleteFacilityUserAssignmentUrl = (id: number) => {
+  return `/api/facility-user-assignments/${id}`;
+};
+
+export const deleteFacilityUserAssignment = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteFacilityUserAssignmentUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteFacilityUserAssignmentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFacilityUserAssignment>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteFacilityUserAssignment>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteFacilityUserAssignment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteFacilityUserAssignment>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteFacilityUserAssignment(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteFacilityUserAssignmentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteFacilityUserAssignment>>
+>;
+
+export type DeleteFacilityUserAssignmentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove a facility user assignment
+ */
+export const useDeleteFacilityUserAssignment = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFacilityUserAssignment>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteFacilityUserAssignment>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteFacilityUserAssignmentMutationOptions(options));
+};
 
 /**
  * @summary Medication administration compliance by facility report

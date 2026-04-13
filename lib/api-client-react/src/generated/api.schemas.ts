@@ -1170,10 +1170,36 @@ export interface OrgComplianceReport {
   facilitySummaries: FacilityComplianceSummary[];
 }
 
+export type ImpersonateOrgBody = {
+  organizationId: number;
+};
+
+export type ImpersonateOrg200 = {
+  message?: string;
+  organization?: Organization;
+};
+
 export type ListOrganizationsParams = {
   status?: string;
   search?: string;
 };
+
+export type GetOrganizationSettings200 = {
+  organizationId?: number;
+  alertWindowDays?: number;
+  defaultTrainingFrequencyMonths?: number;
+  requirePracticumForMedAdmin?: boolean;
+  minAnnualTrainingHours?: number;
+};
+
+export type UpdateOrganizationSettingsBody = {
+  alertWindowDays?: number;
+  defaultTrainingFrequencyMonths?: number;
+  requirePracticumForMedAdmin?: boolean;
+  minAnnualTrainingHours?: number;
+};
+
+export type UpdateOrganizationSettings200 = { [key: string]: unknown };
 
 export type ListFacilitiesParams = {
   organizationId?: number;
@@ -1275,6 +1301,56 @@ export type GetRecentActivityParams = {
   facilityId?: number;
   limit?: number;
 };
+
+export type GetComplianceTrendsParams = {
+  organizationId?: number;
+  months?: number;
+};
+
+export type GetComplianceTrends200TrendItem = {
+  month?: string;
+  compliant?: number;
+  expired?: number;
+  dueSoon?: number;
+  total?: number;
+};
+
+export type GetComplianceTrends200Snapshot = {
+  total?: number;
+  compliant?: number;
+  expired?: number;
+  dueSoon?: number;
+  compliancePercentage?: number;
+};
+
+export type GetComplianceTrends200 = {
+  trend?: GetComplianceTrends200TrendItem[];
+  snapshot?: GetComplianceTrends200Snapshot;
+  generatedAt?: string;
+};
+
+export type ListFacilityUserAssignmentsParams = {
+  facilityId?: number;
+  userId?: number;
+};
+
+export type ListFacilityUserAssignments200Item = {
+  id?: number;
+  userId?: number;
+  facilityId?: number;
+  createdAt?: string;
+  userFirstName?: string | null;
+  userLastName?: string | null;
+  userRole?: string | null;
+  facilityName?: string;
+};
+
+export type CreateFacilityUserAssignmentBody = {
+  userId: number;
+  facilityId: number;
+};
+
+export type CreateFacilityUserAssignment201 = { [key: string]: unknown };
 
 export type GetComplianceSummaryReportParams = {
   organizationId?: number;

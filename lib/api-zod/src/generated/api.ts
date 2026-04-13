@@ -45,6 +45,44 @@ export const LoginResponse = zod.object({
 });
 
 /**
+ * @summary Platform admin impersonates an organization context
+ */
+export const ImpersonateOrgBody = zod.object({
+  organizationId: zod.number(),
+});
+
+export const ImpersonateOrgResponse = zod.object({
+  message: zod.string().optional(),
+  organization: zod
+    .object({
+      id: zod.number(),
+      name: zod.string(),
+      slug: zod.string(),
+      contactName: zod.string().nullish(),
+      contactEmail: zod.string().nullish(),
+      contactPhone: zod.string().nullish(),
+      address: zod.string().nullish(),
+      city: zod.string().nullish(),
+      state: zod.string().nullish(),
+      zip: zod.string().nullish(),
+      subscriptionStatus: zod.enum(["trial", "active", "past_due", "canceled"]),
+      planName: zod.string().nullish(),
+      maxFacilities: zod.number().nullish(),
+      maxUsers: zod.number().nullish(),
+      createdAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+    })
+    .optional(),
+});
+
+/**
+ * @summary Stop impersonating an organization and return to platform_admin context
+ */
+export const StopImpersonationResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
  * @summary Logout current session
  */
 export const LogoutResponse = zod.object({
@@ -219,6 +257,37 @@ export const GetOrganizationStatsResponse = zod.object({
   compliancePercentage: zod.number(),
   openAlertsCount: zod.number(),
 });
+
+/**
+ * @summary Get organization settings
+ */
+export const GetOrganizationSettingsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetOrganizationSettingsResponse = zod.object({
+  organizationId: zod.number().optional(),
+  alertWindowDays: zod.number().optional(),
+  defaultTrainingFrequencyMonths: zod.number().optional(),
+  requirePracticumForMedAdmin: zod.boolean().optional(),
+  minAnnualTrainingHours: zod.number().optional(),
+});
+
+/**
+ * @summary Update organization settings
+ */
+export const UpdateOrganizationSettingsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateOrganizationSettingsBody = zod.object({
+  alertWindowDays: zod.number().optional(),
+  defaultTrainingFrequencyMonths: zod.number().optional(),
+  requirePracticumForMedAdmin: zod.boolean().optional(),
+  minAnnualTrainingHours: zod.number().optional(),
+});
+
+export const UpdateOrganizationSettingsResponse = zod.object({}).passthrough();
 
 /**
  * @summary List facilities
@@ -1755,6 +1824,75 @@ export const GetRecentActivityResponseItem = zod.object({
 export const GetRecentActivityResponse = zod.array(
   GetRecentActivityResponseItem,
 );
+
+/**
+ * @summary Get compliance trends over the past N months
+ */
+export const GetComplianceTrendsQueryParams = zod.object({
+  organizationId: zod.coerce.number().optional(),
+  months: zod.coerce.number().optional(),
+});
+
+export const GetComplianceTrendsResponse = zod.object({
+  trend: zod
+    .array(
+      zod.object({
+        month: zod.string().optional(),
+        compliant: zod.number().optional(),
+        expired: zod.number().optional(),
+        dueSoon: zod.number().optional(),
+        total: zod.number().optional(),
+      }),
+    )
+    .optional(),
+  snapshot: zod
+    .object({
+      total: zod.number().optional(),
+      compliant: zod.number().optional(),
+      expired: zod.number().optional(),
+      dueSoon: zod.number().optional(),
+      compliancePercentage: zod.number().optional(),
+    })
+    .optional(),
+  generatedAt: zod.string().optional(),
+});
+
+/**
+ * @summary List facility user assignments
+ */
+export const ListFacilityUserAssignmentsQueryParams = zod.object({
+  facilityId: zod.coerce.number().optional(),
+  userId: zod.coerce.number().optional(),
+});
+
+export const ListFacilityUserAssignmentsResponseItem = zod.object({
+  id: zod.number().optional(),
+  userId: zod.number().optional(),
+  facilityId: zod.number().optional(),
+  createdAt: zod.string().optional(),
+  userFirstName: zod.string().nullish(),
+  userLastName: zod.string().nullish(),
+  userRole: zod.string().nullish(),
+  facilityName: zod.string().optional(),
+});
+export const ListFacilityUserAssignmentsResponse = zod.array(
+  ListFacilityUserAssignmentsResponseItem,
+);
+
+/**
+ * @summary Assign a user to a facility
+ */
+export const CreateFacilityUserAssignmentBody = zod.object({
+  userId: zod.number(),
+  facilityId: zod.number(),
+});
+
+/**
+ * @summary Remove a facility user assignment
+ */
+export const DeleteFacilityUserAssignmentParams = zod.object({
+  id: zod.coerce.number(),
+});
 
 /**
  * @summary Medication administration compliance by facility report
