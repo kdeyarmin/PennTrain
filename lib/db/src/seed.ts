@@ -371,9 +371,9 @@ async function seed() {
   const [alrHours] = await db.insert(trainingTypesTable).values({
     organizationId: null,
     code: "ALR_ANNUAL_HOURS",
-    name: "ALR Annual Training Hours (12 hrs)",
+    name: "ALR Annual Training Hours (16 hrs)",
     category: "Annual Requirements",
-    description: "12 required annual training hours for all ALR staff.",
+    description: "16 required annual training hours for all ALR staff (per Pennsylvania ALR regulations).",
     appliesToFacilityType: "ALR",
     renewalIntervalDays: 365,
     warningDaysDefault: 90,
@@ -803,14 +803,14 @@ async function seed() {
     { employee: james, orgId: sunrise.id, facilityId: manor.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
     { employee: keisha, orgId: sunrise.id, facilityId: manor.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
     { employee: luis, orgId: sunrise.id, facilityId: manor.id, completed: "4.0", status: "incomplete", facilityType: "PCH" },
-    // Sunrise Gardens (ALR)
-    { employee: grace, orgId: sunrise.id, facilityId: gardens.id, completed: "12.0", status: "compliant", facilityType: "ALR" },
-    { employee: henry, orgId: sunrise.id, facilityId: gardens.id, completed: "12.0", status: "compliant", facilityType: "ALR" },
-    { employee: isabel, orgId: sunrise.id, facilityId: gardens.id, completed: "12.0", status: "compliant", facilityType: "ALR" },
+    // Sunrise Gardens (ALR) - requires 16 hrs
+    { employee: grace, orgId: sunrise.id, facilityId: gardens.id, completed: "16.0", status: "compliant", facilityType: "ALR" },
+    { employee: henry, orgId: sunrise.id, facilityId: gardens.id, completed: "16.0", status: "compliant", facilityType: "ALR" },
+    { employee: isabel, orgId: sunrise.id, facilityId: gardens.id, completed: "14.5", status: "due_soon", facilityType: "ALR" },
     { employee: jack, orgId: sunrise.id, facilityId: gardens.id, completed: "5.0", status: "incomplete", facilityType: "ALR" },
-    { employee: linda, orgId: sunrise.id, facilityId: gardens.id, completed: "11.5", status: "due_soon", facilityType: "ALR" },
-    { employee: marcus, orgId: sunrise.id, facilityId: gardens.id, completed: "12.0", status: "compliant", facilityType: "ALR" },
-    { employee: nina, orgId: sunrise.id, facilityId: gardens.id, completed: "12.0", status: "compliant", facilityType: "ALR" },
+    { employee: linda, orgId: sunrise.id, facilityId: gardens.id, completed: "11.5", status: "incomplete", facilityType: "ALR" },
+    { employee: marcus, orgId: sunrise.id, facilityId: gardens.id, completed: "16.0", status: "compliant", facilityType: "ALR" },
+    { employee: nina, orgId: sunrise.id, facilityId: gardens.id, completed: "12.0", status: "incomplete", facilityType: "ALR" },
     { employee: oscar, orgId: sunrise.id, facilityId: gardens.id, completed: "10.0", status: "incomplete", facilityType: "ALR" },
     { employee: paula, orgId: sunrise.id, facilityId: gardens.id, completed: "1.5", status: "incomplete", facilityType: "ALR" },
     { employee: quinn, orgId: sunrise.id, facilityId: gardens.id, completed: "3.0", status: "incomplete", facilityType: "ALR" },
@@ -821,11 +821,11 @@ async function seed() {
     { employee: ulysses, orgId: sunrise.id, facilityId: ridge.id, completed: "5.5", status: "incomplete", facilityType: "PCH" },
     { employee: victoria, orgId: sunrise.id, facilityId: ridge.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
     { employee: walter, orgId: sunrise.id, facilityId: ridge.id, completed: "9.0", status: "incomplete", facilityType: "PCH" },
-    // Sunrise Pavilion (ALR)
-    { employee: xena, orgId: sunrise.id, facilityId: pavilion.id, completed: "12.0", status: "compliant", facilityType: "ALR" },
+    // Sunrise Pavilion (ALR) - requires 16 hrs
+    { employee: xena, orgId: sunrise.id, facilityId: pavilion.id, completed: "16.0", status: "compliant", facilityType: "ALR" },
     { employee: yusuf, orgId: sunrise.id, facilityId: pavilion.id, completed: "6.0", status: "incomplete", facilityType: "ALR" },
-    { employee: zoe, orgId: sunrise.id, facilityId: pavilion.id, completed: "12.0", status: "compliant", facilityType: "ALR" },
-    { employee: aaron, orgId: sunrise.id, facilityId: pavilion.id, completed: "12.0", status: "compliant", facilityType: "ALR" },
+    { employee: zoe, orgId: sunrise.id, facilityId: pavilion.id, completed: "16.0", status: "compliant", facilityType: "ALR" },
+    { employee: aaron, orgId: sunrise.id, facilityId: pavilion.id, completed: "12.0", status: "incomplete", facilityType: "ALR" },
     { employee: bette, orgId: sunrise.id, facilityId: pavilion.id, completed: "8.0", status: "incomplete", facilityType: "ALR" },
     // Maple Grove Residence (PCH)
     { employee: karen, orgId: maplegrove.id, facilityId: mapleFacility.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
@@ -836,11 +836,11 @@ async function seed() {
     { employee: peter, orgId: maplegrove.id, facilityId: mapleFacility.id, completed: "10.0", status: "incomplete", facilityType: "PCH" },
     { employee: rosa, orgId: maplegrove.id, facilityId: mapleFacility.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
     { employee: sam, orgId: maplegrove.id, facilityId: mapleFacility.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
-    // Maple Grove East (ALR)
-    { employee: tina, orgId: maplegrove.id, facilityId: mapleEast.id, completed: "12.0", status: "compliant", facilityType: "ALR" },
+    // Maple Grove East (ALR) - requires 16 hrs
+    { employee: tina, orgId: maplegrove.id, facilityId: mapleEast.id, completed: "16.0", status: "compliant", facilityType: "ALR" },
     { employee: uma, orgId: maplegrove.id, facilityId: mapleEast.id, completed: "7.5", status: "incomplete", facilityType: "ALR" },
-    { employee: vincent, orgId: maplegrove.id, facilityId: mapleEast.id, completed: "12.0", status: "compliant", facilityType: "ALR" },
-    { employee: wendy, orgId: maplegrove.id, facilityId: mapleEast.id, completed: "11.0", status: "due_soon", facilityType: "ALR" },
+    { employee: vincent, orgId: maplegrove.id, facilityId: mapleEast.id, completed: "16.0", status: "compliant", facilityType: "ALR" },
+    { employee: wendy, orgId: maplegrove.id, facilityId: mapleEast.id, completed: "14.5", status: "due_soon", facilityType: "ALR" },
     { employee: xavier, orgId: maplegrove.id, facilityId: mapleEast.id, completed: "9.5", status: "incomplete", facilityType: "ALR" },
     // Valley Care Main (PCH)
     { employee: yvonne, orgId: valleycare.id, facilityId: valleyMain.id, completed: "12.0", status: "compliant", facilityType: "PCH" },
@@ -853,13 +853,13 @@ async function seed() {
   ];
 
   for (const b of hourBucketData) {
-    const hoursType = b.facilityType === "PCH" ? pchHours : alrHours;
+    const requiredHours = b.facilityType === "ALR" ? "16" : "12";
     await db.insert(trainingHourBucketsTable).values({
       organizationId: b.orgId,
       facilityId: b.facilityId,
       employeeId: b.employee.id,
       trainingYear: currentYear,
-      requiredHours: "12",
+      requiredHours,
       completedHours: b.completed,
       status: b.status,
     });

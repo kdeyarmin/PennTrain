@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { requireAuth, getCurrentUser, hashPassword, sanitizeUser } from "../lib/auth";
+import { requireAuth, getCurrentUser, hashPassword, verifyPassword, sanitizeUser } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
@@ -151,6 +151,47 @@ router.patch("/users/:id", requireAuth, async (req, res): Promise<void> => {
   const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, id)).returning();
   await logAudit(req, "user", id, "update", sanitizeUser(existing), sanitizeUser(updated), existing.organizationId ?? undefined);
   res.json(sanitizeUser(updated));
+});
+
+router.post("/users/:id/change-password", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const id = parseInt(String(req.params.id), 10);
+  const [targetUser] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+  if (!targetUser) { res.status(404).json({ error: "User not found" }); return; }
+
+  // Users can change their own password; platform_admin can change any; org_admin can change users in their org
+  const isSelf = user.id === id;
+  const isOrgAdmin = user.role === "org_admin" && user.organizationId === targetUser.organizationId;
+  const isPlatformAdmin = user.role === "platform_admin";
+
+  if (!isSelf && !isOrgAdmin && !isPlatformAdmin) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  // Non-admins must provide current password
+  if (!isPlatformAdmin && !isOrgAdmin) {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({ error: "currentPassword and newPassword required" }); return;
+    }
+    const valid = await verifyPassword(currentPassword, targetUser.passwordHash);
+    if (!valid) { res.status(401).json({ error: "Current password is incorrect" }); return; }
+    if (newPassword.length < 8) { res.status(400).json({ error: "New password must be at least 8 characters" }); return; }
+    const hashed = await hashPassword(newPassword);
+    await db.update(usersTable).set({ passwordHash: hashed }).where(eq(usersTable.id, id));
+  } else {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 8) {
+      res.status(400).json({ error: "newPassword must be at least 8 characters" }); return;
+    }
+    const hashed = await hashPassword(newPassword);
+    await db.update(usersTable).set({ passwordHash: hashed }).where(eq(usersTable.id, id));
+  }
+
+  await logAudit(req, "user", id, "change_password", null, null, targetUser.organizationId ?? undefined);
+  res.json({ message: "Password changed successfully" });
 });
 
 router.delete("/users/:id", requireAuth, async (req, res): Promise<void> => {

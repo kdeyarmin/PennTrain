@@ -33,15 +33,39 @@ app.use(
   }),
 );
 
+const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
+  ? process.env.CORS_ALLOWED_ORIGINS.split(",").map(o => o.trim())
+  : null;
+
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+    if (process.env.NODE_ENV !== "production") {
+      callback(null, true);
+      return;
+    }
+    if (allowedOrigins && allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true,
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret && process.env.NODE_ENV === "production") {
+  logger.error("SESSION_SECRET environment variable is required in production");
+  process.exit(1);
+}
+
 app.use(session({
-  secret: process.env.SESSION_SECRET || "pa-medtrack-dev-secret-changeme",
+  secret: sessionSecret || "pa-medtrack-dev-secret-changeme",
   resave: false,
   saveUninitialized: false,
   cookie: {

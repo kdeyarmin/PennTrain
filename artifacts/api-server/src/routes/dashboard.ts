@@ -6,6 +6,7 @@ import {
 } from "@workspace/db";
 import { eq, and, count } from "drizzle-orm";
 import { requireAuth, getCurrentUser } from "../lib/auth";
+import { buildComplianceSummaryForFacility } from "../lib/compliance";
 
 const router: IRouter = Router();
 
@@ -93,6 +94,95 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
     annualHoursIncomplete: hourBuckets.filter(h => h.status === "incomplete").length,
     recentActivity: [],
   });
+});
+
+router.get("/dashboard/compliance-by-facility", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  let facilities;
+  if (user.role === "platform_admin") {
+    const q = db.select().from(facilitiesTable).$dynamic();
+    facilities = await (req.query.organizationId
+      ? q.where(eq(facilitiesTable.organizationId, Number(req.query.organizationId)))
+      : q);
+  } else if (user.organizationId) {
+    facilities = await db.select().from(facilitiesTable).where(eq(facilitiesTable.organizationId, user.organizationId));
+  } else {
+    res.json([]); return;
+  }
+
+  const summaries = await Promise.all(facilities.map(f => buildComplianceSummaryForFacility(f.id)));
+  res.json(summaries.filter(Boolean));
+});
+
+router.get("/dashboard/upcoming-due-dates", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const days = Math.min(Number(req.query.days) || 30, 90);
+  const today = new Date();
+  const future = new Date(today);
+  future.setDate(future.getDate() + days);
+
+  let trainingQuery = db.select({
+    id: trainingRecordsTable.id,
+    employeeId: trainingRecordsTable.employeeId,
+    facilityId: trainingRecordsTable.facilityId,
+    organizationId: trainingRecordsTable.organizationId,
+    nextDueDate: trainingRecordsTable.nextDueDate,
+    status: trainingRecordsTable.status,
+  }).from(trainingRecordsTable).$dynamic();
+
+  if (user.role !== "platform_admin") {
+    if (!user.organizationId) { res.json([]); return; }
+    trainingQuery = trainingQuery.where(eq(trainingRecordsTable.organizationId, user.organizationId));
+  } else if (req.query.organizationId) {
+    trainingQuery = trainingQuery.where(eq(trainingRecordsTable.organizationId, Number(req.query.organizationId)));
+  }
+
+  const records = await trainingQuery;
+  const upcoming = records.filter(r => {
+    if (!r.nextDueDate) return false;
+    const dueDate = new Date(r.nextDueDate);
+    return dueDate >= today && dueDate <= future;
+  });
+
+  res.json({ count: upcoming.length, records: upcoming, daysAhead: days });
+});
+
+router.get("/dashboard/recent-activity", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const limit = Math.min(Number(req.query.limit) || 20, 100);
+  const since = new Date();
+  since.setDate(since.getDate() - 30);
+
+  let query = db.select().from(trainingRecordsTable).$dynamic();
+
+  if (user.role !== "platform_admin") {
+    if (!user.organizationId) { res.json([]); return; }
+    query = query.where(eq(trainingRecordsTable.organizationId, user.organizationId));
+  } else if (req.query.organizationId) {
+    query = query.where(eq(trainingRecordsTable.organizationId, Number(req.query.organizationId)));
+  }
+
+  const records = await query;
+  const recentActivity = records
+    .filter(r => r.updatedAt && new Date(r.updatedAt) >= since)
+    .sort((a, b) => new Date(b.updatedAt!).getTime() - new Date(a.updatedAt!).getTime())
+    .slice(0, limit)
+    .map(r => ({
+      id: r.id,
+      type: "training_record_update",
+      employeeId: r.employeeId,
+      facilityId: r.facilityId,
+      status: r.status,
+      updatedAt: r.updatedAt,
+    }));
+
+  res.json({ count: recentActivity.length, activities: recentActivity });
 });
 
 export default router;

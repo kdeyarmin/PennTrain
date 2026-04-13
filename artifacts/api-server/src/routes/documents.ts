@@ -66,7 +66,11 @@ router.get("/documents", requireAuth, async (req, res): Promise<void> => {
   if (req.query.employeeId) {
     const employeeId = Number(req.query.employeeId);
     if (user.role === "employee") {
-      // Employees can only see their own documents - we'd need employee linkage but skip for now
+      const [linkedEmployee] = await db.select().from(employeesTable)
+        .where(and(eq(employeesTable.email, user.email), eq(employeesTable.id, employeeId)));
+      if (!linkedEmployee) {
+        res.status(403).json({ error: "Forbidden" }); return;
+      }
     }
     query = query.where(eq(trainingDocumentsTable.employeeId, employeeId));
   }

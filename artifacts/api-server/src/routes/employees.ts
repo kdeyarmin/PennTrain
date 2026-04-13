@@ -112,8 +112,12 @@ router.get("/employees/:id", requireAuth, async (req, res): Promise<void> => {
   if (user.role !== "platform_admin" && user.organizationId !== employee.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
-  if (user.role === "employee" && user.id !== id) {
-    res.status(403).json({ error: "Forbidden" }); return;
+  if (user.role === "employee") {
+    const [linkedEmployee] = await db.select().from(employeesTable)
+      .where(and(eq(employeesTable.email, user.email), eq(employeesTable.id, id)));
+    if (!linkedEmployee) {
+      res.status(403).json({ error: "Forbidden" }); return;
+    }
   }
   res.json(employee);
 });
