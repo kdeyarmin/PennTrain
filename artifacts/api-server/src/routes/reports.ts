@@ -5,7 +5,7 @@ import {
   practicumsTable, trainingHourBucketsTable, facilitiesTable, trainingDocumentsTable,
 } from "@workspace/db";
 import { eq, and, gte, lte } from "drizzle-orm";
-import { requireAuth, getCurrentUser } from "../lib/auth";
+import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -22,6 +22,26 @@ function isPlatformAdmin(user: { role: string; _realRole?: string }): boolean {
   return user.role === "platform_admin" || user._realRole === "platform_admin";
 }
 
+async function filterEmployeesByFacilityAssignment<T extends { facilityId: number | null }>(
+  user: Parameters<typeof getAssignedFacilityIds>[0],
+  employees: T[]
+): Promise<T[]> {
+  if (!["facility_manager", "trainer"].includes(user.role)) return employees;
+  const assignedIds = await getAssignedFacilityIds(user);
+  if (assignedIds === null) return employees;
+  return employees.filter(e => e.facilityId !== null && assignedIds.includes(e.facilityId));
+}
+
+async function filterRecordsByFacilityAssignment<T extends { facilityId: number | null }>(
+  user: Parameters<typeof getAssignedFacilityIds>[0],
+  records: T[]
+): Promise<T[]> {
+  if (!["facility_manager", "trainer"].includes(user.role)) return records;
+  const assignedIds = await getAssignedFacilityIds(user);
+  if (assignedIds === null) return records;
+  return records.filter(r => r.facilityId !== null && assignedIds.includes(r.facilityId));
+}
+
 router.get("/reports/medication-administration", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -29,15 +49,13 @@ router.get("/reports/medication-administration", requireAuth, async (req, res): 
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
-  const employees = await db.select().from(employeesTable).where(
+  let employees = await db.select().from(employeesTable).where(
     and(eq(employeesTable.organizationId, orgId), eq(employeesTable.administersMedications, true))
   );
+  employees = await filterEmployeesByFacilityAssignment(user, employees);
   if (req.query.facilityId) {
     const facilityId = Number(req.query.facilityId);
-    const filtered = employees.filter(e => e.facilityId === facilityId);
-    const records = await getTrainingRecordsForEmployees(filtered.map(e => e.id), orgId);
-    res.json({ reportType: "medication_administration", employees: filtered, trainingRecords: records, generatedAt: new Date().toISOString() });
-    return;
+    employees = employees.filter(e => e.facilityId === facilityId);
   }
 
   const records = await getTrainingRecordsForEmployees(employees.map(e => e.id), orgId);
@@ -52,14 +70,15 @@ router.get("/reports/annual-practicum", requireAuth, async (req, res): Promise<v
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
   const year = Number(req.query.year) || new Date().getFullYear();
-  let query = db.select().from(practicumsTable).where(
+  let practicums = await db.select().from(practicumsTable).where(
     and(eq(practicumsTable.organizationId, orgId), eq(practicumsTable.practicumYear, year))
   );
-  const practicums = await query;
+  practicums = await filterRecordsByFacilityAssignment(user, practicums);
 
-  const employees = await db.select().from(employeesTable).where(
+  let employees = await db.select().from(employeesTable).where(
     and(eq(employeesTable.organizationId, orgId), eq(employeesTable.administersMedications, true), eq(employeesTable.status, "active"))
   );
+  employees = await filterEmployeesByFacilityAssignment(user, employees);
 
   res.json({
     reportType: "annual_practicum",
@@ -80,9 +99,10 @@ router.get("/reports/training-hours", requireAuth, async (req, res): Promise<voi
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
   const year = Number(req.query.year) || new Date().getFullYear();
-  const buckets = await db.select().from(trainingHourBucketsTable).where(
+  let buckets = await db.select().from(trainingHourBucketsTable).where(
     and(eq(trainingHourBucketsTable.organizationId, orgId), eq(trainingHourBucketsTable.trainingYear, year))
   );
+  buckets = await filterRecordsByFacilityAssignment(user, buckets);
 
   res.json({ reportType: "training_hours", year, buckets, generatedAt: new Date().toISOString() });
 });
@@ -94,9 +114,10 @@ router.get("/reports/trainer-certification", requireAuth, async (req, res): Prom
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
-  const trainers = await db.select().from(employeesTable).where(
+  let trainers = await db.select().from(employeesTable).where(
     and(eq(employeesTable.organizationId, orgId), eq(employeesTable.trainerStatus, true))
   );
+  trainers = await filterEmployeesByFacilityAssignment(user, trainers);
 
   const records = await getTrainingRecordsForEmployees(trainers.map(e => e.id), orgId);
 
@@ -110,13 +131,15 @@ router.get("/reports/expiring-certifications", requireAuth, async (req, res): Pr
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
-  const records = await db
+  const rawRecords = await db
     .select({ record: trainingRecordsTable, trainingType: trainingTypesTable })
     .from(trainingRecordsTable)
     .leftJoin(trainingTypesTable, eq(trainingRecordsTable.trainingTypeId, trainingTypesTable.id))
     .where(and(eq(trainingRecordsTable.organizationId, orgId), eq(trainingRecordsTable.status, "due_soon")));
+  const filteredRecords = await filterRecordsByFacilityAssignment(user, rawRecords.map(r => r.record));
+  const filteredIds = new Set(filteredRecords.map(r => r.id));
 
-  res.json({ reportType: "expiring_certifications", records: records.map(r => ({ ...r.record, trainingType: r.trainingType })), generatedAt: new Date().toISOString() });
+  res.json({ reportType: "expiring_certifications", records: rawRecords.filter(r => filteredIds.has(r.record.id)).map(r => ({ ...r.record, trainingType: r.trainingType })), generatedAt: new Date().toISOString() });
 });
 
 router.get("/reports/overdue-training", requireAuth, async (req, res): Promise<void> => {
@@ -126,13 +149,15 @@ router.get("/reports/overdue-training", requireAuth, async (req, res): Promise<v
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
-  const records = await db
+  const rawRecords = await db
     .select({ record: trainingRecordsTable, trainingType: trainingTypesTable })
     .from(trainingRecordsTable)
     .leftJoin(trainingTypesTable, eq(trainingRecordsTable.trainingTypeId, trainingTypesTable.id))
     .where(and(eq(trainingRecordsTable.organizationId, orgId), eq(trainingRecordsTable.status, "expired")));
+  const filteredRecords = await filterRecordsByFacilityAssignment(user, rawRecords.map(r => r.record));
+  const filteredIds = new Set(filteredRecords.map(r => r.id));
 
-  res.json({ reportType: "overdue_training", records: records.map(r => ({ ...r.record, trainingType: r.trainingType })), generatedAt: new Date().toISOString() });
+  res.json({ reportType: "overdue_training", records: rawRecords.filter(r => filteredIds.has(r.record.id)).map(r => ({ ...r.record, trainingType: r.trainingType })), generatedAt: new Date().toISOString() });
 });
 
 router.get("/reports/new-employee-training", requireAuth, async (req, res): Promise<void> => {
@@ -143,9 +168,10 @@ router.get("/reports/new-employee-training", requireAuth, async (req, res): Prom
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
   const cutoffDate = req.query.hireDateAfter as string || new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-  const employees = await db.select().from(employeesTable).where(
+  let employees = await db.select().from(employeesTable).where(
     and(eq(employeesTable.organizationId, orgId), eq(employeesTable.status, "active"), gte(employeesTable.hireDate, cutoffDate))
   );
+  employees = await filterEmployeesByFacilityAssignment(user, employees);
 
   res.json({ reportType: "new_employee_training", employees, hireDateAfter: cutoffDate, generatedAt: new Date().toISOString() });
 });
@@ -303,10 +329,10 @@ router.get("/reports/compliance-summary", requireAuth, async (req, res): Promise
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
   const facilityId = req.query.facilityId ? Number(req.query.facilityId) : undefined;
 
-  let empQuery = db.select().from(employeesTable).where(
+  let employees = await db.select().from(employeesTable).where(
     and(eq(employeesTable.organizationId, orgId), eq(employeesTable.status, "active"))
   );
-  const employees = await empQuery;
+  employees = await filterEmployeesByFacilityAssignment(user, employees);
   const filtered = facilityId ? employees.filter(e => e.facilityId === facilityId) : employees;
 
   const records = await getTrainingRecordsForEmployees(filtered.map(e => e.id), orgId);
@@ -337,14 +363,13 @@ router.get("/reports/expired-training", requireAuth, async (req, res): Promise<v
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
-  let query = db
+  const rawRecords = await db
     .select({ record: trainingRecordsTable, trainingType: trainingTypesTable })
     .from(trainingRecordsTable)
     .leftJoin(trainingTypesTable, eq(trainingRecordsTable.trainingTypeId, trainingTypesTable.id))
     .where(and(eq(trainingRecordsTable.organizationId, orgId), eq(trainingRecordsTable.status, "expired")));
-
-  const records = await query;
-  res.json({ reportType: "expired_training", records: records.map(r => ({ ...r.record, trainingTypeName: r.trainingType?.name })), generatedAt: new Date().toISOString() });
+  const filteredIds = new Set((await filterRecordsByFacilityAssignment(user, rawRecords.map(r => r.record))).map(r => r.id));
+  res.json({ reportType: "expired_training", records: rawRecords.filter(r => filteredIds.has(r.record.id)).map(r => ({ ...r.record, trainingTypeName: r.trainingType?.name })), generatedAt: new Date().toISOString() });
 });
 
 router.get("/reports/due-soon", requireAuth, async (req, res): Promise<void> => {
@@ -354,13 +379,13 @@ router.get("/reports/due-soon", requireAuth, async (req, res): Promise<void> => 
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
-  const records = await db
+  const rawRecords = await db
     .select({ record: trainingRecordsTable, trainingType: trainingTypesTable })
     .from(trainingRecordsTable)
     .leftJoin(trainingTypesTable, eq(trainingRecordsTable.trainingTypeId, trainingTypesTable.id))
     .where(and(eq(trainingRecordsTable.organizationId, orgId), eq(trainingRecordsTable.status, "due_soon")));
-
-  res.json({ reportType: "due_soon", records: records.map(r => ({ ...r.record, trainingTypeName: r.trainingType?.name })), generatedAt: new Date().toISOString() });
+  const filteredIds = new Set((await filterRecordsByFacilityAssignment(user, rawRecords.map(r => r.record))).map(r => r.id));
+  res.json({ reportType: "due_soon", records: rawRecords.filter(r => filteredIds.has(r.record.id)).map(r => ({ ...r.record, trainingTypeName: r.trainingType?.name })), generatedAt: new Date().toISOString() });
 });
 
 router.get("/reports/missing-documents", requireAuth, async (req, res): Promise<void> => {
@@ -370,13 +395,13 @@ router.get("/reports/missing-documents", requireAuth, async (req, res): Promise<
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
-  const records = await db
+  const rawRecords = await db
     .select({ record: trainingRecordsTable, trainingType: trainingTypesTable })
     .from(trainingRecordsTable)
     .leftJoin(trainingTypesTable, eq(trainingRecordsTable.trainingTypeId, trainingTypesTable.id))
     .where(and(eq(trainingRecordsTable.organizationId, orgId), eq(trainingRecordsTable.status, "missing")));
-
-  res.json({ reportType: "missing_documents", records: records.map(r => ({ ...r.record, trainingTypeName: r.trainingType?.name })), generatedAt: new Date().toISOString() });
+  const filteredIds = new Set((await filterRecordsByFacilityAssignment(user, rawRecords.map(r => r.record))).map(r => r.id));
+  res.json({ reportType: "missing_documents", records: rawRecords.filter(r => filteredIds.has(r.record.id)).map(r => ({ ...r.record, trainingTypeName: r.trainingType?.name })), generatedAt: new Date().toISOString() });
 });
 
 router.get("/reports/practicum-status", requireAuth, async (req, res): Promise<void> => {
@@ -387,12 +412,14 @@ router.get("/reports/practicum-status", requireAuth, async (req, res): Promise<v
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
   const year = Number(req.query.year) || new Date().getFullYear();
 
-  const practicums = await db.select().from(practicumsTable).where(
+  let practicums = await db.select().from(practicumsTable).where(
     and(eq(practicumsTable.organizationId, orgId), eq(practicumsTable.practicumYear, year))
   );
-  const employees = await db.select().from(employeesTable).where(
+  practicums = await filterRecordsByFacilityAssignment(user, practicums);
+  let employees = await db.select().from(employeesTable).where(
     and(eq(employeesTable.organizationId, orgId), eq(employeesTable.administersMedications, true))
   );
+  employees = await filterEmployeesByFacilityAssignment(user, employees);
 
   res.json({
     reportType: "practicum_status",
@@ -413,9 +440,10 @@ router.get("/reports/annual-hours", requireAuth, async (req, res): Promise<void>
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
   const year = Number(req.query.year) || new Date().getFullYear();
 
-  const buckets = await db.select().from(trainingHourBucketsTable).where(
+  let buckets = await db.select().from(trainingHourBucketsTable).where(
     and(eq(trainingHourBucketsTable.organizationId, orgId), eq(trainingHourBucketsTable.trainingYear, year))
   );
+  buckets = await filterRecordsByFacilityAssignment(user, buckets);
 
   res.json({
     reportType: "annual_hours",
