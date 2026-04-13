@@ -172,6 +172,14 @@ router.patch("/employees/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
+  // facility_manager may only edit employees in their assigned facilities
+  if (user.role === "facility_manager") {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null && existing.facilityId !== null && !assignedFacilityIds.includes(existing.facilityId)) {
+      res.status(403).json({ error: "Forbidden: not assigned to this employee's facility" }); return;
+    }
+  }
+
   // If changing facilityId, validate the new facility belongs to same org
   if (req.body.facilityId !== undefined) {
     const orgId = user.role === "platform_admin" ? existing.organizationId : user.organizationId!;
@@ -203,6 +211,13 @@ router.delete("/employees/:id", requireAuth, async (req, res): Promise<void> => 
   if (!existing) { res.status(404).json({ error: "Employee not found" }); return; }
   if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
+  }
+  // facility_manager may only delete employees in their assigned facilities
+  if (user.role === "facility_manager") {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null && existing.facilityId !== null && !assignedFacilityIds.includes(existing.facilityId)) {
+      res.status(403).json({ error: "Forbidden: not assigned to this employee's facility" }); return;
+    }
   }
 
   await db.delete(employeesTable).where(eq(employeesTable.id, id));

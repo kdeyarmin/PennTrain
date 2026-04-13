@@ -2,7 +2,7 @@ import { db } from "./index";
 import {
   usersTable, organizationsTable, facilitiesTable, employeesTable,
   trainingTypesTable, trainingRecordsTable, practicumsTable,
-  trainingHourBucketsTable, alertsTable,
+  trainingHourBucketsTable, alertsTable, trainingDocumentsTable,
   type Employee,
 } from "./schema";
 import bcrypt from "bcryptjs";
@@ -996,10 +996,136 @@ async function seed() {
     },
   ]);
 
+  // --- Training Documents ---
+  await db.insert(trainingDocumentsTable).values([
+    // Sunrise Manor - Alice: med admin init certificate
+    {
+      organizationId: sunrise.id,
+      facilityId: manor.id,
+      employeeId: alice.id,
+      fileName: "alice_med_admin_certificate.pdf",
+      fileUrl: "/api/documents/file/alice_med_admin_certificate.pdf",
+      fileType: "application/pdf",
+      fileSize: 45000,
+      documentType: "certificate",
+    },
+    // Sunrise Manor - Alice: practicum form
+    {
+      organizationId: sunrise.id,
+      facilityId: manor.id,
+      employeeId: alice.id,
+      fileName: "alice_practicum_2025.pdf",
+      fileUrl: "/api/documents/file/alice_practicum_2025.pdf",
+      fileType: "application/pdf",
+      fileSize: 32000,
+      documentType: "practicum_form",
+    },
+    // Sunrise Manor - Carol: trainer certificate
+    {
+      organizationId: sunrise.id,
+      facilityId: manor.id,
+      employeeId: carol.id,
+      fileName: "carol_trainer_recert_2025.pdf",
+      fileUrl: "/api/documents/file/carol_trainer_recert_2025.pdf",
+      fileType: "application/pdf",
+      fileSize: 55000,
+      documentType: "certificate",
+    },
+    // Sunrise Manor - Bob: transcript
+    {
+      organizationId: sunrise.id,
+      facilityId: manor.id,
+      employeeId: bob.id,
+      fileName: "bob_training_transcript_2025.pdf",
+      fileUrl: "/api/documents/file/bob_training_transcript_2025.pdf",
+      fileType: "application/pdf",
+      fileSize: 28000,
+      documentType: "transcript",
+    },
+    // Sunrise Gardens - Grace: med admin certificate
+    {
+      organizationId: sunrise.id,
+      facilityId: gardens.id,
+      employeeId: grace.id,
+      fileName: "grace_med_admin_init.pdf",
+      fileUrl: "/api/documents/file/grace_med_admin_init.pdf",
+      fileType: "application/pdf",
+      fileSize: 40000,
+      documentType: "certificate",
+    },
+    // Sunrise Gardens - Henry: training roster
+    {
+      organizationId: sunrise.id,
+      facilityId: gardens.id,
+      employeeId: henry.id,
+      fileName: "gardens_training_roster_q1_2025.pdf",
+      fileUrl: "/api/documents/file/gardens_training_roster_q1_2025.pdf",
+      fileType: "application/pdf",
+      fileSize: 62000,
+      documentType: "roster",
+    },
+    // Pavilion - Xena: practicum form
+    {
+      organizationId: sunrise.id,
+      facilityId: pavilion.id,
+      employeeId: xena.id,
+      fileName: "xena_annual_practicum_2025.pdf",
+      fileUrl: "/api/documents/file/xena_annual_practicum_2025.pdf",
+      fileType: "application/pdf",
+      fileSize: 35000,
+      documentType: "practicum_form",
+    },
+    // Maple Grove - Karen: med admin certificate
+    {
+      organizationId: maplegrove.id,
+      facilityId: mapleFacility.id,
+      employeeId: karen.id,
+      fileName: "karen_med_admin_certificate_2024.pdf",
+      fileUrl: "/api/documents/file/karen_med_admin_certificate_2024.pdf",
+      fileType: "application/pdf",
+      fileSize: 43000,
+      documentType: "certificate",
+    },
+    // Maple Grove - Larry: transcript
+    {
+      organizationId: maplegrove.id,
+      facilityId: mapleFacility.id,
+      employeeId: larry.id,
+      fileName: "larry_training_transcript_2025.pdf",
+      fileUrl: "/api/documents/file/larry_training_transcript_2025.pdf",
+      fileType: "application/pdf",
+      fileSize: 29000,
+      documentType: "transcript",
+    },
+    // Valley Care - Yvonne: med admin certificate
+    {
+      organizationId: valleycare.id,
+      facilityId: valleyMain.id,
+      employeeId: yvonne.id,
+      fileName: "yvonne_med_admin_certificate_2025.pdf",
+      fileUrl: "/api/documents/file/yvonne_med_admin_certificate_2025.pdf",
+      fileType: "application/pdf",
+      fileSize: 47000,
+      documentType: "certificate",
+    },
+    // Valley Care - Zachary: practicum form (missing - shows gap)
+    {
+      organizationId: valleycare.id,
+      facilityId: valleyMain.id,
+      employeeId: zachary.id,
+      fileName: "zachary_prior_year_practicum_2024.pdf",
+      fileUrl: "/api/documents/file/zachary_prior_year_practicum_2024.pdf",
+      fileType: "application/pdf",
+      fileSize: 31000,
+      documentType: "practicum_form",
+    },
+  ]);
+
   console.log("Database seeded successfully!");
   console.log("\nOrganizations: 3 (Sunrise Healthcare, Maple Grove, Valley Care)");
   console.log("Facilities: 7 (4 Sunrise, 2 Maple Grove, 1 Valley Care)");
   console.log("Employees: 53 total");
+  console.log("Training Documents: 11 (realistic proof documents across orgs and facilities)");
   console.log("\nDemo credentials:");
   console.log("  Platform Admin: admin@pamedtrack.com / admin123");
   console.log("  Org Admin:      admin@sunrisehealthcare.com / demo123");

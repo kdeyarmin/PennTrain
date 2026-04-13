@@ -76,6 +76,12 @@ router.get("/facilities/:id", requireAuth, async (req, res): Promise<void> => {
   if (!facility) { res.status(404).json({ error: "Facility not found" }); return; }
 
   if (user.role !== "platform_admin" && user.organizationId !== facility.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedIds = await getAssignedFacilityIds(user);
+    if (assignedIds !== null && !assignedIds.includes(facility.id)) {
+      res.status(403).json({ error: "Forbidden: not assigned to this facility" }); return;
+    }
+  }
   res.json(facility);
 });
 
