@@ -3,6 +3,7 @@ import {
   usersTable, organizationsTable, facilitiesTable, employeesTable,
   trainingTypesTable, trainingRecordsTable, practicumsTable,
   trainingHourBucketsTable, alertsTable,
+  type Employee,
 } from "./schema";
 import bcrypt from "bcryptjs";
 
@@ -170,11 +171,8 @@ async function seed() {
     state: "PA",
     zip: "19104",
     phone: "215-555-0101",
-    capacity: 40,
-    currentCensus: 35,
     administratorName: "Jennifer Martinez",
     administratorEmail: "manager@sunrisemanor.com",
-    licenseExpiration: "2026-06-30",
   }).returning();
 
   const [gardens] = await db.insert(facilitiesTable).values({
@@ -187,11 +185,8 @@ async function seed() {
     state: "PA",
     zip: "19105",
     phone: "215-555-0102",
-    capacity: 55,
-    currentCensus: 48,
     administratorName: "David Kim",
     administratorEmail: "manager2@sunrisegard.com",
-    licenseExpiration: "2026-09-15",
   }).returning();
 
   const [ridge] = await db.insert(facilitiesTable).values({
@@ -204,11 +199,8 @@ async function seed() {
     state: "PA",
     zip: "19401",
     phone: "215-555-0103",
-    capacity: 30,
-    currentCensus: 27,
     administratorName: "Angela Foster",
     administratorEmail: "afoster@sunriseridge.com",
-    licenseExpiration: "2026-12-01",
   }).returning();
 
   const [pavilion] = await db.insert(facilitiesTable).values({
@@ -221,11 +213,8 @@ async function seed() {
     state: "PA",
     zip: "19013",
     phone: "215-555-0104",
-    capacity: 45,
-    currentCensus: 40,
     administratorName: "Samuel Parks",
     administratorEmail: "sparks@sunrisepavilion.com",
-    licenseExpiration: "2027-03-10",
   }).returning();
 
   const [mapleFacility] = await db.insert(facilitiesTable).values({
@@ -238,11 +227,8 @@ async function seed() {
     state: "PA",
     zip: "17102",
     phone: "717-555-0201",
-    capacity: 35,
-    currentCensus: 30,
     administratorName: "Patricia Williams",
     administratorEmail: "pwilliams@maplegrove.com",
-    licenseExpiration: "2025-11-30",
   }).returning();
 
   const [mapleEast] = await db.insert(facilitiesTable).values({
@@ -255,11 +241,8 @@ async function seed() {
     state: "PA",
     zip: "17401",
     phone: "717-555-0202",
-    capacity: 28,
-    currentCensus: 22,
     administratorName: "Nancy Cole",
     administratorEmail: "ncole@maplegroveeast.com",
-    licenseExpiration: "2026-08-20",
   }).returning();
 
   const [valleyMain] = await db.insert(facilitiesTable).values({
@@ -272,11 +255,8 @@ async function seed() {
     state: "PA",
     zip: "18101",
     phone: "610-555-0301",
-    capacity: 50,
-    currentCensus: 44,
     administratorName: "Thomas Greenberg",
     administratorEmail: "tgreenberg@valleycare.com",
-    licenseExpiration: "2026-04-15",
   }).returning();
 
   // --- Training Types ---
@@ -432,7 +412,7 @@ async function seed() {
 
   const manorEmployees = [];
   for (const emp of manorEmployeeData) {
-    const [e] = await db.insert(employeesTable).values({
+    const [e]: Employee[] = await db.insert(employeesTable).values({
       organizationId: sunrise.id,
       facilityId: manor.id,
       employeeNumber: `SM-${String(manorEmployees.length + 1001).padStart(4, "0")}`,
@@ -457,7 +437,7 @@ async function seed() {
 
   const gardensEmployees = [];
   for (const emp of gardensEmployeeData) {
-    const [e] = await db.insert(employeesTable).values({
+    const [e]: Employee[] = await db.insert(employeesTable).values({
       organizationId: sunrise.id,
       facilityId: gardens.id,
       employeeNumber: `SG-${String(gardensEmployees.length + 2001).padStart(4, "0")}`,
@@ -478,7 +458,7 @@ async function seed() {
 
   const ridgeEmployees = [];
   for (const emp of ridgeEmployeeData) {
-    const [e] = await db.insert(employeesTable).values({
+    const [e]: Employee[] = await db.insert(employeesTable).values({
       organizationId: sunrise.id,
       facilityId: ridge.id,
       employeeNumber: `SR-${String(ridgeEmployees.length + 3001).padStart(4, "0")}`,
@@ -498,7 +478,7 @@ async function seed() {
 
   const pavilionEmployees = [];
   for (const emp of pavilionEmployeeData) {
-    const [e] = await db.insert(employeesTable).values({
+    const [e]: Employee[] = await db.insert(employeesTable).values({
       organizationId: sunrise.id,
       facilityId: pavilion.id,
       employeeNumber: `SP-${String(pavilionEmployees.length + 4001).padStart(4, "0")}`,
@@ -521,7 +501,7 @@ async function seed() {
 
   const mapleEmployees = [];
   for (const emp of mapleEmployeeData) {
-    const [e] = await db.insert(employeesTable).values({
+    const [e]: Employee[] = await db.insert(employeesTable).values({
       organizationId: maplegrove.id,
       facilityId: mapleFacility.id,
       employeeNumber: `MG-${String(mapleEmployees.length + 5001).padStart(4, "0")}`,
@@ -541,7 +521,7 @@ async function seed() {
 
   const mapleEastEmployees = [];
   for (const emp of mapleEastEmployeeData) {
-    const [e] = await db.insert(employeesTable).values({
+    const [e]: Employee[] = await db.insert(employeesTable).values({
       organizationId: maplegrove.id,
       facilityId: mapleEast.id,
       employeeNumber: `ME-${String(mapleEastEmployees.length + 6001).padStart(4, "0")}`,
@@ -563,7 +543,7 @@ async function seed() {
 
   const valleyEmployees = [];
   for (const emp of valleyEmployeeData) {
-    const [e] = await db.insert(employeesTable).values({
+    const [e]: Employee[] = await db.insert(employeesTable).values({
       organizationId: valleycare.id,
       facilityId: valleyMain.id,
       employeeNumber: `VC-${String(valleyEmployees.length + 7001).padStart(4, "0")}`,
@@ -911,7 +891,7 @@ async function seed() {
       organizationId: sunrise.id,
       facilityId: gardens.id,
       employeeId: isabel.id,
-      alertType: "expired",
+      alertType: "overdue",
       title: "Trainer Recertification Expired - Isabel Anderson",
       message: "Isabel Anderson's trainer recertification has expired. She cannot train new medication administrators until renewed.",
       severity: "critical",
@@ -969,7 +949,7 @@ async function seed() {
     {
       organizationId: maplegrove.id,
       facilityId: mapleFacility.id,
-      alertType: "license_expiring",
+      alertType: "due_30",
       title: "Facility License Expiring Soon - Maple Grove Residence",
       message: "Maple Grove Residence facility license (PCH-2018-0031) expires on 2025-11-30.",
       severity: "critical",
@@ -1008,7 +988,7 @@ async function seed() {
     {
       organizationId: valleycare.id,
       facilityId: valleyMain.id,
-      alertType: "license_expiring",
+      alertType: "due_30",
       title: "Facility License Expiring - Valley Care Main",
       message: "Valley Care Main facility license (PCH-2020-0065) expires on 2026-04-15.",
       severity: "warning",

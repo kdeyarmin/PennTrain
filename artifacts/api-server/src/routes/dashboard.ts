@@ -130,7 +130,7 @@ router.get("/dashboard/upcoming-due-dates", requireAuth, async (req, res): Promi
     employeeId: trainingRecordsTable.employeeId,
     facilityId: trainingRecordsTable.facilityId,
     organizationId: trainingRecordsTable.organizationId,
-    nextDueDate: trainingRecordsTable.nextDueDate,
+    dueDate: trainingRecordsTable.dueDate,
     status: trainingRecordsTable.status,
   }).from(trainingRecordsTable).$dynamic();
 
@@ -143,8 +143,8 @@ router.get("/dashboard/upcoming-due-dates", requireAuth, async (req, res): Promi
 
   const records = await trainingQuery;
   const upcoming = records.filter(r => {
-    if (!r.nextDueDate) return false;
-    const dueDate = new Date(r.nextDueDate);
+    if (!r.dueDate) return false;
+    const dueDate = new Date(r.dueDate);
     return dueDate >= today && dueDate <= future;
   });
 

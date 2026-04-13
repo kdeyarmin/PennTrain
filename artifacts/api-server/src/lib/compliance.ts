@@ -122,7 +122,7 @@ export async function generateAlertsForOrganization(organizationId: number, faci
     } else {
       for (const window of alertWindows) {
         if (daysUntilDue <= window) {
-          alertType = `due_${window}` as typeof alertType;
+          alertType = `due_${window}` as "due_90" | "due_60" | "due_30" | "due_14" | "due_7";
           severity = window <= 14 ? "critical" : window <= 30 ? "warning" : "info";
           break;
         }

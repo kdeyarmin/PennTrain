@@ -1,3 +1,4 @@
+import React from "react";
 import { useAuth } from "@/lib/auth";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
@@ -23,7 +24,7 @@ export function Sidebar() {
 
   const role = user.role;
 
-  let navItems = [];
+  let navItems: Array<{ href: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [];
 
   if (role === "platform_admin") {
     navItems = [

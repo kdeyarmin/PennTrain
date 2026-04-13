@@ -13,7 +13,7 @@ export default function Practicums() {
 
   const { data: practicums, isLoading } = useListPracticums({
     facilityId: facilityId && facilityId !== "all" ? Number(facilityId) : undefined,
-    practicumYear: currentYear,
+    year: currentYear,
     status: status && status !== "all" ? status as "compliant" | "due_soon" | "expired" | "missing" : undefined,
   });
 

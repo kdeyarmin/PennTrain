@@ -108,7 +108,7 @@ export default function Documents() {
   const handleDelete = async (doc: TrainingDocument) => {
     if (!confirm(`Delete "${doc.fileName}"?`)) return;
     try {
-      const res = await fetch(`${getBaseUrl()}api/documents/${doc.id}`, {
+      const res = await fetch(`/api/documents/${doc.id}`, {
         method: "DELETE",
         credentials: "include",
       });

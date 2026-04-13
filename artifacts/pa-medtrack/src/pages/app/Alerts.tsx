@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useListAlerts, getListAlertsQueryKey } from "@workspace/api-client-react";
+import type { Alert } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -85,7 +86,7 @@ export default function Alerts() {
             </div>
           ) : (
             <div className="space-y-3">
-              {(alerts as any[])?.map((alert: any) => (
+              {(alerts as Alert[])?.map((alert: Alert) => (
                 <div key={alert.id} className="flex items-start gap-4 p-4 rounded-lg border">
                   <div className="mt-0.5">{severityIcon(alert.severity)}</div>
                   <div className="flex-1 min-w-0">
@@ -123,7 +124,7 @@ export default function Alerts() {
                   )}
                 </div>
               ))}
-              {(!alerts || (alerts as any[]).length === 0) && (
+              {(!alerts || (alerts as Alert[]).length === 0) && (
                 <div className="text-center py-12">
                   <CheckCircle className="h-12 w-12 text-green-400 mx-auto mb-3" />
                   <p className="text-muted-foreground">No {status} alerts found.</p>

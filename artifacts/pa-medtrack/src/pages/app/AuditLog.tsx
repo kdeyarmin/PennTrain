@@ -1,4 +1,4 @@
-import { useListAuditLogs } from "@workspace/api-client-react";
+import { useListAuditLogs, type AuditLog } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ShieldAlert } from "lucide-react";
@@ -12,7 +12,8 @@ const ACTION_COLORS: Record<string, string> = {
 };
 
 export default function AuditLog() {
-  const { data: logs, isLoading } = useListAuditLogs({ limit: 100 });
+  const { data: logsData, isLoading } = useListAuditLogs({ limit: 100 });
+  const logs: AuditLog[] = logsData?.logs ?? [];
 
   return (
     <div className="space-y-6">

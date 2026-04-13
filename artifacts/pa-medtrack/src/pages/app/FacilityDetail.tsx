@@ -94,7 +94,7 @@ export default function FacilityDetail() {
     );
   }
 
-  const score = summary?.overallComplianceScore ?? null;
+  const score = summary?.complianceScore ?? null;
 
   return (
     <div className="space-y-6">

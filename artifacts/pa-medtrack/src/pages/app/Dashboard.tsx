@@ -63,7 +63,7 @@ export default function OrgDashboard() {
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <Clock className="h-5 w-5 text-yellow-600" />
-                <span className="text-2xl font-bold text-yellow-700">{summaryLoading ? "—" : summary?.dueSoonCount ?? 0}</span>
+                <span className="text-2xl font-bold text-yellow-700">{summaryLoading ? "—" : summary?.dueSoon30Count ?? 0}</span>
               </div>
               <p className="text-sm text-muted-foreground">Due Soon</p>
             </div>
@@ -85,7 +85,7 @@ export default function OrgDashboard() {
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-gray-500" />
-                <span className="text-2xl font-bold text-gray-700">{summaryLoading ? "—" : summary?.missingCount ?? 0}</span>
+                <span className="text-2xl font-bold text-gray-700">{summaryLoading ? "—" : summary?.missingDocumentCount ?? 0}</span>
               </div>
               <p className="text-sm text-muted-foreground">Missing</p>
             </div>
@@ -100,15 +100,11 @@ export default function OrgDashboard() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-end gap-3">
-              <span className="text-5xl font-bold text-primary">{summary?.complianceScore ?? 100}%</span>
+              <span className="text-5xl font-bold text-primary">{summary?.compliancePercentage ?? 100}%</span>
               <span className="text-muted-foreground mb-1">of training records compliant</span>
             </div>
-            <Progress value={summary?.complianceScore ?? 100} className="h-3" />
+            <Progress value={summary?.compliancePercentage ?? 100} className="h-3" />
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-                <span>{summary?.totalFacilities ?? 0} Facilities</span>
-              </div>
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-muted-foreground" />
                 <span>{summary?.totalEmployees ?? 0} Active Staff</span>
@@ -119,7 +115,7 @@ export default function OrgDashboard() {
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-muted-foreground" />
-                <span>{summary?.medAdminStaff ?? 0} Med Admin Staff</span>
+                <span>{summary?.totalMedAdminStaff ?? 0} Med Admin Staff</span>
               </div>
             </div>
           </CardContent>
