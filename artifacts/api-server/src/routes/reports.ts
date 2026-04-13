@@ -250,10 +250,19 @@ router.get("/reports/document-audit", requireAuth, async (req, res): Promise<voi
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
-  const documents = await db.select().from(trainingDocumentsTable).where(eq(trainingDocumentsTable.organizationId, orgId));
-  const missingDocs = await db.select().from(trainingRecordsTable).where(
+  let documents = await db.select().from(trainingDocumentsTable).where(eq(trainingDocumentsTable.organizationId, orgId));
+  // Apply facility-assignment filtering for facility_manager/trainer
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedIds = await getAssignedFacilityIds(user);
+    if (assignedIds !== null) {
+      documents = documents.filter(d => d.facilityId !== null && assignedIds.includes(d.facilityId));
+    }
+  }
+
+  let missingDocs = await db.select().from(trainingRecordsTable).where(
     and(eq(trainingRecordsTable.organizationId, orgId), eq(trainingRecordsTable.documentRequired, true))
   );
+  missingDocs = await filterRecordsByFacilityAssignment(user, missingDocs);
 
   res.json({
     reportType: "document_audit",
@@ -271,7 +280,7 @@ router.get("/reports/survey-readiness", requireAuth, async (req, res): Promise<v
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
-  const [employees, allRecords, allPracticums, allDocs, allBuckets, facilities] = await Promise.all([
+  let [employees, allRecords, allPracticums, allDocs, allBuckets, facilities] = await Promise.all([
     db.select().from(employeesTable).where(and(eq(employeesTable.organizationId, orgId), eq(employeesTable.status, "active"))),
     db.select().from(trainingRecordsTable).where(eq(trainingRecordsTable.organizationId, orgId)),
     db.select().from(practicumsTable).where(and(eq(practicumsTable.organizationId, orgId), eq(practicumsTable.practicumYear, new Date().getFullYear()))),
@@ -279,6 +288,19 @@ router.get("/reports/survey-readiness", requireAuth, async (req, res): Promise<v
     db.select().from(trainingHourBucketsTable).where(and(eq(trainingHourBucketsTable.organizationId, orgId), eq(trainingHourBucketsTable.trainingYear, new Date().getFullYear()))),
     db.select().from(facilitiesTable).where(eq(facilitiesTable.organizationId, orgId)),
   ]);
+
+  // Apply facility-assignment filtering for facility_manager/trainer
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedIds = await getAssignedFacilityIds(user);
+    if (assignedIds !== null) {
+      employees = employees.filter(e => e.facilityId !== null && assignedIds.includes(e.facilityId));
+      allRecords = allRecords.filter(r => r.facilityId !== null && assignedIds.includes(r.facilityId));
+      allPracticums = allPracticums.filter(p => p.facilityId !== null && assignedIds.includes(p.facilityId));
+      allDocs = allDocs.filter(d => d.facilityId !== null && assignedIds.includes(d.facilityId));
+      allBuckets = allBuckets.filter(b => b.facilityId !== null && assignedIds.includes(b.facilityId));
+      facilities = facilities.filter(f => assignedIds.includes(f.id));
+    }
+  }
 
   const totalActive = employees.length;
   const medAdminStaff = employees.filter(e => e.administersMedications).length;

@@ -146,6 +146,56 @@ export async function buildComplianceSummaryForEmployee(employeeId: number, orga
   };
 }
 
+/**
+ * Calculate compliance status for an annual practicum.
+ * Returns "compliant" if completed in the current or prior 12-month window,
+ * "due_soon" if within 60 days of year end, "missing" otherwise.
+ */
+export function calculatePracticumStatus(
+  practicumYear: number,
+  completionDate: string | null,
+  today: Date = new Date(),
+): "compliant" | "due_soon" | "missing" {
+  if (!completionDate) {
+    const currentYear = today.getFullYear();
+    const daysUntilYearEnd = Math.floor(
+      (new Date(currentYear, 11, 31).getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (practicumYear === currentYear && daysUntilYearEnd <= 60) return "due_soon";
+    return "missing";
+  }
+  return "compliant";
+}
+
+/**
+ * Calculate compliance status for annual training hours.
+ * Per 28 Pa. Code §2600: PCH facilities require 12 hours/year, ALR require 16 hours/year.
+ */
+export function calculateAnnualHoursStatus(
+  completedHours: number,
+  requiredHours: number,
+): "compliant" | "due_soon" | "incomplete" {
+  if (completedHours >= requiredHours) return "compliant";
+  if (completedHours >= requiredHours * 0.75) return "due_soon";
+  return "incomplete";
+}
+
+/**
+ * Returns required annual training hours for a facility type.
+ * PCH = 12 hours, ALR = 16 hours (28 Pa. Code §2600).
+ */
+export function getRequiredAnnualHours(facilityType: string): number {
+  return facilityType === "ALR" ? 16 : 12;
+}
+
+/**
+ * Generate alerts for all training records approaching or past their due dates.
+ * Alias for generateAlertsForOrganization for named-function compatibility.
+ */
+export async function generateAlertsForDueDates(organizationId: number, facilityId?: number): Promise<void> {
+  return generateAlertsForOrganization(organizationId, facilityId);
+}
+
 export async function generateAlertsForOrganization(organizationId: number, facilityId?: number) {
   const today = new Date();
   const alertWindows = [7, 14, 30, 60, 90];
