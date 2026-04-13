@@ -152,7 +152,7 @@ const ALL_REPORTS: ReportDef[] = [
     icon: BarChart3,
     category: "Facility",
     requiredBy: "28 Pa. Code §2600",
-    roles: ["platform_admin", "org_admin"],
+    roles: ["platform_admin"],
   },
   {
     id: "document-audit",
@@ -178,7 +178,7 @@ function flattenToRows(data: unknown, reportId: string): string[][] {
   if (!data || typeof data !== "object") return [["No data available"]];
   const d = data as Record<string, unknown>;
 
-  if (reportId === "facility-compliance" || reportId === "org-compliance") {
+  if (reportId === "facility-compliance") {
     const facilities = (d.facilities as Array<Record<string, unknown>>) ?? [];
     if (facilities.length === 0) return [["No facility data available"]];
     const headers = ["Facility", "Type", "Total Records", "Compliant", "Expired", "Due Soon", "Compliance Score"];
@@ -190,6 +190,23 @@ function flattenToRows(data: unknown, reportId: string): string[][] {
       String(f.expiredCount ?? ""),
       String(f.dueSoonCount ?? ""),
       `${String(f.complianceScore ?? "")}%`,
+    ]);
+    return [headers, ...rows];
+  }
+
+  if (reportId === "org-compliance") {
+    const organizations = (d.organizations as Array<Record<string, unknown>>) ?? [];
+    if (organizations.length === 0) return [["No organization data available"]];
+    const headers = ["Organization", "Total Employees", "Total Facilities", "Total Records", "Compliant", "Expired", "Due Soon", "Compliance %"];
+    const rows = organizations.map(o => [
+      String(o.organizationName ?? o.name ?? ""),
+      String(o.totalEmployees ?? ""),
+      String(o.totalFacilities ?? ""),
+      String(o.totalRecords ?? ""),
+      String(o.compliantCount ?? ""),
+      String(o.expiredCount ?? ""),
+      String(o.dueSoonCount ?? ""),
+      `${String(o.compliancePercentage ?? "")}%`,
     ]);
     return [headers, ...rows];
   }

@@ -5,7 +5,7 @@ import {
   trainingRecordsTable, practicumsTable, alertsTable, trainingHourBucketsTable,
 } from "@workspace/db";
 import { eq, and, count } from "drizzle-orm";
-import { requireAuth, getCurrentUser } from "../lib/auth";
+import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { buildComplianceSummaryForFacility } from "../lib/compliance";
 
 const router: IRouter = Router();
@@ -42,18 +42,41 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
 
   if (!orgId) { res.status(400).json({ error: "Organization ID required" }); return; }
 
-  const facilities = await db.select().from(facilitiesTable).where(eq(facilitiesTable.organizationId, orgId));
-  const facilityFilter = req.query.facilityId ? eq(trainingRecordsTable.facilityId, Number(req.query.facilityId)) : undefined;
+  let allFacilities = await db.select().from(facilitiesTable).where(eq(facilitiesTable.organizationId, orgId));
 
-  let trainingQuery = db.select().from(trainingRecordsTable).where(
-    facilityFilter ? and(eq(trainingRecordsTable.organizationId, orgId), facilityFilter) : eq(trainingRecordsTable.organizationId, orgId)
-  );
-  const trainingRecords = await trainingQuery;
+  // Restrict facility_manager and trainer to only their assigned facilities
+  let assignedFacilityIds: number[] | null = null;
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null) {
+      allFacilities = allFacilities.filter(f => assignedFacilityIds!.includes(f.id));
+    }
+  }
 
-  let employeeQuery = db.select().from(employeesTable).where(
+  const facilityIdFilter = req.query.facilityId
+    ? Number(req.query.facilityId)
+    : (assignedFacilityIds?.length === 1 ? assignedFacilityIds[0] : undefined);
+
+  const facilityFilter = facilityIdFilter ? eq(trainingRecordsTable.facilityId, facilityIdFilter) : undefined;
+
+  let trainingRecords: (typeof trainingRecordsTable.$inferSelect)[];
+  if (assignedFacilityIds !== null && assignedFacilityIds.length > 0) {
+    const records = await db.select().from(trainingRecordsTable).where(eq(trainingRecordsTable.organizationId, orgId));
+    trainingRecords = records.filter(r => r.facilityId !== null && assignedFacilityIds!.includes(r.facilityId));
+  } else if (assignedFacilityIds !== null && assignedFacilityIds.length === 0) {
+    trainingRecords = [];
+  } else {
+    trainingRecords = await db.select().from(trainingRecordsTable).where(
+      facilityFilter ? and(eq(trainingRecordsTable.organizationId, orgId), facilityFilter) : eq(trainingRecordsTable.organizationId, orgId)
+    );
+  }
+
+  let employees = await db.select().from(employeesTable).where(
     and(eq(employeesTable.organizationId, orgId), eq(employeesTable.status, "active"))
   );
-  const employees = await employeeQuery;
+  if (assignedFacilityIds !== null) {
+    employees = employees.filter(e => e.facilityId !== null && assignedFacilityIds!.includes(e.facilityId));
+  }
   const medAdminStaff = employees.filter(e => e.administersMedications);
 
   const currentYear = new Date().getFullYear();
@@ -82,7 +105,7 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
 
   res.json({
     organizationId: orgId,
-    totalFacilities: facilities.length,
+    totalFacilities: allFacilities.length,
     totalEmployees: employees.length,
     totalMedAdminStaff: medAdminStaff.length,
     compliantCount,
@@ -114,6 +137,13 @@ router.get("/dashboard/compliance-by-facility", requireAuth, async (req, res): P
       : q);
   } else if (user.organizationId) {
     facilities = await db.select().from(facilitiesTable).where(eq(facilitiesTable.organizationId, user.organizationId));
+    // Restrict facility_manager and trainer to only their assigned facilities
+    if (["facility_manager", "trainer"].includes(user.role)) {
+      const assignedFacilityIds = await getAssignedFacilityIds(user);
+      if (assignedFacilityIds !== null) {
+        facilities = facilities.filter(f => assignedFacilityIds.includes(f.id));
+      }
+    }
   } else {
     res.json([]); return;
   }

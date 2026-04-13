@@ -197,7 +197,7 @@ export default function Documents() {
               ref={fileInputRef}
               type="file"
               className="hidden"
-              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+              accept=".pdf,.jpg,.jpeg,.png"
               onChange={handleUpload}
             />
           </div>
