@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { trainingRecordsTable, trainingTypesTable, employeesTable, facilitiesTable } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, or, isNull } from "drizzle-orm";
 import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 import { calculateTrainingStatus, calculateDueDate } from "../lib/compliance";
@@ -330,7 +330,17 @@ router.get("/training-matrix", requireAuth, async (req, res): Promise<void> => {
 
   const employees = await employeeQuery.orderBy(employeesTable.lastName, employeesTable.firstName);
 
-  const trainingTypes = await db.select().from(trainingTypesTable).where(eq(trainingTypesTable.isActive, true));
+  // Scope training types to system defaults or org-specific (prevents cross-tenant type leakage)
+  const orgId = user.role === "platform_admin"
+    ? (req.query.organizationId ? Number(req.query.organizationId) : null)
+    : user.organizationId;
+  const trainingTypeFilter = orgId
+    ? and(
+        eq(trainingTypesTable.isActive, true),
+        or(eq(trainingTypesTable.isSystemDefault, true), eq(trainingTypesTable.organizationId, orgId))
+      )
+    : eq(trainingTypesTable.isActive, true);
+  const trainingTypes = await db.select().from(trainingTypesTable).where(trainingTypeFilter);
 
   let recordsQuery = db.select().from(trainingRecordsTable).$dynamic();
   if (user.role !== "platform_admin" && user.organizationId) {

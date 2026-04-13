@@ -230,6 +230,14 @@ router.get("/documents/file/:filename", requireAuth, async (req, res): Promise<v
       res.status(403).json({ error: "Forbidden" }); return;
     }
   }
+  // facility_manager/trainer may only download files for their assigned facilities
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const { getAssignedFacilityIds } = await import("../lib/auth");
+    const assignedIds = await getAssignedFacilityIds(user);
+    if (assignedIds !== null && doc.facilityId !== null && !assignedIds.includes(doc.facilityId)) {
+      res.status(403).json({ error: "Forbidden: document not in your assigned facilities" }); return;
+    }
+  }
 
   const filePath = path.join(UPLOAD_DIR, filename);
   if (!fs.existsSync(filePath)) {
