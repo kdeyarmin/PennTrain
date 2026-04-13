@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "PA MedTrack"
+version = "1.0.0"
+id = "artifacts/pa-medtrack"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 8080
+
+[services.development]
+run = "pnpm --filter @workspace/api-server run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/pa-medtrack", "run", "build" ]
+publicDir = "artifacts/pa-medtrack/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "8080"
+BASE_PATH = "/"

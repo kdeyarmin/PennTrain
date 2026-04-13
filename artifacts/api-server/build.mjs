@@ -100,6 +100,13 @@ async function buildAll() {
       "puppeteer",
       "puppeteer-core",
       "electron",
+      "vite",
+      "@vitejs/plugin-react",
+      "@tailwindcss/vite",
+      "@replit/vite-plugin-runtime-error-modal",
+      "@replit/vite-plugin-cartographer",
+      "@replit/vite-plugin-dev-banner",
+      "tailwindcss",
     ],
     sourcemap: "linked",
     plugins: [

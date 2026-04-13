@@ -1,0 +1,111 @@
+import { Router, type IRouter } from "express";
+import { db } from "@workspace/db";
+import { practicumsTable, employeesTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
+import { requireAuth, getCurrentUser } from "../lib/auth";
+import { logAudit } from "../lib/audit";
+
+const router: IRouter = Router();
+
+router.get("/practicums", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  let query = db.select().from(practicumsTable).$dynamic();
+
+  if (user.role !== "platform_admin") {
+    if (!user.organizationId) { res.json([]); return; }
+    query = query.where(eq(practicumsTable.organizationId, user.organizationId));
+  } else if (req.query.organizationId) {
+    query = query.where(eq(practicumsTable.organizationId, Number(req.query.organizationId)));
+  }
+
+  if (req.query.facilityId) query = query.where(eq(practicumsTable.facilityId, Number(req.query.facilityId)));
+  if (req.query.employeeId) query = query.where(eq(practicumsTable.employeeId, Number(req.query.employeeId)));
+  if (req.query.practicumYear) query = query.where(eq(practicumsTable.practicumYear, Number(req.query.practicumYear)));
+  if (req.query.status && typeof req.query.status === "string") {
+    query = query.where(eq(practicumsTable.status, req.query.status as "compliant" | "due_soon" | "expired" | "missing"));
+  }
+
+  const practicums = await query.orderBy(practicumsTable.practicumYear, practicumsTable.employeeId);
+  res.json(practicums);
+});
+
+router.post("/practicums", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user || !["platform_admin", "org_admin", "facility_manager", "trainer"].includes(user.role)) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  const { organizationId, facilityId, employeeId, practicumYear, completionDate, observedBy, marReviewCompleted, directObservationCompleted, remediationRequired, remediationNotes, notes, dueDate, status } = req.body;
+  if (!organizationId || !facilityId || !employeeId || !practicumYear) {
+    res.status(400).json({ error: "Required fields missing" }); return;
+  }
+
+  const [practicum] = await db.insert(practicumsTable).values({
+    organizationId, facilityId, employeeId: Number(employeeId),
+    practicumYear: Number(practicumYear),
+    completionDate, observedBy, dueDate,
+    marReviewCompleted: marReviewCompleted ?? false,
+    directObservationCompleted: directObservationCompleted ?? false,
+    remediationRequired: remediationRequired ?? false,
+    remediationNotes, notes,
+    status: status ?? (completionDate ? "compliant" : "missing"),
+  }).returning();
+
+  await logAudit(req, "practicum", practicum.id, "create", null, practicum, organizationId);
+  res.status(201).json(practicum);
+});
+
+router.get("/practicums/:id", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const [practicum] = await db.select().from(practicumsTable).where(eq(practicumsTable.id, id));
+  if (!practicum) { res.status(404).json({ error: "Practicum not found" }); return; }
+  if (user.role !== "platform_admin" && user.organizationId !== practicum.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
+  res.json(practicum);
+});
+
+router.patch("/practicums/:id", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user || !["platform_admin", "org_admin", "facility_manager", "trainer"].includes(user.role)) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const [existing] = await db.select().from(practicumsTable).where(eq(practicumsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Practicum not found" }); return; }
+  if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const updates: Partial<typeof practicumsTable.$inferInsert> = {};
+  const allowed = ["completionDate", "observedBy", "marReviewCompleted", "directObservationCompleted", "remediationRequired", "remediationNotes", "notes", "dueDate", "status", "verifiedByUserId", "verifiedAt"];
+  for (const field of allowed) {
+    if (req.body[field] !== undefined) (updates as Record<string, unknown>)[field] = req.body[field];
+  }
+
+  if (updates.completionDate && !updates.status) {
+    updates.status = "compliant";
+  }
+
+  const [updated] = await db.update(practicumsTable).set(updates).where(eq(practicumsTable.id, id)).returning();
+  await logAudit(req, "practicum", id, "update", existing, updated, existing.organizationId);
+  res.json(updated);
+});
+
+router.delete("/practicums/:id", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user || !["platform_admin", "org_admin", "facility_manager"].includes(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const [existing] = await db.select().from(practicumsTable).where(eq(practicumsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Practicum not found" }); return; }
+  if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  await db.delete(practicumsTable).where(eq(practicumsTable.id, id));
+  await logAudit(req, "practicum", id, "delete", existing, null, existing.organizationId);
+  res.sendStatus(204);
+});
+
+export default router;
