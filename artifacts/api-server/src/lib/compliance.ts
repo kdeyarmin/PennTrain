@@ -94,7 +94,7 @@ export async function buildComplianceSummaryForFacility(facilityId: number) {
 
 export async function generateAlertsForOrganization(organizationId: number, facilityId?: number) {
   const today = new Date();
-  const alertWindows = [90, 60, 30, 14, 7];
+  const alertWindows = [7, 14, 30, 60, 90];
 
   let trainingQuery = db
     .select({
