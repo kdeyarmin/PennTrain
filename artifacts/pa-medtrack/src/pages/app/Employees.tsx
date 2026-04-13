@@ -1,14 +1,25 @@
 import { useState } from "react";
-import { useListEmployees, useListFacilities } from "@workspace/api-client-react";
+import {
+  useListEmployees, useListFacilities,
+  useCreateEmployee, useUpdateEmployee, useDeleteEmployee
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
+} from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
-import { Users, Search, ChevronLeft, ChevronRight, UserPlus } from "lucide-react";
+import { Users, Search, ChevronLeft, ChevronRight, UserPlus, Pencil, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
 
 type Employee = {
   id: number;
@@ -21,6 +32,30 @@ type Employee = {
   administersMedications?: boolean;
   trainerStatus?: boolean;
   hireDate?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  employeeNumber?: string | null;
+};
+
+interface EmpFormData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  jobTitle: string;
+  department: string;
+  employeeNumber: string;
+  facilityId: string;
+  hireDate: string;
+  status: "active" | "inactive" | "terminated" | "on_leave";
+  administersMedications: boolean;
+  trainerStatus: boolean;
+}
+
+const EMPTY_EMP: EmpFormData = {
+  firstName: "", lastName: "", email: "", phone: "", jobTitle: "",
+  department: "", employeeNumber: "", facilityId: "none", hireDate: "",
+  status: "active", administersMedications: false, trainerStatus: false,
 };
 
 const PAGE_SIZE = 15;
@@ -33,16 +68,66 @@ export default function Employees() {
   const [sortField, setSortField] = useState<SortField>("lastName");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
+  const [showForm, setShowForm] = useState(false);
+  const [editEmp, setEditEmp] = useState<Employee | null>(null);
+  const [deleteEmp, setDeleteEmp] = useState<Employee | null>(null);
+  const [form, setForm] = useState<EmpFormData>(EMPTY_EMP);
+
   const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const basePath = user?.role === "platform_admin" ? "/admin/employees"
     : user?.role === "trainer" ? "/trainer/employees"
     : "/app/employees";
+
+  const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
 
   const { data: employees, isLoading } = useListEmployees({
     facilityId: facilityId && facilityId !== "all" ? Number(facilityId) : undefined,
     status: status && status !== "all" ? status as "active" | "inactive" | "terminated" | "on_leave" : undefined,
   });
   const { data: facilities } = useListFacilities({});
+
+  const { mutate: createEmployee, isPending: creating } = useCreateEmployee({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Employee created" });
+        queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+        setShowForm(false);
+        setForm(EMPTY_EMP);
+      },
+      onError: (e: unknown) => {
+        toast({ title: "Failed to create employee", description: (e as Error).message, variant: "destructive" });
+      },
+    },
+  });
+
+  const { mutate: updateEmployee, isPending: updating } = useUpdateEmployee({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Employee updated" });
+        queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+        setShowForm(false);
+        setEditEmp(null);
+      },
+      onError: (e: unknown) => {
+        toast({ title: "Failed to update employee", description: (e as Error).message, variant: "destructive" });
+      },
+    },
+  });
+
+  const { mutate: deleteEmployee, isPending: deleting } = useDeleteEmployee({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Employee deleted" });
+        queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+        setDeleteEmp(null);
+      },
+      onError: (e: unknown) => {
+        toast({ title: "Failed to delete employee", description: (e as Error).message, variant: "destructive" });
+      },
+    },
+  });
 
   const allEmployees = (employees as Employee[] | undefined) ?? [];
 
@@ -83,6 +168,62 @@ export default function Employees() {
   const sortIndicator = (field: SortField) =>
     sortField === field ? (sortDir === "asc" ? " ↑" : " ↓") : "";
 
+  const openCreate = () => {
+    setEditEmp(null);
+    setForm(EMPTY_EMP);
+    setShowForm(true);
+  };
+
+  const openEdit = (e: React.MouseEvent, emp: Employee) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditEmp(emp);
+    setForm({
+      firstName: emp.firstName,
+      lastName: emp.lastName,
+      email: emp.email ?? "",
+      phone: emp.phone ?? "",
+      jobTitle: emp.jobTitle ?? "",
+      department: emp.department ?? "",
+      employeeNumber: emp.employeeNumber ?? "",
+      facilityId: emp.facilityId ? String(emp.facilityId) : "none",
+      hireDate: emp.hireDate ?? "",
+      status: emp.status as EmpFormData["status"],
+      administersMedications: emp.administersMedications ?? false,
+      trainerStatus: emp.trainerStatus ?? false,
+    });
+    setShowForm(true);
+  };
+
+  const handleSubmit = () => {
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      toast({ title: "First and last name are required", variant: "destructive" });
+      return;
+    }
+    const payload = {
+      firstName: form.firstName.trim(),
+      lastName: form.lastName.trim(),
+      email: form.email || undefined,
+      phone: form.phone || undefined,
+      jobTitle: form.jobTitle || undefined,
+      department: form.department || undefined,
+      employeeNumber: form.employeeNumber || undefined,
+      facilityId: form.facilityId && form.facilityId !== "none" ? Number(form.facilityId) : undefined,
+      hireDate: form.hireDate || undefined,
+      status: form.status,
+      administersMedications: form.administersMedications,
+      trainerStatus: form.trainerStatus,
+    };
+    if (editEmp) {
+      updateEmployee({ id: editEmp.id, data: payload });
+    } else {
+      createEmployee({ data: payload as Parameters<typeof createEmployee>[0]["data"] });
+    }
+  };
+
+  const field = (k: keyof EmpFormData, v: string | boolean) =>
+    setForm(f => ({ ...f, [k]: v }));
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -90,9 +231,11 @@ export default function Employees() {
           <h1 className="text-2xl font-bold">Employees</h1>
           <p className="text-muted-foreground">Manage staff and track their compliance status.</p>
         </div>
-        <Button>
-          <UserPlus className="mr-2 h-4 w-4" /> Add Employee
-        </Button>
+        {canManage && (
+          <Button onClick={openCreate}>
+            <UserPlus className="mr-2 h-4 w-4" /> Add Employee
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -185,9 +328,26 @@ export default function Employees() {
                           </div>
                         </td>
                         <td className="p-3">
-                          <Link href={`${basePath}/${emp.id}`}>
-                            <ChevronRight className="h-4 w-4 text-muted-foreground cursor-pointer" />
-                          </Link>
+                          <div className="flex items-center gap-1 justify-end">
+                            {canManage && (
+                              <>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={e => openEdit(e, emp)}>
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-destructive hover:text-destructive"
+                                  onClick={e => { e.preventDefault(); e.stopPropagation(); setDeleteEmp(emp); }}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </>
+                            )}
+                            <Link href={`${basePath}/${emp.id}`}>
+                              <ChevronRight className="h-4 w-4 text-muted-foreground cursor-pointer" />
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -217,6 +377,119 @@ export default function Employees() {
         <Users className="h-4 w-4" />
         <span>{filtered.length} employee{filtered.length !== 1 ? "s" : ""} total</span>
       </div>
+
+      <Dialog open={showForm} onOpenChange={o => { if (!o) { setShowForm(false); setEditEmp(null); } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editEmp ? "Edit Employee" : "Add Employee"}</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            <div className="space-y-1">
+              <Label>First Name *</Label>
+              <Input value={form.firstName} onChange={e => field("firstName", e.target.value)} placeholder="Jane" />
+            </div>
+            <div className="space-y-1">
+              <Label>Last Name *</Label>
+              <Input value={form.lastName} onChange={e => field("lastName", e.target.value)} placeholder="Smith" />
+            </div>
+            <div className="space-y-1">
+              <Label>Email</Label>
+              <Input type="email" value={form.email} onChange={e => field("email", e.target.value)} placeholder="jane@example.com" />
+            </div>
+            <div className="space-y-1">
+              <Label>Phone</Label>
+              <Input value={form.phone} onChange={e => field("phone", e.target.value)} placeholder="(215) 555-0100" />
+            </div>
+            <div className="space-y-1">
+              <Label>Job Title</Label>
+              <Input value={form.jobTitle} onChange={e => field("jobTitle", e.target.value)} placeholder="Medication Aide" />
+            </div>
+            <div className="space-y-1">
+              <Label>Department</Label>
+              <Input value={form.department} onChange={e => field("department", e.target.value)} placeholder="Nursing" />
+            </div>
+            <div className="space-y-1">
+              <Label>Employee Number</Label>
+              <Input value={form.employeeNumber} onChange={e => field("employeeNumber", e.target.value)} placeholder="EMP-001" />
+            </div>
+            <div className="space-y-1">
+              <Label>Facility</Label>
+              <Select value={form.facilityId} onValueChange={v => field("facilityId", v)}>
+                <SelectTrigger><SelectValue placeholder="Select facility" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No facility</SelectItem>
+                  {facilities?.map(f => (
+                    <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Hire Date</Label>
+              <Input type="date" value={form.hireDate} onChange={e => field("hireDate", e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Status</Label>
+              <Select value={form.status} onValueChange={v => field("status", v as EmpFormData["status"])}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="terminated">Terminated</SelectItem>
+                  <SelectItem value="on_leave">On Leave</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 flex gap-6">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.administersMedications}
+                  onChange={e => field("administersMedications", e.target.checked)}
+                  className="h-4 w-4"
+                />
+                <span className="text-sm">Administers Medications</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.trainerStatus}
+                  onChange={e => field("trainerStatus", e.target.checked)}
+                  className="h-4 w-4"
+                />
+                <span className="text-sm">Designated Trainer</span>
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowForm(false); setEditEmp(null); }}>Cancel</Button>
+            <Button onClick={handleSubmit} disabled={creating || updating}>
+              {creating || updating ? "Saving..." : editEmp ? "Save Changes" : "Create Employee"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteEmp} onOpenChange={o => { if (!o) setDeleteEmp(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Employee</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {deleteEmp?.firstName} {deleteEmp?.lastName}? This will permanently remove their record and all associated training data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { if (deleteEmp) deleteEmployee({ id: deleteEmp.id }); }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

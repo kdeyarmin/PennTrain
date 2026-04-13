@@ -1,6 +1,7 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import session from "express-session";
+import ConnectPgSimple from "connect-pg-simple";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
@@ -77,7 +78,17 @@ if (!sessionSecret && process.env.NODE_ENV === "production") {
   process.exit(1);
 }
 
+const PgSession = ConnectPgSimple(session);
+const databaseUrl = process.env.DATABASE_URL;
+
 app.use(session({
+  store: databaseUrl
+    ? new PgSession({
+        conString: databaseUrl,
+        tableName: "session",
+        createTableIfMissing: true,
+      })
+    : undefined,
   secret: sessionSecret || "pa-medtrack-dev-secret-changeme",
   resave: false,
   saveUninitialized: false,
