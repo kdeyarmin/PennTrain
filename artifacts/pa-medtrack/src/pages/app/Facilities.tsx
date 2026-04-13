@@ -1,12 +1,15 @@
 import { useListFacilities } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Building2, ChevronRight, MapPin, Phone, Plus } from "lucide-react";
 import { Link } from "wouter";
+import { useAuth } from "@/lib/auth";
 
 export default function Facilities() {
   const { data: facilities, isLoading } = useListFacilities({});
+  const { user } = useAuth();
+  const basePath = user?.role === "platform_admin" ? "/admin/facilities" : "/app/facilities";
 
   return (
     <div className="space-y-6">
@@ -27,7 +30,7 @@ export default function Facilities() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {facilities?.map(facility => (
-            <Link key={facility.id} href={`/app/facilities/${facility.id}`}>
+            <Link key={facility.id} href={`${basePath}/${facility.id}`}>
               <Card className="hover:shadow-md transition-shadow cursor-pointer">
                 <CardContent className="pt-6">
                   <div className="flex items-start justify-between">

@@ -39,11 +39,19 @@ pnpm workspace monorepo using TypeScript. The Express API server serves both the
 
 ## Roles
 
-- `platform_admin` — routes: `/admin`, `/admin/organizations`, `/admin/users`, `/admin/audit`
-- `org_admin` — routes: `/app`, `/app/facilities`, `/app/employees`, `/app/training-matrix`, `/app/practicums`, `/app/alerts`, `/app/reports`, `/app/users`, `/app/documents`, `/app/settings`, `/app/audit`
+- `platform_admin` — routes: `/admin`, `/admin/organizations`, `/admin/organizations/:id`, `/admin/facilities`, `/admin/facilities/:id`, `/admin/employees`, `/admin/employees/:id`, `/admin/alerts`, `/admin/users`, `/admin/audit`
+- `org_admin` — routes: `/app`, `/app/facilities`, `/app/facilities/:id`, `/app/employees`, `/app/employees/:id`, `/app/training-matrix`, `/app/practicums`, `/app/alerts`, `/app/reports`, `/app/users`, `/app/documents`, `/app/settings`, `/app/audit`
 - `facility_manager` — same as org_admin
 - `trainer` — routes: `/trainer`, `/trainer/classes`, `/trainer/facilities`, `/trainer/employees`
 - `employee` — routes: `/me`, `/me/trainings`, `/me/documents`
+
+## Security / Tenant Isolation
+
+- POST /employees, /training-records, /practicums derive organizationId from session (never from request body)
+- Facility ownership is validated against the requesting user's organization
+- org_admin cannot create platform_admin users (privilege escalation blocked)
+- PATCH /users blocks org_admin from changing organizationId or escalating to higher roles
+- Facilities/Employees/Alerts pages use role-aware internal link basePaths (`/admin/*` for platform_admin, `/app/*` for org roles)
 
 ## Demo Credentials (seeded)
 

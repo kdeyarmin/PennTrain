@@ -8,11 +8,14 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Users, Search, ChevronRight, Filter } from "lucide-react";
 import { Link } from "wouter";
+import { useAuth } from "@/lib/auth";
 
 export default function Employees() {
   const [search, setSearch] = useState("");
   const [facilityId, setFacilityId] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
+  const { user } = useAuth();
+  const basePath = user?.role === "platform_admin" ? "/admin/employees" : "/app/employees";
 
   const { data: employees, isLoading } = useListEmployees({
     search: search || undefined,
@@ -79,7 +82,7 @@ export default function Employees() {
           ) : (
             <div className="space-y-2">
               {employees?.map(emp => (
-                <Link key={emp.id} href={`/app/employees/${emp.id}`}>
+                <Link key={emp.id} href={`${basePath}/${emp.id}`}>
                   <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 border transition-colors cursor-pointer">
                     <div className="flex items-center gap-3">
                       <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">

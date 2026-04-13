@@ -29,6 +29,9 @@ export function Sidebar() {
     navItems = [
       { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
       { href: "/admin/organizations", label: "Organizations", icon: Building2 },
+      { href: "/admin/facilities", label: "Facilities", icon: Grid },
+      { href: "/admin/employees", label: "Employees", icon: Users },
+      { href: "/admin/alerts", label: "Alerts", icon: Bell },
       { href: "/admin/users", label: "Users", icon: Users },
       { href: "/admin/audit", label: "Audit Log", icon: ShieldAlert },
     ];

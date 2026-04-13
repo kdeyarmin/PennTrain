@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { trainingRecordsTable, trainingTypesTable, employeesTable } from "@workspace/db";
+import { trainingRecordsTable, trainingTypesTable, employeesTable, facilitiesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, getCurrentUser } from "../lib/auth";
 import { logAudit } from "../lib/audit";
@@ -25,7 +25,16 @@ router.get("/training-records", requireAuth, async (req, res): Promise<void> => 
     query = query.where(eq(trainingRecordsTable.organizationId, Number(req.query.organizationId)));
   }
 
-  if (req.query.facilityId) query = query.where(eq(trainingRecordsTable.facilityId, Number(req.query.facilityId)));
+  if (req.query.facilityId) {
+    const facilityId = Number(req.query.facilityId);
+    if (user.role !== "platform_admin" && user.organizationId) {
+      const [facility] = await db.select().from(facilitiesTable).where(
+        and(eq(facilitiesTable.id, facilityId), eq(facilitiesTable.organizationId, user.organizationId))
+      );
+      if (!facility) { res.status(403).json({ error: "Forbidden" }); return; }
+    }
+    query = query.where(eq(trainingRecordsTable.facilityId, facilityId));
+  }
   if (req.query.employeeId) query = query.where(eq(trainingRecordsTable.employeeId, Number(req.query.employeeId)));
   if (req.query.status && typeof req.query.status === "string") {
     query = query.where(eq(trainingRecordsTable.status, req.query.status as "compliant" | "due_soon" | "expired" | "missing" | "not_applicable" | "pending_review"));
@@ -42,23 +51,49 @@ router.post("/training-records", requireAuth, async (req, res): Promise<void> =>
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
-  const { organizationId, facilityId, employeeId, trainingTypeId, completionDate, notes, trainerName, trainerCredentials, trainingProvider, certificateNumber, score, hours, completionMethod, documentRequired } = req.body;
-  if (!organizationId || !facilityId || !employeeId || !trainingTypeId) {
-    res.status(400).json({ error: "Required fields missing" }); return;
+  const { employeeId, trainingTypeId, facilityId, completionDate, notes, trainerName, trainerCredentials, trainingProvider, certificateNumber, score, hours, completionMethod, documentRequired } = req.body;
+  if (!employeeId || !trainingTypeId || !facilityId) {
+    res.status(400).json({ error: "Required fields: employeeId, trainingTypeId, facilityId" }); return;
   }
+
+  // Derive organizationId from session, not client body
+  let resolvedOrgId: number;
+  if (user.role === "platform_admin") {
+    const bodyOrgId = req.body.organizationId;
+    if (!bodyOrgId) { res.status(400).json({ error: "organizationId required for platform_admin" }); return; }
+    resolvedOrgId = Number(bodyOrgId);
+  } else {
+    if (!user.organizationId) { res.status(403).json({ error: "User has no organization" }); return; }
+    resolvedOrgId = user.organizationId;
+  }
+
+  // Validate employee belongs to caller's organization
+  const [employee] = await db.select().from(employeesTable).where(
+    and(eq(employeesTable.id, Number(employeeId)), eq(employeesTable.organizationId, resolvedOrgId))
+  );
+  if (!employee) { res.status(400).json({ error: "Employee not found in your organization" }); return; }
+
+  // Validate facility belongs to caller's organization
+  const [facility] = await db.select().from(facilitiesTable).where(
+    and(eq(facilitiesTable.id, Number(facilityId)), eq(facilitiesTable.organizationId, resolvedOrgId))
+  );
+  if (!facility) { res.status(400).json({ error: "Facility not found in your organization" }); return; }
 
   const [trainingType] = await db.select().from(trainingTypesTable).where(eq(trainingTypesTable.id, Number(trainingTypeId)));
   const dueDate = calculateDueDate(completionDate ?? null, trainingType?.renewalIntervalDays ?? null);
   const status = calculateTrainingStatus(completionDate ?? null, trainingType?.renewalIntervalDays ?? null, trainingType?.warningDaysDefault ?? 90);
 
   const [record] = await db.insert(trainingRecordsTable).values({
-    organizationId, facilityId, employeeId, trainingTypeId,
+    organizationId: resolvedOrgId,
+    facilityId: Number(facilityId),
+    employeeId: Number(employeeId),
+    trainingTypeId: Number(trainingTypeId),
     completionDate, dueDate, status, notes, trainerName, trainerCredentials, trainingProvider,
     certificateNumber, score, hours, completionMethod,
     documentRequired: documentRequired ?? trainingType?.documentRequired ?? false,
   }).returning();
 
-  await logAudit(req, "training_record", record.id, "create", null, record, organizationId);
+  await logAudit(req, "training_record", record.id, "create", null, record, resolvedOrgId);
   res.status(201).json({ ...record, trainingType });
 });
 
@@ -66,7 +101,7 @@ router.get("/training-records/:id", requireAuth, async (req, res): Promise<void>
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const [result] = await db
     .select({ record: trainingRecordsTable, trainingType: trainingTypesTable })
     .from(trainingRecordsTable)
@@ -74,7 +109,9 @@ router.get("/training-records/:id", requireAuth, async (req, res): Promise<void>
     .where(eq(trainingRecordsTable.id, id));
 
   if (!result) { res.status(404).json({ error: "Training record not found" }); return; }
-  if (user.role !== "platform_admin" && user.organizationId !== result.record.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (user.role !== "platform_admin" && user.organizationId !== result.record.organizationId) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
 
   res.json({ ...result.record, trainingType: result.trainingType });
 });
@@ -85,10 +122,12 @@ router.patch("/training-records/:id", requireAuth, async (req, res): Promise<voi
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
-  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const [existing] = await db.select().from(trainingRecordsTable).where(eq(trainingRecordsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Training record not found" }); return; }
-  if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
 
   const updates: Partial<typeof trainingRecordsTable.$inferInsert> = {};
   const allowed = ["completionDate", "notes", "trainerName", "trainerCredentials", "trainingProvider", "certificateNumber", "score", "hours", "completionMethod", "documentRequired", "status", "dueDate"];
@@ -108,14 +147,39 @@ router.patch("/training-records/:id", requireAuth, async (req, res): Promise<voi
   res.json(updated);
 });
 
-router.delete("/training-records/:id", requireAuth, async (req, res): Promise<void> => {
+router.patch("/training-records/:id/verify", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
-  if (!user || !["platform_admin", "org_admin", "facility_manager"].includes(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!user || !["platform_admin", "org_admin", "facility_manager"].includes(user.role)) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
 
-  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const [existing] = await db.select().from(trainingRecordsTable).where(eq(trainingRecordsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Training record not found" }); return; }
-  if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  const [updated] = await db.update(trainingRecordsTable)
+    .set({ status: "compliant", verifiedByUserId: user.id, verifiedAt: new Date().toISOString() })
+    .where(eq(trainingRecordsTable.id, id))
+    .returning();
+  await logAudit(req, "training_record", id, "verify", existing, updated, existing.organizationId);
+  res.json(updated);
+});
+
+router.delete("/training-records/:id", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user || !["platform_admin", "org_admin", "facility_manager"].includes(user.role)) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  const id = parseInt(String(req.params.id), 10);
+  const [existing] = await db.select().from(trainingRecordsTable).where(eq(trainingRecordsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Training record not found" }); return; }
+  if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
 
   await db.delete(trainingRecordsTable).where(eq(trainingRecordsTable.id, id));
   await logAudit(req, "training_record", id, "delete", existing, null, existing.organizationId);

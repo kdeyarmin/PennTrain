@@ -1,15 +1,20 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { requireAuth, getCurrentUser, hashPassword, sanitizeUser } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
 
+const ORG_ADMIN_ALLOWED_ROLES = ["org_admin", "facility_manager", "trainer", "employee"] as const;
+type UserRole = "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee";
+
 router.get("/users", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
-  if (!user || !["platform_admin", "org_admin", "facility_manager"].includes(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!user || !["platform_admin", "org_admin", "facility_manager"].includes(user.role)) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
 
   let query = db.select().from(usersTable).$dynamic();
 
@@ -21,7 +26,7 @@ router.get("/users", requireAuth, async (req, res): Promise<void> => {
   }
 
   if (req.query.role && typeof req.query.role === "string") {
-    query = query.where(eq(usersTable.role, req.query.role as "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee"));
+    query = query.where(eq(usersTable.role, req.query.role as UserRole));
   }
   if (req.query.isActive !== undefined) {
     query = query.where(eq(usersTable.isActive, req.query.isActive === "true"));
@@ -33,22 +38,46 @@ router.get("/users", requireAuth, async (req, res): Promise<void> => {
 
 router.post("/users", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
-  if (!user || !["platform_admin", "org_admin"].includes(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!user || !["platform_admin", "org_admin"].includes(user.role)) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
 
-  const { email, password, firstName, lastName, role, organizationId, facilityId, phone } = req.body;
-  if (!email || !password || !firstName || !lastName || !role) { res.status(400).json({ error: "Required fields missing" }); return; }
+  const { email, password, firstName, lastName, role, phone } = req.body;
+  if (!email || !password || !firstName || !lastName || !role) {
+    res.status(400).json({ error: "Required fields: email, password, firstName, lastName, role" }); return;
+  }
+
+  // Prevent privilege escalation: org_admins cannot create platform_admin users
+  // or users in other organizations
+  if (user.role !== "platform_admin") {
+    if (!ORG_ADMIN_ALLOWED_ROLES.includes(role as typeof ORG_ADMIN_ALLOWED_ROLES[number])) {
+      res.status(403).json({ error: "Insufficient permissions to create a user with that role" }); return;
+    }
+    if (!user.organizationId) {
+      res.status(403).json({ error: "User has no organization" }); return;
+    }
+  }
+
+  // Determine organizationId
+  let resolvedOrgId: number | null = null;
+  if (user.role === "platform_admin") {
+    resolvedOrgId = req.body.organizationId ? Number(req.body.organizationId) : null;
+  } else {
+    resolvedOrgId = user.organizationId!;
+  }
 
   const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
   if (existing) { res.status(409).json({ error: "Email already exists" }); return; }
 
   const passwordHash = await hashPassword(password);
   const [newUser] = await db.insert(usersTable).values({
-    email: email.toLowerCase(), passwordHash, firstName, lastName, role,
-    organizationId: organizationId ?? user.organizationId ?? undefined,
-    phone,
+    email: email.toLowerCase(), passwordHash, firstName, lastName,
+    role: role as UserRole,
+    organizationId: resolvedOrgId,
+    phone: phone ?? null,
   }).returning();
 
-  await logAudit(req, "user", newUser.id, "create", null, sanitizeUser(newUser), organizationId ?? user.organizationId ?? undefined);
+  await logAudit(req, "user", newUser.id, "create", null, sanitizeUser(newUser), resolvedOrgId ?? undefined);
   res.status(201).json(sanitizeUser(newUser));
 });
 
@@ -56,11 +85,15 @@ router.get("/users/:id", requireAuth, async (req, res): Promise<void> => {
   const currentUser = await getCurrentUser(req);
   if (!currentUser) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const [targetUser] = await db.select().from(usersTable).where(eq(usersTable.id, id));
   if (!targetUser) { res.status(404).json({ error: "User not found" }); return; }
 
-  if (currentUser.role !== "platform_admin" && currentUser.id !== id && currentUser.organizationId !== targetUser.organizationId) {
+  if (
+    currentUser.role !== "platform_admin" &&
+    currentUser.id !== id &&
+    currentUser.organizationId !== targetUser.organizationId
+  ) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
   res.json(sanitizeUser(targetUser));
@@ -70,27 +103,48 @@ router.patch("/users/:id", requireAuth, async (req, res): Promise<void> => {
   const currentUser = await getCurrentUser(req);
   if (!currentUser) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const [existing] = await db.select().from(usersTable).where(eq(usersTable.id, id));
   if (!existing) { res.status(404).json({ error: "User not found" }); return; }
 
   const isSelf = currentUser.id === id;
-  const isAdmin = ["platform_admin", "org_admin"].includes(currentUser.role);
-  if (!isSelf && !isAdmin) { res.status(403).json({ error: "Forbidden" }); return; }
-  if (!isSelf && currentUser.role !== "platform_admin" && currentUser.organizationId !== existing.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
+  const isPlatformAdmin = currentUser.role === "platform_admin";
+  const isOrgAdmin = currentUser.role === "org_admin";
+  const sameOrg = currentUser.organizationId === existing.organizationId;
+
+  if (!isSelf && !isPlatformAdmin && !(isOrgAdmin && sameOrg)) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
 
   const updates: Partial<typeof usersTable.$inferInsert> = {};
-  const selfAllowed = ["firstName", "lastName", "phone", "password"];
-  const adminAllowed = [...selfAllowed, "role", "isActive", "organizationId"];
-  const allowed = isAdmin ? adminAllowed : selfAllowed;
+  const selfAllowed = ["firstName", "lastName", "phone"];
+  const orgAdminAllowed = [...selfAllowed, "role", "isActive"];
+  const platformAdminAllowed = [...orgAdminAllowed, "organizationId"];
+
+  let allowed: string[];
+  if (isPlatformAdmin) {
+    allowed = platformAdminAllowed;
+  } else if (isOrgAdmin && sameOrg && !isSelf) {
+    allowed = orgAdminAllowed;
+  } else {
+    allowed = selfAllowed;
+  }
 
   for (const field of allowed) {
     if (req.body[field] !== undefined) {
-      if (field === "password") {
-        updates.passwordHash = await hashPassword(req.body[field]);
-      } else {
-        (updates as Record<string, unknown>)[field] = req.body[field];
-      }
+      (updates as Record<string, unknown>)[field] = req.body[field];
+    }
+  }
+
+  // Handle password separately (anyone can change their own)
+  if (req.body.password !== undefined && (isSelf || isPlatformAdmin)) {
+    updates.passwordHash = await hashPassword(req.body.password);
+  }
+
+  // Prevent org_admin from escalating role to platform_admin
+  if (updates.role !== undefined && !isPlatformAdmin) {
+    if (!ORG_ADMIN_ALLOWED_ROLES.includes(updates.role as typeof ORG_ADMIN_ALLOWED_ROLES[number])) {
+      res.status(403).json({ error: "Insufficient permissions to assign that role" }); return;
     }
   }
 
@@ -101,14 +155,22 @@ router.patch("/users/:id", requireAuth, async (req, res): Promise<void> => {
 
 router.delete("/users/:id", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
-  if (!user || !["platform_admin", "org_admin"].includes(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!user || !["platform_admin", "org_admin"].includes(user.role)) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
 
-  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
-  if (user.id === id) { res.status(400).json({ error: "Cannot delete your own account" }); return; }
+  const id = parseInt(String(req.params.id), 10);
+  if (user.id === id) { res.status(400).json({ error: "Cannot deactivate your own account" }); return; }
 
   const [existing] = await db.select().from(usersTable).where(eq(usersTable.id, id));
   if (!existing) { res.status(404).json({ error: "User not found" }); return; }
-  if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+  // Prevent org_admin from deactivating platform_admin
+  if (user.role !== "platform_admin" && existing.role === "platform_admin") {
+    res.status(403).json({ error: "Insufficient permissions" }); return;
+  }
 
   await db.update(usersTable).set({ isActive: false }).where(eq(usersTable.id, id));
   await logAudit(req, "user", id, "deactivate", sanitizeUser(existing), null, existing.organizationId ?? undefined);
