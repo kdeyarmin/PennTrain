@@ -4,13 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useListFacilities } from "@workspace/api-client-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { useListFacilities, useListEmployees } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import {
   FileText, Users, Building2, Clock, AlertTriangle,
   GraduationCap, Files, CheckCircle, Download, Shield,
-  BookOpen, BarChart3, Calendar, Search
+  BookOpen, BarChart3, Calendar, Search, Grid3X3
 } from "lucide-react";
 import { LucideIcon } from "lucide-react";
 
@@ -22,6 +24,7 @@ interface ReportDef {
   category: string;
   requiredBy: string;
   roles?: string[];
+  requiresEmployee?: boolean;
 }
 
 const ALL_REPORTS: ReportDef[] = [
@@ -92,7 +95,7 @@ const ALL_REPORTS: ReportDef[] = [
   {
     id: "annual-hours",
     title: "Annual Training Hours",
-    description: "12-hour annual training hour requirements for PCH and ALR staff with completion tracking.",
+    description: "12-hour annual training hour requirements for PCH and 16-hour for ALR staff with completion tracking.",
     icon: Clock,
     category: "Annual Hours",
     requiredBy: "28 Pa. Code §2600.64",
@@ -104,6 +107,14 @@ const ALL_REPORTS: ReportDef[] = [
     icon: Clock,
     category: "Annual Hours",
     requiredBy: "28 Pa. Code §2600.64",
+  },
+  {
+    id: "training-matrix",
+    title: "Training Matrix",
+    description: "Cross-reference matrix showing each employee's status across all required training types.",
+    icon: Grid3X3,
+    category: "Training",
+    requiredBy: "28 Pa. Code §2600.77",
   },
   {
     id: "trainer-certification",
@@ -136,6 +147,7 @@ const ALL_REPORTS: ReportDef[] = [
     icon: BookOpen,
     category: "Employee",
     requiredBy: "Record Keeping",
+    requiresEmployee: true,
   },
   {
     id: "facility-compliance",
@@ -177,6 +189,25 @@ const CATEGORIES = ["All", "Compliance", "Training", "Practicum", "Annual Hours"
 function flattenToRows(data: unknown, reportId: string): string[][] {
   if (!data || typeof data !== "object") return [["No data available"]];
   const d = data as Record<string, unknown>;
+
+  if (reportId === "training-matrix") {
+    const matrix = (d.matrix as Array<Record<string, unknown>>) ?? [];
+    const trainingTypes = (d.trainingTypes as Array<Record<string, unknown>>) ?? [];
+    if (!matrix.length) return [["No data available"]];
+    const typeHeaders = trainingTypes.map(t => String(t.name ?? t.id ?? ""));
+    const typeIds = trainingTypes.map(t => String(t.id ?? ""));
+    const headers = ["Employee", "Facility ID", "Job Title", ...typeHeaders];
+    const rows = matrix.map(e => {
+      const statusByType = (e.statusByType ?? {}) as Record<string, string>;
+      return [
+        String(e.employeeName ?? ""),
+        String(e.facilityId ?? ""),
+        String(e.jobTitle ?? ""),
+        ...typeIds.map(tid => String(statusByType[tid] ?? "no_record")),
+      ];
+    });
+    return [headers, ...rows];
+  }
 
   if (reportId === "facility-compliance") {
     const facilities = (d.facilities as Array<Record<string, unknown>>) ?? [];
@@ -319,7 +350,10 @@ export default function Reports() {
   const [category, setCategory] = useState<string>("All");
   const [search, setSearch] = useState("");
   const [loadingReport, setLoadingReport] = useState<string | null>(null);
+  const [pendingReport, setPendingReport] = useState<ReportDef | null>(null);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("none");
   const { data: facilities } = useListFacilities({});
+  const { data: employees } = useListEmployees({});
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -333,11 +367,13 @@ export default function Reports() {
     return true;
   });
 
-  const runReport = async (report: ReportDef) => {
+  const executeReport = async (report: ReportDef, employeeIdOverride?: string) => {
     setLoadingReport(report.id);
+    setPendingReport(null);
     try {
       const params = new URLSearchParams();
       if (facilityId && facilityId !== "all") params.set("facilityId", facilityId);
+      if (employeeIdOverride && employeeIdOverride !== "none") params.set("employeeId", employeeIdOverride);
 
       const res = await fetch(`/api/reports/${report.id}?${params}`, { credentials: "include" });
       if (!res.ok) {
@@ -355,6 +391,24 @@ export default function Reports() {
     } finally {
       setLoadingReport(null);
     }
+  };
+
+  const runReport = (report: ReportDef) => {
+    if (report.requiresEmployee) {
+      setSelectedEmployeeId("none");
+      setPendingReport(report);
+      return;
+    }
+    void executeReport(report);
+  };
+
+  const handleEmployeeTranscriptExport = () => {
+    if (!pendingReport) return;
+    if (selectedEmployeeId === "none") {
+      toast({ title: "Please select an employee", variant: "destructive" });
+      return;
+    }
+    void executeReport(pendingReport, selectedEmployeeId);
   };
 
   return (
@@ -445,6 +499,45 @@ export default function Reports() {
           </div>
         )}
       </div>
+
+      <Dialog open={!!pendingReport} onOpenChange={open => { if (!open) setPendingReport(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Employee Transcript Export</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Select the employee whose training transcript you want to export.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="emp-select">Employee</Label>
+              <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+                <SelectTrigger id="emp-select">
+                  <SelectValue placeholder="Select an employee..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Select an employee...</SelectItem>
+                  {employees?.map(e => (
+                    <SelectItem key={e.id} value={String(e.id)}>
+                      {e.firstName} {e.lastName} {e.jobTitle ? `— ${e.jobTitle}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingReport(null)}>Cancel</Button>
+            <Button
+              onClick={handleEmployeeTranscriptExport}
+              disabled={selectedEmployeeId === "none" || loadingReport === "employee-transcript"}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {loadingReport === "employee-transcript" ? "Exporting..." : "Export CSV"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
