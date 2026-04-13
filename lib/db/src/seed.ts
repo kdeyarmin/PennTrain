@@ -4,6 +4,7 @@ import {
   trainingTypesTable, trainingRecordsTable, practicumsTable,
   trainingHourBucketsTable, alertsTable, trainingDocumentsTable,
   facilityUserAssignmentsTable,
+  trainingClassesTable, trainingClassAttendeesTable,
   type Employee,
 } from "./schema";
 import bcrypt from "bcryptjs";
@@ -31,6 +32,8 @@ function calcStatus(
 async function seed() {
   console.log("Seeding database...");
 
+  await db.delete(trainingClassAttendeesTable);
+  await db.delete(trainingClassesTable);
   await db.delete(alertsTable);
   await db.delete(trainingHourBucketsTable);
   await db.delete(practicumsTable);
@@ -637,7 +640,11 @@ async function seed() {
     { employee: xavier, trainingType: medAdminPracticum, completionDate: null, facilityId: mapleEast.id, orgId: maplegrove.id },
   ];
 
-  for (const tr of trainingRecords) {
+  const completionMethods = ["in_person", "online", "hybrid", "manual_entry"] as const;
+  const trainerNames = ["Carol Davis, RN", "Isabel Anderson, LPN", "Teresa Bloom, RN", "Michael Thompson, RN", "Zoe Fischer, CMA"];
+
+  for (let i = 0; i < trainingRecords.length; i++) {
+    const tr = trainingRecords[i];
     const status = calcStatus(tr.completionDate ?? null, tr.trainingType.renewalIntervalDays ?? null, tr.trainingType.warningDaysDefault, today);
     let dueDate: string | null = null;
     if (tr.completionDate && tr.trainingType.renewalIntervalDays) {
@@ -654,6 +661,9 @@ async function seed() {
       dueDate: dueDate ?? undefined,
       status,
       documentRequired: tr.trainingType.documentRequired,
+      completionMethod: tr.completionDate ? completionMethods[i % completionMethods.length] : undefined,
+      trainerName: tr.completionDate ? trainerNames[i % trainerNames.length] : undefined,
+      hours: tr.completionDate ? String(tr.trainingType.category === "Medication Administration" ? 8 : tr.trainingType.category === "Trainer Certification" ? 16 : 4) : undefined,
     });
   }
 
@@ -1005,11 +1015,74 @@ async function seed() {
     },
   ]);
 
+  // --- Training Classes (demo classes for trainer workflow) ---
+  const [cls1] = await db.insert(trainingClassesTable).values({
+    organizationId: sunrise.id,
+    facilityId: manor.id,
+    trainerUserId: trainerUser.id,
+    trainingTypeId: medAdminPracticum.id,
+    className: "Q2 Med Admin Refresher",
+    classDate: daysFromNow(14),
+    location: "Sunrise Manor — Training Room A",
+    durationHours: "4",
+    status: "draft",
+    notes: "Annual medication administration refresher for all med aides. Covers MAR documentation, controlled substances handling, and insulin administration updates.",
+  }).returning();
+
+  await db.insert(trainingClassAttendeesTable).values([
+    { classId: cls1.id, employeeId: alice.id, attended: true },
+    { classId: cls1.id, employeeId: bob.id, attended: true },
+    { classId: cls1.id, employeeId: gina.id, attended: true },
+    { classId: cls1.id, employeeId: keisha.id, attended: true },
+    { classId: cls1.id, employeeId: irene.id, attended: true },
+  ]);
+
+  const [cls2] = await db.insert(trainingClassesTable).values({
+    organizationId: sunrise.id,
+    facilityId: gardens.id,
+    trainerUserId: trainerUser.id,
+    trainingTypeId: dementiaCare.id,
+    className: "Dementia Care Certification — Spring 2026",
+    classDate: daysAgo(7),
+    location: "Sunrise Gardens — Multi-purpose Room",
+    durationHours: "8",
+    status: "completed",
+    notes: "Full-day dementia care certification covering behavioral intervention techniques, person-centered care planning, and communication strategies.",
+  }).returning();
+
+  await db.insert(trainingClassAttendeesTable).values([
+    { classId: cls2.id, employeeId: grace.id, attended: true },
+    { classId: cls2.id, employeeId: henry.id, attended: true },
+    { classId: cls2.id, employeeId: linda.id, attended: true },
+    { classId: cls2.id, employeeId: nina.id, attended: false },
+  ]);
+
+  const [cls3] = await db.insert(trainingClassesTable).values({
+    organizationId: sunrise.id,
+    facilityId: ridge.id,
+    trainerUserId: trainerUser.id,
+    trainingTypeId: firstAid.id,
+    className: "First Aid & CPR Renewal — Ridge Staff",
+    classDate: daysFromNow(30),
+    location: "Sunrise Ridge PCH — Conference Room",
+    durationHours: "6",
+    status: "draft",
+    notes: "American Red Cross First Aid/CPR/AED certification renewal. All direct care staff must attend.",
+  }).returning();
+
+  await db.insert(trainingClassAttendeesTable).values([
+    { classId: cls3.id, employeeId: rachel.id, attended: true },
+    { classId: cls3.id, employeeId: steven.id, attended: true },
+    { classId: cls3.id, employeeId: walter.id, attended: true },
+    { classId: cls3.id, employeeId: ulysses.id, attended: true },
+  ]);
+
   console.log("Database seeded successfully!");
   console.log("\nOrganizations: 2 (Sunrise Healthcare, Maple Grove)");
   console.log("Facilities: 6 (4 Sunrise, 2 Maple Grove)");
   console.log("Employees: 46 total (12+10+6+5 Sunrise, 8+5 Maple Grove)");
-  console.log("Training Documents: 9 realistic proof documents across orgs and facilities");
+  console.log("Training Classes: 3 (2 draft, 1 completed)");
+  console.log("Training Documents: 9 realistic proof documents");
   console.log("\nDemo credentials:");
   console.log("  Platform Admin:  admin@pamedtrack.com / admin123");
   console.log("  Org Admin:       admin@sunrisehealthcare.com / demo123");

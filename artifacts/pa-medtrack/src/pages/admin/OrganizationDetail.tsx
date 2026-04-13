@@ -4,6 +4,10 @@ import { useRoute, Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ArrowLeft, Building, Building2, LogIn } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +26,7 @@ export default function OrganizationDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setImpersonating] = useState(false);
+  const [showImpersonateConfirm, setShowImpersonateConfirm] = useState(false);
 
   const { data: org, isLoading: orgLoading } = useGetOrganization(id ?? 0, {
     query: { enabled: !!id } as never,
@@ -113,7 +118,7 @@ export default function OrganizationDetail() {
             </div>
             <Button
               variant="outline"
-              onClick={() => impersonateMutation.mutate()}
+              onClick={() => setShowImpersonateConfirm(true)}
               disabled={impersonateMutation.isPending}
               className="shrink-0"
             >
@@ -237,6 +242,23 @@ export default function OrganizationDetail() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={showImpersonateConfirm} onOpenChange={setShowImpersonateConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Switch Organization Context</AlertDialogTitle>
+            <AlertDialogDescription>
+              You are about to view the platform as "{org?.name}". Your session will switch to this organization's context. You can return to the admin view at any time.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setShowImpersonateConfirm(false); impersonateMutation.mutate(); }}>
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

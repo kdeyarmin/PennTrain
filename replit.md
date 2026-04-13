@@ -2,7 +2,7 @@
 
 ## Overview
 
-PA MedTrack is a production-ready, multi-tenant SaaS compliance tracking platform for Pennsylvania Personal Care Homes (PCH) and Assisted Living Residences (ALR). It tracks medication administration training, certifications, annual practicums, training hours, documents, alerts, and 10 compliance report types.
+PA MedTrack is a production-ready, multi-tenant SaaS compliance tracking platform for Pennsylvania Personal Care Homes (PCH) and Assisted Living Residences (ALR). It tracks medication administration training, certifications, annual practicums, training hours, documents, alerts, and 19 compliance report types. Features include a premium dashboard with SVG donut chart, quick actions, and loading skeletons; a color-coded training matrix with CSV export and legend; reports with category-colored cards, zebra-striped tables, and status-aware cell coloring; proper AlertDialog confirmations for all destructive actions; and rich demo data with 46 employees, 3 training classes, and realistic compliance scenarios.
 
 ## Architecture
 

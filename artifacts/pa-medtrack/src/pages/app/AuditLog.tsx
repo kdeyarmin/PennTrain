@@ -54,7 +54,13 @@ export default function AuditLog() {
                 </div>
               ))}
               {(!logs || logs.length === 0) && (
-                <p className="text-center text-muted-foreground py-8">No audit log entries found.</p>
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                    <ShieldAlert className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <p className="font-medium text-muted-foreground">No audit log entries yet</p>
+                  <p className="text-sm text-muted-foreground/60 mt-1">Activity will be recorded here as changes are made.</p>
+                </div>
               )}
             </div>
           )}

@@ -97,7 +97,7 @@ export function ReportViewer({
         </div>
 
         {summaryCards && summaryCards.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 print-summary">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8 pb-6 border-b border-border/60 print-summary">
             {summaryCards.map((card, i) => (
               <div
                 key={i}
@@ -133,10 +133,10 @@ export function ReportViewer({
                 </thead>
                 <tbody>
                   {rows.map((row, ri) => (
-                    <tr key={ri} className="border-t border-border/60 hover:bg-muted/30 transition-colors">
+                    <tr key={ri} className={`border-t border-border/60 hover:bg-muted/40 transition-colors ${ri % 2 === 1 ? "bg-muted/30" : ""}`}>
                       <td className="px-4 py-3 text-muted-foreground text-xs">{ri + 1}</td>
                       {row.map((cell, ci) => (
-                        <td key={ci} className="px-4 py-3">
+                        <td key={ci} className={`px-4 py-3 ${getStatusTextColor(cell)}`}>
                           {isStatusCell(headers[ci], cell) ? (
                             <Badge
                               variant={
@@ -177,12 +177,21 @@ export function ReportViewer({
         )}
 
         <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground print-footer">
-          <p>{rows.length} record{rows.length !== 1 ? "s" : ""}</p>
+          <p>Showing {rows.length} record{rows.length !== 1 ? "s" : ""}</p>
           <p>PA MedTrack &middot; 28 Pa. Code Chapter 2600 Compliance Platform</p>
         </div>
       </div>
     </div>
   );
+}
+
+function getStatusTextColor(value: string): string {
+  const v = (value ?? "").toLowerCase().trim();
+  if (v === "compliant" || v === "pass") return "text-green-600 dark:text-green-400";
+  if (v === "expired" || v === "fail" || v === "overdue") return "text-red-600 dark:text-red-400";
+  if (v === "due_soon" || v === "due soon") return "text-amber-600 dark:text-amber-400";
+  if (v === "missing") return "text-gray-500 dark:text-gray-400";
+  return "";
 }
 
 function isStatusCell(header: string, value: string): boolean {

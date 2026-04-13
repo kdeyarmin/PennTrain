@@ -822,15 +822,24 @@ export default function Reports() {
         {visibleReports.map((report) => {
           const Icon = report.icon;
           const isLoading = loadingReport === report.id;
+          const catColors: Record<string, { border: string; bg: string; text: string }> = {
+            Compliance: { border: "border-l-blue-500", bg: "bg-blue-100 dark:bg-blue-950/30", text: "text-blue-600 dark:text-blue-400" },
+            Training: { border: "border-l-emerald-500", bg: "bg-emerald-100 dark:bg-emerald-950/30", text: "text-emerald-600 dark:text-emerald-400" },
+            Practicum: { border: "border-l-purple-500", bg: "bg-purple-100 dark:bg-purple-950/30", text: "text-purple-600 dark:text-purple-400" },
+            Hours: { border: "border-l-amber-500", bg: "bg-amber-100 dark:bg-amber-950/30", text: "text-amber-600 dark:text-amber-400" },
+            Staff: { border: "border-l-indigo-500", bg: "bg-indigo-100 dark:bg-indigo-950/30", text: "text-indigo-600 dark:text-indigo-400" },
+            Documents: { border: "border-l-slate-500", bg: "bg-slate-100 dark:bg-slate-950/30", text: "text-slate-600 dark:text-slate-400" },
+          };
+          const colors = catColors[report.category] ?? catColors.Compliance;
           return (
             <Card
               key={report.id}
-              className="group hover:shadow-md transition-shadow flex flex-col"
+              className={`group hover:shadow-md transition-shadow flex flex-col border-l-4 ${colors.border}`}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-start gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                    <Icon className="h-5 w-5 text-primary" />
+                  <div className={`h-10 w-10 rounded-lg ${colors.bg} flex items-center justify-center shrink-0`}>
+                    <Icon className={`h-5 w-5 ${colors.text}`} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <CardTitle className="text-sm leading-tight">
@@ -840,9 +849,9 @@ export default function Reports() {
                       <Badge variant="outline" className="text-[10px]">
                         {report.category}
                       </Badge>
-                      <span className="text-[10px] text-muted-foreground truncate">
+                      <Badge variant="secondary" className="text-[10px] font-normal">
                         {report.requiredBy}
-                      </span>
+                      </Badge>
                     </div>
                   </div>
                 </div>

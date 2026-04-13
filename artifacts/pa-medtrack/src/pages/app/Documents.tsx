@@ -3,6 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useListFacilities, useListEmployees } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { FileText, Upload, Trash2, Download, Files } from "lucide-react";
@@ -105,10 +109,12 @@ export default function Documents() {
     }
   };
 
-  const handleDelete = async (doc: TrainingDocument) => {
-    if (!confirm(`Delete "${doc.fileName}"?`)) return;
+  const [deleteDoc, setDeleteDoc] = useState<TrainingDocument | null>(null);
+
+  const confirmDelete = async () => {
+    if (!deleteDoc) return;
     try {
-      const res = await fetch(`/api/documents/${doc.id}`, {
+      const res = await fetch(`/api/documents/${deleteDoc.id}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -117,6 +123,8 @@ export default function Documents() {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
     } catch {
       toast({ title: "Delete failed", variant: "destructive" });
+    } finally {
+      setDeleteDoc(null);
     }
   };
 
@@ -272,7 +280,7 @@ export default function Documents() {
                     <Button size="icon" variant="ghost" onClick={() => handleDownload(doc)} title="Download">
                       <Download className="h-4 w-4" />
                     </Button>
-                    <Button size="icon" variant="ghost" onClick={() => handleDelete(doc)} title="Delete">
+                    <Button size="icon" variant="ghost" onClick={() => setDeleteDoc(doc)} title="Delete">
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
@@ -282,6 +290,23 @@ export default function Documents() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!deleteDoc} onOpenChange={(open) => !open && setDeleteDoc(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Document</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteDoc?.fileName}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

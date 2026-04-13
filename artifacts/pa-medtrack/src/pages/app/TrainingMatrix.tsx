@@ -4,8 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+import { ChevronUp, ChevronDown, ChevronsUpDown, Download, Users } from "lucide-react";
 
 const PAGE_SIZE = 15;
 
@@ -27,6 +26,55 @@ type TrainingRecord = {
   completionDate?: string | null;
   dueDate?: string | null;
 };
+
+const STATUS_COLORS: Record<string, string> = {
+  compliant: "#22c55e",
+  due_soon: "#f59e0b",
+  expired: "#ef4444",
+  missing: "#94a3b8",
+};
+
+function getStatusColor(status: string | undefined): string {
+  if (!status) return STATUS_COLORS.missing;
+  return STATUS_COLORS[status] ?? STATUS_COLORS.missing;
+}
+
+function getStatusLabel(status: string | undefined): string {
+  if (!status) return "No Record";
+  switch (status) {
+    case "compliant": return "Compliant";
+    case "due_soon": return "Due Soon";
+    case "expired": return "Expired";
+    case "missing": return "No Record";
+    default: return status.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+  }
+}
+
+function buildTooltip(record: TrainingRecord | undefined): string {
+  if (!record) return "No Record";
+  const parts = [getStatusLabel(record.status)];
+  if (record.completionDate) parts.push(`Completed: ${record.completionDate}`);
+  if (record.dueDate) parts.push(`Due: ${record.dueDate}`);
+  return parts.join("\n");
+}
+
+function StatusDot({ record }: { record: TrainingRecord | undefined }) {
+  const color = getStatusColor(record?.status);
+  const tooltip = buildTooltip(record);
+  return (
+    <span
+      title={tooltip}
+      style={{
+        display: "inline-block",
+        width: 12,
+        height: 12,
+        borderRadius: "50%",
+        backgroundColor: color,
+        cursor: "default",
+      }}
+    />
+  );
+}
 
 function SortButton({ field, sortField, sortDir, onSort }: {
   field: string;
@@ -88,6 +136,13 @@ export default function TrainingMatrix() {
     setPage(1);
   };
 
+  const clearFilters = () => {
+    setFacilityId("all");
+    setSearch("");
+    setStatusFilter("all");
+    setPage(1);
+  };
+
   const filteredEmployees = useMemo(() => {
     let emps = (allEmployees as Employee[] | undefined) ?? [];
     if (search.trim()) {
@@ -113,6 +168,50 @@ export default function TrainingMatrix() {
   const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / PAGE_SIZE));
   const pageEmployees = filteredEmployees.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  const complianceSummary = useMemo(() => {
+    if (!trainingTypes) return {};
+    const summary: Record<number, { compliant: number; total: number }> = {};
+    for (const tt of trainingTypes) {
+      let compliant = 0;
+      let total = 0;
+      for (const emp of filteredEmployees) {
+        const rec = getRecord(emp.id, tt.id);
+        if (rec) {
+          total++;
+          if (rec.status === "compliant") compliant++;
+        }
+      }
+      summary[tt.id] = { compliant, total };
+    }
+    return summary;
+  }, [trainingTypes, filteredEmployees, records]);
+
+  const handleExportCSV = () => {
+    if (!trainingTypes) return;
+    const headers = ["Employee Name", "Job Title", ...trainingTypes.map(tt => tt.code)];
+    const rows = filteredEmployees.map(emp => {
+      const name = `${emp.firstName} ${emp.lastName}`;
+      const jobTitle = emp.jobTitle ?? "";
+      const statuses = trainingTypes.map(tt => {
+        const rec = getRecord(emp.id, tt.id);
+        return rec ? getStatusLabel(rec.status) : "No Record";
+      });
+      return [name, jobTitle, ...statuses];
+    });
+
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "training-matrix.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -120,7 +219,7 @@ export default function TrainingMatrix() {
         <p className="text-muted-foreground">View compliance status across all employees and training types.</p>
       </div>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3 items-center">
         <Select value={facilityId} onValueChange={v => { setFacilityId(v); setPage(1); }}>
           <SelectTrigger className="w-48">
             <SelectValue placeholder="All Facilities" />
@@ -152,68 +251,103 @@ export default function TrainingMatrix() {
           onChange={e => { setSearch(e.target.value); setPage(1); }}
           className="w-64"
         />
+
+        <Button variant="outline" size="sm" onClick={handleExportCSV} className="ml-auto">
+          <Download className="w-4 h-4 mr-2" />
+          Export CSV
+        </Button>
       </div>
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">
-            Compliance Matrix
-            <span className="text-sm font-normal text-muted-foreground ml-2">
-              ({filteredEmployees.length} employees)
-            </span>
-          </CardTitle>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="text-base">
+              Compliance Matrix
+              <span className="text-sm font-normal text-muted-foreground ml-2">
+                ({filteredEmployees.length} employees)
+              </span>
+            </CardTitle>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", backgroundColor: "#22c55e" }} />
+                Compliant
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", backgroundColor: "#f59e0b" }} />
+                Due Soon
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", backgroundColor: "#ef4444" }} />
+                Expired
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", backgroundColor: "#94a3b8" }} />
+                No Record
+              </span>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2 pr-4 font-medium text-muted-foreground sticky left-0 bg-background min-w-[180px]">
-                    <span>Employee</span>
-                    <SortButton field="lastName" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                  </th>
-                  <th className="text-left py-2 pr-4 font-medium text-muted-foreground min-w-[140px]">
-                    <span>Role</span>
-                    <SortButton field="jobTitle" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                  </th>
-                  {trainingTypes?.map(tt => (
-                    <th key={tt.id} className="text-center py-2 px-2 font-medium text-muted-foreground min-w-[90px] max-w-[110px]">
-                      <div className="truncate text-xs" title={tt.name}>{tt.code}</div>
+          {pageEmployees.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Users className="w-16 h-16 text-muted-foreground/40 mb-4" />
+              <h3 className="text-lg font-semibold mb-1">No matching employees</h3>
+              <p className="text-sm text-muted-foreground mb-4">Try adjusting your filters or search terms</p>
+              <Button variant="outline" size="sm" onClick={clearFilters}>Clear Filters</Button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b" style={{ position: "sticky", top: 0, zIndex: 10 }}>
+                    <th className="text-left py-2 pr-4 font-medium text-muted-foreground sticky left-0 bg-background min-w-[180px]">
+                      <span>Employee</span>
+                      <SortButton field="lastName" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                     </th>
+                    <th className="text-left py-2 pr-4 font-medium text-muted-foreground min-w-[140px] bg-background">
+                      <span>Role</span>
+                      <SortButton field="jobTitle" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                    </th>
+                    {trainingTypes?.map(tt => (
+                      <th key={tt.id} className="text-center py-2 px-2 font-medium text-muted-foreground min-w-[90px] max-w-[110px] bg-background">
+                        <div className="truncate text-xs" title={tt.name}>{tt.code}</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageEmployees.map(emp => (
+                    <tr key={emp.id} className="border-b hover:bg-muted/30">
+                      <td className="py-2 pr-4 sticky left-0 bg-background">
+                        <div className="font-medium">{emp.firstName} {emp.lastName}</div>
+                      </td>
+                      <td className="py-2 pr-4 text-muted-foreground text-xs">{emp.jobTitle}</td>
+                      {trainingTypes?.map(tt => {
+                        const record = getRecord(emp.id, tt.id);
+                        return (
+                          <td key={tt.id} className="py-2 px-2 text-center">
+                            <StatusDot record={record} />
+                          </td>
+                        );
+                      })}
+                    </tr>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {pageEmployees.map(emp => (
-                  <tr key={emp.id} className="border-b hover:bg-muted/30">
-                    <td className="py-2 pr-4 sticky left-0 bg-background">
-                      <div className="font-medium">{emp.firstName} {emp.lastName}</div>
-                    </td>
-                    <td className="py-2 pr-4 text-muted-foreground text-xs">{emp.jobTitle}</td>
+                  <tr className="border-t-2 bg-muted/20">
+                    <td className="py-2 pr-4 sticky left-0 bg-muted/20 font-medium text-xs text-muted-foreground">Summary</td>
+                    <td className="py-2 pr-4"></td>
                     {trainingTypes?.map(tt => {
-                      const record = getRecord(emp.id, tt.id);
+                      const s = complianceSummary[tt.id];
                       return (
-                        <td key={tt.id} className="py-2 px-2 text-center">
-                          {record ? (
-                            <StatusBadge status={record.status} />
-                          ) : (
-                            <span className="text-xs text-muted-foreground">-</span>
-                          )}
+                        <td key={tt.id} className="py-2 px-2 text-center text-xs font-medium text-muted-foreground" title={`${s?.compliant ?? 0} compliant out of ${s?.total ?? 0} with records`}>
+                          {s ? `${s.compliant}/${s.total}` : "-"}
                         </td>
                       );
                     })}
                   </tr>
-                ))}
-                {pageEmployees.length === 0 && (
-                  <tr>
-                    <td colSpan={100} className="text-center py-8 text-muted-foreground">
-                      No employees match the current filters.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-4 pt-4 border-t">

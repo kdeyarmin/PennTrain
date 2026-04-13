@@ -104,7 +104,13 @@ export default function Practicums() {
                 );
               })}
               {(!practicums || practicums.length === 0) && (
-                <p className="text-center text-muted-foreground py-8">No practicum records found.</p>
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                    <CheckCircle className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <p className="font-medium text-muted-foreground">No practicum records found</p>
+                  <p className="text-sm text-muted-foreground/60 mt-1">Practicum records will appear here once scheduled.</p>
+                </div>
               )}
             </div>
           )}
