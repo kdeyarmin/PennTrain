@@ -134,10 +134,22 @@ router.post("/documents", requireAuth, upload.single("file"), async (req, res): 
     res.status(400).json({ error: "Facility not found in your organization" }); return;
   }
 
-  // If employeeId provided, validate it belongs to org
-  if (employeeId) {
+  // Employees may only upload documents for themselves — derive from session
+  let resolvedEmployeeId: number | null = employeeId ? Number(employeeId) : null;
+  if (user.role === "employee") {
+    const [selfEmp] = await db.select().from(employeesTable).where(
+      and(eq(employeesTable.email, user.email), eq(employeesTable.organizationId, resolvedOrgId))
+    );
+    if (!selfEmp) {
+      fs.unlinkSync(req.file.path);
+      res.status(403).json({ error: "No employee record found for your account" }); return;
+    }
+    // Override any submitted employeeId — employees can only create docs for themselves
+    resolvedEmployeeId = selfEmp.id;
+  } else if (resolvedEmployeeId) {
+    // For other roles, validate the submitted employeeId belongs to the org
     const [employee] = await db.select().from(employeesTable).where(
-      and(eq(employeesTable.id, Number(employeeId)), eq(employeesTable.organizationId, resolvedOrgId))
+      and(eq(employeesTable.id, resolvedEmployeeId), eq(employeesTable.organizationId, resolvedOrgId))
     );
     if (!employee) {
       fs.unlinkSync(req.file.path);
@@ -150,7 +162,7 @@ router.post("/documents", requireAuth, upload.single("file"), async (req, res): 
   const [doc] = await db.insert(trainingDocumentsTable).values({
     organizationId: resolvedOrgId,
     facilityId: Number(facilityId),
-    employeeId: employeeId ? Number(employeeId) : null,
+    employeeId: resolvedEmployeeId,
     trainingRecordId: trainingRecordId ? Number(trainingRecordId) : null,
     fileName: req.file.originalname,
     fileUrl,

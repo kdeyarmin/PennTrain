@@ -177,7 +177,16 @@ router.get("/dashboard/upcoming-due-dates", requireAuth, async (req, res): Promi
     trainingQuery = trainingQuery.where(eq(trainingRecordsTable.organizationId, Number(req.query.organizationId)));
   }
 
-  const records = await trainingQuery;
+  let records = await trainingQuery;
+
+  // Restrict facility_manager and trainer to only their assigned facilities
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null) {
+      records = records.filter(r => r.facilityId !== null && assignedFacilityIds.includes(r.facilityId));
+    }
+  }
+
   const upcoming = records.filter(r => {
     if (!r.dueDate) return false;
     const dueDate = new Date(r.dueDate);
@@ -204,7 +213,16 @@ router.get("/dashboard/recent-activity", requireAuth, async (req, res): Promise<
     query = query.where(eq(trainingRecordsTable.organizationId, Number(req.query.organizationId)));
   }
 
-  const records = await query;
+  let records = await query;
+
+  // Restrict facility_manager and trainer to only their assigned facilities
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null) {
+      records = records.filter(r => r.facilityId !== null && assignedFacilityIds.includes(r.facilityId));
+    }
+  }
+
   const recentActivity = records
     .filter(r => r.updatedAt && new Date(r.updatedAt) >= since)
     .sort((a, b) => new Date(b.updatedAt!).getTime() - new Date(a.updatedAt!).getTime())
@@ -219,6 +237,74 @@ router.get("/dashboard/recent-activity", requireAuth, async (req, res): Promise<
     }));
 
   res.json({ count: recentActivity.length, activities: recentActivity });
+});
+
+// Compliance trends: monthly snapshot of compliant/expired/due_soon counts over last N months
+router.get("/dashboard/compliance-trends", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (user.role === "employee") { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const months = Math.min(Number(req.query.months) || 6, 24);
+
+  let allRecords = await (() => {
+    if (user.role === "platform_admin") {
+      const q = db.select().from(trainingRecordsTable).$dynamic();
+      return req.query.organizationId
+        ? q.where(eq(trainingRecordsTable.organizationId, Number(req.query.organizationId)))
+        : q;
+    } else {
+      if (!user.organizationId) return Promise.resolve([] as (typeof trainingRecordsTable.$inferSelect)[]);
+      return db.select().from(trainingRecordsTable).where(eq(trainingRecordsTable.organizationId, user.organizationId));
+    }
+  })();
+
+  // Restrict facility_manager and trainer to only their assigned facilities
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null) {
+      allRecords = allRecords.filter(r => r.facilityId !== null && assignedFacilityIds.includes(r.facilityId));
+    }
+  }
+
+  // Build monthly buckets by dueDate month
+  const now = new Date();
+  const trend: Array<{ month: string; compliant: number; expired: number; dueSoon: number; total: number }> = [];
+
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const label = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const monthRecords = allRecords.filter(r => {
+      if (!r.dueDate) return false;
+      const rd = new Date(r.dueDate);
+      return rd.getFullYear() === d.getFullYear() && rd.getMonth() === d.getMonth();
+    });
+    trend.push({
+      month: label,
+      compliant: monthRecords.filter(r => r.status === "compliant").length,
+      expired: monthRecords.filter(r => r.status === "expired").length,
+      dueSoon: monthRecords.filter(r => r.status === "due_soon").length,
+      total: monthRecords.length,
+    });
+  }
+
+  // Also include overall current snapshot
+  const total = allRecords.length;
+  const compliant = allRecords.filter(r => r.status === "compliant").length;
+  const expired = allRecords.filter(r => r.status === "expired").length;
+  const dueSoon = allRecords.filter(r => r.status === "due_soon").length;
+
+  res.json({
+    trend,
+    current: {
+      total,
+      compliant,
+      expired,
+      dueSoon,
+      compliancePercentage: total > 0 ? Math.round((compliant / total) * 100) : 100,
+    },
+    generatedAt: new Date().toISOString(),
+  });
 });
 
 export default router;
