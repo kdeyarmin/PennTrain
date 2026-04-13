@@ -94,7 +94,7 @@ All routes prefixed with `/api/`:
 - `GET /audit-logs`
 - `GET/POST /users`, `GET/PUT/DELETE /users/:id`
 - `GET /dashboard/summary`
-- Reports: `GET /reports/compliance-summary`, `GET /reports/due-soon`, `GET /reports/expired`, `GET /reports/annual-hours`, `GET /reports/facility-scores`, `GET /reports/employee-transcript`, `GET /reports/training-type-compliance`, `GET /reports/practicum-status`, `GET /reports/new-hires`, `GET /reports/compliance-by-facility`
+- Reports (19 endpoints): `GET /reports/compliance-summary`, `GET /reports/facility-compliance`, `GET /reports/survey-readiness`, `GET /reports/expired-training`, `GET /reports/due-soon`, `GET /reports/medication-administration`, `GET /reports/training-matrix`, `GET /reports/practicum-status`, `GET /reports/annual-practicum`, `GET /reports/annual-hours`, `GET /reports/training-hours`, `GET /reports/trainer-certification`, `GET /reports/new-employee-training`, `GET /reports/employee-transcript`, `GET /reports/expiring-certifications`, `GET /reports/missing-documents`, `GET /reports/document-audit`, `GET /reports/overdue-training`, `GET /reports/org-compliance`
 
 ## Important Files
 
@@ -103,6 +103,8 @@ All routes prefixed with `/api/`:
 - `artifacts/api-server/src/lib/compliance.ts` — Compliance calculation logic
 - `artifacts/pa-medtrack/src/App.tsx` — Frontend router with role-based access
 - `artifacts/pa-medtrack/src/components/layout/Sidebar.tsx` — Role-aware navigation sidebar
+- `artifacts/pa-medtrack/src/pages/app/Reports.tsx` — Report center with on-screen viewer, print, CSV export
+- `artifacts/pa-medtrack/src/components/reports/ReportViewer.tsx` — Report data table viewer with print layout
 - `lib/db/src/schema/index.ts` — Full DB schema
 - `lib/db/src/seed.ts` — Demo data seed script
 - `lib/api-spec/openapi.yaml` — OpenAPI spec (source of truth for API contracts)
