@@ -51,13 +51,14 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.session.userId));
-  if (!user) {
+  const effectiveUser = await getCurrentUser(req);
+  if (!effectiveUser) {
     req.session.destroy(() => {});
     res.status(401).json({ error: "User not found" });
     return;
   }
-  res.json(sanitizeUser(user));
+  const { passwordHash: _, ...safe } = effectiveUser;
+  res.json(safe);
 });
 
 router.post("/auth/impersonate-org", requireAuth, async (req, res): Promise<void> => {

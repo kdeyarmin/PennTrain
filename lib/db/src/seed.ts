@@ -3,6 +3,7 @@ import {
   usersTable, organizationsTable, facilitiesTable, employeesTable,
   trainingTypesTable, trainingRecordsTable, practicumsTable,
   trainingHourBucketsTable, alertsTable, trainingDocumentsTable,
+  facilityUserAssignmentsTable,
   type Employee,
 } from "./schema";
 import bcrypt from "bcryptjs";
@@ -35,6 +36,7 @@ async function seed() {
   await db.delete(practicumsTable);
   await db.delete(trainingRecordsTable);
   await db.delete(trainingTypesTable);
+  await db.delete(facilityUserAssignmentsTable);
   await db.delete(employeesTable);
   await db.delete(facilitiesTable);
   await db.delete(usersTable);
@@ -110,7 +112,7 @@ async function seed() {
     isActive: true,
   }).returning();
 
-  await db.insert(usersTable).values({
+  const [managerUser] = await db.insert(usersTable).values({
     email: "manager@sunrisemanor.com",
     passwordHash: await hash("demo123"),
     firstName: "Jennifer",
@@ -118,9 +120,9 @@ async function seed() {
     role: "facility_manager",
     organizationId: sunrise.id,
     isActive: true,
-  });
+  }).returning();
 
-  await db.insert(usersTable).values({
+  const [manager2User] = await db.insert(usersTable).values({
     email: "manager2@sunrisegard.com",
     passwordHash: await hash("demo123"),
     firstName: "David",
@@ -128,9 +130,9 @@ async function seed() {
     role: "facility_manager",
     organizationId: sunrise.id,
     isActive: true,
-  });
+  }).returning();
 
-  await db.insert(usersTable).values({
+  const [trainerUser] = await db.insert(usersTable).values({
     email: "trainer@sunrisehealthcare.com",
     passwordHash: await hash("demo123"),
     firstName: "Michael",
@@ -138,7 +140,7 @@ async function seed() {
     role: "trainer",
     organizationId: sunrise.id,
     isActive: true,
-  });
+  }).returning();
 
   await db.insert(usersTable).values({
     email: "admin@maplegrove.com",
@@ -258,6 +260,21 @@ async function seed() {
     administratorName: "Thomas Greenberg",
     administratorEmail: "tgreenberg@valleycare.com",
   }).returning();
+
+  // --- Facility User Assignments (for demo facility_manager and trainer accounts) ---
+  // manager@sunrisemanor.com manages Sunrise Manor + Sunrise Ridge PCH
+  // manager2@sunrisegard.com manages Sunrise Gardens ALR + Sunrise Pavilion ALR
+  // trainer@sunrisehealthcare.com trains at all 4 Sunrise facilities
+  await db.insert(facilityUserAssignmentsTable).values([
+    { userId: managerUser.id, facilityId: manor.id },
+    { userId: managerUser.id, facilityId: ridge.id },
+    { userId: manager2User.id, facilityId: gardens.id },
+    { userId: manager2User.id, facilityId: pavilion.id },
+    { userId: trainerUser.id, facilityId: manor.id },
+    { userId: trainerUser.id, facilityId: gardens.id },
+    { userId: trainerUser.id, facilityId: ridge.id },
+    { userId: trainerUser.id, facilityId: pavilion.id },
+  ]);
 
   // --- Training Types ---
   const [medAdminInit] = await db.insert(trainingTypesTable).values({
