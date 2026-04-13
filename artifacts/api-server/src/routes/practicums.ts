@@ -223,6 +223,13 @@ router.delete("/practicums/:id", requireAuth, async (req, res): Promise<void> =>
   if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
+  // facility_manager may only delete practicums in their assigned facilities
+  if (user.role === "facility_manager") {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null && existing.facilityId !== null && !assignedFacilityIds.includes(existing.facilityId)) {
+      res.status(403).json({ error: "Forbidden: not assigned to this facility" }); return;
+    }
+  }
 
   await db.delete(practicumsTable).where(eq(practicumsTable.id, id));
   await logAudit(req, "practicum", id, "delete", existing, null, existing.organizationId);

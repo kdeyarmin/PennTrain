@@ -2,10 +2,26 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import { alertsTable } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
-import { requireAuth, getCurrentUser } from "../lib/auth";
+import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { generateAlertsForOrganization } from "../lib/compliance";
 
 const router: IRouter = Router();
+
+async function assertAlertFacilityAccess(
+  user: Awaited<ReturnType<typeof getCurrentUser>>,
+  alert: typeof alertsTable.$inferSelect,
+  res: Response,
+): Promise<boolean> {
+  if (!user) return false;
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedIds = await getAssignedFacilityIds(user);
+    if (assignedIds !== null && alert.facilityId !== null && !assignedIds.includes(alert.facilityId)) {
+      res.status(403).json({ error: "Forbidden: alert not in your assigned facilities" });
+      return false;
+    }
+  }
+  return true;
+}
 
 router.get("/alerts", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
@@ -28,7 +44,16 @@ router.get("/alerts", requireAuth, async (req, res): Promise<void> => {
     query = query.where(eq(alertsTable.severity, req.query.severity as "info" | "warning" | "critical"));
   }
 
-  const alerts = await query.orderBy(alertsTable.createdAt);
+  let alerts = await query.orderBy(alertsTable.createdAt);
+
+  // Scope facility_manager/trainer to their assigned facilities
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedIds = await getAssignedFacilityIds(user);
+    if (assignedIds !== null) {
+      alerts = alerts.filter(a => a.facilityId !== null && assignedIds.includes(a.facilityId));
+    }
+  }
+
   res.json(alerts);
 });
 
@@ -43,6 +68,8 @@ router.get("/alerts/:id", requireAuth, async (req, res): Promise<void> => {
   if (user.role !== "platform_admin" && user.organizationId !== alert.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
+  if (!await assertAlertFacilityAccess(user, alert, res)) return;
+
   res.json(alert);
 });
 
@@ -65,6 +92,7 @@ router.patch("/alerts/:id/dismiss", requireAuth, async (req, res): Promise<void>
   const [existing] = await db.select().from(alertsTable).where(eq(alertsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Alert not found" }); return; }
   if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!await assertAlertFacilityAccess(user, existing, res)) return;
 
   const [updated] = await db.update(alertsTable).set({ status: "dismissed" }).where(eq(alertsTable.id, id)).returning();
   res.json(updated);
@@ -78,6 +106,7 @@ router.patch("/alerts/:id/resolve", requireAuth, async (req, res): Promise<void>
   const [existing] = await db.select().from(alertsTable).where(eq(alertsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Alert not found" }); return; }
   if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!await assertAlertFacilityAccess(user, existing, res)) return;
 
   const [updated] = await db.update(alertsTable).set({
     status: "resolved",
@@ -97,6 +126,7 @@ router.patch("/alerts/:id/assign", requireAuth, async (req, res): Promise<void> 
   const [existing] = await db.select().from(alertsTable).where(eq(alertsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Alert not found" }); return; }
   if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!await assertAlertFacilityAccess(user, existing, res)) return;
 
   const [updated] = await db.update(alertsTable)
     .set({ assignedToUserId: assignedToUserId ?? null })
@@ -114,15 +144,24 @@ async function handleBulkUpdate(req: Request, res: Response): Promise<void> {
   if (!Array.isArray(ids) || ids.length === 0) { res.status(400).json({ error: "ids array required" }); return; }
   if (!status || !["dismissed", "resolved", "open"].includes(status)) { res.status(400).json({ error: "Valid status required" }); return; }
 
+  // Fetch all referenced alerts to enforce org + facility-assignment scoping
+  const existingAlerts = await db.select().from(alertsTable).where(inArray(alertsTable.id, ids));
+  const assignedIds = ["facility_manager", "trainer"].includes(user.role) ? await getAssignedFacilityIds(user) : null;
+
+  const allowedIds = existingAlerts
+    .filter(a => {
+      if (user.role !== "platform_admin" && user.organizationId !== a.organizationId) return false;
+      if (assignedIds !== null && a.facilityId !== null && !assignedIds.includes(a.facilityId)) return false;
+      return true;
+    })
+    .map(a => a.id);
+
+  if (allowedIds.length === 0) { res.status(403).json({ error: "Forbidden: no accessible alerts in request" }); return; }
+
   const setValues: Partial<typeof alertsTable.$inferInsert> = { status: status as "open" | "dismissed" | "resolved" };
   if (status === "resolved") setValues.resolvedAt = new Date().toISOString();
 
-  let whereClause = inArray(alertsTable.id, ids);
-  if (user.role !== "platform_admin" && user.organizationId) {
-    whereClause = and(whereClause, eq(alertsTable.organizationId, user.organizationId))!;
-  }
-
-  const updated = await db.update(alertsTable).set(setValues).where(whereClause).returning();
+  const updated = await db.update(alertsTable).set(setValues).where(inArray(alertsTable.id, allowedIds)).returning();
   res.json({ updated: updated.length });
 }
 
@@ -139,6 +178,7 @@ router.patch("/alerts/:id", requireAuth, async (req, res): Promise<void> => {
   if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
+  if (!await assertAlertFacilityAccess(user, existing, res)) return;
 
   const { status, assignedToUserId } = req.body as { status?: string; assignedToUserId?: number | null };
   const setValues: Partial<typeof alertsTable.$inferInsert> = {};

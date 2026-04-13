@@ -512,6 +512,13 @@ router.get("/reports/employee-transcript", requireAuth, async (req, res): Promis
     );
     if (!selfEmp || selfEmp.id !== employeeId) { res.status(403).json({ error: "Employees may only view their own transcript" }); return; }
   }
+  // facility_manager/trainer may only view transcripts for employees in their assigned facilities
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedIds = await getAssignedFacilityIds(user);
+    if (assignedIds !== null && employee.facilityId !== null && !assignedIds.includes(employee.facilityId)) {
+      res.status(403).json({ error: "Forbidden: employee not in your assigned facilities" }); return;
+    }
+  }
 
   const currentYear = new Date().getFullYear();
   const [trainingRecords, practicums, annualHours, documents] = await Promise.all([

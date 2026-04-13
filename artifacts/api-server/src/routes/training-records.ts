@@ -249,6 +249,13 @@ async function handleVerifyTrainingRecord(req: import("express").Request, res: i
   if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
+  // facility_manager may only verify records in their assigned facilities
+  if (user.role === "facility_manager") {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null && existing.facilityId !== null && !assignedFacilityIds.includes(existing.facilityId)) {
+      res.status(403).json({ error: "Forbidden: not assigned to this facility" }); return;
+    }
+  }
 
   const [updated] = await db.update(trainingRecordsTable)
     .set({ status: "compliant", verifiedByUserId: user.id, verifiedAt: new Date().toISOString() })
@@ -272,6 +279,13 @@ router.delete("/training-records/:id", requireAuth, async (req, res): Promise<vo
   if (!existing) { res.status(404).json({ error: "Training record not found" }); return; }
   if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
+  }
+  // facility_manager may only delete records in their assigned facilities
+  if (user.role === "facility_manager") {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null && existing.facilityId !== null && !assignedFacilityIds.includes(existing.facilityId)) {
+      res.status(403).json({ error: "Forbidden: not assigned to this facility" }); return;
+    }
   }
 
   await db.delete(trainingRecordsTable).where(eq(trainingRecordsTable.id, id));
