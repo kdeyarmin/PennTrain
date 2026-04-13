@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { trainingDocumentsTable, facilitiesTable, employeesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
-import { requireAuth, getCurrentUser } from "../lib/auth";
+import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 import multer from "multer";
 import path from "path";
@@ -156,6 +156,15 @@ router.post("/documents", requireAuth, upload.single("file"), async (req, res): 
   if (!facility) {
     fs.unlinkSync(req.file.path);
     res.status(400).json({ error: "Facility not found in your organization" }); return;
+  }
+
+  // Enforce facility-assignment restriction for facility_manager and trainer
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null && !assignedFacilityIds.includes(facility.id)) {
+      fs.unlinkSync(req.file.path);
+      res.status(403).json({ error: "Forbidden: not assigned to this facility" }); return;
+    }
   }
 
   // Employees may only upload documents for themselves — derive from session

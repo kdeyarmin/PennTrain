@@ -58,6 +58,8 @@ import type {
   GetSurveyReadinessReportParams,
   GetTrainerCertificationReportParams,
   GetTrainingMatrixParams,
+  GetTrainingMatrixReport200,
+  GetTrainingMatrixReportParams,
   GetUpcomingDueDatesParams,
   HealthStatus,
   ListAlertsParams,
@@ -6359,6 +6361,109 @@ export function useGetOrgComplianceReport<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetOrgComplianceReportQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Training matrix report showing all employees vs all training types
+ */
+export const getGetTrainingMatrixReportUrl = (
+  params?: GetTrainingMatrixReportParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/reports/training-matrix?${stringifiedParams}`
+    : `/api/reports/training-matrix`;
+};
+
+export const getTrainingMatrixReport = async (
+  params?: GetTrainingMatrixReportParams,
+  options?: RequestInit,
+): Promise<GetTrainingMatrixReport200> => {
+  return customFetch<GetTrainingMatrixReport200>(
+    getGetTrainingMatrixReportUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetTrainingMatrixReportQueryKey = (
+  params?: GetTrainingMatrixReportParams,
+) => {
+  return [`/api/reports/training-matrix`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetTrainingMatrixReportQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTrainingMatrixReport>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetTrainingMatrixReportParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTrainingMatrixReport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetTrainingMatrixReportQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getTrainingMatrixReport>>
+  > = ({ signal }) =>
+    getTrainingMatrixReport(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTrainingMatrixReport>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTrainingMatrixReportQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTrainingMatrixReport>>
+>;
+export type GetTrainingMatrixReportQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Training matrix report showing all employees vs all training types
+ */
+
+export function useGetTrainingMatrixReport<
+  TData = Awaited<ReturnType<typeof getTrainingMatrixReport>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetTrainingMatrixReportParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTrainingMatrixReport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTrainingMatrixReportQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

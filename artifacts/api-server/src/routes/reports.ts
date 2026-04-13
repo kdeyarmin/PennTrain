@@ -183,7 +183,14 @@ router.get("/reports/facility-compliance", requireAuth, async (req, res): Promis
   const orgId = getOrgFilter(user, req.query.organizationId as string);
   if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
 
-  const facilities = await db.select().from(facilitiesTable).where(eq(facilitiesTable.organizationId, orgId));
+  let facilities = await db.select().from(facilitiesTable).where(eq(facilitiesTable.organizationId, orgId));
+  // Apply assignment-based filtering for facility_manager/trainer
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedIds = await getAssignedFacilityIds(user);
+    if (assignedIds !== null) {
+      facilities = facilities.filter(f => assignedIds.includes(f.id));
+    }
+  }
   const facilityData = await Promise.all(facilities.map(async (facility) => {
     const records = await db.select().from(trainingRecordsTable).where(eq(trainingRecordsTable.facilityId, facility.id));
     const total = records.length;
@@ -537,6 +544,50 @@ router.get("/reports/org-compliance", requireAuth, async (req, res): Promise<voi
   res.json({
     reportType: "org_compliance",
     organizations: orgSummaries,
+    generatedAt: new Date().toISOString(),
+  });
+});
+
+router.get("/reports/training-matrix", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isEmployee(user)) { res.status(403).json({ error: "Forbidden" }); return; }
+  const orgId = getOrgFilter(user, req.query.organizationId as string);
+  if (!orgId) { res.status(400).json({ error: "Organization required" }); return; }
+
+  let employees = await db.select().from(employeesTable).where(eq(employeesTable.organizationId, orgId));
+  employees = await filterEmployeesByFacilityAssignment(user, employees);
+
+  const allRecords = await db
+    .select({ record: trainingRecordsTable, trainingType: trainingTypesTable })
+    .from(trainingRecordsTable)
+    .leftJoin(trainingTypesTable, eq(trainingRecordsTable.trainingTypeId, trainingTypesTable.id))
+    .where(eq(trainingRecordsTable.organizationId, orgId));
+
+  const filteredRecordIds = new Set(
+    (await filterRecordsByFacilityAssignment(user, allRecords.map(r => r.record))).map(r => r.id)
+  );
+  const filteredRecords = allRecords.filter(r => filteredRecordIds.has(r.record.id));
+
+  const trainingTypes = await db.select().from(trainingTypesTable).where(
+    eq(trainingTypesTable.organizationId, orgId)
+  );
+
+  const employeeIds = new Set(employees.map(e => e.id));
+  const matrix = employees.map(emp => {
+    const empRecords = filteredRecords.filter(r => r.record.employeeId === emp.id);
+    const statusByType: Record<number, string> = {};
+    for (const r of empRecords) {
+      if (r.record.trainingTypeId) statusByType[r.record.trainingTypeId] = r.record.status;
+    }
+    return { employeeId: emp.id, employeeName: `${emp.firstName} ${emp.lastName}`, facilityId: emp.facilityId, jobTitle: emp.jobTitle, statusByType };
+  });
+
+  res.json({
+    reportType: "training_matrix",
+    trainingTypes,
+    matrix,
+    employeeCount: employeeIds.size,
     generatedAt: new Date().toISOString(),
   });
 });

@@ -2134,6 +2134,53 @@ export const GetOrgComplianceReportResponse = zod.object({
 });
 
 /**
+ * @summary Training matrix report showing all employees vs all training types
+ */
+export const GetTrainingMatrixReportQueryParams = zod.object({
+  organizationId: zod.coerce.number().optional(),
+});
+
+export const GetTrainingMatrixReportResponse = zod.object({
+  reportType: zod.string().optional(),
+  trainingTypes: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        organizationId: zod.number().nullish(),
+        code: zod.string(),
+        name: zod.string(),
+        category: zod.string(),
+        description: zod.string().nullish(),
+        appliesToFacilityType: zod.enum(["PCH", "ALR", "BOTH"]),
+        appliesToAdministersMeds: zod.boolean().nullish(),
+        appliesToTrainers: zod.boolean().nullish(),
+        renewalIntervalDays: zod.number().nullish(),
+        warningDaysDefault: zod.number(),
+        documentRequired: zod.boolean(),
+        isSystemDefault: zod.boolean(),
+        isActive: zod.boolean(),
+        sortOrder: zod.number(),
+        createdAt: zod.coerce.date(),
+        updatedAt: zod.coerce.date(),
+      }),
+    )
+    .optional(),
+  matrix: zod
+    .array(
+      zod.object({
+        employeeId: zod.number().optional(),
+        employeeName: zod.string().optional(),
+        facilityId: zod.number().nullish(),
+        jobTitle: zod.string().nullish(),
+        statusByType: zod.record(zod.string(), zod.string()).optional(),
+      }),
+    )
+    .optional(),
+  employeeCount: zod.number().optional(),
+  generatedAt: zod.string().optional(),
+});
+
+/**
  * @summary List annual training hour buckets
  */
 export const ListTrainingHoursQueryParams = zod.object({

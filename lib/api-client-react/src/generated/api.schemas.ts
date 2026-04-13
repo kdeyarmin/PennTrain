@@ -1329,6 +1329,30 @@ export type GetOrgComplianceReportParams = {
   organizationId?: number;
 };
 
+export type GetTrainingMatrixReportParams = {
+  organizationId?: number;
+};
+
+export type GetTrainingMatrixReport200MatrixItemStatusByType = {
+  [key: string]: string;
+};
+
+export type GetTrainingMatrixReport200MatrixItem = {
+  employeeId?: number;
+  employeeName?: string;
+  facilityId?: number | null;
+  jobTitle?: string | null;
+  statusByType?: GetTrainingMatrixReport200MatrixItemStatusByType;
+};
+
+export type GetTrainingMatrixReport200 = {
+  reportType?: string;
+  trainingTypes?: TrainingType[];
+  matrix?: GetTrainingMatrixReport200MatrixItem[];
+  employeeCount?: number;
+  generatedAt?: string;
+};
+
 export type ListTrainingHoursParams = {
   employeeId?: number;
   facilityId?: number;
