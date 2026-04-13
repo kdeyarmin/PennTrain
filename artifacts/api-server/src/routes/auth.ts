@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db";
+import { usersTable, organizationsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { hashPassword, verifyPassword, sanitizeUser } from "../lib/auth";
+import { hashPassword, verifyPassword, sanitizeUser, requireAuth, getCurrentUser } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
@@ -49,6 +49,45 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     return;
   }
   res.json(sanitizeUser(user));
+});
+
+router.post("/auth/impersonate-org", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (user.role !== "platform_admin") { res.status(403).json({ error: "Only platform admins can impersonate organizations" }); return; }
+
+  const { organizationId } = req.body;
+  if (!organizationId) { res.status(400).json({ error: "organizationId required" }); return; }
+
+  const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.id, Number(organizationId)));
+  if (!org) { res.status(404).json({ error: "Organization not found" }); return; }
+
+  req.session.impersonatingOrgId = Number(organizationId);
+  await logAudit(req, "organization", org.id, "impersonate_start", null, null, org.id);
+  res.json({ message: `Now viewing as organization: ${org.name}`, organization: org });
+});
+
+router.post("/auth/stop-impersonation", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (user.role !== "platform_admin") { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const prevOrgId = req.session.impersonatingOrgId;
+  delete req.session.impersonatingOrgId;
+  if (prevOrgId) await logAudit(req, "organization", prevOrgId, "impersonate_stop", null, null, prevOrgId);
+  res.json({ message: "Stopped impersonation" });
+});
+
+router.get("/auth/impersonation-status", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const orgId = req.session.impersonatingOrgId ?? null;
+  if (orgId) {
+    const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.id, orgId));
+    res.json({ impersonating: true, organizationId: orgId, organizationName: org?.name ?? null });
+    return;
+  }
+  res.json({ impersonating: false, organizationId: null, organizationName: null });
 });
 
 export default router;

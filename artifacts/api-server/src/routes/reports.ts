@@ -403,4 +403,83 @@ router.get("/reports/annual-hours", requireAuth, async (req, res): Promise<void>
   });
 });
 
+router.get("/reports/employee-transcript", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const employeeId = req.query.employeeId ? Number(req.query.employeeId) : null;
+  if (!employeeId) { res.status(400).json({ error: "employeeId required" }); return; }
+
+  const [employee] = await db.select().from(employeesTable).where(eq(employeesTable.id, employeeId));
+  if (!employee) { res.status(404).json({ error: "Employee not found" }); return; }
+  if (user.role !== "platform_admin" && user.organizationId !== employee.organizationId) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const currentYear = new Date().getFullYear();
+  const [trainingRecords, practicums, annualHours, documents] = await Promise.all([
+    db
+      .select({ record: trainingRecordsTable, trainingType: trainingTypesTable })
+      .from(trainingRecordsTable)
+      .leftJoin(trainingTypesTable, eq(trainingRecordsTable.trainingTypeId, trainingTypesTable.id))
+      .where(eq(trainingRecordsTable.employeeId, employeeId)),
+    db.select().from(practicumsTable).where(
+      and(eq(practicumsTable.employeeId, employeeId), eq(practicumsTable.practicumYear, currentYear))
+    ),
+    db.select().from(trainingHourBucketsTable).where(
+      and(eq(trainingHourBucketsTable.employeeId, employeeId), eq(trainingHourBucketsTable.trainingYear, currentYear))
+    ),
+    db.select().from(trainingDocumentsTable).where(eq(trainingDocumentsTable.employeeId, employeeId)),
+  ]);
+
+  res.json({
+    employee,
+    trainingRecords: trainingRecords.map(r => ({ ...r.record, trainingTypeName: r.trainingType?.name })),
+    practicums,
+    annualHours,
+    documents,
+    generatedAt: new Date().toISOString(),
+  });
+});
+
+router.get("/reports/org-compliance", requireAuth, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (user.role !== "platform_admin") { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const records = await db.select().from(trainingRecordsTable);
+  const employees = await db.select().from(employeesTable).where(eq(employeesTable.status, "active"));
+  const facilities = await db.select().from(facilitiesTable);
+
+  const orgMap = new Map<number, { orgId: number; totalRecords: number; compliantCount: number; expiredCount: number; dueSoonCount: number; totalEmployees: number; totalFacilities: number }>();
+
+  for (const r of records) {
+    if (!r.organizationId) continue;
+    if (!orgMap.has(r.organizationId)) orgMap.set(r.organizationId, { orgId: r.organizationId, totalRecords: 0, compliantCount: 0, expiredCount: 0, dueSoonCount: 0, totalEmployees: 0, totalFacilities: 0 });
+    const entry = orgMap.get(r.organizationId)!;
+    entry.totalRecords++;
+    if (r.status === "compliant") entry.compliantCount++;
+    else if (r.status === "expired") entry.expiredCount++;
+    else if (r.status === "due_soon") entry.dueSoonCount++;
+  }
+  for (const e of employees) {
+    if (!e.organizationId) continue;
+    if (!orgMap.has(e.organizationId)) orgMap.set(e.organizationId, { orgId: e.organizationId, totalRecords: 0, compliantCount: 0, expiredCount: 0, dueSoonCount: 0, totalEmployees: 0, totalFacilities: 0 });
+    orgMap.get(e.organizationId)!.totalEmployees++;
+  }
+  for (const f of facilities) {
+    if (!orgMap.has(f.organizationId)) orgMap.set(f.organizationId, { orgId: f.organizationId, totalRecords: 0, compliantCount: 0, expiredCount: 0, dueSoonCount: 0, totalEmployees: 0, totalFacilities: 0 });
+    orgMap.get(f.organizationId)!.totalFacilities++;
+  }
+
+  const orgSummaries = Array.from(orgMap.values()).map(o => ({
+    ...o,
+    compliancePercentage: o.totalRecords > 0 ? Math.round((o.compliantCount / o.totalRecords) * 100) : 100,
+  }));
+
+  res.json({
+    reportType: "org_compliance",
+    organizations: orgSummaries,
+    generatedAt: new Date().toISOString(),
+  });
+});
+
 export default router;

@@ -1,10 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
-import { useRoute, Link } from "wouter";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRoute, Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Building, Building2, Users, BarChart3 } from "lucide-react";
+import { ArrowLeft, Building, Building2, LogIn } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Organization {
   id: number;
@@ -49,6 +52,10 @@ interface Facility {
 export default function OrganizationDetail() {
   const [, params] = useRoute("/admin/organizations/:id");
   const id = params?.id;
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [_impersonating, setImpersonating] = useState(false);
 
   const { data: org, isLoading: orgLoading } = useQuery<Organization>({
     queryKey: ["organization", id],
@@ -78,6 +85,28 @@ export default function OrganizationDetail() {
       return res.json();
     },
     enabled: !!id,
+  });
+
+  const impersonateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/auth/impersonate-org", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ organizationId: Number(id) }),
+      });
+      if (!res.ok) throw new Error("Failed to start impersonation");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setImpersonating(true);
+      queryClient.invalidateQueries();
+      toast({ title: `Viewing as: ${data.organization?.name ?? org?.name}`, description: "You are now viewing this organization's data." });
+      navigate("/dashboard");
+    },
+    onError: () => {
+      toast({ title: "Failed to switch organization view", variant: "destructive" });
+    },
   });
 
   const isLoading = orgLoading || statsLoading;
@@ -125,15 +154,28 @@ export default function OrganizationDetail() {
         <div className="h-14 w-14 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
           <Building className="h-7 w-7 text-primary" />
         </div>
-        <div>
-          <h1 className="text-2xl font-bold">{org.name}</h1>
-          <p className="text-muted-foreground text-sm">{org.slug}</p>
-          <div className="flex items-center gap-2 mt-2 flex-wrap">
-            <Badge variant={subscriptionColor(org.subscriptionStatus) as "default" | "secondary" | "destructive" | "outline"}>
-              {org.subscriptionStatus}
-            </Badge>
-            {org.planName && <Badge variant="outline">{org.planName}</Badge>}
-            {!org.isActive && <Badge variant="destructive">Inactive</Badge>}
+        <div className="flex-1">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <h1 className="text-2xl font-bold">{org.name}</h1>
+              <p className="text-muted-foreground text-sm">{org.slug}</p>
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <Badge variant={subscriptionColor(org.subscriptionStatus) as "default" | "secondary" | "destructive" | "outline"}>
+                  {org.subscriptionStatus}
+                </Badge>
+                {org.planName && <Badge variant="outline">{org.planName}</Badge>}
+                {!org.isActive && <Badge variant="destructive">Inactive</Badge>}
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => impersonateMutation.mutate()}
+              disabled={impersonateMutation.isPending}
+              className="shrink-0"
+            >
+              <LogIn className="mr-2 h-4 w-4" />
+              {impersonateMutation.isPending ? "Switching..." : "View as this Organization"}
+            </Button>
           </div>
         </div>
       </div>

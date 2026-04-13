@@ -28,7 +28,9 @@ import Documents from "@/pages/app/Documents";
 import Settings from "@/pages/app/Settings";
 
 import TrainerDashboard from "@/pages/trainer/TrainerDashboard";
+import TrainerClasses from "@/pages/trainer/TrainerClasses";
 import EmployeeDashboard from "@/pages/employee/EmployeeDashboard";
+import MyTrainings from "@/pages/employee/MyTrainings";
 
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/lib/auth";
@@ -175,7 +177,7 @@ function Router() {
         {() => <ProtectedRoute component={TrainerDashboard} allowedRoles={["trainer"]} />}
       </Route>
       <Route path="/trainer/classes">
-        {() => <ProtectedRoute component={TrainerDashboard} allowedRoles={["trainer"]} />}
+        {() => <ProtectedRoute component={TrainerClasses} allowedRoles={["trainer"]} />}
       </Route>
       <Route path="/trainer/facilities">
         {() => <ProtectedRoute component={Facilities} allowedRoles={["trainer"]} />}
@@ -189,7 +191,7 @@ function Router() {
         {() => <ProtectedRoute component={EmployeeDashboard} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/trainings">
-        {() => <ProtectedRoute component={EmployeeDashboard} allowedRoles={["employee"]} />}
+        {() => <ProtectedRoute component={MyTrainings} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/documents">
         {() => <ProtectedRoute component={Documents} allowedRoles={["employee"]} />}

@@ -15,6 +15,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 declare module "express-session" {
   interface SessionData {
     userId?: number;
+    impersonatingOrgId?: number;
   }
 }
 
