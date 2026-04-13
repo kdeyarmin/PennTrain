@@ -4,7 +4,7 @@ import {
   employeesTable, trainingRecordsTable, trainingTypesTable,
   practicumsTable, trainingHourBucketsTable, facilitiesTable, trainingDocumentsTable,
 } from "@workspace/db";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and, gte, lte, or, isNull } from "drizzle-orm";
 import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -610,7 +610,10 @@ router.get("/reports/training-matrix", requireAuth, async (req, res): Promise<vo
   const filteredRecords = allRecords.filter(r => filteredRecordIds.has(r.record.id));
 
   const trainingTypes = await db.select().from(trainingTypesTable).where(
-    eq(trainingTypesTable.organizationId, orgId)
+    or(
+      eq(trainingTypesTable.organizationId, orgId),
+      eq(trainingTypesTable.isSystemDefault, true)
+    )
   );
 
   const employeeIds = new Set(employees.map(e => e.id));

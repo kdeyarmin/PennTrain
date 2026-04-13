@@ -49,7 +49,7 @@ export default function TrainerClasses() {
   const [showCreate, setShowCreate] = useState(false);
 
   const { data: classes, isLoading, refetch } = useListTrainingClasses({
-    status: statusFilter !== "all" ? statusFilter : undefined,
+    status: statusFilter !== "all" ? statusFilter as "draft" | "completed" | "cancelled" : undefined,
   });
   const { data: trainingTypes } = useListTrainingTypes({});
   const { data: facilities } = useListFacilities({});

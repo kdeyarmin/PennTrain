@@ -112,7 +112,6 @@ export default function ClassDetail() {
     try {
       const result = (await completeClass.mutateAsync({
         id: classId,
-        data: {},
       })) as any;
       toast({
         title: "Class completed",

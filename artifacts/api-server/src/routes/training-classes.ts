@@ -113,7 +113,8 @@ router.get("/training-classes", requireAuth, async (req, res): Promise<void> => 
     conditions.push(eq(trainingClassesTable.trainingTypeId, Number(req.query.trainingTypeId)));
   }
   if (req.query.status) {
-    conditions.push(eq(trainingClassesTable.status, String(req.query.status)));
+    const s = String(req.query.status) as "draft" | "completed" | "cancelled";
+    conditions.push(eq(trainingClassesTable.status, s));
   }
 
   const classes = await db
@@ -178,7 +179,7 @@ router.post("/training-classes", requireAuth, async (req, res): Promise<void> =>
     status: "draft",
   }).returning();
 
-  await logAudit(req, "training_class.created", "training_class", cls.id, null, cls);
+  await logAudit(req, "training_class", cls.id, "training_class.created", null, cls);
 
   const [full] = await db
     .select({
@@ -306,7 +307,7 @@ router.patch("/training-classes/:id", requireAuth, async (req, res): Promise<voi
     .where(eq(trainingClassesTable.id, classId))
     .returning();
 
-  await logAudit(req, "training_class.updated", "training_class", classId, existing, updated);
+  await logAudit(req, "training_class", classId, "training_class.updated", existing, updated);
   res.json(updated);
 });
 
@@ -325,7 +326,7 @@ router.delete("/training-classes/:id", requireAuth, async (req, res): Promise<vo
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
 
   await db.delete(trainingClassesTable).where(eq(trainingClassesTable.id, classId));
-  await logAudit(req, "training_class.deleted", "training_class", classId, existing, null);
+  await logAudit(req, "training_class", classId, "training_class.deleted", existing, null);
   res.json({ success: true });
 });
 
@@ -404,7 +405,7 @@ router.post("/training-classes/:id/complete", requireAuth, async (req, res): Pro
     if (!facilityId) continue;
 
     const dueDate = calculateDueDate(cls.classDate, trainingType?.renewalIntervalDays ?? null);
-    const status = calculateTrainingStatus(cls.classDate, dueDate, trainingType?.warningDaysDefault ?? 90);
+    const status = calculateTrainingStatus(cls.classDate, trainingType?.renewalIntervalDays ?? null, trainingType?.warningDaysDefault ?? 90);
 
     const [record] = await db.insert(trainingRecordsTable).values({
       organizationId: cls.organizationId,
@@ -431,7 +432,7 @@ router.post("/training-classes/:id/complete", requireAuth, async (req, res): Pro
     .set({ status: "completed" })
     .where(eq(trainingClassesTable.id, classId));
 
-  await logAudit(req, "training_class.completed", "training_class", classId, null, { recordsCreated });
+  await logAudit(req, "training_class", classId, "training_class.completed", null, { recordsCreated });
   res.json({ classId, recordsCreated });
 });
 
@@ -451,6 +452,10 @@ router.post("/training-classes/:id/roster", requireAuth, upload.single("file"), 
 
   if (!req.file) { res.status(400).json({ error: "No file uploaded" }); return; }
 
+  if (!cls.facilityId) {
+    res.status(400).json({ error: "Class must have a facility assigned before uploading a roster" }); return;
+  }
+
   const [doc] = await db.insert(trainingDocumentsTable).values({
     organizationId: cls.organizationId,
     facilityId: cls.facilityId,
@@ -466,7 +471,7 @@ router.post("/training-classes/:id/roster", requireAuth, upload.single("file"), 
     .set({ rosterDocumentId: doc.id })
     .where(eq(trainingClassesTable.id, classId));
 
-  await logAudit(req, "training_class.roster_uploaded", "training_class", classId, null, { documentId: doc.id });
+  await logAudit(req, "training_class", classId, "training_class.roster_uploaded", null, { documentId: doc.id });
   res.json({ documentId: doc.id, fileName: req.file.originalname });
 });
 
