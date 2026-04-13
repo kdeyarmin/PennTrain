@@ -7,6 +7,14 @@ import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
 
+/** Returns required annual hours based on PA regulation: PCH=12, ALR=16. */
+async function getRequiredHours(facilityId: number): Promise<number> {
+  const [facility] = await db.select({ facilityType: facilitiesTable.facilityType })
+    .from(facilitiesTable)
+    .where(eq(facilitiesTable.id, facilityId));
+  return facility?.facilityType === "ALR" ? 16 : 12;
+}
+
 router.get("/training-hours", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -84,12 +92,23 @@ router.post("/training-hours", requireAuth, async (req, res): Promise<void> => {
     resolvedOrgId = user.organizationId;
   }
 
+  // Enforce facility-assignment restriction for facility_manager and trainer
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedIds = await getAssignedFacilityIds(user);
+    if (assignedIds !== null && !assignedIds.includes(facilityId)) {
+      res.status(403).json({ error: "Forbidden: not assigned to this facility" }); return;
+    }
+  }
+
+  // Derive requiredHours from facility type if not provided (PCH=12, ALR=16)
+  const derivedRequiredHours = requiredHours !== undefined ? requiredHours : await getRequiredHours(facilityId);
+
   const [bucket] = await db.insert(trainingHourBucketsTable).values({
     organizationId: resolvedOrgId,
     facilityId,
     employeeId,
     trainingYear,
-    requiredHours: String(requiredHours ?? 12),
+    requiredHours: String(derivedRequiredHours),
     completedHours: String(completedHours ?? 0),
     status: (status as "compliant" | "due_soon" | "incomplete" | "expired") ?? "incomplete",
   }).returning();
@@ -109,6 +128,14 @@ router.patch("/training-hours/:id", requireAuth, async (req, res): Promise<void>
   if (!existing) { res.status(404).json({ error: "Training hours record not found" }); return; }
   if (user.role !== "platform_admin" && user.organizationId !== existing.organizationId) {
     res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  // Enforce facility-assignment restriction for facility_manager and trainer
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedIds = await getAssignedFacilityIds(user);
+    if (assignedIds !== null && existing.facilityId !== null && !assignedIds.includes(existing.facilityId)) {
+      res.status(403).json({ error: "Forbidden: not assigned to this facility" }); return;
+    }
   }
 
   const updates: Partial<typeof trainingHourBucketsTable.$inferInsert> = {};
@@ -161,6 +188,13 @@ router.get("/training-hours/:employeeId/:year", requireAuth, async (req, res): P
       res.status(403).json({ error: "Forbidden" }); return;
     }
   }
+  // facility_manager/trainer: enforce facility-assignment check
+  if (["facility_manager", "trainer"].includes(user.role)) {
+    const assignedIds = await getAssignedFacilityIds(user);
+    if (assignedIds !== null && emp.facilityId !== null && !assignedIds.includes(emp.facilityId)) {
+      res.status(403).json({ error: "Forbidden: employee not in your assigned facilities" }); return;
+    }
+  }
 
   const [bucket] = await db.select().from(trainingHourBucketsTable)
     .where(and(
@@ -169,10 +203,12 @@ router.get("/training-hours/:employeeId/:year", requireAuth, async (req, res): P
     ));
 
   if (!bucket) {
+    // Derive required hours from facility type (PCH=12, ALR=16)
+    const requiredHoursDefault = emp.facilityId ? await getRequiredHours(emp.facilityId) : 12;
     res.json({
       employeeId,
       trainingYear: year,
-      requiredHours: "12",
+      requiredHours: String(requiredHoursDefault),
       completedHours: "0",
       status: "incomplete",
     });
