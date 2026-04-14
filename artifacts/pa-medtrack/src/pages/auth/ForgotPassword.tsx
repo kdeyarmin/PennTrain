@@ -35,11 +35,19 @@ export default function ForgotPassword() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Request failed");
       }
-    } catch {
-    } finally {
-      setLoading(false);
-      setSubmitted(true);
+    } catch (err) {
+      if (err instanceof TypeError) {
+        toast({
+          variant: "destructive",
+          title: "Network error",
+          description: "Unable to reach the server. Please try again.",
+        });
+        setLoading(false);
+        return;
+      }
     }
+    setLoading(false);
+    setSubmitted(true);
   };
 
   return (
