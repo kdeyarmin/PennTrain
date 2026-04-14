@@ -196,6 +196,36 @@ export async function generateAlertsForDueDates(organizationId: number, facility
   return generateAlertsForOrganization(organizationId, facilityId);
 }
 
+export async function recalculateComplianceStatuses(organizationId: number) {
+  const today = new Date();
+
+  const records = await db
+    .select({ record: trainingRecordsTable, trainingType: trainingTypesTable })
+    .from(trainingRecordsTable)
+    .leftJoin(trainingTypesTable, eq(trainingRecordsTable.trainingTypeId, trainingTypesTable.id))
+    .where(eq(trainingRecordsTable.organizationId, organizationId));
+
+  let updated = 0;
+  for (const { record, trainingType } of records) {
+    const warningDays = 90;
+    const newStatus = calculateTrainingStatus(
+      record.completionDate,
+      trainingType?.renewalIntervalDays ?? null,
+      warningDays,
+      today,
+    );
+    const newDueDate = calculateDueDate(record.completionDate, trainingType?.renewalIntervalDays ?? null);
+
+    if (record.status !== newStatus || record.dueDate !== newDueDate) {
+      await db.update(trainingRecordsTable)
+        .set({ status: newStatus, dueDate: newDueDate })
+        .where(eq(trainingRecordsTable.id, record.id));
+      updated++;
+    }
+  }
+  return updated;
+}
+
 export async function generateAlertsForOrganization(organizationId: number, facilityId?: number) {
   const today = new Date();
   const alertWindows = [7, 14, 30, 60, 90];

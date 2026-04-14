@@ -1,7 +1,7 @@
 import { db } from "@workspace/db";
 import { organizationsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { generateAlertsForOrganization } from "./compliance";
+import { recalculateComplianceStatuses, generateAlertsForOrganization } from "./compliance";
 import { logger } from "./logger";
 
 const MIDNIGHT_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -21,11 +21,11 @@ async function runDailyComplianceCheck() {
       .from(organizationsTable)
       .where(eq(organizationsTable.subscriptionStatus, "active"));
 
-    let totalAlerts = 0;
     for (const org of orgs) {
       try {
+        const statusUpdates = await recalculateComplianceStatuses(org.id);
         await generateAlertsForOrganization(org.id);
-        logger.info({ organizationId: org.id, name: org.name }, "Compliance check complete for org");
+        logger.info({ organizationId: org.id, name: org.name, statusUpdates }, "Compliance recalculation and alert generation complete for org");
       } catch (err) {
         logger.error({ err, organizationId: org.id }, "Failed compliance check for org");
       }

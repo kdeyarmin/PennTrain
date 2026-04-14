@@ -297,6 +297,8 @@ router.get("/training-matrix", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
 
+  const emptyMatrix = { trainingTypes: [], rows: [] };
+
   if (user.role === "employee") {
     res.status(403).json({ error: "Forbidden" }); return;
   }
@@ -304,7 +306,7 @@ router.get("/training-matrix", requireAuth, async (req, res): Promise<void> => {
   const empConditions: SQL[] = [eq(employeesTable.status, "active")];
 
   if (user.role !== "platform_admin") {
-    if (!user.organizationId) { res.json([]); return; }
+    if (!user.organizationId) { res.json(emptyMatrix); return; }
     empConditions.push(eq(employeesTable.organizationId, user.organizationId));
   } else if (req.query.organizationId) {
     empConditions.push(eq(employeesTable.organizationId, Number(req.query.organizationId)));
@@ -323,7 +325,7 @@ router.get("/training-matrix", requireAuth, async (req, res): Promise<void> => {
   if (["facility_manager", "trainer"].includes(user.role)) {
     const assignedFacilityIds = await getAssignedFacilityIds(user);
     if (!assignedFacilityIds || assignedFacilityIds.length === 0) {
-      res.json([]); return;
+      res.json(emptyMatrix); return;
     }
     empConditions.push(inArray(employeesTable.facilityId, assignedFacilityIds));
   }
@@ -361,6 +363,8 @@ router.get("/training-matrix", requireAuth, async (req, res): Promise<void> => {
         status: record?.status ?? "missing",
         completionDate: record?.completionDate ?? null,
         dueDate: record?.dueDate ?? null,
+        trainerName: record?.trainerName ?? null,
+        hours: record?.hours ?? null,
         hasDocument: false,
       };
     });

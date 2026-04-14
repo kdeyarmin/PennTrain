@@ -127,6 +127,14 @@ function CellDetailDialog({
               <div className="text-muted-foreground text-xs mb-1">Due Date</div>
               <div>{entry.dueDate ? new Date(entry.dueDate).toLocaleDateString() : "—"}</div>
             </div>
+            <div>
+              <div className="text-muted-foreground text-xs mb-1">Trainer</div>
+              <div>{(entry as any).trainerName ?? "—"}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground text-xs mb-1">Hours</div>
+              <div>{(entry as any).hours ?? "—"}</div>
+            </div>
           </div>
 
           <Button
