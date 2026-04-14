@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { auditLogsTable, employeesTable } from "@workspace/db";
-import { eq, and, SQL, desc, inArray } from "drizzle-orm";
+import { eq, and, SQL, desc } from "drizzle-orm";
 import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -10,6 +10,21 @@ router.get("/audit-logs", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user || !["platform_admin", "org_admin", "facility_manager"].includes(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
 
+  if (user.role === "facility_manager") {
+    if (req.query.entityType !== "employee" || !req.query.entityId) {
+      res.status(403).json({ error: "Forbidden: facility managers may only view employee-scoped audit logs" }); return;
+    }
+    const empId = Number(req.query.entityId);
+    const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.id, empId));
+    if (!emp || emp.organizationId !== user.organizationId) {
+      res.json([]); return;
+    }
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null && emp.facilityId !== null && !assignedFacilityIds.includes(emp.facilityId)) {
+      res.json([]); return;
+    }
+  }
+
   const conditions: SQL[] = [];
 
   if (user.role !== "platform_admin") {
@@ -17,20 +32,6 @@ router.get("/audit-logs", requireAuth, async (req, res): Promise<void> => {
     conditions.push(eq(auditLogsTable.organizationId, user.organizationId));
   } else if (req.query.organizationId) {
     conditions.push(eq(auditLogsTable.organizationId, Number(req.query.organizationId)));
-  }
-
-  if (user.role === "facility_manager") {
-    const assignedFacilityIds = await getAssignedFacilityIds(user);
-    if (assignedFacilityIds !== null) {
-      if (assignedFacilityIds.length === 0) { res.json([]); return; }
-      if (req.query.entityType === "employee" && req.query.entityId) {
-        const empId = Number(req.query.entityId);
-        const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.id, empId));
-        if (!emp || (emp.facilityId !== null && !assignedFacilityIds.includes(emp.facilityId))) {
-          res.json([]); return;
-        }
-      }
-    }
   }
 
   if (req.query.entityType && typeof req.query.entityType === "string") {
