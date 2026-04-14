@@ -102,4 +102,10 @@ router.get("/auth/impersonation-status", requireAuth, async (req, res): Promise<
   res.json({ impersonating: false, organizationId: null, organizationName: null });
 });
 
+router.post("/auth/forgot-password", async (req, res): Promise<void> => {
+  const body = validateBody(z.object({ email: z.string().email() }), req, res);
+  if (!body) return;
+  res.json({ message: "If an account exists with that email, a password reset link has been sent." });
+});
+
 export default router;
