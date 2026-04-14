@@ -331,7 +331,7 @@ export default function EmployeeDetail() {
       ).join("");
       const empName = esc(`${data.employee.firstName} ${data.employee.lastName}`);
       const empTitle = esc(data.employee.jobTitle);
-      const empNum = esc(data.employee.employeeNumber) || "N/A";
+      const empNum = data.employee.employeeNumber ? esc(data.employee.employeeNumber) : "N/A";
       printWindow.document.write(`<!DOCTYPE html><html><head><title>Training Transcript — ${empName}</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#333}h1{font-size:18px;margin-bottom:4px}h2{font-size:15px;margin-top:24px;margin-bottom:8px;color:#555}table{border-collapse:collapse;width:100%}th{background:#f5f5f5;text-align:left;padding:8px 12px;border:1px solid #ddd;font-size:13px}td{font-size:13px}.meta{color:#666;font-size:13px;margin-bottom:16px}@media print{body{padding:0}}</style></head><body><h1>Training Transcript</h1><p class="meta">${empName} — ${empTitle}<br/>Employee #${empNum} | Generated ${new Date().toLocaleDateString()}</p><h2>Training Records</h2><table><thead><tr><th>Training Type</th><th>Completed</th><th>Due Date</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="4" style="padding:12px;text-align:center;color:#999">No training records</td></tr>'}</tbody></table><h2>Annual Practicums</h2><table><thead><tr><th>Year</th><th>Completed</th><th>Status</th><th>Observer</th></tr></thead><tbody>${practicumRows || '<tr><td colspan="4" style="padding:12px;text-align:center;color:#999">No practicums</td></tr>'}</tbody></table></body></html>`);
       printWindow.document.close();
       printWindow.focus();
