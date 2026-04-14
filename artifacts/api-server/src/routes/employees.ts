@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { employeesTable, trainingRecordsTable, trainingTypesTable, practicumsTable, trainingHourBucketsTable, trainingDocumentsTable, facilitiesTable, usersTable } from "@workspace/db";
-import { eq, and, or, ilike, inArray, SQL } from "drizzle-orm";
+import { eq, and, or, ilike, inArray, SQL, desc } from "drizzle-orm";
 import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 import { validateBody } from "../lib/validate";
@@ -260,7 +260,8 @@ router.get("/employees/:id/compliance-summary", requireAuth, async (req, res): P
     .select({ doc: trainingDocumentsTable, uploaderFirstName: usersTable.firstName, uploaderLastName: usersTable.lastName })
     .from(trainingDocumentsTable)
     .leftJoin(usersTable, eq(trainingDocumentsTable.uploadedByUserId, usersTable.id))
-    .where(eq(trainingDocumentsTable.employeeId, id));
+    .where(eq(trainingDocumentsTable.employeeId, id))
+    .orderBy(desc(trainingDocumentsTable.createdAt));
   const documents = rawDocuments.map(d => ({
     ...d.doc,
     uploadedByName: d.uploaderFirstName && d.uploaderLastName ? `${d.uploaderFirstName} ${d.uploaderLastName}` : null,

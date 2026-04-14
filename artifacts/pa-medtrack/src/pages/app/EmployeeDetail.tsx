@@ -305,6 +305,7 @@ export default function EmployeeDetail() {
       toast({ title: "Upload failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     } finally {
       setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -326,7 +327,7 @@ export default function EmployeeDetail() {
         `<tr><td style="padding:6px 12px;border:1px solid #ddd">${esc(r.trainingType?.name)}</td><td style="padding:6px 12px;border:1px solid #ddd">${esc(r.completionDate)}</td><td style="padding:6px 12px;border:1px solid #ddd">${esc(r.dueDate)}</td><td style="padding:6px 12px;border:1px solid #ddd">${esc(r.status)}</td></tr>`
       ).join("");
       const practicumRows = (data.practicums || []).map((p: { practicumYear: number; completionDate?: string; status?: string; observedBy?: string }) =>
-        `<tr><td style="padding:6px 12px;border:1px solid #ddd">${esc(String(p.practicumYear))}</td><td style="padding:6px 12px;border:1px solid #ddd">${esc(p.completionDate) || "Pending"}</td><td style="padding:6px 12px;border:1px solid #ddd">${esc(p.status)}</td><td style="padding:6px 12px;border:1px solid #ddd">${esc(p.observedBy)}</td></tr>`
+        `<tr><td style="padding:6px 12px;border:1px solid #ddd">${esc(String(p.practicumYear))}</td><td style="padding:6px 12px;border:1px solid #ddd">${p.completionDate ? esc(p.completionDate) : "Pending"}</td><td style="padding:6px 12px;border:1px solid #ddd">${esc(p.status)}</td><td style="padding:6px 12px;border:1px solid #ddd">${esc(p.observedBy)}</td></tr>`
       ).join("");
       const empName = esc(`${data.employee.firstName} ${data.employee.lastName}`);
       const empTitle = esc(data.employee.jobTitle);
