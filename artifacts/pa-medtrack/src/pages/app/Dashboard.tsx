@@ -3,8 +3,23 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Building2, Users, AlertTriangle, CheckCircle, Clock, XCircle, AlertCircle, ChevronRight, TrendingUp, Shield, Activity, UserPlus, FileText, LayoutGrid, Bell } from "lucide-react";
+import { Building2, Users, AlertTriangle, CheckCircle, Clock, XCircle, AlertCircle, ChevronRight, TrendingUp, Shield, Activity, UserPlus, FileText, LayoutGrid, Bell, GraduationCap, Upload } from "lucide-react";
 import { Link } from "wouter";
+
+interface RecentUpload {
+  id: number;
+  fileName: string;
+  documentType: string;
+  createdAt: string;
+}
+
+interface ExtendedSummary {
+  recentUploads?: RecentUpload[];
+  dueSoon90Count?: number;
+  trainersDueForRecert?: number;
+  recentUploadsCount?: number;
+  [key: string]: unknown;
+}
 
 function DonutChart({ percentage, size = 140, strokeWidth = 12 }: { percentage: number; size?: number; strokeWidth?: number }) {
   const radius = (size - strokeWidth) / 2;
@@ -82,6 +97,9 @@ export default function OrgDashboard() {
     (facilityCompliance ?? []).map(fc => [fc.facilityId, fc])
   );
 
+  const ext = summary as unknown as ExtendedSummary | undefined;
+  const recentUploads = ext?.recentUploads;
+
   return (
     <div className="space-y-8">
       <div className="page-header">
@@ -109,14 +127,16 @@ export default function OrgDashboard() {
       )}
 
       {summaryLoading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          <StatCardSkeleton />
+          <StatCardSkeleton />
           <StatCardSkeleton />
           <StatCardSkeleton />
           <StatCardSkeleton />
           <StatCardSkeleton />
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           <div className="stat-card">
             <div className="flex items-start justify-between">
               <div>
@@ -136,7 +156,7 @@ export default function OrgDashboard() {
           <div className="stat-card">
             <div className="flex items-start justify-between">
               <div>
-                <p className="stat-label">Due Soon</p>
+                <p className="stat-label">Due ≤30 Days</p>
                 <p className="stat-value text-amber-600">{summary?.dueSoon30Count ?? 0}</p>
               </div>
               <div className="stat-icon bg-amber-50">
@@ -146,6 +166,22 @@ export default function OrgDashboard() {
             <div className="mt-3 flex items-center gap-1.5 text-xs text-amber-600 font-medium">
               <Activity className="h-3.5 w-3.5" />
               <span>{dueSoonPct}% of records</span>
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="stat-label">Due ≤90 Days</p>
+                <p className="stat-value text-orange-600">{ext?.dueSoon90Count ?? summary?.dueSoon90Count ?? 0}</p>
+              </div>
+              <div className="stat-icon bg-orange-50">
+                <Clock className="h-5 w-5 text-orange-600" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-1.5 text-xs text-orange-600 font-medium">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <span>90-day window</span>
             </div>
           </div>
 
@@ -168,16 +204,32 @@ export default function OrgDashboard() {
           <div className="stat-card">
             <div className="flex items-start justify-between">
               <div>
-                <p className="stat-label">Missing Docs</p>
-                <p className="stat-value text-slate-600">{summary?.missingDocumentCount ?? 0}</p>
+                <p className="stat-label">Trainers Due</p>
+                <p className="stat-value text-purple-600">{ext?.trainersDueForRecert ?? summary?.trainersDueForRecert ?? 0}</p>
               </div>
-              <div className="stat-icon bg-slate-100">
-                <AlertTriangle className="h-5 w-5 text-slate-500" />
+              <div className="stat-icon bg-purple-50">
+                <GraduationCap className="h-5 w-5 text-purple-600" />
               </div>
             </div>
-            <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+            <div className="mt-3 flex items-center gap-1.5 text-xs text-purple-600 font-medium">
               <Shield className="h-3.5 w-3.5" />
-              <span>Action required</span>
+              <span>Recertification</span>
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="stat-label">Recent Uploads</p>
+                <p className="stat-value text-blue-600">{ext?.recentUploadsCount ?? summary?.recentUploadsCount ?? 0}</p>
+              </div>
+              <div className="stat-icon bg-blue-50">
+                <Upload className="h-5 w-5 text-blue-600" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-1.5 text-xs text-blue-600 font-medium">
+              <FileText className="h-3.5 w-3.5" />
+              <span>Last 14 days</span>
             </div>
           </div>
         </div>
@@ -263,44 +315,71 @@ export default function OrgDashboard() {
           </div>
         </div>
 
-        <div className="lg:col-span-2 premium-card flex flex-col">
-          <div className="p-6 border-b border-border/60 flex items-center justify-between">
-            <h3 className="section-title">Recent Alerts</h3>
-            <Link href="/app/alerts">
-              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground -mr-2">
-                View All <ChevronRight className="ml-1 h-3.5 w-3.5" />
-              </Button>
-            </Link>
-          </div>
-          <div className="flex-1 p-4">
-            <div className="space-y-2">
-              {alerts?.slice(0, 5).map(alert => (
-                <div key={alert.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                  <div className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${
-                    alert.severity === "critical" ? "bg-red-500" : alert.severity === "warning" ? "bg-amber-500" : "bg-blue-500"
-                  }`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-medium leading-snug">{alert.title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{alert.message}</p>
+        <div className="lg:col-span-2 flex flex-col gap-6">
+          <div className="premium-card flex flex-col flex-1">
+            <div className="p-6 border-b border-border/60 flex items-center justify-between">
+              <h3 className="section-title">Recent Alerts</h3>
+              <Link href="/app/alerts">
+                <Button variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground -mr-2">
+                  View All <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                </Button>
+              </Link>
+            </div>
+            <div className="flex-1 p-4">
+              <div className="space-y-2">
+                {alerts?.slice(0, 4).map(alert => (
+                  <div key={alert.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
+                    <div className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${
+                      alert.severity === "critical" ? "bg-red-500" : alert.severity === "warning" ? "bg-amber-500" : "bg-blue-500"
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-medium leading-snug">{alert.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{alert.message}</p>
+                    </div>
+                    <Badge variant="outline" className={`text-[10px] shrink-0 ${
+                      alert.severity === "critical" ? "border-red-200 text-red-600 bg-red-50" :
+                      alert.severity === "warning" ? "border-amber-200 text-amber-600 bg-amber-50" :
+                      "border-blue-200 text-blue-600 bg-blue-50"
+                    }`}>
+                      {alert.severity}
+                    </Badge>
                   </div>
-                  <Badge variant="outline" className={`text-[10px] shrink-0 ${
-                    alert.severity === "critical" ? "border-red-200 text-red-600 bg-red-50" :
-                    alert.severity === "warning" ? "border-amber-200 text-amber-600 bg-amber-50" :
-                    "border-blue-200 text-blue-600 bg-blue-50"
-                  }`}>
-                    {alert.severity}
-                  </Badge>
-                </div>
-              ))}
-              {(!alerts || alerts.length === 0) && (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <CheckCircle className="h-8 w-8 text-emerald-400 mb-2" />
-                  <p className="text-sm font-medium text-muted-foreground">No open alerts</p>
-                  <p className="text-xs text-muted-foreground/60">Great work keeping compliant!</p>
-                </div>
-              )}
+                ))}
+                {(!alerts || alerts.length === 0) && (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <CheckCircle className="h-8 w-8 text-emerald-400 mb-2" />
+                    <p className="text-sm font-medium text-muted-foreground">No open alerts</p>
+                    <p className="text-xs text-muted-foreground/60">Great work keeping compliant!</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+
+          {recentUploads && recentUploads.length > 0 && (
+            <div className="premium-card">
+              <div className="p-5 border-b border-border/60">
+                <h3 className="section-title">
+                  <Upload className="h-4 w-4 text-muted-foreground" />
+                  Recent Uploads
+                </h3>
+              </div>
+              <div className="p-4">
+                <div className="space-y-2">
+                  {recentUploads.map(doc => (
+                    <div key={doc.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
+                      <FileText className="h-4 w-4 text-primary/60 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-medium truncate">{doc.fileName}</p>
+                        <p className="text-xs text-muted-foreground">{new Date(doc.createdAt).toLocaleDateString()}</p>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] shrink-0">{doc.documentType}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

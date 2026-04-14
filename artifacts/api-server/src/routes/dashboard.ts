@@ -3,8 +3,9 @@ import { db } from "@workspace/db";
 import {
   organizationsTable, facilitiesTable, employeesTable,
   trainingRecordsTable, practicumsTable, alertsTable, trainingHourBucketsTable,
+  trainingDocumentsTable,
 } from "@workspace/db";
-import { eq, and, count, SQL } from "drizzle-orm";
+import { eq, and, count, SQL, gte, desc, inArray } from "drizzle-orm";
 import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { buildComplianceSummaryForFacility } from "../lib/compliance";
 
@@ -103,6 +104,29 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
   const compliancePercentage = total > 0 ? Math.round((compliantCount / total) * 100) : 100;
   const trainersDueForRecert = medAdminStaff.filter(e => e.trainerStatus).length;
 
+  const today = new Date();
+  const ninetyDaysOut = new Date(today);
+  ninetyDaysOut.setDate(ninetyDaysOut.getDate() + 90);
+  const dueSoon90Count = trainingRecords.filter(r => {
+    if (!r.dueDate) return false;
+    const d = new Date(r.dueDate);
+    return d >= today && d <= ninetyDaysOut;
+  }).length;
+
+  const fourteenDaysAgo = new Date(today);
+  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+  const recentDocConditions: SQL[] = [
+    eq(trainingDocumentsTable.organizationId, orgId),
+    gte(trainingDocumentsTable.createdAt, fourteenDaysAgo),
+  ];
+  if (assignedFacilityIds !== null && assignedFacilityIds.length > 0) {
+    recentDocConditions.push(inArray(trainingDocumentsTable.facilityId, assignedFacilityIds));
+  }
+  const recentDocs = await db.select().from(trainingDocumentsTable)
+    .where(and(...recentDocConditions))
+    .orderBy(desc(trainingDocumentsTable.createdAt))
+    .limit(5);
+
   res.json({
     organizationId: orgId,
     totalFacilities: allFacilities.length,
@@ -110,7 +134,7 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
     totalMedAdminStaff: medAdminStaff.length,
     compliantCount,
     dueSoon30Count,
-    dueSoon90Count: dueSoon30Count,
+    dueSoon90Count,
     expiredCount,
     missingDocumentCount,
     compliancePercentage,
@@ -120,7 +144,8 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
     practicumsDue: practicums.filter(p => p.status === "missing" || p.status === "due_soon").length,
     practicumsCompliant: practicums.filter(p => p.status === "compliant").length,
     annualHoursIncomplete: hourBuckets.filter(h => h.status === "incomplete").length,
-    recentUploadsCount: 0,
+    recentUploadsCount: recentDocs.length,
+    recentUploads: recentDocs.map(d => ({ id: d.id, fileName: d.fileName, documentType: d.documentType, createdAt: d.createdAt })),
     recentActivity: [],
   });
 });

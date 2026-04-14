@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { ArrowLeft, Building2, MapPin, Phone, Users, BookOpen, BarChart3 } from "lucide-react";
+import { ArrowLeft, Building2, MapPin, Phone, Users, BookOpen, BarChart3, Clock, XCircle, AlertTriangle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useListEmployees } from "@workspace/api-client-react";
 
@@ -41,6 +41,15 @@ interface ComplianceSummary {
   annualHoursIncomplete: number;
 }
 
+interface DueDateRecord {
+  id: number;
+  employeeId: number;
+  employeeName: string | null;
+  trainingTypeName: string | null;
+  dueDate: string | null;
+  status: string;
+}
+
 export default function FacilityDetail() {
   const [, params] = useRoute("/app/facilities/:id");
   const id = params?.id;
@@ -67,6 +76,26 @@ export default function FacilityDetail() {
 
   const { data: employees, isLoading: empLoading } = useListEmployees({
     facilityId: id ? Number(id) : undefined,
+  });
+
+  const { data: upcomingDueDates } = useQuery<DueDateRecord[]>({
+    queryKey: ["facility-upcoming", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/facilities/${id}/upcoming-due-dates`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!id,
+  });
+
+  const { data: recentlyExpired } = useQuery<DueDateRecord[]>({
+    queryKey: ["facility-expired", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/facilities/${id}/recently-expired`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!id,
   });
 
   const isLoading = facLoading || sumLoading;
@@ -225,6 +254,76 @@ export default function FacilityDetail() {
           </Card>
         </div>
       )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Clock className="h-4 w-4 text-amber-600" /> Upcoming Due Dates
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!upcomingDueDates || upcomingDueDates.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground">
+                <Clock className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No upcoming due dates</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {upcomingDueDates.map(record => (
+                  <Link key={record.id} href={`/app/employees/${record.employeeId}`}>
+                    <div className="flex items-center justify-between p-2.5 rounded-lg border hover:bg-accent/5 cursor-pointer">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{record.employeeName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{record.trainingTypeName}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs text-amber-600 font-medium">
+                          {record.dueDate ? new Date(record.dueDate).toLocaleDateString() : "—"}
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <XCircle className="h-4 w-4 text-red-600" /> Recently Expired
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!recentlyExpired || recentlyExpired.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground">
+                <AlertTriangle className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No recently expired trainings</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {recentlyExpired.map(record => (
+                  <Link key={record.id} href={`/app/employees/${record.employeeId}`}>
+                    <div className="flex items-center justify-between p-2.5 rounded-lg border hover:bg-accent/5 cursor-pointer">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{record.employeeName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{record.trainingTypeName}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs text-red-600 font-medium">
+                          {record.dueDate ? `Expired ${new Date(record.dueDate).toLocaleDateString()}` : "Expired"}
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>
