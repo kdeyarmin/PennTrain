@@ -310,13 +310,14 @@ export default function EmployeeDetail() {
 
   const handlePrintTranscript = async () => {
     if (!employee || !id) return;
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) { toast({ title: "Please allow popups to print", variant: "destructive" }); return; }
+    printWindow.document.write("<p>Loading transcript...</p>");
     setPrintingTranscript(true);
     try {
       const res = await fetch(`/api/employees/${id}/transcript`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch transcript");
       const data = await res.json();
-      const printWindow = window.open("", "_blank");
-      if (!printWindow) { toast({ title: "Please allow popups to print", variant: "destructive" }); return; }
       const esc = (s: string | null | undefined) => {
         if (!s) return "—";
         return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -678,7 +679,7 @@ export default function EmployeeDetail() {
         </CardContent>
       </Card>
 
-      {canManage && auditLogs && auditLogs.length > 0 && (
+      {canManage && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -686,20 +687,27 @@ export default function EmployeeDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="relative">
-              <div className="absolute left-3 top-0 bottom-0 w-px bg-border" />
-              <div className="space-y-4">
-                {auditLogs.slice(0, 10).map(log => (
-                  <div key={log.id} className="flex items-start gap-4 relative pl-8">
-                    <div className="absolute left-1.5 top-1 h-3 w-3 rounded-full bg-primary/20 border-2 border-primary" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">{formatAuditAction(log)}</p>
-                      <p className="text-xs text-muted-foreground">{timeAgo(log.createdAt)} — {new Date(log.createdAt).toLocaleString()}</p>
+            {auditLogs && auditLogs.length > 0 ? (
+              <div className="relative">
+                <div className="absolute left-3 top-0 bottom-0 w-px bg-border" />
+                <div className="space-y-4">
+                  {auditLogs.slice(0, 10).map(log => (
+                    <div key={log.id} className="flex items-start gap-4 relative pl-8">
+                      <div className="absolute left-1.5 top-1 h-3 w-3 rounded-full bg-primary/20 border-2 border-primary" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium">{formatAuditAction(log)}</p>
+                        <p className="text-xs text-muted-foreground">{timeAgo(log.createdAt)} — {new Date(log.createdAt).toLocaleString()}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">
+                <Activity className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No recent activity recorded</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
