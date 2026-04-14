@@ -8,7 +8,7 @@ const router: IRouter = Router();
 
 router.get("/audit-logs", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
-  if (!user || !["platform_admin", "org_admin"].includes(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!user || !["platform_admin", "org_admin", "facility_manager"].includes(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const conditions: SQL[] = [];
 

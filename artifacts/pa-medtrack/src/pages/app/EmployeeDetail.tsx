@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { ArrowLeft, User, CalendarCheck, BookOpen, Clock, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, User, CalendarCheck, BookOpen, Clock, Pencil, Plus, Trash2, FileText, Upload, Download, Printer, Activity } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useUpdateEmployee, useListFacilities,
@@ -65,6 +65,28 @@ interface AnnualHours {
   status: string;
 }
 
+interface TrainingDocument {
+  id: number;
+  fileName: string;
+  fileUrl: string;
+  fileType: string;
+  fileSize: number | null;
+  documentType: string;
+  createdAt: string;
+  uploadedByUserId: number | null;
+}
+
+interface AuditLogEntry {
+  id: number;
+  entityType: string;
+  entityId: string;
+  action: string;
+  oldValues: Record<string, unknown> | null;
+  newValues: Record<string, unknown> | null;
+  createdAt: string;
+  userId: number | null;
+}
+
 interface ComplianceSummary {
   employeeId: number;
   employeeName: string;
@@ -74,7 +96,46 @@ interface ComplianceSummary {
   trainingRecords: TrainingRecord[];
   practicums: Practicum[];
   annualHours: AnnualHours[];
+  documents: TrainingDocument[];
   overallStatus: string;
+}
+
+const DOC_TYPE_LABELS: Record<string, string> = {
+  certificate: "Certificate",
+  roster: "Roster",
+  practicum_form: "Practicum Form",
+  transcript: "Transcript",
+  other: "Other",
+};
+
+function formatFileSize(bytes: number | null): string {
+  if (!bytes) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatAuditAction(entry: AuditLogEntry): string {
+  const entityLabel = entry.entityType.replace(/_/g, " ");
+  switch (entry.action) {
+    case "create": return `Created ${entityLabel} record`;
+    case "update": return `Updated ${entityLabel} record`;
+    case "delete": return `Deleted ${entityLabel} record`;
+    case "verify": return `Verified ${entityLabel} record`;
+    default: return `${entry.action} on ${entityLabel}`;
+  }
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString();
 }
 
 function statusColor(status: string): string {
@@ -101,6 +162,11 @@ export default function EmployeeDetail() {
   const [showAddPracticum, setShowAddPracticum] = useState(false);
   const [deleteRecordId, setDeleteRecordId] = useState<number | null>(null);
   const [deletePracticumId, setDeletePracticumId] = useState<number | null>(null);
+  const [showUploadCert, setShowUploadCert] = useState(false);
+  const [uploadDocType, setUploadDocType] = useState("certificate");
+  const [uploading, setUploading] = useState(false);
+  const [printingTranscript, setPrintingTranscript] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [empForm, setEmpForm] = useState({
     firstName: "", lastName: "", jobTitle: "", department: "",
@@ -141,6 +207,16 @@ export default function EmployeeDetail() {
 
   const { data: trainingTypes } = useListTrainingTypes({});
   const { data: facilities } = useListFacilities({});
+
+  const { data: auditLogs } = useQuery<AuditLogEntry[]>({
+    queryKey: ["employee-audit-logs", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/audit-logs?entityType=employee&entityId=${id}&limit=20`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!id && canManage,
+  });
 
   const { mutate: updateEmployee, isPending: updating } = useUpdateEmployee({
     mutation: {
@@ -199,6 +275,70 @@ export default function EmployeeDetail() {
       onError: (e: unknown) => toast({ title: "Failed to delete practicum", description: (e as Error).message, variant: "destructive" }),
     },
   });
+
+  const handleUploadCert = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !employee) return;
+    if (!employee.facilityId) {
+      toast({ title: "Employee has no facility assigned", variant: "destructive" });
+      return;
+    }
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("facilityId", String(employee.facilityId));
+      formData.append("employeeId", String(employee.id));
+      formData.append("documentType", uploadDocType);
+      const res = await fetch("/api/documents", { method: "POST", credentials: "include", body: formData });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Upload failed");
+      }
+      toast({ title: "Document uploaded successfully" });
+      queryClient.invalidateQueries({ queryKey: ["employee-compliance", id] });
+      setShowUploadCert(false);
+      setUploadDocType("certificate");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (err) {
+      toast({ title: "Upload failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handlePrintTranscript = async () => {
+    if (!employee || !id) return;
+    setPrintingTranscript(true);
+    try {
+      const res = await fetch(`/api/employees/${id}/transcript`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch transcript");
+      const data = await res.json();
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) { toast({ title: "Please allow popups to print", variant: "destructive" }); return; }
+      const esc = (s: string | null | undefined) => {
+        if (!s) return "—";
+        return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      };
+      const rows = (data.trainingRecords || []).map((r: { trainingType?: { name: string }; completionDate?: string; dueDate?: string; status?: string }) =>
+        `<tr><td style="padding:6px 12px;border:1px solid #ddd">${esc(r.trainingType?.name)}</td><td style="padding:6px 12px;border:1px solid #ddd">${esc(r.completionDate)}</td><td style="padding:6px 12px;border:1px solid #ddd">${esc(r.dueDate)}</td><td style="padding:6px 12px;border:1px solid #ddd">${esc(r.status)}</td></tr>`
+      ).join("");
+      const practicumRows = (data.practicums || []).map((p: { practicumYear: number; completionDate?: string; status?: string; observedBy?: string }) =>
+        `<tr><td style="padding:6px 12px;border:1px solid #ddd">${esc(String(p.practicumYear))}</td><td style="padding:6px 12px;border:1px solid #ddd">${esc(p.completionDate) || "Pending"}</td><td style="padding:6px 12px;border:1px solid #ddd">${esc(p.status)}</td><td style="padding:6px 12px;border:1px solid #ddd">${esc(p.observedBy)}</td></tr>`
+      ).join("");
+      const empName = esc(`${data.employee.firstName} ${data.employee.lastName}`);
+      const empTitle = esc(data.employee.jobTitle);
+      const empNum = esc(data.employee.employeeNumber) || "N/A";
+      printWindow.document.write(`<!DOCTYPE html><html><head><title>Training Transcript — ${empName}</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#333}h1{font-size:18px;margin-bottom:4px}h2{font-size:15px;margin-top:24px;margin-bottom:8px;color:#555}table{border-collapse:collapse;width:100%}th{background:#f5f5f5;text-align:left;padding:8px 12px;border:1px solid #ddd;font-size:13px}td{font-size:13px}.meta{color:#666;font-size:13px;margin-bottom:16px}@media print{body{padding:0}}</style></head><body><h1>Training Transcript</h1><p class="meta">${empName} — ${empTitle}<br/>Employee #${empNum} | Generated ${new Date().toLocaleDateString()}</p><h2>Training Records</h2><table><thead><tr><th>Training Type</th><th>Completed</th><th>Due Date</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="4" style="padding:12px;text-align:center;color:#999">No training records</td></tr>'}</tbody></table><h2>Annual Practicums</h2><table><thead><tr><th>Year</th><th>Completed</th><th>Status</th><th>Observer</th></tr></thead><tbody>${practicumRows || '<tr><td colspan="4" style="padding:12px;text-align:center;color:#999">No practicums</td></tr>'}</tbody></table></body></html>`);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+    } catch (err) {
+      toast({ title: "Failed to print transcript", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+    } finally {
+      setPrintingTranscript(false);
+    }
+  };
 
   const openEditEmp = () => {
     if (!employee) return;
@@ -331,9 +471,17 @@ export default function EmployeeDetail() {
           </div>
         </div>
         {canManage && (
-          <Button variant="outline" size="sm" onClick={openEditEmp}>
-            <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" size="sm" onClick={openEditEmp}>
+              <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowUploadCert(true)}>
+              <Upload className="mr-2 h-3.5 w-3.5" /> Upload Cert
+            </Button>
+            <Button variant="outline" size="sm" onClick={handlePrintTranscript} disabled={printingTranscript}>
+              <Printer className="mr-2 h-3.5 w-3.5" /> {printingTranscript ? "Loading..." : "Print Transcript"}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -478,6 +626,121 @@ export default function EmployeeDetail() {
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" /> Documents
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!summary?.documents?.length ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <FileText className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p className="font-medium text-sm">No documents uploaded</p>
+              <p className="text-xs mt-1">Upload certificates and compliance documents using the "Upload Cert" button above.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {summary.documents.map(doc => (
+                <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg border">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <FileText className="h-8 w-8 shrink-0 text-primary/70" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{doc.fileName}</p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <Badge variant="outline" className="text-xs">{DOC_TYPE_LABELS[doc.documentType] ?? doc.documentType}</Badge>
+                        <span className="text-xs text-muted-foreground">{formatFileSize(doc.fileSize)}</span>
+                        <span className="text-xs text-muted-foreground">{new Date(doc.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                      const url = `/api/documents/file/${doc.fileUrl.split("/").pop()}`;
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = doc.fileName;
+                      a.click();
+                    }}
+                    title="Download"
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {canManage && auditLogs && auditLogs.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" /> Recent Activity
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="relative">
+              <div className="absolute left-3 top-0 bottom-0 w-px bg-border" />
+              <div className="space-y-4">
+                {auditLogs.slice().reverse().slice(0, 10).map(log => (
+                  <div key={log.id} className="flex items-start gap-4 relative pl-8">
+                    <div className="absolute left-1.5 top-1 h-3 w-3 rounded-full bg-primary/20 border-2 border-primary" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{formatAuditAction(log)}</p>
+                      <p className="text-xs text-muted-foreground">{timeAgo(log.createdAt)} — {new Date(log.createdAt).toLocaleString()}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Dialog open={showUploadCert} onOpenChange={o => { if (!o) setShowUploadCert(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Upload Document</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1">
+              <Label>Document Type</Label>
+              <Select value={uploadDocType} onValueChange={setUploadDocType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="certificate">Certificate</SelectItem>
+                  <SelectItem value="roster">Roster</SelectItem>
+                  <SelectItem value="practicum_form">Practicum Form</SelectItem>
+                  <SelectItem value="transcript">Transcript</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              className="w-full"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              {uploading ? "Uploading..." : "Choose File (PDF, JPG, PNG)"}
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={handleUploadCert}
+            />
+            <p className="text-xs text-muted-foreground text-center">Max 20MB. Accepted: PDF, JPG, PNG</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUploadCert(false)}>Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showEditEmp} onOpenChange={o => { if (!o) setShowEditEmp(false); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
