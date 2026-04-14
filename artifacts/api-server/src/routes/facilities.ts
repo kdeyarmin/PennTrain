@@ -225,14 +225,14 @@ router.get("/facilities/:id/recently-expired", requireAuth, async (req, res): Pr
   type ExpiredItem = { id: number; type: string; employeeId: number; employeeName: string | null; trainingTypeName: string | null; dueDate: string | null; status: string };
   const items: ExpiredItem[] = [
     ...trainingRecs
-      .filter(r => !r.record.dueDate || new Date(r.record.dueDate) >= sixtyDaysAgo)
+      .filter(r => r.record.dueDate && new Date(r.record.dueDate) >= sixtyDaysAgo && new Date(r.record.dueDate) <= new Date())
       .map(r => ({
         id: r.record.id, type: "training" as const, employeeId: r.record.employeeId,
         employeeName: r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : null,
         trainingTypeName: r.trainingType?.name ?? null, dueDate: r.record.dueDate, status: r.record.status,
       })),
     ...practicumRecs
-      .filter(p => !p.practicum.dueDate || new Date(p.practicum.dueDate) >= sixtyDaysAgo)
+      .filter(p => p.practicum.dueDate && new Date(p.practicum.dueDate) >= sixtyDaysAgo && new Date(p.practicum.dueDate) <= new Date())
       .map(p => ({
         id: p.practicum.id, type: "practicum" as const, employeeId: p.practicum.employeeId,
         employeeName: p.employee ? `${p.employee.firstName} ${p.employee.lastName}` : null,

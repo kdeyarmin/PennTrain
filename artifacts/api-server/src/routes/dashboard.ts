@@ -116,8 +116,10 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
   const fourteenDaysAgo = new Date(today);
   fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
   let recentDocs: (typeof trainingDocumentsTable.$inferSelect)[] = [];
+  let recentUploadsTotal = 0;
   if (assignedFacilityIds !== null && assignedFacilityIds.length === 0) {
     recentDocs = [];
+    recentUploadsTotal = 0;
   } else {
     const recentDocConditions: SQL[] = [
       eq(trainingDocumentsTable.organizationId, orgId),
@@ -126,6 +128,9 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
     if (assignedFacilityIds !== null && assignedFacilityIds.length > 0) {
       recentDocConditions.push(inArray(trainingDocumentsTable.facilityId, assignedFacilityIds));
     }
+    const countResult = await db.select({ count: count() }).from(trainingDocumentsTable)
+      .where(and(...recentDocConditions));
+    recentUploadsTotal = countResult[0]?.count ?? 0;
     recentDocs = await db.select().from(trainingDocumentsTable)
       .where(and(...recentDocConditions))
       .orderBy(desc(trainingDocumentsTable.createdAt))
@@ -149,7 +154,7 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
     practicumsDue: practicums.filter(p => p.status === "missing" || p.status === "due_soon").length,
     practicumsCompliant: practicums.filter(p => p.status === "compliant").length,
     annualHoursIncomplete: hourBuckets.filter(h => h.status === "incomplete").length,
-    recentUploadsCount: recentDocs.length,
+    recentUploadsCount: recentUploadsTotal,
     recentUploads: recentDocs.map(d => ({ id: d.id, fileName: d.fileName, documentType: d.documentType, createdAt: d.createdAt })),
     recentActivity: [],
   });

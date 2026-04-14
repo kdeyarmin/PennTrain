@@ -272,7 +272,7 @@ export default function FacilityDetail() {
             ) : (
               <div className="space-y-2">
                 {upcomingDueDates.map(record => (
-                  <Link key={record.id} href={`/app/employees/${record.employeeId}`}>
+                  <Link key={`${record.type ?? "t"}-${record.id}`} href={`/app/employees/${record.employeeId}`}>
                     <div className="flex items-center justify-between p-2.5 rounded-lg border hover:bg-accent/5 cursor-pointer">
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{record.employeeName}</p>
@@ -306,7 +306,7 @@ export default function FacilityDetail() {
             ) : (
               <div className="space-y-2">
                 {recentlyExpired.map(record => (
-                  <Link key={record.id} href={`/app/employees/${record.employeeId}`}>
+                  <Link key={`${record.type ?? "t"}-${record.id}`} href={`/app/employees/${record.employeeId}`}>
                     <div className="flex items-center justify-between p-2.5 rounded-lg border hover:bg-accent/5 cursor-pointer">
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{record.employeeName}</p>
