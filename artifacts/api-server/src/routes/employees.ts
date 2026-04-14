@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { employeesTable, trainingRecordsTable, trainingTypesTable, practicumsTable, trainingHourBucketsTable, trainingDocumentsTable, facilitiesTable } from "@workspace/db";
+import { employeesTable, trainingRecordsTable, trainingTypesTable, practicumsTable, trainingHourBucketsTable, trainingDocumentsTable, facilitiesTable, usersTable } from "@workspace/db";
 import { eq, and, or, ilike, inArray, SQL } from "drizzle-orm";
 import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 import { logAudit } from "../lib/audit";
@@ -256,7 +256,15 @@ router.get("/employees/:id/compliance-summary", requireAuth, async (req, res): P
 
   const practicums = await db.select().from(practicumsTable).where(eq(practicumsTable.employeeId, id));
   const annualHours = await db.select().from(trainingHourBucketsTable).where(eq(trainingHourBucketsTable.employeeId, id));
-  const documents = await db.select().from(trainingDocumentsTable).where(eq(trainingDocumentsTable.employeeId, id));
+  const rawDocuments = await db
+    .select({ doc: trainingDocumentsTable, uploaderFirstName: usersTable.firstName, uploaderLastName: usersTable.lastName })
+    .from(trainingDocumentsTable)
+    .leftJoin(usersTable, eq(trainingDocumentsTable.uploadedByUserId, usersTable.id))
+    .where(eq(trainingDocumentsTable.employeeId, id));
+  const documents = rawDocuments.map(d => ({
+    ...d.doc,
+    uploadedByName: d.uploaderFirstName && d.uploaderLastName ? `${d.uploaderFirstName} ${d.uploaderLastName}` : null,
+  }));
 
   const statuses = trainingRecords.map(r => r.record.status);
   const overallStatus = statuses.includes("expired") ? "expired" :

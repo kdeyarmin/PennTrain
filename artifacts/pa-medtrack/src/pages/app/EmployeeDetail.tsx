@@ -74,6 +74,7 @@ interface TrainingDocument {
   documentType: string;
   createdAt: string;
   uploadedByUserId: number | null;
+  uploadedByName: string | null;
 }
 
 interface AuditLogEntry {
@@ -652,6 +653,7 @@ export default function EmployeeDetail() {
                         <Badge variant="outline" className="text-xs">{DOC_TYPE_LABELS[doc.documentType] ?? doc.documentType}</Badge>
                         <span className="text-xs text-muted-foreground">{formatFileSize(doc.fileSize)}</span>
                         <span className="text-xs text-muted-foreground">{new Date(doc.createdAt).toLocaleDateString()}</span>
+                        {doc.uploadedByName && <span className="text-xs text-muted-foreground">by {doc.uploadedByName}</span>}
                       </div>
                     </div>
                   </div>
@@ -687,7 +689,7 @@ export default function EmployeeDetail() {
             <div className="relative">
               <div className="absolute left-3 top-0 bottom-0 w-px bg-border" />
               <div className="space-y-4">
-                {auditLogs.slice().reverse().slice(0, 10).map(log => (
+                {auditLogs.slice(0, 10).map(log => (
                   <div key={log.id} className="flex items-start gap-4 relative pl-8">
                     <div className="absolute left-1.5 top-1 h-3 w-3 rounded-full bg-primary/20 border-2 border-primary" />
                     <div className="min-w-0 flex-1">

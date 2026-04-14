@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { auditLogsTable } from "@workspace/db";
-import { eq, and, SQL } from "drizzle-orm";
-import { requireAuth, getCurrentUser } from "../lib/auth";
+import { auditLogsTable, employeesTable } from "@workspace/db";
+import { eq, and, SQL, desc, inArray } from "drizzle-orm";
+import { requireAuth, getCurrentUser, getAssignedFacilityIds } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -17,6 +17,20 @@ router.get("/audit-logs", requireAuth, async (req, res): Promise<void> => {
     conditions.push(eq(auditLogsTable.organizationId, user.organizationId));
   } else if (req.query.organizationId) {
     conditions.push(eq(auditLogsTable.organizationId, Number(req.query.organizationId)));
+  }
+
+  if (user.role === "facility_manager") {
+    const assignedFacilityIds = await getAssignedFacilityIds(user);
+    if (assignedFacilityIds !== null) {
+      if (assignedFacilityIds.length === 0) { res.json([]); return; }
+      if (req.query.entityType === "employee" && req.query.entityId) {
+        const empId = Number(req.query.entityId);
+        const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.id, empId));
+        if (!emp || (emp.facilityId !== null && !assignedFacilityIds.includes(emp.facilityId))) {
+          res.json([]); return;
+        }
+      }
+    }
   }
 
   if (req.query.entityType && typeof req.query.entityType === "string") {
@@ -35,7 +49,7 @@ router.get("/audit-logs", requireAuth, async (req, res): Promise<void> => {
   const limit = Math.min(Number(req.query.limit) || 100, 500);
   const query = db.select().from(auditLogsTable)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(auditLogsTable.createdAt)
+    .orderBy(desc(auditLogsTable.createdAt))
     .limit(limit);
 
   const logs = await query;
