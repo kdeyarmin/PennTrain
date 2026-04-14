@@ -26,25 +26,19 @@ export default function ForgotPassword() {
 
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/forgot-password", {
+      await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Request failed");
-      }
-    } catch (err) {
-      if (err instanceof TypeError) {
-        toast({
-          variant: "destructive",
-          title: "Network error",
-          description: "Unable to reach the server. Please try again.",
-        });
-        setLoading(false);
-        return;
-      }
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Network error",
+        description: "Unable to reach the server. Please try again.",
+      });
+      setLoading(false);
+      return;
     }
     setLoading(false);
     setSubmitted(true);
