@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useListAlerts, getListAlertsQueryKey } from "@workspace/api-client-react";
+import { useListAlerts, getListAlertsQueryKey, useListFacilities } from "@workspace/api-client-react";
 import type { Alert } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { AlertCircle, AlertTriangle, CheckCircle, Info, X, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -16,16 +17,33 @@ async function patchAlert(id: number, action: "dismiss" | "resolve") {
   await fetch(`/api/alerts/${id}/${action}`, { method: "PATCH", credentials: "include" });
 }
 
+async function bulkDismissAlerts(ids: number[]) {
+  const res = await fetch("/api/alerts/bulk-dismiss", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ ids }),
+  });
+  if (!res.ok) throw new Error("Bulk dismiss failed");
+  return res.json();
+}
+
 export default function Alerts() {
   const [status, setStatus] = useState<string>("open");
   const [severity, setSeverity] = useState<string>("all");
+  const [facilityId, setFacilityId] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDismissing, setBulkDismissing] = useState(false);
+
+  const { data: facilities } = useListFacilities({});
   const { data: alerts, isLoading } = useListAlerts({
     status: (status && status !== "all" ? status : undefined) as "open" | "dismissed" | "resolved" | undefined,
     severity: (severity && severity !== "all" ? severity : undefined) as "info" | "warning" | "critical" | undefined,
+    facilityId: facilityId && facilityId !== "all" ? Number(facilityId) : undefined,
   });
   const { toast } = useToast();
   const [pendingId, setPendingId] = useState<number | null>(null);
@@ -36,11 +54,36 @@ export default function Alerts() {
       await patchAlert(id, action);
       queryClient.invalidateQueries({ queryKey: getListAlertsQueryKey() });
       toast({ title: action === "resolve" ? "Alert resolved" : "Alert dismissed" });
+      setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
     } catch {
       toast({ variant: "destructive", title: "Action failed" });
     } finally {
       setPendingId(null);
     }
+  };
+
+  const handleBulkDismiss = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkDismissing(true);
+    try {
+      await bulkDismissAlerts(Array.from(selectedIds));
+      queryClient.invalidateQueries({ queryKey: getListAlertsQueryKey() });
+      toast({ title: `${selectedIds.size} alert(s) dismissed` });
+      setSelectedIds(new Set());
+    } catch {
+      toast({ variant: "destructive", title: "Bulk dismiss failed" });
+    } finally {
+      setBulkDismissing(false);
+    }
+  };
+
+  const toggleSelected = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   const severityIcon = (sev: string) => {
@@ -79,6 +122,24 @@ export default function Alerts() {
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const openOnPage = paginated.filter(a => a.status === "open");
+  const allPageSelected = openOnPage.length > 0 && openOnPage.every(a => selectedIds.has(a.id));
+
+  const toggleSelectAll = () => {
+    if (allPageSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        openOnPage.forEach(a => next.delete(a.id));
+        return next;
+      });
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        openOnPage.forEach(a => next.add(a.id));
+        return next;
+      });
+    }
+  };
 
   function toggleSort(field: SortField) {
     if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -106,7 +167,7 @@ export default function Alerts() {
             className="pl-9"
           />
         </div>
-        <Select value={status} onValueChange={v => { setStatus(v); setPage(1); }}>
+        <Select value={status} onValueChange={v => { setStatus(v); setPage(1); setSelectedIds(new Set()); }}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -127,6 +188,17 @@ export default function Alerts() {
             <SelectItem value="info">Info</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={facilityId} onValueChange={v => { setFacilityId(v); setPage(1); }}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="All Facilities" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Facilities</SelectItem>
+            {facilities?.map(f => (
+              <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <div className="flex gap-2">
           <Button
             variant={sortField === "severity" ? "default" : "outline"}
@@ -145,6 +217,27 @@ export default function Alerts() {
         </div>
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-muted rounded-md border">
+          <span className="text-sm font-medium">{selectedIds.size} alert(s) selected</span>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={handleBulkDismiss}
+            disabled={bulkDismissing}
+          >
+            {bulkDismissing ? "Dismissing..." : "Bulk Dismiss"}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            Clear Selection
+          </Button>
+        </div>
+      )}
+
       <Card>
         <CardContent className="pt-6">
           {isLoading ? (
@@ -158,9 +251,26 @@ export default function Alerts() {
             </div>
           ) : (
             <>
+              {status === "open" && openOnPage.length > 0 && (
+                <div className="flex items-center gap-2 pb-3 mb-3 border-b">
+                  <Checkbox
+                    checked={allPageSelected}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                  <span className="text-xs text-muted-foreground">Select all on page</span>
+                </div>
+              )}
               <div className="space-y-3">
                 {paginated.map((alert: Alert) => (
                   <div key={alert.id} className="flex items-start gap-4 p-4 rounded-lg border">
+                    {alert.status === "open" && (
+                      <div className="mt-0.5">
+                        <Checkbox
+                          checked={selectedIds.has(alert.id)}
+                          onCheckedChange={() => toggleSelected(alert.id)}
+                        />
+                      </div>
+                    )}
                     <div className="mt-0.5">{severityIcon(alert.severity)}</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">

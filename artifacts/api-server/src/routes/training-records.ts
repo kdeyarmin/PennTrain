@@ -351,32 +351,34 @@ router.get("/training-matrix", requireAuth, async (req, res): Promise<void> => {
   const records = await db.select().from(trainingRecordsTable)
     .where(recConditions.length > 0 ? and(...recConditions) : undefined);
 
-  const matrix = employees.map(emp => {
+  const rows = employees.map(emp => {
     const empRecords = records.filter(r => r.employeeId === emp.id);
-    const trainingStatus = trainingTypes.map(tt => {
+    const cells = trainingTypes.map(tt => {
       const record = empRecords.find(r => r.trainingTypeId === tt.id);
       return {
         trainingTypeId: tt.id,
-        trainingTypeName: tt.name,
+        trainingRecordId: record?.id ?? null,
         status: record?.status ?? "missing",
-        lastCompletionDate: record?.completionDate ?? null,
+        completionDate: record?.completionDate ?? null,
         dueDate: record?.dueDate ?? null,
-        expirationDate: null,
+        hasDocument: false,
       };
     });
     return {
-      employeeId: emp.id,
-      employeeFirstName: emp.firstName,
-      employeeLastName: emp.lastName,
-      jobTitle: emp.jobTitle,
-      facilityId: emp.facilityId,
-      administersMedications: emp.administersMedications,
-      trainerStatus: emp.trainerStatus,
-      trainingStatus,
+      employee: {
+        id: emp.id,
+        firstName: emp.firstName,
+        lastName: emp.lastName,
+        jobTitle: emp.jobTitle,
+        facilityId: emp.facilityId,
+        administersMedications: emp.administersMedications,
+        trainerStatus: emp.trainerStatus,
+      },
+      cells,
     };
   });
 
-  res.json(matrix);
+  res.json({ trainingTypes, rows });
 });
 
 export default router;
