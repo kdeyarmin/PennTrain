@@ -43,6 +43,7 @@ interface ComplianceSummary {
 
 interface DueDateRecord {
   id: number;
+  type?: string;
   employeeId: number;
   employeeName: string | null;
   trainingTypeName: string | null;

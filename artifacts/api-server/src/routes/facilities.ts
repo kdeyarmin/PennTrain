@@ -162,27 +162,35 @@ router.get("/facilities/:id/upcoming-due-dates", requireAuth, async (req, res): 
     if (assignedIds !== null && !assignedIds.includes(id)) { res.status(403).json({ error: "Forbidden" }); return; }
   }
 
-  const records = await db
+  const trainingRecs = await db
     .select({ record: trainingRecordsTable, trainingType: trainingTypesTable, employee: employeesTable })
     .from(trainingRecordsTable)
     .leftJoin(trainingTypesTable, eq(trainingRecordsTable.trainingTypeId, trainingTypesTable.id))
     .leftJoin(employeesTable, eq(trainingRecordsTable.employeeId, employeesTable.id))
     .where(and(eq(trainingRecordsTable.facilityId, id), eq(trainingRecordsTable.status, "due_soon")));
 
-  const upcoming = records
-    .filter(r => r.record.dueDate)
-    .sort((a, b) => new Date(a.record.dueDate!).getTime() - new Date(b.record.dueDate!).getTime())
-    .slice(0, 10)
-    .map(r => ({
-      id: r.record.id,
-      employeeId: r.record.employeeId,
-      employeeName: r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : null,
-      trainingTypeName: r.trainingType?.name ?? null,
-      dueDate: r.record.dueDate,
-      status: r.record.status,
-    }));
+  const practicumRecs = await db
+    .select({ practicum: practicumsTable, employee: employeesTable })
+    .from(practicumsTable)
+    .leftJoin(employeesTable, eq(practicumsTable.employeeId, employeesTable.id))
+    .where(and(eq(practicumsTable.facilityId, id), eq(practicumsTable.status, "due_soon")));
 
-  res.json(upcoming);
+  type UpcomingItem = { id: number; type: string; employeeId: number; employeeName: string | null; trainingTypeName: string | null; dueDate: string | null; status: string };
+  const items: UpcomingItem[] = [
+    ...trainingRecs.filter(r => r.record.dueDate).map(r => ({
+      id: r.record.id, type: "training" as const, employeeId: r.record.employeeId,
+      employeeName: r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : null,
+      trainingTypeName: r.trainingType?.name ?? null, dueDate: r.record.dueDate, status: r.record.status,
+    })),
+    ...practicumRecs.filter(p => p.practicum.dueDate).map(p => ({
+      id: p.practicum.id, type: "practicum" as const, employeeId: p.practicum.employeeId,
+      employeeName: p.employee ? `${p.employee.firstName} ${p.employee.lastName}` : null,
+      trainingTypeName: `Annual Practicum (${p.practicum.practicumYear})`, dueDate: p.practicum.dueDate, status: p.practicum.status,
+    })),
+  ];
+
+  items.sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
+  res.json(items.slice(0, 10));
 });
 
 router.get("/facilities/:id/recently-expired", requireAuth, async (req, res): Promise<void> => {
@@ -201,34 +209,43 @@ router.get("/facilities/:id/recently-expired", requireAuth, async (req, res): Pr
   const sixtyDaysAgo = new Date();
   sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
-  const records = await db
+  const trainingRecs = await db
     .select({ record: trainingRecordsTable, trainingType: trainingTypesTable, employee: employeesTable })
     .from(trainingRecordsTable)
     .leftJoin(trainingTypesTable, eq(trainingRecordsTable.trainingTypeId, trainingTypesTable.id))
     .leftJoin(employeesTable, eq(trainingRecordsTable.employeeId, employeesTable.id))
     .where(and(eq(trainingRecordsTable.facilityId, id), eq(trainingRecordsTable.status, "expired")));
 
-  const expired = records
-    .filter(r => {
-      if (!r.record.dueDate) return true;
-      return new Date(r.record.dueDate) >= sixtyDaysAgo;
-    })
-    .sort((a, b) => {
-      const da = a.record.dueDate ? new Date(a.record.dueDate).getTime() : 0;
-      const db2 = b.record.dueDate ? new Date(b.record.dueDate).getTime() : 0;
-      return db2 - da;
-    })
-    .slice(0, 10)
-    .map(r => ({
-      id: r.record.id,
-      employeeId: r.record.employeeId,
-      employeeName: r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : null,
-      trainingTypeName: r.trainingType?.name ?? null,
-      dueDate: r.record.dueDate,
-      status: r.record.status,
-    }));
+  const practicumRecs = await db
+    .select({ practicum: practicumsTable, employee: employeesTable })
+    .from(practicumsTable)
+    .leftJoin(employeesTable, eq(practicumsTable.employeeId, employeesTable.id))
+    .where(and(eq(practicumsTable.facilityId, id), eq(practicumsTable.status, "expired")));
 
-  res.json(expired);
+  type ExpiredItem = { id: number; type: string; employeeId: number; employeeName: string | null; trainingTypeName: string | null; dueDate: string | null; status: string };
+  const items: ExpiredItem[] = [
+    ...trainingRecs
+      .filter(r => !r.record.dueDate || new Date(r.record.dueDate) >= sixtyDaysAgo)
+      .map(r => ({
+        id: r.record.id, type: "training" as const, employeeId: r.record.employeeId,
+        employeeName: r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : null,
+        trainingTypeName: r.trainingType?.name ?? null, dueDate: r.record.dueDate, status: r.record.status,
+      })),
+    ...practicumRecs
+      .filter(p => !p.practicum.dueDate || new Date(p.practicum.dueDate) >= sixtyDaysAgo)
+      .map(p => ({
+        id: p.practicum.id, type: "practicum" as const, employeeId: p.practicum.employeeId,
+        employeeName: p.employee ? `${p.employee.firstName} ${p.employee.lastName}` : null,
+        trainingTypeName: `Annual Practicum (${p.practicum.practicumYear})`, dueDate: p.practicum.dueDate, status: p.practicum.status,
+      })),
+  ];
+
+  items.sort((a, b) => {
+    const da = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+    const db2 = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+    return db2 - da;
+  });
+  res.json(items.slice(0, 10));
 });
 
 export default router;
