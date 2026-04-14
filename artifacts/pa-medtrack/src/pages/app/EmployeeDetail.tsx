@@ -478,7 +478,7 @@ export default function EmployeeDetail() {
               <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
             </Button>
             <Button variant="outline" size="sm" onClick={() => setShowUploadCert(true)}>
-              <Upload className="mr-2 h-3.5 w-3.5" /> Upload Cert
+              <Upload className="mr-2 h-3.5 w-3.5" /> Upload Certificate
             </Button>
             <Button variant="outline" size="sm" onClick={handlePrintTranscript} disabled={printingTranscript}>
               <Printer className="mr-2 h-3.5 w-3.5" /> {printingTranscript ? "Loading..." : "Print Transcript"}
@@ -640,7 +640,7 @@ export default function EmployeeDetail() {
             <div className="text-center py-8 text-muted-foreground">
               <FileText className="h-10 w-10 mx-auto mb-3 opacity-40" />
               <p className="font-medium text-sm">No documents uploaded</p>
-              <p className="text-xs mt-1">Upload certificates and compliance documents using the "Upload Cert" button above.</p>
+              <p className="text-xs mt-1">Upload certificates and compliance documents using the "Upload Certificate" button above.</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -662,9 +662,8 @@ export default function EmployeeDetail() {
                     size="icon"
                     variant="ghost"
                     onClick={() => {
-                      const url = `/api/documents/file/${doc.fileUrl.split("/").pop()}`;
                       const a = document.createElement("a");
-                      a.href = url;
+                      a.href = doc.fileUrl;
                       a.download = doc.fileName;
                       a.click();
                     }}
