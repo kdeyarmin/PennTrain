@@ -15,6 +15,19 @@ const PAGE_SIZE = 15;
 
 type SortDir = "asc" | "desc";
 
+type ExtendedCell = TrainingMatrixCell & {
+  trainerName?: string | null;
+  hours?: string | null;
+};
+
+type ExtendedRow = Omit<TrainingMatrixRow, "cells"> & {
+  cells: ExtendedCell[];
+};
+
+type ExtendedMatrix = Omit<TrainingMatrix, "rows"> & {
+  rows: ExtendedRow[];
+};
+
 const STATUS_COLORS: Record<string, string> = {
   compliant: "#22c55e",
   due_soon: "#f59e0b",
@@ -38,7 +51,7 @@ function getStatusLabel(status: string | undefined): string {
   }
 }
 
-function StatusDot({ entry, onClick }: { entry: TrainingMatrixCell | undefined; onClick?: () => void }) {
+function StatusDot({ entry, onClick }: { entry: ExtendedCell | undefined; onClick?: () => void }) {
   const color = getStatusColor(entry?.status);
   return (
     <button
@@ -87,7 +100,7 @@ function CellDetailDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  entry: TrainingMatrixCell | null;
+  entry: ExtendedCell | null;
   trainingTypeName: string;
   employeeName: string;
   employeeId: number;
@@ -129,11 +142,11 @@ function CellDetailDialog({
             </div>
             <div>
               <div className="text-muted-foreground text-xs mb-1">Trainer</div>
-              <div>{(entry as any).trainerName ?? "—"}</div>
+              <div>{entry.trainerName ?? "—"}</div>
             </div>
             <div>
               <div className="text-muted-foreground text-xs mb-1">Hours</div>
-              <div>{(entry as any).hours ?? "—"}</div>
+              <div>{entry.hours ?? "—"}</div>
             </div>
           </div>
 
@@ -162,7 +175,7 @@ export default function TrainingMatrix() {
   const [sortField, setSortField] = useState<string>("lastName");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
-  const [selectedCell, setSelectedCell] = useState<{ entry: TrainingMatrixCell; trainingTypeName: string; employeeName: string; employeeId: number } | null>(null);
+  const [selectedCell, setSelectedCell] = useState<{ entry: ExtendedCell; trainingTypeName: string; employeeName: string; employeeId: number } | null>(null);
 
   const { data: facilities } = useListFacilities({});
   const { data: matrixData } = useGetTrainingMatrix({
@@ -171,7 +184,7 @@ export default function TrainingMatrix() {
     administersMedications: medsOnly ? true : undefined,
   });
 
-  const matrix = matrixData as TrainingMatrix | undefined;
+  const matrix = matrixData as ExtendedMatrix | undefined;
   const matrixRows = matrix?.rows ?? [];
   const matrixTrainingTypes = matrix?.trainingTypes ?? [];
 
