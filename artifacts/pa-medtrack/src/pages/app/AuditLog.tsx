@@ -1,6 +1,5 @@
 import { useListAuditLogs, type AuditLog } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ShieldAlert } from "lucide-react";
 
 const ACTION_COLORS: Record<string, string> = {
@@ -33,7 +32,7 @@ export default function AuditLog() {
             </div>
           ) : (
             <div className="space-y-2">
-              {logs?.map((log: any) => (
+              {logs.map((log) => (
                 <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors">
                   <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center shrink-0">
                     <ShieldAlert className="h-4 w-4 text-muted-foreground" />
@@ -53,7 +52,7 @@ export default function AuditLog() {
                   </div>
                 </div>
               ))}
-              {(!logs || logs.length === 0) && (
+              {logs.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
                   <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
                     <ShieldAlert className="h-6 w-6 text-muted-foreground" />
