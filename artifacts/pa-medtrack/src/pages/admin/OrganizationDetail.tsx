@@ -21,7 +21,10 @@ import { useMutation } from "@tanstack/react-query";
 
 export default function OrganizationDetail() {
   const [, params] = useRoute("/admin/organizations/:id");
-  const id = params?.id ? Number(params.id) : undefined;
+  const parsedOrgId = Number.parseInt(params?.id ?? "", 10);
+  const id = Number.isFinite(parsedOrgId) && parsedOrgId > 0
+    ? parsedOrgId
+    : null;
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -29,21 +32,35 @@ export default function OrganizationDetail() {
   const [showImpersonateConfirm, setShowImpersonateConfirm] = useState(false);
 
   const { data: org, isLoading: orgLoading } = useGetOrganization(id ?? 0, {
-    query: { enabled: !!id } as never,
+    query: {
+      queryKey: ["getOrganization", id ?? 0],
+      enabled: id !== null,
+    },
   });
 
   const { data: stats, isLoading: statsLoading } = useGetOrganizationStats(id ?? 0, {
-    query: { enabled: !!id } as never,
+    query: {
+      queryKey: ["getOrganizationStats", id ?? 0],
+      enabled: id !== null,
+    },
   });
 
   const { data: facilities, isLoading: facLoading } = useListFacilities(
-    { organizationId: id },
-    { query: { enabled: !!id } as never }
+    { organizationId: id ?? undefined },
+    {
+      query: {
+        queryKey: ["listFacilities", { organizationId: id ?? undefined }],
+        enabled: id !== null,
+      },
+    }
   );
 
   const impersonateMutation = useMutation({
     mutationFn: async () => {
-      return impersonateOrg({ organizationId: id! });
+      if (!id) {
+        throw new Error("Invalid organization id");
+      }
+      return impersonateOrg({ organizationId: id });
     },
     onSuccess: (data: { organization?: { name?: string } }) => {
       setImpersonating(true);
@@ -66,6 +83,17 @@ export default function OrganizationDetail() {
     if (status === "trial") return "secondary";
     return "destructive";
   };
+
+  if (id === null) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Invalid organization id.</p>
+        <Button asChild className="mt-4" variant="outline">
+          <Link href="/admin/organizations">Back</Link>
+        </Button>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -119,7 +147,7 @@ export default function OrganizationDetail() {
             <Button
               variant="outline"
               onClick={() => setShowImpersonateConfirm(true)}
-              disabled={impersonateMutation.isPending}
+              disabled={impersonateMutation.isPending || id === null}
               className="shrink-0"
             >
               <LogIn className="mr-2 h-4 w-4" />
@@ -253,7 +281,15 @@ export default function OrganizationDetail() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { setShowImpersonateConfirm(false); impersonateMutation.mutate(); }}>
+            <AlertDialogAction
+              onClick={() => {
+                setShowImpersonateConfirm(false);
+                if (id !== null) {
+                  impersonateMutation.mutate();
+                }
+              }}
+              disabled={id === null}
+            >
               Continue
             </AlertDialogAction>
           </AlertDialogFooter>

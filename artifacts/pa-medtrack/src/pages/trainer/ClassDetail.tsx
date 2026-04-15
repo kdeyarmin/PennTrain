@@ -8,7 +8,11 @@ import {
   useDeleteTrainingClass,
   useListEmployees,
 } from "@workspace/api-client-react";
-import type { TrainingClassDetailAttendeesItem } from "@workspace/api-client-react";
+import type {
+  CompleteTrainingClass200,
+  TrainingClassDetail,
+  TrainingClassDetailAttendeesItem,
+} from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,9 +58,17 @@ export default function ClassDetail() {
   const [, params] = useRoute("/trainer/classes/:id");
   const [, navigate] = useLocation();
   const { toast } = useToast();
-  const classId = Number(params?.id);
+  const parsedClassId = Number.parseInt(params?.id ?? "", 10);
+  const classId = Number.isFinite(parsedClassId) && parsedClassId > 0
+    ? parsedClassId
+    : null;
 
-  const { data: classDetail, isLoading, refetch } = useGetTrainingClass(classId);
+  const { data: classDetail, isLoading, refetch } = useGetTrainingClass(classId ?? 0, {
+    query: {
+      queryKey: ["getTrainingClass", classId ?? 0],
+      enabled: classId !== null,
+    },
+  });
   const completeClass = useCompleteTrainingClass();
   const addAttendees = useAddClassAttendees();
   const uploadRoster = useUploadClassRoster();
@@ -67,7 +79,7 @@ export default function ClassDetail() {
   const [empSearch, setEmpSearch] = useState("");
   const [selectedEmps, setSelectedEmps] = useState<number[]>([]);
 
-  const cls = classDetail as any;
+  const cls: TrainingClassDetail | undefined = classDetail;
   const attendees: TrainingClassDetailAttendeesItem[] = cls?.attendees ?? [];
   const isDraft = cls?.status === "draft";
 
@@ -91,7 +103,7 @@ export default function ClassDetail() {
   }, []);
 
   async function handleAddAttendees() {
-    if (selectedEmps.length === 0) return;
+    if (!classId || selectedEmps.length === 0) return;
     try {
       await addAttendees.mutateAsync({
         id: classId,
@@ -109,10 +121,11 @@ export default function ClassDetail() {
   }
 
   async function handleComplete() {
+    if (!classId) return;
     try {
-      const result = (await completeClass.mutateAsync({
+      const result: CompleteTrainingClass200 = await completeClass.mutateAsync({
         id: classId,
-      })) as any;
+      });
       toast({
         title: "Class completed",
         description: `${result.recordsCreated} training record${result.recordsCreated !== 1 ? "s" : ""} created.`,
@@ -124,6 +137,7 @@ export default function ClassDetail() {
   }
 
   async function handleRosterUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!classId) return;
     const file = e.target.files?.[0];
     if (!file) return;
     try {
@@ -140,6 +154,7 @@ export default function ClassDetail() {
   }
 
   async function handleDelete() {
+    if (!classId) return;
     try {
       await deleteClass.mutateAsync({ id: classId });
       toast({ title: "Class deleted" });
@@ -147,6 +162,22 @@ export default function ClassDetail() {
     } catch {
       toast({ title: "Failed to delete class", variant: "destructive" });
     }
+  }
+
+
+  if (!classId) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-muted-foreground">Invalid class id.</p>
+        <Button
+          variant="link"
+          onClick={() => navigate("/trainer/classes")}
+          className="mt-2"
+        >
+          Back to Classes
+        </Button>
+      </div>
+    );
   }
 
   if (isLoading) {

@@ -1,9 +1,9 @@
-import { useListUsers } from "@workspace/api-client-react";
+import { useListUsers, type User } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
-import { Users as UsersIcon, Plus, Shield } from "lucide-react";
+import { Plus, Shield } from "lucide-react";
 
 const ROLE_LABELS: Record<string, string> = {
   platform_admin: "Platform Admin",
@@ -14,7 +14,8 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export default function Users() {
-  const { data: users, isLoading } = useListUsers({});
+  const { data: usersData, isLoading } = useListUsers({});
+  const users: User[] = usersData ?? [];
 
   return (
     <div className="space-y-6">
@@ -36,7 +37,7 @@ export default function Users() {
             </div>
           ) : (
             <div className="space-y-2">
-              {users?.map((user: any) => (
+              {users.map((user) => (
                 <div key={user.id} className="flex items-center justify-between p-3 rounded-lg border">
                   <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
@@ -58,7 +59,7 @@ export default function Users() {
                   </div>
                 </div>
               ))}
-              {(!users || users.length === 0) && (
+              {users.length === 0 && (
                 <p className="text-center text-muted-foreground py-8">No users found.</p>
               )}
             </div>

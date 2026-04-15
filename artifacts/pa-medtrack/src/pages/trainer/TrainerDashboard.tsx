@@ -6,7 +6,10 @@ import {
   useListPracticums,
   useGetFacilitiesRetrainingStatus,
 } from "@workspace/api-client-react";
-import type { FacilityRetrainingStatus } from "@workspace/api-client-react";
+import type {
+  FacilityRetrainingStatus,
+  TrainingClass,
+} from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,13 +38,13 @@ export default function TrainerDashboard() {
 
   const totalMedAdmin = employees?.length ?? 0;
   const totalFacilities = facilities?.length ?? 0;
-  const allClasses = (classes ?? []) as any[];
+  const allClasses: TrainingClass[] = classes ?? [];
   const totalClasses = allClasses.length;
   const draftClasses = allClasses.filter((c) => c.status === "draft").length;
   const compliant = practicums?.filter((p) => p.status === "compliant").length ?? 0;
   const pending = practicums?.filter((p) => p.status !== "compliant").length ?? 0;
 
-  const retraining = (retrainingData ?? []) as FacilityRetrainingStatus[];
+  const retraining: FacilityRetrainingStatus[] = retrainingData ?? [];
   const facilitiesNeedingAttention = retraining.filter(
     (f) => f.overallStatus === "critical" || f.overallStatus === "expired" || f.overallStatus === "due_soon"
   );
@@ -157,7 +160,7 @@ export default function TrainerDashboard() {
               </div>
             ) : (
               <div className="space-y-2">
-                {allClasses.slice(0, 5).map((c: any) => (
+                {allClasses.slice(0, 5).map((c) => (
                   <Link
                     key={c.id}
                     href={`/trainer/classes/${c.id}`}
