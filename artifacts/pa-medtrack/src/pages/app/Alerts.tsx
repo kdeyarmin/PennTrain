@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AlertCircle, AlertTriangle, CheckCircle, Info, X, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth, type Role } from "@/lib/auth";
+import { useViewingOrg } from "@/lib/viewingOrg";
 
 const PAGE_SIZE = 10;
 type SortField = "severity" | "createdAt" | "title";
@@ -20,6 +21,7 @@ const ALERTS_WRITE_ROLES: Role[] = ["org_admin", "facility_manager", "platform_a
 
 export default function Alerts() {
   const { user } = useAuth();
+  const { viewingOrgId } = useViewingOrg();
   const canWrite = !!user && ALERTS_WRITE_ROLES.includes(user.role);
   const [status, setStatus] = useState<string>("open");
   const [severity, setSeverity] = useState<string>("all");
@@ -31,11 +33,12 @@ export default function Alerts() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pendingId, setPendingId] = useState<string | null>(null);
 
-  const { data: facilities } = useListFacilities();
+  const { data: facilities } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
   const { data: alerts, isLoading } = useListAlerts({
     status: status !== "all" ? status : undefined,
     severity: severity !== "all" ? severity : undefined,
     facilityId: facilityId !== "all" ? facilityId : undefined,
+    organizationId: viewingOrgId ?? undefined,
   });
   const { toast } = useToast();
 

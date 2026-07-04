@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useListProfiles, useUpdateProfile, useCreateUserViaAdmin, useAdminUpdateUser,
   type Profile,
 } from "@/hooks/useProfiles";
 import { useListOrganizations } from "@/hooks/useOrganizations";
+import { useViewingOrg } from "@/lib/viewingOrg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,13 +72,20 @@ type SortField = "name" | "role" | "status";
 export default function Users() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { viewingOrgId } = useViewingOrg();
 
   const isPlatformAdmin = user?.role === "platform_admin";
   const assignableRoles = ASSIGNABLE_ROLES[(user?.role as Role) ?? "employee"] ?? [];
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
-  const [orgFilter, setOrgFilter] = useState<string>("all");
+  const [orgFilter, setOrgFilter] = useState<string>(() => viewingOrgId ?? "all");
+
+  // Keep this page's org filter in sync with the header's "Viewing as Org" selector,
+  // while still letting platform_admin override it locally via the dropdown below.
+  useEffect(() => {
+    setOrgFilter(viewingOrgId ?? "all");
+  }, [viewingOrgId]);
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);

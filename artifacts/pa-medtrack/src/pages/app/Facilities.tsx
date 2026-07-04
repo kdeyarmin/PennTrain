@@ -13,6 +13,7 @@ import {
 import { Building2, ChevronRight, MapPin, Phone, Plus, Pencil, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
+import { useViewingOrg } from "@/lib/viewingOrg";
 import { useToast } from "@/hooks/use-toast";
 
 interface FacilityFormData {
@@ -36,8 +37,9 @@ const EMPTY_FORM: FacilityFormData = {
 };
 
 export default function Facilities() {
-  const { data: facilities, isLoading } = useListFacilities();
   const { user } = useAuth();
+  const { viewingOrgId } = useViewingOrg();
+  const { data: facilities, isLoading } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
   const { toast } = useToast();
   const basePath = user?.role === "platform_admin" ? "/admin/facilities" : "/app/facilities";
 

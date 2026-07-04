@@ -9,6 +9,7 @@ export interface ListAlertsFilters {
   facilityId?: string;
   status?: string;
   severity?: string;
+  organizationId?: string;
 }
 
 export function useListAlerts(filters: ListAlertsFilters = {}) {
@@ -19,6 +20,7 @@ export function useListAlerts(filters: ListAlertsFilters = {}) {
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
       if (filters.status) query = query.eq("status", filters.status);
       if (filters.severity) query = query.eq("severity", filters.severity);
+      if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
       const { data, error } = await query;
       if (error) throw error;
       return data;

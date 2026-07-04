@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { queryClient } from "@/lib/queryClient";
 import { AuthProvider } from "@/lib/auth";
+import { ViewingOrgProvider } from "@/lib/viewingOrg";
 import NotFound from "@/pages/not-found";
 
 import Login from "@/pages/auth/Login";
@@ -295,7 +296,9 @@ function AppInner() {
   return (
     <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
       <AuthProvider>
-        <Router />
+        <ViewingOrgProvider>
+          <Router />
+        </ViewingOrgProvider>
       </AuthProvider>
     </WouterRouter>
   );

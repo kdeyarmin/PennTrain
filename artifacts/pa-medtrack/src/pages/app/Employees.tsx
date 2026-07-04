@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Users, Search, ChevronLeft, ChevronRight, UserPlus, Pencil, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
+import { useViewingOrg } from "@/lib/viewingOrg";
 import { useToast } from "@/hooks/use-toast";
 
 interface EmpFormData {
@@ -57,6 +58,7 @@ export default function Employees() {
   const [form, setForm] = useState<EmpFormData>(EMPTY_EMP);
 
   const { user } = useAuth();
+  const { viewingOrgId } = useViewingOrg();
   const { toast } = useToast();
   const basePath = user?.role === "platform_admin" ? "/admin/employees"
     : user?.role === "trainer" ? "/trainer/employees"
@@ -67,8 +69,9 @@ export default function Employees() {
   const { data: employees, isLoading } = useListEmployees({
     facilityId: facilityId !== "all" ? facilityId : undefined,
     status: status !== "all" ? status : undefined,
+    organizationId: viewingOrgId ?? undefined,
   });
-  const { data: facilities } = useListFacilities();
+  const { data: facilities } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
 
   const { mutate: createEmployee, isPending: creating } = useCreateEmployee();
   const { mutate: updateEmployee, isPending: updating } = useUpdateEmployee();

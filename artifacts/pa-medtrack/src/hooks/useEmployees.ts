@@ -9,6 +9,7 @@ export type EmployeeUpdate = TablesUpdate<"employees">;
 export interface ListEmployeesFilters {
   facilityId?: string;
   status?: string;
+  organizationId?: string;
 }
 
 export function useListEmployees(filters: ListEmployeesFilters = {}) {
@@ -18,6 +19,7 @@ export function useListEmployees(filters: ListEmployeesFilters = {}) {
       let query = supabase.from("employees").select("*").order("last_name");
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
       if (filters.status) query = query.eq("status", filters.status);
+      if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
       const { data, error } = await query;
       if (error) throw error;
       return data;

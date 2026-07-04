@@ -9,11 +9,13 @@ import { useGetOrganization, useGetOrganizationStats, useUpdateOrganization } fr
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useGetPackage, useListPackages } from "@/hooks/usePackages";
 import { useToast } from "@/hooks/use-toast";
+import { useViewingOrg } from "@/lib/viewingOrg";
 
 export default function OrganizationDetail() {
   const [, params] = useRoute("/admin/organizations/:id");
   const id = params?.id;
   const { toast } = useToast();
+  const { viewingOrgId, setViewingOrgId } = useViewingOrg();
 
   const { data: org, isLoading: orgLoading } = useGetOrganization(id);
   const { data: stats, isLoading: statsLoading } = useGetOrganizationStats(id);
@@ -101,10 +103,17 @@ export default function OrganizationDetail() {
                 {org.plan_name && <Badge variant="outline">{org.plan_name}</Badge>}
               </div>
             </div>
-            <Badge variant="outline" className="shrink-0 gap-1.5 py-1.5 px-3">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              Viewing as Platform Admin — full access
-            </Badge>
+            {viewingOrgId === id ? (
+              <Badge variant="default" className="shrink-0 gap-1.5 py-1.5 px-3">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Currently viewing this org
+              </Badge>
+            ) : (
+              <Button variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={() => setViewingOrgId(id)}>
+                <ShieldCheck className="h-3.5 w-3.5" />
+                View as this org
+              </Button>
+            )}
           </div>
         </div>
       </div>
