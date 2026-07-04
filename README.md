@@ -58,4 +58,4 @@ must be declared in `supabase/config.toml` to auto-deploy via the Supabase GitHu
 | auditor | auditor@sunrisehealthcare.com | demo123 |
 | org_admin | admin@maplegrove.com | demo123 |
 
-See `replit.md` for the full architecture writeup (RLS model, storage buckets, Edge Functions, route map).
+See `ARCHITECTURE.md` for the full architecture writeup (RLS model, storage buckets, Edge Functions, route map).
