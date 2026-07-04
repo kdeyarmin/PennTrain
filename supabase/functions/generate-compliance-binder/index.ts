@@ -160,16 +160,50 @@ Deno.serve(async (req: Request) => {
     .single();
   if (orgError || !org) return json({ error: "organization not found" }, 404);
 
+  // facility_manager is otherwise constrained org-wide to their assigned facilities (via
+  // facility_assignments/is_assigned_to_facility()); the queries below run on the service-role
+  // client and bypass RLS entirely, so that scoping has to be applied explicitly here too --
+  // without it a facility_manager's binder would leak every other facility's staff/compliance
+  // data in the same org.
+  let facilityScope: string[] | null = null;
+  if (callerProfile.role === "facility_manager") {
+    const { data: assignments, error: assignmentsError } = await callerClient
+      .from("facility_assignments")
+      .select("facility_id")
+      .eq("profile_id", callerUser.id);
+    if (assignmentsError) return json({ error: assignmentsError.message }, 500);
+    facilityScope = (assignments ?? []).map((a) => a.facility_id);
+    if (facilityScope.length === 0) {
+      return json({ error: "no facilities assigned to this account" }, 403);
+    }
+  }
+
+  let facilitiesQuery = adminClient.from("facilities").select("id, name, facility_type, license_number").eq("organization_id", orgId).order("name");
+  let employeesQuery = adminClient.from("employees").select("id, first_name, last_name, facility_id, status").eq("organization_id", orgId);
+  let recordsQuery = adminClient
+    .from("employee_training_records")
+    .select("status, due_date, employee_id, facility_id, training_types(name)")
+    .eq("organization_id", orgId);
+  let practicumsQuery = adminClient.from("practicums").select("status, due_date, employee_id, facility_id").eq("organization_id", orgId);
+  let certCountQuery = adminClient.from("certificates").select("id", { count: "exact", head: true }).eq("organization_id", orgId);
+  let alertsQuery = adminClient.from("alerts").select("severity, title, created_at").eq("organization_id", orgId).eq("status", "open").order("severity");
+
+  if (facilityScope) {
+    facilitiesQuery = facilitiesQuery.in("id", facilityScope);
+    employeesQuery = employeesQuery.in("facility_id", facilityScope);
+    recordsQuery = recordsQuery.in("facility_id", facilityScope);
+    practicumsQuery = practicumsQuery.in("facility_id", facilityScope);
+    certCountQuery = certCountQuery.in("facility_id", facilityScope);
+    alertsQuery = alertsQuery.in("facility_id", facilityScope);
+  }
+
   const [facilitiesRes, employeesRes, recordsRes, practicumsRes, certCountRes, alertsRes] = await Promise.all([
-    adminClient.from("facilities").select("id, name, facility_type, license_number").eq("organization_id", orgId).order("name"),
-    adminClient.from("employees").select("id, first_name, last_name, facility_id, status").eq("organization_id", orgId),
-    adminClient
-      .from("employee_training_records")
-      .select("status, due_date, employee_id, facility_id, training_types(name)")
-      .eq("organization_id", orgId),
-    adminClient.from("practicums").select("status, due_date, employee_id, facility_id").eq("organization_id", orgId),
-    adminClient.from("certificates").select("id", { count: "exact", head: true }).eq("organization_id", orgId),
-    adminClient.from("alerts").select("severity, title, created_at").eq("organization_id", orgId).eq("status", "open").order("severity"),
+    facilitiesQuery,
+    employeesQuery,
+    recordsQuery,
+    practicumsQuery,
+    certCountQuery,
+    alertsQuery,
   ]);
 
   if (facilitiesRes.error) return json({ error: facilitiesRes.error.message }, 500);
