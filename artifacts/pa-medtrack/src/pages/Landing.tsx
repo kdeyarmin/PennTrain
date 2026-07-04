@@ -35,6 +35,7 @@ import {
   Database,
   Lock,
   History,
+  type LucideIcon,
 } from "lucide-react";
 
 const SETTINGS = [
@@ -261,6 +262,33 @@ function Reveal({
   );
 }
 
+/** Faint blueprint grid used on the dark navy surfaces (hero, security, CTA). */
+function TechGrid({ className = "" }: { className?: string }) {
+  return (
+    <div
+      aria-hidden
+      className={`absolute inset-0 ${className}`}
+      style={{
+        backgroundImage:
+          "repeating-linear-gradient(to bottom, transparent, transparent 31px, rgba(255,255,255,0.05) 32px), repeating-linear-gradient(to right, transparent, transparent 31px, rgba(255,255,255,0.05) 32px)",
+      }}
+    />
+  );
+}
+
+/** Corner-bracketed icon badge -- a precision-instrument mark for the dark security cards. */
+function TechIcon({ icon: Icon }: { icon: LucideIcon }) {
+  return (
+    <div className="relative flex h-10 w-10 shrink-0 items-center justify-center">
+      <span aria-hidden className="absolute left-0 top-0 h-2.5 w-2.5 border-l border-t border-[#59b2ff]/40" />
+      <span aria-hidden className="absolute right-0 top-0 h-2.5 w-2.5 border-r border-t border-[#59b2ff]/40" />
+      <span aria-hidden className="absolute bottom-0 left-0 h-2.5 w-2.5 border-b border-l border-[#59b2ff]/40" />
+      <span aria-hidden className="absolute bottom-0 right-0 h-2.5 w-2.5 border-b border-r border-[#59b2ff]/40" />
+      <Icon className="h-5 w-5 text-[#59b2ff]" />
+    </div>
+  );
+}
+
 function SectionLabel({ index, children }: { index: string; children: ReactNode }) {
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-primary/70">
@@ -323,27 +351,24 @@ export default function Landing() {
       </header>
 
       {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-50 to-blue-50/30" />
-        <div
-          aria-hidden
-          className="absolute inset-0 [background-image:repeating-linear-gradient(to_bottom,transparent,transparent_31px,hsl(var(--primary)/0.07)_32px)]"
-        />
-        <div className="absolute top-0 right-0 w-[520px] h-[520px] bg-primary/[0.06] rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
+      <section className="relative overflow-hidden bg-gradient-to-br from-[#0a1a2e] via-[#102a43] to-[#16324f] text-white">
+        <TechGrid />
+        <div className="absolute top-0 right-0 w-[560px] h-[560px] bg-[#59b2ff]/[0.10] rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
+        <div className="absolute bottom-0 left-0 w-[360px] h-[360px] bg-[#59b2ff]/[0.06] rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
 
         <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
           <div className="grid items-center gap-12 lg:grid-cols-2">
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-700">
-              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-primary/70">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-[#8eceff]">
                 <span className="whitespace-nowrap tabular-nums">Rec. 2600-T</span>
-                <span aria-hidden className="hidden h-px w-8 bg-primary/25 sm:block" />
+                <span aria-hidden className="hidden h-px w-8 bg-[#8eceff]/30 sm:block" />
                 <span className="whitespace-nowrap">Compliance Training Platform</span>
               </div>
               <h1 className="mt-5 text-balance text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-[52px] lg:leading-[1.05]">
                 Compliance training that keeps your facility{" "}
-                <span className="whitespace-nowrap text-primary">survey-ready</span>, every day.
+                <span className="whitespace-nowrap text-[#59b2ff]">survey-ready</span>, every day.
               </h1>
-              <p className="mt-6 max-w-xl text-lg text-muted-foreground">
+              <p className="mt-6 max-w-xl text-lg text-white/70">
                 CareMetric Train is the compliance-training platform and LMS built for
                 personal care homes, nursing homes, home health, and hospice agencies --
                 replacing spreadsheets and paper binders with one system of record for
@@ -357,28 +382,41 @@ export default function Landing() {
                   </Button>
                 </a>
                 <Link href="/login">
-                  <Button size="lg" variant="outline" data-testid="button-hero-login">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="border-white/25 bg-transparent text-white hover:bg-white/10"
+                    data-testid="button-hero-login"
+                  >
                     Log In
                   </Button>
                 </Link>
               </div>
-              <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+              <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-white/60">
                 <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-primary" /> Role-based access
+                  <CheckCircle2 className="h-4 w-4 text-[#59b2ff]" /> Role-based access
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-primary" /> Survey-ready reporting
+                  <CheckCircle2 className="h-4 w-4 text-[#59b2ff]" /> Survey-ready reporting
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-primary" /> Built on Supabase security
+                  <CheckCircle2 className="h-4 w-4 text-[#59b2ff]" /> Built on Supabase security
                 </span>
               </div>
             </div>
 
             {/* Product preview mock */}
             <div className="relative animate-in fade-in slide-in-from-bottom-4 duration-700 [animation-delay:150ms] [animation-fill-mode:backwards]">
-              <Card className="border-border/60 shadow-2xl shadow-black/[0.06]">
-                <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-border/60 pb-4">
+              <Card className="overflow-hidden border-white/10 shadow-2xl shadow-black/30 ring-1 ring-white/5">
+                <div className="flex items-center gap-1.5 border-b border-border/60 bg-muted/40 px-4 py-2.5">
+                  <span className="h-2.5 w-2.5 rounded-full bg-destructive/40" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-warning/40" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-success/40" />
+                  <span className="ml-2 font-mono text-[10px] tracking-wide text-muted-foreground/70">
+                    CareMetric Train / Dashboard
+                  </span>
+                </div>
+                <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-border/60 py-4">
                   <div className="flex items-center gap-2">
                     <LogoMark className="h-7 w-7" />
                     <div>
@@ -414,7 +452,7 @@ export default function Landing() {
                   ))}
                 </CardContent>
               </Card>
-              <div className="absolute -bottom-5 -left-5 hidden rounded-xl border border-border/60 bg-card px-4 py-3 shadow-xl sm:block">
+              <div className="absolute -bottom-5 -left-5 hidden rounded-xl border border-border/60 bg-card px-4 py-3 text-card-foreground shadow-xl sm:block">
                 <div className="flex items-center gap-2 text-xs font-semibold">
                   <FileStack className="h-4 w-4 text-primary" />
                   Compliance Binder generated
@@ -552,37 +590,45 @@ export default function Landing() {
       </section>
 
       {/* Security & Compliance */}
-      <section id="security" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-        <Reveal className="mx-auto max-w-2xl text-center">
-          <SectionLabel index="04">Security</SectionLabel>
-          <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
-            Enterprise-grade security, built in
-          </h2>
-          <p className="mt-4 text-muted-foreground">
-            Your training and compliance data is sensitive. It's protected at the
-            database layer, not bolted on as an afterthought.
-          </p>
-        </Reveal>
+      <section
+        id="security"
+        className="relative overflow-hidden bg-gradient-to-br from-[#0a1a2e] via-[#102a43] to-[#16324f] text-white"
+      >
+        <TechGrid />
+        <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-[#8eceff]">
+              <span className="whitespace-nowrap tabular-nums">§ 04</span>
+              <span aria-hidden className="hidden h-px w-8 bg-[#8eceff]/30 sm:block" />
+              <span className="whitespace-nowrap">Security</span>
+            </div>
+            <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
+              Enterprise-grade security, built in
+            </h2>
+            <p className="mt-4 text-white/60">
+              Your training and compliance data is sensitive. It's protected at the
+              database layer, not bolted on as an afterthought.
+            </p>
+          </Reveal>
 
-        <div className="mt-12 grid gap-6 sm:grid-cols-2">
-          {SECURITY_FEATURES.map((feature, i) => (
-            <Reveal key={feature.title} delay={(i % 2) * 0.08}>
-              <div className="relative flex h-full gap-4 rounded-xl border border-border/60 bg-card p-6 transition-colors hover:border-primary/30">
-                <span className="absolute right-4 top-4 font-mono text-[10px] tabular-nums text-muted-foreground/40">
-                  CTRL-{String(i + 1).padStart(2, "0")}
-                </span>
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                  <feature.icon className="h-5 w-5 text-primary" />
+          <div className="mt-12 grid gap-6 sm:grid-cols-2">
+            {SECURITY_FEATURES.map((feature, i) => (
+              <Reveal key={feature.title} delay={(i % 2) * 0.08}>
+                <div className="relative flex h-full gap-4 rounded-xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-sm transition-colors hover:border-[#59b2ff]/40">
+                  <span className="absolute right-4 top-4 font-mono text-[10px] tabular-nums text-white/30">
+                    CTRL-{String(i + 1).padStart(2, "0")}
+                  </span>
+                  <TechIcon icon={feature.icon} />
+                  <div>
+                    <h3 className="font-semibold text-white">{feature.title}</h3>
+                    <p className="mt-1.5 text-sm text-white/60">
+                      {feature.description}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold">{feature.title}</h3>
-                  <p className="mt-1.5 text-sm text-muted-foreground">
-                    {feature.description}
-                  </p>
-                </div>
-              </div>
-            </Reveal>
-          ))}
+              </Reveal>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -642,13 +688,10 @@ export default function Landing() {
       {/* CTA banner */}
       <section
         id="contact"
-        className="relative overflow-hidden bg-gradient-to-br from-[#102a43] via-[#1e3a5f] to-[#243b53] text-white"
+        className="relative overflow-hidden bg-gradient-to-br from-[#0a1a2e] via-[#102a43] to-[#16324f] text-white"
       >
-        <div
-          aria-hidden
-          className="absolute inset-0 [background-image:repeating-linear-gradient(to_bottom,transparent,transparent_31px,rgba(255,255,255,0.05)_32px)]"
-        />
-        <div className="absolute inset-0 opacity-20 [background:radial-gradient(circle_at_top_right,white,transparent_60%)]" />
+        <TechGrid />
+        <div className="absolute inset-0 opacity-20 [background:radial-gradient(circle_at_top_right,#59b2ff,transparent_60%)]" />
         <Reveal className="relative mx-auto max-w-4xl px-4 py-20 text-center sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-white/60">
             <span className="whitespace-nowrap tabular-nums">§ 07</span>
