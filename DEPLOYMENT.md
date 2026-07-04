@@ -61,19 +61,17 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
      > artifacts/pa-medtrack/src/lib/database.types.ts
    ```
 
-### Recommended Supabase hardening (not applied by this change -- do in the dashboard when convenient)
-
-Running `get_advisors` against the live project surfaced two items worth a look before go-live:
+### Remaining recommended Supabase hardening (one manual dashboard step)
 
 - **Leaked password protection is disabled** (Authentication -> Policies): enable it to reject
-  passwords found in known breach corpora (HaveIBeenPwned).
-- `public.audit_log_trigger()` is a trigger-only function but, like Postgres's default grant
-  behavior, is technically callable by `anon`/`authenticated` via `/rest/v1/rpc/`. It does nothing
-  harmful if called directly (it fires on trigger context), but you can tighten this with
-  `revoke execute on function public.audit_log_trigger() from anon, authenticated;` if you want to
-  clear the advisor warning.
+  passwords found in known breach corpora (HaveIBeenPwned). This is an Auth-config toggle, not a
+  SQL migration, so it has to be flipped in the dashboard (or via the Management API) rather than
+  applied automatically.
 
-Everything else the advisors reported (a handful of unindexed foreign keys, a few unused indexes,
+See section 7 ("Security notes") for the database-level security fixes that *were* applied via
+migration during this change, including one critical finding.
+
+Everything else `get_advisors` reports (a handful of unindexed foreign keys, a few unused indexes,
 duplicate-permissive-policy performance notes) predates this change and is a schema-tuning exercise
 independent of the Railway/Supabase wiring -- left untouched to avoid touching a live database with
 real tenant data outside the scope of this task.
@@ -119,6 +117,7 @@ can see the whole workspace and lockfile.
 | `VITE_SUPABASE_ANON_KEY` | yes | anon/publishable key -- safe for the browser, RLS is the real gate |
 | `NODE_ENV` | recommended | set to `production` |
 | `PORT` | no | Railway injects this automatically; the server reads it |
+| `BASE_PATH` | no | build-time only; only needed if served from a non-root subpath |
 
 Not needed for this repo (and intentionally left out of `.env.example` -- see the comments there for
 why): `DATABASE_URL`, `NEXT_PUBLIC_*` (this is Vite, not Next.js), `SESSION_SECRET`/`AUTH_SECRET`
@@ -126,6 +125,12 @@ why): `DATABASE_URL`, `NEXT_PUBLIC_*` (this is Vite, not Next.js), `SESSION_SECR
 `RESEND_API_KEY` (no billing or transactional-email integration exists in this codebase today).
 `SUPABASE_SERVICE_ROLE_KEY` must never be set on the Railway service -- it belongs only in Supabase
 Edge Function secrets.
+
+**Do not set `VITE_OPENAI_API_KEY`.** `src/lib/caremetricAi.ts` reads it and its own fallback
+message suggests adding it, but any `VITE_`-prefixed variable is baked into the public client
+bundle at build time -- unlike the anon key, an OpenAI key has no RLS-style gate and is directly
+billable/misusable by anyone who reads the bundle. If this feature is ever wired to a real OpenAI
+call, proxy it through a Supabase Edge Function the same way `HEYGEN_API_KEY` already is.
 
 ## 3. Local development
 
@@ -198,6 +203,67 @@ them from scratch:
 
 ## 7. Security notes
 
+### Fixes applied in this change (adversarial production audit)
+
+A follow-up audit of this Railway/Supabase wiring, run against the live project, surfaced and fixed
+four real database-level issues (in addition to the app-level fixes described elsewhere in this
+doc). All were verified with rollback-safe transaction tests against the live project (insert,
+inspect, `rollback` -- zero data persisted) before being written up here.
+
+- **Critical -- account-takeover via public signup**
+  (`20260704180244_fix_handle_new_user_trust_boundary.sql`): `handle_new_user()` populated
+  `profiles.role`/`profiles.organization_id` -- the two columns every RLS policy keys off of --
+  directly from `auth.users.raw_user_meta_data`, which is exactly the field an unauthenticated
+  caller controls via a plain `POST /auth/v1/signup` request using only the public anon key. Since
+  this Supabase project currently has self-service email signup **enabled**, anyone could have
+  self-registered as `platform_admin` with a spoofed `organization_id`, bypassing the app's own
+  admin-gated `create-user` Edge Function entirely. Fixed by reading role/organization_id from
+  `raw_app_meta_data` instead -- a field only settable via the service-role Admin API, never by the
+  public signup endpoint -- and updating `create-user`'s Edge Function to set it there (redeployed
+  as part of this fix, so admin-provisioned account creation is unaffected). **Recommended
+  additional step**: disable public email signup entirely in Authentication -> Providers unless
+  self-service signup is an intended product feature; this fix closes the privilege-escalation path
+  regardless, but signup is not otherwise used by this app's UI (see `replit.md` "Roles").
+- **High -- unauthenticated cross-tenant RPC**
+  (`20260704180605_revoke_public_grant_on_privileged_functions.sql`): a prior migration
+  (`tighten_function_grants.sql`) revoked `EXECUTE` on several `SECURITY DEFINER` functions from
+  the named `anon`/`authenticated` roles, but never from `PUBLIC` -- Postgres grants `EXECUTE` to
+  `PUBLIC` automatically at `CREATE FUNCTION` time, and revoking a named role's grant doesn't touch
+  that separate grant. `recalculate_all_compliance()` (no internal authorization check, mutates
+  `employee_training_records`/`practicums`/`alerts` across every organization) was confirmed
+  callable by `anon` with zero session as a result. Fixed by revoking from `PUBLIC` on that
+  function plus `audit_log_trigger()`, `handle_new_user()`, and `complete_training_class()`, and
+  adding `alter default privileges ... revoke execute on functions from public` so new functions
+  don't inherit the same gap. The existing `authenticated` grants that legitimate app code depends
+  on (`useRecalculateCompliance`, `useTrainingClasses.ts`) were left intact and verified still
+  working.
+- **High/Medium -- facility misattribution**
+  (`20260704180646_stamp_facility_scope_from_employee_on_writes.sql`): `employee_training_records`,
+  `practicums`, and `training_documents` let a client-supplied `facility_id` diverge from the
+  referenced employee's real facility -- a `facility_manager`/`trainer` assigned only to Facility A
+  could insert a record for an employee actually at Facility B while claiming `facility_id=A`,
+  since RLS validated `is_assigned_to_facility(facility_id)` against the caller's claim, not the
+  employee's real assignment. This is the same bug class already fixed for `competency_records` in
+  `20260704164627_fix_codex_review_findings.sql`; this change extends the same
+  `stamp_scope_from_employee()` trigger to the two `NOT NULL employee_id` tables, and adds a
+  null-safe variant (`stamp_scope_from_employee_if_present()`) for `training_documents`, whose
+  `employee_id` is nullable (facility-wide/roster uploads legitimately have no single employee).
+- **Low -- stale comment** (`useCompetencies.ts`): updated a comment that described
+  `competency_records`' pre-fix trigger behavior to match what's actually in the DB today, and
+  pointed at the sibling-table fix above so it isn't mistaken for a safe pattern to copy.
+
+A few findings from the same audit were reviewed and intentionally **not** changed: several RLS
+helper functions (`current_org_id()`, `is_platform_admin()`, etc.) also carry a leftover `PUBLIC`
+grant, but `authenticated` needs direct `EXECUTE` on them for RLS policies to evaluate at all (a
+policy's `USING`/`WITH CHECK` expression runs with the querying role's privileges), so revoking
+more broadly there risks locking out every signed-in user -- left as accepted, harmless residual
+advisor noise (these functions are auth.uid()-gated internally and return nothing useful to an
+`anon` caller regardless). The `useTrainingRecords.ts`/`usePracticums.ts` update path was not given
+the same server-side re-validation the insert path got, matching the one precedent fix's own scope
+(insert-only) rather than expanding it; treat this as a known, low-severity residual gap.
+
+### Standing security posture
+
 - The service-role key is never referenced anywhere under `artifacts/pa-medtrack/src` or
   `artifacts/pa-medtrack/server` -- confirmed by grep as part of this change. Vite only exposes
   `VITE_`-prefixed variables to the client bundle (`import.meta.env`), which is itself a structural
@@ -208,6 +274,7 @@ them from scratch:
 - `organization_id` spoofing is prevented at the database layer: RLS policies compare against
   `current_org_id()` (derived from the authenticated JWT's `profiles` row), not a client-supplied
   value, so a request cannot claim another org's `organization_id` and have it honored.
+  `facility_id` spoofing (a narrower, in-org concern) is covered by the fix above.
 - **PHI/HIPAA**: this app stores healthcare-adjacent compliance/training data (employee names,
   training records, certificates), not clinical PHI, but treat it with the same care. Before storing
   any real patient-linked data, confirm a Business Associate Agreement (BAA) is in place with both
@@ -230,9 +297,14 @@ Expect `status: "ok"` and `supabase: "configured"`. If `supabaseReachable` is `f
   dashboard -- not scriptable from this repo.
 - Supabase Auth redirect URL and Site URL configuration must be set in the Supabase dashboard once
   you know your Railway domain.
-- The two Supabase advisor findings noted in section 1 (leaked password protection, the
-  `audit_log_trigger` grant) are recommended but not applied by this change -- apply them via a new
-  migration / the dashboard when convenient.
+- Leaked password protection (Authentication -> Policies) is still disabled and must be toggled on
+  manually in the dashboard -- it's an Auth config setting, not something a SQL migration can flip.
+- Public email signup is currently enabled on the live project. The privilege-escalation path this
+  allowed is closed (see section 7), but if self-service signup isn't an intended product feature,
+  disable it in Authentication -> Providers as defense in depth.
+- The `useTrainingRecords.ts`/`usePracticums.ts` **update** path (as opposed to insert) still trusts
+  a client-supplied `facility_id` without re-validation -- a narrower, lower-severity residual gap
+  than the insert-path issue fixed in this change (see section 7).
 - No linter (ESLint/Biome/etc.) is configured in this repo; `pnpm run typecheck` (tsc, no-emit) is
   the static check currently available. Add one separately if desired -- out of scope here.
 - `pnpm run db:migrate` requires `supabase login` + `supabase link --project-ref <ref>` to have been

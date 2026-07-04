@@ -7,11 +7,12 @@
 // healthcheck, since `vite preview` cannot do either safely in production.
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
-import { extname, join, normalize, resolve } from "node:path";
+import { extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const DIST_DIR = resolve(__dirname, "..", "dist", "public");
+const DIST_DIR_WITH_SEP = DIST_DIR + sep;
 const PORT = Number(process.env.PORT) > 0 ? Number(process.env.PORT) : 8080;
 const HOST = "0.0.0.0";
 
@@ -75,7 +76,7 @@ async function handleHealth(_req, res) {
 async function resolveStaticFile(pathname) {
   const safePath = normalize(pathname).replace(/^(\.\.[/\\])+/, "");
   const filePath = join(DIST_DIR, safePath);
-  if (!filePath.startsWith(DIST_DIR)) return null;
+  if (filePath !== DIST_DIR && !filePath.startsWith(DIST_DIR_WITH_SEP)) return null;
   try {
     const info = await stat(filePath);
     if (info.isFile()) return filePath;
@@ -113,6 +114,17 @@ const server = createServer(async (req, res) => {
     const staticFile = await resolveStaticFile(url.pathname);
     if (staticFile) {
       await serveFile(staticFile, res, { cacheable: url.pathname.startsWith("/assets/") });
+      return;
+    }
+
+    // A missing asset (hashed bundle chunk, image, font -- anything under /assets/ or with a
+    // file extension) is a real 404, not an app route. Falling back to index.html for these
+    // would return 200 text/html for a request that's actually broken -- e.g. a stale browser
+    // tab requesting a pre-redeploy chunk filename -- defeating status-code-based existence
+    // checks and polluting logs/monitoring with false 200s.
+    if (url.pathname.startsWith("/assets/") || extname(url.pathname)) {
+      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Not Found");
       return;
     }
 
