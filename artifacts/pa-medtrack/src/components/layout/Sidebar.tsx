@@ -72,6 +72,7 @@ export function Sidebar() {
           { href: "/app/training-matrix", label: "Training Matrix", icon: Grid },
           { href: "/app/caremetric", label: "LMS Suite", icon: BookOpen },
           { href: "/app/courses", label: "Courses", icon: GraduationCap },
+          { href: "/app/course-assignments", label: "Course Assignments", icon: FileCheck },
           { href: "/app/assignments", label: "Assignments", icon: FileCheck },
           { href: "/app/practicums", label: "Practicums", icon: FileCheck },
         ]
@@ -129,6 +130,7 @@ export function Sidebar() {
           { href: "/me", label: "My Training", icon: LayoutDashboard },
           { href: "/me/trainings", label: "Training Records", icon: GraduationCap },
           { href: "/me/caremetric", label: "Course Center", icon: BookOpen },
+          { href: "/me/certificates", label: "My Certificates", icon: FileCheck },
           { href: "/me/documents", label: "My Documents", icon: Files },
         ]
       }
