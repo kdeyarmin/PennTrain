@@ -22,15 +22,15 @@ The frontend is served by Vite. The API server uses the existing Express routes 
 
 ## Demo users
 
-Create these users in Supabase Auth or the existing local auth store, all with password `DemoPass!2026`:
+Create these users in the existing local auth store (or Supabase Auth once integrated), all with password `DemoPass!2026`:
 
-- `super@caremetric.test` — Super Admin
-- `admin@caremetric.test` — Organization Admin
-- `facility@caremetric.test` — Facility Admin
-- `trainer@caremetric.test` — Instructor / Trainer
-- `learner@caremetric.test` — Learner / Staff Member
-- `auditor@caremetric.test` — Auditor / Read-Only Consultant
+- `super@caremetric.test` — platform_admin
+- `admin@caremetric.test` — org_admin
+- `facility@caremetric.test` — facility_manager
+- `trainer@caremetric.test` — trainer
+- `learner@caremetric.test` — employee
 
+(An auditor/read-only role is not wired into the current app role enum yet.)
 ## Database setup
 
 1. Create a Supabase project.
