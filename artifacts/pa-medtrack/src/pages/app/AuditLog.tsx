@@ -1,4 +1,4 @@
-import { useListAuditLogs, type AuditLog } from "@workspace/api-client-react";
+import { useListAuditLogs } from "@/hooks/useAuditLogs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShieldAlert } from "lucide-react";
 
@@ -12,7 +12,7 @@ const ACTION_COLORS: Record<string, string> = {
 
 export default function AuditLog() {
   const { data: logsData, isLoading } = useListAuditLogs({ limit: 100 });
-  const logs: AuditLog[] = logsData?.logs ?? [];
+  const logs = logsData ?? [];
 
   return (
     <div className="space-y-6">
@@ -42,12 +42,12 @@ export default function AuditLog() {
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${ACTION_COLORS[log.action] ?? "bg-gray-100 text-gray-800"}`}>
                         {log.action}
                       </span>
-                      <span className="text-sm font-medium capitalize">{log.entityType?.replace(/_/g, " ")}</span>
-                      {log.entityId && <span className="text-xs text-muted-foreground">#{log.entityId}</span>}
+                      <span className="text-sm font-medium capitalize">{log.entity_type?.replace(/_/g, " ")}</span>
+                      {log.entity_id && <span className="text-xs text-muted-foreground">#{log.entity_id}</span>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      User #{log.userId ?? "System"} · {new Date(log.createdAt).toLocaleString()}
-                      {log.ipAddress && ` · ${log.ipAddress}`}
+                      User #{log.actor_profile_id ?? "System"} · {new Date(log.created_at).toLocaleString()}
+                      {log.ip_address && ` · ${log.ip_address}`}
                     </p>
                   </div>
                 </div>
