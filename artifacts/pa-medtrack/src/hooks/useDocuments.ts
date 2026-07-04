@@ -8,6 +8,10 @@ export interface ListDocumentsFilters {
   employeeId?: string;
   facilityId?: string;
   documentType?: string;
+  /** Match any of several document_type values (e.g. the external-certificate review queue,
+   * which cares about 'certificate' | 'external_certificate' | 'transcript' at once). Takes
+   * precedence over `documentType` if both are supplied. */
+  documentTypes?: string[];
 }
 
 export function useListDocuments(filters: ListDocumentsFilters = {}) {
@@ -17,7 +21,8 @@ export function useListDocuments(filters: ListDocumentsFilters = {}) {
       let query = supabase.from("training_documents").select("*").order("created_at", { ascending: false });
       if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.documentType) query = query.eq("document_type", filters.documentType);
+      if (filters.documentTypes?.length) query = query.in("document_type", filters.documentTypes);
+      else if (filters.documentType) query = query.eq("document_type", filters.documentType);
       const { data, error } = await query;
       if (error) throw error;
       return data;
