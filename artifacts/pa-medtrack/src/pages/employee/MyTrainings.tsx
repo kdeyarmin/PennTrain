@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { useListTrainingRecords } from "@workspace/api-client-react";
+import { useAuth } from "@/lib/auth";
+import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
+import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
+import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -7,31 +10,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { GraduationCap, Search, ChevronLeft, ChevronRight } from "lucide-react";
 
-type TrainingRecord = {
-  id: number;
-  status: string;
-  completionDate?: string | null;
-  dueDate?: string | null;
-  trainingTypeName?: string | null;
-};
-
 const PAGE_SIZE = 10;
 
 export default function MyTrainings() {
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortField, setSortField] = useState<"dueDate" | "status" | "trainingTypeName">("dueDate");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
 
-  const { data: records, isLoading } = useListTrainingRecords({});
-  const allRecords = (records as TrainingRecord[] | undefined) ?? [];
+  const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
+  const { data: records, isLoading: recordsLoading } = useListTrainingRecords({ employeeId: employee?.id });
+  const { data: trainingTypes } = useListTrainingTypes();
+
+  const isLoading = employeeLoading || recordsLoading;
+  const allRecords = records ?? [];
+
+  const typeNameById = new Map((trainingTypes ?? []).map(t => [t.id, t.name]));
+  const trainingTypeName = (r: TrainingRecord) => typeNameById.get(r.training_type_id) ?? `Training #${r.id.slice(0, 8)}`;
 
   const filtered = allRecords.filter(r => {
     if (statusFilter !== "all" && r.status !== statusFilter) return false;
     if (search) {
       const s = search.toLowerCase();
-      if (!(r.trainingTypeName ?? "").toLowerCase().includes(s)) return false;
+      if (!trainingTypeName(r).toLowerCase().includes(s)) return false;
     }
     return true;
   });
@@ -39,13 +42,13 @@ export default function MyTrainings() {
   const sorted = [...filtered].sort((a, b) => {
     let cmp = 0;
     if (sortField === "dueDate") {
-      const da = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
-      const db_ = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+      const da = a.due_date ? new Date(a.due_date).getTime() : Infinity;
+      const db_ = b.due_date ? new Date(b.due_date).getTime() : Infinity;
       cmp = da - db_;
     } else if (sortField === "status") {
       cmp = (a.status ?? "").localeCompare(b.status ?? "");
     } else if (sortField === "trainingTypeName") {
-      cmp = (a.trainingTypeName ?? "").localeCompare(b.trainingTypeName ?? "");
+      cmp = trainingTypeName(a).localeCompare(trainingTypeName(b));
     }
     return sortDir === "asc" ? cmp : -cmp;
   });
@@ -132,7 +135,7 @@ export default function MyTrainings() {
                   <tbody>
                     {paginated.map(r => (
                       <tr key={r.id} className="border-t hover:bg-muted/30">
-                        <td className="p-3 font-medium">{r.trainingTypeName ?? `Training #${r.id}`}</td>
+                        <td className="p-3 font-medium">{trainingTypeName(r)}</td>
                         <td className="p-3">
                           <Badge variant={
                             r.status === "compliant" ? "default" :
@@ -143,10 +146,10 @@ export default function MyTrainings() {
                           </Badge>
                         </td>
                         <td className="p-3 text-muted-foreground">
-                          {r.dueDate ? new Date(r.dueDate).toLocaleDateString() : "—"}
+                          {r.due_date ? new Date(r.due_date).toLocaleDateString() : "—"}
                         </td>
                         <td className="p-3 text-muted-foreground">
-                          {r.completionDate ? new Date(r.completionDate).toLocaleDateString() : "—"}
+                          {r.completion_date ? new Date(r.completion_date).toLocaleDateString() : "—"}
                         </td>
                       </tr>
                     ))}

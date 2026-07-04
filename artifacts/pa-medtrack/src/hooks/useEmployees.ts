@@ -37,6 +37,18 @@ export function useGetEmployee(id: string | undefined) {
   });
 }
 
+export function useGetEmployeeByProfileId(profileId: string | undefined) {
+  return useQuery({
+    queryKey: ["employees", "by-profile", profileId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("employees").select("*").eq("profile_id", profileId!).single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!profileId,
+  });
+}
+
 export function useCreateEmployee() {
   const queryClient = useQueryClient();
   return useMutation({
