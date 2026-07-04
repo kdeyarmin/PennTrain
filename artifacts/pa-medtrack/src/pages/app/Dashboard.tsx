@@ -44,7 +44,13 @@ function buildActionPlan({
   criticalAlertsCount: number;
   facilities: FacilityComplianceSummary[];
 }): ActionItem[] {
-  const lowestScoringFacility = [...facilities].sort((a, b) => a.complianceScore - b.complianceScore)[0];
+  const lowestScoringFacility = facilities.reduce<FacilityComplianceSummary | undefined>(
+    (lowest, facility) =>
+      !lowest || facility.complianceScore < lowest.complianceScore
+        ? facility
+        : lowest,
+    undefined,
+  );
   const missingDocumentCount = typeof summary?.missingDocumentCount === "number" ? summary.missingDocumentCount : 0;
   const actions: ActionItem[] = [];
 
