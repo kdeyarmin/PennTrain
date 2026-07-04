@@ -1,9 +1,10 @@
 import { useGetDashboardSummary, useListAlerts, useListFacilities, useGetComplianceByFacility } from "@workspace/api-client-react";
+import type { FacilityComplianceSummary } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Building2, Users, AlertTriangle, CheckCircle, Clock, XCircle, AlertCircle, ChevronRight, TrendingUp, Shield, Activity, UserPlus, FileText, LayoutGrid, Bell, GraduationCap, Upload } from "lucide-react";
+import { Building2, Users, AlertTriangle, CheckCircle, Clock, XCircle, AlertCircle, ChevronRight, TrendingUp, Shield, Activity, UserPlus, FileText, LayoutGrid, Bell, GraduationCap, Upload, Download, type LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 
 interface RecentUpload {
@@ -16,9 +17,84 @@ interface RecentUpload {
 interface ExtendedSummary {
   recentUploads?: RecentUpload[];
   dueSoon90Count?: number;
+  expiredCount?: number;
+  missingDocumentCount?: number;
+  criticalAlertsCount?: number;
   trainersDueForRecert?: number;
   recentUploadsCount?: number;
   [key: string]: unknown;
+}
+
+interface ActionItem {
+  id: string;
+  title: string;
+  description: string;
+  href: string;
+  label: string;
+  priority: "Critical" | "High" | "Medium";
+  icon: LucideIcon;
+}
+
+function buildActionPlan({
+  summary,
+  criticalAlertsCount,
+  facilities,
+}: {
+  summary: ExtendedSummary | undefined;
+  criticalAlertsCount: number;
+  facilities: FacilityComplianceSummary[];
+}): ActionItem[] {
+  const lowestScoringFacility = [...facilities].sort((a, b) => a.complianceScore - b.complianceScore)[0];
+  const missingDocumentCount = typeof summary?.missingDocumentCount === "number" ? summary.missingDocumentCount : 0;
+  const actions: ActionItem[] = [];
+
+  if (criticalAlertsCount > 0) actions.push({
+    id: "critical-alerts",
+    title: `${criticalAlertsCount} critical alert${criticalAlertsCount === 1 ? "" : "s"} open`,
+    description: "Review critical alerts before they become survey findings.",
+    href: "/app/alerts",
+    label: "Review alerts",
+    priority: "Critical",
+    icon: AlertCircle,
+  });
+  if ((summary?.expiredCount ?? 0) > 0) actions.push({
+    id: "expired-training",
+    title: `${summary?.expiredCount ?? 0} expired training record${(summary?.expiredCount ?? 0) === 1 ? "" : "s"}`,
+    description: "Schedule retraining and update records for expired requirements.",
+    href: "/app/reports",
+    label: "Run expired report",
+    priority: "Critical",
+    icon: XCircle,
+  });
+  if ((summary?.dueSoon90Count ?? 0) > 0) actions.push({
+    id: "due-soon",
+    title: `${summary?.dueSoon90Count ?? 0} training item${(summary?.dueSoon90Count ?? 0) === 1 ? "" : "s"} due within 90 days`,
+    description: "Prioritize upcoming renewals to avoid compliance gaps.",
+    href: "/app/training-matrix",
+    label: "Open matrix",
+    priority: "High",
+    icon: Clock,
+  });
+  if (missingDocumentCount > 0) actions.push({
+    id: "missing-documents",
+    title: `${missingDocumentCount} missing training document${missingDocumentCount === 1 ? "" : "s"}`,
+    description: "Upload certificates, rosters, and supporting documentation.",
+    href: "/app/documents",
+    label: "Upload documents",
+    priority: "High",
+    icon: Upload,
+  });
+  if (lowestScoringFacility && lowestScoringFacility.complianceScore < 90) actions.push({
+    id: "facility-focus",
+    title: `${lowestScoringFacility.facilityName} is at ${lowestScoringFacility.complianceScore}%`,
+    description: "Focus remediation on the facility with the lowest compliance score.",
+    href: `/app/facilities/${lowestScoringFacility.facilityId}`,
+    label: "View facility",
+    priority: lowestScoringFacility.complianceScore < 75 ? "Critical" : "Medium",
+    icon: Building2,
+  });
+
+  return actions.slice(0, 4);
 }
 
 function DonutChart({ percentage, size = 140, strokeWidth = 12 }: { percentage: number; size?: number; strokeWidth?: number }) {
@@ -84,7 +160,9 @@ export default function OrgDashboard() {
   const { data: facilities } = useListFacilities({});
   const { data: facilityCompliance } = useGetComplianceByFacility({});
 
+  const ext = summary as unknown as ExtendedSummary | undefined;
   const criticalAlerts = alerts?.filter(a => a.severity === "critical") ?? [];
+  const criticalAlertsCount = ext?.criticalAlertsCount ?? criticalAlerts.length;
   const compliancePct = summary?.compliancePercentage ?? 100;
 
   const complianceColor = compliancePct >= 90 ? "text-emerald-600" : compliancePct >= 75 ? "text-amber-600" : "text-red-600";
@@ -97,8 +175,27 @@ export default function OrgDashboard() {
     (facilityCompliance ?? []).map(fc => [fc.facilityId, fc])
   );
 
-  const ext = summary as unknown as ExtendedSummary | undefined;
   const recentUploads = ext?.recentUploads;
+  const actionPlan = buildActionPlan({
+    summary: ext,
+    criticalAlertsCount,
+    facilities: (facilityCompliance ?? []) as FacilityComplianceSummary[],
+  });
+
+  const exportActionPlan = () => {
+    const rows = [
+      ["Priority", "Action", "Details"],
+      ...actionPlan.map(action => [action.priority, action.title, action.description]),
+    ];
+    const csv = rows.map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `pa-medtrack-action-plan-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-8">
@@ -268,6 +365,66 @@ export default function OrgDashboard() {
             <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">Manage Alerts</span>
           </div>
         </Link>
+      </div>
+
+      <div className="premium-card">
+        <div className="p-6 border-b border-border/60 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="section-title">
+              <Shield className="h-4 w-4 text-muted-foreground" />
+              Priority Action Plan
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">Auto-prioritized next steps from alerts, deadlines, documents, and facility compliance.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={exportActionPlan} disabled={actionPlan.length === 0}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+        </div>
+        <div className="p-4">
+          {summaryLoading ? (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {[...Array(4)].map((_, index) => <Skeleton key={index} className="h-32 rounded-xl" />)}
+            </div>
+          ) : actionPlan.length === 0 ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-center">
+              <CheckCircle className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+              <p className="font-semibold text-emerald-900">No urgent actions right now</p>
+              <p className="text-sm text-emerald-700/80">Compliance, alerts, and documentation are currently on track.</p>
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {actionPlan.map(action => {
+                const Icon = action.icon;
+                const priorityClass = action.priority === "Critical"
+                  ? "border-red-200 bg-red-50 text-red-700"
+                  : action.priority === "High"
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : "border-blue-200 bg-blue-50 text-blue-700";
+                return (
+                  <div key={action.id} className="rounded-xl border border-border/60 bg-card p-4 flex flex-col gap-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-primary/8 flex items-center justify-center shrink-0">
+                        <Icon className="h-5 w-5 text-primary/70" />
+                      </div>
+                      <Badge variant="outline" className={priorityClass}>{action.priority}</Badge>
+                    </div>
+                    <div className="space-y-1 flex-1">
+                      <p className="text-sm font-semibold leading-snug">{action.title}</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{action.description}</p>
+                    </div>
+                    <Link href={action.href}>
+                      <Button variant="outline" size="sm" className="w-full">
+                        {action.label}
+                        <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                      </Button>
+                    </Link>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
