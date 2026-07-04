@@ -15,6 +15,7 @@ export interface ListCourseAssignmentsFilters {
   courseId?: string;
   status?: string;
   facilityId?: string;
+  trainingPlanId?: string;
 }
 
 export function useListCourseAssignments(filters: ListCourseAssignmentsFilters = {}) {
@@ -26,6 +27,7 @@ export function useListCourseAssignments(filters: ListCourseAssignmentsFilters =
       if (filters.courseId) query = query.eq("course_id", filters.courseId);
       if (filters.status) query = query.eq("status", filters.status);
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+      if (filters.trainingPlanId) query = query.eq("training_plan_id", filters.trainingPlanId);
       const { data, error } = await query;
       if (error) throw error;
       return data;

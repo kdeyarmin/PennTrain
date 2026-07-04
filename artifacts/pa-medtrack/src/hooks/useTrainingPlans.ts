@@ -248,6 +248,7 @@ export interface ApplyTrainingPlanResult {
 
 export function useApplyTrainingPlanToEmployee() {
   const { mutateAsync: createCourseAssignment } = useCreateCourseAssignment();
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: ApplyTrainingPlanParams): Promise<ApplyTrainingPlanResult> => {
@@ -293,6 +294,8 @@ export function useApplyTrainingPlanToEmployee() {
             organization_id: params.organizationId,
             assigned_by: params.assignedBy,
             due_date: params.dueDate ?? null,
+            training_plan_id: params.planId,
+            training_plan_item_id: item.id,
           });
         }),
       );
@@ -312,7 +315,26 @@ export function useApplyTrainingPlanToEmployee() {
         });
       });
 
+      // One admin-facing alert per plan application (not per course item --
+      // the employee already gets a personal "New course assigned"
+      // notification per item via the notify_course_assigned trigger).
+      if (assigned > 0) {
+        const { data: plan } = await supabase.from("training_plans").select("name").eq("id", params.planId).single();
+        await supabase.from("alerts").insert({
+          organization_id: params.organizationId,
+          facility_id: params.facilityId,
+          employee_id: params.employeeId,
+          alert_type: "training_plan_assigned",
+          title: `Training plan assigned — ${plan?.name ?? "Training Plan"}`,
+          message: `${plan?.name ?? "A training plan"} was applied (${assigned} course${assigned === 1 ? "" : "s"} assigned).`,
+          severity: "info",
+        });
+      }
+
       return { assigned, skipped, failed };
+    },
+    onSuccess: (result) => {
+      if (result.assigned > 0) queryClient.invalidateQueries({ queryKey: ["alerts"] });
     },
   });
 }

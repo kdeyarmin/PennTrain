@@ -455,6 +455,8 @@ export type Database = {
           id: string
           organization_id: string
           status: string
+          training_plan_id: string | null
+          training_plan_item_id: string | null
           updated_at: string
         }
         Insert: {
@@ -469,6 +471,8 @@ export type Database = {
           id?: string
           organization_id: string
           status?: string
+          training_plan_id?: string | null
+          training_plan_item_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -483,6 +487,8 @@ export type Database = {
           id?: string
           organization_id?: string
           status?: string
+          training_plan_id?: string | null
+          training_plan_item_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -526,6 +532,20 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_assignments_training_plan_id_fkey"
+            columns: ["training_plan_id"]
+            isOneToOne: false
+            referencedRelation: "training_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_assignments_training_plan_item_id_fkey"
+            columns: ["training_plan_item_id"]
+            isOneToOne: false
+            referencedRelation: "training_plan_items"
             referencedColumns: ["id"]
           },
         ]

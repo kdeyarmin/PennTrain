@@ -16,6 +16,7 @@ import {
 import { useListCourses } from "@/hooks/useCourses";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useListEmployees } from "@/hooks/useEmployees";
+import { useListCourseAssignments, type CourseAssignment } from "@/hooks/useCourseAssignments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -228,6 +229,71 @@ function ApplyPlanDialog({
 }
 
 // ---------------------------------------------------------------------------
+// Per-employee progress against this plan, once it's been applied to anyone.
+// course_assignments.training_plan_id links a fanned-out assignment back to
+// the plan that created it -- previously nothing surfaced that link, so an
+// admin had no way to see who's on a plan or how far along they are.
+// ---------------------------------------------------------------------------
+function PlanProgressSection({ plan }: { plan: TrainingPlan }) {
+  const { data: assignments, isLoading } = useListCourseAssignments({ trainingPlanId: plan.id });
+  const { data: employees } = useListEmployees();
+  const { data: courses } = useListCourses();
+
+  const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
+  const courseById = useMemo(() => new Map((courses ?? []).map((c) => [c.id, c])), [courses]);
+
+  const byEmployee = useMemo(() => {
+    const map = new Map<string, CourseAssignment[]>();
+    for (const a of assignments ?? []) {
+      const list = map.get(a.employee_id) ?? [];
+      list.push(a);
+      map.set(a.employee_id, list);
+    }
+    return map;
+  }, [assignments]);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        {[...Array(2)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded" />)}
+      </div>
+    );
+  }
+
+  if (byEmployee.size === 0) {
+    return <p className="text-xs text-muted-foreground italic">This plan hasn't been applied to any employees yet.</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {[...byEmployee.entries()].map(([employeeId, rows]) => {
+        const employee = employeeById.get(employeeId);
+        const completed = rows.filter((r) => r.status === "completed").length;
+        return (
+          <div key={employeeId} className="p-3 rounded-lg border bg-card">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="font-medium text-sm">
+                {employee ? `${employee.first_name} ${employee.last_name}` : `Employee #${employeeId.slice(0, 8)}`}
+              </span>
+              <Badge variant={completed === rows.length ? "default" : "secondary"} className="text-[10px]">
+                {completed} / {rows.length} complete
+              </Badge>
+            </div>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {rows.map((r) => (
+                <Badge key={r.id} variant="outline" className="text-[10px]">
+                  {courseById.get(r.course_id)?.title ?? "Course"} — {r.status.replace(/_/g, " ")}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Expanded plan detail: items list + add/remove/reorder + apply action.
 // ---------------------------------------------------------------------------
 function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canManage: boolean }) {
@@ -382,6 +448,11 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
           })}
         </div>
       )}
+
+      <div className="pt-2 border-t">
+        <h3 className="text-sm font-semibold text-foreground mb-2">Applied To</h3>
+        <PlanProgressSection plan={plan} />
+      </div>
 
       <Dialog open={showAddItem} onOpenChange={(o) => { if (!o) setShowAddItem(false); }}>
         <DialogContent className="max-w-md">
