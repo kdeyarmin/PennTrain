@@ -76,9 +76,16 @@ router.post("/caremetric/quiz-attempts", requireAuth, async (req, res): Promise<
 router.post("/caremetric/binder-export", requireAuth, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user || !["platform_admin", "org_admin", "facility_manager", "trainer"].includes(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+  const parsed = z.object({
+    format: z.enum(["pdf", "csv", "html"]).optional(),
+    sections: z.array(z.string().min(1)).max(50).optional(),
+    facilityId: z.string().optional(),
+    staffIds: z.array(z.string()).max(500).optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
   const exportId = `binder-${Date.now()}`;
-  record("report_exported", "compliance_binder_export", exportId, user.id, req.body);
-  res.status(201).json({ id: exportId, status: "generated", format: req.body?.format ?? "pdf", generatedAt: new Date().toISOString() });
+  record("report_exported", "compliance_binder_export", exportId, user.id, parsed.data);
+  res.status(201).json({ id: exportId, status: "generated", format: parsed.data.format ?? "pdf", generatedAt: new Date().toISOString() });
 });
 
 export default router;
