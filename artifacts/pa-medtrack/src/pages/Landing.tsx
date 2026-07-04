@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,27 +40,31 @@ import {
 const SETTINGS = [
   {
     icon: Building2,
+    code: "PCH",
     title: "Personal Care Homes",
     description:
       "Track medication administration training, annual practicums, and staff certifications across every facility.",
   },
   {
     icon: HeartHandshake,
+    code: "NH / ALR",
     title: "Nursing Homes & Assisted Living",
     description:
       "Keep licensed and unlicensed staff current on required in-services, competencies, and renewal deadlines.",
   },
   {
     icon: HomeIcon,
+    code: "HHA",
     title: "Home Health Agencies",
     description:
       "Manage field staff training records and documents across a distributed, mobile workforce.",
   },
   {
     icon: Stethoscope,
+    code: "HOS",
     title: "Hospice Agencies",
     description:
-      "Stay survey-ready with audit-friendly records for every discipline on your interdisciplinary team.",
+      "Stay survey-ready with well-documented records for every discipline on your interdisciplinary team.",
   },
 ];
 
@@ -226,6 +231,36 @@ function LogoMark({ className = "h-9 w-9" }: { className?: string }) {
  * Section 2600") -- the page reads like a compliance document's own table
  * of contents, which is the one structural conceit this design leans on.
  */
+/**
+ * Reveals content on scroll -- a single quiet fade/rise, not a barrage of
+ * effects. Falls back to a static div for prefers-reduced-motion.
+ */
+function Reveal({
+  children,
+  className,
+  delay = 0,
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+}) {
+  const reduceMotion = useReducedMotion();
+  if (reduceMotion) {
+    return <div className={className}>{children}</div>;
+  }
+  return (
+    <motion.div
+      className={className}
+      initial={{ opacity: 0, y: 14 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration: 0.5, ease: "easeOut", delay }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 function SectionLabel({ index, children }: { index: string; children: ReactNode }) {
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-primary/70">
@@ -396,7 +431,7 @@ export default function Landing() {
       {/* Problem / Solution */}
       <section className="border-y border-border/60 bg-muted/30">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl text-center">
+          <Reveal className="mx-auto max-w-2xl text-center">
             <SectionLabel index="01">The Problem</SectionLabel>
             <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
               From binders and spreadsheets to one system of record
@@ -406,43 +441,49 @@ export default function Landing() {
               they're failing because the paperwork proving it is scattered across a
               dozen places.
             </p>
-          </div>
+          </Reveal>
 
           <div className="mt-12 grid gap-6 lg:grid-cols-2">
-            <Card className="border-border/60">
-              <CardHeader>
-                <CardTitle className="text-base text-muted-foreground">The old way</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {OLD_WAY.map((item) => (
-                  <div key={item} className="flex items-start gap-2.5 text-sm text-muted-foreground">
-                    <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/60" />
-                    {item}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+            <Reveal>
+              <Card className="h-full border-border/60">
+                <CardHeader>
+                  <div className="font-mono text-[10px] tracking-wide text-muted-foreground/50">FIG. A</div>
+                  <CardTitle className="text-base text-muted-foreground">The old way</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {OLD_WAY.map((item) => (
+                    <div key={item} className="flex items-start gap-2.5 text-sm text-muted-foreground">
+                      <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/60" />
+                      {item}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </Reveal>
 
-            <Card className="border-primary/30 bg-primary/[0.03] shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-base text-primary">With CareMetric Train</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {NEW_WAY.map((item) => (
-                  <div key={item} className="flex items-start gap-2.5 text-sm text-foreground/90">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                    {item}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+            <Reveal delay={0.1}>
+              <Card className="h-full border-primary/30 bg-primary/[0.03] shadow-sm">
+                <CardHeader>
+                  <div className="font-mono text-[10px] tracking-wide text-primary/60">FIG. B</div>
+                  <CardTitle className="text-base text-primary">With CareMetric Train</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {NEW_WAY.map((item) => (
+                    <div key={item} className="flex items-start gap-2.5 text-sm text-foreground/90">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                      {item}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </Reveal>
           </div>
         </div>
       </section>
 
       {/* Who it's for */}
       <section id="who-its-for" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-2xl text-center">
+        <Reveal className="mx-auto max-w-2xl text-center">
           <SectionLabel index="02">Who It's For</SectionLabel>
           <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
             Built for every care setting
@@ -451,19 +492,24 @@ export default function Landing() {
             One multi-tenant platform, configured for the training and documentation
             rules your organization actually has to follow.
           </p>
-        </div>
+        </Reveal>
 
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {SETTINGS.map((setting) => (
-            <Card key={setting.title} className="border-border/60">
-              <CardHeader>
-                <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
-                  <setting.icon className="h-5 w-5 text-primary" />
-                </div>
-                <CardTitle className="text-base">{setting.title}</CardTitle>
-                <CardDescription>{setting.description}</CardDescription>
-              </CardHeader>
-            </Card>
+          {SETTINGS.map((setting, i) => (
+            <Reveal key={setting.title} delay={i * 0.06}>
+              <Card className="relative h-full border-border/60">
+                <span className="absolute right-4 top-4 font-mono text-[10px] tracking-wide text-muted-foreground/40">
+                  {setting.code}
+                </span>
+                <CardHeader>
+                  <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
+                    <setting.icon className="h-5 w-5 text-primary" />
+                  </div>
+                  <CardTitle className="text-base">{setting.title}</CardTitle>
+                  <CardDescription>{setting.description}</CardDescription>
+                </CardHeader>
+              </Card>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -471,7 +517,7 @@ export default function Landing() {
       {/* Features */}
       <section id="features" className="border-y border-border/60 bg-muted/30">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl text-center">
+          <Reveal className="mx-auto max-w-2xl text-center">
             <SectionLabel index="03">What's Included</SectionLabel>
             <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
               Everything compliance requires. Nothing it doesn't.
@@ -480,24 +526,26 @@ export default function Landing() {
               From day-one onboarding to survey day, CareMetric Train covers the full
               lifecycle of staff training and documentation.
             </p>
-          </div>
+          </Reveal>
 
           <div className="mt-14 grid gap-x-12 gap-y-9 sm:grid-cols-2">
             {FEATURES.map((feature, i) => (
-              <div key={feature.title} className="flex gap-4 border-t border-border/70 pt-6">
-                <span className="font-mono text-xs tabular-nums text-muted-foreground/50 pt-0.5">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <feature.icon className="h-4 w-4 text-primary" />
-                    <h3 className="font-semibold">{feature.title}</h3>
+              <Reveal key={feature.title} delay={(i % 4) * 0.05}>
+                <div className="flex gap-4 border-t border-border/70 pt-6">
+                  <span className="font-mono text-xs tabular-nums text-muted-foreground/50 pt-0.5">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <feature.icon className="h-4 w-4 text-primary" />
+                      <h3 className="font-semibold">{feature.title}</h3>
+                    </div>
+                    <p className="mt-1.5 text-sm text-muted-foreground">
+                      {feature.description}
+                    </p>
                   </div>
-                  <p className="mt-1.5 text-sm text-muted-foreground">
-                    {feature.description}
-                  </p>
                 </div>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -505,7 +553,7 @@ export default function Landing() {
 
       {/* Security & Compliance */}
       <section id="security" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-2xl text-center">
+        <Reveal className="mx-auto max-w-2xl text-center">
           <SectionLabel index="04">Security</SectionLabel>
           <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
             Enterprise-grade security, built in
@@ -514,47 +562,49 @@ export default function Landing() {
             Your training and compliance data is sensitive. It's protected at the
             database layer, not bolted on as an afterthought.
           </p>
-        </div>
+        </Reveal>
 
         <div className="mt-12 grid gap-6 sm:grid-cols-2">
           {SECURITY_FEATURES.map((feature, i) => (
-            <div key={feature.title} className="relative flex gap-4 rounded-xl border border-border/60 bg-card p-6">
-              <span className="absolute right-4 top-4 font-mono text-[10px] tabular-nums text-muted-foreground/40">
-                CTRL-{String(i + 1).padStart(2, "0")}
-              </span>
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                <feature.icon className="h-5 w-5 text-primary" />
+            <Reveal key={feature.title} delay={(i % 2) * 0.08}>
+              <div className="relative flex h-full gap-4 rounded-xl border border-border/60 bg-card p-6 transition-colors hover:border-primary/30">
+                <span className="absolute right-4 top-4 font-mono text-[10px] tabular-nums text-muted-foreground/40">
+                  CTRL-{String(i + 1).padStart(2, "0")}
+                </span>
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                  <feature.icon className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">{feature.title}</h3>
+                  <p className="mt-1.5 text-sm text-muted-foreground">
+                    {feature.description}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold">{feature.title}</h3>
-                <p className="mt-1.5 text-sm text-muted-foreground">
-                  {feature.description}
-                </p>
-              </div>
-            </div>
+            </Reveal>
           ))}
         </div>
       </section>
 
       {/* How it works */}
       <section id="how-it-works" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-2xl text-center">
+        <Reveal className="mx-auto max-w-2xl text-center">
           <SectionLabel index="05">Getting Started</SectionLabel>
           <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
             Up and running in three steps
           </h2>
-        </div>
+        </Reveal>
 
         <div className="mt-12 grid gap-8 lg:grid-cols-3">
           {STEPS.map((step, i) => (
-            <div key={step.step} className="relative">
+            <Reveal key={step.step} delay={i * 0.1} className="relative">
               <div className="font-mono text-5xl font-semibold tabular-nums text-primary/15">{step.step}</div>
               <h3 className="mt-2 text-lg font-semibold">{step.title}</h3>
               <p className="mt-2 text-sm text-muted-foreground">{step.description}</p>
               {i < STEPS.length - 1 && (
                 <ArrowRight className="absolute right-0 top-2 hidden h-5 w-5 text-muted-foreground/40 lg:-right-6 lg:block" />
               )}
-            </div>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -562,12 +612,12 @@ export default function Landing() {
       {/* FAQ */}
       <section id="faq" className="border-y border-border/60 bg-muted/30">
         <div className="mx-auto max-w-3xl px-4 py-20 sm:px-6 lg:px-8">
-          <div className="text-center">
+          <Reveal className="text-center">
             <SectionLabel index="06">FAQ</SectionLabel>
             <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
               Frequently asked questions
             </h2>
-          </div>
+          </Reveal>
 
           <Accordion type="single" collapsible className="mt-10">
             {FAQS.map((faq, i) => (
@@ -599,7 +649,7 @@ export default function Landing() {
           className="absolute inset-0 [background-image:repeating-linear-gradient(to_bottom,transparent,transparent_31px,rgba(255,255,255,0.05)_32px)]"
         />
         <div className="absolute inset-0 opacity-20 [background:radial-gradient(circle_at_top_right,white,transparent_60%)]" />
-        <div className="relative mx-auto max-w-4xl px-4 py-20 text-center sm:px-6 lg:px-8">
+        <Reveal className="relative mx-auto max-w-4xl px-4 py-20 text-center sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-white/60">
             <span className="whitespace-nowrap tabular-nums">§ 07</span>
             <span aria-hidden className="hidden h-px w-8 bg-white/25 sm:block" />
@@ -630,7 +680,7 @@ export default function Landing() {
               </Button>
             </Link>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* Footer */}
