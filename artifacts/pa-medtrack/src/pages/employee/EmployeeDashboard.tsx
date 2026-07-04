@@ -3,10 +3,17 @@ import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
 import { useListPracticums } from "@/hooks/usePracticums";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
+import { useListCompetencyRecords, useListCompetencyTemplates } from "@/hooks/useCompetencies";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { GraduationCap, CheckCircle, Clock, AlertTriangle, FileText } from "lucide-react";
+import { GraduationCap, CheckCircle, Clock, AlertTriangle, FileText, ClipboardCheck } from "lucide-react";
 import { Link } from "wouter";
+
+function competencyResultVariant(result: string): "default" | "destructive" | "secondary" {
+  if (result === "met") return "default";
+  if (result === "not_met") return "destructive";
+  return "secondary"; // partial
+}
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
@@ -19,6 +26,18 @@ export default function EmployeeDashboard() {
     year: currentYear,
   });
   const { data: trainingTypes } = useListTrainingTypes();
+
+  // Competency records are trainer-authored/signed -- RLS gives an employee
+  // read-only access to their own rows only (owns_employee() appears in the
+  // SELECT policy but not insert/update), so this dashboard only ever reads
+  // them here. There is no create/edit UI for competency records anywhere in
+  // the employee-facing pages.
+  const { data: competencyRecords, isLoading: competencyLoading } = useListCompetencyRecords({ employeeId: employee?.id });
+  const { data: competencyTemplates } = useListCompetencyTemplates();
+  const competencyTemplateNameById = new Map((competencyTemplates ?? []).map((t) => [t.id, t.name]));
+  const recentCompetencyRecords = [...(competencyRecords ?? [])]
+    .sort((a, b) => b.evaluation_date.localeCompare(a.evaluation_date))
+    .slice(0, 5);
 
   const typeNameById = new Map((trainingTypes ?? []).map(t => [t.id, t.name]));
   const trainingTypeName = (r: TrainingRecord) => typeNameById.get(r.training_type_id) ?? `Training #${r.id.slice(0, 8)}`;
@@ -145,6 +164,43 @@ export default function EmployeeDashboard() {
               </CardContent>
             </Card>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ClipboardCheck className="h-5 w-5" />
+                Competency Evaluations
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {employeeLoading || competencyLoading ? (
+                <div className="space-y-2">
+                  {[...Array(2)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded" />)}
+                </div>
+              ) : recentCompetencyRecords.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No competency evaluations on file yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {recentCompetencyRecords.map((r) => (
+                    <div key={r.id} className="flex items-center justify-between py-2 border-b last:border-0 text-sm">
+                      <div>
+                        <span className="font-medium">
+                          {competencyTemplateNameById.get(r.template_id) ?? `Template #${r.template_id.slice(0, 8)}`}
+                        </span>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Evaluated {new Date(r.evaluation_date).toLocaleDateString()}
+                          {r.signed_at ? " · Signed" : " · Not signed"}
+                        </p>
+                      </div>
+                      <Badge variant={competencyResultVariant(r.overall_result)}>
+                        {r.overall_result.replace(/_/g, " ")}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {upcomingRecords.length > 0 && (
             <Card>
