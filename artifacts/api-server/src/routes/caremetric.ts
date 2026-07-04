@@ -13,9 +13,11 @@ const assignments = [
   { id: "a2", staff: "Morgan Lee", courseId: "c2", status: "overdue", dueDate: "2026-07-01" },
 ];
 const auditEvents: Array<{ action: string; entityType: string; entityId: string; actorUserId?: number; createdAt: string; metadata?: unknown }> = [];
+const MAX_AUDIT_EVENTS = 200;
 
 function record(action: string, entityType: string, entityId: string, actorUserId?: number, metadata?: unknown) {
   auditEvents.unshift({ action, entityType, entityId, actorUserId, createdAt: new Date().toISOString(), metadata });
+  if (auditEvents.length > MAX_AUDIT_EVENTS) auditEvents.length = MAX_AUDIT_EVENTS;
 }
 
 router.get("/caremetric/summary", requireAuth, async (req, res): Promise<void> => {
