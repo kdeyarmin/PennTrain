@@ -2,20 +2,38 @@ import { useRoute, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Building, Building2, ShieldCheck } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useGetOrganization, useGetOrganizationStats } from "@/hooks/useOrganizations";
+import { useGetOrganization, useGetOrganizationStats, useUpdateOrganization } from "@/hooks/useOrganizations";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useGetPackage, useListPackages } from "@/hooks/usePackages";
+import { useToast } from "@/hooks/use-toast";
 
 export default function OrganizationDetail() {
   const [, params] = useRoute("/admin/organizations/:id");
   const id = params?.id;
+  const { toast } = useToast();
 
   const { data: org, isLoading: orgLoading } = useGetOrganization(id);
   const { data: stats, isLoading: statsLoading } = useGetOrganizationStats(id);
   const { data: facilities, isLoading: facLoading } = useListFacilities({ organizationId: id });
+  const { data: currentPackage } = useGetPackage(org?.package_id);
+  const { data: packages } = useListPackages();
+  const { mutate: updateOrganization, isPending: updatingPackage } = useUpdateOrganization();
 
   const isLoading = orgLoading || statsLoading;
+
+  const handlePackageChange = (value: string) => {
+    if (!id) return;
+    updateOrganization(
+      { id, package_id: value === "none" ? null : value },
+      {
+        onSuccess: () => toast({ title: "Package updated" }),
+        onError: (e: Error) => toast({ title: "Failed to update package", description: e.message, variant: "destructive" }),
+      },
+    );
+  };
 
   const subscriptionColor = (status: string) => {
     if (status === "active") return "default";
@@ -152,6 +170,24 @@ export default function OrganizationDetail() {
             <div className="flex justify-between">
               <span className="text-muted-foreground">Max Users</span>
               <span className="font-medium">{org.max_users ?? "Unlimited"}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Package</span>
+              <span className="font-medium">{currentPackage?.name ?? "None assigned"}</span>
+            </div>
+            <div className="pt-2 space-y-1.5">
+              <span className="text-xs text-muted-foreground">Change package</span>
+              <Select value={org.package_id ?? "none"} onValueChange={handlePackageChange} disabled={updatingPackage}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="No package" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No package</SelectItem>
+                  {packages?.map(pkg => (
+                    <SelectItem key={pkg.id} value={pkg.id}>
+                      {pkg.name}{!pkg.is_active ? " (inactive)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>

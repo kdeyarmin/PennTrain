@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useListOrganizations, useCreateOrganization } from "@/hooks/useOrganizations";
+import { useListPackages } from "@/hooks/usePackages";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Building2, Search, ChevronRight, Plus } from "lucide-react";
@@ -20,11 +22,12 @@ interface OrgFormData {
   city: string;
   state: string;
   zip: string;
+  packageId: string;
 }
 
 const EMPTY_ORG: OrgFormData = {
   name: "", slug: "", contactName: "", contactEmail: "", contactPhone: "",
-  address: "", city: "", state: "", zip: "",
+  address: "", city: "", state: "", zip: "", packageId: "",
 };
 
 function slugify(value: string) {
@@ -43,6 +46,7 @@ export default function Organizations() {
 
   const { toast } = useToast();
   const { data: orgs, isLoading } = useListOrganizations();
+  const { data: packages } = useListPackages();
   const { mutate: createOrganization, isPending: creating } = useCreateOrganization();
 
   const filtered = orgs?.filter(o =>
@@ -86,6 +90,7 @@ export default function Organizations() {
         city: form.city || null,
         state: form.state || null,
         zip: form.zip || null,
+        package_id: form.packageId || null,
         subscription_status: "trial",
       },
       {
@@ -182,6 +187,20 @@ export default function Organizations() {
                 placeholder="acme-care-group"
                 className="h-9"
               />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-[13px]">Package</Label>
+              <Select value={form.packageId || "none"} onValueChange={v => field("packageId", v === "none" ? "" : v)}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="No package" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No package</SelectItem>
+                  {packages?.map(pkg => (
+                    <SelectItem key={pkg.id} value={pkg.id}>
+                      {pkg.name}{!pkg.is_active ? " (inactive)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label className="text-[13px]">Contact Name</Label>
