@@ -13,14 +13,17 @@ import { useIssueCertificate } from "@/hooks/useCertificates";
 import { useGetCourse, useListCourseBlocks, type CourseBlock } from "@/hooks/useCourses";
 import { useGetQuizByBlockId, useListQuizAttempts } from "@/hooks/useQuizzes";
 import { useDocumentSignedUrl } from "@/hooks/useDocuments";
+import { useGetCourseFeedbackForAssignment, useCreateCourseFeedback } from "@/hooks/useCourseFeedback";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  ArrowLeft, ArrowRight, CheckCircle2, Download, FileText, ListChecks, Video, BookOpen,
+  ArrowLeft, ArrowRight, CheckCircle2, Download, FileText, ListChecks, Video, BookOpen, Star,
   type LucideIcon,
 } from "lucide-react";
 
@@ -102,9 +105,20 @@ export default function TakeCourse() {
   const upsertProgress = useUpsertCourseProgress();
   const completeAssignment = useCompleteCourseAssignment();
   const issueCertificate = useIssueCertificate();
+  const { data: existingFeedback } = useGetCourseFeedbackForAssignment(assignmentId);
+  const createFeedback = useCreateCourseFeedback();
 
   const [stepIndex, setStepIndex] = useState(0);
   const [resumed, setResumed] = useState(false);
+
+  // Post-completion rating prompt state. postCompleteDestination tracks where
+  // to navigate once the learner submits or skips the rating -- certificates
+  // if issuance succeeded, trainings if it didn't (mirrors the two onSuccess/
+  // onError destinations handleComplete used to navigate to directly).
+  const [showRatingPrompt, setShowRatingPrompt] = useState(false);
+  const [postCompleteDestination, setPostCompleteDestination] = useState<"/me/certificates" | "/me/trainings">("/me/certificates");
+  const [ratingValue, setRatingValue] = useState(0);
+  const [ratingComment, setRatingComment] = useState("");
 
   // Resume where the learner left off (course_progress.last_block_id), once,
   // as soon as blocks are loaded. If there's no progress row yet (brand new
@@ -178,7 +192,8 @@ export default function TakeCourse() {
           {
             onSuccess: () => {
               toast({ title: "Course completed", description: "Certificate issued -- nice work!" });
-              setLocation("/me/certificates");
+              setPostCompleteDestination("/me/certificates");
+              setShowRatingPrompt(true);
             },
             onError: (e: Error) => {
               // Completion already succeeded and is not undone by a failed certificate issuance
@@ -186,13 +201,46 @@ export default function TakeCourse() {
               // forward rather than blocking on this secondary step.
               toast({ title: "Course completed", description: "Nice work -- this course is now marked complete." });
               console.error("issue_certificate failed after course completion:", e.message);
-              setLocation("/me/trainings");
+              setPostCompleteDestination("/me/trainings");
+              setShowRatingPrompt(true);
             },
           }
         );
       },
       onError: (e: Error) => toast({ title: "Failed to complete course", description: e.message, variant: "destructive" }),
     });
+  };
+
+  const handleSkipRating = () => {
+    setShowRatingPrompt(false);
+    setLocation(postCompleteDestination);
+  };
+
+  const handleSubmitRating = () => {
+    if (!assignment || !employee || ratingValue === 0) return;
+    createFeedback.mutate(
+      {
+        course_assignment_id: assignment.id,
+        course_id: assignment.course_id,
+        employee_id: assignment.employee_id,
+        // Courses can be system-catalog (organization_id null); course_feedback is always
+        // org-scoped, so this stamps the learner's own org rather than the course's.
+        organization_id: employee.organization_id,
+        rating: ratingValue,
+        comment: ratingComment.trim() || null,
+      },
+      {
+        onSuccess: () => {
+          setShowRatingPrompt(false);
+          setLocation(postCompleteDestination);
+        },
+        onError: (e: Error) => {
+          toast({ title: "Failed to submit rating", description: e.message, variant: "destructive" });
+          setShowRatingPrompt(false);
+          setLocation(postCompleteDestination);
+        },
+      },
+    );
   };
 
   if (employeeLoading || assignmentLoading) {
@@ -337,9 +385,21 @@ export default function TakeCourse() {
 
             {isLastBlock ? (
               alreadyCompleted ? (
-                <Badge className="px-3 py-1.5">
-                  <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Course Completed
-                </Badge>
+                <div className="flex items-center gap-3">
+                  <Badge className="px-3 py-1.5">
+                    <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Course Completed
+                  </Badge>
+                  {!existingFeedback && (
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs"
+                      onClick={() => { setPostCompleteDestination("/me/trainings"); setShowRatingPrompt(true); }}
+                    >
+                      Rate this course
+                    </Button>
+                  )}
+                </div>
               ) : (
                 <Button onClick={handleComplete} disabled={!canAdvance || completeAssignment.isPending}>
                   <CheckCircle2 className="mr-2 h-4 w-4" />
@@ -362,6 +422,42 @@ export default function TakeCourse() {
           )}
         </>
       )}
+
+      <Dialog open={showRatingPrompt} onOpenChange={(o) => { if (!o) handleSkipRating(); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Rate this course</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              How helpful was "{course?.title ?? "this course"}"? Your feedback helps trainers improve it.
+            </p>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setRatingValue(n)}
+                  aria-label={`${n} star${n === 1 ? "" : "s"}`}
+                  className="p-0.5"
+                >
+                  <Star className={`h-7 w-7 ${n <= ratingValue ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"}`} />
+                </button>
+              ))}
+            </div>
+            <Textarea
+              value={ratingComment}
+              onChange={(e) => setRatingComment(e.target.value)}
+              placeholder="Anything you'd add? (optional)"
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleSkipRating}>Skip</Button>
+            <Button onClick={handleSubmitRating} disabled={ratingValue === 0 || createFeedback.isPending}>
+              {createFeedback.isPending ? "Submitting..." : "Submit Rating"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

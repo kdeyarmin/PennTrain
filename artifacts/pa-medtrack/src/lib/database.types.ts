@@ -591,6 +591,68 @@ export type Database = {
           },
         ]
       }
+      course_feedback: {
+        Row: {
+          comment: string | null
+          course_assignment_id: string
+          course_id: string
+          created_at: string
+          employee_id: string
+          id: string
+          organization_id: string
+          rating: number
+        }
+        Insert: {
+          comment?: string | null
+          course_assignment_id: string
+          course_id: string
+          created_at?: string
+          employee_id: string
+          id?: string
+          organization_id: string
+          rating: number
+        }
+        Update: {
+          comment?: string | null
+          course_assignment_id?: string
+          course_id?: string
+          created_at?: string
+          employee_id?: string
+          id?: string
+          organization_id?: string
+          rating?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_feedback_course_assignment_id_fkey"
+            columns: ["course_assignment_id"]
+            isOneToOne: true
+            referencedRelation: "course_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_feedback_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_feedback_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_feedback_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_progress: {
         Row: {
           assignment_id: string
