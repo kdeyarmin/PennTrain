@@ -15,7 +15,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft, BookOpen, Pencil, Plus, Rocket, FileText, Video, File as FileIcon,
-  ListChecks, Trash2, Lock, Layers, Sparkles, RefreshCw, type LucideIcon,
+  ListChecks, Trash2, Lock, Layers, Sparkles, RefreshCw, Star, type LucideIcon,
 } from "lucide-react";
 import {
   useGetCourse, useUpdateCourse,
@@ -24,6 +24,7 @@ import {
   type CourseVersion, type CourseBlock, type CourseBlockInsert,
 } from "@/hooks/useCourses";
 import { useGetQuizByBlockId, useCreateQuiz } from "@/hooks/useQuizzes";
+import { useListCourseFeedback, summarizeCourseFeedback } from "@/hooks/useCourseFeedback";
 import { useListHeygenOptions, useGenerateCourseVideo, useCheckCourseVideoStatus } from "@/hooks/useCourseVideoGeneration";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -109,10 +110,15 @@ function QuizBlockSummary({ blockId, onConfigure }: { blockId: string; onConfigu
   }
 
   return (
-    <p className="text-xs text-muted-foreground">
-      "{quiz.title}" — passing score {quiz.passing_score_percent}%
-      {quiz.max_attempts ? `, max ${quiz.max_attempts} attempt${quiz.max_attempts === 1 ? "" : "s"}` : ""}
-    </p>
+    <div className="flex items-center gap-2">
+      <p className="text-xs text-muted-foreground">
+        "{quiz.title}" — passing score {quiz.passing_score_percent}%
+        {quiz.max_attempts ? `, max ${quiz.max_attempts} attempt${quiz.max_attempts === 1 ? "" : "s"}` : ""}
+      </p>
+      <Link href={`/app/quizzes/${quiz.id}`} className="text-xs font-medium text-primary hover:underline">
+        Manage Questions
+      </Link>
+    </div>
   );
 }
 
@@ -124,6 +130,8 @@ export default function CourseDetail() {
   const canManage = user?.role === "org_admin" || user?.role === "trainer";
 
   const { data: course, isLoading: courseLoading } = useGetCourse(id);
+  const { data: courseFeedback } = useListCourseFeedback({ courseId: id });
+  const feedbackSummary = summarizeCourseFeedback(courseFeedback);
   const { data: versions, isLoading: versionsLoading } = useListCourseVersions(id);
 
   const [selectedVersionId, setSelectedVersionId] = useState<string | undefined>(undefined);
@@ -455,6 +463,20 @@ export default function CourseDetail() {
           <div>
             <p className="text-xs text-muted-foreground">Estimated Duration</p>
             <p className="text-sm">{course.estimated_duration_minutes ? `${course.estimated_duration_minutes} minutes` : "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Learner Rating</p>
+            {feedbackSummary.count > 0 ? (
+              <p className="text-sm flex items-center gap-1.5">
+                <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                {feedbackSummary.average} out of 5
+                <span className="text-muted-foreground">
+                  ({feedbackSummary.count} rating{feedbackSummary.count === 1 ? "" : "s"})
+                </span>
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">No ratings yet.</p>
+            )}
           </div>
         </CardContent>
       </Card>

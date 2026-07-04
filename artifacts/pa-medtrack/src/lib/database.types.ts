@@ -455,6 +455,8 @@ export type Database = {
           id: string
           organization_id: string
           status: string
+          training_plan_id: string | null
+          training_plan_item_id: string | null
           updated_at: string
         }
         Insert: {
@@ -469,6 +471,8 @@ export type Database = {
           id?: string
           organization_id: string
           status?: string
+          training_plan_id?: string | null
+          training_plan_item_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -483,6 +487,8 @@ export type Database = {
           id?: string
           organization_id?: string
           status?: string
+          training_plan_id?: string | null
+          training_plan_item_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -526,6 +532,20 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_assignments_training_plan_id_fkey"
+            columns: ["training_plan_id"]
+            isOneToOne: false
+            referencedRelation: "training_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_assignments_training_plan_item_id_fkey"
+            columns: ["training_plan_item_id"]
+            isOneToOne: false
+            referencedRelation: "training_plan_items"
             referencedColumns: ["id"]
           },
         ]
@@ -584,6 +604,68 @@ export type Database = {
           },
           {
             foreignKeyName: "course_blocks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_feedback: {
+        Row: {
+          comment: string | null
+          course_assignment_id: string
+          course_id: string
+          created_at: string
+          employee_id: string
+          id: string
+          organization_id: string
+          rating: number
+        }
+        Insert: {
+          comment?: string | null
+          course_assignment_id: string
+          course_id: string
+          created_at?: string
+          employee_id: string
+          id?: string
+          organization_id: string
+          rating: number
+        }
+        Update: {
+          comment?: string | null
+          course_assignment_id?: string
+          course_id?: string
+          created_at?: string
+          employee_id?: string
+          id?: string
+          organization_id?: string
+          rating?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_feedback_course_assignment_id_fkey"
+            columns: ["course_assignment_id"]
+            isOneToOne: true
+            referencedRelation: "course_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_feedback_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_feedback_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_feedback_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -1119,6 +1201,57 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          link: string | null
+          notification_type: string
+          organization_id: string
+          profile_id: string
+          read_at: string | null
+          title: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          link?: string | null
+          notification_type: string
+          organization_id: string
+          profile_id: string
+          read_at?: string | null
+          title: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          link?: string | null
+          notification_type?: string
+          organization_id?: string
+          profile_id?: string
+          read_at?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_settings: {
         Row: {
           branding_accent_color: string | null
@@ -1606,6 +1739,7 @@ export type Database = {
       quiz_questions: {
         Row: {
           created_at: string
+          explanation: string | null
           id: string
           organization_id: string | null
           points: number
@@ -1616,6 +1750,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          explanation?: string | null
           id?: string
           organization_id?: string | null
           points?: number
@@ -1626,6 +1761,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          explanation?: string | null
           id?: string
           organization_id?: string | null
           points?: number
@@ -2153,6 +2289,16 @@ export type Database = {
           sort_order: number
         }[]
       }
+      get_quiz_review: {
+        Args: { p_attempt_id: string }
+        Returns: {
+          answer_id: string
+          answer_text: string
+          explanation: string | null
+          is_correct: boolean | null
+          question_id: string
+        }[]
+      }
       grade_quiz_attempt: { Args: { p_attempt_id: string }; Returns: undefined }
       is_assigned_to_facility: {
         Args: { target_facility_id: string }
@@ -2168,6 +2314,8 @@ export type Database = {
         }
         Returns: string
       }
+      mark_all_notifications_read: { Args: never; Returns: undefined }
+      mark_notification_read: { Args: { p_id: string }; Returns: undefined }
       owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
       recalculate_all_compliance: { Args: never; Returns: undefined }
       verify_certificate: {

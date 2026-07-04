@@ -409,7 +409,7 @@ export default function PendingApprovals() {
   const handleView = async (doc: TrainingDocument) => {
     try {
       const url = await getSignedUrl.mutateAsync(doc);
-      window.open(url, "_blank");
+      window.open(url, "_blank", "noopener,noreferrer");
     } catch (err) {
       toast({ title: "Could not open document", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     }

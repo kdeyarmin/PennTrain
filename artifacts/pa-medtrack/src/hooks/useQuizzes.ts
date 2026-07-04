@@ -84,6 +84,21 @@ export function useCreateQuiz() {
   });
 }
 
+export function useUpdateQuiz() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: QuizUpdate & { id: string }) => {
+      const { data, error } = await supabase.from("quizzes").update(payload).eq("id", id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["quizzes", data.id] });
+      queryClient.invalidateQueries({ queryKey: ["quizzes", "by-block", data.course_block_id] });
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // quiz_questions
 // ---------------------------------------------------------------------------
@@ -220,6 +235,73 @@ export function useQuizAnswerChoices(quizId: string | undefined) {
       return data;
     },
     enabled: !!quizId,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Post-grading review (correct answer + explanation) -- calls get_quiz_review,
+// which only returns rows once the given attempt has submitted_at set. Never
+// substitute this for useQuizAnswerChoices while a quiz is still in progress.
+// ---------------------------------------------------------------------------
+
+export interface QuizReviewRow {
+  question_id: string;
+  answer_id: string;
+  answer_text: string;
+  is_correct: boolean | null;
+  explanation: string | null;
+}
+
+export function useGetQuizReview(attemptId: string | undefined) {
+  return useQuery({
+    queryKey: ["quiz_review", attemptId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_quiz_review", { p_attempt_id: attemptId! });
+      if (error) throw error;
+      return data as QuizReviewRow[];
+    },
+    enabled: !!attemptId,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Per-question difficulty, for quiz authors -- aggregates every graded
+// quiz_attempt_answers row (is_correct not null) across all attempts at the
+// given questions. RLS on quiz_attempt_answers already scopes this to
+// attempts the caller can see (their org + assigned facilities), so an
+// org_admin/trainer only ever sees difficulty stats for learners they're
+// actually allowed to view.
+// ---------------------------------------------------------------------------
+
+export interface QuestionStats {
+  totalGraded: number;
+  incorrect: number;
+  incorrectRate: number;
+}
+
+export function useQuizQuestionStats(questionIds: string[]) {
+  return useQuery({
+    queryKey: ["quiz_attempt_answers", "stats", questionIds],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quiz_attempt_answers")
+        .select("question_id, is_correct")
+        .in("question_id", questionIds)
+        .not("is_correct", "is", null);
+      if (error) throw error;
+      const stats: Record<string, QuestionStats> = {};
+      for (const row of data ?? []) {
+        const s = stats[row.question_id] ?? { totalGraded: 0, incorrect: 0, incorrectRate: 0 };
+        s.totalGraded += 1;
+        if (row.is_correct === false) s.incorrect += 1;
+        stats[row.question_id] = s;
+      }
+      for (const s of Object.values(stats)) {
+        s.incorrectRate = Math.round((s.incorrect / s.totalGraded) * 100);
+      }
+      return stats;
+    },
+    enabled: questionIds.length > 0,
   });
 }
 

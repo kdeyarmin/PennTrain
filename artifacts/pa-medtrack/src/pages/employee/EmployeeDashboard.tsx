@@ -4,10 +4,27 @@ import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTraining
 import { useListPracticums } from "@/hooks/usePracticums";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useListCompetencyRecords, useListCompetencyTemplates } from "@/hooks/useCompetencies";
+import { useListCourseAssignments } from "@/hooks/useCourseAssignments";
+import { useListCourses } from "@/hooks/useCourses";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { GraduationCap, CheckCircle, Clock, AlertTriangle, FileText, ClipboardCheck } from "lucide-react";
+import { GraduationCap, CheckCircle, Clock, AlertTriangle, FileText, ClipboardCheck, BookOpen, CalendarClock, type LucideIcon } from "lucide-react";
 import { Link } from "wouter";
+
+interface DeadlineItem {
+  id: string;
+  kind: "course" | "training" | "practicum";
+  label: string;
+  dueDate: string;
+  status: string;
+  href?: string;
+}
+
+const DEADLINE_KIND_META: Record<DeadlineItem["kind"], { label: string; icon: LucideIcon }> = {
+  course: { label: "Course", icon: BookOpen },
+  training: { label: "Training", icon: GraduationCap },
+  practicum: { label: "Practicum", icon: ClipboardCheck },
+};
 
 function competencyResultVariant(result: string): "default" | "destructive" | "secondary" {
   if (result === "met") return "default";
@@ -26,6 +43,9 @@ export default function EmployeeDashboard() {
     year: currentYear,
   });
   const { data: trainingTypes } = useListTrainingTypes();
+  const { data: courseAssignments, isLoading: assignmentsLoading } = useListCourseAssignments({ employeeId: employee?.id });
+  const { data: courses } = useListCourses();
+  const courseTitleById = new Map((courses ?? []).map(c => [c.id, c.title]));
 
   // Competency records are trainer-authored/signed -- RLS gives an employee
   // read-only access to their own rows only (owns_employee() appears in the
@@ -50,14 +70,44 @@ export default function EmployeeDashboard() {
   const dueSoon = allRecords.filter(r => r.status === "due_soon").length;
 
   const myPracticum = practicums?.[0];
-  const upcomingRecords = allRecords
-    .filter(r => r.status === "due_soon" || r.status === "expired")
-    .sort((a, b) => {
-      if (!a.due_date) return 1;
-      if (!b.due_date) return -1;
-      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
-    })
-    .slice(0, 5);
+
+  // A single, sorted "what's next" list across the three deadline sources
+  // that otherwise live in unrelated tables (course_assignments,
+  // employee_training_records, practicums) -- previously each only surfaced
+  // its own status in its own card, so a learner had to check three places
+  // to see everything coming due.
+  const courseDeadlines: DeadlineItem[] = (courseAssignments ?? [])
+    .filter(a => a.due_date && a.status !== "completed")
+    .map(a => ({
+      id: `course-${a.id}`,
+      kind: "course",
+      label: courseTitleById.get(a.course_id) ?? "Course",
+      dueDate: a.due_date as string,
+      status: a.status,
+      href: `/me/courses/${a.id}`,
+    }));
+  const trainingDeadlines: DeadlineItem[] = allRecords
+    .filter(r => (r.status === "due_soon" || r.status === "expired") && r.due_date)
+    .map(r => ({
+      id: `training-${r.id}`,
+      kind: "training",
+      label: trainingTypeName(r),
+      dueDate: r.due_date as string,
+      status: r.status,
+    }));
+  const practicumDeadlines: DeadlineItem[] =
+    myPracticum && myPracticum.due_date && myPracticum.status !== "compliant"
+      ? [{
+          id: `practicum-${myPracticum.id}`,
+          kind: "practicum",
+          label: "Medication Administration Practicum",
+          dueDate: myPracticum.due_date,
+          status: myPracticum.status,
+        }]
+      : [];
+  const upcomingDeadlines = [...courseDeadlines, ...trainingDeadlines, ...practicumDeadlines]
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+    .slice(0, 8);
 
   return (
     <div className="space-y-6">
@@ -202,32 +252,53 @@ export default function EmployeeDashboard() {
             </CardContent>
           </Card>
 
-          {upcomingRecords.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Attention Required</CardTitle>
-              </CardHeader>
-              <CardContent>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CalendarClock className="h-5 w-5" />
+                Upcoming Deadlines
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {assignmentsLoading || practicumsLoading ? (
                 <div className="space-y-2">
-                  {upcomingRecords.map(r => (
-                    <div key={r.id} className="flex items-center justify-between py-2 border-b last:border-0 text-sm">
-                      <span className="font-medium">{trainingTypeName(r)}</span>
-                      <div className="flex items-center gap-2">
-                        {r.due_date && (
-                          <span className="text-muted-foreground text-xs">
-                            Due {new Date(r.due_date).toLocaleDateString()}
-                          </span>
-                        )}
-                        <Badge variant={r.status === "expired" ? "destructive" : "secondary"}>
-                          {r.status === "due_soon" ? "Due Soon" : r.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
+                  {[...Array(3)].map((_, i) => <div key={i} className="h-10 bg-muted animate-pulse rounded" />)}
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              ) : upcomingDeadlines.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">Nothing due right now -- you're all caught up.</p>
+              ) : (
+                <div className="space-y-2">
+                  {upcomingDeadlines.map((d) => {
+                    const meta = DEADLINE_KIND_META[d.kind];
+                    const Icon = meta.icon;
+                    const variant = d.status === "expired" || d.status === "overdue" || d.status === "missing" ? "destructive" : "secondary";
+                    const row = (
+                      <div className="flex items-center justify-between py-2 border-b last:border-0 text-sm">
+                        <span className="flex items-center gap-2 min-w-0">
+                          <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="font-medium truncate">{d.label}</span>
+                          <Badge variant="outline" className="text-[10px] shrink-0">{meta.label}</Badge>
+                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-muted-foreground text-xs">
+                            Due {new Date(d.dueDate).toLocaleDateString()}
+                          </span>
+                          <Badge variant={variant}>{d.status.replace(/_/g, " ")}</Badge>
+                        </div>
+                      </div>
+                    );
+                    return d.href ? (
+                      <Link key={d.id} href={d.href} className="block hover:bg-muted/30 -mx-2 px-2 rounded">
+                        {row}
+                      </Link>
+                    ) : (
+                      <div key={d.id}>{row}</div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>

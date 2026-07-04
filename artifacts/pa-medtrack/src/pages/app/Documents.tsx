@@ -121,7 +121,7 @@ export default function Documents() {
   const handleDownload = async (doc: TrainingDocument) => {
     try {
       const signedUrl = await getSignedUrl.mutateAsync(doc);
-      window.open(signedUrl, "_blank");
+      window.open(signedUrl, "_blank", "noopener,noreferrer");
     } catch (err) {
       toast({ title: "Download failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     }

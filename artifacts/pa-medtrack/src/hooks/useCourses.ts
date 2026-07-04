@@ -168,6 +168,18 @@ export function useListCourseBlocks(courseVersionId: string | undefined) {
   });
 }
 
+export function useGetCourseBlock(id: string | undefined) {
+  return useQuery({
+    queryKey: ["course_blocks", "single", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("course_blocks").select("*").eq("id", id!).single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+}
+
 export function useCreateCourseBlock() {
   const queryClient = useQueryClient();
   return useMutation({

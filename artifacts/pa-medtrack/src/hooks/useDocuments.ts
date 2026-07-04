@@ -30,6 +30,18 @@ export function useListDocuments(filters: ListDocumentsFilters = {}) {
   });
 }
 
+export function useGetDocument(id: string | undefined) {
+  return useQuery({
+    queryKey: ["documents", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("training_documents").select("*").eq("id", id!).single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+}
+
 export interface UploadDocumentInput {
   file: File;
   bucket: "external-uploads" | "signin-sheets" | "competency-attachments";

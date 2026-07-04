@@ -126,12 +126,6 @@ why): `DATABASE_URL`, `NEXT_PUBLIC_*` (this is Vite, not Next.js), `SESSION_SECR
 `SUPABASE_SERVICE_ROLE_KEY` must never be set on the Railway service -- it belongs only in Supabase
 Edge Function secrets.
 
-**Do not set `VITE_OPENAI_API_KEY`.** `src/lib/caremetricAi.ts` reads it and its own fallback
-message suggests adding it, but any `VITE_`-prefixed variable is baked into the public client
-bundle at build time -- unlike the anon key, an OpenAI key has no RLS-style gate and is directly
-billable/misusable by anyone who reads the bundle. If this feature is ever wired to a real OpenAI
-call, proxy it through a Supabase Edge Function the same way `HEYGEN_API_KEY` already is.
-
 ## 3. Local development
 
 ```bash
