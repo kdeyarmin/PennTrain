@@ -28,6 +28,7 @@ import {
   HeartHandshake,
   HomeIcon,
   Stethoscope,
+  Accessibility,
   CheckCircle2,
   XCircle,
   ArrowRight,
@@ -66,6 +67,13 @@ const SETTINGS = [
     title: "Hospice Agencies",
     description:
       "Stay survey-ready with well-documented records for every discipline on your interdisciplinary team.",
+  },
+  {
+    icon: Accessibility,
+    code: "GH",
+    title: "Group Homes",
+    description:
+      "Track Direct Support Professional training, medication administration certification, and incident-reporting requirements for individuals with intellectual and developmental disabilities.",
   },
 ];
 
@@ -188,7 +196,7 @@ const FAQS = [
   {
     question: "What is CareMetric Train?",
     answer:
-      "CareMetric Train is a multi-tenant compliance-training platform and learning management system built for personal care homes, assisted living residences, nursing homes, home health, and hospice agencies. It replaces spreadsheets and paper binders with one system for yearly in-services, training records, certifications, medication practicums, and survey-ready reporting.",
+      "CareMetric Train is a multi-tenant compliance-training platform and learning management system built for personal care homes, assisted living residences, group homes, nursing homes, home health, and hospice agencies. It replaces spreadsheets and paper binders with one system for yearly in-services, training records, certifications, medication practicums, and survey-ready reporting.",
   },
   {
     question: "How does CareMetric Train track our staff's yearly in-services?",
@@ -198,7 +206,7 @@ const FAQS = [
   {
     question: "Which regulations does it help us comply with?",
     answer:
-      "CareMetric Train grew out of Pennsylvania's 28 Pa. Code Chapter 2600 personal care home and Chapter 2800 assisted living training requirements, and every training type, competency checklist, and practicum is configurable -- so your organization can model the specific requirements your state and license type require, whether that's a personal care home, assisted living residence, nursing home, home health, or hospice agency.",
+      "CareMetric Train grew out of Pennsylvania's 28 Pa. Code Chapter 2600 personal care home, Chapter 2800 assisted living, and 55 Pa. Code Chapter 6400 group home training requirements, and every training type, competency checklist, and practicum is configurable -- so your organization can model the specific requirements your state and license type require, whether that's a personal care home, assisted living residence, group home, nursing home, home health, or hospice agency.",
   },
   {
     question: "Do our employees need to install anything?",
@@ -375,9 +383,10 @@ export default function Landing() {
               </h1>
               <p className="mt-6 max-w-xl text-lg text-white/70">
                 CareMetric Train is the compliance-training platform and LMS built for
-                personal care homes, assisted living, nursing homes, home health, and
-                hospice agencies -- replacing spreadsheets and paper binders with one
-                system of record for yearly in-services, certifications, and practicums.
+                personal care homes, assisted living, group homes, nursing homes, home
+                health, and hospice agencies -- replacing spreadsheets and paper binders
+                with one system of record for yearly in-services, certifications, and
+                practicums.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <a href="#contact">
@@ -537,7 +546,7 @@ export default function Landing() {
           </p>
         </Reveal>
 
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {SETTINGS.map((setting, i) => (
             <Reveal key={setting.title} delay={i * 0.06}>
               <Card className="relative h-full border-border/60">
@@ -741,8 +750,8 @@ export default function Landing() {
                 <span className="text-sm font-bold">CareMetric Train</span>
               </div>
               <p className="mt-3 text-sm text-muted-foreground">
-                Compliance training and LMS for personal care homes, nursing homes,
-                home health, and hospice agencies.
+                Compliance training and LMS for personal care homes, assisted living,
+                group homes, nursing homes, home health, and hospice agencies.
               </p>
             </div>
 
