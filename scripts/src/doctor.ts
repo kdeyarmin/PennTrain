@@ -93,6 +93,15 @@ function aptAvailable(): Check {
 }
 
 function aptReachable(): Check {
+  if (typeof process.getuid === "function" && process.getuid() !== 0) {
+    return {
+      name: "apt repository access",
+      status: "warn",
+      detail:
+        "Skipping `apt-get update` because it typically requires root. Re-run with sudo to test apt repository access.",
+    };
+  }
+
   const result = run("apt-get", ["update", "-o", "Debug::NoLocking=1"]);
   const output = [result.stdout, result.stderr].filter(Boolean).join("\n");
   return {
