@@ -31,9 +31,6 @@ const ALL_ROLES: Role[] = ["platform_admin", "org_admin", "facility_manager", "t
 // Which roles a given caller role is allowed to grant to a new user, or edit on an
 // existing one. Only platform_admin may create/manage platform_admin or org_admin
 // accounts -- org_admin/facility_manager are restricted to the roles beneath org_admin.
-// This mirrors the role-escalation guard concept from the old Express API
-// (api-server/src/routes/users.ts, ~lines 140-157 / 294-306), reimplemented fresh here
-// since that server (and its Drizzle models) are defunct.
 const ASSIGNABLE_ROLES: Record<Role, Role[]> = {
   platform_admin: ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"],
   org_admin: ["facility_manager", "trainer", "employee", "auditor"],

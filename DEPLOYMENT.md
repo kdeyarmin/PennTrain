@@ -1,7 +1,7 @@
 # Deployment: Railway + Supabase
 
 CareMetric Train's backend (Postgres, Auth, Storage, RLS, Edge Functions) already lives entirely in
-Supabase -- see `replit.md` and `README.md` for the architecture. This document covers the piece that
+Supabase -- see `ARCHITECTURE.md` and `README.md` for the architecture. This document covers the piece that
 was missing: running the frontend in production on **Railway**, and how the two systems fit together.
 
 ## Architecture at a glance
@@ -53,7 +53,7 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    `redirectTo: window.location.origin + "/login"`, and Supabase Auth rejects redirects to
    unlisted origins.
 6. Seed demo/admin users via the Supabase Admin API or the `create-user` Edge Function -- there is no
-   public self-signup route by design (see `replit.md` "Roles"). The `handle_new_user()` trigger
+   public self-signup route by design (see `ARCHITECTURE.md` "Roles"). The `handle_new_user()` trigger
    creates the matching `profiles` row automatically.
 7. Generate TypeScript types after any schema change:
    ```bash
@@ -223,7 +223,7 @@ inspect, `rollback` -- zero data persisted) before being written up here.
   as part of this fix, so admin-provisioned account creation is unaffected). **Recommended
   additional step**: disable public email signup entirely in Authentication -> Providers unless
   self-service signup is an intended product feature; this fix closes the privilege-escalation path
-  regardless, but signup is not otherwise used by this app's UI (see `replit.md` "Roles").
+  regardless, but signup is not otherwise used by this app's UI (see `ARCHITECTURE.md` "Roles").
 - **High -- unauthenticated cross-tenant RPC**
   (`20260704180605_revoke_public_grant_on_privileged_functions.sql`): a prior migration
   (`tighten_function_grants.sql`) revoked `EXECUTE` on several `SECURITY DEFINER` functions from
