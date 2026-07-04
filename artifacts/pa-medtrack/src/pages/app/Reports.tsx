@@ -289,6 +289,16 @@ function useListTrainingHourBuckets(filters: ListTrainingHourBucketsFilters = {}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// Mirrors Dashboard.tsx's RELEVANT_STATUSES: training records with status "not_applicable"
+// or "pending_review" are excluded from compliance percentages and compliant/due_soon/
+// expired/missing classifications entirely, so Reports.tsx and Dashboard.tsx agree on the
+// same underlying data.
+const RELEVANT_STATUSES = new Set(["compliant", "due_soon", "expired", "missing"]);
+
+function relevantRecords(records: TrainingRecord[]): TrainingRecord[] {
+  return records.filter((r) => RELEVANT_STATUSES.has(r.status));
+}
+
 function pct(numerator: number, denominator: number): number {
   return denominator > 0 ? Math.round((numerator / denominator) * 100) : 100;
 }
@@ -347,7 +357,7 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
   const trainingTypeById = new Map(ctx.trainingTypes.map((t) => [t.id, t]));
 
   if (reportId === "compliance-summary") {
-    const total = scopedRecords.length;
+    const total = relevantRecords(scopedRecords).length;
     const compliantCount = scopedRecords.filter((r) => r.status === "compliant").length;
     const expiredCount = scopedRecords.filter((r) => r.status === "expired").length;
     const dueSoonCount = scopedRecords.filter((r) => r.status === "due_soon").length;
@@ -377,16 +387,17 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
       ctx.facilityId === "all" ? ctx.facilities : ctx.facilities.filter((f) => f.id === ctx.facilityId);
     const scored = facilityList.map((f) => {
       const records = ctx.trainingRecords.filter((r) => r.facility_id === f.id);
+      const relevant = relevantRecords(records);
       const compliantCount = records.filter((r) => r.status === "compliant").length;
       const expiredCount = records.filter((r) => r.status === "expired").length;
       const dueSoonCount = records.filter((r) => r.status === "due_soon").length;
       return {
         facility: f,
-        total: records.length,
+        total: relevant.length,
         compliantCount,
         expiredCount,
         dueSoonCount,
-        score: pct(compliantCount, records.length),
+        score: pct(compliantCount, relevant.length),
       };
     });
     return {
@@ -412,7 +423,7 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
   }
 
   if (reportId === "survey-readiness") {
-    const total = scopedRecords.length;
+    const total = relevantRecords(scopedRecords).length;
     const compliantCount = scopedRecords.filter((r) => r.status === "compliant").length;
     const expiredCount = scopedRecords.filter((r) => r.status === "expired").length;
     const overallComplianceScore = pct(compliantCount, total);
@@ -440,7 +451,7 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
     const yearPracticums = scopedPracticums.filter((p) => p.practicum_year === currentYear);
     const pendingPracticums = yearPracticums.filter((p) => p.status !== "compliant");
 
-    const missingDocsRecords = scopedRecords.filter((r) => r.document_required && !r.external_certificate_document_id);
+    const missingDocsRecords = scopedRecords.filter((r) => r.status === "missing" && r.document_required);
 
     const criticalAlerts = byFacility(ctx.alerts, ctx.facilityId).filter((a) => a.severity === "critical");
 
@@ -733,13 +744,13 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
   }
 
   if (reportId === "missing-documents") {
-    const records = scopedRecords.filter((r) => r.document_required && !r.external_certificate_document_id);
+    const records = scopedRecords.filter((r) => r.status === "missing" && r.document_required);
     summaryCards.push({ label: "Missing Documents", value: records.length, variant: records.length > 0 ? "warning" : "success" });
     return { headers: TRAINING_RECORD_HEADERS, rows: trainingRecordRows(records, employeeById, trainingTypeById), summaryCards };
   }
 
   if (reportId === "document-audit") {
-    const recordsRequiringDocs = scopedRecords.filter((r) => r.document_required && !r.external_certificate_document_id).length;
+    const recordsRequiringDocs = scopedRecords.filter((r) => r.status === "missing" && r.document_required).length;
     summaryCards.push(
       { label: "Total Documents", value: scopedDocuments.length },
       { label: "Records Need Docs", value: recordsRequiringDocs, variant: recordsRequiringDocs > 0 ? "warning" : "success" }
@@ -787,6 +798,7 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
       const orgFacilities = ctx.facilities.filter((f) => f.organization_id === o.id);
       const orgEmployees = ctx.employees.filter((e) => e.organization_id === o.id);
       const orgRecords = ctx.trainingRecords.filter((r) => r.organization_id === o.id);
+      const relevantOrgRecords = relevantRecords(orgRecords);
       const compliantCount = orgRecords.filter((r) => r.status === "compliant").length;
       const expiredCount = orgRecords.filter((r) => r.status === "expired").length;
       const dueSoonCount = orgRecords.filter((r) => r.status === "due_soon").length;
@@ -794,11 +806,11 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
         org: o,
         totalEmployees: orgEmployees.length,
         totalFacilities: orgFacilities.length,
-        totalRecords: orgRecords.length,
+        totalRecords: relevantOrgRecords.length,
         compliantCount,
         expiredCount,
         dueSoonCount,
-        compliancePercentage: pct(compliantCount, orgRecords.length),
+        compliancePercentage: pct(compliantCount, relevantOrgRecords.length),
       };
     });
     return {
