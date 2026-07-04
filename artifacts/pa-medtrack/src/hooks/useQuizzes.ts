@@ -265,6 +265,47 @@ export function useGetQuizReview(attemptId: string | undefined) {
 }
 
 // ---------------------------------------------------------------------------
+// Per-question difficulty, for quiz authors -- aggregates every graded
+// quiz_attempt_answers row (is_correct not null) across all attempts at the
+// given questions. RLS on quiz_attempt_answers already scopes this to
+// attempts the caller can see (their org + assigned facilities), so an
+// org_admin/trainer only ever sees difficulty stats for learners they're
+// actually allowed to view.
+// ---------------------------------------------------------------------------
+
+export interface QuestionStats {
+  totalGraded: number;
+  incorrect: number;
+  incorrectRate: number;
+}
+
+export function useQuizQuestionStats(questionIds: string[]) {
+  return useQuery({
+    queryKey: ["quiz_attempt_answers", "stats", questionIds],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quiz_attempt_answers")
+        .select("question_id, is_correct")
+        .in("question_id", questionIds)
+        .not("is_correct", "is", null);
+      if (error) throw error;
+      const stats: Record<string, QuestionStats> = {};
+      for (const row of data ?? []) {
+        const s = stats[row.question_id] ?? { totalGraded: 0, incorrect: 0, incorrectRate: 0 };
+        s.totalGraded += 1;
+        if (row.is_correct === false) s.incorrect += 1;
+        stats[row.question_id] = s;
+      }
+      for (const s of Object.values(stats)) {
+        s.incorrectRate = Math.round((s.incorrect / s.totalGraded) * 100);
+      }
+      return stats;
+    },
+    enabled: questionIds.length > 0,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // quiz_attempts / quiz_attempt_answers
 // ---------------------------------------------------------------------------
 

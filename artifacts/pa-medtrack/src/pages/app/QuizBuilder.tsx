@@ -19,7 +19,8 @@ import {
   useGetQuiz, useUpdateQuiz,
   useListQuizQuestions, useCreateQuizQuestion, useUpdateQuizQuestion, useDeleteQuizQuestion,
   useListQuizAnswers, useCreateQuizAnswer, useUpdateQuizAnswer, useDeleteQuizAnswer,
-  type QuizQuestion, type QuizAnswer,
+  useQuizQuestionStats,
+  type QuizQuestion, type QuizAnswer, type QuestionStats,
 } from "@/hooks/useQuizzes";
 import { useGetCourseBlock, useGetCourseVersion, useGetCourse } from "@/hooks/useCourses";
 import { useAuth } from "@/lib/auth";
@@ -108,16 +109,30 @@ function AnswerRow({
   );
 }
 
+function DifficultyBadge({ stats }: { stats: QuestionStats | undefined }) {
+  if (!stats || stats.totalGraded === 0) {
+    return <Badge variant="outline" className="text-[10px] text-muted-foreground">No attempts yet</Badge>;
+  }
+  const variant = stats.incorrectRate >= 50 ? "destructive" : stats.incorrectRate >= 20 ? "secondary" : "outline";
+  return (
+    <Badge variant={variant} className="text-[10px]">
+      {stats.incorrectRate}% missed &middot; {stats.totalGraded} attempt{stats.totalGraded === 1 ? "" : "s"}
+    </Badge>
+  );
+}
+
 function QuestionCard({
   question,
   index,
   locked,
+  stats,
   onEdit,
   onDelete,
 }: {
   question: QuizQuestion;
   index: number;
   locked: boolean;
+  stats: QuestionStats | undefined;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -176,6 +191,7 @@ function QuestionCard({
               <span className="text-xs text-muted-foreground">Q{index + 1}</span>
               <Badge variant="outline" className="text-[10px]">{QUESTION_TYPE_LABEL[question.question_type] ?? question.question_type}</Badge>
               <Badge variant="secondary" className="text-[10px]">{question.points} pt{question.points === 1 ? "" : "s"}</Badge>
+              <DifficultyBadge stats={stats} />
             </div>
             <CardTitle className="text-base font-semibold">{question.question_text}</CardTitle>
             {question.explanation && (
@@ -238,6 +254,7 @@ export default function QuizBuilder() {
   const { data: courseVersion } = useGetCourseVersion(courseBlock?.course_version_id);
   const { data: course } = useGetCourse(courseVersion?.course_id);
   const { data: questions, isLoading: questionsLoading } = useListQuizQuestions(quizId);
+  const { data: questionStats } = useQuizQuestionStats((questions ?? []).map(q => q.id));
 
   const isLocked = !canManage || courseVersion?.status === "published";
 
@@ -443,6 +460,7 @@ export default function QuizBuilder() {
                   question={q}
                   index={idx}
                   locked={isLocked}
+                  stats={questionStats?.[q.id]}
                   onEdit={() => openEditQuestion(q)}
                   onDelete={() => setQuestionPendingDelete(q)}
                 />
