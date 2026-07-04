@@ -43,7 +43,7 @@ export default function Settings() {
   const { user } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const canManage = ["platform_admin", "org_admin"].includes(user?.role ?? "");
+  const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
 
   const { data: settings, isLoading } = useGetOrganizationSettings(user?.organizationId ?? undefined);
   const { mutate: upsertSettings, isPending: saving } = useUpsertOrganizationSettings();

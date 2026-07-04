@@ -340,11 +340,11 @@ export default function OrgDashboard() {
   const { data: trainingRecords, isLoading: trainingRecordsLoading } = useListTrainingRecords();
   const { data: practicums, isLoading: practicumsLoading } = useListPracticums();
   const { data: alerts, isLoading: alertsLoading } = useListAlerts({ status: "open" });
-  const { data: documents } = useListDocuments();
+  const { data: documents, isLoading: documentsLoading } = useListDocuments();
   const { data: trainingTypes, isLoading: trainingTypesLoading } = useListTrainingTypes({ isActive: true });
 
   const summaryLoading =
-    employeesLoading || facilitiesLoading || trainingRecordsLoading || practicumsLoading || alertsLoading || trainingTypesLoading;
+    employeesLoading || facilitiesLoading || trainingRecordsLoading || practicumsLoading || alertsLoading || trainingTypesLoading || documentsLoading;
 
   const summary = useMemo(
     () =>
