@@ -1,9 +1,8 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
 import {
   useListTrainingClasses,
   useCreateTrainingClass,
+  useClassAttendeeCounts,
 } from "@/hooks/useTrainingClasses";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -42,19 +41,6 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-
-function useClassAttendeeCounts() {
-  return useQuery({
-    queryKey: ["training_class_attendees", "counts"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("training_class_attendees").select("class_id");
-      if (error) throw error;
-      const counts: Record<string, number> = {};
-      for (const row of data) counts[row.class_id] = (counts[row.class_id] ?? 0) + 1;
-      return counts;
-    },
-  });
-}
 
 export default function TrainerClasses() {
   const [, navigate] = useLocation();

@@ -51,6 +51,24 @@ export function useListClassAttendees(classId: string | undefined) {
   });
 }
 
+// Per-class attendee counts for list views (e.g. the classes list, the trainer
+// dashboard's recent-classes widget) that need a count per row without issuing one
+// query per class. Shares a single queryKey so it can be invalidated consistently by
+// every attendee-mutating hook below, instead of each caller rolling its own ad-hoc
+// query that mutations don't know to invalidate.
+export function useClassAttendeeCounts() {
+  return useQuery({
+    queryKey: ["training_class_attendees", "all-counts"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("training_class_attendees").select("class_id");
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      for (const row of data) counts[row.class_id] = (counts[row.class_id] ?? 0) + 1;
+      return counts;
+    },
+  });
+}
+
 export function useCreateTrainingClass() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -83,8 +101,10 @@ export function useAddClassAttendee() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (_data, variables) =>
-      queryClient.invalidateQueries({ queryKey: ["training_class_attendees", variables.class_id] }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["training_class_attendees", variables.class_id] });
+      queryClient.invalidateQueries({ queryKey: ["training_class_attendees", "all-counts"] });
+    },
   });
 }
 
@@ -96,7 +116,10 @@ export function useUpdateClassAttendee() {
       if (error) throw error;
       return { ...data, classId };
     },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["training_class_attendees", data.classId] }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["training_class_attendees", data.classId] });
+      queryClient.invalidateQueries({ queryKey: ["training_class_attendees", "all-counts"] });
+    },
   });
 }
 

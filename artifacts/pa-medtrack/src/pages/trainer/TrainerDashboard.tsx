@@ -1,10 +1,14 @@
 import { useMemo } from "react";
 import { useAuth } from "@/lib/auth";
 import { useListEmployees } from "@/hooks/useEmployees";
-import { useListFacilities, type Facility } from "@/hooks/useFacilities";
-import { useListTrainingClasses } from "@/hooks/useTrainingClasses";
-import { useListPracticums, type Practicum } from "@/hooks/usePracticums";
-import type { Employee } from "@/hooks/useEmployees";
+import { useListFacilities } from "@/hooks/useFacilities";
+import { useListTrainingClasses, useClassAttendeeCounts } from "@/hooks/useTrainingClasses";
+import { useListPracticums } from "@/hooks/usePracticums";
+import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
+import {
+  buildFacilityRetrainingStatus,
+  ORG_WIDE_VISIBILITY_ROLES,
+} from "@/lib/facilityRetrainingStatus";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,62 +24,23 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 
-interface FacilityRetrainingStatus {
-  facilityId: string;
-  facilityName: string;
-  totalMedAdminStaff: number;
-  compliantCount: number;
-  dueSoonCount: number;
-  expiredCount: number;
-  missingCount: number;
-  overallStatus: "compliant" | "due_soon" | "expired" | "critical";
-}
-
-// There is no server-side facility retraining aggregate (the old Express endpoint
-// is gone); derive the same shape from facilities + employees + practicums.
-function buildFacilityRetrainingStatus(
-  facilities: Facility[],
-  employees: Employee[],
-  practicums: Practicum[]
-): FacilityRetrainingStatus[] {
-  return facilities.map((facility) => {
-    const staffCount = employees.filter(
-      (e) => e.facility_id === facility.id && e.administers_medications
-    ).length;
-    const facilityPracticums = practicums.filter((p) => p.facility_id === facility.id);
-
-    const compliantCount = facilityPracticums.filter((p) => p.status === "compliant").length;
-    const dueSoonCount = facilityPracticums.filter((p) => p.status === "due_soon").length;
-    const expiredCount = facilityPracticums.filter((p) => p.status === "expired").length;
-    const missingCount = facilityPracticums.filter((p) => p.status === "missing").length;
-
-    let overallStatus: FacilityRetrainingStatus["overallStatus"] = "compliant";
-    if (staffCount > 0 && expiredCount > 0 && compliantCount === 0) overallStatus = "critical";
-    else if (expiredCount > 0) overallStatus = "expired";
-    else if (dueSoonCount > 0 || missingCount > 0) overallStatus = "due_soon";
-
-    return {
-      facilityId: facility.id,
-      facilityName: facility.name,
-      totalMedAdminStaff: staffCount,
-      compliantCount,
-      dueSoonCount,
-      expiredCount,
-      missingCount,
-      overallStatus,
-    };
-  });
-}
-
 export default function TrainerDashboard() {
   const { user } = useAuth();
 
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees();
   const { data: classes } = useListTrainingClasses();
+  const { data: attendeeCounts } = useClassAttendeeCounts();
   const { data: practicums, isLoading: practicumsLoading } = useListPracticums({
     year: new Date().getFullYear(),
   });
+
+  const hasOrgWideVisibility = !user?.role || ORG_WIDE_VISIBILITY_ROLES.has(user.role);
+  const { data: myAssignments } = useListMyFacilityAssignments(user?.id, !hasOrgWideVisibility);
+  const assignedFacilityIds = useMemo(
+    () => new Set((myAssignments ?? []).map((a) => a.facility_id)),
+    [myAssignments]
+  );
 
   const allEmployees = employees ?? [];
   const totalMedAdmin = allEmployees.filter((e) => e.administers_medications).length;
@@ -87,8 +52,12 @@ export default function TrainerDashboard() {
   const pending = practicums?.filter((p) => p.status !== "compliant").length ?? 0;
 
   const retraining = useMemo(
-    () => buildFacilityRetrainingStatus(facilities ?? [], allEmployees, practicums ?? []),
-    [facilities, allEmployees, practicums]
+    () =>
+      buildFacilityRetrainingStatus(facilities ?? [], allEmployees, practicums ?? [], {
+        role: user?.role ?? null,
+        assignedFacilityIds,
+      }),
+    [facilities, allEmployees, practicums, user?.role, assignedFacilityIds]
   );
   const facilitiesNeedingAttention = retraining.filter(
     (f) => f.overallStatus === "critical" || f.overallStatus === "expired" || f.overallStatus === "due_soon"
@@ -216,7 +185,9 @@ export default function TrainerDashboard() {
                         {c.class_name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(c.class_date).toLocaleDateString()}
+                        {new Date(c.class_date).toLocaleDateString()} &middot;{" "}
+                        {attendeeCounts?.[c.id] ?? 0} attendee
+                        {(attendeeCounts?.[c.id] ?? 0) === 1 ? "" : "s"}
                       </p>
                     </div>
                     <Badge

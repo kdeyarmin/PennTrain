@@ -1,7 +1,13 @@
 import { useMemo } from "react";
-import { useListFacilities, type Facility } from "@/hooks/useFacilities";
-import { useListEmployees, type Employee } from "@/hooks/useEmployees";
-import { useListPracticums, type Practicum } from "@/hooks/usePracticums";
+import { useAuth } from "@/lib/auth";
+import { useListFacilities } from "@/hooks/useFacilities";
+import { useListEmployees } from "@/hooks/useEmployees";
+import { useListPracticums } from "@/hooks/usePracticums";
+import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
+import {
+  buildFacilityRetrainingStatus,
+  ORG_WIDE_VISIBILITY_ROLES,
+} from "@/lib/facilityRetrainingStatus";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -11,77 +17,40 @@ import {
   AlertTriangle,
   XCircle,
   Clock,
+  HelpCircle,
 } from "lucide-react";
 
-interface FacilityRetrainingStatus {
-  facilityId: string;
-  facilityName: string;
-  facilityType: string;
-  totalMedAdminStaff: number;
-  compliantCount: number;
-  dueSoonCount: number;
-  expiredCount: number;
-  missingCount: number;
-  nextExpiryDate: string | null;
-  overallStatus: "compliant" | "due_soon" | "expired" | "critical";
-}
-
-// There is no server-side facility retraining aggregate (the old Express endpoint
-// is gone); derive the same shape from facilities + employees + practicums.
-function buildFacilityRetrainingStatus(
-  facilities: Facility[],
-  employees: Employee[],
-  practicums: Practicum[]
-): FacilityRetrainingStatus[] {
-  return facilities.map((facility) => {
-    const staffCount = employees.filter(
-      (e) => e.facility_id === facility.id && e.administers_medications
-    ).length;
-    const facilityPracticums = practicums.filter((p) => p.facility_id === facility.id);
-
-    const compliantCount = facilityPracticums.filter((p) => p.status === "compliant").length;
-    const dueSoonCount = facilityPracticums.filter((p) => p.status === "due_soon").length;
-    const expiredCount = facilityPracticums.filter((p) => p.status === "expired").length;
-    const missingCount = facilityPracticums.filter((p) => p.status === "missing").length;
-
-    const upcoming = facilityPracticums
-      .filter((p) => p.due_date && (p.status === "due_soon" || p.status === "expired"))
-      .map((p) => p.due_date as string)
-      .sort();
-    const nextExpiryDate = upcoming[0] ?? null;
-
-    let overallStatus: FacilityRetrainingStatus["overallStatus"] = "compliant";
-    if (staffCount > 0 && expiredCount > 0 && compliantCount === 0) overallStatus = "critical";
-    else if (expiredCount > 0) overallStatus = "expired";
-    else if (dueSoonCount > 0 || missingCount > 0) overallStatus = "due_soon";
-
-    return {
-      facilityId: facility.id,
-      facilityName: facility.name,
-      facilityType: facility.facility_type,
-      totalMedAdminStaff: staffCount,
-      compliantCount,
-      dueSoonCount,
-      expiredCount,
-      missingCount,
-      nextExpiryDate,
-      overallStatus,
-    };
-  });
-}
-
 export default function RetrainingMonitor() {
+  const { user } = useAuth();
   const { data: facilities, isLoading: facilitiesLoading } = useListFacilities();
   const { data: employees, isLoading: employeesLoading } = useListEmployees();
   const { data: practicums, isLoading: practicumsLoading } = useListPracticums({
     year: new Date().getFullYear(),
   });
 
-  const isLoading = facilitiesLoading || employeesLoading || practicumsLoading;
+  const hasOrgWideVisibility = !user?.role || ORG_WIDE_VISIBILITY_ROLES.has(user.role);
+  const { data: myAssignments, isLoading: assignmentsLoading } = useListMyFacilityAssignments(
+    user?.id,
+    !hasOrgWideVisibility
+  );
+  const assignedFacilityIds = useMemo(
+    () => new Set((myAssignments ?? []).map((a) => a.facility_id)),
+    [myAssignments]
+  );
+
+  const isLoading =
+    facilitiesLoading ||
+    employeesLoading ||
+    practicumsLoading ||
+    (!hasOrgWideVisibility && assignmentsLoading);
 
   const facilityStatuses = useMemo(
-    () => buildFacilityRetrainingStatus(facilities ?? [], employees ?? [], practicums ?? []),
-    [facilities, employees, practicums]
+    () =>
+      buildFacilityRetrainingStatus(facilities ?? [], employees ?? [], practicums ?? [], {
+        role: user?.role ?? null,
+        assignedFacilityIds,
+      }),
+    [facilities, employees, practicums, user?.role, assignedFacilityIds]
   );
 
   const totalFacilities = facilityStatuses.length;
@@ -119,6 +88,12 @@ export default function RetrainingMonitor() {
       color: "text-red-600",
       icon: XCircle,
       badgeVariant: "destructive",
+    },
+    unknown: {
+      label: "Not Assigned",
+      color: "text-muted-foreground",
+      icon: HelpCircle,
+      badgeVariant: "outline",
     },
   };
 
@@ -213,8 +188,12 @@ export default function RetrainingMonitor() {
                           {fac.facilityName}
                         </CardTitle>
                         <p className="text-sm text-muted-foreground capitalize">
-                          {fac.facilityType?.replace(/_/g, " ")} &middot;{" "}
-                          {fac.totalMedAdminStaff} med admin staff
+                          {fac.facilityType?.replace(/_/g, " ")}
+                          {fac.isVisible && (
+                            <>
+                              {" "}&middot; {fac.totalMedAdminStaff} med admin staff
+                            </>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -224,47 +203,57 @@ export default function RetrainingMonitor() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Progress value={compliancePercent} className="flex-1 h-2" />
-                    <span className="text-sm font-medium w-12 text-right">
-                      {compliancePercent}%
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-4 gap-3 text-center text-sm">
-                    <div className="rounded-lg bg-green-50 dark:bg-green-950/20 py-2">
-                      <p className="text-lg font-bold text-green-700 dark:text-green-400">
-                        {fac.compliantCount}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Compliant</p>
-                    </div>
-                    <div className="rounded-lg bg-yellow-50 dark:bg-yellow-950/20 py-2">
-                      <p className="text-lg font-bold text-yellow-700 dark:text-yellow-400">
-                        {fac.dueSoonCount}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Due Soon</p>
-                    </div>
-                    <div className="rounded-lg bg-red-50 dark:bg-red-950/20 py-2">
-                      <p className="text-lg font-bold text-red-700 dark:text-red-400">
-                        {fac.expiredCount}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Expired</p>
-                    </div>
-                    <div className="rounded-lg bg-gray-50 dark:bg-gray-950/20 py-2">
-                      <p className="text-lg font-bold text-gray-700 dark:text-gray-400">
-                        {fac.missingCount}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Missing</p>
-                    </div>
-                  </div>
-                  {fac.nextExpiryDate && (
-                    <p className="text-xs text-muted-foreground">
-                      Next expiry:{" "}
-                      {new Date(fac.nextExpiryDate).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
+                  {!fac.isVisible ? (
+                    <p className="text-sm text-muted-foreground">
+                      You are not assigned to this facility, so staff and practicum
+                      records aren&apos;t visible here. This is not the same as being
+                      verified compliant &mdash; ask an org admin or auditor to review it.
                     </p>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-3">
+                        <Progress value={compliancePercent} className="flex-1 h-2" />
+                        <span className="text-sm font-medium w-12 text-right">
+                          {compliancePercent}%
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-3 text-center text-sm">
+                        <div className="rounded-lg bg-green-50 dark:bg-green-950/20 py-2">
+                          <p className="text-lg font-bold text-green-700 dark:text-green-400">
+                            {fac.compliantCount}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Compliant</p>
+                        </div>
+                        <div className="rounded-lg bg-yellow-50 dark:bg-yellow-950/20 py-2">
+                          <p className="text-lg font-bold text-yellow-700 dark:text-yellow-400">
+                            {fac.dueSoonCount}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Due Soon</p>
+                        </div>
+                        <div className="rounded-lg bg-red-50 dark:bg-red-950/20 py-2">
+                          <p className="text-lg font-bold text-red-700 dark:text-red-400">
+                            {fac.expiredCount}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Expired</p>
+                        </div>
+                        <div className="rounded-lg bg-gray-50 dark:bg-gray-950/20 py-2">
+                          <p className="text-lg font-bold text-gray-700 dark:text-gray-400">
+                            {fac.missingCount}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Missing</p>
+                        </div>
+                      </div>
+                      {fac.nextExpiryDate && (
+                        <p className="text-xs text-muted-foreground">
+                          Next expiry:{" "}
+                          {new Date(fac.nextExpiryDate).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </p>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>
