@@ -73,7 +73,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Overview of total, compliant, expired, and due-soon training records with compliance percentages.",
     icon: BarChart3,
     category: "Compliance",
-    requiredBy: "28 Pa. Code §2600",
+    requiredBy: "55 Pa. Code §2600",
   },
   {
     id: "facility-compliance",
@@ -118,7 +118,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Track initial and recertification training for all medication-administering staff.",
     icon: FileText,
     category: "Training",
-    requiredBy: "28 Pa. Code §2600.77",
+    requiredBy: "55 Pa. Code §2600.77",
   },
   {
     id: "training-matrix",
@@ -127,7 +127,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Cross-reference matrix showing each employee's status across all required training types.",
     icon: Grid3X3,
     category: "Training",
-    requiredBy: "28 Pa. Code §2600.77",
+    requiredBy: "55 Pa. Code §2600.77",
   },
   {
     id: "practicum-status",
@@ -136,7 +136,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Completion status of required annual medication administration practicums.",
     icon: CheckCircle,
     category: "Practicum",
-    requiredBy: "28 Pa. Code §2600.78",
+    requiredBy: "55 Pa. Code §2600.78",
   },
   {
     id: "annual-practicum",
@@ -145,7 +145,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Detailed view of annual practicum records including MAR review and direct observation.",
     icon: CheckCircle,
     category: "Practicum",
-    requiredBy: "28 Pa. Code §2600.78",
+    requiredBy: "55 Pa. Code §2600.78",
   },
   {
     id: "annual-hours",
@@ -154,7 +154,7 @@ const ALL_REPORTS: ReportDef[] = [
       "PCH 12-hour and ALR 16-hour annual training hour requirements with completion tracking.",
     icon: Clock,
     category: "Hours",
-    requiredBy: "28 Pa. Code §2600.64",
+    requiredBy: "55 Pa. Code §2600.64",
   },
   {
     id: "training-hours",
@@ -163,7 +163,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Detailed training hours breakdown by employee and training year.",
     icon: Clock,
     category: "Hours",
-    requiredBy: "28 Pa. Code §2600.64",
+    requiredBy: "55 Pa. Code §2600.64",
   },
   {
     id: "trainer-certification",
@@ -172,7 +172,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Track initial and recertification status for all designated trainers.",
     icon: GraduationCap,
     category: "Staff",
-    requiredBy: "28 Pa. Code §2600.77(g)",
+    requiredBy: "55 Pa. Code §2600.77(g)",
   },
   {
     id: "new-employee-training",
@@ -181,7 +181,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Training completion for recently hired staff within their first 90 days.",
     icon: Users,
     category: "Staff",
-    requiredBy: "28 Pa. Code §2600.77",
+    requiredBy: "55 Pa. Code §2600.77",
   },
   {
     id: "employee-transcript",
@@ -236,7 +236,7 @@ const ALL_REPORTS: ReportDef[] = [
       "High-level compliance metrics and trends across the entire organization.",
     icon: BarChart3,
     category: "Compliance",
-    requiredBy: "28 Pa. Code §2600",
+    requiredBy: "55 Pa. Code §2600",
     roles: ["platform_admin"],
   },
 ];

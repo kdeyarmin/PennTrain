@@ -97,7 +97,7 @@ export default function VerifyCertificate() {
         </Card>
 
         <p className="text-center text-[11px] text-muted-foreground/60">
-          28 Pa. Code Chapter 2600 Compliance Platform
+          55 Pa. Code Chapter 2600 Compliance Platform
         </p>
       </div>
     </div>
