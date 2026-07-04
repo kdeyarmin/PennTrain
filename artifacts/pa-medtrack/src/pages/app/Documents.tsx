@@ -13,9 +13,14 @@ import {
   useListDocuments, useUploadDocument, useDocumentSignedUrl, useDeleteDocument,
   type TrainingDocument, type UploadDocumentInput,
 } from "@/hooks/useDocuments";
-import { useAuth } from "@/lib/auth";
+import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { FileText, Upload, Trash2, Download, Files } from "lucide-react";
+
+// Matches the training_documents_delete RLS policy (org_admin/facility_manager, or
+// platform_admin via is_platform_admin()) — trainer and employee can never delete a
+// training document (not even their own upload), so the control must not render for them.
+const DOCUMENTS_DELETE_ROLES: Role[] = ["org_admin", "facility_manager", "platform_admin"];
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   certificate: "Certificate",
@@ -123,6 +128,7 @@ export default function Documents() {
   };
 
   const uploading = uploadDocument.isPending;
+  const canDelete = !!user && DOCUMENTS_DELETE_ROLES.includes(user.role);
 
   return (
     <div className="space-y-6">
@@ -272,9 +278,11 @@ export default function Documents() {
                     <Button size="icon" variant="ghost" onClick={() => handleDownload(doc)} title="Download">
                       <Download className="h-4 w-4" />
                     </Button>
-                    <Button size="icon" variant="ghost" onClick={() => setDeleteDoc(doc)} title="Delete">
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    {canDelete && (
+                      <Button size="icon" variant="ghost" onClick={() => setDeleteDoc(doc)} title="Delete">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}

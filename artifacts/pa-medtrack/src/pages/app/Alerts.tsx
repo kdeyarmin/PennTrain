@@ -8,11 +8,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertCircle, AlertTriangle, CheckCircle, Info, X, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth, type Role } from "@/lib/auth";
 
 const PAGE_SIZE = 10;
 type SortField = "severity" | "createdAt" | "title";
 
+// Matches the alerts_write RLS policy (org_admin/facility_manager, or platform_admin
+// via is_platform_admin()) — roles outside this list can reach /app/alerts (read-only)
+// but Postgres will reject any write, so those controls must not be shown to them.
+const ALERTS_WRITE_ROLES: Role[] = ["org_admin", "facility_manager", "platform_admin"];
+
 export default function Alerts() {
+  const { user } = useAuth();
+  const canWrite = !!user && ALERTS_WRITE_ROLES.includes(user.role);
   const [status, setStatus] = useState<string>("open");
   const [severity, setSeverity] = useState<string>("all");
   const [facilityId, setFacilityId] = useState<string>("all");
@@ -204,7 +212,7 @@ export default function Alerts() {
         </div>
       </div>
 
-      {selectedIds.size > 0 && (
+      {canWrite && selectedIds.size > 0 && (
         <div className="flex items-center gap-3 px-4 py-2 bg-muted rounded-md border">
           <span className="text-sm font-medium">{selectedIds.size} alert(s) selected</span>
           <Button
@@ -238,7 +246,7 @@ export default function Alerts() {
             </div>
           ) : (
             <>
-              {status === "open" && openOnPage.length > 0 && (
+              {canWrite && status === "open" && openOnPage.length > 0 && (
                 <div className="flex items-center gap-2 pb-3 mb-3 border-b">
                   <Checkbox
                     checked={allPageSelected}
@@ -250,7 +258,7 @@ export default function Alerts() {
               <div className="space-y-3">
                 {paginated.map((alert: Alert) => (
                   <div key={alert.id} className="flex items-start gap-4 p-4 rounded-lg border">
-                    {alert.status === "open" && (
+                    {canWrite && alert.status === "open" && (
                       <div className="mt-0.5">
                         <Checkbox
                           checked={selectedIds.has(alert.id)}
@@ -271,7 +279,7 @@ export default function Alerts() {
                         {new Date(alert.created_at).toLocaleDateString()}
                       </p>
                     </div>
-                    {alert.status === "open" && (
+                    {canWrite && alert.status === "open" && (
                       <div className="flex gap-2 shrink-0">
                         <Button
                           size="sm"
