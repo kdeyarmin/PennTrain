@@ -1,17 +1,13 @@
 -- Protective triggers: block privilege escalation via direct table writes
--- (role/org changes should go through the trusted admin-update-user Edge Function in a later
---  phase; until then, only platform_admin can change these fields directly).
+-- (role/org changes should go through the trusted admin-update-user Edge Function in Phase 4;
+--  until then, only platform_admin can change these fields directly).
 create or replace function public.protect_profile_privileged_fields()
-returns trigger
-language plpgsql
-set search_path = public
-as $$
+returns trigger language plpgsql as $$
 begin
   if not public.is_platform_admin() then
     new.role := old.role;
     new.organization_id := old.organization_id;
     new.is_active := old.is_active;
-    new.email := old.email;
   end if;
   return new;
 end;
@@ -20,10 +16,7 @@ create trigger protect_privileged_fields before update on public.profiles
   for each row execute function public.protect_profile_privileged_fields();
 
 create or replace function public.protect_organization_subscription_fields()
-returns trigger
-language plpgsql
-set search_path = public
-as $$
+returns trigger language plpgsql as $$
 begin
   if not public.is_platform_admin() then
     new.subscription_status := old.subscription_status;
@@ -97,7 +90,7 @@ create policy facilities_delete on public.facilities for delete to authenticated
   public.is_platform_admin() or (organization_id = (select public.current_org_id()) and (select public.current_role()) = 'org_admin')
 );
 
--- profiles (directory readable org-wide; self-row always readable; self-write limited by trigger)
+-- profiles (directory readable org-wide; self-row always readable; self-write limited to safe columns)
 alter table public.profiles enable row level security;
 create policy profiles_select on public.profiles for select to authenticated using (
   public.is_platform_admin() or id = auth.uid() or organization_id = (select public.current_org_id())
@@ -107,12 +100,9 @@ create policy profiles_update on public.profiles for update to authenticated usi
 ) with check (
   public.is_platform_admin() or id = auth.uid()
 );
--- Column-level GRANT can't distinguish platform_admin from other authenticated users (all
--- logged-in users share the single Postgres `authenticated` role) -- the real protection is
--- the row-level policy above (own row only, unless platform_admin) plus the
--- protect_profile_privileged_fields trigger (silently locks privileged columns to their old
--- value unless the caller is platform_admin).
-grant update on public.profiles to authenticated;
+revoke update on public.profiles from authenticated;
+grant update (first_name, last_name, phone) on public.profiles to authenticated;
+grant update on public.profiles to authenticated; -- platform_admin path (protected by trigger + policy for privileged cols)
 
 -- facility_assignments
 alter table public.facility_assignments enable row level security;
