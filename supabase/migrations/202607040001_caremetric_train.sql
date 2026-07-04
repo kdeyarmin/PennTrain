@@ -1,7 +1,7 @@
 -- CareMetric Train production MVP schema for Supabase/Postgres.
 -- Original LMS/compliance schema. Enable RLS in Supabase and adapt policies per deployment.
 create extension if not exists "pgcrypto";
-create type app_role as enum ('super_admin','organization_admin','facility_admin','instructor','learner','auditor');
+create type app_role as enum ('platform_admin','org_admin','facility_manager','trainer','employee');
 create type user_status as enum ('active','inactive','pending','terminated');
 create type assignment_status as enum ('not_started','in_progress','completed','overdue','failed','waived');
 create type approval_status as enum ('pending','approved','rejected');
