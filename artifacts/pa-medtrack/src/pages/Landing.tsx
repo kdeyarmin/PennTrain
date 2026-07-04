@@ -8,6 +8,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
   ShieldCheck,
   GraduationCap,
   FileCheck,
@@ -21,8 +27,12 @@ import {
   HomeIcon,
   Stethoscope,
   CheckCircle2,
+  XCircle,
   ArrowRight,
   Mail,
+  Database,
+  Lock,
+  History,
 } from "lucide-react";
 
 const SETTINGS = [
@@ -124,6 +134,82 @@ const STEPS = [
   },
 ];
 
+const OLD_WAY = [
+  "Training records scattered across spreadsheets, binders, and email attachments",
+  "Expiring certifications discovered during a survey, not before",
+  "Paper practicum sign-off sheets that are easy to lose or fake",
+  "Building a compliance binder means a night of printing and hole-punching",
+  "No single view of where every facility actually stands",
+];
+
+const NEW_WAY = [
+  "Every training record, certification, and practicum in one system of record",
+  "Automatic alerts before certifications lapse or retraining comes due",
+  "Digital competency checklists tied to each employee's role",
+  "A survey-ready compliance binder PDF generated in seconds",
+  "Real-time compliance dashboards across every facility, org-wide",
+];
+
+const SECURITY_FEATURES = [
+  {
+    icon: Database,
+    title: "Row-Level Security by Design",
+    description:
+      "Every table is protected by Postgres Row-Level Security, not just application code -- the database itself enforces who can see and change what.",
+  },
+  {
+    icon: Users,
+    title: "Six Enforced Access Levels",
+    description:
+      "Platform admin, org admin, facility manager, trainer, employee, and auditor -- each scoped to exactly the data their role should touch.",
+  },
+  {
+    icon: Lock,
+    title: "Private Storage, Signed URLs",
+    description:
+      "Documents, certificates, sign-in sheets, and compliance binders live in private storage and are only ever accessed through short-lived signed links.",
+  },
+  {
+    icon: History,
+    title: "Immutable Audit Trail",
+    description:
+      "Compliance-determining actions -- quiz grading, certificate issuance, course publishing -- are logged and can't be altered after the fact.",
+  },
+];
+
+const FAQS = [
+  {
+    question: "What is CareMetric Train?",
+    answer:
+      "CareMetric Train is a multi-tenant compliance-training platform and learning management system built for personal care homes, nursing homes, home health, and hospice agencies. It replaces spreadsheets and paper binders with one system for training records, certifications, medication practicums, and audit-ready reporting.",
+  },
+  {
+    question: "Which regulations does it help us comply with?",
+    answer:
+      "CareMetric Train grew out of Pennsylvania's 28 Pa. Code Chapter 2600 personal care home training requirements, and every training type, competency checklist, and practicum is configurable -- so your organization can model the specific requirements your state and license type require, whether that's a nursing home, home health, or hospice agency.",
+  },
+  {
+    question: "Do our employees need to install anything?",
+    answer:
+      "No. CareMetric Train runs in the browser on any device. Employees sign in to a course center to complete assigned training, take quizzes, and download their own certificates -- no app install required.",
+  },
+  {
+    question: "How does the compliance binder actually work?",
+    answer:
+      "One click generates a real PDF -- not a print-to-PDF workaround -- pulling each facility's current training compliance, practicums, certificates, and alerts into a survey-ready binder, delivered through a short-lived secure link.",
+  },
+  {
+    question: "Can our auditor or surveyor get read-only access?",
+    answer:
+      "Yes. The built-in auditor role sees the same compliance data your team does -- dashboards, training matrix, reports, documents, audit log -- with zero ability to edit or delete anything.",
+  },
+  {
+    question: "Can we bring over our existing employee roster?",
+    answer:
+      "Yes. Bulk CSV import lets you onboard an entire facility's staff in minutes instead of entering employees one at a time.",
+  },
+];
+
 function LogoMark({ className = "h-9 w-9" }: { className?: string }) {
   return (
     <div
@@ -159,8 +245,14 @@ export default function Landing() {
             <a href="#who-its-for" className="text-sm font-medium text-muted-foreground hover:text-foreground">
               Who It's For
             </a>
+            <a href="#security" className="text-sm font-medium text-muted-foreground hover:text-foreground">
+              Security
+            </a>
             <a href="#how-it-works" className="text-sm font-medium text-muted-foreground hover:text-foreground">
               How It Works
+            </a>
+            <a href="#faq" className="text-sm font-medium text-muted-foreground hover:text-foreground">
+              FAQ
             </a>
           </nav>
 
@@ -275,6 +367,52 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Problem / Solution */}
+      <section className="border-y border-border/60 bg-muted/30">
+        <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+              From binders and spreadsheets to one system of record
+            </h2>
+            <p className="mt-4 text-muted-foreground">
+              Most facilities aren't failing surveys because staff aren't trained --
+              they're failing because the paperwork proving it is scattered across a
+              dozen places.
+            </p>
+          </div>
+
+          <div className="mt-12 grid gap-6 lg:grid-cols-2">
+            <Card className="border-border/60">
+              <CardHeader>
+                <CardTitle className="text-base text-muted-foreground">The old way</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {OLD_WAY.map((item) => (
+                  <div key={item} className="flex items-start gap-2.5 text-sm text-muted-foreground">
+                    <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/60" />
+                    {item}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card className="border-primary/30 bg-primary/[0.03] shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base text-primary">With CareMetric Train</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {NEW_WAY.map((item) => (
+                  <div key={item} className="flex items-start gap-2.5 text-sm text-foreground/90">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    {item}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
       {/* Who it's for */}
       <section id="who-its-for" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
@@ -331,6 +469,35 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Security & Compliance */}
+      <section id="security" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            Enterprise-grade security, built in
+          </h2>
+          <p className="mt-4 text-muted-foreground">
+            Your training and compliance data is sensitive. It's protected at the
+            database layer, not bolted on as an afterthought.
+          </p>
+        </div>
+
+        <div className="mt-12 grid gap-6 sm:grid-cols-2">
+          {SECURITY_FEATURES.map((feature) => (
+            <div key={feature.title} className="flex gap-4 rounded-xl border border-border/60 bg-card p-6">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <feature.icon className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold">{feature.title}</h3>
+                <p className="mt-1.5 text-sm text-muted-foreground">
+                  {feature.description}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* How it works */}
       <section id="how-it-works" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
@@ -350,6 +517,30 @@ export default function Landing() {
               )}
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="border-y border-border/60 bg-muted/30">
+        <div className="mx-auto max-w-3xl px-4 py-20 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+              Frequently asked questions
+            </h2>
+          </div>
+
+          <Accordion type="single" collapsible className="mt-10">
+            {FAQS.map((faq, i) => (
+              <AccordionItem key={faq.question} value={`item-${i}`}>
+                <AccordionTrigger className="text-left text-base font-semibold">
+                  {faq.question}
+                </AccordionTrigger>
+                <AccordionContent className="text-sm text-muted-foreground">
+                  {faq.answer}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
         </div>
       </section>
 
@@ -411,7 +602,9 @@ export default function Landing() {
                 <ul className="mt-3 space-y-2 text-sm">
                   <li><a href="#features" className="text-muted-foreground hover:text-foreground">Features</a></li>
                   <li><a href="#who-its-for" className="text-muted-foreground hover:text-foreground">Who It's For</a></li>
+                  <li><a href="#security" className="text-muted-foreground hover:text-foreground">Security</a></li>
                   <li><a href="#how-it-works" className="text-muted-foreground hover:text-foreground">How It Works</a></li>
+                  <li><a href="#faq" className="text-muted-foreground hover:text-foreground">FAQ</a></li>
                 </ul>
               </div>
               <div>
