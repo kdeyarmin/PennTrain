@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,16 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useListFacilities, useListEmployees } from "@workspace/api-client-react";
+import { useListFacilities, type Facility } from "@/hooks/useFacilities";
+import { useListEmployees, type Employee } from "@/hooks/useEmployees";
+import { useListTrainingTypes, type TrainingType } from "@/hooks/useTrainingTypes";
+import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
+import { useListPracticums, type Practicum } from "@/hooks/usePracticums";
+import { useListAlerts, type Alert } from "@/hooks/useAlerts";
+import { useListDocuments, type TrainingDocument } from "@/hooks/useDocuments";
+import { useListOrganizations, type Organization } from "@/hooks/useOrganizations";
+import { supabase } from "@/lib/supabase";
+import type { Tables } from "@/lib/database.types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { ReportViewer } from "@/components/reports/ReportViewer";
@@ -247,179 +257,435 @@ type SummaryCard = {
   variant?: "default" | "success" | "warning" | "danger";
 };
 
-function parseReportData(
-  data: Record<string, unknown>,
-  reportId: string
-): {
+interface ParsedReport {
   headers: string[];
   rows: string[][];
   summaryCards: SummaryCard[];
-} {
+}
+
+// `employee_training_hour_buckets` has no dedicated hook yet elsewhere in the app,
+// so this report page queries it directly (same pattern as the other hooks/*.ts files).
+type HourBucket = Tables<"employee_training_hour_buckets">;
+
+interface ListTrainingHourBucketsFilters {
+  facilityId?: string;
+}
+
+function useListTrainingHourBuckets(filters: ListTrainingHourBucketsFilters = {}) {
+  return useQuery({
+    queryKey: ["training_hour_buckets", filters],
+    queryFn: async () => {
+      let query = supabase
+        .from("employee_training_hour_buckets")
+        .select("*")
+        .order("training_year", { ascending: false });
+      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function pct(numerator: number, denominator: number): number {
+  return denominator > 0 ? Math.round((numerator / denominator) * 100) : 100;
+}
+
+function complianceVariant(value: number): SummaryCard["variant"] {
+  return value >= 80 ? "success" : value >= 50 ? "warning" : "danger";
+}
+
+function byFacility<T extends { facility_id: string | null }>(items: T[], facilityId: string): T[] {
+  return facilityId === "all" ? items : items.filter((i) => i.facility_id === facilityId);
+}
+
+const TRAINING_RECORD_HEADERS = ["Employee", "Job Title", "Training Type", "Completion Date", "Due Date", "Status"];
+
+function trainingRecordRows(
+  records: TrainingRecord[],
+  employeeById: Map<string, Employee>,
+  trainingTypeById: Map<string, TrainingType>
+): string[][] {
+  return records.map((r) => {
+    const e = employeeById.get(r.employee_id);
+    return [
+      e ? `${e.first_name} ${e.last_name}` : r.employee_id,
+      e?.job_title ?? "",
+      trainingTypeById.get(r.training_type_id)?.name ?? "",
+      r.completion_date ?? "",
+      r.due_date ?? "",
+      r.status,
+    ];
+  });
+}
+
+interface ReportContext {
+  facilityId: string;
+  employeeIdOverride?: string;
+  facilities: Facility[];
+  employees: Employee[];
+  trainingTypes: TrainingType[];
+  trainingRecords: TrainingRecord[];
+  practicums: Practicum[];
+  documents: TrainingDocument[];
+  alerts: Alert[];
+  organizations: Organization[];
+  hourBuckets: HourBucket[];
+}
+
+function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
   const summaryCards: SummaryCard[] = [];
 
+  const scopedEmployees = byFacility(ctx.employees, ctx.facilityId).filter((e) => e.status === "active");
+  const scopedRecords = byFacility(ctx.trainingRecords, ctx.facilityId);
+  const scopedPracticums = byFacility(ctx.practicums, ctx.facilityId);
+  const scopedDocuments = byFacility(ctx.documents, ctx.facilityId);
+
+  const employeeById = new Map(ctx.employees.map((e) => [e.id, e]));
+  const trainingTypeById = new Map(ctx.trainingTypes.map((t) => [t.id, t]));
+
   if (reportId === "compliance-summary") {
-    const pct = Number(data.compliancePercentage ?? 0);
+    const total = scopedRecords.length;
+    const compliantCount = scopedRecords.filter((r) => r.status === "compliant").length;
+    const expiredCount = scopedRecords.filter((r) => r.status === "expired").length;
+    const dueSoonCount = scopedRecords.filter((r) => r.status === "due_soon").length;
+    const compliancePct = pct(compliantCount, total);
     summaryCards.push(
-      { label: "Total Employees", value: data.totalEmployees as number, variant: "default" },
-      { label: "Compliant", value: data.compliantCount as number, variant: "success" },
-      { label: "Expired", value: data.expiredCount as number, variant: (data.expiredCount as number) > 0 ? "danger" : "success" },
-      { label: "Compliance", value: `${pct}%`, variant: pct >= 80 ? "success" : pct >= 50 ? "warning" : "danger" }
+      { label: "Total Employees", value: scopedEmployees.length, variant: "default" },
+      { label: "Compliant", value: compliantCount, variant: "success" },
+      { label: "Expired", value: expiredCount, variant: expiredCount > 0 ? "danger" : "success" },
+      { label: "Compliance", value: `${compliancePct}%`, variant: complianceVariant(compliancePct) }
     );
     return {
       headers: ["Metric", "Value"],
       rows: [
-        ["Total Employees", String(data.totalEmployees ?? "")],
-        ["Total Training Records", String(data.totalRecords ?? "")],
-        ["Compliant Records", String(data.compliantCount ?? "")],
-        ["Expired Records", String(data.expiredCount ?? "")],
-        ["Due Soon Records", String(data.dueSoonCount ?? "")],
-        ["Compliance Percentage", `${pct}%`],
+        ["Total Employees", String(scopedEmployees.length)],
+        ["Total Training Records", String(total)],
+        ["Compliant Records", String(compliantCount)],
+        ["Expired Records", String(expiredCount)],
+        ["Due Soon Records", String(dueSoonCount)],
+        ["Compliance Percentage", `${compliancePct}%`],
       ],
       summaryCards,
     };
   }
 
   if (reportId === "facility-compliance") {
-    const facilities = (data.facilities as Array<Record<string, unknown>>) ?? [];
+    const facilityList =
+      ctx.facilityId === "all" ? ctx.facilities : ctx.facilities.filter((f) => f.id === ctx.facilityId);
+    const scored = facilityList.map((f) => {
+      const records = ctx.trainingRecords.filter((r) => r.facility_id === f.id);
+      const compliantCount = records.filter((r) => r.status === "compliant").length;
+      const expiredCount = records.filter((r) => r.status === "expired").length;
+      const dueSoonCount = records.filter((r) => r.status === "due_soon").length;
+      return {
+        facility: f,
+        total: records.length,
+        compliantCount,
+        expiredCount,
+        dueSoonCount,
+        score: pct(compliantCount, records.length),
+      };
+    });
     return {
       headers: ["Facility", "Type", "Total Records", "Compliant", "Expired", "Due Soon", "Compliance %"],
-      rows: facilities.map((f) => [
-        String(f.facilityName ?? f.name ?? ""),
-        String(f.facilityType ?? f.type ?? "").replace(/_/g, " "),
-        String(f.total ?? ""),
-        String(f.compliantCount ?? ""),
-        String(f.expiredCount ?? ""),
-        String(f.dueSoonCount ?? ""),
-        `${f.complianceScore ?? ""}%`,
+      rows: scored.map((s) => [
+        s.facility.name,
+        s.facility.facility_type.replace(/_/g, " "),
+        String(s.total),
+        String(s.compliantCount),
+        String(s.expiredCount),
+        String(s.dueSoonCount),
+        `${s.score}%`,
       ]),
       summaryCards: [
-        { label: "Facilities", value: facilities.length },
-        { label: "Avg Score", value: facilities.length > 0 ? `${Math.round(facilities.reduce((a, f) => a + Number(f.complianceScore ?? 0), 0) / facilities.length)}%` : "—", variant: "default" },
+        { label: "Facilities", value: scored.length },
+        {
+          label: "Avg Score",
+          value: scored.length > 0 ? `${Math.round(scored.reduce((a, s) => a + s.score, 0) / scored.length)}%` : "—",
+          variant: "default",
+        },
       ],
     };
   }
 
   if (reportId === "survey-readiness") {
-    const checks = (data.readinessChecks as Array<Record<string, unknown>>) ?? [];
-    summaryCards.push(
-      { label: "Readiness Score", value: `${data.surveyReadinessScore}%`, variant: Number(data.surveyReadinessScore) >= 80 ? "success" : Number(data.surveyReadinessScore) >= 50 ? "warning" : "danger" },
-      { label: "Compliance Score", value: `${data.overallComplianceScore}%`, variant: Number(data.overallComplianceScore) >= 80 ? "success" : "warning" },
-      { label: "Active Staff", value: data.totalActiveStaff as number },
-      { label: "Med Admin Staff", value: data.medAdminStaff as number }
+    const total = scopedRecords.length;
+    const compliantCount = scopedRecords.filter((r) => r.status === "compliant").length;
+    const expiredCount = scopedRecords.filter((r) => r.status === "expired").length;
+    const overallComplianceScore = pct(compliantCount, total);
+
+    const medAdminStaff = scopedEmployees.filter((e) => e.administers_medications);
+    const trainerStaff = scopedEmployees.filter((e) => e.trainer_status);
+    const medAdminIds = new Set(medAdminStaff.map((e) => e.id));
+    const trainerIds = new Set(trainerStaff.map((e) => e.id));
+
+    const medAdminTypeIds = new Set(
+      ctx.trainingTypes.filter((t) => t.is_active && t.applies_to_administers_meds).map((t) => t.id)
     );
+    const trainerTypeIds = new Set(
+      ctx.trainingTypes.filter((t) => t.is_active && t.applies_to_trainers).map((t) => t.id)
+    );
+
+    const medAdminBadRecords = scopedRecords.filter(
+      (r) => medAdminIds.has(r.employee_id) && medAdminTypeIds.has(r.training_type_id) && (r.status === "expired" || r.status === "missing")
+    );
+    const trainerBadRecords = scopedRecords.filter(
+      (r) => trainerIds.has(r.employee_id) && trainerTypeIds.has(r.training_type_id) && (r.status === "expired" || r.status === "missing")
+    );
+
+    const currentYear = new Date().getFullYear();
+    const yearPracticums = scopedPracticums.filter((p) => p.practicum_year === currentYear);
+    const pendingPracticums = yearPracticums.filter((p) => p.status !== "compliant");
+
+    const missingDocsRecords = scopedRecords.filter((r) => r.document_required && !r.external_certificate_document_id);
+
+    const criticalAlerts = byFacility(ctx.alerts, ctx.facilityId).filter((a) => a.severity === "critical");
+
+    const checks: { check: string; status: string; detail: string }[] = [
+      {
+        check: "Overall Training Compliance",
+        status: overallComplianceScore >= 90 ? "pass" : overallComplianceScore >= 75 ? "warning" : "fail",
+        detail: `${compliantCount} of ${total} records compliant (${overallComplianceScore}%)`,
+      },
+      {
+        check: "Expired Training Records",
+        status: expiredCount === 0 ? "pass" : "fail",
+        detail: `${expiredCount} expired record(s) require immediate renewal`,
+      },
+      {
+        check: "Medication Administration Training",
+        status: medAdminBadRecords.length === 0 ? "pass" : "fail",
+        detail: `${medAdminBadRecords.length} of ${medAdminStaff.length} med admin staff have expired or missing training`,
+      },
+      {
+        check: "Trainer Certification",
+        status: trainerBadRecords.length === 0 ? "pass" : "fail",
+        detail: `${trainerBadRecords.length} of ${trainerStaff.length} designated trainers have expired or missing certification`,
+      },
+      {
+        check: "Annual Practicum Completion",
+        status: pendingPracticums.length === 0 ? "pass" : "warning",
+        detail: `${pendingPracticums.length} of ${yearPracticums.length} ${currentYear} practicums pending`,
+      },
+      {
+        check: "Required Documentation",
+        status: missingDocsRecords.length === 0 ? "pass" : "warning",
+        detail: `${missingDocsRecords.length} record(s) missing required documentation`,
+      },
+      {
+        check: "Open Critical Alerts",
+        status: criticalAlerts.length === 0 ? "pass" : "fail",
+        detail: `${criticalAlerts.length} open critical alert(s)`,
+      },
+    ];
+
+    const passCount = checks.filter((c) => c.status === "pass").length;
+    const surveyReadinessScore = pct(passCount, checks.length);
+
+    summaryCards.push(
+      { label: "Readiness Score", value: `${surveyReadinessScore}%`, variant: complianceVariant(surveyReadinessScore) },
+      { label: "Compliance Score", value: `${overallComplianceScore}%`, variant: complianceVariant(overallComplianceScore) },
+      { label: "Active Staff", value: scopedEmployees.length },
+      { label: "Med Admin Staff", value: medAdminStaff.length }
+    );
+
     return {
       headers: ["Check", "Status", "Detail"],
-      rows: checks.map((c) => [
-        String(c.check ?? ""),
-        String(c.status ?? ""),
-        String(c.detail ?? ""),
-      ]),
+      rows: checks.map((c) => [c.check, c.status, c.detail]),
+      summaryCards,
+    };
+  }
+
+  if (reportId === "expired-training") {
+    const records = scopedRecords.filter((r) => r.status === "expired");
+    summaryCards.push({ label: "Expired Records", value: records.length, variant: records.length > 0 ? "danger" : "success" });
+    return { headers: TRAINING_RECORD_HEADERS, rows: trainingRecordRows(records, employeeById, trainingTypeById), summaryCards };
+  }
+
+  if (reportId === "due-soon") {
+    const records = scopedRecords.filter((r) => r.status === "due_soon");
+    summaryCards.push({ label: "Due Soon Records", value: records.length, variant: records.length > 0 ? "warning" : "success" });
+    return { headers: TRAINING_RECORD_HEADERS, rows: trainingRecordRows(records, employeeById, trainingTypeById), summaryCards };
+  }
+
+  if (reportId === "medication-administration") {
+    const medAdminEmployees = scopedEmployees.filter((e) => e.administers_medications);
+    const medAdminIds = new Set(medAdminEmployees.map((e) => e.id));
+    const medAdminTypeIds = new Set(
+      ctx.trainingTypes.filter((t) => t.is_active && t.applies_to_administers_meds).map((t) => t.id)
+    );
+    const records = scopedRecords.filter((r) => medAdminIds.has(r.employee_id) && medAdminTypeIds.has(r.training_type_id));
+    summaryCards.push(
+      { label: "Med Admin Staff", value: medAdminEmployees.length },
+      { label: "Training Records", value: records.length }
+    );
+    return {
+      headers: ["Employee", "Job Title", "Hire Date", "Training Type", "Completion", "Due Date", "Status"],
+      rows: records.map((r) => {
+        const e = employeeById.get(r.employee_id);
+        return [
+          e ? `${e.first_name} ${e.last_name}` : r.employee_id,
+          e?.job_title ?? "",
+          e?.hire_date ?? "",
+          trainingTypeById.get(r.training_type_id)?.name ?? "",
+          r.completion_date ?? "",
+          r.due_date ?? "",
+          r.status,
+        ];
+      }),
       summaryCards,
     };
   }
 
   if (reportId === "training-matrix") {
-    const matrix = (data.matrix as Array<Record<string, unknown>>) ?? [];
-    const trainingTypes = (data.trainingTypes as Array<Record<string, unknown>>) ?? [];
-    if (!matrix.length) return { headers: [], rows: [], summaryCards: [] };
-    const typeHeaders = trainingTypes.map((t) => String(t.name ?? t.id ?? ""));
-    const typeIds = trainingTypes.map((t) => String(t.id ?? ""));
+    const matrixTypes = ctx.trainingTypes.filter((t) => t.is_active);
+    if (scopedEmployees.length === 0 || matrixTypes.length === 0) return { headers: [], rows: [], summaryCards: [] };
+
+    const recordsByKey = new Map<string, TrainingRecord[]>();
+    for (const r of scopedRecords) {
+      const key = `${r.employee_id}:${r.training_type_id}`;
+      const arr = recordsByKey.get(key);
+      if (arr) arr.push(r);
+      else recordsByKey.set(key, [r]);
+    }
+    const latestStatus = (employeeId: string, typeId: string): string => {
+      const arr = recordsByKey.get(`${employeeId}:${typeId}`);
+      if (!arr || arr.length === 0) return "no_record";
+      const sorted = [...arr].sort((a, b) => {
+        const da = a.due_date ? new Date(a.due_date).getTime() : 0;
+        const db = b.due_date ? new Date(b.due_date).getTime() : 0;
+        return db - da;
+      });
+      return sorted[0].status;
+    };
+
     return {
-      headers: ["Employee", "Job Title", ...typeHeaders],
-      rows: matrix.map((e) => {
-        const statusByType = (e.statusByType ?? {}) as Record<string, string>;
-        return [
-          String(e.employeeName ?? ""),
-          String(e.jobTitle ?? ""),
-          ...typeIds.map((tid) => String(statusByType[tid] ?? "no_record")),
-        ];
-      }),
+      headers: ["Employee", "Job Title", ...matrixTypes.map((t) => t.name)],
+      rows: scopedEmployees.map((e) => [
+        `${e.first_name} ${e.last_name}`,
+        e.job_title ?? "",
+        ...matrixTypes.map((t) => latestStatus(e.id, t.id)),
+      ]),
       summaryCards: [
-        { label: "Employees", value: matrix.length },
-        { label: "Training Types", value: trainingTypes.length },
+        { label: "Employees", value: scopedEmployees.length },
+        { label: "Training Types", value: matrixTypes.length },
       ],
     };
   }
 
-  if (reportId === "org-compliance") {
-    const orgs = (data.organizations as Array<Record<string, unknown>>) ?? [];
+  if (reportId === "practicum-status") {
+    const medAdminEmployees = scopedEmployees.filter((e) => e.administers_medications);
+    const compliantCount = scopedPracticums.filter((p) => p.status === "compliant").length;
+    const pendingCount = scopedPracticums.length - compliantCount;
+    summaryCards.push(
+      { label: "Med Admin Staff", value: medAdminEmployees.length },
+      { label: "Compliant", value: compliantCount, variant: "success" },
+      { label: "Pending", value: pendingCount, variant: pendingCount > 0 ? "warning" : "success" }
+    );
     return {
-      headers: ["Org ID", "Total Employees", "Facilities", "Total Records", "Compliant", "Expired", "Due Soon", "Compliance %"],
-      rows: orgs.map((o) => [
-        String(o.orgId ?? ""),
-        String(o.totalEmployees ?? ""),
-        String(o.totalFacilities ?? ""),
-        String(o.totalRecords ?? ""),
-        String(o.compliantCount ?? ""),
-        String(o.expiredCount ?? ""),
-        String(o.dueSoonCount ?? ""),
-        `${o.compliancePercentage ?? ""}%`,
-      ]),
-      summaryCards: [{ label: "Organizations", value: orgs.length }],
+      headers: ["Employee ID", "Year", "Status", "Completion Date"],
+      rows: scopedPracticums.map((p) => [p.employee_id, String(p.practicum_year), p.status, p.completion_date ?? ""]),
+      summaryCards,
     };
   }
 
   if (reportId === "annual-practicum") {
-    const practicums = (data.practicums as Array<Record<string, unknown>>) ?? [];
+    const completed = scopedPracticums.filter((p) => p.status === "compliant").length;
+    const pending = scopedPracticums.length - completed;
     summaryCards.push(
-      { label: "Total Required", value: data.totalRequired as number },
-      { label: "Completed", value: data.completed as number, variant: "success" },
-      { label: "Pending", value: data.pending as number, variant: (data.pending as number) > 0 ? "warning" : "success" }
+      { label: "Total Required", value: scopedPracticums.length },
+      { label: "Completed", value: completed, variant: "success" },
+      { label: "Pending", value: pending, variant: pending > 0 ? "warning" : "success" }
     );
     return {
       headers: ["Employee ID", "Year", "Status", "Completion Date", "Observed By", "MAR Review", "Direct Observation"],
-      rows: practicums.map((p) => [
-        String(p.employeeId ?? ""),
-        String(p.practicumYear ?? ""),
-        String(p.status ?? ""),
-        String(p.completionDate ?? ""),
-        String(p.observedBy ?? ""),
-        p.marReviewCompleted ? "Yes" : "No",
-        p.directObservationCompleted ? "Yes" : "No",
+      rows: scopedPracticums.map((p) => [
+        p.employee_id,
+        String(p.practicum_year),
+        p.status,
+        p.completion_date ?? "",
+        p.observed_by ?? "",
+        p.mar_review_completed ? "Yes" : "No",
+        p.direct_observation_completed ? "Yes" : "No",
       ]),
       summaryCards,
     };
   }
 
-  if (reportId === "practicum-status") {
-    const practicums = (data.practicums as Array<Record<string, unknown>>) ?? [];
-    const employees = (data.employees as Array<Record<string, unknown>>) ?? [];
-    summaryCards.push(
-      { label: "Med Admin Staff", value: employees.length },
-      { label: "Compliant", value: data.compliantCount as number, variant: "success" },
-      { label: "Pending", value: data.pendingCount as number, variant: (data.pendingCount as number) > 0 ? "warning" : "success" }
-    );
-    return {
-      headers: ["Employee ID", "Year", "Status", "Completion Date"],
-      rows: practicums.map((p) => [
-        String(p.employeeId ?? ""),
-        String(p.practicumYear ?? ""),
-        String(p.status ?? ""),
-        String(p.completionDate ?? ""),
-      ]),
-      summaryCards,
-    };
-  }
-
-  if (reportId === "training-hours" || reportId === "annual-hours") {
-    const buckets = (data.buckets as Array<Record<string, unknown>>) ?? [];
+  if (reportId === "annual-hours" || reportId === "training-hours") {
+    const scopedBuckets = byFacility(ctx.hourBuckets, ctx.facilityId);
+    const currentYear = new Date().getFullYear();
+    const buckets = reportId === "annual-hours" ? scopedBuckets.filter((b) => b.training_year === currentYear) : scopedBuckets;
+    const compliantCount = buckets.filter((b) => b.status === "compliant").length;
+    const incompleteCount = buckets.length - compliantCount;
     summaryCards.push(
       { label: "Staff Tracked", value: buckets.length },
-      { label: "Compliant", value: data.compliantCount as number ?? 0, variant: "success" },
-      { label: "Incomplete", value: data.incompleteCount as number ?? 0, variant: (data.incompleteCount as number) > 0 ? "warning" : "success" }
+      { label: "Compliant", value: compliantCount, variant: "success" },
+      { label: "Incomplete", value: incompleteCount, variant: incompleteCount > 0 ? "warning" : "success" }
     );
     return {
       headers: ["Employee ID", "Year", "Required Hours", "Completed Hours", "Remaining", "Status"],
       rows: buckets.map((b) => {
-        const req = Number(b.requiredHours ?? 0);
-        const comp = Number(b.completedHours ?? 0);
+        const req = Number(b.required_hours ?? 0);
+        const comp = Number(b.completed_hours ?? 0);
+        return [b.employee_id, String(b.training_year), String(req), String(comp), String(Math.max(0, req - comp)), b.status];
+      }),
+      summaryCards,
+    };
+  }
+
+  if (reportId === "trainer-certification") {
+    const trainers = scopedEmployees.filter((e) => e.trainer_status);
+    const trainerIds = new Set(trainers.map((e) => e.id));
+    const trainerTypeIds = new Set(
+      ctx.trainingTypes.filter((t) => t.is_active && t.applies_to_trainers).map((t) => t.id)
+    );
+    const records = scopedRecords.filter((r) => trainerIds.has(r.employee_id) && trainerTypeIds.has(r.training_type_id));
+    summaryCards.push(
+      { label: "Trainers", value: trainers.length },
+      { label: "Training Records", value: records.length }
+    );
+    return {
+      headers: ["Employee", "Job Title", "Training Type", "Completion", "Due Date", "Status"],
+      rows: records.map((r) => {
+        const e = employeeById.get(r.employee_id);
         return [
-          String(b.employeeId ?? ""),
-          String(b.trainingYear ?? ""),
-          String(req),
-          String(comp),
-          String(Math.max(0, req - comp)),
-          String(b.status ?? ""),
+          e ? `${e.first_name} ${e.last_name}` : r.employee_id,
+          e?.job_title ?? "",
+          trainingTypeById.get(r.training_type_id)?.name ?? "",
+          r.completion_date ?? "",
+          r.due_date ?? "",
+          r.status,
+        ];
+      }),
+      summaryCards,
+    };
+  }
+
+  if (reportId === "new-employee-training") {
+    const cutoff = new Date(Date.now() - 90 * DAY_MS);
+    const newHires = scopedEmployees.filter((e) => e.hire_date && new Date(e.hire_date) >= cutoff);
+    const newHireIds = new Set(newHires.map((e) => e.id));
+    const records = scopedRecords.filter((r) => newHireIds.has(r.employee_id));
+    summaryCards.push(
+      { label: "New Employees", value: newHires.length },
+      { label: "Training Records", value: records.length }
+    );
+    return {
+      headers: ["Employee", "Job Title", "Hire Date", "Training Type", "Completion", "Due Date", "Status"],
+      rows: records.map((r) => {
+        const e = employeeById.get(r.employee_id);
+        return [
+          e ? `${e.first_name} ${e.last_name}` : r.employee_id,
+          e?.job_title ?? "",
+          e?.hire_date ?? "",
+          trainingTypeById.get(r.training_type_id)?.name ?? "",
+          r.completion_date ?? "",
+          r.due_date ?? "",
+          r.status,
         ];
       }),
       summaryCards,
@@ -427,120 +693,131 @@ function parseReportData(
   }
 
   if (reportId === "employee-transcript") {
-    const employee = data.employee as Record<string, unknown> | undefined;
-    const rawRecords = (data.trainingRecords as Array<Record<string, unknown>>) ?? [];
-    const practicums = (data.practicums as Array<Record<string, unknown>>) ?? [];
-    const empName = employee ? `${employee.firstName} ${employee.lastName}` : "Unknown";
+    const employee = ctx.employeeIdOverride ? employeeById.get(ctx.employeeIdOverride) : undefined;
+    const records = ctx.employeeIdOverride
+      ? ctx.trainingRecords.filter((r) => r.employee_id === ctx.employeeIdOverride)
+      : [];
+    const practicums = ctx.employeeIdOverride
+      ? ctx.practicums.filter((p) => p.employee_id === ctx.employeeIdOverride)
+      : [];
     summaryCards.push(
-      { label: "Employee", value: empName },
-      { label: "Training Records", value: rawRecords.length },
+      { label: "Employee", value: employee ? `${employee.first_name} ${employee.last_name}` : "Unknown" },
+      { label: "Training Records", value: records.length },
       { label: "Practicums", value: practicums.length }
     );
     return {
       headers: ["Training Type", "Completion Date", "Due Date", "Status", "Trainer", "Hours", "Method"],
-      rows: rawRecords.map((r) => {
-        const rec = (r.record ?? r) as Record<string, unknown>;
-        const tt = (r.trainingType ?? {}) as Record<string, unknown>;
-        const typeName = String(r.trainingTypeName ?? tt.name ?? rec.trainingTypeName ?? "");
-        return [
-          typeName,
-          String(rec.completionDate ?? r.completionDate ?? ""),
-          String(rec.dueDate ?? r.dueDate ?? ""),
-          String(rec.status ?? r.status ?? ""),
-          String(rec.trainerName ?? r.trainerName ?? ""),
-          String(rec.hours ?? r.hours ?? ""),
-          String(rec.completionMethod ?? r.completionMethod ?? "").replace(/_/g, " "),
-        ];
-      }),
-      summaryCards,
-    };
-  }
-
-  if (reportId === "medication-administration") {
-    const employees = (data.employees as Array<Record<string, unknown>>) ?? [];
-    const records = (data.trainingRecords as Array<Record<string, unknown>>) ?? [];
-    summaryCards.push(
-      { label: "Med Admin Staff", value: employees.length },
-      { label: "Training Records", value: records.length }
-    );
-    const empMap = new Map(employees.map((e) => [e.id, e]));
-    return {
-      headers: ["Employee", "Job Title", "Hire Date", "Training Type", "Completion", "Due Date", "Status"],
-      rows: records.map((r) => {
-        const rec = (r.record ?? r) as Record<string, unknown>;
-        const tt = (r.trainingType ?? {}) as Record<string, unknown>;
-        const emp = empMap.get(rec.employeeId);
-        return [
-          emp ? `${emp.firstName} ${emp.lastName}` : String(rec.employeeId ?? ""),
-          emp ? String(emp.jobTitle ?? "") : "",
-          emp ? String(emp.hireDate ?? "") : "",
-          String(tt.name ?? ""),
-          String(rec.completionDate ?? ""),
-          String(rec.dueDate ?? ""),
-          String(rec.status ?? ""),
-        ];
-      }),
-      summaryCards,
-    };
-  }
-
-  if (reportId === "document-audit") {
-    const docs = (data.documents as Array<Record<string, unknown>>) ?? [];
-    summaryCards.push(
-      { label: "Total Documents", value: data.totalDocuments as number },
-      { label: "Records Need Docs", value: data.recordsRequiringDocs as number, variant: (data.recordsRequiringDocs as number) > 0 ? "warning" : "success" }
-    );
-    return {
-      headers: ["File Name", "Type", "Uploaded By", "Created"],
-      rows: docs.map((d) => [
-        String(d.fileName ?? ""),
-        String(d.documentType ?? d.fileType ?? ""),
-        String(d.uploadedByUserId ?? ""),
-        String(d.createdAt ?? ""),
+      rows: records.map((r) => [
+        trainingTypeById.get(r.training_type_id)?.name ?? "",
+        r.completion_date ?? "",
+        r.due_date ?? "",
+        r.status,
+        r.trainer_name ?? "",
+        r.hours != null ? String(r.hours) : "",
+        (r.completion_method ?? "").replace(/_/g, " "),
       ]),
       summaryCards,
     };
   }
 
-  const records = (
-    (data.records as unknown[]) ??
-    (data.trainingRecords as unknown[]) ??
-    (data.employees as unknown[]) ??
-    (data.trainers as unknown[]) ??
-    (data.data as unknown[]) ??
-    []
-  ) as Array<Record<string, unknown>>;
+  if (reportId === "expiring-certifications") {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() + 90 * DAY_MS);
+    const records = scopedRecords.filter((r) => {
+      if (!r.due_date) return false;
+      const due = new Date(r.due_date);
+      return due >= now && due <= cutoff;
+    });
+    summaryCards.push({ label: "Expiring (90 days)", value: records.length, variant: records.length > 0 ? "warning" : "success" });
+    return { headers: TRAINING_RECORD_HEADERS, rows: trainingRecordRows(records, employeeById, trainingTypeById), summaryCards };
+  }
 
-  if (records.length === 0) return { headers: [], rows: [], summaryCards: [] };
+  if (reportId === "missing-documents") {
+    const records = scopedRecords.filter((r) => r.document_required && !r.external_certificate_document_id);
+    summaryCards.push({ label: "Missing Documents", value: records.length, variant: records.length > 0 ? "warning" : "success" });
+    return { headers: TRAINING_RECORD_HEADERS, rows: trainingRecordRows(records, employeeById, trainingTypeById), summaryCards };
+  }
 
-  const flatRecords = records.map((r) => {
-    if (r.record && typeof r.record === "object") {
-      const rec = r.record as Record<string, unknown>;
-      const tt = r.trainingType as Record<string, unknown> | undefined;
-      return { ...rec, trainingTypeName: tt?.name ?? rec.trainingTypeName ?? "" };
-    }
-    return r;
-  });
+  if (reportId === "document-audit") {
+    const recordsRequiringDocs = scopedRecords.filter((r) => r.document_required && !r.external_certificate_document_id).length;
+    summaryCards.push(
+      { label: "Total Documents", value: scopedDocuments.length },
+      { label: "Records Need Docs", value: recordsRequiringDocs, variant: recordsRequiringDocs > 0 ? "warning" : "success" }
+    );
+    return {
+      headers: ["File Name", "Type", "Uploaded By", "Created"],
+      rows: scopedDocuments.map((d) => [d.file_name, d.document_type, d.uploaded_by_profile_id ?? "", d.created_at]),
+      summaryCards,
+    };
+  }
 
-  const skipFields = new Set(["trainingType", "record", "organizationId", "id", "createdAt", "updatedAt"]);
-  const allKeys = Object.keys(flatRecords[0]).filter((k) => !skipFields.has(k));
+  if (reportId === "overdue-training") {
+    const expiredRecords = scopedRecords.filter((r) => r.status === "expired");
+    const expiredPracticums = scopedPracticums.filter((p) => p.status === "expired");
+    const rows: string[][] = [
+      ...expiredRecords.map((r) => {
+        const e = employeeById.get(r.employee_id);
+        return [
+          e ? `${e.first_name} ${e.last_name}` : r.employee_id,
+          e?.job_title ?? "",
+          "Training",
+          trainingTypeById.get(r.training_type_id)?.name ?? "",
+          r.due_date ?? "",
+          r.status,
+        ];
+      }),
+      ...expiredPracticums.map((p) => {
+        const e = employeeById.get(p.employee_id);
+        return [
+          e ? `${e.first_name} ${e.last_name}` : p.employee_id,
+          e?.job_title ?? "",
+          "Practicum",
+          `Annual Practicum ${p.practicum_year}`,
+          p.due_date ?? "",
+          p.status,
+        ];
+      }),
+    ];
+    summaryCards.push({ label: "Overdue Items", value: rows.length, variant: rows.length > 0 ? "danger" : "success" });
+    return { headers: ["Employee", "Job Title", "Type", "Item", "Due Date", "Status"], rows, summaryCards };
+  }
 
-  const friendlyHeaders = allKeys.map((k) =>
-    k.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase()).trim()
-  );
+  if (reportId === "org-compliance") {
+    const rows = ctx.organizations.map((o) => {
+      const orgFacilities = ctx.facilities.filter((f) => f.organization_id === o.id);
+      const orgEmployees = ctx.employees.filter((e) => e.organization_id === o.id);
+      const orgRecords = ctx.trainingRecords.filter((r) => r.organization_id === o.id);
+      const compliantCount = orgRecords.filter((r) => r.status === "compliant").length;
+      const expiredCount = orgRecords.filter((r) => r.status === "expired").length;
+      const dueSoonCount = orgRecords.filter((r) => r.status === "due_soon").length;
+      return {
+        org: o,
+        totalEmployees: orgEmployees.length,
+        totalFacilities: orgFacilities.length,
+        totalRecords: orgRecords.length,
+        compliantCount,
+        expiredCount,
+        dueSoonCount,
+        compliancePercentage: pct(compliantCount, orgRecords.length),
+      };
+    });
+    return {
+      headers: ["Org ID", "Total Employees", "Facilities", "Total Records", "Compliant", "Expired", "Due Soon", "Compliance %"],
+      rows: rows.map((r) => [
+        r.org.name,
+        String(r.totalEmployees),
+        String(r.totalFacilities),
+        String(r.totalRecords),
+        String(r.compliantCount),
+        String(r.expiredCount),
+        String(r.dueSoonCount),
+        `${r.compliancePercentage}%`,
+      ]),
+      summaryCards: [{ label: "Organizations", value: rows.length }],
+    };
+  }
 
-  return {
-    headers: friendlyHeaders,
-    rows: flatRecords.map((r) =>
-      allKeys.map((k) => {
-        const val = r[k];
-        if (val === null || val === undefined) return "";
-        if (typeof val === "boolean") return val ? "Yes" : "No";
-        return String(val);
-      })
-    ),
-    summaryCards,
-  };
+  return { headers: [], rows: [], summaryCards: [] };
 }
 
 function toCsv(headers: string[], rows: string[][]): string {
@@ -574,7 +851,6 @@ export default function Reports() {
   const [facilityId, setFacilityId] = useState<string>("all");
   const [category, setCategory] = useState<string>("All");
   const [search, setSearch] = useState("");
-  const [loadingReport, setLoadingReport] = useState<string | null>(null);
   const [pendingReport, setPendingReport] = useState<ReportDef | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("none");
 
@@ -586,15 +862,41 @@ export default function Reports() {
     generatedAt: string;
   } | null>(null);
 
-  const { data: facilities } = useListFacilities({});
-  const { data: employees } = useListEmployees({});
   const { toast } = useToast();
   const { user } = useAuth();
 
-  const facilityName =
-    facilityId !== "all"
-      ? facilities?.find((f) => String(f.id) === facilityId)?.name
-      : undefined;
+  const facilitiesQuery = useListFacilities({});
+  const employeesQuery = useListEmployees({});
+  const trainingTypesQuery = useListTrainingTypes({});
+  const trainingRecordsQuery = useListTrainingRecords({});
+  const practicumsQuery = useListPracticums({});
+  const documentsQuery = useListDocuments({});
+  const alertsQuery = useListAlerts({ status: "open" });
+  const hourBucketsQuery = useListTrainingHourBuckets({});
+  const organizationsQuery = useListOrganizations();
+
+  const facilities = facilitiesQuery.data ?? [];
+  const employees = employeesQuery.data ?? [];
+  const trainingTypes = trainingTypesQuery.data ?? [];
+  const trainingRecords = trainingRecordsQuery.data ?? [];
+  const practicums = practicumsQuery.data ?? [];
+  const documents = documentsQuery.data ?? [];
+  const alerts = alertsQuery.data ?? [];
+  const hourBuckets = hourBucketsQuery.data ?? [];
+  const organizations = organizationsQuery.data ?? [];
+
+  const dataLoading =
+    facilitiesQuery.isLoading ||
+    employeesQuery.isLoading ||
+    trainingTypesQuery.isLoading ||
+    trainingRecordsQuery.isLoading ||
+    practicumsQuery.isLoading ||
+    documentsQuery.isLoading ||
+    alertsQuery.isLoading ||
+    hourBucketsQuery.isLoading ||
+    organizationsQuery.isLoading;
+
+  const facilityName = facilityId !== "all" ? facilities.find((f) => f.id === facilityId)?.name : undefined;
 
   const visibleReports = ALL_REPORTS.filter((r) => {
     if (r.roles && !r.roles.includes(user?.role ?? "")) return false;
@@ -610,80 +912,59 @@ export default function Reports() {
     return true;
   });
 
-  const fetchReport = useCallback(
-    async (
-      report: ReportDef,
-      employeeIdOverride?: string
-    ): Promise<Record<string, unknown> | null> => {
-      const params = new URLSearchParams();
-      if (facilityId && facilityId !== "all")
-        params.set("facilityId", facilityId);
-      if (employeeIdOverride && employeeIdOverride !== "none")
-        params.set("employeeId", employeeIdOverride);
-
-      const res = await fetch(`/api/reports/${report.id}?${params}`, {
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(
-          (err as { error?: string }).error ?? `HTTP ${res.status}`
-        );
-      }
-      return (await res.json()) as Record<string, unknown>;
-    },
-    [facilityId]
+  const buildContext = useCallback(
+    (employeeIdOverride?: string): ReportContext => ({
+      facilityId,
+      employeeIdOverride,
+      facilities,
+      employees,
+      trainingTypes,
+      trainingRecords,
+      practicums,
+      documents,
+      alerts,
+      organizations,
+      hourBuckets,
+    }),
+    [facilityId, facilities, employees, trainingTypes, trainingRecords, practicums, documents, alerts, organizations, hourBuckets]
   );
 
   const viewReport = useCallback(
-    async (report: ReportDef, employeeIdOverride?: string) => {
-      setLoadingReport(report.id);
-      setPendingReport(null);
+    (report: ReportDef, employeeIdOverride?: string) => {
       try {
-        const data = await fetchReport(report, employeeIdOverride);
-        if (!data) return;
-        const parsed = parseReportData(data, report.id);
+        const parsed = buildReport(report.id, buildContext(employeeIdOverride));
         setActiveReport(report);
-        setReportData({
-          ...parsed,
-          generatedAt: String(data.generatedAt ?? new Date().toISOString()),
-        });
+        setReportData({ ...parsed, generatedAt: new Date().toISOString() });
+        setPendingReport(null);
       } catch (err) {
         toast({
-          title: "Failed to load report",
+          title: "Failed to generate report",
           description: err instanceof Error ? err.message : "Unknown error",
           variant: "destructive",
         });
-      } finally {
-        setLoadingReport(null);
       }
     },
-    [fetchReport, toast]
+    [buildContext, toast]
   );
 
   const exportCsv = useCallback(
-    async (report: ReportDef, employeeIdOverride?: string) => {
-      setLoadingReport(report.id);
-      setPendingReport(null);
+    (report: ReportDef, employeeIdOverride?: string) => {
       try {
-        const data = await fetchReport(report, employeeIdOverride);
-        if (!data) return;
-        const parsed = parseReportData(data, report.id);
+        const parsed = buildReport(report.id, buildContext(employeeIdOverride));
         const csv = toCsv(parsed.headers, parsed.rows);
         const timestamp = new Date().toISOString().split("T")[0];
         downloadCsv(csv, `${report.id}-${timestamp}.csv`);
         toast({ title: `${report.title} exported` });
+        setPendingReport(null);
       } catch (err) {
         toast({
           title: "Export failed",
           description: err instanceof Error ? err.message : "Unknown error",
           variant: "destructive",
         });
-      } finally {
-        setLoadingReport(null);
       }
     },
-    [fetchReport, toast]
+    [buildContext, toast]
   );
 
   const handleReportAction = (report: ReportDef, action: "view" | "csv") => {
@@ -692,8 +973,8 @@ export default function Reports() {
       setPendingReport(report);
       return;
     }
-    if (action === "view") void viewReport(report);
-    else void exportCsv(report);
+    if (action === "view") viewReport(report);
+    else exportCsv(report);
   };
 
   const handleEmployeeReportAction = (action: "view" | "csv") => {
@@ -702,8 +983,8 @@ export default function Reports() {
       toast({ title: "Please select an employee", variant: "destructive" });
       return;
     }
-    if (action === "view") void viewReport(pendingReport, selectedEmployeeId);
-    else void exportCsv(pendingReport, selectedEmployeeId);
+    if (action === "view") viewReport(pendingReport, selectedEmployeeId);
+    else exportCsv(pendingReport, selectedEmployeeId);
   };
 
   const handleCloseViewer = () => {
@@ -757,8 +1038,8 @@ export default function Reports() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Facilities</SelectItem>
-            {facilities?.map((f) => (
-              <SelectItem key={f.id} value={String(f.id)}>
+            {facilities.map((f) => (
+              <SelectItem key={f.id} value={f.id}>
                 {f.name}
               </SelectItem>
             ))}
@@ -816,12 +1097,12 @@ export default function Reports() {
             &middot; Filtered to <strong>{facilityName}</strong>
           </span>
         )}
+        {dataLoading && <span className="ml-2 text-xs">(loading report data…)</span>}
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {visibleReports.map((report) => {
           const Icon = report.icon;
-          const isLoading = loadingReport === report.id;
           const catColors: Record<string, { border: string; bg: string; text: string }> = {
             Compliance: { border: "border-l-blue-500", bg: "bg-blue-100 dark:bg-blue-950/30", text: "text-blue-600 dark:text-blue-400" },
             Training: { border: "border-l-emerald-500", bg: "bg-emerald-100 dark:bg-emerald-950/30", text: "text-emerald-600 dark:text-emerald-400" },
@@ -864,11 +1145,11 @@ export default function Reports() {
                   <Button
                     size="sm"
                     variant="default"
-                    disabled={isLoading}
+                    disabled={dataLoading}
                     onClick={() => handleReportAction(report, "view")}
                     className="flex-1"
                   >
-                    {isLoading ? (
+                    {dataLoading ? (
                       <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
                     ) : (
                       <Eye className="h-3.5 w-3.5 mr-1" />
@@ -878,7 +1159,7 @@ export default function Reports() {
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={isLoading}
+                    disabled={dataLoading}
                     onClick={() => handleReportAction(report, "csv")}
                   >
                     <Download className="h-3.5 w-3.5 mr-1" />
@@ -921,10 +1202,10 @@ export default function Reports() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Select an employee...</SelectItem>
-                  {employees?.map((e) => (
-                    <SelectItem key={e.id} value={String(e.id)}>
-                      {e.firstName} {e.lastName}{" "}
-                      {e.jobTitle ? `— ${e.jobTitle}` : ""}
+                  {employees.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.first_name} {e.last_name}
+                      {e.job_title ? ` — ${e.job_title}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -938,22 +1219,16 @@ export default function Reports() {
             <Button
               variant="outline"
               onClick={() => handleEmployeeReportAction("csv")}
-              disabled={
-                selectedEmployeeId === "none" ||
-                loadingReport === pendingReport?.id
-              }
+              disabled={selectedEmployeeId === "none" || dataLoading}
             >
               <Download className="mr-2 h-4 w-4" />
               CSV
             </Button>
             <Button
               onClick={() => handleEmployeeReportAction("view")}
-              disabled={
-                selectedEmployeeId === "none" ||
-                loadingReport === pendingReport?.id
-              }
+              disabled={selectedEmployeeId === "none" || dataLoading}
             >
-              {loadingReport === pendingReport?.id ? (
+              {dataLoading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Eye className="mr-2 h-4 w-4" />
