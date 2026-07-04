@@ -19,6 +19,9 @@ import FacilityDetail from "@/pages/app/FacilityDetail";
 import Employees from "@/pages/app/Employees";
 import EmployeeDetail from "@/pages/app/EmployeeDetail";
 import TrainingMatrix from "@/pages/app/TrainingMatrix";
+import Courses from "@/pages/app/Courses";
+import CourseDetail from "@/pages/app/CourseDetail";
+import CourseAssignments from "@/pages/app/CourseAssignments";
 import Practicums from "@/pages/app/Practicums";
 import Alerts from "@/pages/app/Alerts";
 import Reports from "@/pages/app/Reports";
@@ -26,7 +29,7 @@ import AuditLog from "@/pages/app/AuditLog";
 import Users from "@/pages/app/Users";
 import Documents from "@/pages/app/Documents";
 import Settings from "@/pages/app/Settings";
-import CareMetricModules, { CareMetricAssignmentsPage, CareMetricCompliancePage, CareMetricCompetenciesPage, CareMetricCoursesPage, CareMetricExternalRecordsPage, CareMetricInservicePage, CareMetricMedicationPage, CareMetricReportsPage, CareMetricSettingsPage } from "@/pages/app/CareMetricModules";
+import CareMetricModules, { CareMetricAssignmentsPage, CareMetricCompliancePage, CareMetricCompetenciesPage, CareMetricExternalRecordsPage, CareMetricInservicePage, CareMetricMedicationPage, CareMetricReportsPage, CareMetricSettingsPage } from "@/pages/app/CareMetricModules";
 
 import TrainerDashboard from "@/pages/trainer/TrainerDashboard";
 import TrainerClasses from "@/pages/trainer/TrainerClasses";
@@ -34,6 +37,10 @@ import ClassDetail from "@/pages/trainer/ClassDetail";
 import RetrainingMonitor from "@/pages/trainer/RetrainingMonitor";
 import EmployeeDashboard from "@/pages/employee/EmployeeDashboard";
 import MyTrainings from "@/pages/employee/MyTrainings";
+import MyCertificates from "@/pages/employee/MyCertificates";
+import TakeCourse from "@/pages/employee/TakeCourse";
+import TakeQuiz from "@/pages/employee/TakeQuiz";
+import VerifyCertificate from "@/pages/VerifyCertificate";
 
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/lib/auth";
@@ -101,6 +108,7 @@ function Router() {
 
       <Route path="/login" component={Login} />
       <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/verify/:slug" component={VerifyCertificate} />
 
       {/* Platform Admin routes */}
       <Route path="/admin">
@@ -164,7 +172,13 @@ function Router() {
       </Route>
 
       <Route path="/app/courses">
-        {() => <ProtectedRoute component={CareMetricCoursesPage} allowedRoles={ORG_ROLES} />}
+        {() => <ProtectedRoute component={Courses} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/courses/:id">
+        {() => <ProtectedRoute component={CourseDetail} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/course-assignments">
+        {() => <ProtectedRoute component={CourseAssignments} allowedRoles={ORG_ROLES} />}
       </Route>
       <Route path="/app/assignments">
         {() => <ProtectedRoute component={CareMetricAssignmentsPage} allowedRoles={ORG_ROLES} />}
@@ -238,6 +252,15 @@ function Router() {
       </Route>
       <Route path="/me/trainings">
         {() => <ProtectedRoute component={MyTrainings} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/certificates">
+        {() => <ProtectedRoute component={MyCertificates} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/courses/:assignmentId">
+        {() => <ProtectedRoute component={TakeCourse} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/courses/:assignmentId/quiz/:quizId">
+        {() => <ProtectedRoute component={TakeQuiz} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/caremetric">
         {() => <ProtectedRoute component={CareMetricModules} allowedRoles={["employee"]} />}
