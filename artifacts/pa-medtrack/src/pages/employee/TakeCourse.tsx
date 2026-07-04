@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
-import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import {
@@ -12,9 +11,8 @@ import {
 import { useIssueCertificate } from "@/hooks/useCertificates";
 import { useGetCourse, useListCourseBlocks, type CourseBlock } from "@/hooks/useCourses";
 import { useGetQuizByBlockId, useListQuizAttempts } from "@/hooks/useQuizzes";
-import { useDocumentSignedUrl } from "@/hooks/useDocuments";
+import { useGetDocument, useDocumentSignedUrl } from "@/hooks/useDocuments";
 import { useGetCourseFeedbackForAssignment, useCreateCourseFeedback } from "@/hooks/useCourseFeedback";
-import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,28 +24,6 @@ import {
   ArrowLeft, ArrowRight, CheckCircle2, Download, FileText, ListChecks, Video, BookOpen, Star,
   type LucideIcon,
 } from "lucide-react";
-
-// ---------------------------------------------------------------------------
-// useDocuments.ts (owned by the hooks agent) exposes list/upload/signed-url/
-// delete for `training_documents`, but no single-row get-by-id read. This
-// page needs to resolve a course_blocks.document_id to its row so it can
-// hand that row to the existing useDocumentSignedUrl mutation -- reused
-// as-is per the established Documents.tsx pattern, not reinvented. Rather
-// than extend that hook file out of scope, this is one small, clearly
-// scoped read that mirrors its conventions and keys its cache under the
-// same ["documents", id] shape a useGetDocument(id) would use.
-// ---------------------------------------------------------------------------
-function useGetDocument(id: string | undefined) {
-  return useQuery({
-    queryKey: ["documents", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("training_documents").select("*").eq("id", id!).single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
-}
 
 function DocumentBlockLink({ documentId }: { documentId: string | null }) {
   const { data: document, isLoading } = useGetDocument(documentId ?? undefined);

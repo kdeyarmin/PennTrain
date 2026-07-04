@@ -14,6 +14,7 @@ import {
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
+import { useGetDocument, useDocumentSignedUrl } from "@/hooks/useDocuments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,7 @@ import {
   Building2,
   FileCheck,
   Loader2,
+  Download,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -66,6 +68,45 @@ function useDeleteTrainingClass() {
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["training_classes"] }),
   });
+}
+
+function RosterDocumentCard({ documentId }: { documentId: string }) {
+  const { data: document, isLoading } = useGetDocument(documentId);
+  const getSignedUrl = useDocumentSignedUrl();
+  const { toast } = useToast();
+
+  const handleOpen = async () => {
+    if (!document) return;
+    try {
+      const url = await getSignedUrl.mutateAsync(document);
+      window.open(url, "_blank");
+    } catch (e) {
+      toast({ title: "Failed to open roster", description: (e as Error).message, variant: "destructive" });
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="pt-6 flex items-center gap-3">
+        <FileCheck className="h-5 w-5 text-green-600" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium">Roster document uploaded</p>
+          <p className="text-xs text-muted-foreground truncate">
+            {isLoading ? "Loading..." : document?.file_name ?? "Document unavailable"}
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleOpen}
+          disabled={!document || getSignedUrl.isPending}
+        >
+          <Download className="h-3.5 w-3.5 mr-2" />
+          {getSignedUrl.isPending ? "Opening..." : "Open"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function ClassDetail() {
@@ -552,19 +593,7 @@ export default function ClassDetail() {
         </div>
       )}
 
-      {cls.roster_document_id && (
-        <Card>
-          <CardContent className="pt-6 flex items-center gap-3">
-            <FileCheck className="h-5 w-5 text-green-600" />
-            <div>
-              <p className="text-sm font-medium">Roster document uploaded</p>
-              <p className="text-xs text-muted-foreground">
-                Document ID: {cls.roster_document_id}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {cls.roster_document_id && <RosterDocumentCard documentId={cls.roster_document_id} />}
 
       <Dialog open={showAddAttendees} onOpenChange={setShowAddAttendees}>
         <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
