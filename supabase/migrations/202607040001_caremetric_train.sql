@@ -47,3 +47,10 @@ create index if not exists idx_staff_org_facility on staff_profiles(organization
 create index if not exists idx_assignments_staff_status on course_assignments(staff_profile_id, status, due_date);
 create index if not exists idx_audit_org_created on audit_logs(organization_id, created_at desc);
 alter table organizations enable row level security; alter table facilities enable row level security; alter table profiles enable row level security; alter table staff_profiles enable row level security; alter table courses enable row level security; alter table course_assignments enable row level security; alter table audit_logs enable row level security;
+create policy organizations_access_policy on organizations for all to authenticated using (true) with check (true);
+create policy facilities_access_policy on facilities for all to authenticated using (true) with check (true);
+create policy profiles_access_policy on profiles for all to authenticated using (true) with check (true);
+create policy staff_profiles_access_policy on staff_profiles for all to authenticated using (true) with check (true);
+create policy courses_access_policy on courses for all to authenticated using (true) with check (true);
+create policy course_assignments_access_policy on course_assignments for all to authenticated using (true) with check (true);
+create policy audit_logs_access_policy on audit_logs for all to authenticated using (true) with check (true);
