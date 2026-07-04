@@ -3,7 +3,7 @@ import { useListEmployees } from "@/hooks/useEmployees";
 import type { Employee } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
-import { useListTrainingRecords } from "@/hooks/useTrainingRecords";
+import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -45,6 +45,35 @@ const STATUS_COLORS: Record<string, string> = {
   expired: "#ef4444",
   missing: "#94a3b8",
 };
+
+// Compliance-bearing statuses, mirroring Dashboard.tsx's computeDashboardSummary convention:
+// "not_applicable" and "pending_review" records are excluded from compliance math entirely --
+// they aren't yet (or never will be) part of the compliant/non-compliant split.
+const RELEVANT_STATUSES = new Set(["compliant", "due_soon", "expired", "missing"]);
+
+// Employees routinely accumulate multiple employee_training_records rows for the same
+// training_type_id over time (e.g. complete_training_class() inserts a fresh row each renewal
+// cycle rather than updating the prior one). due_date is recalculated server-side as
+// completion_date + training_type.renewal_interval_days, so it advances forward each cycle --
+// the record with the latest due_date is the current one. Fall back to completion_date, then
+// created_at, for cases where due_date ties or is null (e.g. one-time trainings with no
+// renewal_interval_days).
+function isMoreCurrent(a: TrainingRecord, b: TrainingRecord): boolean {
+  const aDue = a.due_date ?? "";
+  const bDue = b.due_date ?? "";
+  if (aDue !== bDue) return aDue > bDue;
+  const aCompletion = a.completion_date ?? "";
+  const bCompletion = b.completion_date ?? "";
+  if (aCompletion !== bCompletion) return aCompletion > bCompletion;
+  return (a.created_at ?? "") > (b.created_at ?? "");
+}
+
+function pickCurrentRecord(records: TrainingRecord[]): TrainingRecord | null {
+  return records.reduce<TrainingRecord | null>(
+    (current, candidate) => (!current || isMoreCurrent(candidate, current) ? candidate : current),
+    null,
+  );
+}
 
 function getStatusColor(status: string | undefined): string {
   if (!status) return STATUS_COLORS.missing;
@@ -209,7 +238,7 @@ export default function TrainingMatrix() {
     return emps.map(emp => {
       const empRecords = records.filter(r => r.employee_id === emp.id);
       const cells: MatrixCell[] = matrixTrainingTypes.map(tt => {
-        const record = empRecords.find(r => r.training_type_id === tt.id);
+        const record = pickCurrentRecord(empRecords.filter(r => r.training_type_id === tt.id));
         return {
           trainingTypeId: tt.id,
           trainingRecordId: record?.id ?? null,
@@ -225,11 +254,15 @@ export default function TrainingMatrix() {
   }, [employees, trainingRecords, matrixTrainingTypes]);
 
   const getWorstStatus = (row: MatrixRow): string => {
-    if (row.cells.some(c => c.status === "expired")) return "expired";
-    if (row.cells.some(c => c.status === "missing")) return "missing";
-    if (row.cells.some(c => c.status === "due_soon")) return "due_soon";
-    if (row.cells.every(c => c.status === "compliant") && row.cells.length > 0) return "compliant";
-    return "missing";
+    // Exclude not_applicable/pending_review cells from classification, matching
+    // Dashboard.tsx's computeDashboardSummary convention -- those cells aren't part of the
+    // compliant/non-compliant split and shouldn't drag a row down to "missing".
+    const relevantCells = row.cells.filter(c => RELEVANT_STATUSES.has(c.status));
+    if (relevantCells.some(c => c.status === "expired")) return "expired";
+    if (relevantCells.some(c => c.status === "missing")) return "missing";
+    if (relevantCells.some(c => c.status === "due_soon")) return "due_soon";
+    if (relevantCells.length > 0 && relevantCells.every(c => c.status === "compliant")) return "compliant";
+    return "compliant";
   };
 
   const isDueWithinWindow = (row: MatrixRow, days: number): boolean => {
@@ -300,7 +333,9 @@ export default function TrainingMatrix() {
       let total = 0;
       for (const row of filteredRows) {
         const cell = row.cells.find(c => c.trainingTypeId === tt.id);
-        if (cell) {
+        // Exclude not_applicable/pending_review cells from the denominator, matching
+        // Dashboard.tsx's computeDashboardSummary convention.
+        if (cell && RELEVANT_STATUSES.has(cell.status)) {
           total++;
           if (cell.status === "compliant") compliant++;
         }
