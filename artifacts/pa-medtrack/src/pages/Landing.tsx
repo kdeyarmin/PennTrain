@@ -41,17 +41,17 @@ import {
 const SETTINGS = [
   {
     icon: Building2,
-    code: "PCH",
-    title: "Personal Care Homes",
+    code: "PCH / ALR",
+    title: "Personal Care Homes & Assisted Living",
     description:
-      "Track medication administration training, annual practicums, and staff certifications across every facility.",
+      "Every direct care worker's required yearly in-services, medication administration training, and annual practicums, tracked automatically -- so your facility is always compliant and survey-ready, no spreadsheet required.",
   },
   {
     icon: HeartHandshake,
-    code: "NH / ALR",
-    title: "Nursing Homes & Assisted Living",
+    code: "NH",
+    title: "Nursing Homes",
     description:
-      "Keep licensed and unlicensed staff current on required in-services, competencies, and renewal deadlines.",
+      "Keep licensed and unlicensed nursing staff current on required in-services, competencies, and renewal deadlines across every unit.",
   },
   {
     icon: HomeIcon,
@@ -74,7 +74,7 @@ const FEATURES = [
     icon: ShieldCheck,
     title: "Compliance Tracking",
     description:
-      "Training records, certifications, and medication practicums in one system of record, with automatic alerts before anything lapses.",
+      "Yearly in-services, training records, certifications, and medication practicums in one system of record, with automatic alerts before anything lapses.",
   },
   {
     icon: GraduationCap,
@@ -142,7 +142,7 @@ const STEPS = [
 ];
 
 const OLD_WAY = [
-  "Training records scattered across spreadsheets, binders, and email attachments",
+  "Yearly in-service hours and training records scattered across spreadsheets, binders, and email attachments",
   "Expiring certifications discovered during a survey, not before",
   "Paper practicum sign-off sheets that are easy to lose or fake",
   "Building a compliance binder means a night of printing and hole-punching",
@@ -150,7 +150,7 @@ const OLD_WAY = [
 ];
 
 const NEW_WAY = [
-  "Every training record, certification, and practicum in one system of record",
+  "Every employee's yearly in-service hours, certifications, and practicums in one system of record",
   "Automatic alerts before certifications lapse or retraining comes due",
   "Digital competency checklists tied to each employee's role",
   "A survey-ready compliance binder PDF generated in seconds",
@@ -188,12 +188,17 @@ const FAQS = [
   {
     question: "What is CareMetric Train?",
     answer:
-      "CareMetric Train is a multi-tenant compliance-training platform and learning management system built for personal care homes, nursing homes, home health, and hospice agencies. It replaces spreadsheets and paper binders with one system for training records, certifications, medication practicums, and survey-ready reporting.",
+      "CareMetric Train is a multi-tenant compliance-training platform and learning management system built for personal care homes, assisted living residences, nursing homes, home health, and hospice agencies. It replaces spreadsheets and paper binders with one system for yearly in-services, training records, certifications, medication practicums, and survey-ready reporting.",
+  },
+  {
+    question: "How does CareMetric Train track our staff's yearly in-services?",
+    answer:
+      "Every employee gets a training plan built from the in-service hours, topics, and renewal windows your facility requires. As staff complete assigned courses, live classes, or outside training, CareMetric Train logs the hours automatically, flags anyone falling behind before their deadline, and rolls it all up into one facility-wide view -- no more reconciling paper sign-in sheets once a year to see who's actually current.",
   },
   {
     question: "Which regulations does it help us comply with?",
     answer:
-      "CareMetric Train grew out of Pennsylvania's 28 Pa. Code Chapter 2600 personal care home training requirements, and every training type, competency checklist, and practicum is configurable -- so your organization can model the specific requirements your state and license type require, whether that's a nursing home, home health, or hospice agency.",
+      "CareMetric Train grew out of Pennsylvania's 28 Pa. Code Chapter 2600 personal care home and Chapter 2800 assisted living training requirements, and every training type, competency checklist, and practicum is configurable -- so your organization can model the specific requirements your state and license type require, whether that's a personal care home, assisted living residence, nursing home, home health, or hospice agency.",
   },
   {
     question: "Do our employees need to install anything?",
@@ -370,9 +375,9 @@ export default function Landing() {
               </h1>
               <p className="mt-6 max-w-xl text-lg text-white/70">
                 CareMetric Train is the compliance-training platform and LMS built for
-                personal care homes, nursing homes, home health, and hospice agencies --
-                replacing spreadsheets and paper binders with one system of record for
-                training, certifications, and practicums.
+                personal care homes, assisted living, nursing homes, home health, and
+                hospice agencies -- replacing spreadsheets and paper binders with one
+                system of record for yearly in-services, certifications, and practicums.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <a href="#contact">
