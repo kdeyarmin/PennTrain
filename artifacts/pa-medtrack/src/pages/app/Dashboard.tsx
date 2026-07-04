@@ -1,5 +1,11 @@
-import { useGetDashboardSummary, useListAlerts, useListFacilities, useGetComplianceByFacility } from "@workspace/api-client-react";
-import type { FacilityComplianceSummary } from "@workspace/api-client-react";
+import { useMemo } from "react";
+import { useListEmployees, type Employee } from "@/hooks/useEmployees";
+import { useListFacilities, type Facility } from "@/hooks/useFacilities";
+import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
+import { useListPracticums, type Practicum } from "@/hooks/usePracticums";
+import { useListAlerts, type Alert } from "@/hooks/useAlerts";
+import { useListDocuments, type TrainingDocument } from "@/hooks/useDocuments";
+import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,22 +13,42 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Building2, Users, AlertTriangle, CheckCircle, Clock, XCircle, AlertCircle, ChevronRight, TrendingUp, Shield, Activity, UserPlus, FileText, LayoutGrid, Bell, GraduationCap, Upload, Download, type LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 
+// Compliance-bearing records (training records + practicums) share this status vocabulary.
+// "not_applicable" and "pending_review" training records are excluded from compliance math
+// entirely -- they aren't yet (or never will be) part of the compliant/non-compliant split.
+const RELEVANT_STATUSES = new Set(["compliant", "due_soon", "expired", "missing"]);
+const DUE_SOON_30_DAYS = 30;
+const DUE_SOON_90_DAYS = 90;
+const RECENT_UPLOAD_WINDOW_DAYS = 14;
+const RECENT_UPLOADS_DISPLAY_LIMIT = 5;
+
 interface RecentUpload {
-  id: number;
+  id: string;
   fileName: string;
   documentType: string;
   createdAt: string;
 }
 
-interface ExtendedSummary {
-  recentUploads?: RecentUpload[];
-  dueSoon90Count?: number;
-  expiredCount?: number;
-  missingDocumentCount?: number;
-  criticalAlertsCount?: number;
-  trainersDueForRecert?: number;
-  recentUploadsCount?: number;
-  [key: string]: unknown;
+interface FacilityComplianceSummary {
+  facilityId: string;
+  facilityName: string;
+  complianceScore: number;
+}
+
+interface DashboardSummary {
+  compliantCount: number;
+  dueSoon30Count: number;
+  dueSoon90Count: number;
+  expiredCount: number;
+  missingDocumentCount: number;
+  compliancePercentage: number;
+  totalEmployees: number;
+  openAlertsCount: number;
+  totalMedAdminStaff: number;
+  trainersDueForRecert: number;
+  recentUploadsCount: number;
+  recentUploads: RecentUpload[];
+  facilityCompliance: FacilityComplianceSummary[];
 }
 
 interface ActionItem {
@@ -35,12 +61,160 @@ interface ActionItem {
   icon: LucideIcon;
 }
 
+// Days between now (UTC midnight) and a `date` column value (e.g. "2026-08-01"), or null
+// if there's no due date to compare against.
+function daysUntil(dateStr: string | null): number | null {
+  if (!dateStr) return null;
+  const due = new Date(`${dateStr}T00:00:00Z`);
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.round((due.getTime() - todayUtc) / 86_400_000);
+}
+
+/**
+ * Ports the old server-side `/api/dashboard/summary` (+ `/api/dashboard/compliance-by-facility`)
+ * aggregation to the client, now that all data arrives via raw Supabase table hooks instead of a
+ * pre-aggregated endpoint. Training records and practicums share the same status vocabulary
+ * (compliant/due_soon/expired/missing), so both feed into the same overall + per-facility
+ * compliance percentage; alerts/documents/employees are reduced separately for the remaining
+ * stat-card numbers.
+ */
+function computeDashboardSummary({
+  employees,
+  facilities,
+  trainingRecords,
+  practicums,
+  openAlerts,
+  documents,
+  trainerTrainingTypeIds,
+}: {
+  employees: Employee[];
+  facilities: Facility[];
+  trainingRecords: TrainingRecord[];
+  practicums: Practicum[];
+  openAlerts: Alert[];
+  documents: TrainingDocument[];
+  trainerTrainingTypeIds: Set<string>;
+}): DashboardSummary {
+  interface ComplianceItem {
+    facilityId: string;
+    status: string;
+    dueDate: string | null;
+  }
+
+  const trainingItems: ComplianceItem[] = trainingRecords
+    .filter(r => RELEVANT_STATUSES.has(r.status))
+    .map(r => ({ facilityId: r.facility_id, status: r.status, dueDate: r.due_date }));
+  const practicumItems: ComplianceItem[] = practicums
+    .filter(p => RELEVANT_STATUSES.has(p.status))
+    .map(p => ({ facilityId: p.facility_id, status: p.status, dueDate: p.due_date }));
+  const allItems = [...trainingItems, ...practicumItems];
+
+  let compliantCount = 0;
+  let dueSoonAllCount = 0;
+  let dueSoon30Count = 0;
+  let dueSoon90Count = 0;
+  let expiredCount = 0;
+  let missingCount = 0;
+
+  const byFacility = new Map<string, { compliant: number; relevant: number }>();
+  const touchFacility = (facilityId: string, isCompliant: boolean) => {
+    const bucket = byFacility.get(facilityId) ?? { compliant: 0, relevant: 0 };
+    bucket.relevant += 1;
+    if (isCompliant) bucket.compliant += 1;
+    byFacility.set(facilityId, bucket);
+  };
+
+  for (const item of allItems) {
+    switch (item.status) {
+      case "compliant":
+        compliantCount++;
+        touchFacility(item.facilityId, true);
+        break;
+      case "expired":
+        expiredCount++;
+        touchFacility(item.facilityId, false);
+        break;
+      case "missing":
+        missingCount++;
+        touchFacility(item.facilityId, false);
+        break;
+      case "due_soon": {
+        dueSoonAllCount++;
+        touchFacility(item.facilityId, false);
+        const days = daysUntil(item.dueDate);
+        if (days !== null && days <= DUE_SOON_90_DAYS) dueSoon90Count++;
+        if (days !== null && days <= DUE_SOON_30_DAYS) dueSoon30Count++;
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  const relevantCount = compliantCount + dueSoonAllCount + expiredCount + missingCount;
+  const compliancePercentage = relevantCount > 0 ? Math.round((compliantCount / relevantCount) * 100) : 100;
+
+  const facilityCompliance: FacilityComplianceSummary[] = facilities.map(f => {
+    const bucket = byFacility.get(f.id);
+    const score = bucket && bucket.relevant > 0 ? Math.round((bucket.compliant / bucket.relevant) * 100) : 100;
+    return { facilityId: f.id, facilityName: f.name, complianceScore: score };
+  });
+
+  const missingDocumentCount = trainingRecords.filter(
+    r => r.status === "missing" && r.document_required,
+  ).length;
+
+  const activeEmployees = employees.filter(e => e.status === "active");
+  const totalEmployees = activeEmployees.length;
+  const totalMedAdminStaff = activeEmployees.filter(e => e.administers_medications).length;
+
+  // A trainer is "due for recert" when they have at least one training record, in a training
+  // type flagged `applies_to_trainers`, that is due_soon or expired.
+  const employeesWithTrainerTrainingDue = new Set(
+    trainingRecords
+      .filter(
+        r =>
+          (r.status === "due_soon" || r.status === "expired") &&
+          trainerTrainingTypeIds.has(r.training_type_id),
+      )
+      .map(r => r.employee_id),
+  );
+  const trainersDueForRecert = activeEmployees.filter(
+    e => e.trainer_status && employeesWithTrainerTrainingDue.has(e.id),
+  ).length;
+
+  const recentUploadDocs = documents.filter(d => {
+    const days = daysUntil(d.created_at.slice(0, 10));
+    return days !== null && days >= -RECENT_UPLOAD_WINDOW_DAYS;
+  });
+  const recentUploads: RecentUpload[] = recentUploadDocs
+    .slice(0, RECENT_UPLOADS_DISPLAY_LIMIT)
+    .map(d => ({ id: d.id, fileName: d.file_name, documentType: d.document_type, createdAt: d.created_at }));
+
+  return {
+    compliantCount,
+    dueSoon30Count,
+    dueSoon90Count,
+    expiredCount,
+    missingDocumentCount,
+    compliancePercentage,
+    totalEmployees,
+    openAlertsCount: openAlerts.length,
+    totalMedAdminStaff,
+    trainersDueForRecert,
+    recentUploadsCount: recentUploadDocs.length,
+    recentUploads,
+    facilityCompliance,
+  };
+}
+
 function buildActionPlan({
   summary,
   criticalAlertsCount,
   facilities,
 }: {
-  summary: ExtendedSummary | undefined;
+  summary: DashboardSummary;
   criticalAlertsCount: number;
   facilities: FacilityComplianceSummary[];
 }): ActionItem[] {
@@ -51,7 +225,7 @@ function buildActionPlan({
         : lowest,
     undefined,
   );
-  const missingDocumentCount = typeof summary?.missingDocumentCount === "number" ? summary.missingDocumentCount : 0;
+  const missingDocumentCount = summary.missingDocumentCount;
   const actions: ActionItem[] = [];
 
   if (criticalAlertsCount > 0) actions.push({
@@ -63,18 +237,18 @@ function buildActionPlan({
     priority: "Critical",
     icon: AlertCircle,
   });
-  if ((summary?.expiredCount ?? 0) > 0) actions.push({
+  if (summary.expiredCount > 0) actions.push({
     id: "expired-training",
-    title: `${summary?.expiredCount ?? 0} expired training record${(summary?.expiredCount ?? 0) === 1 ? "" : "s"}`,
+    title: `${summary.expiredCount} expired training record${summary.expiredCount === 1 ? "" : "s"}`,
     description: "Schedule retraining and update records for expired requirements.",
     href: "/app/reports",
     label: "Run expired report",
     priority: "Critical",
     icon: XCircle,
   });
-  if ((summary?.dueSoon90Count ?? 0) > 0) actions.push({
+  if (summary.dueSoon90Count > 0) actions.push({
     id: "due-soon",
-    title: `${summary?.dueSoon90Count ?? 0} training item${(summary?.dueSoon90Count ?? 0) === 1 ? "" : "s"} due within 90 days`,
+    title: `${summary.dueSoon90Count} training item${summary.dueSoon90Count === 1 ? "" : "s"} due within 90 days`,
     description: "Prioritize upcoming renewals to avoid compliance gaps.",
     href: "/app/training-matrix",
     label: "Open matrix",
@@ -161,31 +335,52 @@ function StatCardSkeleton() {
 
 export default function OrgDashboard() {
   const { user } = useAuth();
-  const { data: summary, isLoading: summaryLoading } = useGetDashboardSummary({});
-  const { data: alerts } = useListAlerts({ status: "open" });
-  const { data: facilities } = useListFacilities({});
-  const { data: facilityCompliance } = useGetComplianceByFacility({});
+  const { data: employees, isLoading: employeesLoading } = useListEmployees();
+  const { data: facilities, isLoading: facilitiesLoading } = useListFacilities();
+  const { data: trainingRecords, isLoading: trainingRecordsLoading } = useListTrainingRecords();
+  const { data: practicums, isLoading: practicumsLoading } = useListPracticums();
+  const { data: alerts, isLoading: alertsLoading } = useListAlerts({ status: "open" });
+  const { data: documents } = useListDocuments();
+  const { data: trainingTypes, isLoading: trainingTypesLoading } = useListTrainingTypes({ isActive: true });
 
-  const ext = summary as unknown as ExtendedSummary | undefined;
+  const summaryLoading =
+    employeesLoading || facilitiesLoading || trainingRecordsLoading || practicumsLoading || alertsLoading || trainingTypesLoading;
+
+  const summary = useMemo(
+    () =>
+      computeDashboardSummary({
+        employees: employees ?? [],
+        facilities: facilities ?? [],
+        trainingRecords: trainingRecords ?? [],
+        practicums: practicums ?? [],
+        openAlerts: alerts ?? [],
+        documents: documents ?? [],
+        trainerTrainingTypeIds: new Set(
+          (trainingTypes ?? []).filter(t => t.applies_to_trainers).map(t => t.id),
+        ),
+      }),
+    [employees, facilities, trainingRecords, practicums, alerts, documents, trainingTypes],
+  );
+
   const criticalAlerts = alerts?.filter(a => a.severity === "critical") ?? [];
-  const criticalAlertsCount = ext?.criticalAlertsCount ?? criticalAlerts.length;
-  const compliancePct = summary?.compliancePercentage ?? 100;
+  const criticalAlertsCount = criticalAlerts.length;
+  const compliancePct = summary.compliancePercentage;
 
   const complianceColor = compliancePct >= 90 ? "text-emerald-600" : compliancePct >= 75 ? "text-amber-600" : "text-red-600";
 
-  const totalRecords = (summary?.compliantCount ?? 0) + (summary?.dueSoon30Count ?? 0) + (summary?.expiredCount ?? 0);
-  const dueSoonPct = totalRecords > 0 ? Math.round(((summary?.dueSoon30Count ?? 0) / totalRecords) * 100) : 0;
-  const expiredPct = totalRecords > 0 ? Math.round(((summary?.expiredCount ?? 0) / totalRecords) * 100) : 0;
+  const totalRecords = summary.compliantCount + summary.dueSoon30Count + summary.expiredCount;
+  const dueSoonPct = totalRecords > 0 ? Math.round((summary.dueSoon30Count / totalRecords) * 100) : 0;
+  const expiredPct = totalRecords > 0 ? Math.round((summary.expiredCount / totalRecords) * 100) : 0;
 
   const facilityComplianceMap = new Map(
-    (facilityCompliance ?? []).map(fc => [fc.facilityId, fc])
+    summary.facilityCompliance.map(fc => [fc.facilityId, fc]),
   );
 
-  const recentUploads = ext?.recentUploads;
+  const recentUploads = summary.recentUploads;
   const actionPlan = buildActionPlan({
-    summary: ext,
+    summary,
     criticalAlertsCount,
-    facilities: (facilityCompliance ?? []) as FacilityComplianceSummary[],
+    facilities: summary.facilityCompliance,
   });
 
   const exportActionPlan = () => {
@@ -257,7 +452,7 @@ export default function OrgDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="stat-label">Compliant</p>
-                <p className="stat-value text-emerald-600">{summary?.compliantCount ?? 0}</p>
+                <p className="stat-value text-emerald-600">{summary.compliantCount}</p>
               </div>
               <div className="stat-icon bg-emerald-50">
                 <CheckCircle className="h-5 w-5 text-emerald-600" />
@@ -273,7 +468,7 @@ export default function OrgDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="stat-label">Due ≤30 Days</p>
-                <p className="stat-value text-amber-600">{summary?.dueSoon30Count ?? 0}</p>
+                <p className="stat-value text-amber-600">{summary.dueSoon30Count}</p>
               </div>
               <div className="stat-icon bg-amber-50">
                 <Clock className="h-5 w-5 text-amber-600" />
@@ -289,7 +484,7 @@ export default function OrgDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="stat-label">Due ≤90 Days</p>
-                <p className="stat-value text-orange-600">{ext?.dueSoon90Count ?? summary?.dueSoon90Count ?? 0}</p>
+                <p className="stat-value text-orange-600">{summary.dueSoon90Count}</p>
               </div>
               <div className="stat-icon bg-orange-50">
                 <Clock className="h-5 w-5 text-orange-600" />
@@ -305,7 +500,7 @@ export default function OrgDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="stat-label">Expired</p>
-                <p className="stat-value text-red-600">{summary?.expiredCount ?? 0}</p>
+                <p className="stat-value text-red-600">{summary.expiredCount}</p>
               </div>
               <div className="stat-icon bg-red-50">
                 <XCircle className="h-5 w-5 text-red-600" />
@@ -321,7 +516,7 @@ export default function OrgDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="stat-label">Trainers Due</p>
-                <p className="stat-value text-purple-600">{ext?.trainersDueForRecert ?? summary?.trainersDueForRecert ?? 0}</p>
+                <p className="stat-value text-purple-600">{summary.trainersDueForRecert}</p>
               </div>
               <div className="stat-icon bg-purple-50">
                 <GraduationCap className="h-5 w-5 text-purple-600" />
@@ -337,7 +532,7 @@ export default function OrgDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="stat-label">Recent Uploads</p>
-                <p className="stat-value text-blue-600">{ext?.recentUploadsCount ?? summary?.recentUploadsCount ?? 0}</p>
+                <p className="stat-value text-blue-600">{summary.recentUploadsCount}</p>
               </div>
               <div className="stat-icon bg-blue-50">
                 <Upload className="h-5 w-5 text-blue-600" />
@@ -471,21 +666,21 @@ export default function OrgDashboard() {
                   <Users className="h-4 w-4" />
                   <span className="text-xs font-medium">Active Staff</span>
                 </div>
-                <p className="text-xl font-bold">{summary?.totalEmployees ?? 0}</p>
+                <p className="text-xl font-bold">{summary.totalEmployees}</p>
               </div>
               <div className="rounded-lg bg-muted/50 p-3.5">
                 <div className="flex items-center gap-2 text-muted-foreground mb-1">
                   <AlertTriangle className="h-4 w-4" />
                   <span className="text-xs font-medium">Open Alerts</span>
                 </div>
-                <p className="text-xl font-bold">{summary?.openAlertsCount ?? 0}</p>
+                <p className="text-xl font-bold">{summary.openAlertsCount}</p>
               </div>
               <div className="rounded-lg bg-muted/50 p-3.5">
                 <div className="flex items-center gap-2 text-muted-foreground mb-1">
                   <Shield className="h-4 w-4" />
                   <span className="text-xs font-medium">Med Admin</span>
                 </div>
-                <p className="text-xl font-bold">{summary?.totalMedAdminStaff ?? 0}</p>
+                <p className="text-xl font-bold">{summary.totalMedAdminStaff}</p>
               </div>
             </div>
           </div>
@@ -591,7 +786,7 @@ export default function OrgDashboard() {
                     <div>
                       <p className="text-[13px] font-semibold">{facility.name}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {facility.facilityType} {facility.licenseNumber ? `· ${facility.licenseNumber}` : ""}
+                        {facility.facility_type} {facility.license_number ? `· ${facility.license_number}` : ""}
                       </p>
                     </div>
                   </div>
@@ -608,11 +803,11 @@ export default function OrgDashboard() {
                       </div>
                     )}
                     <Badge variant="outline" className={`text-[10px] font-medium ${
-                      facility.isActive
+                      facility.is_active
                         ? "border-emerald-200 text-emerald-700 bg-emerald-50"
                         : "border-slate-200 text-slate-500 bg-slate-50"
                     }`}>
-                      {facility.isActive ? "Active" : "Inactive"}
+                      {facility.is_active ? "Active" : "Inactive"}
                     </Badge>
                     <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
                   </div>
