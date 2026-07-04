@@ -185,9 +185,20 @@ export default function OrgDashboard() {
   const exportActionPlan = () => {
     const rows = [
       ["Priority", "Action", "Details"],
-      ...actionPlan.map(action => [action.priority, action.title, action.description]),
+      ...actionPlan.map((action) => [
+        action.priority,
+        action.title,
+        action.description,
+      ]),
     ];
-    const csv = rows.map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");
+
+    const escapeCsvValue = (value: unknown) => {
+      const raw = String(value);
+      const safe = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+      return `"${safe.replaceAll('"', '""')}"`;
+    };
+
+    const csv = rows.map((row) => row.map(escapeCsvValue).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
