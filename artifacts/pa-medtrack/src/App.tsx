@@ -12,6 +12,7 @@ import ForgotPassword from "@/pages/auth/ForgotPassword";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import Organizations from "@/pages/admin/Organizations";
 import OrganizationDetail from "@/pages/admin/OrganizationDetail";
+import Packages from "@/pages/admin/Packages";
 
 import OrgDashboard from "@/pages/app/Dashboard";
 import Facilities from "@/pages/app/Facilities";
@@ -28,6 +29,7 @@ import Reports from "@/pages/app/Reports";
 import AuditLog from "@/pages/app/AuditLog";
 import Users from "@/pages/app/Users";
 import Documents from "@/pages/app/Documents";
+import PendingApprovals from "@/pages/app/PendingApprovals";
 import Settings from "@/pages/app/Settings";
 import CareMetricModules, { CareMetricAssignmentsPage, CareMetricCompliancePage, CareMetricCompetenciesPage, CareMetricExternalRecordsPage, CareMetricInservicePage, CareMetricMedicationPage, CareMetricReportsPage, CareMetricSettingsPage } from "@/pages/app/CareMetricModules";
 
@@ -145,7 +147,7 @@ function Router() {
         {() => <ProtectedRoute component={CareMetricModules} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
       <Route path="/admin/packages">
-        {() => <ProtectedRoute component={CareMetricSettingsPage} allowedRoles={PLATFORM_ADMIN} />}
+        {() => <ProtectedRoute component={Packages} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
 
       {/* Org/Facility routes */}
@@ -215,6 +217,9 @@ function Router() {
       </Route>
       <Route path="/app/documents">
         {() => <ProtectedRoute component={Documents} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/pending-approvals">
+        {() => <ProtectedRoute component={PendingApprovals} allowedRoles={ORG_ROLES} />}
       </Route>
       <Route path="/app/users">
         {() => <ProtectedRoute component={Users} allowedRoles={ORG_MANAGE_ROLES} />}

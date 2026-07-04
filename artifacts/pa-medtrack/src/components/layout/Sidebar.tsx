@@ -17,7 +17,9 @@ import {
   ShieldCheck,
   ChevronRight,
   BookOpen,
-  Upload
+  Upload,
+  Package,
+  ClipboardCheck
 } from "lucide-react";
 
 export function Sidebar() {
@@ -46,7 +48,7 @@ export function Sidebar() {
           { href: "/admin/employees", label: "Employees", icon: Users },
           { href: "/admin/users", label: "Users", icon: Users },
           { href: "/admin/caremetric", label: "LMS Suite", icon: BookOpen },
-          { href: "/admin/packages", label: "LMS Settings", icon: Settings },
+          { href: "/admin/packages", label: "Packages", icon: Package },
         ]
       },
       {
@@ -86,6 +88,7 @@ export function Sidebar() {
           { href: "/app/competencies", label: "Competencies", icon: FileCheck },
           { href: "/app/inservices", label: "In-Services", icon: GraduationCap },
           { href: "/app/external-records", label: "External Records", icon: Upload },
+          { href: "/app/pending-approvals", label: "Pending Approvals", icon: ClipboardCheck },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
           { href: "/app/documents", label: "Documents", icon: Files },
