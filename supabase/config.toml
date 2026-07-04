@@ -8,3 +8,6 @@ verify_jwt = true
 
 [functions.bulk-import-employees]
 verify_jwt = true
+
+[functions.generate-compliance-binder]
+verify_jwt = true
