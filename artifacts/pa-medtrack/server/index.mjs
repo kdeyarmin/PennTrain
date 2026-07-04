@@ -16,6 +16,25 @@ const DIST_DIR_WITH_SEP = DIST_DIR + sep;
 const PORT = Number(process.env.PORT) > 0 ? Number(process.env.PORT) : 8080;
 const HOST = "0.0.0.0";
 
+// Must mirror vite.config.ts's `basePath = process.env.BASE_PATH ?? "/"` exactly -- that's what
+// Vite prefixes every emitted asset URL with at build time, so this server has to strip the same
+// prefix back off before looking for the underlying file, which is never nested under that prefix
+// on disk (`base` only changes referenced URLs, not the build output layout).
+const RAW_BASE_PATH = process.env.BASE_PATH ?? "/";
+const BASE_PATH = RAW_BASE_PATH === "/" ? "/" : `/${RAW_BASE_PATH.replace(/^\/+|\/+$/g, "")}/`;
+
+// Returns the pathname with BASE_PATH removed, or null if the request falls outside the
+// configured base entirely (not part of this app's routing space). GET /health is handled
+// separately, before this ever runs -- Railway's healthcheckPath is a fixed literal "/health",
+// unaffected by BASE_PATH.
+function stripBasePath(pathname) {
+  if (BASE_PATH === "/") return pathname;
+  const baseNoTrailingSlash = BASE_PATH.slice(0, -1);
+  if (pathname === baseNoTrailingSlash) return "/";
+  if (pathname.startsWith(BASE_PATH)) return pathname.slice(BASE_PATH.length - 1);
+  return null;
+}
+
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -111,9 +130,17 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    const staticFile = await resolveStaticFile(url.pathname);
+    const appPath = stripBasePath(url.pathname);
+    if (appPath === null) {
+      // Outside the configured BASE_PATH entirely -- not part of this app's routing space.
+      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Not Found");
+      return;
+    }
+
+    const staticFile = await resolveStaticFile(appPath);
     if (staticFile) {
-      await serveFile(staticFile, res, { cacheable: url.pathname.startsWith("/assets/") });
+      await serveFile(staticFile, res, { cacheable: appPath.startsWith("/assets/") });
       return;
     }
 
@@ -122,7 +149,7 @@ const server = createServer(async (req, res) => {
     // would return 200 text/html for a request that's actually broken -- e.g. a stale browser
     // tab requesting a pre-redeploy chunk filename -- defeating status-code-based existence
     // checks and polluting logs/monitoring with false 200s.
-    if (url.pathname.startsWith("/assets/") || extname(url.pathname)) {
+    if (appPath.startsWith("/assets/") || extname(appPath)) {
       res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
       res.end("Not Found");
       return;

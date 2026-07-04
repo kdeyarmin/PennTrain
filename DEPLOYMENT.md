@@ -117,7 +117,7 @@ can see the whole workspace and lockfile.
 | `VITE_SUPABASE_ANON_KEY` | yes | anon/publishable key -- safe for the browser, RLS is the real gate |
 | `NODE_ENV` | recommended | set to `production` |
 | `PORT` | no | Railway injects this automatically; the server reads it |
-| `BASE_PATH` | no | build-time only; only needed if served from a non-root subpath |
+| `BASE_PATH` | no | e.g. `/train/`; only needed if served from a non-root subpath. Set it identically for both the build (`vite.config.ts` reads it) and the running server (`server/index.mjs` strips it before resolving files) -- both read the same `BASE_PATH` var, so one value covers both. |
 
 Not needed for this repo (and intentionally left out of `.env.example` -- see the comments there for
 why): `DATABASE_URL`, `NEXT_PUBLIC_*` (this is Vite, not Next.js), `SESSION_SECRET`/`AUTH_SECRET`
@@ -258,9 +258,17 @@ grant, but `authenticated` needs direct `EXECUTE` on them for RLS policies to ev
 policy's `USING`/`WITH CHECK` expression runs with the querying role's privileges), so revoking
 more broadly there risks locking out every signed-in user -- left as accepted, harmless residual
 advisor noise (these functions are auth.uid()-gated internally and return nothing useful to an
-`anon` caller regardless). The `useTrainingRecords.ts`/`usePracticums.ts` update path was not given
-the same server-side re-validation the insert path got, matching the one precedent fix's own scope
-(insert-only) rather than expanding it; treat this as a known, low-severity residual gap.
+`anon` caller regardless).
+
+**Follow-up from PR review** (`20260704182232_extend_stamp_scope_triggers_to_update.sql`): an
+automated review on the PR correctly caught that the fix above only stamped scope on `INSERT`,
+while `employee_training_records_update`/`practicums_update` RLS policies re-validate
+`is_assigned_to_facility(facility_id)` on `UPDATE` too -- so the same facility-spoofing path was
+still open via `useTrainingRecords.ts`/`usePracticums.ts` update calls. Fixed by firing the same
+trigger on `BEFORE INSERT OR UPDATE`; verified with a rollback-safe test reproducing the exact
+scenario (update an existing row's `facility_id` to a facility the employee doesn't belong to --
+correctly overwritten back to the employee's real facility). `training_documents` has no `UPDATE`
+policy at all, so it was never exploitable there, but the trigger was extended for consistency.
 
 ### Standing security posture
 
@@ -302,9 +310,6 @@ Expect `status: "ok"` and `supabase: "configured"`. If `supabaseReachable` is `f
 - Public email signup is currently enabled on the live project. The privilege-escalation path this
   allowed is closed (see section 7), but if self-service signup isn't an intended product feature,
   disable it in Authentication -> Providers as defense in depth.
-- The `useTrainingRecords.ts`/`usePracticums.ts` **update** path (as opposed to insert) still trusts
-  a client-supplied `facility_id` without re-validation -- a narrower, lower-severity residual gap
-  than the insert-path issue fixed in this change (see section 7).
 - No linter (ESLint/Biome/etc.) is configured in this repo; `pnpm run typecheck` (tsc, no-emit) is
   the static check currently available. Add one separately if desired -- out of scope here.
 - `pnpm run db:migrate` requires `supabase login` + `supabase link --project-ref <ref>` to have been
