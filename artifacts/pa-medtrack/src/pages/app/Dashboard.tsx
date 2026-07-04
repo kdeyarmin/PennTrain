@@ -426,12 +426,12 @@ export default function OrgDashboard() {
                       <p className="text-sm font-semibold leading-snug">{action.title}</p>
                       <p className="text-xs text-muted-foreground leading-relaxed">{action.description}</p>
                     </div>
-                    <Link href={action.href}>
-                      <Button variant="outline" size="sm" className="w-full">
+                    <Button asChild variant="outline" size="sm" className="w-full">
+                      <Link href={action.href}>
                         {action.label}
                         <ChevronRight className="ml-1 h-3.5 w-3.5" />
-                      </Button>
-                    </Link>
+                      </Link>
+                    </Button>
                   </div>
                 );
               })}
