@@ -23,6 +23,7 @@ import EmployeeDetail from "@/pages/app/EmployeeDetail";
 import TrainingMatrix from "@/pages/app/TrainingMatrix";
 import Courses from "@/pages/app/Courses";
 import CourseDetail from "@/pages/app/CourseDetail";
+import QuizBuilder from "@/pages/app/QuizBuilder";
 import CourseAssignments from "@/pages/app/CourseAssignments";
 import TrainingPlans from "@/pages/app/TrainingPlans";
 import CompetencyTemplates from "@/pages/app/CompetencyTemplates";
@@ -95,6 +96,10 @@ function ProtectedRoute({
 const PLATFORM_ADMIN: UserRole[] = ["platform_admin"];
 const ORG_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor"];
 const ORG_MANAGE_ROLES: UserRole[] = ["org_admin", "facility_manager"];
+// quiz_questions/quiz_answers RLS grants select/write only to org_admin and trainer
+// (not facility_manager or auditor) -- routing anyone else here would just show an
+// empty, RLS-filtered page, so keep this narrower than ORG_ROLES.
+const QUIZ_AUTHOR_ROLES: UserRole[] = ["org_admin", "trainer"];
 const ORG_ADMIN_ONLY: UserRole[] = ["org_admin"];
 // Read-only compliance views auditor needs alongside the org admin roles -- auditor never
 // gets ORG_MANAGE_ROLES (Users/Settings are true admin config, not audit-relevant).
@@ -188,6 +193,9 @@ function Router() {
       </Route>
       <Route path="/app/courses/:id">
         {() => <ProtectedRoute component={CourseDetail} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/quizzes/:quizId">
+        {() => <ProtectedRoute component={QuizBuilder} allowedRoles={QUIZ_AUTHOR_ROLES} />}
       </Route>
       <Route path="/app/course-assignments">
         {() => <ProtectedRoute component={CourseAssignments} allowedRoles={ORG_ROLES} />}

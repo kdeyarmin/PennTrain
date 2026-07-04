@@ -22,6 +22,7 @@ import {
   useGradeQuizAttempt,
   useListQuizAttempts,
   useGetQuizAttempt,
+  useGetQuizReview,
 } from "@/hooks/useQuizzes";
 
 export default function TakeQuiz() {
@@ -97,12 +98,6 @@ export default function TakeQuiz() {
     for (const list of map.values()) list.sort((a, b) => a.sort_order - b.sort_order);
     return map;
   }, [choices]);
-
-  const isCorrectByQuestion = useMemo(() => {
-    const map = new Map<string, boolean | null>();
-    for (const a of attemptAnswers ?? []) map.set(a.question_id, a.is_correct);
-    return map;
-  }, [attemptAnswers]);
 
   const { mutate: startAttempt, isPending: starting } = useStartQuizAttempt();
   const { mutate: saveAnswer } = useSubmitQuizAttemptAnswer();
@@ -226,18 +221,45 @@ export default function TakeQuiz() {
   const isGraded = !!activeAttemptId && activeAttempt && activeAttempt.submitted_at !== null;
 
   function ResultCard({
+    attemptId,
     scorePercent,
     passed,
     attemptNumber,
     showRetake,
     exhausted,
   }: {
+    attemptId: string;
     scorePercent: number | null;
     passed: boolean | null;
     attemptNumber: number;
     showRetake: boolean;
     exhausted: boolean;
   }) {
+    const { data: reviewAnswers } = useListQuizAttemptAnswers(attemptId);
+    const isCorrectById = useMemo(() => {
+      const map = new Map<string, boolean | null>();
+      for (const a of reviewAnswers ?? []) map.set(a.question_id, a.is_correct);
+      return map;
+    }, [reviewAnswers]);
+
+    // Revealing the correct answer + explanation is safe only once there's no
+    // more opportunity to use it to game a retake: either the learner already
+    // passed, or they've used up every attempt allowed. While retakes remain
+    // on a failed attempt, only the correct/incorrect verdict is shown (as
+    // before) so the quiz still tests recall, not memorized answer letters.
+    const canRevealAnswers = !!passed || exhausted;
+    const { data: reviewChoices } = useGetQuizReview(canRevealAnswers ? attemptId : undefined);
+    const reviewByQuestion = useMemo(() => {
+      const map = new Map<string, { correctText: string | null; explanation: string | null }>();
+      for (const row of reviewChoices ?? []) {
+        const entry = map.get(row.question_id) ?? { correctText: null, explanation: null };
+        if (row.is_correct) entry.correctText = entry.correctText ? `${entry.correctText}, ${row.answer_text}` : row.answer_text;
+        if (row.explanation) entry.explanation = row.explanation;
+        map.set(row.question_id, entry);
+      }
+      return map;
+    }, [reviewChoices]);
+
     return (
       <Card>
         <CardHeader>
@@ -270,24 +292,38 @@ export default function TakeQuiz() {
             </div>
           )}
 
-          {attemptAnswers && attemptAnswers.length > 0 && activeAttemptId && isGraded && (
+          {reviewAnswers && reviewAnswers.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Question Review</p>
               {allQuestions.map((q, idx) => {
-                const correct = isCorrectByQuestion.get(q.id);
+                const correct = isCorrectById.get(q.id);
+                const review = reviewByQuestion.get(q.id);
                 return (
-                  <div key={q.id} className="flex items-center justify-between gap-3 py-2 border-b last:border-0 text-sm">
-                    <span className="min-w-0 truncate">#{idx + 1}. {q.question_text}</span>
-                    {correct === true ? (
-                      <Badge variant="default" className="shrink-0"><CheckCircle2 className="h-3 w-3 mr-1" /> Correct</Badge>
-                    ) : correct === false ? (
-                      <Badge variant="destructive" className="shrink-0"><XCircle className="h-3 w-3 mr-1" /> Incorrect</Badge>
-                    ) : (
-                      <Badge variant="secondary" className="shrink-0">Not answered</Badge>
+                  <div key={q.id} className="py-2 border-b last:border-0 text-sm space-y-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="min-w-0 truncate">#{idx + 1}. {q.question_text}</span>
+                      {correct === true ? (
+                        <Badge variant="default" className="shrink-0"><CheckCircle2 className="h-3 w-3 mr-1" /> Correct</Badge>
+                      ) : correct === false ? (
+                        <Badge variant="destructive" className="shrink-0"><XCircle className="h-3 w-3 mr-1" /> Incorrect</Badge>
+                      ) : (
+                        <Badge variant="secondary" className="shrink-0">Not answered</Badge>
+                      )}
+                    </div>
+                    {canRevealAnswers && review?.correctText && (
+                      <p className="text-xs text-muted-foreground">Correct answer: {review.correctText}</p>
+                    )}
+                    {canRevealAnswers && review?.explanation && (
+                      <p className="text-xs text-muted-foreground italic">{review.explanation}</p>
                     )}
                   </div>
                 );
               })}
+              {!canRevealAnswers && (
+                <p className="text-xs text-muted-foreground/70">
+                  Correct answers and explanations unlock once you pass or use up your attempts.
+                </p>
+              )}
             </div>
           )}
 
@@ -322,6 +358,7 @@ export default function TakeQuiz() {
 
       {isGraded && activeAttempt ? (
         <ResultCard
+          attemptId={activeAttempt.id}
           scorePercent={activeAttempt.score_percent}
           passed={activeAttempt.passed}
           attemptNumber={activeAttempt.attempt_number}
@@ -407,6 +444,7 @@ export default function TakeQuiz() {
         // progress right now: passed already, or failed with attempts left,
         // or failed with attempts exhausted.
         <ResultCard
+          attemptId={lastGraded.id}
           scorePercent={lastGraded.score_percent}
           passed={lastGraded.passed}
           attemptNumber={lastGraded.attempt_number}

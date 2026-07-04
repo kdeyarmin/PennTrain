@@ -1606,6 +1606,7 @@ export type Database = {
       quiz_questions: {
         Row: {
           created_at: string
+          explanation: string | null
           id: string
           organization_id: string | null
           points: number
@@ -1616,6 +1617,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          explanation?: string | null
           id?: string
           organization_id?: string | null
           points?: number
@@ -1626,6 +1628,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          explanation?: string | null
           id?: string
           organization_id?: string | null
           points?: number
@@ -2151,6 +2154,16 @@ export type Database = {
           id: string
           question_id: string
           sort_order: number
+        }[]
+      }
+      get_quiz_review: {
+        Args: { p_attempt_id: string }
+        Returns: {
+          answer_id: string
+          answer_text: string
+          explanation: string | null
+          is_correct: boolean | null
+          question_id: string
         }[]
       }
       grade_quiz_attempt: { Args: { p_attempt_id: string }; Returns: undefined }

@@ -109,10 +109,15 @@ function QuizBlockSummary({ blockId, onConfigure }: { blockId: string; onConfigu
   }
 
   return (
-    <p className="text-xs text-muted-foreground">
-      "{quiz.title}" — passing score {quiz.passing_score_percent}%
-      {quiz.max_attempts ? `, max ${quiz.max_attempts} attempt${quiz.max_attempts === 1 ? "" : "s"}` : ""}
-    </p>
+    <div className="flex items-center gap-2">
+      <p className="text-xs text-muted-foreground">
+        "{quiz.title}" — passing score {quiz.passing_score_percent}%
+        {quiz.max_attempts ? `, max ${quiz.max_attempts} attempt${quiz.max_attempts === 1 ? "" : "s"}` : ""}
+      </p>
+      <Link href={`/app/quizzes/${quiz.id}`} className="text-xs font-medium text-primary hover:underline">
+        Manage Questions
+      </Link>
+    </div>
   );
 }
 

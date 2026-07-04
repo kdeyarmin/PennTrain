@@ -84,6 +84,21 @@ export function useCreateQuiz() {
   });
 }
 
+export function useUpdateQuiz() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: QuizUpdate & { id: string }) => {
+      const { data, error } = await supabase.from("quizzes").update(payload).eq("id", id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["quizzes", data.id] });
+      queryClient.invalidateQueries({ queryKey: ["quizzes", "by-block", data.course_block_id] });
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // quiz_questions
 // ---------------------------------------------------------------------------
@@ -220,6 +235,32 @@ export function useQuizAnswerChoices(quizId: string | undefined) {
       return data;
     },
     enabled: !!quizId,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Post-grading review (correct answer + explanation) -- calls get_quiz_review,
+// which only returns rows once the given attempt has submitted_at set. Never
+// substitute this for useQuizAnswerChoices while a quiz is still in progress.
+// ---------------------------------------------------------------------------
+
+export interface QuizReviewRow {
+  question_id: string;
+  answer_id: string;
+  answer_text: string;
+  is_correct: boolean | null;
+  explanation: string | null;
+}
+
+export function useGetQuizReview(attemptId: string | undefined) {
+  return useQuery({
+    queryKey: ["quiz_review", attemptId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_quiz_review", { p_attempt_id: attemptId! });
+      if (error) throw error;
+      return data as QuizReviewRow[];
+    },
+    enabled: !!attemptId,
   });
 }
 
