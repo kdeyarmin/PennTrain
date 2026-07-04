@@ -23,6 +23,9 @@ import TrainingMatrix from "@/pages/app/TrainingMatrix";
 import Courses from "@/pages/app/Courses";
 import CourseDetail from "@/pages/app/CourseDetail";
 import CourseAssignments from "@/pages/app/CourseAssignments";
+import TrainingPlans from "@/pages/app/TrainingPlans";
+import CompetencyTemplates from "@/pages/app/CompetencyTemplates";
+import CompetencyRecords from "@/pages/app/CompetencyRecords";
 import Practicums from "@/pages/app/Practicums";
 import Alerts from "@/pages/app/Alerts";
 import Reports from "@/pages/app/Reports";
@@ -181,6 +184,15 @@ function Router() {
       </Route>
       <Route path="/app/course-assignments">
         {() => <ProtectedRoute component={CourseAssignments} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/training-plans">
+        {() => <ProtectedRoute component={TrainingPlans} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/competency-templates">
+        {() => <ProtectedRoute component={CompetencyTemplates} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/competency-records">
+        {() => <ProtectedRoute component={CompetencyRecords} allowedRoles={ORG_ROLES} />}
       </Route>
       <Route path="/app/assignments">
         {() => <ProtectedRoute component={CareMetricAssignmentsPage} allowedRoles={ORG_ROLES} />}

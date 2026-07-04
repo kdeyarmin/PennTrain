@@ -19,7 +19,9 @@ import {
   BookOpen,
   Upload,
   Package,
-  ClipboardCheck
+  ClipboardCheck,
+  ListChecks,
+  ClipboardList
 } from "lucide-react";
 
 export function Sidebar() {
@@ -75,6 +77,9 @@ export function Sidebar() {
           { href: "/app/caremetric", label: "LMS Suite", icon: BookOpen },
           { href: "/app/courses", label: "Courses", icon: GraduationCap },
           { href: "/app/course-assignments", label: "Course Assignments", icon: FileCheck },
+          { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
+          { href: "/app/competency-templates", label: "Competency Templates", icon: ClipboardList },
+          { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
           { href: "/app/assignments", label: "Assignments", icon: FileCheck },
           { href: "/app/practicums", label: "Practicums", icon: FileCheck },
         ]
