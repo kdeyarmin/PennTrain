@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   useListTrainingClasses,
   useCreateTrainingClass,
-  useListTrainingTypes,
-  useListFacilities,
-} from "@workspace/api-client-react";
-import type { TrainingClass } from "@workspace/api-client-react";
+  useClassAttendeeCounts,
+} from "@/hooks/useTrainingClasses";
+import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
+import { useListFacilities } from "@/hooks/useFacilities";
+import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,36 +45,48 @@ import { useToast } from "@/hooks/use-toast";
 export default function TrainerClasses() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showCreate, setShowCreate] = useState(false);
 
-  const { data: classes, isLoading, refetch } = useListTrainingClasses({
-    status: statusFilter !== "all" ? statusFilter as "draft" | "completed" | "cancelled" : undefined,
-  });
-  const { data: trainingTypes } = useListTrainingTypes({});
-  const { data: facilities } = useListFacilities({});
+  const { data: classes, isLoading } = useListTrainingClasses({});
+  const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
+  const { data: facilities } = useListFacilities();
+  const { data: attendeeCounts } = useClassAttendeeCounts();
   const createClass = useCreateTrainingClass();
 
   const [form, setForm] = useState({
     className: "",
     trainingTypeId: "",
     classDate: new Date().toISOString().slice(0, 10),
-    facilityId: "",
+    facilityId: "none",
     location: "",
     durationHours: "1",
     notes: "",
   });
 
-  const allClasses = (classes ?? []) as TrainingClass[];
+  const trainingTypesById = useMemo(
+    () => new Map((trainingTypes ?? []).map((t) => [t.id, t])),
+    [trainingTypes]
+  );
+  const facilitiesById = useMemo(
+    () => new Map((facilities ?? []).map((f) => [f.id, f])),
+    [facilities]
+  );
+
+  const allClasses = classes ?? [];
 
   const filtered = allClasses.filter((c) => {
+    if (statusFilter !== "all" && c.status !== statusFilter) return false;
     if (search) {
       const s = search.toLowerCase();
+      const trainingTypeName = trainingTypesById.get(c.training_type_id)?.name ?? "";
+      const facilityName = c.facility_id ? facilitiesById.get(c.facility_id)?.name ?? "" : "";
       if (
-        !c.className.toLowerCase().includes(s) &&
-        !(c.trainingTypeName ?? "").toLowerCase().includes(s) &&
-        !(c.facilityName ?? "").toLowerCase().includes(s) &&
+        !c.class_name.toLowerCase().includes(s) &&
+        !trainingTypeName.toLowerCase().includes(s) &&
+        !facilityName.toLowerCase().includes(s) &&
         !(c.location ?? "").toLowerCase().includes(s)
       )
         return false;
@@ -81,39 +94,46 @@ export default function TrainerClasses() {
     return true;
   });
 
-  async function handleCreate() {
-    if (!form.className || !form.trainingTypeId || !form.classDate) {
+  function resetForm() {
+    setForm({
+      className: "",
+      trainingTypeId: "",
+      classDate: new Date().toISOString().slice(0, 10),
+      facilityId: "none",
+      location: "",
+      durationHours: "1",
+      notes: "",
+    });
+  }
+
+  function handleCreate() {
+    if (!form.className.trim() || !form.trainingTypeId || !form.classDate) {
       toast({ title: "Please fill required fields", variant: "destructive" });
       return;
     }
-    try {
-      const facilityId = form.facilityId && form.facilityId !== "none" ? Number(form.facilityId) : undefined;
-      await createClass.mutateAsync({
-        data: {
-          className: form.className,
-          trainingTypeId: Number(form.trainingTypeId),
-          classDate: form.classDate,
-          facilityId,
-          location: form.location || undefined,
-          durationHours: form.durationHours || "1",
-          notes: form.notes || undefined,
+    if (!user?.organizationId || !user?.id) return;
+    createClass.mutate(
+      {
+        class_name: form.className.trim(),
+        training_type_id: form.trainingTypeId,
+        class_date: form.classDate,
+        facility_id: form.facilityId !== "none" ? form.facilityId : null,
+        location: form.location.trim() || null,
+        duration_hours: Number(form.durationHours) || 1,
+        notes: form.notes.trim() || null,
+        organization_id: user.organizationId,
+        trainer_profile_id: user.id,
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Class created successfully" });
+          setShowCreate(false);
+          resetForm();
         },
-      });
-      toast({ title: "Class created successfully" });
-      setShowCreate(false);
-      setForm({
-        className: "",
-        trainingTypeId: "",
-        classDate: new Date().toISOString().slice(0, 10),
-        facilityId: "",
-        location: "",
-        durationHours: "1",
-        notes: "",
-      });
-      refetch();
-    } catch {
-      toast({ title: "Failed to create class", variant: "destructive" });
-    }
+        onError: (e: Error) =>
+          toast({ title: "Failed to create class", description: e.message, variant: "destructive" }),
+      }
+    );
   }
 
   const statusColor = (s: string) => {
@@ -171,7 +191,7 @@ export default function TrainerClasses() {
                     </SelectTrigger>
                     <SelectContent>
                       {(trainingTypes ?? []).map((t) => (
-                        <SelectItem key={t.id} value={String(t.id)}>
+                        <SelectItem key={t.id} value={t.id}>
                           {t.name}
                         </SelectItem>
                       ))}
@@ -205,7 +225,7 @@ export default function TrainerClasses() {
                     <SelectContent>
                       <SelectItem value="none">Any / Cross-facility</SelectItem>
                       {(facilities ?? []).map((f) => (
-                        <SelectItem key={f.id} value={String(f.id)}>
+                        <SelectItem key={f.id} value={f.id}>
                           {f.name}
                         </SelectItem>
                       ))}
@@ -321,21 +341,21 @@ export default function TrainerClasses() {
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <CardTitle className="text-base leading-snug pr-2">
-                    {cls.className}
+                    {cls.class_name}
                   </CardTitle>
                   <Badge variant={statusColor(cls.status)}>
                     {cls.status}
                   </Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {cls.trainingTypeName}
+                  {trainingTypesById.get(cls.training_type_id)?.name ?? "—"}
                 </p>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Calendar className="h-3.5 w-3.5" />
                   <span>
-                    {new Date(cls.classDate).toLocaleDateString("en-US", {
+                    {new Date(cls.class_date).toLocaleDateString("en-US", {
                       weekday: "short",
                       month: "short",
                       day: "numeric",
@@ -343,20 +363,25 @@ export default function TrainerClasses() {
                     })}
                   </span>
                 </div>
-                {cls.location && (
+                {cls.location ? (
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <MapPin className="h-3.5 w-3.5" />
                     <span>{cls.location}</span>
                   </div>
-                )}
+                ) : cls.facility_id ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <MapPin className="h-3.5 w-3.5" />
+                    <span>{facilitiesById.get(cls.facility_id)?.name ?? "—"}</span>
+                  </div>
+                ) : null}
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Clock className="h-3.5 w-3.5" />
-                  <span>{cls.durationHours}h</span>
+                  <span>{cls.duration_hours}h</span>
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Users className="h-3.5 w-3.5" />
-                    <span>{cls.attendeeCount ?? 0} attendees</span>
+                    <span>{attendeeCounts?.[cls.id] ?? 0} attendees</span>
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>

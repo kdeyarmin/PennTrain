@@ -1,82 +1,60 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useRoute, Link, useLocation } from "wouter";
+import { useRoute, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { ArrowLeft, Building, Building2, LogIn } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, Building, Building2, ShieldCheck, FileArchive, Download, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useGetOrganization, useGetOrganizationStats, useUpdateOrganization } from "@/hooks/useOrganizations";
+import { useListFacilities } from "@/hooks/useFacilities";
+import { useGetPackage, useListPackages } from "@/hooks/usePackages";
+import { useGenerateComplianceBinder } from "@/hooks/useComplianceBinder";
 import { useToast } from "@/hooks/use-toast";
-import {
-  useGetOrganization,
-  useGetOrganizationStats,
-  useListFacilities,
-} from "@workspace/api-client-react";
-import { impersonateOrg } from "@workspace/api-client-react";
-import { useMutation } from "@tanstack/react-query";
+import { useViewingOrg } from "@/lib/viewingOrg";
 
 export default function OrganizationDetail() {
   const [, params] = useRoute("/admin/organizations/:id");
-  const parsedOrgId = Number.parseInt(params?.id ?? "", 10);
-  const id = Number.isFinite(parsedOrgId) && parsedOrgId > 0
-    ? parsedOrgId
-    : null;
-  const [, navigate] = useLocation();
+  const id = params?.id;
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [, setImpersonating] = useState(false);
-  const [showImpersonateConfirm, setShowImpersonateConfirm] = useState(false);
+  const { viewingOrgId, setViewingOrgId } = useViewingOrg();
 
-  const { data: org, isLoading: orgLoading } = useGetOrganization(id ?? 0, {
-    query: {
-      queryKey: ["getOrganization", id ?? 0],
-      enabled: id !== null,
-    },
-  });
-
-  const { data: stats, isLoading: statsLoading } = useGetOrganizationStats(id ?? 0, {
-    query: {
-      queryKey: ["getOrganizationStats", id ?? 0],
-      enabled: id !== null,
-    },
-  });
-
-  const { data: facilities, isLoading: facLoading } = useListFacilities(
-    { organizationId: id ?? undefined },
-    {
-      query: {
-        queryKey: ["listFacilities", { organizationId: id ?? undefined }],
-        enabled: id !== null,
-      },
-    }
-  );
-
-  const impersonateMutation = useMutation({
-    mutationFn: async () => {
-      if (!id) {
-        throw new Error("Invalid organization id");
-      }
-      return impersonateOrg({ organizationId: id });
-    },
-    onSuccess: (data: { organization?: { name?: string } }) => {
-      setImpersonating(true);
-      queryClient.invalidateQueries();
-      toast({
-        title: `Viewing as: ${data.organization?.name ?? org?.name}`,
-        description: "You are now viewing this organization's data.",
-      });
-      navigate("/");
-    },
-    onError: () => {
-      toast({ title: "Failed to switch organization view", variant: "destructive" });
-    },
-  });
+  const { data: org, isLoading: orgLoading } = useGetOrganization(id);
+  const { data: stats, isLoading: statsLoading } = useGetOrganizationStats(id);
+  const { data: facilities, isLoading: facLoading } = useListFacilities({ organizationId: id });
+  const { data: currentPackage } = useGetPackage(org?.package_id);
+  const { data: packages } = useListPackages();
+  const { mutate: updateOrganization, isPending: updatingPackage } = useUpdateOrganization();
+  const { mutate: generateBinder, isPending: generatingBinder } = useGenerateComplianceBinder();
+  const [binderResult, setBinderResult] = useState<{ url: string; expiresIn: number } | null>(null);
 
   const isLoading = orgLoading || statsLoading;
+
+  const handleGenerateBinder = () => {
+    if (!id) return;
+    setBinderResult(null);
+    generateBinder(
+      { organizationId: id },
+      {
+        onSuccess: (data) => {
+          setBinderResult({ url: data.url, expiresIn: data.expiresIn });
+          toast({ title: "Compliance binder generated" });
+        },
+        onError: (e: Error) => toast({ title: "Failed to generate binder", description: e.message, variant: "destructive" }),
+      },
+    );
+  };
+
+  const handlePackageChange = (value: string) => {
+    if (!id) return;
+    updateOrganization(
+      { id, package_id: value === "none" ? null : value },
+      {
+        onSuccess: () => toast({ title: "Package updated" }),
+        onError: (e: Error) => toast({ title: "Failed to update package", description: e.message, variant: "destructive" }),
+      },
+    );
+  };
 
   const subscriptionColor = (status: string) => {
     if (status === "active") return "default";
@@ -84,7 +62,7 @@ export default function OrganizationDetail() {
     return "destructive";
   };
 
-  if (id === null) {
+  if (!id) {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Invalid organization id.</p>
@@ -138,21 +116,23 @@ export default function OrganizationDetail() {
               <h1 className="text-2xl font-bold">{org.name}</h1>
               <p className="text-muted-foreground text-sm">{org.slug}</p>
               <div className="flex items-center gap-2 mt-2 flex-wrap">
-                <Badge variant={subscriptionColor(org.subscriptionStatus) as "default" | "secondary" | "destructive" | "outline"}>
-                  {org.subscriptionStatus}
+                <Badge variant={subscriptionColor(org.subscription_status) as "default" | "secondary" | "destructive" | "outline"}>
+                  {org.subscription_status}
                 </Badge>
-                {org.planName && <Badge variant="outline">{org.planName}</Badge>}
+                {org.plan_name && <Badge variant="outline">{org.plan_name}</Badge>}
               </div>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => setShowImpersonateConfirm(true)}
-              disabled={impersonateMutation.isPending || id === null}
-              className="shrink-0"
-            >
-              <LogIn className="mr-2 h-4 w-4" />
-              {impersonateMutation.isPending ? "Switching..." : "View as this Organization"}
-            </Button>
+            {viewingOrgId === id ? (
+              <Badge variant="default" className="shrink-0 gap-1.5 py-1.5 px-3">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Currently viewing this org
+              </Badge>
+            ) : (
+              <Button variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={() => setViewingOrgId(id)}>
+                <ShieldCheck className="h-3.5 w-3.5" />
+                View as this org
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -161,31 +141,15 @@ export default function OrganizationDetail() {
         <Card>
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">Facilities</p>
-            <p className="text-2xl font-bold">{stats?.totalFacilities ?? "—"}</p>
-            {org.maxFacilities && <p className="text-xs text-muted-foreground">of {org.maxFacilities} max</p>}
+            <p className="text-2xl font-bold">{stats?.facilityCount ?? "—"}</p>
+            {org.max_facilities && <p className="text-xs text-muted-foreground">of {org.max_facilities} max</p>}
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
-            <p className="text-xs text-muted-foreground">Active Employees</p>
-            <p className="text-2xl font-bold">{stats?.totalEmployees ?? "—"}</p>
-            <p className="text-xs text-muted-foreground">{stats?.totalMedAdminStaff ?? 0} med admin</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-xs text-muted-foreground">Open Alerts</p>
-            <p className={`text-2xl font-bold ${(stats?.openAlertsCount ?? 0) > 0 ? "text-red-600" : "text-green-600"}`}>
-              {stats?.openAlertsCount ?? "—"}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-xs text-muted-foreground">Compliance Score</p>
-            <p className={`text-2xl font-bold ${(stats?.compliancePercentage ?? 0) >= 80 ? "text-green-600" : (stats?.compliancePercentage ?? 0) >= 60 ? "text-yellow-600" : "text-red-600"}`}>
-              {stats?.compliancePercentage ?? "—"}{stats ? "%" : ""}
-            </p>
+            <p className="text-xs text-muted-foreground">Employees</p>
+            <p className="text-2xl font-bold">{stats?.employeeCount ?? "—"}</p>
+            {org.max_users && <p className="text-xs text-muted-foreground">of {org.max_users} max</p>}
           </CardContent>
         </Card>
       </div>
@@ -198,15 +162,15 @@ export default function OrganizationDetail() {
           <CardContent className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Contact</span>
-              <span className="font-medium">{org.contactName ?? "—"}</span>
+              <span className="font-medium">{org.contact_name ?? "—"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Email</span>
-              <span className="font-medium">{org.contactEmail ?? "—"}</span>
+              <span className="font-medium">{org.contact_email ?? "—"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Phone</span>
-              <span className="font-medium">{org.contactPhone ?? "—"}</span>
+              <span className="font-medium">{org.contact_phone ?? "—"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Address</span>
@@ -221,19 +185,37 @@ export default function OrganizationDetail() {
           <CardContent className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Plan</span>
-              <span className="font-medium">{org.planName ?? "—"}</span>
+              <span className="font-medium">{org.plan_name ?? "—"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Status</span>
-              <span className="font-medium capitalize">{org.subscriptionStatus}</span>
+              <span className="font-medium capitalize">{org.subscription_status}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Max Facilities</span>
-              <span className="font-medium">{org.maxFacilities ?? "Unlimited"}</span>
+              <span className="font-medium">{org.max_facilities ?? "Unlimited"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Max Users</span>
-              <span className="font-medium">{org.maxUsers ?? "Unlimited"}</span>
+              <span className="font-medium">{org.max_users ?? "Unlimited"}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Package</span>
+              <span className="font-medium">{currentPackage?.name ?? "None assigned"}</span>
+            </div>
+            <div className="pt-2 space-y-1.5">
+              <span className="text-xs text-muted-foreground">Change package</span>
+              <Select value={org.package_id ?? "none"} onValueChange={handlePackageChange} disabled={updatingPackage}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="No package" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No package</SelectItem>
+                  {packages?.map(pkg => (
+                    <SelectItem key={pkg.id} value={pkg.id}>
+                      {pkg.name}{!pkg.is_active ? " (inactive)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
@@ -258,11 +240,11 @@ export default function OrganizationDetail() {
                 <div key={fac.id} className="flex items-center justify-between p-3 rounded-lg border">
                   <div>
                     <p className="font-medium text-sm">{fac.name}</p>
-                    <p className="text-xs text-muted-foreground">{fac.city}, {fac.state} — {fac.licenseNumber ?? "No license"}</p>
+                    <p className="text-xs text-muted-foreground">{fac.city}, {fac.state} — {fac.license_number ?? "No license"}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">{fac.facilityType}</Badge>
-                    <Badge variant={fac.isActive ? "default" : "secondary"} className="text-xs">{fac.isActive ? "Active" : "Inactive"}</Badge>
+                    <Badge variant="outline" className="text-xs">{fac.facility_type}</Badge>
+                    <Badge variant={fac.is_active ? "default" : "secondary"} className="text-xs">{fac.is_active ? "Active" : "Inactive"}</Badge>
                   </div>
                 </div>
               ))}
@@ -271,30 +253,38 @@ export default function OrganizationDetail() {
         </CardContent>
       </Card>
 
-      <AlertDialog open={showImpersonateConfirm} onOpenChange={setShowImpersonateConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Switch Organization Context</AlertDialogTitle>
-            <AlertDialogDescription>
-              You are about to view the platform as "{org?.name}". Your session will switch to this organization's context. You can return to the admin view at any time.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setShowImpersonateConfirm(false);
-                if (id !== null) {
-                  impersonateMutation.mutate();
-                }
-              }}
-              disabled={id === null}
-            >
-              Continue
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileArchive className="h-5 w-5" /> Compliance Binder
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Generate a compliance summary PDF for {org.name} -- facility roster, staff training compliance,
+            overdue practicums, certificates issued, and open alerts.
+          </p>
+          <div className="flex items-center gap-3">
+            <Button onClick={handleGenerateBinder} disabled={generatingBinder}>
+              {generatingBinder ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileArchive className="mr-2 h-4 w-4" />}
+              {generatingBinder ? "Generating..." : "Generate Binder PDF"}
+            </Button>
+            {binderResult && (
+              <Button variant="outline" asChild>
+                <a href={binderResult.url} target="_blank" rel="noopener noreferrer">
+                  <Download className="mr-2 h-4 w-4" />
+                  Download PDF
+                </a>
+              </Button>
+            )}
+          </div>
+          {binderResult && (
+            <p className="text-xs text-muted-foreground">
+              This link expires in {Math.round(binderResult.expiresIn / 60)} minutes.
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

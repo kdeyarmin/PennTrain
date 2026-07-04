@@ -1,107 +1,126 @@
-import { useQuery } from "@tanstack/react-query";
-import { useRoute, Link } from "wouter";
+import { useState } from "react";
+import { useRoute, useLocation, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { ArrowLeft, Building2, MapPin, Phone, Users, BookOpen, BarChart3, Clock, XCircle, AlertTriangle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
+} from "@/components/ui/alert-dialog";
+import { ArrowLeft, Building2, MapPin, Phone, Users, BookOpen, BarChart3, Clock, XCircle, Pencil, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useListEmployees } from "@workspace/api-client-react";
+import { useGetFacility, useUpdateFacility, useDeleteFacility } from "@/hooks/useFacilities";
+import { useListEmployees } from "@/hooks/useEmployees";
+import { useAuth } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
 
-interface Facility {
-  id: number;
+interface FacilityFormData {
   name: string;
-  facilityType: string;
-  licenseNumber: string | null;
-  address: string | null;
-  city: string | null;
-  state: string | null;
-  zip: string | null;
-  phone: string | null;
-  administratorName: string | null;
-  administratorEmail: string | null;
-  capacity: number | null;
-  currentCensus: number | null;
-  licenseExpiration: string | null;
+  facilityType: "PCH" | "ALR";
+  licenseNumber: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  phone: string;
+  administratorName: string;
+  administratorEmail: string;
   isActive: boolean;
 }
 
-interface ComplianceSummary {
-  facilityId: number;
-  facilityName: string;
-  facilityType: string;
-  totalEmployees: number;
-  medAdminStaff: number;
-  compliantCount: number;
-  dueSoonCount: number;
-  expiredCount: number;
-  missingCount: number;
-  complianceScore: number;
-  practicumsDue: number;
-  annualHoursIncomplete: number;
-}
+const EMPTY_FORM: FacilityFormData = {
+  name: "", facilityType: "PCH", licenseNumber: "", address: "", city: "",
+  state: "PA", zip: "", phone: "", administratorName: "", administratorEmail: "",
+  isActive: true,
+};
 
-interface DueDateRecord {
-  id: number;
-  type?: string;
-  employeeId: number;
-  employeeName: string | null;
-  trainingTypeName: string | null;
-  dueDate: string | null;
-  status: string;
-}
+const COMPLIANCE_PLACEHOLDER_TEXT =
+  "Compliance tracking for this facility will be available once it's migrated to Supabase in the next phase.";
 
 export default function FacilityDetail() {
   const [, params] = useRoute("/app/facilities/:id");
   const id = params?.id;
+  const [, navigate] = useLocation();
+  const { user } = useAuth();
+  const { toast } = useToast();
 
-  const { data: facility, isLoading: facLoading } = useQuery<Facility>({
-    queryKey: ["facility", id],
-    queryFn: async () => {
-      const res = await fetch(`/api/facilities/${id}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Facility not found");
-      return res.json();
-    },
-    enabled: !!id,
-  });
+  const canManage = ["platform_admin", "org_admin"].includes(user?.role ?? "");
 
-  const { data: summary, isLoading: sumLoading } = useQuery<ComplianceSummary>({
-    queryKey: ["facility-compliance", id],
-    queryFn: async () => {
-      const res = await fetch(`/api/facilities/${id}/compliance-summary`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load compliance summary");
-      return res.json();
-    },
-    enabled: !!id,
-  });
+  const { data: facility, isLoading: facLoading } = useGetFacility(id);
+  const { data: employees, isLoading: empLoading } = useListEmployees({ facilityId: id });
 
-  const { data: employees, isLoading: empLoading } = useListEmployees({
-    facilityId: id ? Number(id) : undefined,
-  });
+  const { mutate: updateFacility, isPending: updating } = useUpdateFacility();
+  const { mutate: deleteFacility, isPending: deleting } = useDeleteFacility();
 
-  const { data: upcomingDueDates } = useQuery<DueDateRecord[]>({
-    queryKey: ["facility-upcoming", id],
-    queryFn: async () => {
-      const res = await fetch(`/api/facilities/${id}/upcoming-due-dates`, { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: !!id,
-  });
+  const [showEdit, setShowEdit] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [form, setForm] = useState<FacilityFormData>(EMPTY_FORM);
 
-  const { data: recentlyExpired } = useQuery<DueDateRecord[]>({
-    queryKey: ["facility-expired", id],
-    queryFn: async () => {
-      const res = await fetch(`/api/facilities/${id}/recently-expired`, { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: !!id,
-  });
+  const openEdit = () => {
+    if (!facility) return;
+    setForm({
+      name: facility.name,
+      facilityType: facility.facility_type === "ALR" ? "ALR" : "PCH",
+      licenseNumber: facility.license_number ?? "",
+      address: facility.address ?? "",
+      city: facility.city ?? "",
+      state: facility.state ?? "PA",
+      zip: facility.zip ?? "",
+      phone: facility.phone ?? "",
+      administratorName: facility.administrator_name ?? "",
+      administratorEmail: facility.administrator_email ?? "",
+      isActive: facility.is_active,
+    });
+    setShowEdit(true);
+  };
 
-  const isLoading = facLoading || sumLoading;
+  const field = (k: keyof FacilityFormData, v: string | boolean) =>
+    setForm(f => ({ ...f, [k]: v }));
 
-  if (isLoading) {
+  const handleSave = () => {
+    if (!facility) return;
+    if (!form.name.trim()) {
+      toast({ title: "Facility name is required", variant: "destructive" });
+      return;
+    }
+    updateFacility(
+      {
+        id: facility.id,
+        name: form.name.trim(),
+        facility_type: form.facilityType,
+        license_number: form.licenseNumber || null,
+        address: form.address || null,
+        city: form.city || null,
+        state: form.state || null,
+        zip: form.zip || null,
+        phone: form.phone || null,
+        administrator_name: form.administratorName || null,
+        administrator_email: form.administratorEmail || null,
+        is_active: form.isActive,
+      },
+      {
+        onSuccess: () => { toast({ title: "Facility updated" }); setShowEdit(false); },
+        onError: (e: Error) => toast({ title: "Failed to update facility", description: e.message, variant: "destructive" }),
+      },
+    );
+  };
+
+  const handleDelete = () => {
+    if (!facility) return;
+    deleteFacility(facility.id, {
+      onSuccess: () => {
+        toast({ title: "Facility deleted" });
+        navigate("/app/facilities");
+      },
+      onError: (e: Error) => toast({ title: "Failed to delete facility", description: e.message, variant: "destructive" }),
+    });
+  };
+
+  if (facLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
@@ -124,8 +143,6 @@ export default function FacilityDetail() {
     );
   }
 
-  const score = summary?.complianceScore ?? null;
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -136,32 +153,36 @@ export default function FacilityDetail() {
         </Button>
       </div>
 
-      <div className="flex items-start gap-4">
-        <div className="h-14 w-14 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-          <Building2 className="h-7 w-7 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold">{facility.name}</h1>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <Badge variant="outline">{facility.facilityType}</Badge>
-            <Badge variant={facility.isActive ? "default" : "secondary"}>{facility.isActive ? "Active" : "Inactive"}</Badge>
-            {score !== null && (
-              <span className={`text-xs px-2 py-0.5 rounded border font-medium ${score >= 80 ? "text-green-700 bg-green-50 border-green-200" : score >= 60 ? "text-yellow-700 bg-yellow-50 border-yellow-200" : "text-red-700 bg-red-50 border-red-200"}`}>
-                {score}% Compliant
-              </span>
-            )}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex items-start gap-4">
+          <div className="h-14 w-14 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Building2 className="h-7 w-7 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold">{facility.name}</h1>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <Badge variant="outline">{facility.facility_type}</Badge>
+              <Badge variant={facility.is_active ? "default" : "secondary"}>{facility.is_active ? "Active" : "Inactive"}</Badge>
+            </div>
           </div>
         </div>
+        {canManage && (
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={openEdit}>
+              <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+            </Button>
+            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setShowDelete(true)}>
+              <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">License Number</p>
-            <p className="font-semibold text-sm">{facility.licenseNumber ?? "—"}</p>
-            {facility.licenseExpiration && (
-              <p className="text-xs text-muted-foreground mt-1">Expires: {facility.licenseExpiration}</p>
-            )}
+            <p className="font-semibold text-sm">{facility.license_number ?? "—"}</p>
           </CardContent>
         </Card>
         <Card>
@@ -169,159 +190,86 @@ export default function FacilityDetail() {
             <p className="text-xs text-muted-foreground">Location</p>
             <div className="flex items-center gap-1">
               <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-              <p className="font-semibold text-sm">{facility.city}, {facility.state}</p>
+              <p className="font-semibold text-sm">{[facility.city, facility.state].filter(Boolean).join(", ") || "—"}</p>
             </div>
-            {facility.address && <p className="text-xs text-muted-foreground mt-1">{facility.address}</p>}
+            {facility.address && (
+              <p className="text-xs text-muted-foreground mt-1">{facility.address}{facility.zip ? ` ${facility.zip}` : ""}</p>
+            )}
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
-            <p className="text-xs text-muted-foreground">Capacity</p>
-            <p className="font-semibold">{facility.currentCensus ?? "?"} / {facility.capacity ?? "?"} beds</p>
-            {facility.phone && (
-              <div className="flex items-center gap-1 mt-1">
-                <Phone className="h-3 w-3 text-muted-foreground" />
-                <p className="text-xs text-muted-foreground">{facility.phone}</p>
-              </div>
-            )}
+            <p className="text-xs text-muted-foreground">Phone</p>
+            <div className="flex items-center gap-1">
+              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+              <p className="font-semibold text-sm">{facility.phone ?? "—"}</p>
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">Administrator</p>
-            <p className="font-semibold text-sm">{facility.administratorName ?? "—"}</p>
-            {facility.administratorEmail && <p className="text-xs text-muted-foreground truncate">{facility.administratorEmail}</p>}
+            <p className="font-semibold text-sm">{facility.administrator_name ?? "—"}</p>
+            {facility.administrator_email && <p className="text-xs text-muted-foreground truncate">{facility.administrator_email}</p>}
           </CardContent>
         </Card>
       </div>
-
-      {summary && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <BookOpen className="h-4 w-4" /> Training Compliance
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Staff tracked</span>
-                  <span className="font-medium">{summary.totalEmployees} ({summary.medAdminStaff} med admin)</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-green-600">Compliant</span>
-                  <span className="font-medium text-green-600">{summary.compliantCount}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-yellow-600">Due Soon</span>
-                  <span className="font-medium text-yellow-600">{summary.dueSoonCount}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-red-600">Expired / Missing</span>
-                  <span className="font-medium text-red-600">{summary.expiredCount + summary.missingCount}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <BarChart3 className="h-4 w-4" /> Additional Requirements
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Overall score</span>
-                  <span className={`font-medium ${summary.complianceScore >= 80 ? "text-green-600" : summary.complianceScore >= 60 ? "text-yellow-600" : "text-red-600"}`}>
-                    {summary.complianceScore}%
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Practicums pending</span>
-                  <span className={`font-medium ${summary.practicumsDue > 0 ? "text-red-600" : "text-green-600"}`}>
-                    {summary.practicumsDue}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Annual hours incomplete</span>
-                  <span className={`font-medium ${summary.annualHoursIncomplete > 0 ? "text-yellow-600" : "text-green-600"}`}>
-                    {summary.annualHoursIncomplete}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <Clock className="h-4 w-4 text-amber-600" /> Upcoming Due Dates
+              <BookOpen className="h-4 w-4 text-muted-foreground" /> Training Compliance
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {!upcomingDueDates || upcomingDueDates.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground">
-                <Clock className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                <p className="text-sm">No upcoming due dates</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {upcomingDueDates.map(record => (
-                  <Link key={`${record.type ?? "t"}-${record.id}`} href={`/app/employees/${record.employeeId}`}>
-                    <div className="flex items-center justify-between p-2.5 rounded-lg border hover:bg-accent/5 cursor-pointer">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{record.employeeName}</p>
-                        <p className="text-xs text-muted-foreground truncate">{record.trainingTypeName}</p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-xs text-amber-600 font-medium">
-                          {record.dueDate ? new Date(record.dueDate).toLocaleDateString() : "—"}
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
+            <div className="text-center py-6 text-muted-foreground">
+              <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">{COMPLIANCE_PLACEHOLDER_TEXT}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <BarChart3 className="h-4 w-4 text-muted-foreground" /> Additional Requirements
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-6 text-muted-foreground">
+              <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">{COMPLIANCE_PLACEHOLDER_TEXT}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Clock className="h-4 w-4 text-muted-foreground" /> Upcoming Due Dates
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-6 text-muted-foreground">
+              <Clock className="h-8 w-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">{COMPLIANCE_PLACEHOLDER_TEXT}</p>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <XCircle className="h-4 w-4 text-red-600" /> Recently Expired
+              <XCircle className="h-4 w-4 text-muted-foreground" /> Recently Expired
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {!recentlyExpired || recentlyExpired.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground">
-                <AlertTriangle className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                <p className="text-sm">No recently expired trainings</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {recentlyExpired.map(record => (
-                  <Link key={`${record.type ?? "t"}-${record.id}`} href={`/app/employees/${record.employeeId}`}>
-                    <div className="flex items-center justify-between p-2.5 rounded-lg border hover:bg-accent/5 cursor-pointer">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{record.employeeName}</p>
-                        <p className="text-xs text-muted-foreground truncate">{record.trainingTypeName}</p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-xs text-red-600 font-medium">
-                          {record.dueDate ? `Expired ${new Date(record.dueDate).toLocaleDateString()}` : "Expired"}
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
+            <div className="text-center py-6 text-muted-foreground">
+              <XCircle className="h-8 w-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">{COMPLIANCE_PLACEHOLDER_TEXT}</p>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -345,12 +293,12 @@ export default function FacilityDetail() {
                 <Link key={emp.id} href={`/app/employees/${emp.id}`}>
                   <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/5 cursor-pointer">
                     <div>
-                      <p className="font-medium text-sm">{emp.firstName} {emp.lastName}</p>
-                      <p className="text-xs text-muted-foreground">{emp.jobTitle}</p>
+                      <p className="font-medium text-sm">{emp.first_name} {emp.last_name}</p>
+                      <p className="text-xs text-muted-foreground">{emp.job_title}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      {emp.administersMedications && <Badge variant="outline" className="text-xs">Med Admin</Badge>}
-                      {emp.trainerStatus && <Badge variant="outline" className="text-xs">Trainer</Badge>}
+                      {emp.administers_medications && <Badge variant="outline" className="text-xs">Med Admin</Badge>}
+                      {emp.trainer_status && <Badge variant="outline" className="text-xs">Trainer</Badge>}
                       <Badge variant={emp.status === "active" ? "default" : "secondary"} className="text-xs">{emp.status}</Badge>
                     </div>
                   </div>
@@ -360,6 +308,99 @@ export default function FacilityDetail() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={showEdit} onOpenChange={o => { if (!o) setShowEdit(false); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Facility</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-[13px]">Facility Name *</Label>
+              <Input value={form.name} onChange={e => field("name", e.target.value)} placeholder="Sunrise Manor" className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Type *</Label>
+              <Select value={form.facilityType} onValueChange={v => field("facilityType", v as "PCH" | "ALR")}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PCH">PCH</SelectItem>
+                  <SelectItem value="ALR">ALR</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">License Number</Label>
+              <Input value={form.licenseNumber} onChange={e => field("licenseNumber", e.target.value)} placeholder="LIC-0001" className="h-9" />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-[13px]">Address</Label>
+              <Input value={form.address} onChange={e => field("address", e.target.value)} placeholder="123 Main St" className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">City</Label>
+              <Input value={form.city} onChange={e => field("city", e.target.value)} placeholder="Philadelphia" className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">State</Label>
+              <Input value={form.state} onChange={e => field("state", e.target.value)} placeholder="PA" maxLength={2} className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">ZIP</Label>
+              <Input value={form.zip} onChange={e => field("zip", e.target.value)} placeholder="19103" className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Phone</Label>
+              <Input value={form.phone} onChange={e => field("phone", e.target.value)} placeholder="(215) 555-0100" className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Administrator Name</Label>
+              <Input value={form.administratorName} onChange={e => field("administratorName", e.target.value)} placeholder="Jane Smith" className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Administrator Email</Label>
+              <Input value={form.administratorEmail} onChange={e => field("administratorEmail", e.target.value)} placeholder="admin@facility.com" className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Status</Label>
+              <Select value={form.isActive ? "active" : "inactive"} onValueChange={v => field("isActive", v === "active")}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEdit(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={updating} className="shadow-sm">
+              {updating ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={showDelete} onOpenChange={setShowDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Facility</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {facility.name}? This action cannot be undone and will remove all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

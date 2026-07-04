@@ -1,34 +1,28 @@
 import { useState } from "react";
-import { useListAlerts, getListAlertsQueryKey, useListFacilities } from "@workspace/api-client-react";
-import type { Alert } from "@workspace/api-client-react";
+import { useListAlerts, useUpdateAlert, useBulkUpdateAlerts, type Alert } from "@/hooks/useAlerts";
+import { useListFacilities } from "@/hooks/useFacilities";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertCircle, AlertTriangle, CheckCircle, Info, X, Search, ChevronLeft, ChevronRight } from "lucide-react";
-import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth, type Role } from "@/lib/auth";
+import { useViewingOrg } from "@/lib/viewingOrg";
 
 const PAGE_SIZE = 10;
 type SortField = "severity" | "createdAt" | "title";
 
-async function patchAlert(id: number, action: "dismiss" | "resolve") {
-  await fetch(`/api/alerts/${id}/${action}`, { method: "PATCH", credentials: "include" });
-}
-
-async function bulkDismissAlerts(ids: number[]) {
-  const res = await fetch("/api/alerts/bulk-dismiss", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ ids }),
-  });
-  if (!res.ok) throw new Error("Bulk dismiss failed");
-  return res.json();
-}
+// Matches the alerts_write RLS policy (org_admin/facility_manager, or platform_admin
+// via is_platform_admin()) — roles outside this list can reach /app/alerts (read-only)
+// but Postgres will reject any write, so those controls must not be shown to them.
+const ALERTS_WRITE_ROLES: Role[] = ["org_admin", "facility_manager", "platform_admin"];
 
 export default function Alerts() {
+  const { user } = useAuth();
+  const { viewingOrgId } = useViewingOrg();
+  const canWrite = !!user && ALERTS_WRITE_ROLES.includes(user.role);
   const [status, setStatus] = useState<string>("open");
   const [severity, setSeverity] = useState<string>("all");
   const [facilityId, setFacilityId] = useState<string>("all");
@@ -36,48 +30,52 @@ export default function Alerts() {
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [bulkDismissing, setBulkDismissing] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
-  const { data: facilities } = useListFacilities({});
+  const { data: facilities } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
   const { data: alerts, isLoading } = useListAlerts({
-    status: (status && status !== "all" ? status : undefined) as "open" | "dismissed" | "resolved" | undefined,
-    severity: (severity && severity !== "all" ? severity : undefined) as "info" | "warning" | "critical" | undefined,
-    facilityId: facilityId && facilityId !== "all" ? Number(facilityId) : undefined,
+    status: status !== "all" ? status : undefined,
+    severity: severity !== "all" ? severity : undefined,
+    facilityId: facilityId !== "all" ? facilityId : undefined,
+    organizationId: viewingOrgId ?? undefined,
   });
   const { toast } = useToast();
-  const [pendingId, setPendingId] = useState<number | null>(null);
 
-  const handleAction = async (id: number, action: "dismiss" | "resolve") => {
+  const { mutate: updateAlert } = useUpdateAlert();
+  const { mutate: bulkUpdateAlerts, isPending: bulkDismissing } = useBulkUpdateAlerts();
+
+  const handleAction = (id: string, action: "dismiss" | "resolve") => {
     setPendingId(id);
-    try {
-      await patchAlert(id, action);
-      queryClient.invalidateQueries({ queryKey: getListAlertsQueryKey() });
-      toast({ title: action === "resolve" ? "Alert resolved" : "Alert dismissed" });
-      setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
-    } catch {
-      toast({ variant: "destructive", title: "Action failed" });
-    } finally {
-      setPendingId(null);
-    }
+    updateAlert(
+      { id, status: action === "resolve" ? "resolved" : "dismissed" },
+      {
+        onSuccess: () => {
+          toast({ title: action === "resolve" ? "Alert resolved" : "Alert dismissed" });
+          setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+        },
+        onError: () => toast({ variant: "destructive", title: "Action failed" }),
+        onSettled: () => setPendingId(null),
+      },
+    );
   };
 
-  const handleBulkDismiss = async () => {
+  const handleBulkDismiss = () => {
     if (selectedIds.size === 0) return;
-    setBulkDismissing(true);
-    try {
-      await bulkDismissAlerts(Array.from(selectedIds));
-      queryClient.invalidateQueries({ queryKey: getListAlertsQueryKey() });
-      toast({ title: `${selectedIds.size} alert(s) dismissed` });
-      setSelectedIds(new Set());
-    } catch {
-      toast({ variant: "destructive", title: "Bulk dismiss failed" });
-    } finally {
-      setBulkDismissing(false);
-    }
+    const ids = Array.from(selectedIds);
+    bulkUpdateAlerts(
+      { ids, status: "dismissed" },
+      {
+        onSuccess: () => {
+          toast({ title: `${ids.length} alert(s) dismissed` });
+          setSelectedIds(new Set());
+        },
+        onError: () => toast({ variant: "destructive", title: "Bulk dismiss failed" }),
+      },
+    );
   };
 
-  const toggleSelected = (id: number) => {
+  const toggleSelected = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -100,7 +98,7 @@ export default function Alerts() {
 
   const severityOrder: Record<string, number> = { critical: 0, warning: 1, info: 2 };
 
-  const allAlerts = (alerts as Alert[] | undefined) ?? [];
+  const allAlerts = alerts ?? [];
 
   const filtered = allAlerts.filter(a => {
     if (!search) return true;
@@ -113,7 +111,7 @@ export default function Alerts() {
     if (sortField === "severity") {
       cmp = (severityOrder[a.severity] ?? 99) - (severityOrder[b.severity] ?? 99);
     } else if (sortField === "createdAt") {
-      cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     } else if (sortField === "title") {
       cmp = a.title.localeCompare(b.title);
     }
@@ -195,7 +193,7 @@ export default function Alerts() {
           <SelectContent>
             <SelectItem value="all">All Facilities</SelectItem>
             {facilities?.map(f => (
-              <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+              <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -217,7 +215,7 @@ export default function Alerts() {
         </div>
       </div>
 
-      {selectedIds.size > 0 && (
+      {canWrite && selectedIds.size > 0 && (
         <div className="flex items-center gap-3 px-4 py-2 bg-muted rounded-md border">
           <span className="text-sm font-medium">{selectedIds.size} alert(s) selected</span>
           <Button
@@ -251,7 +249,7 @@ export default function Alerts() {
             </div>
           ) : (
             <>
-              {status === "open" && openOnPage.length > 0 && (
+              {canWrite && status === "open" && openOnPage.length > 0 && (
                 <div className="flex items-center gap-2 pb-3 mb-3 border-b">
                   <Checkbox
                     checked={allPageSelected}
@@ -263,7 +261,7 @@ export default function Alerts() {
               <div className="space-y-3">
                 {paginated.map((alert: Alert) => (
                   <div key={alert.id} className="flex items-start gap-4 p-4 rounded-lg border">
-                    {alert.status === "open" && (
+                    {canWrite && alert.status === "open" && (
                       <div className="mt-0.5">
                         <Checkbox
                           checked={selectedIds.has(alert.id)}
@@ -281,10 +279,10 @@ export default function Alerts() {
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">{alert.message}</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {new Date(alert.createdAt).toLocaleDateString()}
+                        {new Date(alert.created_at).toLocaleDateString()}
                       </p>
                     </div>
-                    {alert.status === "open" && (
+                    {canWrite && alert.status === "open" && (
                       <div className="flex gap-2 shrink-0">
                         <Button
                           size="sm"

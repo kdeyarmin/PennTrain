@@ -1,19 +1,108 @@
 import { useState } from "react";
-import { useListOrganizations } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useListOrganizations, useCreateOrganization } from "@/hooks/useOrganizations";
+import { useListPackages } from "@/hooks/usePackages";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Building2, Search, ChevronRight, Plus } from "lucide-react";
 import { Link } from "wouter";
+import { useToast } from "@/hooks/use-toast";
+
+interface OrgFormData {
+  name: string;
+  slug: string;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  packageId: string;
+}
+
+const EMPTY_ORG: OrgFormData = {
+  name: "", slug: "", contactName: "", contactEmail: "", contactPhone: "",
+  address: "", city: "", state: "", zip: "", packageId: "",
+};
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
+}
 
 export default function Organizations() {
   const [search, setSearch] = useState("");
-  const { data: orgs, isLoading } = useListOrganizations({ search: search || undefined });
+  const [showForm, setShowForm] = useState(false);
+  const [slugEdited, setSlugEdited] = useState(false);
+  const [form, setForm] = useState<OrgFormData>(EMPTY_ORG);
+
+  const { toast } = useToast();
+  const { data: orgs, isLoading } = useListOrganizations();
+  const { data: packages } = useListPackages();
+  const { mutate: createOrganization, isPending: creating } = useCreateOrganization();
 
   const filtered = orgs?.filter(o =>
     !search || o.name.toLowerCase().includes(search.toLowerCase())
   ) ?? [];
+
+  const openCreate = () => {
+    setForm(EMPTY_ORG);
+    setSlugEdited(false);
+    setShowForm(true);
+  };
+
+  const field = (k: keyof OrgFormData, v: string) =>
+    setForm(f => ({ ...f, [k]: v }));
+
+  const handleNameChange = (value: string) => {
+    setForm(f => ({
+      ...f,
+      name: value,
+      slug: slugEdited ? f.slug : slugify(value),
+    }));
+  };
+
+  const handleSubmit = () => {
+    if (!form.name.trim()) {
+      toast({ title: "Organization name is required", variant: "destructive" });
+      return;
+    }
+    if (!form.slug.trim()) {
+      toast({ title: "Slug is required", variant: "destructive" });
+      return;
+    }
+    createOrganization(
+      {
+        name: form.name.trim(),
+        slug: form.slug.trim(),
+        contact_name: form.contactName || null,
+        contact_email: form.contactEmail || null,
+        contact_phone: form.contactPhone || null,
+        address: form.address || null,
+        city: form.city || null,
+        state: form.state || null,
+        zip: form.zip || null,
+        package_id: form.packageId || null,
+        subscription_status: "trial",
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Organization created" });
+          setShowForm(false);
+          setForm(EMPTY_ORG);
+        },
+        onError: (e: Error) => toast({ title: "Failed to create organization", description: e.message, variant: "destructive" }),
+      },
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -22,7 +111,7 @@ export default function Organizations() {
           <h1 className="text-2xl font-bold">Organizations</h1>
           <p className="text-muted-foreground">Manage all tenant organizations.</p>
         </div>
-        <Button>
+        <Button onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" /> Add Organization
         </Button>
       </div>
@@ -55,12 +144,12 @@ export default function Organizations() {
                       </div>
                       <div>
                         <p className="font-semibold">{org.name}</p>
-                        <p className="text-sm text-muted-foreground">{org.contactEmail}</p>
+                        <p className="text-sm text-muted-foreground">{org.contact_email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <StatusBadge status={org.subscriptionStatus ?? "active"} type="subscription" />
-                      <span className="text-sm text-muted-foreground">{org.planName ?? "Standard"}</span>
+                      <StatusBadge status={org.subscription_status ?? "active"} type="subscription" />
+                      <span className="text-sm text-muted-foreground">{org.plan_name ?? "Standard"}</span>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
@@ -79,6 +168,77 @@ export default function Organizations() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={showForm} onOpenChange={o => { if (!o) setShowForm(false); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add Organization</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-[13px]">Name *</Label>
+              <Input value={form.name} onChange={e => handleNameChange(e.target.value)} placeholder="Acme Care Group" className="h-9" />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-[13px]">Slug *</Label>
+              <Input
+                value={form.slug}
+                onChange={e => { setSlugEdited(true); field("slug", e.target.value); }}
+                placeholder="acme-care-group"
+                className="h-9"
+              />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-[13px]">Package</Label>
+              <Select value={form.packageId || "none"} onValueChange={v => field("packageId", v === "none" ? "" : v)}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="No package" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No package</SelectItem>
+                  {packages?.map(pkg => (
+                    <SelectItem key={pkg.id} value={pkg.id}>
+                      {pkg.name}{!pkg.is_active ? " (inactive)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Contact Name</Label>
+              <Input value={form.contactName} onChange={e => field("contactName", e.target.value)} placeholder="Jane Smith" className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Contact Email</Label>
+              <Input type="email" value={form.contactEmail} onChange={e => field("contactEmail", e.target.value)} placeholder="jane@example.com" className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Contact Phone</Label>
+              <Input value={form.contactPhone} onChange={e => field("contactPhone", e.target.value)} placeholder="(215) 555-0100" className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Address</Label>
+              <Input value={form.address} onChange={e => field("address", e.target.value)} placeholder="123 Main St" className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">City</Label>
+              <Input value={form.city} onChange={e => field("city", e.target.value)} placeholder="Philadelphia" className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">State</Label>
+              <Input value={form.state} onChange={e => field("state", e.target.value)} placeholder="PA" className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Zip</Label>
+              <Input value={form.zip} onChange={e => field("zip", e.target.value)} placeholder="19107" className="h-9" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+            <Button onClick={handleSubmit} disabled={creating} className="shadow-sm">
+              {creating ? "Creating..." : "Create Organization"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

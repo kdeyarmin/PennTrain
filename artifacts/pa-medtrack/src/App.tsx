@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { queryClient } from "@/lib/queryClient";
 import { AuthProvider } from "@/lib/auth";
+import { ViewingOrgProvider } from "@/lib/viewingOrg";
 import NotFound from "@/pages/not-found";
 
 import Login from "@/pages/auth/Login";
@@ -12,6 +13,7 @@ import ForgotPassword from "@/pages/auth/ForgotPassword";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import Organizations from "@/pages/admin/Organizations";
 import OrganizationDetail from "@/pages/admin/OrganizationDetail";
+import Packages from "@/pages/admin/Packages";
 
 import OrgDashboard from "@/pages/app/Dashboard";
 import Facilities from "@/pages/app/Facilities";
@@ -19,14 +21,22 @@ import FacilityDetail from "@/pages/app/FacilityDetail";
 import Employees from "@/pages/app/Employees";
 import EmployeeDetail from "@/pages/app/EmployeeDetail";
 import TrainingMatrix from "@/pages/app/TrainingMatrix";
+import Courses from "@/pages/app/Courses";
+import CourseDetail from "@/pages/app/CourseDetail";
+import CourseAssignments from "@/pages/app/CourseAssignments";
+import TrainingPlans from "@/pages/app/TrainingPlans";
+import CompetencyTemplates from "@/pages/app/CompetencyTemplates";
+import CompetencyRecords from "@/pages/app/CompetencyRecords";
 import Practicums from "@/pages/app/Practicums";
 import Alerts from "@/pages/app/Alerts";
 import Reports from "@/pages/app/Reports";
 import AuditLog from "@/pages/app/AuditLog";
 import Users from "@/pages/app/Users";
 import Documents from "@/pages/app/Documents";
+import PendingApprovals from "@/pages/app/PendingApprovals";
 import Settings from "@/pages/app/Settings";
-import CareMetricModules, { CareMetricAssignmentsPage, CareMetricCompliancePage, CareMetricCompetenciesPage, CareMetricCoursesPage, CareMetricExternalRecordsPage, CareMetricInservicePage, CareMetricMedicationPage, CareMetricReportsPage, CareMetricSettingsPage } from "@/pages/app/CareMetricModules";
+import CareMetricModules, { CareMetricAssignmentsPage, CareMetricCompliancePage, CareMetricCompetenciesPage, CareMetricExternalRecordsPage, CareMetricInservicePage, CareMetricMedicationPage, CareMetricSettingsPage } from "@/pages/app/CareMetricModules";
+import ComplianceBinder from "@/pages/app/ComplianceBinder";
 
 import TrainerDashboard from "@/pages/trainer/TrainerDashboard";
 import TrainerClasses from "@/pages/trainer/TrainerClasses";
@@ -34,13 +44,17 @@ import ClassDetail from "@/pages/trainer/ClassDetail";
 import RetrainingMonitor from "@/pages/trainer/RetrainingMonitor";
 import EmployeeDashboard from "@/pages/employee/EmployeeDashboard";
 import MyTrainings from "@/pages/employee/MyTrainings";
+import MyCertificates from "@/pages/employee/MyCertificates";
+import TakeCourse from "@/pages/employee/TakeCourse";
+import TakeQuiz from "@/pages/employee/TakeQuiz";
+import VerifyCertificate from "@/pages/VerifyCertificate";
 
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/lib/auth";
 import { Loader2 } from "lucide-react";
 import type { ComponentType } from "react";
 
-type UserRole = "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee";
+type UserRole = "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee" | "auditor";
 
 function ProtectedRoute({
   component: Component,
@@ -65,7 +79,7 @@ function ProtectedRoute({
 
   if (allowedRoles && user && !allowedRoles.includes(user.role as UserRole)) {
     if (user.role === "platform_admin") return <Redirect to="/admin" />;
-    if (user.role === "org_admin" || user.role === "facility_manager") return <Redirect to="/app" />;
+    if (user.role === "org_admin" || user.role === "facility_manager" || user.role === "auditor") return <Redirect to="/app" />;
     if (user.role === "trainer") return <Redirect to="/trainer" />;
     if (user.role === "employee") return <Redirect to="/me" />;
     return <Redirect to="/login" />;
@@ -79,9 +93,13 @@ function ProtectedRoute({
 }
 
 const PLATFORM_ADMIN: UserRole[] = ["platform_admin"];
-const ORG_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer"];
+const ORG_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor"];
 const ORG_MANAGE_ROLES: UserRole[] = ["org_admin", "facility_manager"];
 const ORG_ADMIN_ONLY: UserRole[] = ["org_admin"];
+// Read-only compliance views auditor needs alongside the org admin roles -- auditor never
+// gets ORG_MANAGE_ROLES (Users/Settings are true admin config, not audit-relevant).
+const REPORTS_VIEW_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
+const AUDIT_LOG_ROLES: UserRole[] = ["org_admin", "auditor"];
 
 function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -95,12 +113,14 @@ function Router() {
           if (user?.role === "platform_admin") return <Redirect to="/admin" />;
           if (user?.role === "trainer") return <Redirect to="/trainer" />;
           if (user?.role === "employee") return <Redirect to="/me" />;
+          // org_admin, facility_manager, auditor
           return <Redirect to="/app" />;
         }}
       </Route>
 
       <Route path="/login" component={Login} />
       <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/verify/:slug" component={VerifyCertificate} />
 
       {/* Platform Admin routes */}
       <Route path="/admin">
@@ -137,7 +157,7 @@ function Router() {
         {() => <ProtectedRoute component={CareMetricModules} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
       <Route path="/admin/packages">
-        {() => <ProtectedRoute component={CareMetricSettingsPage} allowedRoles={PLATFORM_ADMIN} />}
+        {() => <ProtectedRoute component={Packages} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
 
       {/* Org/Facility routes */}
@@ -164,13 +184,28 @@ function Router() {
       </Route>
 
       <Route path="/app/courses">
-        {() => <ProtectedRoute component={CareMetricCoursesPage} allowedRoles={ORG_ROLES} />}
+        {() => <ProtectedRoute component={Courses} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/courses/:id">
+        {() => <ProtectedRoute component={CourseDetail} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/course-assignments">
+        {() => <ProtectedRoute component={CourseAssignments} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/training-plans">
+        {() => <ProtectedRoute component={TrainingPlans} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/competency-templates">
+        {() => <ProtectedRoute component={CompetencyTemplates} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/competency-records">
+        {() => <ProtectedRoute component={CompetencyRecords} allowedRoles={ORG_ROLES} />}
       </Route>
       <Route path="/app/assignments">
         {() => <ProtectedRoute component={CareMetricAssignmentsPage} allowedRoles={ORG_ROLES} />}
       </Route>
       <Route path="/app/compliance-requirements">
-        {() => <ProtectedRoute component={CareMetricCompliancePage} allowedRoles={ORG_MANAGE_ROLES} />}
+        {() => <ProtectedRoute component={CareMetricCompliancePage} allowedRoles={REPORTS_VIEW_ROLES} />}
       </Route>
       <Route path="/app/medication-tracking">
         {() => <ProtectedRoute component={CareMetricMedicationPage} allowedRoles={ORG_ROLES} />}
@@ -182,10 +217,10 @@ function Router() {
         {() => <ProtectedRoute component={CareMetricInservicePage} allowedRoles={ORG_ROLES} />}
       </Route>
       <Route path="/app/external-records">
-        {() => <ProtectedRoute component={CareMetricExternalRecordsPage} allowedRoles={ORG_MANAGE_ROLES} />}
+        {() => <ProtectedRoute component={CareMetricExternalRecordsPage} allowedRoles={REPORTS_VIEW_ROLES} />}
       </Route>
       <Route path="/app/compliance-binder">
-        {() => <ProtectedRoute component={CareMetricReportsPage} allowedRoles={ORG_MANAGE_ROLES} />}
+        {() => <ProtectedRoute component={ComplianceBinder} allowedRoles={REPORTS_VIEW_ROLES} />}
       </Route>
       <Route path="/app/caremetric-settings">
         {() => <ProtectedRoute component={CareMetricSettingsPage} allowedRoles={ORG_MANAGE_ROLES} />}
@@ -197,10 +232,13 @@ function Router() {
         {() => <ProtectedRoute component={Alerts} allowedRoles={ORG_ROLES} />}
       </Route>
       <Route path="/app/reports">
-        {() => <ProtectedRoute component={Reports} allowedRoles={ORG_MANAGE_ROLES} />}
+        {() => <ProtectedRoute component={Reports} allowedRoles={REPORTS_VIEW_ROLES} />}
       </Route>
       <Route path="/app/documents">
         {() => <ProtectedRoute component={Documents} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/pending-approvals">
+        {() => <ProtectedRoute component={PendingApprovals} allowedRoles={ORG_ROLES} />}
       </Route>
       <Route path="/app/users">
         {() => <ProtectedRoute component={Users} allowedRoles={ORG_MANAGE_ROLES} />}
@@ -209,7 +247,7 @@ function Router() {
         {() => <ProtectedRoute component={Settings} allowedRoles={ORG_MANAGE_ROLES} />}
       </Route>
       <Route path="/app/audit">
-        {() => <ProtectedRoute component={AuditLog} allowedRoles={ORG_ADMIN_ONLY} />}
+        {() => <ProtectedRoute component={AuditLog} allowedRoles={AUDIT_LOG_ROLES} />}
       </Route>
 
       {/* Trainer routes */}
@@ -239,6 +277,15 @@ function Router() {
       <Route path="/me/trainings">
         {() => <ProtectedRoute component={MyTrainings} allowedRoles={["employee"]} />}
       </Route>
+      <Route path="/me/certificates">
+        {() => <ProtectedRoute component={MyCertificates} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/courses/:assignmentId">
+        {() => <ProtectedRoute component={TakeCourse} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/courses/:assignmentId/quiz/:quizId">
+        {() => <ProtectedRoute component={TakeQuiz} allowedRoles={["employee"]} />}
+      </Route>
       <Route path="/me/caremetric">
         {() => <ProtectedRoute component={CareMetricModules} allowedRoles={["employee"]} />}
       </Route>
@@ -255,7 +302,9 @@ function AppInner() {
   return (
     <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
       <AuthProvider>
-        <Router />
+        <ViewingOrgProvider>
+          <Router />
+        </ViewingOrgProvider>
       </AuthProvider>
     </WouterRouter>
   );

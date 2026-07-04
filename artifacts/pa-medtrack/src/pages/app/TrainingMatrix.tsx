@@ -1,6 +1,9 @@
 import { useState, useMemo } from "react";
-import { useGetTrainingMatrix, useListFacilities } from "@workspace/api-client-react";
-import type { TrainingMatrix, TrainingMatrixRow, TrainingMatrixCell } from "@workspace/api-client-react";
+import { useListEmployees } from "@/hooks/useEmployees";
+import type { Employee } from "@/hooks/useEmployees";
+import { useListFacilities } from "@/hooks/useFacilities";
+import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
+import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -15,18 +18,26 @@ const PAGE_SIZE = 15;
 
 type SortDir = "asc" | "desc";
 
-type ExtendedCell = TrainingMatrixCell & {
-  trainerName?: string | null;
-  hours?: string | null;
-};
+interface MatrixCell {
+  trainingTypeId: string;
+  trainingRecordId: string | null;
+  status: string;
+  completionDate: string | null;
+  dueDate: string | null;
+  trainerName: string | null;
+  hours: number | null;
+}
 
-type ExtendedRow = Omit<TrainingMatrixRow, "cells"> & {
-  cells: ExtendedCell[];
-};
+interface MatrixTrainingType {
+  id: string;
+  code: string;
+  name: string;
+}
 
-type ExtendedMatrix = Omit<TrainingMatrix, "rows"> & {
-  rows: ExtendedRow[];
-};
+interface MatrixRow {
+  employee: Employee;
+  cells: MatrixCell[];
+}
 
 const STATUS_COLORS: Record<string, string> = {
   compliant: "#22c55e",
@@ -34,6 +45,35 @@ const STATUS_COLORS: Record<string, string> = {
   expired: "#ef4444",
   missing: "#94a3b8",
 };
+
+// Compliance-bearing statuses, mirroring Dashboard.tsx's computeDashboardSummary convention:
+// "not_applicable" and "pending_review" records are excluded from compliance math entirely --
+// they aren't yet (or never will be) part of the compliant/non-compliant split.
+const RELEVANT_STATUSES = new Set(["compliant", "due_soon", "expired", "missing"]);
+
+// Employees routinely accumulate multiple employee_training_records rows for the same
+// training_type_id over time (e.g. complete_training_class() inserts a fresh row each renewal
+// cycle rather than updating the prior one). due_date is recalculated server-side as
+// completion_date + training_type.renewal_interval_days, so it advances forward each cycle --
+// the record with the latest due_date is the current one. Fall back to completion_date, then
+// created_at, for cases where due_date ties or is null (e.g. one-time trainings with no
+// renewal_interval_days).
+function isMoreCurrent(a: TrainingRecord, b: TrainingRecord): boolean {
+  const aDue = a.due_date ?? "";
+  const bDue = b.due_date ?? "";
+  if (aDue !== bDue) return aDue > bDue;
+  const aCompletion = a.completion_date ?? "";
+  const bCompletion = b.completion_date ?? "";
+  if (aCompletion !== bCompletion) return aCompletion > bCompletion;
+  return (a.created_at ?? "") > (b.created_at ?? "");
+}
+
+function pickCurrentRecord(records: TrainingRecord[]): TrainingRecord | null {
+  return records.reduce<TrainingRecord | null>(
+    (current, candidate) => (!current || isMoreCurrent(candidate, current) ? candidate : current),
+    null,
+  );
+}
 
 function getStatusColor(status: string | undefined): string {
   if (!status) return STATUS_COLORS.missing;
@@ -51,7 +91,7 @@ function getStatusLabel(status: string | undefined): string {
   }
 }
 
-function StatusDot({ entry, onClick }: { entry: ExtendedCell | undefined; onClick?: () => void }) {
+function StatusDot({ entry, onClick }: { entry: MatrixCell | undefined; onClick?: () => void }) {
   const color = getStatusColor(entry?.status);
   return (
     <button
@@ -100,10 +140,10 @@ function CellDetailDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  entry: ExtendedCell | null;
+  entry: MatrixCell | null;
   trainingTypeName: string;
   employeeName: string;
-  employeeId: number;
+  employeeId: string;
 }) {
   const [, navigate] = useLocation();
 
@@ -154,7 +194,7 @@ function CellDetailDialog({
             variant="outline"
             size="sm"
             className="w-full"
-            onClick={() => { onClose(); navigate(`/employees/${employeeId}`); }}
+            onClick={() => { onClose(); navigate(`/app/employees/${employeeId}`); }}
           >
             <ExternalLink className="w-3.5 h-3.5 mr-2" />
             View Employee Detail
@@ -175,28 +215,57 @@ export default function TrainingMatrix() {
   const [sortField, setSortField] = useState<string>("lastName");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
-  const [selectedCell, setSelectedCell] = useState<{ entry: ExtendedCell; trainingTypeName: string; employeeName: string; employeeId: number } | null>(null);
+  const [selectedCell, setSelectedCell] = useState<{ entry: MatrixCell; trainingTypeName: string; employeeName: string; employeeId: string } | null>(null);
 
   const { data: facilities } = useListFacilities({});
-  const { data: matrixData } = useGetTrainingMatrix({
-    facilityId: facilityId && facilityId !== "all" ? Number(facilityId) : undefined,
-    trainerOnly: trainerOnly ? true : undefined,
-    administersMedications: medsOnly ? true : undefined,
+  const { data: employees } = useListEmployees({
+    facilityId: facilityId !== "all" ? facilityId : undefined,
+    status: "active",
+  });
+  const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
+  const { data: trainingRecords } = useListTrainingRecords({
+    facilityId: facilityId !== "all" ? facilityId : undefined,
   });
 
-  const matrix = matrixData as ExtendedMatrix | undefined;
-  const matrixRows = matrix?.rows ?? [];
-  const matrixTrainingTypes = matrix?.trainingTypes ?? [];
+  const matrixTrainingTypes: MatrixTrainingType[] = useMemo(
+    () => [...(trainingTypes ?? [])].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)),
+    [trainingTypes],
+  );
 
-  const getWorstStatus = (row: TrainingMatrixRow): string => {
-    if (row.cells.some(c => c.status === "expired")) return "expired";
-    if (row.cells.some(c => c.status === "missing")) return "missing";
-    if (row.cells.some(c => c.status === "due_soon")) return "due_soon";
-    if (row.cells.every(c => c.status === "compliant") && row.cells.length > 0) return "compliant";
-    return "missing";
+  const matrixRows: MatrixRow[] = useMemo(() => {
+    const emps = employees ?? [];
+    const records = trainingRecords ?? [];
+    return emps.map(emp => {
+      const empRecords = records.filter(r => r.employee_id === emp.id);
+      const cells: MatrixCell[] = matrixTrainingTypes.map(tt => {
+        const record = pickCurrentRecord(empRecords.filter(r => r.training_type_id === tt.id));
+        return {
+          trainingTypeId: tt.id,
+          trainingRecordId: record?.id ?? null,
+          status: record?.status ?? "missing",
+          completionDate: record?.completion_date ?? null,
+          dueDate: record?.due_date ?? null,
+          trainerName: record?.trainer_name ?? null,
+          hours: record?.hours ?? null,
+        };
+      });
+      return { employee: emp, cells };
+    });
+  }, [employees, trainingRecords, matrixTrainingTypes]);
+
+  const getWorstStatus = (row: MatrixRow): string => {
+    // Exclude not_applicable/pending_review cells from classification, matching
+    // Dashboard.tsx's computeDashboardSummary convention -- those cells aren't part of the
+    // compliant/non-compliant split and shouldn't drag a row down to "missing".
+    const relevantCells = row.cells.filter(c => RELEVANT_STATUSES.has(c.status));
+    if (relevantCells.some(c => c.status === "expired")) return "expired";
+    if (relevantCells.some(c => c.status === "missing")) return "missing";
+    if (relevantCells.some(c => c.status === "due_soon")) return "due_soon";
+    if (relevantCells.length > 0 && relevantCells.every(c => c.status === "compliant")) return "compliant";
+    return "compliant";
   };
 
-  const isDueWithinWindow = (row: TrainingMatrixRow, days: number): boolean => {
+  const isDueWithinWindow = (row: MatrixRow, days: number): boolean => {
     const now = new Date();
     const cutoff = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
     return row.cells.some(c => {
@@ -228,11 +297,13 @@ export default function TrainingMatrix() {
 
   const filteredRows = useMemo(() => {
     let rows = [...matrixRows];
+    if (trainerOnly) rows = rows.filter(r => r.employee.trainer_status);
+    if (medsOnly) rows = rows.filter(r => r.employee.administers_medications);
     if (search.trim()) {
       const q = search.toLowerCase();
       rows = rows.filter(r =>
-        `${r.employee.firstName} ${r.employee.lastName}`.toLowerCase().includes(q) ||
-        (r.employee.jobTitle?.toLowerCase() ?? "").includes(q)
+        `${r.employee.first_name} ${r.employee.last_name}`.toLowerCase().includes(q) ||
+        (r.employee.job_title?.toLowerCase() ?? "").includes(q)
       );
     }
     if (statusFilter !== "all") {
@@ -244,25 +315,27 @@ export default function TrainingMatrix() {
     }
     rows = rows.sort((a, b) => {
       let va = "", vb = "";
-      if (sortField === "firstName") { va = a.employee.firstName; vb = b.employee.firstName; }
-      else if (sortField === "jobTitle") { va = a.employee.jobTitle ?? ""; vb = b.employee.jobTitle ?? ""; }
-      else { va = a.employee.lastName; vb = b.employee.lastName; }
+      if (sortField === "firstName") { va = a.employee.first_name; vb = b.employee.first_name; }
+      else if (sortField === "jobTitle") { va = a.employee.job_title ?? ""; vb = b.employee.job_title ?? ""; }
+      else { va = a.employee.last_name; vb = b.employee.last_name; }
       return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
     });
     return rows;
-  }, [matrixRows, search, statusFilter, dueWindow, sortField, sortDir]);
+  }, [matrixRows, trainerOnly, medsOnly, search, statusFilter, dueWindow, sortField, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const pageRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const complianceSummary = useMemo(() => {
-    const summary: Record<number, { compliant: number; total: number }> = {};
+    const summary: Record<string, { compliant: number; total: number }> = {};
     for (const tt of matrixTrainingTypes) {
       let compliant = 0;
       let total = 0;
       for (const row of filteredRows) {
         const cell = row.cells.find(c => c.trainingTypeId === tt.id);
-        if (cell) {
+        // Exclude not_applicable/pending_review cells from the denominator, matching
+        // Dashboard.tsx's computeDashboardSummary convention.
+        if (cell && RELEVANT_STATUSES.has(cell.status)) {
           total++;
           if (cell.status === "compliant") compliant++;
         }
@@ -276,8 +349,8 @@ export default function TrainingMatrix() {
     if (matrixTrainingTypes.length === 0) return;
     const headers = ["Employee Name", "Job Title", ...matrixTrainingTypes.map(tt => tt.code)];
     const rows = filteredRows.map(row => {
-      const name = `${row.employee.firstName} ${row.employee.lastName}`;
-      const jobTitle = row.employee.jobTitle ?? "";
+      const name = `${row.employee.first_name} ${row.employee.last_name}`;
+      const jobTitle = row.employee.job_title ?? "";
       const statuses = matrixTrainingTypes.map(tt => {
         const cell = row.cells.find(c => c.trainingTypeId === tt.id);
         return cell ? getStatusLabel(cell.status) : "No Record";
@@ -313,7 +386,7 @@ export default function TrainingMatrix() {
           <SelectContent>
             <SelectItem value="all">All Facilities</SelectItem>
             {facilities?.map(f => (
-              <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+              <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -434,9 +507,9 @@ export default function TrainingMatrix() {
                   {pageRows.map(row => (
                     <tr key={row.employee.id} className="border-b hover:bg-muted/30">
                       <td className="py-2 pr-4 sticky left-0 bg-background">
-                        <div className="font-medium">{row.employee.firstName} {row.employee.lastName}</div>
+                        <div className="font-medium">{row.employee.first_name} {row.employee.last_name}</div>
                       </td>
-                      <td className="py-2 pr-4 text-muted-foreground text-xs">{row.employee.jobTitle}</td>
+                      <td className="py-2 pr-4 text-muted-foreground text-xs">{row.employee.job_title}</td>
                       {matrixTrainingTypes.map(tt => {
                         const cell = row.cells.find(c => c.trainingTypeId === tt.id);
                         return (
@@ -444,9 +517,9 @@ export default function TrainingMatrix() {
                             <StatusDot
                               entry={cell}
                               onClick={() => setSelectedCell({
-                                entry: cell ?? { trainingTypeId: tt.id, trainingRecordId: null, status: "missing", completionDate: null, dueDate: null, hasDocument: false },
+                                entry: cell ?? { trainingTypeId: tt.id, trainingRecordId: null, status: "missing", completionDate: null, dueDate: null, trainerName: null, hours: null },
                                 trainingTypeName: tt.name,
-                                employeeName: `${row.employee.firstName} ${row.employee.lastName}`,
+                                employeeName: `${row.employee.first_name} ${row.employee.last_name}`,
                                 employeeId: row.employee.id,
                               })}
                             />
@@ -493,7 +566,7 @@ export default function TrainingMatrix() {
         entry={selectedCell?.entry ?? null}
         trainingTypeName={selectedCell?.trainingTypeName ?? ""}
         employeeName={selectedCell?.employeeName ?? ""}
-        employeeId={selectedCell?.employeeId ?? 0}
+        employeeId={selectedCell?.employeeId ?? ""}
       />
     </div>
   );

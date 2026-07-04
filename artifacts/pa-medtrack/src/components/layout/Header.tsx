@@ -1,7 +1,9 @@
 import { useAuth } from "@/lib/auth";
-import { useLogout } from "@workspace/api-client-react";
+import { useViewingOrg } from "@/lib/viewingOrg";
+import { useListOrganizations } from "@/hooks/useOrganizations";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
-import { LogOut, Bell } from "lucide-react";
+import { LogOut, Bell, Building2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,22 +12,44 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
 
+function ViewingOrgSelector() {
+  const { viewingOrgId, setViewingOrgId } = useViewingOrg();
+  const { data: organizations } = useListOrganizations();
+
+  return (
+    <div className="flex items-center gap-2 pr-2 border-r border-border/60 mr-1">
+      <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+      <Select
+        value={viewingOrgId ?? "all"}
+        onValueChange={(v) => setViewingOrgId(v === "all" ? null : v)}
+      >
+        <SelectTrigger className="h-8 w-[200px] text-xs border-none bg-muted/50 focus:ring-0" aria-label="Viewing as organization">
+          <SelectValue placeholder="All Organizations" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Organizations</SelectItem>
+          {organizations?.map((org) => (
+            <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 export function Header() {
   const { user } = useAuth();
-  const logout = useLogout();
   const [location, setLocation] = useLocation();
 
-  const handleLogout = () => {
-    logout.mutate(undefined, {
-      onSuccess: () => {
-        queryClient.clear();
-        setLocation("/login");
-      }
-    });
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    queryClient.clear();
+    setLocation("/login");
   };
 
   const initials = (user?.firstName?.[0] ?? "") + (user?.lastName?.[0] ?? "");
@@ -71,6 +95,7 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-2">
+        {user?.role === "platform_admin" && <ViewingOrgSelector />}
         <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground" aria-label="Notifications">
           <Bell className="h-[18px] w-[18px]" />
         </Button>

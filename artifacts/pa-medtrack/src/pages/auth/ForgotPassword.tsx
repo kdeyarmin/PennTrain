@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 import { Loader2, ShieldCheck, ArrowLeft, Mail, CheckCircle2 } from "lucide-react";
 
 export default function ForgotPassword() {
@@ -26,10 +27,8 @@ export default function ForgotPassword() {
 
     setLoading(true);
     try {
-      await fetch("/api/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+      await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/login`,
       });
     } catch {
       toast({
@@ -56,8 +55,8 @@ export default function ForgotPassword() {
             <ShieldCheck className="h-7 w-7 text-primary-foreground" />
           </div>
           <div className="space-y-1.5">
-            <h1 className="text-[28px] font-bold tracking-tight text-foreground">PA MedTrack</h1>
-            <p className="text-sm text-muted-foreground">Pennsylvania PCH/ALR Compliance Tracking</p>
+            <h1 className="text-[28px] font-bold tracking-tight text-foreground">CareMetric Train</h1>
+            <p className="text-sm text-muted-foreground">Healthcare Learning &amp; Compliance Platform</p>
           </div>
         </div>
 

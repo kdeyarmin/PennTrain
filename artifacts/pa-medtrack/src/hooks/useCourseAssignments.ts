@@ -1,0 +1,119 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
+
+export type CourseAssignment = Tables<"course_assignments">;
+export type CourseAssignmentInsert = TablesInsert<"course_assignments">;
+export type CourseAssignmentUpdate = TablesUpdate<"course_assignments">;
+
+export type CourseProgress = Tables<"course_progress">;
+export type CourseProgressInsert = TablesInsert<"course_progress">;
+export type CourseProgressUpdate = TablesUpdate<"course_progress">;
+
+export interface ListCourseAssignmentsFilters {
+  employeeId?: string;
+  courseId?: string;
+  status?: string;
+  facilityId?: string;
+}
+
+export function useListCourseAssignments(filters: ListCourseAssignmentsFilters = {}) {
+  return useQuery({
+    queryKey: ["course_assignments", filters],
+    queryFn: async () => {
+      let query = supabase.from("course_assignments").select("*").order("assigned_at");
+      if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
+      if (filters.courseId) query = query.eq("course_id", filters.courseId);
+      if (filters.status) query = query.eq("status", filters.status);
+      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useGetCourseAssignment(id: string | undefined) {
+  return useQuery({
+    queryKey: ["course_assignments", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("course_assignments").select("*").eq("id", id!).single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useCreateCourseAssignment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: CourseAssignmentInsert) => {
+      const { data, error } = await supabase.from("course_assignments").insert(payload).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["course_assignments"] }),
+  });
+}
+
+export function useUpdateCourseAssignment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: CourseAssignmentUpdate & { id: string }) => {
+      const { data, error } = await supabase.from("course_assignments").update(payload).eq("id", id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["course_assignments"] }),
+  });
+}
+
+export function useCompleteCourseAssignment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (assignmentId: string) => {
+      const { data, error } = await supabase.rpc("complete_course_assignment", { p_assignment_id: assignmentId });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["course_assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["course_progress"] });
+    },
+  });
+}
+
+export function useGetCourseProgress(assignmentId: string | undefined) {
+  return useQuery({
+    queryKey: ["course_progress", assignmentId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("course_progress")
+        .select("*")
+        .eq("assignment_id", assignmentId!)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!assignmentId,
+  });
+}
+
+export function useUpsertCourseProgress() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: CourseProgressInsert) => {
+      const { data, error } = await supabase
+        .from("course_progress")
+        .upsert(payload, { onConflict: "assignment_id" })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["course_progress", data.assignment_id] });
+    },
+  });
+}

@@ -1,15 +1,14 @@
+import { useMemo } from "react";
 import { useAuth } from "@/lib/auth";
+import { useListEmployees } from "@/hooks/useEmployees";
+import { useListFacilities } from "@/hooks/useFacilities";
+import { useListTrainingClasses, useClassAttendeeCounts } from "@/hooks/useTrainingClasses";
+import { useListPracticums } from "@/hooks/usePracticums";
+import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
 import {
-  useListEmployees,
-  useListFacilities,
-  useListTrainingClasses,
-  useListPracticums,
-  useGetFacilitiesRetrainingStatus,
-} from "@workspace/api-client-react";
-import type {
-  FacilityRetrainingStatus,
-  TrainingClass,
-} from "@workspace/api-client-react";
+  buildFacilityRetrainingStatus,
+  ORG_WIDE_VISIBILITY_ROLES,
+} from "@/lib/facilityRetrainingStatus";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,23 +27,38 @@ import { Link } from "wouter";
 export default function TrainerDashboard() {
   const { user } = useAuth();
 
-  const { data: facilities } = useListFacilities({});
-  const { data: employees } = useListEmployees({ administersMedications: true });
-  const { data: classes } = useListTrainingClasses({});
+  const { data: facilities } = useListFacilities();
+  const { data: employees } = useListEmployees();
+  const { data: classes } = useListTrainingClasses();
+  const { data: attendeeCounts } = useClassAttendeeCounts();
   const { data: practicums, isLoading: practicumsLoading } = useListPracticums({
     year: new Date().getFullYear(),
   });
-  const { data: retrainingData } = useGetFacilitiesRetrainingStatus();
 
-  const totalMedAdmin = employees?.length ?? 0;
+  const hasOrgWideVisibility = !user?.role || ORG_WIDE_VISIBILITY_ROLES.has(user.role);
+  const { data: myAssignments } = useListMyFacilityAssignments(user?.id, !hasOrgWideVisibility);
+  const assignedFacilityIds = useMemo(
+    () => new Set((myAssignments ?? []).map((a) => a.facility_id)),
+    [myAssignments]
+  );
+
+  const allEmployees = employees ?? [];
+  const totalMedAdmin = allEmployees.filter((e) => e.administers_medications).length;
   const totalFacilities = facilities?.length ?? 0;
-  const allClasses: TrainingClass[] = classes ?? [];
+  const allClasses = classes ?? [];
   const totalClasses = allClasses.length;
   const draftClasses = allClasses.filter((c) => c.status === "draft").length;
   const compliant = practicums?.filter((p) => p.status === "compliant").length ?? 0;
   const pending = practicums?.filter((p) => p.status !== "compliant").length ?? 0;
 
-  const retraining: FacilityRetrainingStatus[] = retrainingData ?? [];
+  const retraining = useMemo(
+    () =>
+      buildFacilityRetrainingStatus(facilities ?? [], allEmployees, practicums ?? [], {
+        role: user?.role ?? null,
+        assignedFacilityIds,
+      }),
+    [facilities, allEmployees, practicums, user?.role, assignedFacilityIds]
+  );
   const facilitiesNeedingAttention = retraining.filter(
     (f) => f.overallStatus === "critical" || f.overallStatus === "expired" || f.overallStatus === "due_soon"
   );
@@ -168,11 +182,12 @@ export default function TrainerDashboard() {
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">
-                        {c.className}
+                        {c.class_name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(c.classDate).toLocaleDateString()} &middot;{" "}
-                        {c.attendeeCount ?? 0} attendees
+                        {new Date(c.class_date).toLocaleDateString()} &middot;{" "}
+                        {attendeeCounts?.[c.id] ?? 0} attendee
+                        {(attendeeCounts?.[c.id] ?? 0) === 1 ? "" : "s"}
                       </p>
                     </div>
                     <Badge

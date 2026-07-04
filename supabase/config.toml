@@ -1,0 +1,22 @@
+project_id = "xsqobvvreaovwibxwyvv"
+
+[functions.create-user]
+verify_jwt = true
+
+[functions.admin-update-user]
+verify_jwt = true
+
+[functions.bulk-import-employees]
+verify_jwt = true
+
+[functions.generate-compliance-binder]
+verify_jwt = true
+
+[functions.generate-course-video]
+verify_jwt = true
+
+[functions.check-course-video-status]
+verify_jwt = true
+
+[functions.list-heygen-options]
+verify_jwt = true
