@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { useListFacilities, useCreateFacility, useUpdateFacility, useDeleteFacility } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useListFacilities, useCreateFacility, useUpdateFacility, useDeleteFacility, type Facility } from "@/hooks/useFacilities";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -11,7 +10,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from "@/components/ui/alert-dialog";
-import { Building2, ChevronRight, MapPin, Phone, Plus, Pencil, Trash2, Users } from "lucide-react";
+import { Building2, ChevronRight, MapPin, Phone, Plus, Pencil, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -27,68 +26,29 @@ interface FacilityFormData {
   phone: string;
   administratorName: string;
   administratorEmail: string;
-  capacity: string;
   isActive: boolean;
 }
 
 const EMPTY_FORM: FacilityFormData = {
   name: "", facilityType: "PCH", licenseNumber: "", address: "", city: "",
   state: "PA", zip: "", phone: "", administratorName: "", administratorEmail: "",
-  capacity: "", isActive: true,
+  isActive: true,
 };
 
 export default function Facilities() {
-  const { data: facilities, isLoading } = useListFacilities({});
+  const { data: facilities, isLoading } = useListFacilities();
   const { user } = useAuth();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const basePath = user?.role === "platform_admin" ? "/admin/facilities" : "/app/facilities";
 
   const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId] = useState<number | null>(null);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState<FacilityFormData>(EMPTY_FORM);
 
-  const { mutate: createFacility, isPending: creating } = useCreateFacility({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: "Facility created" });
-        queryClient.invalidateQueries({ queryKey: ["/api/facilities"] });
-        setShowForm(false);
-        setForm(EMPTY_FORM);
-      },
-      onError: (e: unknown) => {
-        toast({ title: "Failed to create facility", description: (e as Error).message, variant: "destructive" });
-      },
-    },
-  });
-
-  const { mutate: updateFacility, isPending: updating } = useUpdateFacility({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: "Facility updated" });
-        queryClient.invalidateQueries({ queryKey: ["/api/facilities"] });
-        setShowForm(false);
-        setEditId(null);
-      },
-      onError: (e: unknown) => {
-        toast({ title: "Failed to update facility", description: (e as Error).message, variant: "destructive" });
-      },
-    },
-  });
-
-  const { mutate: deleteFacility, isPending: deleting } = useDeleteFacility({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: "Facility deleted" });
-        queryClient.invalidateQueries({ queryKey: ["/api/facilities"] });
-        setDeleteId(null);
-      },
-      onError: (e: unknown) => {
-        toast({ title: "Failed to delete facility", description: (e as Error).message, variant: "destructive" });
-      },
-    },
-  });
+  const { mutate: createFacility, isPending: creating } = useCreateFacility();
+  const { mutate: updateFacility, isPending: updating } = useUpdateFacility();
+  const { mutate: deleteFacility, isPending: deleting } = useDeleteFacility();
 
   const canManage = ["platform_admin", "org_admin"].includes(user?.role ?? "");
 
@@ -98,24 +58,22 @@ export default function Facilities() {
     setShowForm(true);
   };
 
-  const openEdit = (e: React.MouseEvent, facility: typeof facilities extends (infer T)[] | undefined ? T : never) => {
+  const openEdit = (e: React.MouseEvent, facility: Facility) => {
     e.preventDefault();
     e.stopPropagation();
-    setEditId((facility as { id: number }).id);
-    const f = facility as unknown as typeof EMPTY_FORM & { id: number; capacity?: number | null; isActive?: boolean };
+    setEditId(facility.id);
     setForm({
-      name: String(f.name ?? ""),
-      facilityType: (f.facilityType ?? "PCH") as "PCH" | "ALR",
-      licenseNumber: String(f.licenseNumber ?? ""),
-      address: String(f.address ?? ""),
-      city: String(f.city ?? ""),
-      state: String(f.state ?? "PA"),
-      zip: String(f.zip ?? ""),
-      phone: String(f.phone ?? ""),
-      administratorName: String(f.administratorName ?? ""),
-      administratorEmail: String(f.administratorEmail ?? ""),
-      capacity: f.capacity != null ? String(f.capacity) : "",
-      isActive: f.isActive !== false,
+      name: facility.name,
+      facilityType: (facility.facility_type as "PCH" | "ALR") ?? "PCH",
+      licenseNumber: facility.license_number ?? "",
+      address: facility.address ?? "",
+      city: facility.city ?? "",
+      state: facility.state ?? "PA",
+      zip: facility.zip ?? "",
+      phone: facility.phone ?? "",
+      administratorName: facility.administrator_name ?? "",
+      administratorEmail: facility.administrator_email ?? "",
+      isActive: facility.is_active !== false,
     });
     setShowForm(true);
   };
@@ -127,22 +85,35 @@ export default function Facilities() {
     }
     const payload = {
       name: form.name.trim(),
-      facilityType: form.facilityType,
-      licenseNumber: form.licenseNumber || undefined,
-      address: form.address || undefined,
-      city: form.city || undefined,
-      state: form.state || undefined,
-      zip: form.zip || undefined,
-      phone: form.phone || undefined,
-      administratorName: form.administratorName || undefined,
-      administratorEmail: form.administratorEmail || undefined,
-      capacity: form.capacity ? Number(form.capacity) : undefined,
-      isActive: form.isActive,
+      facility_type: form.facilityType,
+      license_number: form.licenseNumber || null,
+      address: form.address || null,
+      city: form.city || null,
+      state: form.state || null,
+      zip: form.zip || null,
+      phone: form.phone || null,
+      administrator_name: form.administratorName || null,
+      administrator_email: form.administratorEmail || null,
+      is_active: form.isActive,
     };
     if (editId) {
-      updateFacility({ id: editId, data: payload });
+      updateFacility(
+        { id: editId, ...payload },
+        {
+          onSuccess: () => { toast({ title: "Facility updated" }); setShowForm(false); setEditId(null); },
+          onError: (e: Error) => toast({ title: "Failed to update facility", description: e.message, variant: "destructive" }),
+        },
+      );
+    } else if (user?.organizationId) {
+      createFacility(
+        { ...payload, organization_id: user.organizationId },
+        {
+          onSuccess: () => { toast({ title: "Facility created" }); setShowForm(false); setForm(EMPTY_FORM); },
+          onError: (e: Error) => toast({ title: "Failed to create facility", description: e.message, variant: "destructive" }),
+        },
+      );
     } else {
-      createFacility({ data: payload as unknown as Parameters<typeof createFacility>[0]["data"] });
+      toast({ title: "No organization found for your account", variant: "destructive" });
     }
   };
 
@@ -201,18 +172,18 @@ export default function Facilities() {
 
                 <div className="flex items-center gap-2 mb-3">
                   <Badge variant="outline" className={`text-[10px] font-medium ${
-                    facility.facilityType === "ALR"
+                    facility.facility_type === "ALR"
                       ? "border-violet-200 text-violet-700 bg-violet-50"
                       : "border-blue-200 text-blue-700 bg-blue-50"
                   }`}>
-                    {facility.facilityType}
+                    {facility.facility_type}
                   </Badge>
                   <Badge variant="outline" className={`text-[10px] font-medium ${
-                    facility.isActive
+                    facility.is_active
                       ? "border-emerald-200 text-emerald-700 bg-emerald-50"
                       : "border-slate-200 text-slate-500 bg-slate-50"
                   }`}>
-                    {facility.isActive ? "Active" : "Inactive"}
+                    {facility.is_active ? "Active" : "Inactive"}
                   </Badge>
                 </div>
 
@@ -229,9 +200,9 @@ export default function Facilities() {
                       <span>{facility.phone}</span>
                     </div>
                   )}
-                  {facility.licenseNumber && (
+                  {facility.license_number && (
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span className="font-mono text-[11px] bg-muted px-1.5 py-0.5 rounded">{facility.licenseNumber}</span>
+                      <span className="font-mono text-[11px] bg-muted px-1.5 py-0.5 rounded">{facility.license_number}</span>
                     </div>
                   )}
                 </div>
@@ -301,10 +272,6 @@ export default function Facilities() {
               <Input value={form.administratorEmail} onChange={e => field("administratorEmail", e.target.value)} placeholder="admin@facility.com" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Bed Capacity</Label>
-              <Input type="number" value={form.capacity} onChange={e => field("capacity", e.target.value)} placeholder="50" min={1} className="h-9" />
-            </div>
-            <div className="space-y-1.5">
               <Label className="text-[13px]">Status</Label>
               <Select value={form.isActive ? "active" : "inactive"} onValueChange={v => field("isActive", v === "active")}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
@@ -335,7 +302,13 @@ export default function Facilities() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => { if (deleteId) deleteFacility({ id: deleteId }); }}
+              onClick={() => {
+                if (!deleteId) return;
+                deleteFacility(deleteId, {
+                  onSuccess: () => { toast({ title: "Facility deleted" }); setDeleteId(null); },
+                  onError: (e: Error) => toast({ title: "Failed to delete facility", description: e.message, variant: "destructive" }),
+                });
+              }}
               disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >

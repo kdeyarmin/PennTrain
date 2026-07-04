@@ -1,80 +1,19 @@
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useRoute, Link, useLocation } from "wouter";
+import { useRoute, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { ArrowLeft, Building, Building2, LogIn } from "lucide-react";
+import { ArrowLeft, Building, Building2, ShieldCheck } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/hooks/use-toast";
-import {
-  useGetOrganization,
-  useGetOrganizationStats,
-  useListFacilities,
-} from "@workspace/api-client-react";
-import { impersonateOrg } from "@workspace/api-client-react";
-import { useMutation } from "@tanstack/react-query";
+import { useGetOrganization, useGetOrganizationStats } from "@/hooks/useOrganizations";
+import { useListFacilities } from "@/hooks/useFacilities";
 
 export default function OrganizationDetail() {
   const [, params] = useRoute("/admin/organizations/:id");
-  const parsedOrgId = Number.parseInt(params?.id ?? "", 10);
-  const id = Number.isFinite(parsedOrgId) && parsedOrgId > 0
-    ? parsedOrgId
-    : null;
-  const [, navigate] = useLocation();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [, setImpersonating] = useState(false);
-  const [showImpersonateConfirm, setShowImpersonateConfirm] = useState(false);
+  const id = params?.id;
 
-  const { data: org, isLoading: orgLoading } = useGetOrganization(id ?? 0, {
-    query: {
-      queryKey: ["getOrganization", id ?? 0],
-      enabled: id !== null,
-    },
-  });
-
-  const { data: stats, isLoading: statsLoading } = useGetOrganizationStats(id ?? 0, {
-    query: {
-      queryKey: ["getOrganizationStats", id ?? 0],
-      enabled: id !== null,
-    },
-  });
-
-  const { data: facilities, isLoading: facLoading } = useListFacilities(
-    { organizationId: id ?? undefined },
-    {
-      query: {
-        queryKey: ["listFacilities", { organizationId: id ?? undefined }],
-        enabled: id !== null,
-      },
-    }
-  );
-
-  const impersonateMutation = useMutation({
-    mutationFn: async () => {
-      if (!id) {
-        throw new Error("Invalid organization id");
-      }
-      return impersonateOrg({ organizationId: id });
-    },
-    onSuccess: (data: { organization?: { name?: string } }) => {
-      setImpersonating(true);
-      queryClient.invalidateQueries();
-      toast({
-        title: `Viewing as: ${data.organization?.name ?? org?.name}`,
-        description: "You are now viewing this organization's data.",
-      });
-      navigate("/");
-    },
-    onError: () => {
-      toast({ title: "Failed to switch organization view", variant: "destructive" });
-    },
-  });
+  const { data: org, isLoading: orgLoading } = useGetOrganization(id);
+  const { data: stats, isLoading: statsLoading } = useGetOrganizationStats(id);
+  const { data: facilities, isLoading: facLoading } = useListFacilities({ organizationId: id });
 
   const isLoading = orgLoading || statsLoading;
 
@@ -84,7 +23,7 @@ export default function OrganizationDetail() {
     return "destructive";
   };
 
-  if (id === null) {
+  if (!id) {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Invalid organization id.</p>
@@ -138,21 +77,16 @@ export default function OrganizationDetail() {
               <h1 className="text-2xl font-bold">{org.name}</h1>
               <p className="text-muted-foreground text-sm">{org.slug}</p>
               <div className="flex items-center gap-2 mt-2 flex-wrap">
-                <Badge variant={subscriptionColor(org.subscriptionStatus) as "default" | "secondary" | "destructive" | "outline"}>
-                  {org.subscriptionStatus}
+                <Badge variant={subscriptionColor(org.subscription_status) as "default" | "secondary" | "destructive" | "outline"}>
+                  {org.subscription_status}
                 </Badge>
-                {org.planName && <Badge variant="outline">{org.planName}</Badge>}
+                {org.plan_name && <Badge variant="outline">{org.plan_name}</Badge>}
               </div>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => setShowImpersonateConfirm(true)}
-              disabled={impersonateMutation.isPending || id === null}
-              className="shrink-0"
-            >
-              <LogIn className="mr-2 h-4 w-4" />
-              {impersonateMutation.isPending ? "Switching..." : "View as this Organization"}
-            </Button>
+            <Badge variant="outline" className="shrink-0 gap-1.5 py-1.5 px-3">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Viewing as Platform Admin — full access
+            </Badge>
           </div>
         </div>
       </div>
@@ -161,31 +95,15 @@ export default function OrganizationDetail() {
         <Card>
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">Facilities</p>
-            <p className="text-2xl font-bold">{stats?.totalFacilities ?? "—"}</p>
-            {org.maxFacilities && <p className="text-xs text-muted-foreground">of {org.maxFacilities} max</p>}
+            <p className="text-2xl font-bold">{stats?.facilityCount ?? "—"}</p>
+            {org.max_facilities && <p className="text-xs text-muted-foreground">of {org.max_facilities} max</p>}
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
-            <p className="text-xs text-muted-foreground">Active Employees</p>
-            <p className="text-2xl font-bold">{stats?.totalEmployees ?? "—"}</p>
-            <p className="text-xs text-muted-foreground">{stats?.totalMedAdminStaff ?? 0} med admin</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-xs text-muted-foreground">Open Alerts</p>
-            <p className={`text-2xl font-bold ${(stats?.openAlertsCount ?? 0) > 0 ? "text-red-600" : "text-green-600"}`}>
-              {stats?.openAlertsCount ?? "—"}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-xs text-muted-foreground">Compliance Score</p>
-            <p className={`text-2xl font-bold ${(stats?.compliancePercentage ?? 0) >= 80 ? "text-green-600" : (stats?.compliancePercentage ?? 0) >= 60 ? "text-yellow-600" : "text-red-600"}`}>
-              {stats?.compliancePercentage ?? "—"}{stats ? "%" : ""}
-            </p>
+            <p className="text-xs text-muted-foreground">Employees</p>
+            <p className="text-2xl font-bold">{stats?.employeeCount ?? "—"}</p>
+            {org.max_users && <p className="text-xs text-muted-foreground">of {org.max_users} max</p>}
           </CardContent>
         </Card>
       </div>
@@ -198,15 +116,15 @@ export default function OrganizationDetail() {
           <CardContent className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Contact</span>
-              <span className="font-medium">{org.contactName ?? "—"}</span>
+              <span className="font-medium">{org.contact_name ?? "—"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Email</span>
-              <span className="font-medium">{org.contactEmail ?? "—"}</span>
+              <span className="font-medium">{org.contact_email ?? "—"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Phone</span>
-              <span className="font-medium">{org.contactPhone ?? "—"}</span>
+              <span className="font-medium">{org.contact_phone ?? "—"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Address</span>
@@ -221,19 +139,19 @@ export default function OrganizationDetail() {
           <CardContent className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Plan</span>
-              <span className="font-medium">{org.planName ?? "—"}</span>
+              <span className="font-medium">{org.plan_name ?? "—"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Status</span>
-              <span className="font-medium capitalize">{org.subscriptionStatus}</span>
+              <span className="font-medium capitalize">{org.subscription_status}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Max Facilities</span>
-              <span className="font-medium">{org.maxFacilities ?? "Unlimited"}</span>
+              <span className="font-medium">{org.max_facilities ?? "Unlimited"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Max Users</span>
-              <span className="font-medium">{org.maxUsers ?? "Unlimited"}</span>
+              <span className="font-medium">{org.max_users ?? "Unlimited"}</span>
             </div>
           </CardContent>
         </Card>
@@ -258,11 +176,11 @@ export default function OrganizationDetail() {
                 <div key={fac.id} className="flex items-center justify-between p-3 rounded-lg border">
                   <div>
                     <p className="font-medium text-sm">{fac.name}</p>
-                    <p className="text-xs text-muted-foreground">{fac.city}, {fac.state} — {fac.licenseNumber ?? "No license"}</p>
+                    <p className="text-xs text-muted-foreground">{fac.city}, {fac.state} — {fac.license_number ?? "No license"}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">{fac.facilityType}</Badge>
-                    <Badge variant={fac.isActive ? "default" : "secondary"} className="text-xs">{fac.isActive ? "Active" : "Inactive"}</Badge>
+                    <Badge variant="outline" className="text-xs">{fac.facility_type}</Badge>
+                    <Badge variant={fac.is_active ? "default" : "secondary"} className="text-xs">{fac.is_active ? "Active" : "Inactive"}</Badge>
                   </div>
                 </div>
               ))}
@@ -270,31 +188,6 @@ export default function OrganizationDetail() {
           )}
         </CardContent>
       </Card>
-
-      <AlertDialog open={showImpersonateConfirm} onOpenChange={setShowImpersonateConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Switch Organization Context</AlertDialogTitle>
-            <AlertDialogDescription>
-              You are about to view the platform as "{org?.name}". Your session will switch to this organization's context. You can return to the admin view at any time.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setShowImpersonateConfirm(false);
-                if (id !== null) {
-                  impersonateMutation.mutate();
-                }
-              }}
-              disabled={id === null}
-            >
-              Continue
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import {
-  useListEmployees, useListFacilities,
-  useCreateEmployee, useUpdateEmployee, useDeleteEmployee
-} from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+  useListEmployees, useCreateEmployee, useUpdateEmployee, useDeleteEmployee,
+  type Employee,
+} from "@/hooks/useEmployees";
+import { useListFacilities } from "@/hooks/useFacilities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,22 +19,6 @@ import { Users, Search, ChevronLeft, ChevronRight, UserPlus, Pencil, Trash2 } fr
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-
-type Employee = {
-  id: number;
-  firstName: string;
-  lastName: string;
-  jobTitle?: string | null;
-  department?: string | null;
-  status: string;
-  facilityId?: number | null;
-  administersMedications?: boolean;
-  trainerStatus?: boolean;
-  hireDate?: string | null;
-  email?: string | null;
-  phone?: string | null;
-  employeeNumber?: string | null;
-};
 
 interface EmpFormData {
   firstName: string;
@@ -74,7 +58,6 @@ export default function Employees() {
 
   const { user } = useAuth();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const basePath = user?.role === "platform_admin" ? "/admin/employees"
     : user?.role === "trainer" ? "/trainer/employees"
     : "/app/employees";
@@ -82,61 +65,24 @@ export default function Employees() {
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
 
   const { data: employees, isLoading } = useListEmployees({
-    facilityId: facilityId && facilityId !== "all" ? Number(facilityId) : undefined,
-    status: status && status !== "all" ? status as "active" | "inactive" | "terminated" | "on_leave" : undefined,
+    facilityId: facilityId !== "all" ? facilityId : undefined,
+    status: status !== "all" ? status : undefined,
   });
-  const { data: facilities } = useListFacilities({});
+  const { data: facilities } = useListFacilities();
 
-  const { mutate: createEmployee, isPending: creating } = useCreateEmployee({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: "Employee created" });
-        queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
-        setShowForm(false);
-        setForm(EMPTY_EMP);
-      },
-      onError: (e: unknown) => {
-        toast({ title: "Failed to create employee", description: (e as Error).message, variant: "destructive" });
-      },
-    },
-  });
+  const { mutate: createEmployee, isPending: creating } = useCreateEmployee();
+  const { mutate: updateEmployee, isPending: updating } = useUpdateEmployee();
+  const { mutate: deleteEmployee, isPending: deleting } = useDeleteEmployee();
 
-  const { mutate: updateEmployee, isPending: updating } = useUpdateEmployee({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: "Employee updated" });
-        queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
-        setShowForm(false);
-        setEditEmp(null);
-      },
-      onError: (e: unknown) => {
-        toast({ title: "Failed to update employee", description: (e as Error).message, variant: "destructive" });
-      },
-    },
-  });
-
-  const { mutate: deleteEmployee, isPending: deleting } = useDeleteEmployee({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: "Employee deleted" });
-        queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
-        setDeleteEmp(null);
-      },
-      onError: (e: unknown) => {
-        toast({ title: "Failed to delete employee", description: (e as Error).message, variant: "destructive" });
-      },
-    },
-  });
-
-  const allEmployees = (employees as Employee[] | undefined) ?? [];
+  const allEmployees = employees ?? [];
 
   const filtered = allEmployees.filter(e => {
     if (!search) return true;
     const s = search.toLowerCase();
     return (
-      e.firstName.toLowerCase().includes(s) ||
-      e.lastName.toLowerCase().includes(s) ||
-      (e.jobTitle ?? "").toLowerCase().includes(s) ||
+      e.first_name.toLowerCase().includes(s) ||
+      e.last_name.toLowerCase().includes(s) ||
+      (e.job_title ?? "").toLowerCase().includes(s) ||
       (e.department ?? "").toLowerCase().includes(s)
     );
   });
@@ -144,13 +90,13 @@ export default function Employees() {
   const sorted = [...filtered].sort((a, b) => {
     let cmp = 0;
     if (sortField === "lastName") {
-      cmp = `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`);
+      cmp = `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`);
     } else if (sortField === "status") {
       cmp = a.status.localeCompare(b.status);
     } else if (sortField === "jobTitle") {
-      cmp = (a.jobTitle ?? "").localeCompare(b.jobTitle ?? "");
+      cmp = (a.job_title ?? "").localeCompare(b.job_title ?? "");
     } else if (sortField === "hireDate") {
-      cmp = (a.hireDate ?? "").localeCompare(b.hireDate ?? "");
+      cmp = (a.hire_date ?? "").localeCompare(b.hire_date ?? "");
     }
     return sortDir === "asc" ? cmp : -cmp;
   });
@@ -165,7 +111,7 @@ export default function Employees() {
   }
 
   const sortIndicator = (field: SortField) =>
-    sortField === field ? (sortDir === "asc" ? " \u2191" : " \u2193") : "";
+    sortField === field ? (sortDir === "asc" ? " ↑" : " ↓") : "";
 
   const openCreate = () => {
     setEditEmp(null);
@@ -178,18 +124,18 @@ export default function Employees() {
     e.stopPropagation();
     setEditEmp(emp);
     setForm({
-      firstName: emp.firstName,
-      lastName: emp.lastName,
+      firstName: emp.first_name,
+      lastName: emp.last_name,
       email: emp.email ?? "",
       phone: emp.phone ?? "",
-      jobTitle: emp.jobTitle ?? "",
+      jobTitle: emp.job_title ?? "",
       department: emp.department ?? "",
-      employeeNumber: emp.employeeNumber ?? "",
-      facilityId: emp.facilityId ? String(emp.facilityId) : "none",
-      hireDate: emp.hireDate ?? "",
+      employeeNumber: emp.employee_number ?? "",
+      facilityId: emp.facility_id ?? "none",
+      hireDate: emp.hire_date ?? "",
       status: emp.status as EmpFormData["status"],
-      administersMedications: emp.administersMedications ?? false,
-      trainerStatus: emp.trainerStatus ?? false,
+      administersMedications: emp.administers_medications ?? false,
+      trainerStatus: emp.trainer_status ?? false,
     });
     setShowForm(true);
   };
@@ -199,24 +145,39 @@ export default function Employees() {
       toast({ title: "First and last name are required", variant: "destructive" });
       return;
     }
+    if (!editEmp && form.facilityId === "none") {
+      toast({ title: "A facility is required", variant: "destructive" });
+      return;
+    }
     const payload = {
-      firstName: form.firstName.trim(),
-      lastName: form.lastName.trim(),
-      email: form.email || undefined,
-      phone: form.phone || undefined,
-      jobTitle: form.jobTitle || undefined,
-      department: form.department || undefined,
-      employeeNumber: form.employeeNumber || undefined,
-      facilityId: form.facilityId && form.facilityId !== "none" ? Number(form.facilityId) : undefined,
-      hireDate: form.hireDate || undefined,
+      first_name: form.firstName.trim(),
+      last_name: form.lastName.trim(),
+      email: form.email || null,
+      phone: form.phone || null,
+      job_title: form.jobTitle || "",
+      department: form.department || null,
+      employee_number: form.employeeNumber || null,
+      hire_date: form.hireDate || null,
       status: form.status,
-      administersMedications: form.administersMedications,
-      trainerStatus: form.trainerStatus,
+      administers_medications: form.administersMedications,
+      trainer_status: form.trainerStatus,
     };
     if (editEmp) {
-      updateEmployee({ id: editEmp.id, data: payload });
-    } else {
-      createEmployee({ data: payload as Parameters<typeof createEmployee>[0]["data"] });
+      updateEmployee(
+        { id: editEmp.id, ...payload, facility_id: form.facilityId !== "none" ? form.facilityId : editEmp.facility_id },
+        {
+          onSuccess: () => { toast({ title: "Employee updated" }); setShowForm(false); setEditEmp(null); },
+          onError: (e: Error) => toast({ title: "Failed to update employee", description: e.message, variant: "destructive" }),
+        },
+      );
+    } else if (user?.organizationId) {
+      createEmployee(
+        { ...payload, facility_id: form.facilityId, organization_id: user.organizationId },
+        {
+          onSuccess: () => { toast({ title: "Employee created" }); setShowForm(false); setForm(EMPTY_EMP); },
+          onError: (e: Error) => toast({ title: "Failed to create employee", description: e.message, variant: "destructive" }),
+        },
+      );
     }
   };
 
@@ -255,7 +216,7 @@ export default function Employees() {
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
               {facilities?.map(f => (
-                <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+                <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -312,11 +273,11 @@ export default function Employees() {
                         <Link href={`${basePath}/${emp.id}`}>
                           <div className="flex items-center gap-3 cursor-pointer">
                             <div className="h-8 w-8 rounded-full bg-primary/8 flex items-center justify-center text-[11px] font-semibold text-primary shrink-0">
-                              {emp.firstName[0]}{emp.lastName[0]}
+                              {emp.first_name[0]}{emp.last_name[0]}
                             </div>
                             <div>
                               <span className="font-medium text-foreground hover:text-primary transition-colors">
-                                {emp.lastName}, {emp.firstName}
+                                {emp.last_name}, {emp.first_name}
                               </span>
                               {emp.email && (
                                 <p className="text-[11px] text-muted-foreground mt-0.5">{emp.email}</p>
@@ -325,19 +286,19 @@ export default function Employees() {
                           </div>
                         </Link>
                       </td>
-                      <td className="text-muted-foreground">{emp.jobTitle ?? "\u2014"}</td>
+                      <td className="text-muted-foreground">{emp.job_title ?? "—"}</td>
                       <td>
                         <StatusBadge status={emp.status} type="employee" />
                       </td>
                       <td className="text-muted-foreground">
-                        {emp.hireDate ? new Date(emp.hireDate).toLocaleDateString() : "\u2014"}
+                        {emp.hire_date ? new Date(emp.hire_date).toLocaleDateString() : "—"}
                       </td>
                       <td>
                         <div className="flex gap-1.5">
-                          {emp.administersMedications && (
+                          {emp.administers_medications && (
                             <Badge variant="secondary" className="text-[10px] font-medium bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50">Med Admin</Badge>
                           )}
-                          {emp.trainerStatus && (
+                          {emp.trainer_status && (
                             <Badge variant="outline" className="text-[10px] font-medium">Trainer</Badge>
                           )}
                         </div>
@@ -346,7 +307,7 @@ export default function Employees() {
                         <div className="flex items-center gap-0.5 justify-end">
                           {canManage && (
                             <>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={e => openEdit(e, emp)} aria-label={`Edit ${emp.firstName} ${emp.lastName}`}>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={e => openEdit(e, emp)} aria-label={`Edit ${emp.first_name} ${emp.last_name}`}>
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
                               <Button
@@ -354,7 +315,7 @@ export default function Employees() {
                                 size="icon"
                                 className="h-8 w-8 text-muted-foreground hover:text-destructive"
                                 onClick={e => { e.preventDefault(); e.stopPropagation(); setDeleteEmp(emp); }}
-                                aria-label={`Delete ${emp.firstName} ${emp.lastName}`}
+                                aria-label={`Delete ${emp.first_name} ${emp.last_name}`}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
@@ -372,7 +333,7 @@ export default function Employees() {
             </div>
             <div className="flex items-center justify-between px-5 py-4 border-t border-border/60">
               <p className="text-[13px] text-muted-foreground">
-                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}\u2013{Math.min(page * PAGE_SIZE, sorted.length)}</span> of {sorted.length}
+                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)}</span> of {sorted.length}
               </p>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" className="h-8" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
@@ -428,13 +389,13 @@ export default function Employees() {
               <Input value={form.employeeNumber} onChange={e => field("employeeNumber", e.target.value)} placeholder="EMP-001" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Facility</Label>
+              <Label className="text-[13px]">Facility{!editEmp && " *"}</Label>
               <Select value={form.facilityId} onValueChange={v => field("facilityId", v)}>
                 <SelectTrigger className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No facility</SelectItem>
+                  {editEmp && <SelectItem value="none">Keep current</SelectItem>}
                   {facilities?.map(f => (
-                    <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -490,13 +451,19 @@ export default function Employees() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Employee</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete {deleteEmp?.firstName} {deleteEmp?.lastName}? This will permanently remove their record and all associated training data.
+              Are you sure you want to delete {deleteEmp?.first_name} {deleteEmp?.last_name}? This will permanently remove their record and all associated training data.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => { if (deleteEmp) deleteEmployee({ id: deleteEmp.id }); }}
+              onClick={() => {
+                if (!deleteEmp) return;
+                deleteEmployee(deleteEmp.id, {
+                  onSuccess: () => { toast({ title: "Employee deleted" }); setDeleteEmp(null); },
+                  onError: (e: Error) => toast({ title: "Failed to delete employee", description: e.message, variant: "destructive" }),
+                });
+              }}
               disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >

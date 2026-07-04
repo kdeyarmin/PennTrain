@@ -1,5 +1,5 @@
 import { useAuth } from "@/lib/auth";
-import { useLogout } from "@workspace/api-client-react";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { LogOut, Bell } from "lucide-react";
 import {
@@ -16,16 +16,12 @@ import { queryClient } from "@/lib/queryClient";
 
 export function Header() {
   const { user } = useAuth();
-  const logout = useLogout();
   const [location, setLocation] = useLocation();
 
-  const handleLogout = () => {
-    logout.mutate(undefined, {
-      onSuccess: () => {
-        queryClient.clear();
-        setLocation("/login");
-      }
-    });
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    queryClient.clear();
+    setLocation("/login");
   };
 
   const initials = (user?.firstName?.[0] ?? "") + (user?.lastName?.[0] ?? "");

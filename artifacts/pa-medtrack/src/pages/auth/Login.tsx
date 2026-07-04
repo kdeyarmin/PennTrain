@@ -1,46 +1,50 @@
 import { useState } from "react";
-import { useLogin, getGetMeQueryKey } from "@workspace/api-client-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { queryClient } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
+import type { Role } from "@/lib/auth";
 import { Loader2, ShieldCheck, ArrowRight } from "lucide-react";
+
+function roleHome(role: Role | undefined) {
+  if (role === "platform_admin") return "/admin";
+  if (role === "org_admin" || role === "facility_manager") return "/app";
+  if (role === "trainer") return "/trainer";
+  return "/me";
+}
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const loginMutation = useLogin({
-    mutation: {
-      onSuccess: (data) => {
-        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-        toast({
-          title: "Login successful",
-          description: "Welcome back to PA MedTrack",
-        });
-        
-        if (data.user.role === "platform_admin") {
-          setLocation("/admin");
-        } else if (data.user.role === "org_admin" || data.user.role === "facility_manager") {
-          setLocation("/app");
-        } else if (data.user.role === "trainer") {
-          setLocation("/trainer");
-        } else {
-          setLocation("/me");
-        }
-      },
-      onError: (error: { error?: string } & Record<string, unknown>) => {
-        toast({
-          variant: "destructive",
-          title: "Login failed",
-          description: error.error || "Please check your credentials and try again.",
-        });
-      },
+  const loginMutation = useMutation({
+    mutationFn: async ({ email, password }: { email: string; password: string }) => {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      toast({
+        title: "Login successful",
+        description: "Welcome back to CareMetric Train",
+      });
+      const role = data.user?.user_metadata?.role as Role | undefined;
+      setLocation(roleHome(role));
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Login failed",
+        description: error.message || "Please check your credentials and try again.",
+      });
     },
   });
 
@@ -54,7 +58,7 @@ export default function Login() {
       });
       return;
     }
-    loginMutation.mutate({ data: { email, password } });
+    loginMutation.mutate({ email, password });
   };
 
   const setDemoCredentials = (e: string, p: string) => {
@@ -67,6 +71,8 @@ export default function Login() {
     { label: "Org Admin", email: "admin@sunrisehealthcare.com", password: "demo123", color: "bg-blue-500" },
     { label: "Facility Manager", email: "manager@sunrisemanor.com", password: "demo123", color: "bg-emerald-500" },
     { label: "Trainer", email: "trainer@sunrisehealthcare.com", password: "demo123", color: "bg-amber-500" },
+    { label: "Auditor", email: "auditor@sunrisehealthcare.com", password: "demo123", color: "bg-slate-500" },
+    { label: "Employee", email: "employee@sunrisehealthcare.com", password: "demo123", color: "bg-teal-500" },
   ];
 
   return (
@@ -81,8 +87,8 @@ export default function Login() {
             <ShieldCheck className="h-7 w-7 text-primary-foreground" />
           </div>
           <div className="space-y-1.5">
-            <h1 className="text-[28px] font-bold tracking-tight text-foreground">PA MedTrack</h1>
-            <p className="text-sm text-muted-foreground">Pennsylvania PCH/ALR Compliance Tracking</p>
+            <h1 className="text-[28px] font-bold tracking-tight text-foreground">CareMetric Train</h1>
+            <p className="text-sm text-muted-foreground">Healthcare Learning &amp; Compliance Platform</p>
           </div>
         </div>
 
