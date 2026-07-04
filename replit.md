@@ -1,110 +1,129 @@
-# PA MedTrack — Workspace
+# CareMetric Train — Workspace
 
 ## Overview
 
-PA MedTrack is a production-ready, multi-tenant SaaS compliance tracking platform for Pennsylvania Personal Care Homes (PCH) and Assisted Living Residences (ALR). It tracks medication administration training, certifications, annual practicums, training hours, documents, alerts, and 19 compliance report types. Features include a premium dashboard with SVG donut chart, quick actions, and loading skeletons; a color-coded training matrix with CSV export and legend; reports with category-colored cards, zebra-striped tables, and status-aware cell coloring; proper AlertDialog confirmations for all destructive actions; and rich demo data with 46 employees, 3 training classes, and realistic compliance scenarios.
+CareMetric Train (formerly "PA MedTrack") is a multi-tenant SaaS compliance-training platform for healthcare
+organizations (originally scoped to Pennsylvania Personal Care Homes / Assisted Living Residences, now broader). It
+tracks medication administration training, certifications, annual practicums, training hours, documents, alerts, and
+compliance reporting, plus a full LMS layer: a course/quiz/certificate authoring and delivery system, training plans,
+and competency checklists.
+
+The app is built directly on Supabase: Postgres + Row-Level Security, Supabase Auth, Supabase Storage, and Edge
+Functions. There is no separate backend API server — the React frontend talks to Supabase directly via `supabase-js`.
 
 ## Architecture
 
-pnpm workspace monorepo using TypeScript. The Express API server serves both the REST API (`/api/*`) and the React frontend (via Vite middleware in dev, static files in production).
+pnpm workspace monorepo. Single frontend package (`artifacts/pa-medtrack`) plus a design mockup sandbox; all
+backend logic lives in the Supabase project (`xsqobvvreaovwibxwyvv`, "CM Train").
 
 ### Packages
 
-- `artifacts/api-server` — Express 5 backend + Vite frontend middleware (port 8080)
-- `artifacts/pa-medtrack` — React + Vite frontend (served by api-server in dev via Vite middleware mode)
-- `artifacts/mockup-sandbox` — Canvas/design mockup sandbox (port 8081)
-- `lib/db` — Drizzle ORM schema + migrations + seed
-- `lib/api-spec` — OpenAPI spec (`openapi.yaml`)
-- `lib/api-zod` — Generated Zod schemas from OpenAPI spec
-- `lib/api-client-react` — Generated React Query hooks from OpenAPI spec
+- `artifacts/pa-medtrack` — React + Vite frontend, talks to Supabase directly (no API server)
+- `artifacts/mockup-sandbox` — Canvas/design mockup sandbox
+- `supabase/migrations/` — every schema/RLS/function/storage change, applied in order
+- `supabase/functions/` — Edge Functions (Deno)
 
 ### Stack
 
 - **Monorepo**: pnpm workspaces
-- **Node.js**: 24
-- **API framework**: Express 5
-- **Frontend**: React 18, Vite 7, Tailwind CSS v4, shadcn/ui, Wouter routing, premium design system with custom CSS utility classes (stat-card, premium-card, data-table, filter-bar, page-header, section-title)
-- **Database**: PostgreSQL + Drizzle ORM
-- **Auth**: Session-based (express-session + bcryptjs), cookie `httpOnly`
-- **Validation**: Zod, drizzle-zod
-- **API codegen**: Orval (from OpenAPI spec → React Query hooks + Zod schemas)
-- **API server build**: esbuild (ESM bundle) — production only; dev uses tsx
-- **Dev server**: `tsx` runs api-server + Vite middleware serves frontend
-
-## Key Design Decisions
-
-1. **Single-port architecture**: Both the API (`/api/*`) and frontend are served from port 8080 (api-server). Vite middleware is used in dev; static file serving in production.
-2. **Session auth**: Cookie-based sessions (`SESSION_SECRET` env var, defaults to dev secret). Cookie is `httpOnly`, 8-hour maxAge.
-3. **Dev mode**: API server runs via `tsx` (no bundling in dev), Vite runs as Express middleware with `configFile: false`.
+- **Frontend**: React 19, Vite 7, Tailwind CSS v4, shadcn/ui, Wouter routing, TanStack Query
+- **Backend**: Supabase (Postgres 17, Auth, Storage, Edge Functions, `pg_cron`)
+- **Data access**: `supabase-js` directly from the frontend; hand-written TanStack Query hooks per domain in
+  `src/hooks/*.ts` (no codegen layer — the query builder is already typed via generated `database.types.ts`)
+- **Auth**: Supabase Auth (GoTrue). No public self-signup — every account is provisioned by an admin via a trusted
+  Edge Function (`create-user`)
+- **Authorization**: Row-Level Security on every table, plus a handful of `SECURITY DEFINER` RPCs for atomic
+  multi-row operations, plus Edge Functions for anything needing the service-role key or outbound HTTP
 
 ## Roles
 
-- `platform_admin` — routes: `/admin`, `/admin/organizations`, `/admin/organizations/:id`, `/admin/facilities`, `/admin/facilities/:id`, `/admin/employees`, `/admin/employees/:id`, `/admin/alerts`, `/admin/users`, `/admin/audit`
-- `org_admin` — routes: `/app`, `/app/facilities`, `/app/facilities/:id`, `/app/employees`, `/app/employees/:id`, `/app/training-matrix`, `/app/practicums`, `/app/alerts`, `/app/reports`, `/app/users`, `/app/documents`, `/app/settings`, `/app/audit`
-- `facility_manager` — same as org_admin
-- `trainer` — routes: `/trainer`, `/trainer/classes`, `/trainer/classes/:id`, `/trainer/retraining`, `/trainer/facilities`, `/trainer/employees`
-- `employee` — routes: `/me`, `/me/trainings`, `/me/documents`
+Six roles on `profiles.role`: `platform_admin`, `org_admin`, `facility_manager`, `trainer`, `employee`, `auditor`.
 
-## Security / Tenant Isolation
+- `platform_admin` — confined to `/admin/*`. Broad, unrestricted RLS access to every table (no impersonation --
+  see "Viewing as Org" below). Routes: `/admin`, `/admin/organizations(/:id)`, `/admin/facilities(/:id)`,
+  `/admin/employees(/:id)`, `/admin/alerts`, `/admin/users`, `/admin/audit`, `/admin/caremetric`, `/admin/packages`
+- `org_admin` / `facility_manager` — `/app/*`: dashboard, facilities, employees, training matrix, courses, course
+  assignments, training plans, competency templates/records, practicums, alerts, reports, compliance binder,
+  documents, pending approvals, users (org-scoped), settings, audit log
+- `auditor` — `/app/*`, read-only subset: dashboard, facilities, employees, training matrix, course assignments,
+  training plans, competency records, practicums, alerts, reports, compliance binder, documents, audit log. Every
+  write action across these pages is gated by a role allowlist that excludes auditor; RLS is the actual backstop
+- `trainer` — `/trainer/*`: dashboard, classes, retraining monitor, facilities, employees (read)
+- `employee` — `/me/*`: my training, course center, certificates, documents
 
-- POST /employees, /training-records, /practicums derive organizationId from session (never from request body)
-- Facility ownership is validated against the requesting user's organization
-- org_admin cannot create platform_admin users (privilege escalation blocked)
-- PATCH /users blocks org_admin from changing organizationId or escalating to higher roles
-- Facilities/Employees/Alerts pages use role-aware internal link basePaths (`/admin/*` for platform_admin, `/app/*` for org roles)
+Public (no auth): `/verify/:slug` — certificate verification.
+
+## RLS / Authorization Model
+
+- Helper functions (`is_platform_admin()`, `current_org_id()`, `current_role()`, `is_assigned_to_facility()`,
+  `owns_employee()`), all `security definer stable`, called as `(select fn())` in policies for InitPlan caching.
+- Standard per-table policy shape: `is_platform_admin() OR (organization_id = current_org_id() AND (admin role OR
+  is_assigned_to_facility(facility_id)))`, write actions further restricted to the roles allowed to mutate that
+  table. `auditor` appears in every relevant select policy and zero write policies.
+- Compliance-determining fields (`quiz_attempts`, `course_assignments.status`, `certificates`,
+  `quiz_answers.is_correct`) are never directly client-writable -- they only change via `SECURITY DEFINER` RPCs or
+  Edge Functions, using an `app.privileged_write` GUC escape hatch set only from trusted server-side code.
+- Course content is immutable once `course_versions.status = 'published'` (enforced by trigger, overridable only by
+  a genuine platform_admin).
+- "Viewing as Org X" (header selector, platform_admin only) is a **UX-only convenience** — it is not a security
+  boundary. `is_platform_admin()` already grants full RLS access regardless of this selection; the selector only
+  narrows which org's rows a handful of `/admin/*` list pages display. Persisted in `sessionStorage`.
+
+## Storage Buckets (all private)
+
+`course-documents`, `certificates` (no client write policy -- issuance is RPC/Edge-Function-only),
+`external-uploads`, `signin-sheets`, `competency-attachments`, `org-branding`, `binder-exports` (no client write
+policy -- generation is Edge-Function-only, downloaded via a short-lived signed URL returned by the function).
+
+## Edge Functions
+
+- `create-user` — provisions a new auth user + profile; authorization matrix by caller role (platform_admin: any
+  role/org; org_admin: any non-platform_admin role, own org; facility_manager: trainer/employee only, own org)
+- `admin-update-user` — updates role/org/is_active/email/password for an existing user (platform_admin/org_admin
+  only; org_admin cannot touch platform_admin, reassign org, or deactivate self)
+- `bulk-import-employees` — CSV import of employees, runs as the calling user's own JWT (RLS already scopes it)
+- `generate-compliance-binder` — queries an org's facilities/training compliance/practicums/certificates/alerts and
+  renders a multi-page PDF (`pdf-lib`), uploads it to `binder-exports`, returns a 10-minute signed URL
 
 ## Demo Credentials (seeded)
 
-| Role | Email | Password |
-|------|-------|----------|
-| platform_admin | admin@pamedtrack.com | admin123 |
-| org_admin | admin@sunrisehealthcare.com | demo123 |
-| facility_manager | manager@sunrisemanor.com | demo123 |
-| trainer | trainer@sunrisehealthcare.com | demo123 |
-| org_admin | admin@maplegrove.com | demo123 |
+| Role | Email | Password | Organization |
+|------|-------|----------|--------------|
+| platform_admin | admin@pamedtrack.com | admin123 | — |
+| org_admin | admin@sunrisehealthcare.com | demo123 | Sunrise Healthcare Group |
+| facility_manager | manager@sunrisemanor.com | demo123 | Sunrise Healthcare Group |
+| trainer | trainer@sunrisehealthcare.com | demo123 | Sunrise Healthcare Group |
+| employee | employee@sunrisehealthcare.com | demo123 | Sunrise Healthcare Group |
+| auditor | auditor@sunrisehealthcare.com | demo123 | Sunrise Healthcare Group |
+| org_admin | admin@maplegrove.com | demo123 | Maple Grove Senior Living |
 
 ## Key Commands
 
-- `pnpm --filter @workspace/api-server run dev` — run api-server + frontend (dev)
-- `pnpm --filter @workspace/api-server run build` — build api-server (production)
-- `pnpm --filter @workspace/pa-medtrack run build` — build frontend (production)
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API client hooks from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- `pnpm --filter @workspace/db run seed` — re-seed the database
+- `pnpm --filter @workspace/pa-medtrack run dev` — run the frontend dev server
+- `pnpm --filter @workspace/pa-medtrack run build` — production build
+- `pnpm run typecheck` — typecheck all workspace packages
+- Schema changes go through `mcp__Supabase__apply_migration`, then the exact same SQL is written to
+  `supabase/migrations/<version>_<name>.sql` using the version number Supabase actually assigned (from
+  `mcp__Supabase__list_migrations`), so the Supabase GitHub integration's preview-branch deploys stay in sync.
 
-## Database Schema
+## Database Schema (selected tables)
 
-Tables: `users`, `organizations`, `facilities`, `employees`, `training_types`, `employee_training_records`, `practicums`, `training_documents`, `alerts`, `audit_logs`, `employee_training_hour_buckets`, `facility_user_assignments`, `organization_settings`, `training_classes`, `training_class_attendees`
-
-## API Routes
-
-All routes prefixed with `/api/`:
-- `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `POST /auth/change-password`
-- `GET/POST /organizations`, `GET/PUT/DELETE /organizations/:id`, `GET /organizations/:id/stats`
-- `GET/POST /facilities`, `GET/PUT/DELETE /facilities/:id`, `GET /facilities/:id/compliance-summary`
-- `GET/POST /employees`, `GET/PUT/DELETE /employees/:id`, `GET /employees/:id/compliance-summary`, `GET /employees/:id/transcript`
-- `GET/POST /training-types`, `GET/PUT/DELETE /training-types/:id`
-- `GET/POST /training-records`, `GET/PUT/DELETE /training-records/:id`, `PATCH /training-records/:id/verify`
-- `GET /training-matrix`
-- `GET/POST /practicums`, `GET/PUT/DELETE /practicums/:id`
-- `GET /documents`, `GET/DELETE /documents/:id`
-- `GET /alerts`, `PATCH /alerts/:id/dismiss`, `PATCH /alerts/:id/resolve`, `PATCH /alerts/bulk-update`, `POST /alerts/generate`
-- `GET/POST /training-classes`, `GET/PATCH/DELETE /training-classes/:id`, `POST /training-classes/:id/attendees`, `POST /training-classes/:id/complete`, `POST /training-classes/:id/roster`
-- `GET /facilities/retraining-status`
-- `GET /audit-logs`
-- `GET/POST /users`, `GET/PUT/DELETE /users/:id`
-- `GET /dashboard/summary`
-- Reports (19 endpoints): `GET /reports/compliance-summary`, `GET /reports/facility-compliance`, `GET /reports/survey-readiness`, `GET /reports/expired-training`, `GET /reports/due-soon`, `GET /reports/medication-administration`, `GET /reports/training-matrix`, `GET /reports/practicum-status`, `GET /reports/annual-practicum`, `GET /reports/annual-hours`, `GET /reports/training-hours`, `GET /reports/trainer-certification`, `GET /reports/new-employee-training`, `GET /reports/employee-transcript`, `GET /reports/expiring-certifications`, `GET /reports/missing-documents`, `GET /reports/document-audit`, `GET /reports/overdue-training`, `GET /reports/org-compliance`
+Tenancy/identity: `organizations`, `organization_settings`, `facilities`, `profiles`, `facility_assignments`,
+`employees`, `packages`. Compliance core: `training_types`, `employee_training_records`,
+`employee_training_hour_buckets`, `practicums`, `training_documents`, `alerts`, `audit_logs`, `training_classes`,
+`training_class_attendees`. LMS: `courses`, `course_versions`, `course_blocks`, `quizzes`, `quiz_questions`,
+`quiz_answers`, `course_assignments`, `course_progress`, `quiz_attempts`, `quiz_attempt_answers`, `training_plans`,
+`training_plan_items`, `competency_templates`, `competency_template_items`, `competency_records`,
+`competency_record_items`, `certificates`.
 
 ## Important Files
 
-- `artifacts/api-server/src/app.ts` — Express app + Vite middleware setup
-- `artifacts/api-server/src/routes/index.ts` — All API route definitions
-- `artifacts/api-server/src/lib/compliance.ts` — Compliance calculation logic
-- `artifacts/pa-medtrack/src/App.tsx` — Frontend router with role-based access
-- `artifacts/pa-medtrack/src/components/layout/Sidebar.tsx` — Role-aware navigation sidebar
-- `artifacts/pa-medtrack/src/pages/app/Reports.tsx` — Report center with on-screen viewer, print, CSV export
-- `artifacts/pa-medtrack/src/components/reports/ReportViewer.tsx` — Report data table viewer with print layout
-- `lib/db/src/schema/index.ts` — Full DB schema
-- `lib/db/src/seed.ts` — Demo data seed script
-- `lib/api-spec/openapi.yaml` — OpenAPI spec (source of truth for API contracts)
+- `artifacts/pa-medtrack/src/lib/supabase.ts` — Supabase client setup
+- `artifacts/pa-medtrack/src/lib/auth.tsx` — auth context (Supabase session + profile)
+- `artifacts/pa-medtrack/src/lib/viewingOrg.tsx` — platform_admin "Viewing as Org X" UX-only context
+- `artifacts/pa-medtrack/src/App.tsx` — frontend router with role-based access
+- `artifacts/pa-medtrack/src/components/layout/Sidebar.tsx` — role-aware navigation sidebar
+- `artifacts/pa-medtrack/src/hooks/*.ts` — one hand-written TanStack Query hook module per domain
+- `artifacts/pa-medtrack/src/lib/database.types.ts` — generated Supabase types (`mcp__Supabase__generate_typescript_types`)
+- `supabase/migrations/` — full schema/RLS/function/storage history, source of truth for the database
+- `supabase/functions/*/index.ts` — Edge Function source

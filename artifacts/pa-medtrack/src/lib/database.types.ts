@@ -2101,6 +2101,35 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_update_profile: {
+        Args: {
+          p_email?: string
+          p_first_name?: string
+          p_is_active?: boolean
+          p_last_name?: string
+          p_organization_id?: string
+          p_role?: string
+          p_user_id: string
+        }
+        Returns: {
+          created_at: string
+          email: string
+          first_name: string
+          id: string
+          is_active: boolean
+          last_name: string
+          organization_id: string | null
+          phone: string | null
+          role: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       complete_course_assignment: {
         Args: { p_assignment_id: string }
         Returns: undefined
