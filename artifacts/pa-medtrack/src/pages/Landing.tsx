@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
@@ -128,7 +129,7 @@ const STEPS = [
   },
   {
     step: "03",
-    title: "Stay audit-ready",
+    title: "Stay survey-ready",
     description:
       "Alerts flag what's expiring, reports show where you stand, and the compliance binder is always one click away.",
   },
@@ -181,7 +182,7 @@ const FAQS = [
   {
     question: "What is CareMetric Train?",
     answer:
-      "CareMetric Train is a multi-tenant compliance-training platform and learning management system built for personal care homes, nursing homes, home health, and hospice agencies. It replaces spreadsheets and paper binders with one system for training records, certifications, medication practicums, and audit-ready reporting.",
+      "CareMetric Train is a multi-tenant compliance-training platform and learning management system built for personal care homes, nursing homes, home health, and hospice agencies. It replaces spreadsheets and paper binders with one system for training records, certifications, medication practicums, and survey-ready reporting.",
   },
   {
     question: "Which regulations does it help us comply with?",
@@ -216,6 +217,21 @@ function LogoMark({ className = "h-9 w-9" }: { className?: string }) {
       className={`${className} rounded-xl bg-gradient-to-br from-primary to-[#0f3f92] flex items-center justify-center shadow-sm shrink-0`}
     >
       <ShieldCheck className="h-[55%] w-[55%] text-primary-foreground" />
+    </div>
+  );
+}
+
+/**
+ * A section marker styled after a regulatory citation (e.g. "28 Pa. Code
+ * Section 2600") -- the page reads like a compliance document's own table
+ * of contents, which is the one structural conceit this design leans on.
+ */
+function SectionLabel({ index, children }: { index: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-primary/70">
+      <span className="whitespace-nowrap tabular-nums">§ {index}</span>
+      <span aria-hidden className="hidden h-px w-8 bg-primary/25 sm:block" />
+      <span className="whitespace-nowrap">{children}</span>
     </div>
   );
 }
@@ -273,19 +289,24 @@ export default function Landing() {
 
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-50/60" />
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/[0.05] rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-50 to-blue-50/30" />
+        <div
+          aria-hidden
+          className="absolute inset-0 [background-image:repeating-linear-gradient(to_bottom,transparent,transparent_31px,hsl(var(--primary)/0.07)_32px)]"
+        />
+        <div className="absolute top-0 right-0 w-[520px] h-[520px] bg-primary/[0.06] rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
 
         <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
           <div className="grid items-center gap-12 lg:grid-cols-2">
-            <div>
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
-                <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                Built for Long-Term &amp; Post-Acute Care
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-700">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-primary/70">
+                <span className="whitespace-nowrap tabular-nums">Rec. 2600-T</span>
+                <span aria-hidden className="hidden h-px w-8 bg-primary/25 sm:block" />
+                <span className="whitespace-nowrap">Compliance Training Platform</span>
               </div>
-              <h1 className="mt-5 text-4xl font-bold tracking-tight sm:text-5xl lg:text-[52px] lg:leading-[1.05]">
+              <h1 className="mt-5 text-balance text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-[52px] lg:leading-[1.05]">
                 Compliance training that keeps your facility{" "}
-                <span className="text-primary">audit-ready</span>, every day.
+                <span className="whitespace-nowrap text-primary">survey-ready</span>, every day.
               </h1>
               <p className="mt-6 max-w-xl text-lg text-muted-foreground">
                 CareMetric Train is the compliance-training platform and LMS built for
@@ -311,7 +332,7 @@ export default function Landing() {
                   <CheckCircle2 className="h-4 w-4 text-primary" /> Role-based access
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-primary" /> Audit-ready reporting
+                  <CheckCircle2 className="h-4 w-4 text-primary" /> Survey-ready reporting
                 </span>
                 <span className="flex items-center gap-1.5">
                   <CheckCircle2 className="h-4 w-4 text-primary" /> Built on Supabase security
@@ -320,14 +341,19 @@ export default function Landing() {
             </div>
 
             {/* Product preview mock */}
-            <div className="relative">
+            <div className="relative animate-in fade-in slide-in-from-bottom-4 duration-700 [animation-delay:150ms] [animation-fill-mode:backwards]">
               <Card className="border-border/60 shadow-2xl shadow-black/[0.06]">
                 <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-border/60 pb-4">
                   <div className="flex items-center gap-2">
                     <LogoMark className="h-7 w-7" />
-                    <CardTitle className="text-sm">Sunrise Healthcare Group</CardTitle>
+                    <div>
+                      <CardTitle className="text-sm">Sunrise Healthcare Group</CardTitle>
+                      <div className="font-mono text-[10px] tracking-wide text-muted-foreground/70">
+                        FACILITY-0042
+                      </div>
+                    </div>
                   </div>
-                  <span className="rounded-full bg-success/10 px-2.5 py-0.5 text-[11px] font-semibold text-success">
+                  <span className="rounded-full bg-success/10 px-2.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-success">
                     98% Compliant
                   </span>
                 </CardHeader>
@@ -341,7 +367,7 @@ export default function Landing() {
                     <div key={row.label}>
                       <div className="mb-1.5 flex items-center justify-between text-xs">
                         <span className="font-medium text-foreground/80">{row.label}</span>
-                        <span className="text-muted-foreground">{row.value}%</span>
+                        <span className="font-mono tabular-nums text-muted-foreground">{row.value}%</span>
                       </div>
                       <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
                         <div
@@ -358,7 +384,7 @@ export default function Landing() {
                   <FileStack className="h-4 w-4 text-primary" />
                   Compliance Binder generated
                 </div>
-                <div className="mt-0.5 text-[11px] text-muted-foreground">
+                <div className="mt-0.5 font-mono text-[11px] tabular-nums text-muted-foreground">
                   Maple Grove Senior Living -- 2.3s
                 </div>
               </div>
@@ -371,7 +397,8 @@ export default function Landing() {
       <section className="border-y border-border/60 bg-muted/30">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            <SectionLabel index="01">The Problem</SectionLabel>
+            <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
               From binders and spreadsheets to one system of record
             </h2>
             <p className="mt-4 text-muted-foreground">
@@ -416,7 +443,8 @@ export default function Landing() {
       {/* Who it's for */}
       <section id="who-its-for" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          <SectionLabel index="02">Who It's For</SectionLabel>
+          <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
             Built for every care setting
           </h2>
           <p className="mt-4 text-muted-foreground">
@@ -444,7 +472,8 @@ export default function Landing() {
       <section id="features" className="border-y border-border/60 bg-muted/30">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            <SectionLabel index="03">What's Included</SectionLabel>
+            <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
               Everything compliance requires. Nothing it doesn't.
             </h2>
             <p className="mt-4 text-muted-foreground">
@@ -453,16 +482,21 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {FEATURES.map((feature) => (
-              <div key={feature.title} className="rounded-xl border border-border/60 bg-card p-6">
-                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <feature.icon className="h-5 w-5 text-primary" />
+          <div className="mt-14 grid gap-x-12 gap-y-9 sm:grid-cols-2">
+            {FEATURES.map((feature, i) => (
+              <div key={feature.title} className="flex gap-4 border-t border-border/70 pt-6">
+                <span className="font-mono text-xs tabular-nums text-muted-foreground/50 pt-0.5">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <feature.icon className="h-4 w-4 text-primary" />
+                    <h3 className="font-semibold">{feature.title}</h3>
+                  </div>
+                  <p className="mt-1.5 text-sm text-muted-foreground">
+                    {feature.description}
+                  </p>
                 </div>
-                <h3 className="font-semibold">{feature.title}</h3>
-                <p className="mt-1.5 text-sm text-muted-foreground">
-                  {feature.description}
-                </p>
               </div>
             ))}
           </div>
@@ -472,7 +506,8 @@ export default function Landing() {
       {/* Security & Compliance */}
       <section id="security" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          <SectionLabel index="04">Security</SectionLabel>
+          <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
             Enterprise-grade security, built in
           </h2>
           <p className="mt-4 text-muted-foreground">
@@ -482,8 +517,11 @@ export default function Landing() {
         </div>
 
         <div className="mt-12 grid gap-6 sm:grid-cols-2">
-          {SECURITY_FEATURES.map((feature) => (
-            <div key={feature.title} className="flex gap-4 rounded-xl border border-border/60 bg-card p-6">
+          {SECURITY_FEATURES.map((feature, i) => (
+            <div key={feature.title} className="relative flex gap-4 rounded-xl border border-border/60 bg-card p-6">
+              <span className="absolute right-4 top-4 font-mono text-[10px] tabular-nums text-muted-foreground/40">
+                CTRL-{String(i + 1).padStart(2, "0")}
+              </span>
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                 <feature.icon className="h-5 w-5 text-primary" />
               </div>
@@ -501,7 +539,8 @@ export default function Landing() {
       {/* How it works */}
       <section id="how-it-works" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          <SectionLabel index="05">Getting Started</SectionLabel>
+          <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
             Up and running in three steps
           </h2>
         </div>
@@ -509,7 +548,7 @@ export default function Landing() {
         <div className="mt-12 grid gap-8 lg:grid-cols-3">
           {STEPS.map((step, i) => (
             <div key={step.step} className="relative">
-              <div className="text-5xl font-bold text-primary/15">{step.step}</div>
+              <div className="font-mono text-5xl font-semibold tabular-nums text-primary/15">{step.step}</div>
               <h3 className="mt-2 text-lg font-semibold">{step.title}</h3>
               <p className="mt-2 text-sm text-muted-foreground">{step.description}</p>
               {i < STEPS.length - 1 && (
@@ -524,7 +563,8 @@ export default function Landing() {
       <section id="faq" className="border-y border-border/60 bg-muted/30">
         <div className="mx-auto max-w-3xl px-4 py-20 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            <SectionLabel index="06">FAQ</SectionLabel>
+            <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
               Frequently asked questions
             </h2>
           </div>
@@ -532,8 +572,13 @@ export default function Landing() {
           <Accordion type="single" collapsible className="mt-10">
             {FAQS.map((faq, i) => (
               <AccordionItem key={faq.question} value={`item-${i}`}>
-                <AccordionTrigger className="text-left text-base font-semibold">
-                  {faq.question}
+                <AccordionTrigger className="gap-4 text-left text-base font-semibold">
+                  <span className="flex items-baseline gap-3">
+                    <span className="font-mono text-xs tabular-nums text-muted-foreground/50">
+                      Q{String(i + 1).padStart(2, "0")}
+                    </span>
+                    {faq.question}
+                  </span>
                 </AccordionTrigger>
                 <AccordionContent className="text-sm text-muted-foreground">
                   {faq.answer}
@@ -549,9 +594,18 @@ export default function Landing() {
         id="contact"
         className="relative overflow-hidden bg-gradient-to-br from-[#102a43] via-[#1e3a5f] to-[#243b53] text-white"
       >
+        <div
+          aria-hidden
+          className="absolute inset-0 [background-image:repeating-linear-gradient(to_bottom,transparent,transparent_31px,rgba(255,255,255,0.05)_32px)]"
+        />
         <div className="absolute inset-0 opacity-20 [background:radial-gradient(circle_at_top_right,white,transparent_60%)]" />
         <div className="relative mx-auto max-w-4xl px-4 py-20 text-center sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-white/60">
+            <span className="whitespace-nowrap tabular-nums">§ 07</span>
+            <span aria-hidden className="hidden h-px w-8 bg-white/25 sm:block" />
+            <span className="whitespace-nowrap">Get Started</span>
+          </div>
+          <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
             Ready to make compliance simple?
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-white/70">
@@ -636,8 +690,11 @@ export default function Landing() {
             </div>
           </div>
 
-          <div className="mt-10 border-t border-border/60 pt-6 text-xs text-muted-foreground">
-            &copy; {new Date().getFullYear()} CareMetric Train. All rights reserved.
+          <div className="mt-10 flex flex-col gap-2 border-t border-border/60 pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <span>&copy; {new Date().getFullYear()} CareMetric Train. All rights reserved.</span>
+            <span className="font-mono tabular-nums text-muted-foreground/60">
+              Rec. 2600-T &middot; Rev. {new Date().getFullYear()}.1
+            </span>
           </div>
         </div>
       </footer>
