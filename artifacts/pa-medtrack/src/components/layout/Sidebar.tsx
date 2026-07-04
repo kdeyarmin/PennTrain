@@ -109,6 +109,36 @@ export function Sidebar() {
         ]
       }
     ];
+  } else if (role === "auditor") {
+    navSections = [
+      {
+        items: [
+          { href: "/app", label: "Dashboard", icon: LayoutDashboard },
+        ]
+      },
+      {
+        title: "Directory",
+        items: [
+          { href: "/app/facilities", label: "Facilities", icon: Building2 },
+          { href: "/app/employees", label: "Employees", icon: Users },
+          { href: "/app/training-matrix", label: "Training Matrix", icon: Grid },
+          { href: "/app/course-assignments", label: "Course Assignments", icon: FileCheck },
+          { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
+          { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
+          { href: "/app/practicums", label: "Practicums", icon: FileCheck },
+        ]
+      },
+      {
+        title: "Compliance",
+        items: [
+          { href: "/app/alerts", label: "Alerts", icon: Bell },
+          { href: "/app/reports", label: "Reports", icon: BarChart3 },
+          { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
+          { href: "/app/documents", label: "Documents", icon: Files },
+          { href: "/app/audit", label: "Audit Log", icon: ShieldAlert },
+        ]
+      }
+    ];
   } else if (role === "trainer") {
     navSections = [
       {

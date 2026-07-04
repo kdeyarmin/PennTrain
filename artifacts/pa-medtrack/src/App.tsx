@@ -53,7 +53,7 @@ import { useAuth } from "@/lib/auth";
 import { Loader2 } from "lucide-react";
 import type { ComponentType } from "react";
 
-type UserRole = "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee";
+type UserRole = "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee" | "auditor";
 
 function ProtectedRoute({
   component: Component,
@@ -78,7 +78,7 @@ function ProtectedRoute({
 
   if (allowedRoles && user && !allowedRoles.includes(user.role as UserRole)) {
     if (user.role === "platform_admin") return <Redirect to="/admin" />;
-    if (user.role === "org_admin" || user.role === "facility_manager") return <Redirect to="/app" />;
+    if (user.role === "org_admin" || user.role === "facility_manager" || user.role === "auditor") return <Redirect to="/app" />;
     if (user.role === "trainer") return <Redirect to="/trainer" />;
     if (user.role === "employee") return <Redirect to="/me" />;
     return <Redirect to="/login" />;
@@ -92,9 +92,13 @@ function ProtectedRoute({
 }
 
 const PLATFORM_ADMIN: UserRole[] = ["platform_admin"];
-const ORG_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer"];
+const ORG_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor"];
 const ORG_MANAGE_ROLES: UserRole[] = ["org_admin", "facility_manager"];
 const ORG_ADMIN_ONLY: UserRole[] = ["org_admin"];
+// Read-only compliance views auditor needs alongside the org admin roles -- auditor never
+// gets ORG_MANAGE_ROLES (Users/Settings are true admin config, not audit-relevant).
+const REPORTS_VIEW_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
+const AUDIT_LOG_ROLES: UserRole[] = ["org_admin", "auditor"];
 
 function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -108,6 +112,7 @@ function Router() {
           if (user?.role === "platform_admin") return <Redirect to="/admin" />;
           if (user?.role === "trainer") return <Redirect to="/trainer" />;
           if (user?.role === "employee") return <Redirect to="/me" />;
+          // org_admin, facility_manager, auditor
           return <Redirect to="/app" />;
         }}
       </Route>
@@ -199,7 +204,7 @@ function Router() {
         {() => <ProtectedRoute component={CareMetricAssignmentsPage} allowedRoles={ORG_ROLES} />}
       </Route>
       <Route path="/app/compliance-requirements">
-        {() => <ProtectedRoute component={CareMetricCompliancePage} allowedRoles={ORG_MANAGE_ROLES} />}
+        {() => <ProtectedRoute component={CareMetricCompliancePage} allowedRoles={REPORTS_VIEW_ROLES} />}
       </Route>
       <Route path="/app/medication-tracking">
         {() => <ProtectedRoute component={CareMetricMedicationPage} allowedRoles={ORG_ROLES} />}
@@ -211,10 +216,10 @@ function Router() {
         {() => <ProtectedRoute component={CareMetricInservicePage} allowedRoles={ORG_ROLES} />}
       </Route>
       <Route path="/app/external-records">
-        {() => <ProtectedRoute component={CareMetricExternalRecordsPage} allowedRoles={ORG_MANAGE_ROLES} />}
+        {() => <ProtectedRoute component={CareMetricExternalRecordsPage} allowedRoles={REPORTS_VIEW_ROLES} />}
       </Route>
       <Route path="/app/compliance-binder">
-        {() => <ProtectedRoute component={CareMetricReportsPage} allowedRoles={ORG_MANAGE_ROLES} />}
+        {() => <ProtectedRoute component={CareMetricReportsPage} allowedRoles={REPORTS_VIEW_ROLES} />}
       </Route>
       <Route path="/app/caremetric-settings">
         {() => <ProtectedRoute component={CareMetricSettingsPage} allowedRoles={ORG_MANAGE_ROLES} />}
@@ -226,7 +231,7 @@ function Router() {
         {() => <ProtectedRoute component={Alerts} allowedRoles={ORG_ROLES} />}
       </Route>
       <Route path="/app/reports">
-        {() => <ProtectedRoute component={Reports} allowedRoles={ORG_MANAGE_ROLES} />}
+        {() => <ProtectedRoute component={Reports} allowedRoles={REPORTS_VIEW_ROLES} />}
       </Route>
       <Route path="/app/documents">
         {() => <ProtectedRoute component={Documents} allowedRoles={ORG_ROLES} />}
@@ -241,7 +246,7 @@ function Router() {
         {() => <ProtectedRoute component={Settings} allowedRoles={ORG_MANAGE_ROLES} />}
       </Route>
       <Route path="/app/audit">
-        {() => <ProtectedRoute component={AuditLog} allowedRoles={ORG_ADMIN_ONLY} />}
+        {() => <ProtectedRoute component={AuditLog} allowedRoles={AUDIT_LOG_ROLES} />}
       </Route>
 
       {/* Trainer routes */}

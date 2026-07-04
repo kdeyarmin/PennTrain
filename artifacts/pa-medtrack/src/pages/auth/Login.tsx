@@ -12,7 +12,7 @@ import { Loader2, ShieldCheck, ArrowRight } from "lucide-react";
 
 function roleHome(role: Role | undefined) {
   if (role === "platform_admin") return "/admin";
-  if (role === "org_admin" || role === "facility_manager") return "/app";
+  if (role === "org_admin" || role === "facility_manager" || role === "auditor") return "/app";
   if (role === "trainer") return "/trainer";
   return "/me";
 }
