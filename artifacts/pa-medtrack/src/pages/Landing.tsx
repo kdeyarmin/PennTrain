@@ -29,6 +29,7 @@ import {
   HomeIcon,
   Stethoscope,
   Accessibility,
+  BedDouble,
   CheckCircle2,
   XCircle,
   ArrowRight,
@@ -42,38 +43,45 @@ import {
 const SETTINGS = [
   {
     icon: Building2,
-    code: "PCH / ALR",
-    title: "Personal Care Homes & Assisted Living",
+    code: "12 HRS / YR",
+    title: "Personal Care Homes",
     description:
-      "Every direct care worker's required yearly in-services, medication administration training, and annual practicums, tracked automatically -- so your facility is always compliant and survey-ready, no spreadsheet required.",
+      "12 hours of yearly in-service per direct care worker (up to 6 may be supervised on-the-job training), plus 6 more for staff on a secured dementia unit -- 55 Pa. Code Section 2600.65, tracked automatically per employee.",
   },
   {
     icon: HeartHandshake,
-    code: "NH",
-    title: "Nursing Homes",
+    code: "16 HRS / YR",
+    title: "Assisted Living Residences",
     description:
-      "Keep licensed and unlicensed nursing staff current on required in-services, competencies, and renewal deadlines across every unit.",
-  },
-  {
-    icon: HomeIcon,
-    code: "HHA",
-    title: "Home Health Agencies",
-    description:
-      "Manage field staff training records and documents across a distributed, mobile workforce.",
-  },
-  {
-    icon: Stethoscope,
-    code: "HOS",
-    title: "Hospice Agencies",
-    description:
-      "Stay survey-ready with well-documented records for every discipline on your interdisciplinary team.",
+      "16 hours of yearly in-service per direct care worker, plus dementia-specific training at hire and 2 hours every year after -- 55 Pa. Code Section 2800.65/.69, all tracked against the clock automatically.",
   },
   {
     icon: Accessibility,
-    code: "GH",
+    code: "24 / 12 HRS / YR",
     title: "Group Homes",
     description:
-      "Track Direct Support Professional training, medication administration certification, and incident-reporting requirements for individuals with intellectual and developmental disabilities.",
+      "24 hours of yearly training for direct service workers and their supervisors, 12 hours for every other staff role -- 55 Pa. Code Section 6400.52, each role's requirement tracked separately and automatically.",
+  },
+  {
+    icon: BedDouble,
+    code: "12 HRS / YR",
+    title: "Nursing Homes",
+    description:
+      "12 hours of yearly in-service per nurse aide under federal OBRA rules (42 CFR 483.95), targeted to each employee's most recent performance review -- not just a generic annual class.",
+  },
+  {
+    icon: HomeIcon,
+    code: "12 HRS / YR",
+    title: "Home Health Agencies",
+    description:
+      "12 hours of yearly in-service per home health aide, RN-supervised and documented under 42 CFR 484.80 -- tracked automatically across your whole field staff.",
+  },
+  {
+    icon: Stethoscope,
+    code: "12 HRS / YR",
+    title: "Hospice Agencies",
+    description:
+      "12 hours of yearly in-service per hospice aide, RN-supervised and documented under 42 CFR 418.76, across every discipline on your interdisciplinary team.",
   },
 ];
 
@@ -204,9 +212,14 @@ const FAQS = [
       "Every employee gets a training plan built from the in-service hours, topics, and renewal windows your facility requires. As staff complete assigned courses, live classes, or outside training, CareMetric Train logs the hours automatically, flags anyone falling behind before their deadline, and rolls it all up into one facility-wide view -- no more reconciling paper sign-in sheets once a year to see who's actually current.",
   },
   {
+    question: "How many yearly in-service hours does my type of provider actually need?",
+    answer:
+      "It depends on your license type, and CareMetric Train already knows the difference: personal care homes need 12 hours per direct care worker per year (55 Pa. Code Section 2600.65), plus 6 more for staff on a secured dementia unit. Assisted living residences need 16 hours (Section 2800.65/.69), plus dementia-specific training at hire and 2 hours annually after that. Group homes need 24 hours for direct service workers and their supervisors, and 12 for every other role (Section 6400.52). Nursing homes, home health agencies, and hospice agencies each require 12 hours per aide per year under federal rules (42 CFR 483.95, 484.80, and 418.76). Set your organization's license type once, and every employee's training plan is built to the right number automatically.",
+  },
+  {
     question: "Which regulations does it help us comply with?",
     answer:
-      "CareMetric Train grew out of Pennsylvania's 28 Pa. Code Chapter 2600 personal care home, Chapter 2800 assisted living, and 55 Pa. Code Chapter 6400 group home training requirements, and every training type, competency checklist, and practicum is configurable -- so your organization can model the specific requirements your state and license type require, whether that's a personal care home, assisted living residence, group home, nursing home, home health, or hospice agency.",
+      "CareMetric Train grew out of Pennsylvania's 55 Pa. Code Chapter 2600 personal care home, Chapter 2800 assisted living, and Chapter 6400 group home training requirements, and every training type, competency checklist, and practicum is configurable -- so your organization can model the specific requirements your state and license type require, whether that's a personal care home, assisted living residence, group home, nursing home, home health, or hospice agency.",
   },
   {
     question: "Do our employees need to install anything?",
@@ -241,7 +254,7 @@ function LogoMark({ className = "h-9 w-9" }: { className?: string }) {
 }
 
 /**
- * A section marker styled after a regulatory citation (e.g. "28 Pa. Code
+ * A section marker styled after a regulatory citation (e.g. "55 Pa. Code
  * Section 2600") -- the page reads like a compliance document's own table
  * of contents, which is the one structural conceit this design leans on.
  */
