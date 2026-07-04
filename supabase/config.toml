@@ -1,1 +1,10 @@
 project_id = "xsqobvvreaovwibxwyvv"
+
+[functions.create-user]
+verify_jwt = true
+
+[functions.admin-update-user]
+verify_jwt = true
+
+[functions.bulk-import-employees]
+verify_jwt = true
