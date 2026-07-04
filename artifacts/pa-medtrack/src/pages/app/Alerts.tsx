@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useListAlerts, useUpdateAlert, useBulkUpdateAlerts, type Alert } from "@/hooks/useAlerts";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AlertCircle, AlertTriangle, CheckCircle, Info, X, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertCircle, AlertTriangle, CheckCircle, Info, X, Search, ChevronLeft, ChevronRight, UserRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth, type Role } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
@@ -23,6 +24,10 @@ export default function Alerts() {
   const { user } = useAuth();
   const { viewingOrgId } = useViewingOrg();
   const canWrite = !!user && ALERTS_WRITE_ROLES.includes(user.role);
+  // This page is mounted at both /admin/alerts (platform_admin) and /app/alerts
+  // (org roles) -- EmployeeDetail has a matching route under each prefix, so the
+  // "View Employee" link below must match whichever one the viewer is under.
+  const employeeDetailBase = user?.role === "platform_admin" ? "/admin/employees" : "/app/employees";
   const [status, setStatus] = useState<string>("open");
   const [severity, setSeverity] = useState<string>("all");
   const [facilityId, setFacilityId] = useState<string>("all");
@@ -278,9 +283,19 @@ export default function Alerts() {
                         </span>
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">{alert.message}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {new Date(alert.created_at).toLocaleDateString()}
-                      </p>
+                      <div className="flex items-center gap-3 mt-1">
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(alert.created_at).toLocaleDateString()}
+                        </p>
+                        {alert.employee_id && (
+                          <Link
+                            href={`${employeeDetailBase}/${alert.employee_id}`}
+                            className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1"
+                          >
+                            <UserRound className="h-3 w-3" /> View Employee
+                          </Link>
+                        )}
+                      </div>
                     </div>
                     {canWrite && alert.status === "open" && (
                       <div className="flex gap-2 shrink-0">
