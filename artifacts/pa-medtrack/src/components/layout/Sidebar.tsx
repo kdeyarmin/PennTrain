@@ -16,7 +16,8 @@ import {
   GraduationCap,
   ShieldCheck,
   ChevronRight,
-  BookOpen
+  BookOpen,
+  Upload
 } from "lucide-react";
 
 export function Sidebar() {
@@ -45,6 +46,7 @@ export function Sidebar() {
           { href: "/admin/employees", label: "Employees", icon: Users },
           { href: "/admin/users", label: "Users", icon: Users },
           { href: "/admin/caremetric", label: "LMS Suite", icon: BookOpen },
+          { href: "/admin/packages", label: "LMS Settings", icon: Settings },
         ]
       },
       {
@@ -69,6 +71,8 @@ export function Sidebar() {
           { href: "/app/employees", label: "Employees", icon: Users },
           { href: "/app/training-matrix", label: "Training Matrix", icon: Grid },
           { href: "/app/caremetric", label: "LMS Suite", icon: BookOpen },
+          { href: "/app/courses", label: "Courses", icon: GraduationCap },
+          { href: "/app/assignments", label: "Assignments", icon: FileCheck },
           { href: "/app/practicums", label: "Practicums", icon: FileCheck },
         ]
       },
@@ -76,7 +80,13 @@ export function Sidebar() {
         title: "Compliance",
         items: [
           { href: "/app/alerts", label: "Alerts", icon: Bell },
+          { href: "/app/compliance-requirements", label: "Requirements", icon: ShieldCheck },
+          { href: "/app/medication-tracking", label: "Medication", icon: ShieldAlert },
+          { href: "/app/competencies", label: "Competencies", icon: FileCheck },
+          { href: "/app/inservices", label: "In-Services", icon: GraduationCap },
+          { href: "/app/external-records", label: "External Records", icon: Upload },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
+          { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
           { href: "/app/documents", label: "Documents", icon: Files },
         ]
       },
@@ -85,6 +95,7 @@ export function Sidebar() {
         items: [
           { href: "/app/users", label: "Users", icon: Users },
           { href: "/app/settings", label: "Settings", icon: Settings },
+          { href: "/app/caremetric-settings", label: "LMS Settings", icon: Settings },
           { href: "/app/audit", label: "Audit Log", icon: ShieldAlert },
         ]
       }
