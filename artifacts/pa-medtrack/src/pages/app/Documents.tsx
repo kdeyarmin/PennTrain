@@ -7,32 +7,35 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useListFacilities, useListEmployees } from "@workspace/api-client-react";
+import { useListFacilities } from "@/hooks/useFacilities";
+import { useListEmployees } from "@/hooks/useEmployees";
+import {
+  useListDocuments, useUploadDocument, useDocumentSignedUrl, useDeleteDocument,
+  type TrainingDocument, type UploadDocumentInput,
+} from "@/hooks/useDocuments";
+import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { FileText, Upload, Trash2, Download, Files } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-
-interface TrainingDocument {
-  id: number;
-  organizationId: number;
-  facilityId: number;
-  employeeId: number | null;
-  trainingRecordId: number | null;
-  fileName: string;
-  fileUrl: string;
-  fileType: string;
-  fileSize: number | null;
-  uploadedByUserId: number | null;
-  documentType: "certificate" | "roster" | "practicum_form" | "transcript" | "other";
-  createdAt: string;
-}
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   certificate: "Certificate",
   roster: "Roster",
   practicum_form: "Practicum Form",
   transcript: "Transcript",
+  external_certificate: "External Certificate",
+  competency_attachment: "Competency Attachment",
   other: "Other",
+};
+
+// Maps each document type to the private Storage bucket it belongs in.
+const DOC_TYPE_BUCKETS: Record<string, UploadDocumentInput["bucket"]> = {
+  certificate: "external-uploads",
+  external_certificate: "external-uploads",
+  transcript: "external-uploads",
+  other: "external-uploads",
+  roster: "signin-sheets",
+  practicum_form: "signin-sheets",
+  competency_attachment: "competency-attachments",
 };
 
 function formatFileSize(bytes: number | null): string {
@@ -43,35 +46,30 @@ function formatFileSize(bytes: number | null): string {
 }
 
 export default function Documents() {
+  const { user } = useAuth();
   const [facilityId, setFacilityId] = useState<string>("all");
   const [employeeId, setEmployeeId] = useState<string>("all");
   const [docType, setDocType] = useState<string>("all");
-  const [uploading, setUploading] = useState(false);
   const [uploadFacility, setUploadFacility] = useState<string>("");
   const [uploadEmployee, setUploadEmployee] = useState<string>("none");
   const [uploadDocType, setUploadDocType] = useState<string>("certificate");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  const { data: facilities } = useListFacilities({});
+  const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees({
-    facilityId: uploadFacility ? Number(uploadFacility) : undefined,
+    facilityId: uploadFacility || undefined,
   });
 
-  const queryParams = new URLSearchParams();
-  if (facilityId !== "all") queryParams.set("facilityId", facilityId);
-  if (employeeId !== "all") queryParams.set("employeeId", employeeId);
-  if (docType !== "all") queryParams.set("documentType", docType);
-
-  const { data: documents, isLoading } = useQuery<TrainingDocument[]>({
-    queryKey: ["documents", facilityId, employeeId, docType],
-    queryFn: async () => {
-      const res = await fetch(`/api/documents?${queryParams}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch documents");
-      return res.json();
-    },
+  const { data: documents, isLoading } = useListDocuments({
+    facilityId: facilityId !== "all" ? facilityId : undefined,
+    employeeId: employeeId !== "all" ? employeeId : undefined,
+    documentType: docType !== "all" ? docType : undefined,
   });
+
+  const uploadDocument = useUploadDocument();
+  const getSignedUrl = useDocumentSignedUrl();
+  const deleteDocument = useDeleteDocument();
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -80,32 +78,24 @@ export default function Documents() {
       toast({ title: "Select a facility first", variant: "destructive" });
       return;
     }
+    if (!user?.organizationId) {
+      toast({ title: "No organization on your account", variant: "destructive" });
+      return;
+    }
 
-    setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("facilityId", uploadFacility);
-      formData.append("documentType", uploadDocType);
-      if (uploadEmployee && uploadEmployee !== "none") formData.append("employeeId", uploadEmployee);
-
-      const res = await fetch(`/api/documents`, {
-        method: "POST",
-        credentials: "include",
-        body: formData,
+      await uploadDocument.mutateAsync({
+        file,
+        bucket: DOC_TYPE_BUCKETS[uploadDocType] ?? "external-uploads",
+        organizationId: user.organizationId,
+        facilityId: uploadFacility,
+        employeeId: uploadEmployee !== "none" ? uploadEmployee : undefined,
+        documentType: uploadDocType,
       });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Upload failed");
-      }
       toast({ title: "Document uploaded successfully" });
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err) {
       toast({ title: "Upload failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -114,13 +104,8 @@ export default function Documents() {
   const confirmDelete = async () => {
     if (!deleteDoc) return;
     try {
-      const res = await fetch(`/api/documents/${deleteDoc.id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Delete failed");
+      await deleteDocument.mutateAsync(deleteDoc);
       toast({ title: "Document deleted" });
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
     } catch {
       toast({ title: "Delete failed", variant: "destructive" });
     } finally {
@@ -128,13 +113,16 @@ export default function Documents() {
     }
   };
 
-  const handleDownload = (doc: TrainingDocument) => {
-    const url = `/api/documents/file/${doc.fileUrl.split("/").pop()}`;
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = doc.fileName;
-    a.click();
+  const handleDownload = async (doc: TrainingDocument) => {
+    try {
+      const signedUrl = await getSignedUrl.mutateAsync(doc);
+      window.open(signedUrl, "_blank");
+    } catch (err) {
+      toast({ title: "Download failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+    }
   };
+
+  const uploading = uploadDocument.isPending;
 
   return (
     <div className="space-y-6">
@@ -160,7 +148,7 @@ export default function Documents() {
                 </SelectTrigger>
                 <SelectContent>
                   {facilities?.map(f => (
-                    <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -174,7 +162,7 @@ export default function Documents() {
                 <SelectContent>
                   <SelectItem value="none">No specific employee</SelectItem>
                   {employees?.map(e => (
-                    <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName}</SelectItem>
+                    <SelectItem key={e.id} value={e.id}>{e.first_name} {e.last_name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -182,7 +170,7 @@ export default function Documents() {
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Document Type</label>
               <Select value={uploadDocType} onValueChange={setUploadDocType}>
-                <SelectTrigger className="w-44">
+                <SelectTrigger className="w-48">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -190,6 +178,8 @@ export default function Documents() {
                   <SelectItem value="roster">Roster</SelectItem>
                   <SelectItem value="practicum_form">Practicum Form</SelectItem>
                   <SelectItem value="transcript">Transcript</SelectItem>
+                  <SelectItem value="external_certificate">External Certificate</SelectItem>
+                  <SelectItem value="competency_attachment">Competency Attachment</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
@@ -230,7 +220,7 @@ export default function Documents() {
                 <SelectContent>
                   <SelectItem value="all">All Facilities</SelectItem>
                   {facilities?.map(f => (
-                    <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -244,6 +234,8 @@ export default function Documents() {
                   <SelectItem value="roster">Roster</SelectItem>
                   <SelectItem value="practicum_form">Practicum Form</SelectItem>
                   <SelectItem value="transcript">Transcript</SelectItem>
+                  <SelectItem value="external_certificate">External Certificate</SelectItem>
+                  <SelectItem value="competency_attachment">Competency Attachment</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
@@ -268,11 +260,11 @@ export default function Documents() {
                   <div className="flex items-center gap-3 min-w-0">
                     <FileText className="h-9 w-9 shrink-0 text-primary/70" />
                     <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">{doc.fileName}</p>
+                      <p className="font-medium text-sm truncate">{doc.file_name}</p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <Badge variant="outline" className="text-xs">{DOC_TYPE_LABELS[doc.documentType] ?? doc.documentType}</Badge>
-                        <span className="text-xs text-muted-foreground">{formatFileSize(doc.fileSize)}</span>
-                        <span className="text-xs text-muted-foreground">{new Date(doc.createdAt).toLocaleDateString()}</span>
+                        <Badge variant="outline" className="text-xs">{DOC_TYPE_LABELS[doc.document_type] ?? doc.document_type}</Badge>
+                        <span className="text-xs text-muted-foreground">{formatFileSize(doc.file_size)}</span>
+                        <span className="text-xs text-muted-foreground">{new Date(doc.created_at).toLocaleDateString()}</span>
                       </div>
                     </div>
                   </div>
@@ -296,7 +288,7 @@ export default function Documents() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Document</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{deleteDoc?.fileName}"? This action cannot be undone.
+              Are you sure you want to delete "{deleteDoc?.file_name}"? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
