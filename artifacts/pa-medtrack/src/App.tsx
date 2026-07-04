@@ -36,7 +36,6 @@ import Users from "@/pages/app/Users";
 import Documents from "@/pages/app/Documents";
 import PendingApprovals from "@/pages/app/PendingApprovals";
 import Settings from "@/pages/app/Settings";
-import CareMetricModules, { CareMetricAssignmentsPage, CareMetricCompliancePage, CareMetricCompetenciesPage, CareMetricExternalRecordsPage, CareMetricInservicePage, CareMetricMedicationPage, CareMetricSettingsPage } from "@/pages/app/CareMetricModules";
 import ComplianceBinder from "@/pages/app/ComplianceBinder";
 
 import TrainerDashboard from "@/pages/trainer/TrainerDashboard";
@@ -158,9 +157,6 @@ function Router() {
       <Route path="/admin/alerts">
         {() => <ProtectedRoute component={Alerts} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
-      <Route path="/admin/caremetric">
-        {() => <ProtectedRoute component={CareMetricModules} allowedRoles={PLATFORM_ADMIN} />}
-      </Route>
       <Route path="/admin/packages">
         {() => <ProtectedRoute component={Packages} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
@@ -184,10 +180,6 @@ function Router() {
       <Route path="/app/training-matrix">
         {() => <ProtectedRoute component={TrainingMatrix} allowedRoles={ORG_ROLES} />}
       </Route>
-      <Route path="/app/caremetric">
-        {() => <ProtectedRoute component={CareMetricModules} allowedRoles={ORG_ROLES} />}
-      </Route>
-
       <Route path="/app/courses">
         {() => <ProtectedRoute component={Courses} allowedRoles={ORG_ROLES} />}
       </Route>
@@ -209,29 +201,8 @@ function Router() {
       <Route path="/app/competency-records">
         {() => <ProtectedRoute component={CompetencyRecords} allowedRoles={ORG_ROLES} />}
       </Route>
-      <Route path="/app/assignments">
-        {() => <ProtectedRoute component={CareMetricAssignmentsPage} allowedRoles={ORG_ROLES} />}
-      </Route>
-      <Route path="/app/compliance-requirements">
-        {() => <ProtectedRoute component={CareMetricCompliancePage} allowedRoles={REPORTS_VIEW_ROLES} />}
-      </Route>
-      <Route path="/app/medication-tracking">
-        {() => <ProtectedRoute component={CareMetricMedicationPage} allowedRoles={ORG_ROLES} />}
-      </Route>
-      <Route path="/app/competencies">
-        {() => <ProtectedRoute component={CareMetricCompetenciesPage} allowedRoles={ORG_ROLES} />}
-      </Route>
-      <Route path="/app/inservices">
-        {() => <ProtectedRoute component={CareMetricInservicePage} allowedRoles={ORG_ROLES} />}
-      </Route>
-      <Route path="/app/external-records">
-        {() => <ProtectedRoute component={CareMetricExternalRecordsPage} allowedRoles={REPORTS_VIEW_ROLES} />}
-      </Route>
       <Route path="/app/compliance-binder">
         {() => <ProtectedRoute component={ComplianceBinder} allowedRoles={REPORTS_VIEW_ROLES} />}
-      </Route>
-      <Route path="/app/caremetric-settings">
-        {() => <ProtectedRoute component={CareMetricSettingsPage} allowedRoles={ORG_MANAGE_ROLES} />}
       </Route>
       <Route path="/app/practicums">
         {() => <ProtectedRoute component={Practicums} allowedRoles={ORG_ROLES} />}
@@ -293,9 +264,6 @@ function Router() {
       </Route>
       <Route path="/me/courses/:assignmentId/quiz/:quizId">
         {() => <ProtectedRoute component={TakeQuiz} allowedRoles={["employee"]} />}
-      </Route>
-      <Route path="/me/caremetric">
-        {() => <ProtectedRoute component={CareMetricModules} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/documents">
         {() => <ProtectedRoute component={Documents} allowedRoles={["employee"]} />}

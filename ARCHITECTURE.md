@@ -41,7 +41,7 @@ Six roles on `profiles.role`: `platform_admin`, `org_admin`, `facility_manager`,
 
 - `platform_admin` — confined to `/admin/*`. Broad, unrestricted RLS access to every table (no impersonation --
   see "Viewing as Org" below). Routes: `/admin`, `/admin/organizations(/:id)`, `/admin/facilities(/:id)`,
-  `/admin/employees(/:id)`, `/admin/alerts`, `/admin/users`, `/admin/audit`, `/admin/caremetric`, `/admin/packages`
+  `/admin/employees(/:id)`, `/admin/alerts`, `/admin/users`, `/admin/audit`, `/admin/packages`
 - `org_admin` / `facility_manager` — `/app/*`: dashboard, facilities, employees, training matrix, courses, course
   assignments, training plans, competency templates/records, practicums, alerts, reports, compliance binder,
   documents, pending approvals, users (org-scoped), settings, audit log
@@ -49,7 +49,8 @@ Six roles on `profiles.role`: `platform_admin`, `org_admin`, `facility_manager`,
   training plans, competency records, practicums, alerts, reports, compliance binder, documents, audit log. Every
   write action across these pages is gated by a role allowlist that excludes auditor; RLS is the actual backstop
 - `trainer` — `/trainer/*`: dashboard, classes, retraining monitor, facilities, employees (read)
-- `employee` — `/me/*`: my training, course center, certificates, documents
+- `employee` — `/me/*`: my training (dashboard), training records, course-taking (`/me/courses/:assignmentId`,
+  reached from a training record's assignment), certificates, documents
 
 Public (no auth): `/verify/:slug` — certificate verification.
 
