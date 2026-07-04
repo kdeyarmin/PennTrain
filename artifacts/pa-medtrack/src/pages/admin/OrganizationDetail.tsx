@@ -1,13 +1,15 @@
+import { useState } from "react";
 import { useRoute, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Building, Building2, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Building, Building2, ShieldCheck, FileArchive, Download, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGetOrganization, useGetOrganizationStats, useUpdateOrganization } from "@/hooks/useOrganizations";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useGetPackage, useListPackages } from "@/hooks/usePackages";
+import { useGenerateComplianceBinder } from "@/hooks/useComplianceBinder";
 import { useToast } from "@/hooks/use-toast";
 import { useViewingOrg } from "@/lib/viewingOrg";
 
@@ -23,8 +25,25 @@ export default function OrganizationDetail() {
   const { data: currentPackage } = useGetPackage(org?.package_id);
   const { data: packages } = useListPackages();
   const { mutate: updateOrganization, isPending: updatingPackage } = useUpdateOrganization();
+  const { mutate: generateBinder, isPending: generatingBinder } = useGenerateComplianceBinder();
+  const [binderResult, setBinderResult] = useState<{ url: string; expiresIn: number } | null>(null);
 
   const isLoading = orgLoading || statsLoading;
+
+  const handleGenerateBinder = () => {
+    if (!id) return;
+    setBinderResult(null);
+    generateBinder(
+      { organizationId: id },
+      {
+        onSuccess: (data) => {
+          setBinderResult({ url: data.url, expiresIn: data.expiresIn });
+          toast({ title: "Compliance binder generated" });
+        },
+        onError: (e: Error) => toast({ title: "Failed to generate binder", description: e.message, variant: "destructive" }),
+      },
+    );
+  };
 
   const handlePackageChange = (value: string) => {
     if (!id) return;
@@ -230,6 +249,39 @@ export default function OrganizationDetail() {
                 </div>
               ))}
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileArchive className="h-5 w-5" /> Compliance Binder
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Generate a compliance summary PDF for {org.name} -- facility roster, staff training compliance,
+            overdue practicums, certificates issued, and open alerts.
+          </p>
+          <div className="flex items-center gap-3">
+            <Button onClick={handleGenerateBinder} disabled={generatingBinder}>
+              {generatingBinder ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileArchive className="mr-2 h-4 w-4" />}
+              {generatingBinder ? "Generating..." : "Generate Binder PDF"}
+            </Button>
+            {binderResult && (
+              <Button variant="outline" asChild>
+                <a href={binderResult.url} target="_blank" rel="noopener noreferrer">
+                  <Download className="mr-2 h-4 w-4" />
+                  Download PDF
+                </a>
+              </Button>
+            )}
+          </div>
+          {binderResult && (
+            <p className="text-xs text-muted-foreground">
+              This link expires in {Math.round(binderResult.expiresIn / 60)} minutes.
+            </p>
           )}
         </CardContent>
       </Card>

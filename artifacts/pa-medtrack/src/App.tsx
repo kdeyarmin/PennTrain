@@ -35,7 +35,8 @@ import Users from "@/pages/app/Users";
 import Documents from "@/pages/app/Documents";
 import PendingApprovals from "@/pages/app/PendingApprovals";
 import Settings from "@/pages/app/Settings";
-import CareMetricModules, { CareMetricAssignmentsPage, CareMetricCompliancePage, CareMetricCompetenciesPage, CareMetricExternalRecordsPage, CareMetricInservicePage, CareMetricMedicationPage, CareMetricReportsPage, CareMetricSettingsPage } from "@/pages/app/CareMetricModules";
+import CareMetricModules, { CareMetricAssignmentsPage, CareMetricCompliancePage, CareMetricCompetenciesPage, CareMetricExternalRecordsPage, CareMetricInservicePage, CareMetricMedicationPage, CareMetricSettingsPage } from "@/pages/app/CareMetricModules";
+import ComplianceBinder from "@/pages/app/ComplianceBinder";
 
 import TrainerDashboard from "@/pages/trainer/TrainerDashboard";
 import TrainerClasses from "@/pages/trainer/TrainerClasses";
@@ -219,7 +220,7 @@ function Router() {
         {() => <ProtectedRoute component={CareMetricExternalRecordsPage} allowedRoles={REPORTS_VIEW_ROLES} />}
       </Route>
       <Route path="/app/compliance-binder">
-        {() => <ProtectedRoute component={CareMetricReportsPage} allowedRoles={REPORTS_VIEW_ROLES} />}
+        {() => <ProtectedRoute component={ComplianceBinder} allowedRoles={REPORTS_VIEW_ROLES} />}
       </Route>
       <Route path="/app/caremetric-settings">
         {() => <ProtectedRoute component={CareMetricSettingsPage} allowedRoles={ORG_MANAGE_ROLES} />}
