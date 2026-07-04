@@ -1,5 +1,7 @@
-import { useGetFacilitiesRetrainingStatus } from "@workspace/api-client-react";
-import type { FacilityRetrainingStatus } from "@workspace/api-client-react";
+import { useMemo } from "react";
+import { useListFacilities, type Facility } from "@/hooks/useFacilities";
+import { useListEmployees, type Employee } from "@/hooks/useEmployees";
+import { useListPracticums, type Practicum } from "@/hooks/usePracticums";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -11,16 +13,82 @@ import {
   Clock,
 } from "lucide-react";
 
+interface FacilityRetrainingStatus {
+  facilityId: string;
+  facilityName: string;
+  facilityType: string;
+  totalMedAdminStaff: number;
+  compliantCount: number;
+  dueSoonCount: number;
+  expiredCount: number;
+  missingCount: number;
+  nextExpiryDate: string | null;
+  overallStatus: "compliant" | "due_soon" | "expired" | "critical";
+}
+
+// There is no server-side facility retraining aggregate (the old Express endpoint
+// is gone); derive the same shape from facilities + employees + practicums.
+function buildFacilityRetrainingStatus(
+  facilities: Facility[],
+  employees: Employee[],
+  practicums: Practicum[]
+): FacilityRetrainingStatus[] {
+  return facilities.map((facility) => {
+    const staffCount = employees.filter(
+      (e) => e.facility_id === facility.id && e.administers_medications
+    ).length;
+    const facilityPracticums = practicums.filter((p) => p.facility_id === facility.id);
+
+    const compliantCount = facilityPracticums.filter((p) => p.status === "compliant").length;
+    const dueSoonCount = facilityPracticums.filter((p) => p.status === "due_soon").length;
+    const expiredCount = facilityPracticums.filter((p) => p.status === "expired").length;
+    const missingCount = facilityPracticums.filter((p) => p.status === "missing").length;
+
+    const upcoming = facilityPracticums
+      .filter((p) => p.due_date && (p.status === "due_soon" || p.status === "expired"))
+      .map((p) => p.due_date as string)
+      .sort();
+    const nextExpiryDate = upcoming[0] ?? null;
+
+    let overallStatus: FacilityRetrainingStatus["overallStatus"] = "compliant";
+    if (staffCount > 0 && expiredCount > 0 && compliantCount === 0) overallStatus = "critical";
+    else if (expiredCount > 0) overallStatus = "expired";
+    else if (dueSoonCount > 0 || missingCount > 0) overallStatus = "due_soon";
+
+    return {
+      facilityId: facility.id,
+      facilityName: facility.name,
+      facilityType: facility.facility_type,
+      totalMedAdminStaff: staffCount,
+      compliantCount,
+      dueSoonCount,
+      expiredCount,
+      missingCount,
+      nextExpiryDate,
+      overallStatus,
+    };
+  });
+}
+
 export default function RetrainingMonitor() {
-  const { data, isLoading } = useGetFacilitiesRetrainingStatus();
+  const { data: facilities, isLoading: facilitiesLoading } = useListFacilities();
+  const { data: employees, isLoading: employeesLoading } = useListEmployees();
+  const { data: practicums, isLoading: practicumsLoading } = useListPracticums({
+    year: new Date().getFullYear(),
+  });
 
-  const facilities = (data ?? []) as FacilityRetrainingStatus[];
+  const isLoading = facilitiesLoading || employeesLoading || practicumsLoading;
 
-  const totalFacilities = facilities.length;
-  const compliantFacilities = facilities.filter(
+  const facilityStatuses = useMemo(
+    () => buildFacilityRetrainingStatus(facilities ?? [], employees ?? [], practicums ?? []),
+    [facilities, employees, practicums]
+  );
+
+  const totalFacilities = facilityStatuses.length;
+  const compliantFacilities = facilityStatuses.filter(
     (f) => f.overallStatus === "compliant"
   ).length;
-  const criticalFacilities = facilities.filter(
+  const criticalFacilities = facilityStatuses.filter(
     (f) => f.overallStatus === "critical" || f.overallStatus === "expired"
   ).length;
 
@@ -103,7 +171,7 @@ export default function RetrainingMonitor() {
             <div key={i} className="h-32 bg-muted animate-pulse rounded-xl" />
           ))}
         </div>
-      ) : facilities.length === 0 ? (
+      ) : facilityStatuses.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Building2 className="h-12 w-12 text-muted-foreground/30 mb-4" />
@@ -115,7 +183,7 @@ export default function RetrainingMonitor() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {facilities.map((fac) => {
+          {facilityStatuses.map((fac) => {
             const config = statusConfig[fac.overallStatus] ?? statusConfig.compliant;
             const StatusIcon = config.icon;
             const totalRecords =
