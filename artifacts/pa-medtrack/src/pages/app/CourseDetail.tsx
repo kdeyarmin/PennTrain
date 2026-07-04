@@ -15,7 +15,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft, BookOpen, Pencil, Plus, Rocket, FileText, Video, File as FileIcon,
-  ListChecks, Trash2, Lock, Layers, type LucideIcon,
+  ListChecks, Trash2, Lock, Layers, Sparkles, RefreshCw, type LucideIcon,
 } from "lucide-react";
 import {
   useGetCourse, useUpdateCourse,
@@ -24,6 +24,7 @@ import {
   type CourseVersion, type CourseBlock, type CourseBlockInsert,
 } from "@/hooks/useCourses";
 import { useGetQuizByBlockId, useCreateQuiz } from "@/hooks/useQuizzes";
+import { useListHeygenOptions, useGenerateCourseVideo, useCheckCourseVideoStatus } from "@/hooks/useCourseVideoGeneration";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -335,6 +336,53 @@ export default function CourseDetail() {
     );
   };
 
+  // --- AI avatar video generation (HeyGen), for an existing 'video' block ---
+  const [videoGenBlock, setVideoGenBlock] = useState<CourseBlock | null>(null);
+  const [videoGenForm, setVideoGenForm] = useState({ avatarId: "", voiceId: "", script: "" });
+  const { data: heygenOptions, isLoading: heygenOptionsLoading } = useListHeygenOptions(!!videoGenBlock);
+  const { mutate: generateVideo, isPending: generatingVideo } = useGenerateCourseVideo();
+  const { mutate: checkVideoStatus, isPending: checkingVideoStatus } = useCheckCourseVideoStatus();
+
+  const openVideoGen = (block: CourseBlock) => {
+    setVideoGenBlock(block);
+    setVideoGenForm({ avatarId: "", voiceId: "", script: "" });
+  };
+
+  const handleGenerateVideo = () => {
+    if (!videoGenBlock) return;
+    if (!videoGenForm.avatarId || !videoGenForm.voiceId || !videoGenForm.script.trim()) {
+      toast({ title: "Avatar, voice, and script are all required", variant: "destructive" });
+      return;
+    }
+    generateVideo(
+      {
+        courseBlockId: videoGenBlock.id,
+        avatarId: videoGenForm.avatarId,
+        voiceId: videoGenForm.voiceId,
+        script: videoGenForm.script.trim(),
+        title: videoGenBlock.title ?? undefined,
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Video generation started", description: "This typically takes a few minutes -- use the refresh action to check on it." });
+          setVideoGenBlock(null);
+        },
+        onError: (e: Error) => toast({ title: "Failed to start video generation", description: e.message, variant: "destructive" }),
+      },
+    );
+  };
+
+  const handleCheckVideoStatus = (block: CourseBlock) => {
+    checkVideoStatus(block.id, {
+      onSuccess: (result) => {
+        if (result.status === "completed") toast({ title: "Video ready" });
+        else if (result.status === "failed") toast({ title: "Video generation failed", description: result.error, variant: "destructive" });
+        else toast({ title: `Still generating (${result.status})` });
+      },
+      onError: (e: Error) => toast({ title: "Failed to check video status", description: e.message, variant: "destructive" }),
+    });
+  };
+
   if (courseLoading) {
     return (
       <div className="space-y-6">
@@ -522,7 +570,17 @@ export default function CourseDetail() {
                         </p>
                       )}
                       {b.block_type === "video" && (
-                        <p className="text-xs text-muted-foreground mt-1 truncate">{b.video_url ?? "No video URL set."}</p>
+                        <>
+                          <p className="text-xs text-muted-foreground mt-1 truncate">{b.video_url ?? "No video URL set."}</p>
+                          {(() => {
+                            const job = (b.body as { heygen?: { status?: string; error?: string } } | null)?.heygen;
+                            if (!job || job.status === "completed") return null;
+                            if (job.status === "failed") {
+                              return <p className="text-xs text-destructive mt-1">AI generation failed: {job.error ?? "unknown error"}</p>;
+                            }
+                            return <p className="text-xs text-muted-foreground mt-1 italic">AI avatar video generating…</p>;
+                          })()}
+                        </>
                       )}
                       {(b.block_type === "pdf" || b.block_type === "scorm") && (
                         <p className="text-xs text-muted-foreground mt-1">{b.document_id ? `Document: ${b.document_id}` : "No document attached."}</p>
@@ -533,6 +591,35 @@ export default function CourseDetail() {
                         </div>
                       )}
                     </div>
+                    {canManage && !isVersionLocked && b.block_type === "video" && (
+                      <>
+                        {(() => {
+                          const job = (b.body as { heygen?: { status?: string } } | null)?.heygen;
+                          if (!job || job.status === "completed" || job.status === "failed") return null;
+                          return (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground shrink-0"
+                              onClick={() => handleCheckVideoStatus(b)}
+                              disabled={checkingVideoStatus}
+                              aria-label="Check video generation status"
+                            >
+                              <RefreshCw className="h-3.5 w-3.5" />
+                            </Button>
+                          );
+                        })()}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground shrink-0"
+                          onClick={() => openVideoGen(b)}
+                          aria-label="Generate AI avatar video"
+                        >
+                          <Sparkles className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
                     {canManage && !isVersionLocked && (
                       <Button
                         variant="ghost"
@@ -650,6 +737,9 @@ export default function CourseDetail() {
               <div className="space-y-1">
                 <Label>Video URL</Label>
                 <Input value={blockForm.videoUrl} onChange={e => setBlockForm(f => ({ ...f, videoUrl: e.target.value }))} placeholder="https://..." />
+                <p className="text-xs text-muted-foreground">
+                  Leave blank if you plan to generate an AI avatar video after creating this block.
+                </p>
               </div>
             )}
             {(blockForm.block_type === "pdf" || blockForm.block_type === "scorm") && (
@@ -697,6 +787,54 @@ export default function CourseDetail() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setQuizPromptBlock(null)}>Skip for now</Button>
             <Button onClick={handleCreateQuiz} disabled={creatingQuiz}>{creatingQuiz ? "Creating..." : "Create Quiz"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Generate AI avatar video (HeyGen) */}
+      <Dialog open={!!videoGenBlock} onOpenChange={o => { if (!o) setVideoGenBlock(null); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Generate AI Avatar Video</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-xs text-muted-foreground">
+              Generates a talking-avatar video from a script. This replaces any existing video on this block and
+              typically takes a few minutes -- use the refresh action on the block to check progress.
+            </p>
+            <div className="space-y-1">
+              <Label>Avatar *</Label>
+              <Select value={videoGenForm.avatarId} onValueChange={v => setVideoGenForm(f => ({ ...f, avatarId: v }))} disabled={heygenOptionsLoading}>
+                <SelectTrigger><SelectValue placeholder={heygenOptionsLoading ? "Loading avatars..." : "Select an avatar"} /></SelectTrigger>
+                <SelectContent>
+                  {heygenOptions?.avatars.map(a => (
+                    <SelectItem key={a.id} value={a.id}>{a.name}{a.gender ? ` (${a.gender})` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Voice *</Label>
+              <Select value={videoGenForm.voiceId} onValueChange={v => setVideoGenForm(f => ({ ...f, voiceId: v }))} disabled={heygenOptionsLoading}>
+                <SelectTrigger><SelectValue placeholder={heygenOptionsLoading ? "Loading voices..." : "Select a voice"} /></SelectTrigger>
+                <SelectContent>
+                  {heygenOptions?.voices.map(v => (
+                    <SelectItem key={v.voice_id} value={v.voice_id}>{v.name}{v.language ? ` — ${v.language}` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Script *</Label>
+              <Textarea
+                value={videoGenForm.script}
+                onChange={e => setVideoGenForm(f => ({ ...f, script: e.target.value }))}
+                placeholder="What should the avatar say?"
+                rows={6}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVideoGenBlock(null)}>Cancel</Button>
+            <Button onClick={handleGenerateVideo} disabled={generatingVideo}>{generatingVideo ? "Starting..." : "Generate Video"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

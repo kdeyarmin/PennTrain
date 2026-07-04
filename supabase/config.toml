@@ -11,3 +11,12 @@ verify_jwt = true
 
 [functions.generate-compliance-binder]
 verify_jwt = true
+
+[functions.generate-course-video]
+verify_jwt = true
+
+[functions.check-course-video-status]
+verify_jwt = true
+
+[functions.list-heygen-options]
+verify_jwt = true

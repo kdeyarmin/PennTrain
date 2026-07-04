@@ -1,0 +1,108 @@
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+  });
+}
+
+const WRITER_ROLES = ["platform_admin", "org_admin", "trainer"];
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const heygenApiKey = Deno.env.get("HEYGEN_API_KEY");
+  if (!heygenApiKey) return json({ error: "HEYGEN_API_KEY is not configured" }, 500);
+
+  const callerClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+
+  const { data: { user: callerUser }, error: callerAuthError } = await callerClient.auth.getUser();
+  if (callerAuthError || !callerUser) return json({ error: "Invalid or expired session" }, 401);
+
+  const { data: callerProfile, error: callerProfileError } = await callerClient
+    .from("profiles")
+    .select("role, is_active")
+    .eq("id", callerUser.id)
+    .single();
+  if (callerProfileError || !callerProfile || !callerProfile.is_active) {
+    return json({ error: "Caller profile not found or inactive" }, 403);
+  }
+  if (!WRITER_ROLES.includes(callerProfile.role as string)) {
+    return json({ error: "not authorized to generate course videos" }, 403);
+  }
+
+  let body: { course_block_id?: string; avatar_id?: string; voice_id?: string; script?: string; title?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+
+  const { course_block_id, avatar_id, voice_id, script, title } = body;
+  if (!course_block_id || !avatar_id || !voice_id || !script) {
+    return json({ error: "course_block_id, avatar_id, voice_id, and script are required" }, 400);
+  }
+
+  const { data: block, error: blockError } = await callerClient
+    .from("course_blocks")
+    .select("id, block_type")
+    .eq("id", course_block_id)
+    .single();
+  if (blockError || !block) return json({ error: "course block not found" }, 404);
+  if (block.block_type !== "video") return json({ error: "course block is not a video block" }, 400);
+
+  const heygenRes = await fetch("https://api.heygen.com/v3/videos", {
+    method: "POST",
+    headers: { "x-api-key": heygenApiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      type: "avatar",
+      avatar_id,
+      voice_id,
+      script,
+      title: title ?? undefined,
+    }),
+  });
+  const heygenBody = await heygenRes.json().catch(() => null);
+  if (!heygenRes.ok || !heygenBody?.data?.video_id) {
+    return json({ error: heygenBody?.message ?? heygenBody?.error?.message ?? "HeyGen video generation request failed" }, 502);
+  }
+
+  const heygenVideoId = heygenBody.data.video_id as string;
+
+  const { data: updated, error: updateError } = await callerClient
+    .from("course_blocks")
+    .update({
+      video_url: null,
+      body: {
+        heygen: {
+          video_id: heygenVideoId,
+          status: "processing",
+          avatar_id,
+          voice_id,
+          requested_at: new Date().toISOString(),
+        },
+      },
+    })
+    .eq("id", course_block_id)
+    .select("id")
+    .single();
+  if (updateError || !updated) {
+    return json({ error: updateError?.message ?? "not authorized to update this course block (locked or read-only)" }, 403);
+  }
+
+  return json({ success: true, video_id: heygenVideoId, status: "processing" });
+});
