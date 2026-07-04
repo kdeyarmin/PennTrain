@@ -9,6 +9,7 @@ import {
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListCourses, useListCourseVersions } from "@/hooks/useCourses";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useIssueCertificate } from "@/hooks/useCertificates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -134,6 +135,7 @@ export default function CourseAssignments() {
 
   const { mutate: createAssignment, isPending: assigning } = useCreateCourseAssignment();
   const { mutate: completeAssignment, isPending: completing } = useCompleteCourseAssignment();
+  const { mutate: issueCertificate } = useIssueCertificate();
 
   const employeeById = useMemo(() => new Map((employees ?? []).map(e => [e.id, e])), [employees]);
   const courseById = useMemo(() => new Map((courses ?? []).map(c => [c.id, c])), [courses]);
@@ -228,7 +230,18 @@ export default function CourseAssignments() {
   const handleComplete = (assignment: CourseAssignment) => {
     setCompletingId(assignment.id);
     completeAssignment(assignment.id, {
-      onSuccess: () => toast({ title: "Marked complete" }),
+      onSuccess: () => {
+        toast({ title: "Marked complete" });
+        issueCertificate(
+          { employeeId: assignment.employee_id, courseId: assignment.course_id, assignmentId: assignment.id },
+          {
+            onError: (e: Error) =>
+              // Completion already succeeded; a failed issuance (e.g. one already exists for this
+              // assignment) shouldn't read as a failure of the "Mark Complete" action itself.
+              console.error("issue_certificate failed after marking assignment complete:", e.message),
+          }
+        );
+      },
       onError: (e: Error) => toast({ title: "Failed to mark complete", description: e.message, variant: "destructive" }),
       onSettled: () => setCompletingId(null),
     });

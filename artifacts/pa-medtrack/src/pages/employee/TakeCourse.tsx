@@ -9,6 +9,7 @@ import {
   useUpsertCourseProgress,
   useCompleteCourseAssignment,
 } from "@/hooks/useCourseAssignments";
+import { useIssueCertificate } from "@/hooks/useCertificates";
 import { useGetCourse, useListCourseBlocks, type CourseBlock } from "@/hooks/useCourses";
 import { useGetQuizByBlockId, useListQuizAttempts } from "@/hooks/useQuizzes";
 import { useDocumentSignedUrl } from "@/hooks/useDocuments";
@@ -100,6 +101,7 @@ export default function TakeCourse() {
 
   const upsertProgress = useUpsertCourseProgress();
   const completeAssignment = useCompleteCourseAssignment();
+  const issueCertificate = useIssueCertificate();
 
   const [stepIndex, setStepIndex] = useState(0);
   const [resumed, setResumed] = useState(false);
@@ -167,8 +169,27 @@ export default function TakeCourse() {
     if (!assignment) return;
     completeAssignment.mutate(assignment.id, {
       onSuccess: () => {
-        toast({ title: "Course completed", description: "Nice work -- this course is now marked complete." });
-        setLocation("/me/trainings");
+        issueCertificate.mutate(
+          {
+            employeeId: assignment.employee_id,
+            courseId: assignment.course_id,
+            assignmentId: assignment.id,
+          },
+          {
+            onSuccess: () => {
+              toast({ title: "Course completed", description: "Certificate issued -- nice work!" });
+              setLocation("/me/certificates");
+            },
+            onError: (e: Error) => {
+              // Completion already succeeded and is not undone by a failed certificate issuance
+              // (e.g. one was already issued for this assignment) -- still route the learner
+              // forward rather than blocking on this secondary step.
+              toast({ title: "Course completed", description: "Nice work -- this course is now marked complete." });
+              console.error("issue_certificate failed after course completion:", e.message);
+              setLocation("/me/trainings");
+            },
+          }
+        );
       },
       onError: (e: Error) => toast({ title: "Failed to complete course", description: e.message, variant: "destructive" }),
     });
