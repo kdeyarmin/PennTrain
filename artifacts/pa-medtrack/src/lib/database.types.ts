@@ -171,6 +171,583 @@ export type Database = {
           },
         ]
       }
+      certificates: {
+        Row: {
+          course_assignment_id: string | null
+          course_id: string
+          created_at: string
+          employee_id: string
+          expires_at: string | null
+          facility_id: string
+          id: string
+          issued_at: string
+          organization_id: string
+          pdf_storage_bucket: string | null
+          pdf_storage_path: string | null
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          course_assignment_id?: string | null
+          course_id: string
+          created_at?: string
+          employee_id: string
+          expires_at?: string | null
+          facility_id: string
+          id?: string
+          issued_at?: string
+          organization_id: string
+          pdf_storage_bucket?: string | null
+          pdf_storage_path?: string | null
+          slug?: string
+          updated_at?: string
+        }
+        Update: {
+          course_assignment_id?: string | null
+          course_id?: string
+          created_at?: string
+          employee_id?: string
+          expires_at?: string | null
+          facility_id?: string
+          id?: string
+          issued_at?: string
+          organization_id?: string
+          pdf_storage_bucket?: string | null
+          pdf_storage_path?: string | null
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certificates_course_assignment_id_fkey"
+            columns: ["course_assignment_id"]
+            isOneToOne: true
+            referencedRelation: "course_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certificates_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certificates_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certificates_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certificates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competency_record_items: {
+        Row: {
+          competency_record_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          result: string
+          template_item_id: string | null
+        }
+        Insert: {
+          competency_record_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          result: string
+          template_item_id?: string | null
+        }
+        Update: {
+          competency_record_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          result?: string
+          template_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competency_record_items_competency_record_id_fkey"
+            columns: ["competency_record_id"]
+            isOneToOne: false
+            referencedRelation: "competency_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competency_record_items_template_item_id_fkey"
+            columns: ["template_item_id"]
+            isOneToOne: false
+            referencedRelation: "competency_template_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competency_records: {
+        Row: {
+          created_at: string
+          employee_id: string
+          evaluation_date: string
+          evaluator_profile_id: string | null
+          facility_id: string
+          id: string
+          organization_id: string
+          overall_result: string
+          signed_at: string | null
+          template_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          evaluation_date: string
+          evaluator_profile_id?: string | null
+          facility_id: string
+          id?: string
+          organization_id: string
+          overall_result: string
+          signed_at?: string | null
+          template_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          evaluation_date?: string
+          evaluator_profile_id?: string | null
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          overall_result?: string
+          signed_at?: string | null
+          template_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competency_records_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competency_records_evaluator_profile_id_fkey"
+            columns: ["evaluator_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competency_records_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competency_records_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competency_records_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "competency_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competency_template_items: {
+        Row: {
+          created_at: string
+          id: string
+          item_text: string
+          sort_order: number
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_text: string
+          sort_order?: number
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_text?: string
+          sort_order?: number
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competency_template_items_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "competency_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competency_templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          organization_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          organization_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          organization_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competency_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          completed_at: string | null
+          course_id: string
+          course_version_id: string
+          due_date: string | null
+          employee_id: string
+          facility_id: string
+          id: string
+          organization_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          completed_at?: string | null
+          course_id: string
+          course_version_id: string
+          due_date?: string | null
+          employee_id: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          completed_at?: string | null
+          course_id?: string
+          course_version_id?: string
+          due_date?: string | null
+          employee_id?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_assignments_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_assignments_course_version_id_fkey"
+            columns: ["course_version_id"]
+            isOneToOne: false
+            referencedRelation: "course_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_assignments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_assignments_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_blocks: {
+        Row: {
+          block_type: string
+          body: Json | null
+          course_version_id: string
+          created_at: string
+          document_id: string | null
+          id: string
+          organization_id: string | null
+          sort_order: number
+          title: string | null
+          video_url: string | null
+        }
+        Insert: {
+          block_type: string
+          body?: Json | null
+          course_version_id: string
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          organization_id?: string | null
+          sort_order?: number
+          title?: string | null
+          video_url?: string | null
+        }
+        Update: {
+          block_type?: string
+          body?: Json | null
+          course_version_id?: string
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          organization_id?: string | null
+          sort_order?: number
+          title?: string | null
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_blocks_course_version_id_fkey"
+            columns: ["course_version_id"]
+            isOneToOne: false
+            referencedRelation: "course_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_blocks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "training_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_blocks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_progress: {
+        Row: {
+          assignment_id: string
+          id: string
+          last_block_id: string | null
+          percent_complete: number
+          started_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          assignment_id: string
+          id?: string
+          last_block_id?: string | null
+          percent_complete?: number
+          started_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assignment_id?: string
+          id?: string
+          last_block_id?: string | null
+          percent_complete?: number
+          started_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_progress_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: true
+            referencedRelation: "course_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_progress_last_block_id_fkey"
+            columns: ["last_block_id"]
+            isOneToOne: false
+            referencedRelation: "course_blocks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_versions: {
+        Row: {
+          course_id: string
+          created_at: string
+          description: string | null
+          id: string
+          organization_id: string | null
+          published_at: string | null
+          status: string
+          title: string
+          version_number: number
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          organization_id?: string | null
+          published_at?: string | null
+          status?: string
+          title: string
+          version_number: number
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          organization_id?: string | null
+          published_at?: string | null
+          status?: string
+          title?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_versions_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_versions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      courses: {
+        Row: {
+          category: string | null
+          created_at: string
+          created_by: string | null
+          current_version_id: string | null
+          description: string | null
+          estimated_duration_minutes: number | null
+          id: string
+          organization_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_version_id?: string | null
+          description?: string | null
+          estimated_duration_minutes?: number | null
+          id?: string
+          organization_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_version_id?: string | null
+          description?: string | null
+          estimated_duration_minutes?: number | null
+          id?: string
+          organization_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courses_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courses_current_version_id_fkey"
+            columns: ["current_version_id"]
+            isOneToOne: false
+            referencedRelation: "course_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_training_hour_buckets: {
         Row: {
           completed_hours: number
@@ -858,6 +1435,267 @@ export type Database = {
           },
         ]
       }
+      quiz_answers: {
+        Row: {
+          answer_text: string
+          created_at: string
+          id: string
+          is_correct: boolean
+          organization_id: string | null
+          question_id: string
+          sort_order: number
+        }
+        Insert: {
+          answer_text: string
+          created_at?: string
+          id?: string
+          is_correct?: boolean
+          organization_id?: string | null
+          question_id: string
+          sort_order?: number
+        }
+        Update: {
+          answer_text?: string
+          created_at?: string
+          id?: string
+          is_correct?: boolean
+          organization_id?: string | null
+          question_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_answers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_answers_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_attempt_answers: {
+        Row: {
+          attempt_id: string
+          created_at: string
+          id: string
+          is_correct: boolean | null
+          question_id: string
+          selected_answer_ids: string[]
+        }
+        Insert: {
+          attempt_id: string
+          created_at?: string
+          id?: string
+          is_correct?: boolean | null
+          question_id: string
+          selected_answer_ids?: string[]
+        }
+        Update: {
+          attempt_id?: string
+          created_at?: string
+          id?: string
+          is_correct?: boolean | null
+          question_id?: string
+          selected_answer_ids?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempt_answers_attempt_id_fkey"
+            columns: ["attempt_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_attempts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_attempt_answers_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_attempts: {
+        Row: {
+          assignment_id: string
+          attempt_number: number
+          employee_id: string
+          facility_id: string
+          id: string
+          organization_id: string
+          passed: boolean | null
+          quiz_id: string
+          score_percent: number | null
+          started_at: string
+          submitted_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          assignment_id: string
+          attempt_number?: number
+          employee_id: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          passed?: boolean | null
+          quiz_id: string
+          score_percent?: number | null
+          started_at?: string
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assignment_id?: string
+          attempt_number?: number
+          employee_id?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          passed?: boolean | null
+          quiz_id?: string
+          score_percent?: number | null
+          started_at?: string
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempts_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "course_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_attempts_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_attempts_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_attempts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_attempts_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_questions: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string | null
+          points: number
+          question_text: string
+          question_type: string
+          quiz_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id?: string | null
+          points?: number
+          question_text: string
+          question_type: string
+          quiz_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string | null
+          points?: number
+          question_text?: string
+          question_type?: string
+          quiz_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_questions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_questions_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quizzes: {
+        Row: {
+          course_block_id: string
+          created_at: string
+          id: string
+          max_attempts: number | null
+          organization_id: string | null
+          passing_score_percent: number
+          title: string
+        }
+        Insert: {
+          course_block_id: string
+          created_at?: string
+          id?: string
+          max_attempts?: number | null
+          organization_id?: string | null
+          passing_score_percent?: number
+          title: string
+        }
+        Update: {
+          course_block_id?: string
+          created_at?: string
+          id?: string
+          max_attempts?: number | null
+          organization_id?: string | null
+          passing_score_percent?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quizzes_course_block_id_fkey"
+            columns: ["course_block_id"]
+            isOneToOne: true
+            referencedRelation: "course_blocks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quizzes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_class_attendees: {
         Row: {
           attended: boolean
@@ -1078,6 +1916,103 @@ export type Database = {
           },
         ]
       }
+      training_plan_items: {
+        Row: {
+          course_id: string | null
+          created_at: string
+          id: string
+          is_required: boolean
+          sort_order: number
+          training_plan_id: string
+          training_type_id: string | null
+        }
+        Insert: {
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          is_required?: boolean
+          sort_order?: number
+          training_plan_id: string
+          training_type_id?: string | null
+        }
+        Update: {
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          is_required?: boolean
+          sort_order?: number
+          training_plan_id?: string
+          training_type_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_plan_items_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_plan_items_training_plan_id_fkey"
+            columns: ["training_plan_id"]
+            isOneToOne: false
+            referencedRelation: "training_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_plan_items_training_type_id_fkey"
+            columns: ["training_type_id"]
+            isOneToOne: false
+            referencedRelation: "training_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_plans: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_plans_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_plans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_types: {
         Row: {
           accepted_evidence_types: Json | null
@@ -1166,18 +2101,57 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      complete_course_assignment: {
+        Args: { p_assignment_id: string }
+        Returns: undefined
+      }
       complete_training_class: {
         Args: { p_class_id: string }
         Returns: undefined
       }
+      course_version_is_published: {
+        Args: { p_version_id: string }
+        Returns: boolean
+      }
       current_org_id: { Args: never; Returns: string }
       current_role: { Args: never; Returns: string }
+      get_quiz_answer_choices: {
+        Args: { p_quiz_id: string }
+        Returns: {
+          answer_text: string
+          id: string
+          question_id: string
+          sort_order: number
+        }[]
+      }
+      grade_quiz_attempt: { Args: { p_attempt_id: string }; Returns: undefined }
       is_assigned_to_facility: {
         Args: { target_facility_id: string }
         Returns: boolean
       }
       is_platform_admin: { Args: never; Returns: boolean }
+      issue_certificate: {
+        Args: {
+          p_course_assignment_id?: string
+          p_course_id: string
+          p_employee_id: string
+          p_expires_at?: string
+        }
+        Returns: string
+      }
+      owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
       recalculate_all_compliance: { Args: never; Returns: undefined }
+      verify_certificate: {
+        Args: { p_slug: string }
+        Returns: {
+          course_title: string
+          employee_name: string
+          expires_at: string
+          is_valid: boolean
+          issued_at: string
+          organization_name: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
