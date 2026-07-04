@@ -1,9 +1,17 @@
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useListOrganizations } from "@/hooks/useOrganizations";
+import {
+  useListNotifications,
+  useUnreadNotificationCount,
+  useMarkNotificationRead,
+  useMarkAllNotificationsRead,
+  type Notification,
+} from "@/hooks/useNotifications";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
-import { LogOut, Bell, Building2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { LogOut, Bell, Building2, CheckCheck } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +47,80 @@ function ViewingOrgSelector() {
         </SelectContent>
       </Select>
     </div>
+  );
+}
+
+function NotificationsMenu() {
+  const [, setLocation] = useLocation();
+  const { data: notifications, isLoading } = useListNotifications();
+  const { data: unreadCount } = useUnreadNotificationCount();
+  const { mutate: markRead } = useMarkNotificationRead();
+  const { mutate: markAllRead, isPending: markingAllRead } = useMarkAllNotificationsRead();
+
+  const handleSelect = (notification: Notification) => {
+    if (!notification.read_at) markRead(notification.id);
+    if (notification.link) setLocation(notification.link);
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground"
+          aria-label={unreadCount ? `Notifications (${unreadCount} unread)` : "Notifications"}
+        >
+          <Bell className="h-[18px] w-[18px]" />
+          {!!unreadCount && (
+            <Badge className="absolute -top-1 -right-1 h-4 min-w-4 px-1 justify-center text-[10px] leading-none">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </Badge>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-80" align="end" forceMount>
+        <div className="flex items-center justify-between px-2 py-1.5">
+          <DropdownMenuLabel className="p-0 text-sm font-semibold">Notifications</DropdownMenuLabel>
+          {!!unreadCount && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-auto py-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+              disabled={markingAllRead}
+              onClick={(e) => { e.stopPropagation(); markAllRead(); }}
+            >
+              <CheckCheck className="mr-1 h-3 w-3" /> Mark all read
+            </Button>
+          )}
+        </div>
+        <DropdownMenuSeparator />
+        <div className="max-h-96 overflow-y-auto">
+          {isLoading ? (
+            <p className="px-3 py-4 text-xs text-muted-foreground text-center">Loading...</p>
+          ) : !notifications || notifications.length === 0 ? (
+            <p className="px-3 py-6 text-xs text-muted-foreground text-center">You're all caught up.</p>
+          ) : (
+            notifications.map((n) => (
+              <DropdownMenuItem
+                key={n.id}
+                className="flex flex-col items-start gap-0.5 whitespace-normal py-2.5 px-3 cursor-pointer"
+                onClick={() => handleSelect(n)}
+              >
+                <div className="flex items-center gap-2 w-full">
+                  {!n.read_at && <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" aria-hidden="true" />}
+                  <span className={`text-sm ${n.read_at ? "text-muted-foreground" : "font-medium"}`}>{n.title}</span>
+                </div>
+                {n.body && <p className="text-xs text-muted-foreground line-clamp-2 pl-3.5">{n.body}</p>}
+                <p className="text-[11px] text-muted-foreground/70 pl-3.5">
+                  {new Date(n.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </p>
+              </DropdownMenuItem>
+            ))
+          )}
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -96,9 +178,7 @@ export function Header() {
 
       <div className="flex items-center gap-2">
         {user?.role === "platform_admin" && <ViewingOrgSelector />}
-        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground" aria-label="Notifications">
-          <Bell className="h-[18px] w-[18px]" />
-        </Button>
+        <NotificationsMenu />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

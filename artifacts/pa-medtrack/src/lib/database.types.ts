@@ -1119,6 +1119,57 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          link: string | null
+          notification_type: string
+          organization_id: string
+          profile_id: string
+          read_at: string | null
+          title: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          link?: string | null
+          notification_type: string
+          organization_id: string
+          profile_id: string
+          read_at?: string | null
+          title: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          link?: string | null
+          notification_type?: string
+          organization_id?: string
+          profile_id?: string
+          read_at?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_settings: {
         Row: {
           branding_accent_color: string | null
@@ -2181,6 +2232,8 @@ export type Database = {
         }
         Returns: string
       }
+      mark_all_notifications_read: { Args: never; Returns: undefined }
+      mark_notification_read: { Args: { p_id: string }; Returns: undefined }
       owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
       recalculate_all_compliance: { Args: never; Returns: undefined }
       verify_certificate: {
