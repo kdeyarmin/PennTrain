@@ -152,6 +152,7 @@ function ApplyPlanDialog({
         totalAssigned += result.value.assigned;
         totalSkipped += result.value.skipped;
         result.value.failed.forEach((f) => issues.push(`${f.courseTitle ?? "a course"}: ${f.message}`));
+        if (result.value.alertWarning) issues.push(result.value.alertWarning);
       } else {
         failedEmployees++;
         issues.push(result.reason instanceof Error ? result.reason.message : String(result.reason));

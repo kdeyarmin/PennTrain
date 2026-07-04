@@ -43,7 +43,7 @@ function DocumentBlockLink({ documentId }: { documentId: string | null }) {
   const handleOpen = async () => {
     try {
       const url = await getSignedUrl.mutateAsync(document);
-      window.open(url, "_blank");
+      window.open(url, "_blank", "noopener,noreferrer");
     } catch (e) {
       toast({ title: "Failed to open document", description: (e as Error).message, variant: "destructive" });
     }

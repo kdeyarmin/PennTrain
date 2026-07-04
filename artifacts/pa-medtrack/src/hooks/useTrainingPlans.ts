@@ -244,6 +244,13 @@ export interface ApplyTrainingPlanResult {
   skipped: number;
   /** Course-type items that failed to assign (e.g. course has no published version). */
   failed: ApplyTrainingPlanItemFailure[];
+  /**
+   * Set if the (non-fatal, best-effort) admin-facing "training plan assigned"
+   * alert failed to write -- the course assignments above already succeeded
+   * and are not rolled back, but this failure must still be visible rather
+   * than silently swallowed.
+   */
+  alertWarning?: string;
 }
 
 export function useApplyTrainingPlanToEmployee() {
@@ -317,21 +324,36 @@ export function useApplyTrainingPlanToEmployee() {
 
       // One admin-facing alert per plan application (not per course item --
       // the employee already gets a personal "New course assigned"
-      // notification per item via the notify_course_assigned trigger).
+      // notification per item via the notify_course_assigned trigger). This
+      // is best-effort: the course assignments above already succeeded and
+      // are not undone if this fails, but the failure must still be surfaced
+      // to the caller rather than silently swallowed.
+      let alertWarning: string | undefined;
       if (assigned > 0) {
-        const { data: plan } = await supabase.from("training_plans").select("name").eq("id", params.planId).single();
-        await supabase.from("alerts").insert({
-          organization_id: params.organizationId,
-          facility_id: params.facilityId,
-          employee_id: params.employeeId,
-          alert_type: "training_plan_assigned",
-          title: `Training plan assigned — ${plan?.name ?? "Training Plan"}`,
-          message: `${plan?.name ?? "A training plan"} was applied (${assigned} course${assigned === 1 ? "" : "s"} assigned).`,
-          severity: "info",
-        });
+        const { data: plan, error: planError } = await supabase
+          .from("training_plans")
+          .select("name")
+          .eq("id", params.planId)
+          .single();
+        if (planError) {
+          alertWarning = `Assignments succeeded, but couldn't record the "plan assigned" alert: ${planError.message}`;
+        } else {
+          const { error: alertError } = await supabase.from("alerts").insert({
+            organization_id: params.organizationId,
+            facility_id: params.facilityId,
+            employee_id: params.employeeId,
+            alert_type: "training_plan_assigned",
+            title: `Training plan assigned — ${plan?.name ?? "Training Plan"}`,
+            message: `${plan?.name ?? "A training plan"} was applied (${assigned} course${assigned === 1 ? "" : "s"} assigned).`,
+            severity: "info",
+          });
+          if (alertError) {
+            alertWarning = `Assignments succeeded, but couldn't record the "plan assigned" alert: ${alertError.message}`;
+          }
+        }
       }
 
-      return { assigned, skipped, failed };
+      return { assigned, skipped, failed, alertWarning };
     },
     onSuccess: (result) => {
       if (result.assigned > 0) queryClient.invalidateQueries({ queryKey: ["alerts"] });
