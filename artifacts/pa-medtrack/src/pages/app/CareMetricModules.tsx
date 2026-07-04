@@ -13,9 +13,9 @@ import { runCareMetricAi } from '@/lib/caremetricAi';
 import { fetchCareMetricPayload, type CareMetricPayload } from '@/lib/caremetricApi';
 
 function statusTone(status: string) {
-  if (['complete','completed','approved','current','pass','published'].includes(status)) return 'bg-emerald-100 text-emerald-800';
-  if (['due_soon','pending','in progress','draft'].includes(status)) return 'bg-amber-100 text-amber-800';
-  if (['overdue','expired','failed'].includes(status)) return 'bg-red-100 text-red-800';
+  if (['complete','completed','approved','current','pass','passed','published'].includes(status)) return 'bg-emerald-100 text-emerald-800';
+  if (['due_soon','pending','in progress','in_progress','draft','not started','not_started'].includes(status)) return 'bg-amber-100 text-amber-800';
+  if (['overdue','expired','failed','rejected','missing_documentation','missing documentation'].includes(status)) return 'bg-red-100 text-red-800';
   return 'bg-slate-100 text-slate-800';
 }
 function ExportButtons({ name, rows = [] }: { name: string; rows?: Record<string, string | number | boolean | null | undefined>[] }) {
