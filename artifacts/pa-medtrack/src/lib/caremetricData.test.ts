@@ -1,7 +1,7 @@
+// Lightweight sanity-check script.
+// Note: this repo does not include a Jest/Vitest runner, so this file is intended to be run manually.
 import { compliancePercent, scoreQuiz } from './caremetricData';
 import { buildComplianceBinderHtml, toCsv } from './caremetricExports';
-
-function assert(condition: unknown, message: string) { if (!condition) throw new Error(message); }
 const perfect = scoreQuiz([true, true, true], 80);
 assert(perfect.score === 100 && perfect.passed, 'perfect quiz should pass');
 const failed = scoreQuiz([true, false, false, false], 80);
