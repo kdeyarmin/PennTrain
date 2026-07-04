@@ -46,8 +46,7 @@ export function Sidebar() {
           { href: "/admin/employees", label: "Employees", icon: Users },
           { href: "/admin/users", label: "Users", icon: Users },
           { href: "/admin/caremetric", label: "LMS Suite", icon: BookOpen },
-          { href: "/admin/packages", label: "Packages", icon: Settings },
-        ]
+          { href: "/admin/packages", label: "LMS Settings", icon: Settings },
       },
       {
         title: "Monitoring",
