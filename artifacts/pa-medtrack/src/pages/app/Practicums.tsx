@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { useListPracticums, useListFacilities, useListEmployees } from "@workspace/api-client-react";
+import { useMemo, useState } from "react";
+import { useListPracticums } from "@/hooks/usePracticums";
+import { useListFacilities } from "@/hooks/useFacilities";
+import { useListEmployees } from "@/hooks/useEmployees";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -12,15 +14,17 @@ export default function Practicums() {
   const currentYear = new Date().getFullYear();
 
   const { data: practicums, isLoading } = useListPracticums({
-    facilityId: facilityId && facilityId !== "all" ? Number(facilityId) : undefined,
+    facilityId: facilityId && facilityId !== "all" ? facilityId : undefined,
     year: currentYear,
-    status: status && status !== "all" ? status as "compliant" | "due_soon" | "expired" | "missing" : undefined,
+    status: status && status !== "all" ? status : undefined,
   });
 
-  const { data: facilities } = useListFacilities({});
-  const { data: employees } = useListEmployees({ administersMedications: true });
+  const { data: facilities } = useListFacilities();
+  const { data: employeesAll } = useListEmployees();
+  const employees = useMemo(() => employeesAll?.filter(e => e.administers_medications), [employeesAll]);
+  const employeeMap = useMemo(() => new Map((employees ?? []).map(e => [e.id, e])), [employees]);
 
-  const getEmployee = (id: number) => employees?.find(e => e.id === id);
+  const getEmployee = (id: string) => employeeMap.get(id);
 
   return (
     <div className="space-y-6">
@@ -42,7 +46,7 @@ export default function Practicums() {
           <SelectContent>
             <SelectItem value="all">All Facilities</SelectItem>
             {facilities?.map(f => (
-              <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+              <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -72,7 +76,7 @@ export default function Practicums() {
           ) : (
             <div className="space-y-2">
               {practicums?.map(p => {
-                const emp = getEmployee(p.employeeId);
+                const emp = getEmployee(p.employee_id);
                 return (
                   <div key={p.id} className="flex items-center justify-between p-3 rounded-lg border">
                     <div className="flex items-center gap-3">
@@ -81,21 +85,21 @@ export default function Practicums() {
                       </div>
                       <div>
                         <p className="font-medium text-sm">
-                          {emp ? `${emp.firstName} ${emp.lastName}` : `Employee #${p.employeeId}`}
+                          {emp ? `${emp.first_name} ${emp.last_name}` : `Employee #${p.employee_id}`}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {p.completionDate ? `Completed: ${new Date(p.completionDate).toLocaleDateString()}` : `Due: ${p.dueDate ? new Date(p.dueDate).toLocaleDateString() : "N/A"}`}
-                          {p.observedBy && ` · Observed by: ${p.observedBy}`}
+                          {p.completion_date ? `Completed: ${new Date(p.completion_date).toLocaleDateString()}` : `Due: ${p.due_date ? new Date(p.due_date).toLocaleDateString() : "N/A"}`}
+                          {p.observed_by && ` · Observed by: ${p.observed_by}`}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <span title="MAR Review">{p.marReviewCompleted ? <CheckCircle className="h-3.5 w-3.5 text-green-500" /> : <XCircle className="h-3.5 w-3.5 text-gray-300" />}</span>
+                        <span title="MAR Review">{p.mar_review_completed ? <CheckCircle className="h-3.5 w-3.5 text-green-500" /> : <XCircle className="h-3.5 w-3.5 text-gray-300" />}</span>
                         <span>MAR</span>
                       </div>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <span title="Direct Observation">{p.directObservationCompleted ? <CheckCircle className="h-3.5 w-3.5 text-green-500" /> : <XCircle className="h-3.5 w-3.5 text-gray-300" />}</span>
+                        <span title="Direct Observation">{p.direct_observation_completed ? <CheckCircle className="h-3.5 w-3.5 text-green-500" /> : <XCircle className="h-3.5 w-3.5 text-gray-300" />}</span>
                         <span>Obs</span>
                       </div>
                       <StatusBadge status={p.status} />
