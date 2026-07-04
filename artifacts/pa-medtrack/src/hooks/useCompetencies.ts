@@ -159,12 +159,16 @@ export function useRemoveCompetencyTemplateItem() {
 // "self-service" create/update path here -- callers must not offer employees
 // any UI that calls useCreateCompetencyRecord.
 //
-// Note on facility_id: a BEFORE INSERT trigger (stamp_org_from_employee)
-// overwrites organization_id from the employee row, but it does NOT touch
-// facility_id -- unlike some other tables in this schema, competency_records
-// only auto-stamps organization_id. Whatever facility_id the caller sends is
-// the value RLS's is_assigned_to_facility(facility_id) check runs against, so
-// callers must pass the employee's real facility_id, not a placeholder.
+// Note on facility_id: a BEFORE INSERT trigger (stamp_scope_from_employee) overwrites BOTH
+// organization_id AND facility_id from the employee row (fixed in migration
+// 20260704164627_fix_codex_review_findings.sql -- it previously only stamped organization_id,
+// which let a caller spoof facility_id). RLS's is_assigned_to_facility(facility_id) check runs
+// against the post-trigger, server-derived value, not whatever the client sent, so there is no
+// facility-spoofing path here today. employee_training_records, practicums, and
+// training_documents had the same pre-fix gap; it's closed for them too as of migration
+// 20260704180646_stamp_facility_scope_from_employee_on_writes.sql -- don't treat an *absence*
+// of this note elsewhere in the codebase as "safe to copy the old client-supplied-facility_id
+// pattern," it wasn't.
 // ---------------------------------------------------------------------------
 
 export interface ListCompetencyRecordsFilters {

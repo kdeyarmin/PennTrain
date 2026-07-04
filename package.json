@@ -5,10 +5,13 @@
   "scripts": {
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "start": "pnpm --filter @workspace/pa-medtrack run start",
+    "dev": "pnpm --filter @workspace/pa-medtrack run dev",
     "test": "pnpm -r --if-present run test",
     "typecheck": "pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
     "doctor": "pnpm --filter @workspace/scripts run doctor",
-    "doctor:network": "pnpm --filter @workspace/scripts run doctor:network"
+    "doctor:network": "pnpm --filter @workspace/scripts run doctor:network",
+    "db:migrate": "npx --yes supabase db push"
   },
   "private": true,
   "devDependencies": {

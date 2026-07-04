@@ -20,13 +20,30 @@ interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  hasRole: (...roles: Role[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
   isAuthenticated: false,
+  hasRole: () => false,
 });
+
+// Centralized role check -- prefer this (or the useAuth().hasRole shortcut)
+// over inline `user.role === "..."` comparisons in new code. This is a UX
+// convenience only; Postgres RLS is the real authorization boundary.
+export function hasRole(user: AuthUser | null, ...roles: Role[]): boolean {
+  return !!user && roles.includes(user.role);
+}
+
+export function isPlatformAdmin(user: AuthUser | null): boolean {
+  return hasRole(user, "platform_admin");
+}
+
+export function canManageOrganization(user: AuthUser | null): boolean {
+  return hasRole(user, "platform_admin", "org_admin", "facility_manager");
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
@@ -88,7 +105,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [isLoading, session, isError, setLocation]);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, isAuthenticated }}>
+    <AuthContext.Provider
+      value={{ user, isLoading, isAuthenticated, hasRole: (...roles) => hasRole(user, ...roles) }}
+    >
       {children}
     </AuthContext.Provider>
   );

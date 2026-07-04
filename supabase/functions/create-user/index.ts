@@ -107,6 +107,12 @@ Deno.serve(async (req: Request) => {
     user_metadata: {
       first_name,
       last_name,
+    },
+    // role/organization_id go in app_metadata, not user_metadata: app_metadata can only be set
+    // via this service-role Admin API call, never by a client calling the public signup
+    // endpoint, which is exactly why handle_new_user() trusts it for these two RLS-determining
+    // fields and defaults to role="employee"/organization_id=null otherwise.
+    app_metadata: {
       role,
       organization_id: effectiveOrgId,
     },
@@ -114,6 +120,6 @@ Deno.serve(async (req: Request) => {
 
   if (createError) return json({ error: createError.message }, 400);
 
-  // handle_new_user() trigger already populated profiles from user_metadata on insert.
+  // handle_new_user() trigger already populated profiles from app_metadata on insert.
   return json({ success: true, user: { id: created.user.id, email: created.user.email } });
 });
