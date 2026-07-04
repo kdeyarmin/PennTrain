@@ -26,6 +26,7 @@ import AuditLog from "@/pages/app/AuditLog";
 import Users from "@/pages/app/Users";
 import Documents from "@/pages/app/Documents";
 import Settings from "@/pages/app/Settings";
+import CareMetricModules from "@/pages/app/CareMetricModules";
 
 import TrainerDashboard from "@/pages/trainer/TrainerDashboard";
 import TrainerClasses from "@/pages/trainer/TrainerClasses";
@@ -132,6 +133,9 @@ function Router() {
       <Route path="/admin/alerts">
         {() => <ProtectedRoute component={Alerts} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
+      <Route path="/admin/caremetric">
+        {() => <ProtectedRoute component={CareMetricModules} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
 
       {/* Org/Facility routes */}
       <Route path="/app">
@@ -151,6 +155,9 @@ function Router() {
       </Route>
       <Route path="/app/training-matrix">
         {() => <ProtectedRoute component={TrainingMatrix} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/caremetric">
+        {() => <ProtectedRoute component={CareMetricModules} allowedRoles={ORG_ROLES} />}
       </Route>
       <Route path="/app/practicums">
         {() => <ProtectedRoute component={Practicums} allowedRoles={ORG_ROLES} />}
@@ -200,6 +207,9 @@ function Router() {
       </Route>
       <Route path="/me/trainings">
         {() => <ProtectedRoute component={MyTrainings} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/caremetric">
+        {() => <ProtectedRoute component={CareMetricModules} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/documents">
         {() => <ProtectedRoute component={Documents} allowedRoles={["employee"]} />}

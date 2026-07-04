@@ -17,6 +17,7 @@ import reportsRouter from "./reports";
 import documentsRouter from "./documents";
 import trainingHoursRouter from "./training-hours";
 import trainingClassesRouter from "./training-classes";
+import caremetricRouter from "./caremetric";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(dashboardRouter);
 router.use(reportsRouter);
 router.use(documentsRouter);
 router.use(trainingHoursRouter);
+router.use(caremetricRouter);
 
 export default router;
