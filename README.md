@@ -52,7 +52,7 @@ must be declared in `supabase/config.toml` to auto-deploy via the Supabase GitHu
 
 | Role | Email | Password |
 |------|-------|----------|
-| platform_admin | admin@caremetrictrain.com | admin123 |
+| platform_admin | info@caremetrictrain.com | admin123 |
 | org_admin | admin@sunrisehealthcare.com | demo123 |
 | facility_manager | manager@sunrisemanor.com | demo123 |
 | trainer | trainer@sunrisehealthcare.com | demo123 |

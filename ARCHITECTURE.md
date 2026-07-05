@@ -90,7 +90,7 @@ policy -- generation is Edge-Function-only, downloaded via a short-lived signed 
 
 | Role | Email | Password | Organization |
 |------|-------|----------|--------------|
-| platform_admin | admin@caremetrictrain.com | admin123 | — |
+| platform_admin | info@caremetrictrain.com | admin123 | — |
 | org_admin | admin@sunrisehealthcare.com | demo123 | Sunrise Healthcare Group |
 | facility_manager | manager@sunrisemanor.com | demo123 | Sunrise Healthcare Group |
 | trainer | trainer@sunrisehealthcare.com | demo123 | Sunrise Healthcare Group |
