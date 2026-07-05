@@ -12,6 +12,9 @@ verify_jwt = true
 [functions.generate-compliance-binder]
 verify_jwt = true
 
+[functions.generate-certificate-pdf]
+verify_jwt = true
+
 [functions.generate-course-video]
 verify_jwt = true
 

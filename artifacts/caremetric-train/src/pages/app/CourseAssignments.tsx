@@ -9,7 +9,7 @@ import {
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListCourses, useListCourseVersions } from "@/hooks/useCourses";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { useIssueCertificate } from "@/hooks/useCertificates";
+import { useIssueCertificate, useListCertificates, useGenerateCertificatePdf } from "@/hooks/useCertificates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ClipboardList, Search, ChevronLeft, ChevronRight, UserPlus, CheckCircle2 } from "lucide-react";
+import { ClipboardList, Search, ChevronLeft, ChevronRight, UserPlus, CheckCircle2, Download, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -118,6 +118,7 @@ export default function CourseAssignments() {
   const [assignForm, setAssignForm] = useState<AssignFormData>(EMPTY_ASSIGN_FORM);
   const [progressAssignmentId, setProgressAssignmentId] = useState<string | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
+  const [downloadingCertId, setDownloadingCertId] = useState<string | null>(null);
 
   // RLS also lets an employee complete their own assignment, but that
   // self-service path lives on the learner-facing page -- this admin view
@@ -136,9 +137,22 @@ export default function CourseAssignments() {
   const { mutate: createAssignment, isPending: assigning } = useCreateCourseAssignment();
   const { mutate: completeAssignment, isPending: completing } = useCompleteCourseAssignment();
   const { mutate: issueCertificate } = useIssueCertificate();
+  // Unfiltered on purpose -- RLS (certificates_select) already scopes this to certificates the
+  // current caller is allowed to see (their own, or org/facility staff), the same population this
+  // page's own assignments query is implicitly scoped to. Mirrors the "fetch full set, look up
+  // client-side" approach already used for facilities/employees/courses on this page.
+  const { data: certificates } = useListCertificates();
+  const { mutateAsync: generateCertPdf } = useGenerateCertificatePdf();
 
   const employeeById = useMemo(() => new Map((employees ?? []).map(e => [e.id, e])), [employees]);
   const courseById = useMemo(() => new Map((courses ?? []).map(c => [c.id, c])), [courses]);
+  // certificates.course_assignment_id is the direct link from an issued certificate back to the
+  // assignment that earned it -- lets each row look up "is there already a certificate for this
+  // completed assignment" without a per-row fetch.
+  const certificateByAssignmentId = useMemo(
+    () => new Map((certificates ?? []).filter(c => c.course_assignment_id).map(c => [c.course_assignment_id as string, c])),
+    [certificates],
+  );
 
   const activeEmployees = useMemo(
     () =>
@@ -247,6 +261,22 @@ export default function CourseAssignments() {
     });
   };
 
+  const handleDownloadCertificate = async (certificateId: string) => {
+    setDownloadingCertId(certificateId);
+    try {
+      const { url } = await generateCertPdf(certificateId);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      toast({
+        title: "Could not generate certificate PDF",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingCertId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="page-header flex items-center justify-between">
@@ -324,6 +354,7 @@ export default function CourseAssignments() {
                   {paginated.map(a => {
                     const emp = employeeById.get(a.employee_id);
                     const course = courseById.get(a.course_id);
+                    const cert = certificateByAssignmentId.get(a.id);
                     return (
                       <tr key={a.id}>
                         <td>
@@ -353,6 +384,22 @@ export default function CourseAssignments() {
                             >
                               Progress
                             </Button>
+                            {cert && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                                onClick={() => handleDownloadCertificate(cert.id)}
+                                disabled={downloadingCertId === cert.id}
+                              >
+                                {downloadingCertId === cert.id ? (
+                                  <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Download className="mr-1 h-3.5 w-3.5" />
+                                )}
+                                {downloadingCertId === cert.id ? "Preparing..." : "Certificate"}
+                              </Button>
+                            )}
                             {canManage && a.status !== "completed" && (
                               <Button
                                 variant="ghost"
