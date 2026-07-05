@@ -23,6 +23,7 @@ import FacilityDetail from "@/pages/app/FacilityDetail";
 import Employees from "@/pages/app/Employees";
 import EmployeeDetail from "@/pages/app/EmployeeDetail";
 import TrainingMatrix from "@/pages/app/TrainingMatrix";
+import TrainingTypes from "@/pages/app/TrainingTypes";
 import Courses from "@/pages/app/Courses";
 import CourseDetail from "@/pages/app/CourseDetail";
 import QuizBuilder from "@/pages/app/QuizBuilder";
@@ -203,6 +204,9 @@ function Router() {
       </Route>
       <Route path="/app/training-matrix">
         {() => <ProtectedRoute component={TrainingMatrix} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/training-types">
+        {() => <ProtectedRoute component={TrainingTypes} allowedRoles={ORG_MANAGE_ROLES} />}
       </Route>
       <Route path="/app/courses">
         {() => <ProtectedRoute component={Courses} allowedRoles={ORG_ROLES} />}

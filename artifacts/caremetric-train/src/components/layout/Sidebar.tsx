@@ -98,6 +98,7 @@ export function Sidebar() {
         title: "Settings",
         items: [
           { href: "/app/users", label: "Users", icon: Users },
+          { href: "/app/training-types", label: "Training Types", icon: ListChecks },
           { href: "/app/settings", label: "Settings", icon: Settings },
           { href: "/app/audit", label: "Audit Log", icon: ShieldAlert },
         ]

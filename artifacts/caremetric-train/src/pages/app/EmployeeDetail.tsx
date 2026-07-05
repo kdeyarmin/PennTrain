@@ -11,13 +11,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   ArrowLeft, User, BookOpen, CalendarCheck, Clock, Pencil, Trash2, FileText, Activity, Building2,
-  Download, ShieldCheck,
+  Download, ShieldCheck, Plus,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGetEmployee, useUpdateEmployee, useDeleteEmployee } from "@/hooks/useEmployees";
 import { useGetFacility, useListFacilities } from "@/hooks/useFacilities";
-import { useListTrainingRecords } from "@/hooks/useTrainingRecords";
-import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
+import {
+  useListTrainingRecords, useCreateTrainingRecord, useUpdateTrainingRecord,
+  type TrainingRecord, type TrainingRecordInsert,
+} from "@/hooks/useTrainingRecords";
+import { useListTrainingTypes, type TrainingType } from "@/hooks/useTrainingTypes";
 import { useListPracticums } from "@/hooks/usePracticums";
 import { useListTrainingHourBuckets } from "@/hooks/useTrainingHourBuckets";
 import { useListDocuments, useDocumentSignedUrl, type TrainingDocument } from "@/hooks/useDocuments";
@@ -55,6 +58,48 @@ function EmptyState({ icon: Icon, text }: { icon: typeof BookOpen; text: string 
   );
 }
 
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function addDaysISO(dateISO: string, days: number): string {
+  const d = new Date(`${dateISO}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+// Mirrors the due_date formula in recalculate_all_compliance() (supabase/migrations/
+// 20260704053624_compliance_rpcs_and_audit_trigger.sql), same as PendingApprovals.tsx.
+function computeDueDate(completionDate: string | null, renewalIntervalDays: number | null | undefined): string | null {
+  if (!completionDate || renewalIntervalDays == null) return null;
+  return addDaysISO(completionDate, renewalIntervalDays);
+}
+
+// Mirrors the status formula in the same RPC, same as PendingApprovals.tsx.
+function computeStatus(completionDate: string | null, dueDate: string | null, warningDays: number): string {
+  if (!completionDate) return "missing";
+  if (!dueDate) return "compliant";
+  const today = todayISO();
+  if (dueDate < today) return "expired";
+  if (dueDate <= addDaysISO(today, warningDays)) return "due_soon";
+  return "compliant";
+}
+
+// Employees can accumulate multiple employee_training_records rows for the same training type
+// over successive renewal cycles (see TrainingMatrix.tsx) -- pick the current one using the same
+// due_date -> completion_date -> created_at tiebreak used there and in PendingApprovals.tsx.
+function findCurrentRecord(records: TrainingRecord[], trainingTypeId: string): TrainingRecord | undefined {
+  const matches = records.filter(r => r.training_type_id === trainingTypeId);
+  if (matches.length === 0) return undefined;
+  return matches.reduce((current, candidate) => {
+    const cDue = candidate.due_date ?? "", curDue = current.due_date ?? "";
+    if (cDue !== curDue) return cDue > curDue ? candidate : current;
+    const cComp = candidate.completion_date ?? "", curComp = current.completion_date ?? "";
+    if (cComp !== curComp) return cComp > curComp ? candidate : current;
+    return (candidate.created_at ?? "") > (current.created_at ?? "") ? candidate : current;
+  });
+}
+
 export default function EmployeeDetail() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
@@ -72,6 +117,10 @@ export default function EmployeeDetail() {
 
   const [showEditEmp, setShowEditEmp] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showRecordTraining, setShowRecordTraining] = useState(false);
+  const [trainingForm, setTrainingForm] = useState({
+    trainingTypeId: "", completionDate: todayISO(), hours: "", trainerName: "", documentId: "",
+  });
 
   const [empForm, setEmpForm] = useState<EmpFormData>({
     firstName: "", lastName: "", email: "", phone: "", jobTitle: "",
@@ -85,6 +134,8 @@ export default function EmployeeDetail() {
 
   const { mutate: updateEmployee, isPending: updating } = useUpdateEmployee();
   const { mutate: deleteEmployee, isPending: deleting } = useDeleteEmployee();
+  const createTrainingRecord = useCreateTrainingRecord();
+  const updateTrainingRecord = useUpdateTrainingRecord();
 
   const { data: trainingRecords, isLoading: recordsLoading } = useListTrainingRecords({ employeeId: id });
   const { data: trainingTypes } = useListTrainingTypes();
@@ -154,6 +205,49 @@ export default function EmployeeDetail() {
         onError: (e: Error) => toast({ title: "Failed to update employee", description: e.message, variant: "destructive" }),
       },
     );
+  };
+
+  const openRecordTraining = () => {
+    setTrainingForm({ trainingTypeId: "", completionDate: todayISO(), hours: "", trainerName: "", documentId: "" });
+    setShowRecordTraining(true);
+  };
+
+  const trainingFormType: TrainingType | undefined = trainingTypes?.find(t => t.id === trainingForm.trainingTypeId);
+
+  const handleSaveTrainingRecord = () => {
+    if (!employee) return;
+    if (!trainingForm.trainingTypeId) {
+      toast({ title: "Select a training type first", variant: "destructive" });
+      return;
+    }
+    if (!trainingForm.completionDate) {
+      toast({ title: "Completion date is required", variant: "destructive" });
+      return;
+    }
+    const dueDate = computeDueDate(trainingForm.completionDate, trainingFormType?.renewal_interval_days ?? null);
+    const status = computeStatus(trainingForm.completionDate, dueDate, trainingFormType?.warning_days_default ?? 90);
+    const hoursValue = trainingForm.hours.trim() ? Number(trainingForm.hours) : (trainingFormType?.required_hours ?? null);
+    const payload: TrainingRecordInsert = {
+      organization_id: employee.organization_id,
+      facility_id: employee.facility_id,
+      employee_id: employee.id,
+      training_type_id: trainingForm.trainingTypeId,
+      completion_date: trainingForm.completionDate,
+      due_date: dueDate,
+      status,
+      hours: hoursValue,
+      trainer_name: trainingForm.trainerName.trim() || null,
+      completion_method: "manual_entry",
+      external_certificate_document_id: trainingForm.documentId || null,
+      document_required: !!trainingForm.documentId,
+    };
+    const existing = findCurrentRecord(trainingRecords ?? [], trainingForm.trainingTypeId);
+    const onDone = {
+      onSuccess: () => { toast({ title: "Training recorded" }); setShowRecordTraining(false); },
+      onError: (e: Error) => toast({ title: "Failed to record training", description: e.message, variant: "destructive" }),
+    };
+    if (existing) updateTrainingRecord.mutate({ id: existing.id, ...payload }, onDone);
+    else createTrainingRecord.mutate(payload, onDone);
   };
 
   const handleDelete = () => {
@@ -276,10 +370,15 @@ export default function EmployeeDetail() {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="flex items-center gap-2">
             <BookOpen className="h-5 w-5" /> Training Records
           </CardTitle>
+          {canManage && (
+            <Button size="sm" onClick={openRecordTraining}>
+              <Plus className="mr-2 h-3.5 w-3.5" /> Record Training
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {recordsLoading ? (
@@ -529,6 +628,82 @@ export default function EmployeeDetail() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditEmp(false)}>Cancel</Button>
             <Button onClick={handleEmpSave} disabled={updating}>{updating ? "Saving..." : "Save Changes"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showRecordTraining} onOpenChange={o => { if (!o) setShowRecordTraining(false); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Record Training</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-[13px]">Training Type *</Label>
+              <Select
+                value={trainingForm.trainingTypeId}
+                onValueChange={v => setTrainingForm(f => ({ ...f, trainingTypeId: v }))}
+              >
+                <SelectTrigger className="h-9"><SelectValue placeholder="Select training type" /></SelectTrigger>
+                <SelectContent>
+                  {trainingTypes?.map(t => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Completion Date *</Label>
+              <Input
+                type="date" className="h-9" value={trainingForm.completionDate}
+                onChange={e => setTrainingForm(f => ({ ...f, completionDate: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Hours</Label>
+              <Input
+                type="number" step="0.25" min="0" className="h-9"
+                placeholder={trainingFormType?.required_hours != null ? String(trainingFormType.required_hours) : "0"}
+                value={trainingForm.hours}
+                onChange={e => setTrainingForm(f => ({ ...f, hours: e.target.value }))}
+              />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-[13px]">Trainer Name</Label>
+              <Input
+                className="h-9" placeholder="Optional" value={trainingForm.trainerName}
+                onChange={e => setTrainingForm(f => ({ ...f, trainerName: e.target.value }))}
+              />
+            </div>
+            {!!documents?.length && (
+              <div className="col-span-2 space-y-1.5">
+                <Label className="text-[13px]">Evidence Document</Label>
+                <Select
+                  value={trainingForm.documentId || "none"}
+                  onValueChange={v => setTrainingForm(f => ({ ...f, documentId: v === "none" ? "" : v }))}
+                >
+                  <SelectTrigger className="h-9"><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {documents.map(d => (
+                      <SelectItem key={d.id} value={d.id}>{d.file_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Pick from this employee's already-uploaded documents, or upload a new one from the Documents page first.
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRecordTraining(false)}>Cancel</Button>
+            <Button
+              onClick={handleSaveTrainingRecord}
+              disabled={createTrainingRecord.isPending || updateTrainingRecord.isPending}
+            >
+              {(createTrainingRecord.isPending || updateTrainingRecord.isPending) ? "Saving..." : "Save"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
