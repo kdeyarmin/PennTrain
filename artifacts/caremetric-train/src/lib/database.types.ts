@@ -3134,6 +3134,7 @@ export type Database = {
           required_hours: number | null
           required_roles_text: string | null
           sort_order: number
+          state: string
           updated_at: string
           warning_days_default: number
         }
@@ -3159,6 +3160,7 @@ export type Database = {
           required_hours?: number | null
           required_roles_text?: string | null
           sort_order?: number
+          state?: string
           updated_at?: string
           warning_days_default?: number
         }
@@ -3184,6 +3186,7 @@ export type Database = {
           required_hours?: number | null
           required_roles_text?: string | null
           sort_order?: number
+          state?: string
           updated_at?: string
           warning_days_default?: number
         }
@@ -3247,6 +3250,10 @@ export type Database = {
       }
       current_org_id: { Args: never; Returns: string }
       current_role: { Args: never; Returns: string }
+      ensure_training_requirement_record: {
+        Args: { p_employee_id: string; p_training_type_id: string }
+        Returns: undefined
+      }
       escalate_unactioned_alerts: { Args: never; Returns: undefined }
       get_quiz_answer_choices: {
         Args: { p_quiz_id: string }
@@ -3268,6 +3275,10 @@ export type Database = {
         }[]
       }
       grade_quiz_attempt: { Args: { p_attempt_id: string }; Returns: undefined }
+      instantiate_missing_requirements: {
+        Args: { p_employee_id: string }
+        Returns: undefined
+      }
       is_assigned_to_facility: {
         Args: { target_facility_id: string }
         Returns: boolean
