@@ -467,7 +467,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
               >
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="course">Course (LMS)</SelectItem>
+                  <SelectItem value="course">Course (online)</SelectItem>
                   <SelectItem value="training_type">Training Type (legacy)</SelectItem>
                 </SelectContent>
               </Select>
