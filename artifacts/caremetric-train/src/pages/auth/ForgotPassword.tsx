@@ -28,8 +28,11 @@ export default function ForgotPassword() {
 
     setLoading(true);
     try {
+      // Matches App.tsx's WouterRouter/publicPaths.ts convention for combining origin + base path
+      // -- BASE_URL is "/" by default (root) but can be a subpath in non-root deployments.
+      const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
       await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${window.location.origin}${basePath}/reset-password`,
       });
     } catch {
       toast({

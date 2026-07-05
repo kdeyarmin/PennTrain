@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
+import { supabase, clearSupabaseRuntimeCache } from "@/lib/supabase";
 import { Loader2, ShieldCheck, ArrowLeft, KeyRound, CheckCircle2 } from "lucide-react";
 
 type LinkState = "checking" | "valid" | "invalid";
@@ -68,6 +68,7 @@ export default function ResetPassword() {
       // Sign out of the temporary recovery session so the user logs in fresh with the new
       // password, rather than silently landing in the app on a token meant only for this reset.
       await supabase.auth.signOut();
+      await clearSupabaseRuntimeCache();
     } catch (err) {
       toast({
         variant: "destructive",

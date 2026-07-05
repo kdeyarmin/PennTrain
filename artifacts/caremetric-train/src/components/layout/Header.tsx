@@ -8,7 +8,7 @@ import {
   useMarkAllNotificationsRead,
   type Notification,
 } from "@/hooks/useNotifications";
-import { supabase } from "@/lib/supabase";
+import { supabase, clearSupabaseRuntimeCache } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Bell, Building2, CheckCheck, Menu } from "lucide-react";
@@ -131,6 +131,7 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     queryClient.clear();
+    await clearSupabaseRuntimeCache();
     setLocation("/login");
   };
 
