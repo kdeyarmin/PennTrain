@@ -15,6 +15,10 @@ import { ArrowLeft, Building2, MapPin, Phone, Users, BookOpen, BarChart3, Clock,
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGetFacility, useUpdateFacility, useDeleteFacility } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
+import { useListTrainingRecords } from "@/hooks/useTrainingRecords";
+import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
+import { useListPracticums } from "@/hooks/usePracticums";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { FACILITY_TYPES, facilityTypeBadgeClass, type FacilityType } from "@/lib/facilityTypes";
@@ -39,8 +43,7 @@ const EMPTY_FORM: FacilityFormData = {
   isActive: true,
 };
 
-const COMPLIANCE_PLACEHOLDER_TEXT =
-  "Compliance tracking for this facility will be available once it's migrated to Supabase in the next phase.";
+const RELEVANT_STATUSES = new Set(["compliant", "due_soon", "expired", "missing"]);
 
 export default function FacilityDetail() {
   const [, params] = useRoute("/app/facilities/:id");
@@ -53,6 +56,16 @@ export default function FacilityDetail() {
 
   const { data: facility, isLoading: facLoading } = useGetFacility(id);
   const { data: employees, isLoading: empLoading } = useListEmployees({ facilityId: id });
+  const { data: trainingRecords, isLoading: recordsLoading } = useListTrainingRecords({ facilityId: id });
+  const { data: trainingTypes } = useListTrainingTypes();
+  const { data: practicums, isLoading: practicumsLoading } = useListPracticums({ facilityId: id });
+
+  const trainingTypeName = (typeId: string) => trainingTypes?.find(t => t.id === typeId)?.name ?? "Unknown requirement";
+  const relevantRecords = (trainingRecords ?? []).filter(r => RELEVANT_STATUSES.has(r.status));
+  const compliantCount = relevantRecords.filter(r => r.status === "compliant").length;
+  const compliancePct = relevantRecords.length > 0 ? Math.round((compliantCount / relevantRecords.length) * 100) : 100;
+  const dueSoonRecords = (trainingRecords ?? []).filter(r => r.status === "due_soon");
+  const expiredRecords = (trainingRecords ?? []).filter(r => r.status === "expired");
 
   const { mutate: updateFacility, isPending: updating } = useUpdateFacility();
   const { mutate: deleteFacility, isPending: deleting } = useDeleteFacility();
@@ -224,10 +237,25 @@ export default function FacilityDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-6 text-muted-foreground">
-              <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">{COMPLIANCE_PLACEHOLDER_TEXT}</p>
-            </div>
+            {recordsLoading ? (
+              <Skeleton className="h-16" />
+            ) : relevantRecords.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground">
+                <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No training requirements tracked for this facility yet.</p>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-3xl font-bold">{compliancePct}%</p>
+                  <p className="text-xs text-muted-foreground">{compliantCount} of {relevantRecords.length} requirements compliant</p>
+                </div>
+                <div className="text-right text-xs text-muted-foreground space-y-0.5">
+                  <p>{dueSoonRecords.length} due soon</p>
+                  <p>{expiredRecords.length} expired</p>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -237,10 +265,27 @@ export default function FacilityDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-6 text-muted-foreground">
-              <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">{COMPLIANCE_PLACEHOLDER_TEXT}</p>
-            </div>
+            {practicumsLoading ? (
+              <Skeleton className="h-16" />
+            ) : !practicums?.length ? (
+              <div className="text-center py-6 text-muted-foreground">
+                <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No practicums tracked for this facility yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {["compliant", "due_soon", "expired", "missing"].map(status => {
+                  const count = practicums.filter(p => p.status === status).length;
+                  if (count === 0) return null;
+                  return (
+                    <div key={status} className="flex items-center justify-between text-sm">
+                      <StatusBadge status={status} type="training" />
+                      <span className="font-medium">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -253,10 +298,23 @@ export default function FacilityDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-6 text-muted-foreground">
-              <Clock className="h-8 w-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">{COMPLIANCE_PLACEHOLDER_TEXT}</p>
-            </div>
+            {recordsLoading ? (
+              <Skeleton className="h-16" />
+            ) : !dueSoonRecords.length ? (
+              <div className="text-center py-6 text-muted-foreground">
+                <Clock className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">Nothing due soon for this facility.</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {dueSoonRecords.slice(0, 5).map(r => (
+                  <div key={r.id} className="flex items-center justify-between text-sm">
+                    <span className="truncate">{trainingTypeName(r.training_type_id)}</span>
+                    <span className="text-xs text-muted-foreground shrink-0 ml-2">{r.due_date}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -267,10 +325,23 @@ export default function FacilityDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-6 text-muted-foreground">
-              <XCircle className="h-8 w-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">{COMPLIANCE_PLACEHOLDER_TEXT}</p>
-            </div>
+            {recordsLoading ? (
+              <Skeleton className="h-16" />
+            ) : !expiredRecords.length ? (
+              <div className="text-center py-6 text-muted-foreground">
+                <XCircle className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">Nothing expired for this facility.</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {expiredRecords.slice(0, 5).map(r => (
+                  <div key={r.id} className="flex items-center justify-between text-sm">
+                    <span className="truncate">{trainingTypeName(r.training_type_id)}</span>
+                    <span className="text-xs text-muted-foreground shrink-0 ml-2">{r.due_date}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

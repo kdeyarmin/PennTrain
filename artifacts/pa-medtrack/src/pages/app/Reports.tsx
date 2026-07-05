@@ -1,5 +1,4 @@
 import { useCallback, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,8 +26,8 @@ import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTraining
 import { useListPracticums, type Practicum } from "@/hooks/usePracticums";
 import { useListAlerts, type Alert } from "@/hooks/useAlerts";
 import { useListDocuments, type TrainingDocument } from "@/hooks/useDocuments";
+import { useListTrainingHourBuckets } from "@/hooks/useTrainingHourBuckets";
 import { useListOrganizations, type Organization } from "@/hooks/useOrganizations";
-import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
@@ -263,29 +262,7 @@ interface ParsedReport {
   summaryCards: SummaryCard[];
 }
 
-// `employee_training_hour_buckets` has no dedicated hook yet elsewhere in the app,
-// so this report page queries it directly (same pattern as the other hooks/*.ts files).
 type HourBucket = Tables<"employee_training_hour_buckets">;
-
-interface ListTrainingHourBucketsFilters {
-  facilityId?: string;
-}
-
-function useListTrainingHourBuckets(filters: ListTrainingHourBucketsFilters = {}) {
-  return useQuery({
-    queryKey: ["training_hour_buckets", filters],
-    queryFn: async () => {
-      let query = supabase
-        .from("employee_training_hour_buckets")
-        .select("*")
-        .order("training_year", { ascending: false });
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
-    },
-  });
-}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
