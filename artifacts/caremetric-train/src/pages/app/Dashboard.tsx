@@ -404,7 +404,7 @@ export default function OrgDashboard() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `pa-medtrack-action-plan-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `caremetric-train-action-plan-${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(link);
     link.click();
     link.remove();

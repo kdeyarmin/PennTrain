@@ -13,12 +13,12 @@ Functions. There is no separate backend API server — the React frontend talks 
 
 ## Architecture
 
-pnpm workspace monorepo. Single frontend package (`artifacts/pa-medtrack`) plus a design mockup sandbox; all
+pnpm workspace monorepo. Single frontend package (`artifacts/caremetric-train`) plus a design mockup sandbox; all
 backend logic lives in the Supabase project (`xsqobvvreaovwibxwyvv`, "CM Train").
 
 ### Packages
 
-- `artifacts/pa-medtrack` — React + Vite frontend, talks to Supabase directly (no API server)
+- `artifacts/caremetric-train` — React + Vite frontend, talks to Supabase directly (no API server)
 - `artifacts/mockup-sandbox` — Canvas/design mockup sandbox
 - `supabase/migrations/` — every schema/RLS/function/storage change, applied in order
 - `supabase/functions/` — Edge Functions (Deno)
@@ -90,7 +90,7 @@ policy -- generation is Edge-Function-only, downloaded via a short-lived signed 
 
 | Role | Email | Password | Organization |
 |------|-------|----------|--------------|
-| platform_admin | admin@pamedtrack.com | admin123 | — |
+| platform_admin | admin@caremetrictrain.com | admin123 | — |
 | org_admin | admin@sunrisehealthcare.com | demo123 | Sunrise Healthcare Group |
 | facility_manager | manager@sunrisemanor.com | demo123 | Sunrise Healthcare Group |
 | trainer | trainer@sunrisehealthcare.com | demo123 | Sunrise Healthcare Group |
@@ -100,8 +100,8 @@ policy -- generation is Edge-Function-only, downloaded via a short-lived signed 
 
 ## Key Commands
 
-- `pnpm --filter @workspace/pa-medtrack run dev` — run the frontend dev server
-- `pnpm --filter @workspace/pa-medtrack run build` — production build
+- `pnpm --filter @workspace/caremetric-train run dev` — run the frontend dev server
+- `pnpm --filter @workspace/caremetric-train run build` — production build
 - `pnpm run typecheck` — typecheck all workspace packages
 - Schema changes go through `mcp__Supabase__apply_migration`, then the exact same SQL is written to
   `supabase/migrations/<version>_<name>.sql` using the version number Supabase actually assigned (from
@@ -119,12 +119,12 @@ Tenancy/identity: `organizations`, `organization_settings`, `facilities`, `profi
 
 ## Important Files
 
-- `artifacts/pa-medtrack/src/lib/supabase.ts` — Supabase client setup
-- `artifacts/pa-medtrack/src/lib/auth.tsx` — auth context (Supabase session + profile)
-- `artifacts/pa-medtrack/src/lib/viewingOrg.tsx` — platform_admin "Viewing as Org X" UX-only context
-- `artifacts/pa-medtrack/src/App.tsx` — frontend router with role-based access
-- `artifacts/pa-medtrack/src/components/layout/Sidebar.tsx` — role-aware navigation sidebar
-- `artifacts/pa-medtrack/src/hooks/*.ts` — one hand-written TanStack Query hook module per domain
-- `artifacts/pa-medtrack/src/lib/database.types.ts` — generated Supabase types (`mcp__Supabase__generate_typescript_types`)
+- `artifacts/caremetric-train/src/lib/supabase.ts` — Supabase client setup
+- `artifacts/caremetric-train/src/lib/auth.tsx` — auth context (Supabase session + profile)
+- `artifacts/caremetric-train/src/lib/viewingOrg.tsx` — platform_admin "Viewing as Org X" UX-only context
+- `artifacts/caremetric-train/src/App.tsx` — frontend router with role-based access
+- `artifacts/caremetric-train/src/components/layout/Sidebar.tsx` — role-aware navigation sidebar
+- `artifacts/caremetric-train/src/hooks/*.ts` — one hand-written TanStack Query hook module per domain
+- `artifacts/caremetric-train/src/lib/database.types.ts` — generated Supabase types (`mcp__Supabase__generate_typescript_types`)
 - `supabase/migrations/` — full schema/RLS/function/storage history, source of truth for the database
 - `supabase/functions/*/index.ts` — Edge Function source

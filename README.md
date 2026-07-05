@@ -1,5 +1,7 @@
 # CareMetric Train
 
+**[CareMetricTrain.com](https://caremetrictrain.com)**
+
 CareMetric Train is a multi-tenant healthcare compliance-training and LMS platform for personal care homes,
 assisted living facilities, and related healthcare organizations. It is built directly on Supabase: Postgres with
 Row-Level Security, Supabase Auth, Supabase Storage, and Edge Functions. There is no separate API server -- the
@@ -26,10 +28,10 @@ React frontend talks to Supabase directly via `supabase-js`.
 
 ```bash
 pnpm install
-pnpm --filter @workspace/pa-medtrack dev
+pnpm --filter @workspace/caremetric-train dev
 ```
 
-Copy `artifacts/pa-medtrack/.env.example` to `.env` and fill in your Supabase project URL and publishable
+Copy `artifacts/caremetric-train/.env.example` to `.env` and fill in your Supabase project URL and publishable
 (anon) key.
 
 ## Database / backend setup
@@ -44,13 +46,13 @@ must be declared in `supabase/config.toml` to auto-deploy via the Supabase GitHu
 4. Seed demo users via the Supabase Admin API (`auth.admin.createUser`) -- see demo credentials below; the
    `handle_new_user()` trigger creates the matching `profiles` row automatically.
 5. Run `mcp__Supabase__generate_typescript_types` (or `supabase gen types typescript`) to produce
-  `artifacts/pa-medtrack/src/lib/database.types.ts`.
+  `artifacts/caremetric-train/src/lib/database.types.ts`.
 
 ## Demo users
 
 | Role | Email | Password |
 |------|-------|----------|
-| platform_admin | admin@pamedtrack.com | admin123 |
+| platform_admin | admin@caremetrictrain.com | admin123 |
 | org_admin | admin@sunrisehealthcare.com | demo123 |
 | facility_manager | manager@sunrisemanor.com | demo123 |
 | trainer | trainer@sunrisehealthcare.com | demo123 |

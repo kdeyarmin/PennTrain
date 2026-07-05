@@ -67,7 +67,7 @@ export default function Login() {
   };
 
   const demoAccounts = [
-    { label: "Platform Admin", email: "admin@pamedtrack.com", password: "admin123", color: "bg-violet-500" },
+    { label: "Platform Admin", email: "admin@caremetrictrain.com", password: "admin123", color: "bg-violet-500" },
     { label: "Org Admin", email: "admin@sunrisehealthcare.com", password: "demo123", color: "bg-blue-500" },
     { label: "Facility Manager", email: "manager@sunrisemanor.com", password: "demo123", color: "bg-emerald-500" },
     { label: "Trainer", email: "trainer@sunrisehealthcare.com", password: "demo123", color: "bg-amber-500" },
@@ -104,7 +104,7 @@ export default function Login() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="admin@pamedtrack.com"
+                  placeholder="admin@caremetrictrain.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loginMutation.isPending}

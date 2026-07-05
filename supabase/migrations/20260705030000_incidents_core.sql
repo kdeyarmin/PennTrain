@@ -1,9 +1,9 @@
--- Incident & complaint tracking. Every facility type PennTrain serves (PCH/ALR/NH/HHA/HOS/GH)
+-- Incident & complaint tracking. Every facility type CareMetric Train serves (PCH/ALR/NH/HHA/HOS/GH)
 -- carries a mandatory incident-reporting duty with a hard external-notification deadline (PA
 -- DHS reportable incidents, CMS F609 abuse/neglect self-reporting, ODP Enterprise Incident
 -- Management) -- none of which lived in the app before now.
 --
--- PennTrain has no resident/EHR data model at all (it's a staff-training app, not a clinical
+-- CareMetric Train has no resident/EHR data model at all (it's a staff-training app, not a clinical
 -- records system) -- resident_identifier below is deliberately a free-text field, never a FK to
 -- a resident entity that doesn't and shouldn't exist here.
 --

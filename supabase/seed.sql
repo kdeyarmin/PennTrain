@@ -38,7 +38,7 @@ select o.id, 'Maple Grove Residence', 'PCH', '50 Maple Grove Way', 'Pittsburgh',
 from public.organizations o where o.slug = 'maple-grove'
 and not exists (select 1 from public.facilities f where f.organization_id = o.id and f.name = 'Maple Grove Residence');
 
--- Demo Supabase Auth users (password matches the historical PA MedTrack demo credential table).
+-- Demo Supabase Auth users (matches the demo credential table in README.md).
 -- Inserted directly into auth.users/auth.identities (rather than via the Admin API) since this
 -- script runs in contexts with no service-role key available; mirrors Supabase's documented
 -- direct-SQL seed pattern. The handle_new_user() trigger auto-provisions the matching profiles row.
@@ -46,7 +46,7 @@ do $$
 declare
   v_user_id uuid;
 begin
-  if not exists (select 1 from auth.users where email = 'admin@pamedtrack.com') then
+  if not exists (select 1 from auth.users where email = 'admin@caremetrictrain.com') then
     insert into auth.users (
       instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
       raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
@@ -54,13 +54,13 @@ begin
       email_change_token_current, reauthentication_token, is_sso_user, is_anonymous
     ) values (
       '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated',
-      'admin@pamedtrack.com', extensions.crypt('admin123', extensions.gen_salt('bf')), now(),
+      'admin@caremetrictrain.com', extensions.crypt('admin123', extensions.gen_salt('bf')), now(),
       '{"provider":"email","providers":["email"]}'::jsonb,
       jsonb_build_object('first_name','Alex','last_name','Rivera','role','platform_admin'),
       now(), now(), '', '', '', '', '', '', false, false
     ) returning id into v_user_id;
     insert into auth.identities (user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
-    values (v_user_id, v_user_id::text, jsonb_build_object('sub', v_user_id::text, 'email', 'admin@pamedtrack.com'), 'email', now(), now(), now());
+    values (v_user_id, v_user_id::text, jsonb_build_object('sub', v_user_id::text, 'email', 'admin@caremetrictrain.com'), 'email', now(), now(), now());
   end if;
 
   if not exists (select 1 from auth.users where email = 'admin@sunrisehealthcare.com') then
