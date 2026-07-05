@@ -1,10 +1,8 @@
--- Backfilled from the live database; see 20260704190000 for why this file is a reconstruction
--- rather than the original recovered SQL.
---
--- Traces a course assignment back to the training plan (and specific plan item) that generated
--- it, when it was created that way, so a facility can answer "why was this employee assigned
--- this course" instead of only seeing a standalone assignment record. Both are nullable and
--- ON DELETE SET NULL: an assignment should survive its originating plan being edited or removed.
+-- Applying a training plan to an employee fans out into individual
+-- course_assignments rows (one per course-type plan item, see
+-- useApplyTrainingPlanToEmployee), but nothing tracked that link back --
+-- there was no way to see "which employees are on Plan X" or "how far along
+-- is employee Y against Plan X" after the fact. Adds the missing FK columns.
 
 alter table public.course_assignments
   add column training_plan_id uuid references public.training_plans(id) on delete set null,
