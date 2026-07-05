@@ -8,6 +8,12 @@ import { ViewingOrgProvider } from "@/lib/viewingOrg";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
 
+import Features from "@/pages/marketing/Features";
+import WhoItsFor from "@/pages/marketing/WhoItsFor";
+import Security from "@/pages/marketing/Security";
+import HowItWorks from "@/pages/marketing/HowItWorks";
+import Faq from "@/pages/marketing/Faq";
+
 import Login from "@/pages/auth/Login";
 import ForgotPassword from "@/pages/auth/ForgotPassword";
 import ResetPassword from "@/pages/auth/ResetPassword";
@@ -145,6 +151,13 @@ function Router() {
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/verify/:slug" component={VerifyCertificate} />
+
+      {/* Public marketing pages (nav targets from the landing page) */}
+      <Route path="/features" component={Features} />
+      <Route path="/who-its-for" component={WhoItsFor} />
+      <Route path="/security" component={Security} />
+      <Route path="/how-it-works" component={HowItWorks} />
+      <Route path="/faq" component={Faq} />
 
       {/* Platform Admin routes */}
       <Route path="/admin">

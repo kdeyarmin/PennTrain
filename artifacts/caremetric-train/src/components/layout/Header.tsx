@@ -11,7 +11,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Bell, Building2, CheckCheck } from "lucide-react";
+import { LogOut, Bell, Building2, CheckCheck, Menu } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,7 +36,7 @@ function ViewingOrgSelector() {
         value={viewingOrgId ?? "all"}
         onValueChange={(v) => setViewingOrgId(v === "all" ? null : v)}
       >
-        <SelectTrigger className="h-8 w-[200px] text-xs border-none bg-muted/50 focus:ring-0" aria-label="Viewing as organization">
+        <SelectTrigger className="h-8 w-[140px] sm:w-[200px] text-xs border-none bg-muted/50 focus:ring-0" aria-label="Viewing as organization">
           <SelectValue placeholder="All Organizations" />
         </SelectTrigger>
         <SelectContent>
@@ -124,7 +124,7 @@ function NotificationsMenu() {
   );
 }
 
-export function Header() {
+export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   const { user } = useAuth();
   const [location, setLocation] = useLocation();
 
@@ -165,18 +165,27 @@ export function Header() {
   const breadcrumb = getBreadcrumbs();
 
   return (
-    <header className="h-[68px] border-b border-border bg-card/80 backdrop-blur-sm flex items-center justify-between px-8 shrink-0 sticky top-0 z-10">
-      <div className="flex items-center gap-2">
+    <header className="h-[68px] border-b border-border bg-card/80 backdrop-blur-sm flex items-center justify-between gap-2 px-4 sm:px-6 lg:px-8 shrink-0 sticky top-0 z-10">
+      <div className="flex items-center gap-2 min-w-0">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 shrink-0 rounded-lg text-muted-foreground hover:text-foreground md:hidden"
+          onClick={onOpenMobileNav}
+          aria-label="Open navigation menu"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
         {breadcrumb && (
           <>
-            <span className="text-[13px] text-muted-foreground">{breadcrumb}</span>
-            <span className="text-muted-foreground/40 text-xs">/</span>
+            <span className="hidden sm:inline text-[13px] text-muted-foreground">{breadcrumb}</span>
+            <span className="hidden sm:inline text-muted-foreground/40 text-xs">/</span>
           </>
         )}
-        <h2 className="text-[15px] font-semibold text-foreground">{getPageTitle()}</h2>
+        <h2 className="text-[15px] font-semibold text-foreground truncate">{getPageTitle()}</h2>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         {user?.role === "platform_admin" && <ViewingOrgSelector />}
         <NotificationsMenu />
 

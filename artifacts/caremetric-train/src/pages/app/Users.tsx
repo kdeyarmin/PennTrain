@@ -260,7 +260,7 @@ export default function Users() {
 
   return (
     <div className="space-y-6">
-      <div className="page-header flex items-center justify-between">
+      <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Users</h1>
           <p>Manage user accounts and access levels.</p>
@@ -437,7 +437,7 @@ export default function Users() {
           <DialogHeader>
             <DialogTitle>Add User</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5">
               <Label className="text-[13px]">First Name *</Label>
               <Input value={createForm.firstName} onChange={e => createField("firstName", e.target.value)} placeholder="Jane" className="h-9" />
@@ -446,11 +446,11 @@ export default function Users() {
               <Label className="text-[13px]">Last Name *</Label>
               <Input value={createForm.lastName} onChange={e => createField("lastName", e.target.value)} placeholder="Smith" className="h-9" />
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Email *</Label>
               <Input type="email" value={createForm.email} onChange={e => createField("email", e.target.value)} placeholder="jane@example.com" className="h-9" />
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Temporary Password *</Label>
               <div className="flex gap-2">
                 <Input value={createForm.password} onChange={e => createField("password", e.target.value)} className="h-9 font-mono" />
@@ -502,7 +502,7 @@ export default function Users() {
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5">
               <Label className="text-[13px]">First Name *</Label>
               <Input value={editForm.firstName} onChange={e => setEditForm(f => ({ ...f, firstName: e.target.value }))} className="h-9" />
@@ -511,11 +511,11 @@ export default function Users() {
               <Label className="text-[13px]">Last Name *</Label>
               <Input value={editForm.lastName} onChange={e => setEditForm(f => ({ ...f, lastName: e.target.value }))} className="h-9" />
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Phone</Label>
               <Input value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} placeholder="(215) 555-0100" className="h-9" />
             </div>
-            <div className="col-span-2 flex items-start gap-2 rounded-md border p-3">
+            <div className="col-span-full flex items-start gap-2 rounded-md border p-3">
               <input
                 type="checkbox" id="sms-opt-in" checked={editForm.smsOptIn}
                 onChange={e => setEditForm(f => ({ ...f, smsOptIn: e.target.checked }))}
@@ -529,7 +529,7 @@ export default function Users() {
                 </p>
               </label>
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Email</Label>
               <Input value={editProfile?.email ?? ""} disabled className="h-9" />
               <p className="text-[11px] text-muted-foreground">Email changes require an admin action; contact platform support.</p>

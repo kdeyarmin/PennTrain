@@ -466,7 +466,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
               >
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="course">Course (LMS)</SelectItem>
+                  <SelectItem value="course">Course (online)</SelectItem>
                   <SelectItem value="training_type">Training Type (legacy)</SelectItem>
                 </SelectContent>
               </Select>
@@ -625,7 +625,7 @@ export default function TrainingPlans() {
 
   return (
     <div className="space-y-6">
-      <div className="page-header flex items-center justify-between">
+      <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Training Plans</h1>
           <p>Bundle courses and training types into reusable curricula, then apply them to employees.</p>
@@ -663,8 +663,8 @@ export default function TrainingPlans() {
             </p>
           </div>
         ) : (
-          <div className="overflow-hidden">
-            <table className="data-table">
+          <div className="overflow-x-auto">
+            <table className="data-table min-w-[640px]">
               <thead>
                 <tr>
                   <th className="w-8" />

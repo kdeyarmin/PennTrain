@@ -268,7 +268,7 @@ export default function Practicums() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Annual Practicums</h1>
           <p className="text-muted-foreground">Track {currentYear} annual medication administration practicums.</p>
@@ -280,9 +280,9 @@ export default function Practicums() {
         )}
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <Select value={facilityId} onValueChange={setFacilityId}>
-          <SelectTrigger className="w-52">
+          <SelectTrigger className="w-full sm:w-52">
             <SelectValue placeholder="All Facilities" />
           </SelectTrigger>
           <SelectContent>

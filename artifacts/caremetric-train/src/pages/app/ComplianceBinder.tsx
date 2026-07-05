@@ -45,7 +45,7 @@ export default function ComplianceBinder() {
             Includes facility roster, staff training compliance status, overdue/due-soon training records and
             practicums, certificates issued, and open alerts -- generated fresh from current data each time.
           </p>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button onClick={handleGenerate} disabled={isPending}>
               {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileArchive className="mr-2 h-4 w-4" />}
               {isPending ? "Generating..." : "Generate Binder PDF"}

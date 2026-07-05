@@ -483,8 +483,8 @@ export default function ClassDetail() {
               )}
             </div>
           ) : (
-            <div className="rounded-md border overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="rounded-md border overflow-x-auto">
+              <table className="w-full text-sm min-w-[560px]">
                 <thead className="bg-muted/50">
                   <tr>
                     <th className="text-left p-3">Employee</th>
@@ -550,7 +550,7 @@ export default function ClassDetail() {
       </Card>
 
       {isDraft && allAttendees.length > 0 && (
-        <div className="flex items-center gap-3 justify-end">
+        <div className="flex flex-wrap items-center gap-3 justify-end">
           <label className="cursor-pointer">
             <input
               type="file"

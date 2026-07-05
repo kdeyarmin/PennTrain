@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
 import { useLocation } from "wouter";
 import { supabase } from "./supabase";
+import { isPublicPath } from "./publicPaths";
 
 export type Role = "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee" | "auditor";
 
@@ -97,8 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isLoading && !session && !isError) {
-      const path = window.location.pathname;
-      if (path !== "/" && path !== "/login" && path !== "/forgot-password" && path !== "/reset-password" && !path.startsWith("/verify/")) {
+      if (!isPublicPath(window.location.pathname)) {
         setLocation("/login");
       }
     }

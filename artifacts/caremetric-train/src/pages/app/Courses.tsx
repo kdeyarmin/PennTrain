@@ -133,7 +133,7 @@ export default function Courses() {
 
   return (
     <div className="space-y-6">
-      <div className="page-header flex items-center justify-between">
+      <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Courses</h1>
           <p>Browse the system catalog and your organization's authored training courses.</p>
@@ -193,8 +193,8 @@ export default function Courses() {
             <p className="text-xs text-muted-foreground/60 mt-1">Try adjusting your search or filters</p>
           </div>
         ) : (
-          <div className="overflow-hidden">
-            <table className="data-table">
+          <div className="overflow-x-auto">
+            <table className="data-table min-w-[720px]">
               <thead>
                 <tr>
                   <th>Course</th>
@@ -264,7 +264,7 @@ export default function Courses() {
               <Label className="text-[13px]">Description</Label>
               <Textarea value={form.description} onChange={e => field("description", e.target.value)} placeholder="Brief overview of what this course covers" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-[13px]">Category</Label>
                 <Input value={form.category} onChange={e => field("category", e.target.value)} placeholder="Annual In-Service" className="h-9" />

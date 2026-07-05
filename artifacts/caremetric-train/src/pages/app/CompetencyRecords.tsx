@@ -279,7 +279,7 @@ export default function CompetencyRecords() {
 
   return (
     <div className="space-y-6">
-      <div className="page-header flex items-center justify-between">
+      <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Competency Records</h1>
           <p>Conduct and review employee competency evaluations against checklist templates.</p>
@@ -342,8 +342,8 @@ export default function CompetencyRecords() {
           </div>
         ) : (
           <>
-            <div className="overflow-hidden">
-              <table className="data-table">
+            <div className="overflow-x-auto">
+              <table className="data-table min-w-[720px]">
                 <thead>
                   <tr>
                     <th>Employee</th>
@@ -409,7 +409,7 @@ export default function CompetencyRecords() {
             <DialogTitle>New Competency Evaluation</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-[13px]">Employee *</Label>
                 <Select value={form.employeeId} onValueChange={(v) => setForm((f) => ({ ...f, employeeId: v }))}>

@@ -554,7 +554,7 @@ export default function EmployeeDetail() {
       <Dialog open={showEditEmp} onOpenChange={o => { if (!o) setShowEditEmp(false); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit Employee</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-1">
               <Label>First Name *</Label>
               <Input value={empForm.firstName} onChange={e => field("firstName", e.target.value)} />
@@ -610,7 +610,7 @@ export default function EmployeeDetail() {
               <Label>Hire Date</Label>
               <Input type="date" value={empForm.hireDate} onChange={e => field("hireDate", e.target.value)} />
             </div>
-            <div className="col-span-2 flex gap-6">
+            <div className="col-span-full flex gap-6">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={empForm.administersMedications} onChange={e => field("administersMedications", e.target.checked)} className="h-4 w-4" />
                 <span className="text-sm">Administers Medications</span>
@@ -620,7 +620,7 @@ export default function EmployeeDetail() {
                 <span className="text-sm">Designated Trainer</span>
               </label>
             </div>
-            <div className="col-span-2 space-y-1">
+            <div className="col-span-full space-y-1">
               <Label>Notes</Label>
               <Textarea value={empForm.notes} onChange={e => field("notes", e.target.value)} placeholder="Optional notes" />
             </div>

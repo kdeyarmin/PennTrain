@@ -1,7 +1,8 @@
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Printer, Download, X, ShieldCheck } from "lucide-react";
+import { Printer, Download, X } from "lucide-react";
+import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 
 interface ReportViewerProps {
   title: string;
@@ -45,8 +46,8 @@ export function ReportViewer({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4 no-print">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-4 no-print">
+        <div className="flex items-center gap-3 min-w-0">
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close report">
             <X className="h-5 w-5" />
           </Button>
@@ -71,10 +72,12 @@ export function ReportViewer({
         <div className="print-header hidden">
           <div className="flex items-center justify-between border-b-2 border-primary pb-4 mb-6">
             <div className="flex items-center gap-3">
-              <ShieldCheck className="h-8 w-8 text-primary" />
+              <LogoMark className="h-10 w-10" />
               <div>
-                <h1 className="text-xl font-bold">CareMetric Train</h1>
-                <p className="text-sm text-muted-foreground">Compliance Training &amp; LMS for Long-Term Care</p>
+                <h1 className="text-xl font-bold" style={{ color: BRAND_BLUE }}>
+                  <BrandName />
+                </h1>
+                <p className="text-sm text-muted-foreground">Compliance Training Platform</p>
               </div>
             </div>
             <div className="text-right text-sm">
@@ -85,7 +88,7 @@ export function ReportViewer({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 mb-4 no-print">
+        <div className="flex flex-wrap items-center gap-2 mb-4 no-print">
           <Badge variant="outline">{category}</Badge>
           <span className="text-xs text-muted-foreground">Ref: {requiredBy}</span>
           <span className="text-xs text-muted-foreground ml-auto">

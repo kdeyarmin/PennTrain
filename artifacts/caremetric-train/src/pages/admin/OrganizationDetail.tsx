@@ -265,7 +265,7 @@ export default function OrganizationDetail() {
             Generate a compliance summary PDF for {org.name} -- facility roster, staff training compliance,
             overdue practicums, certificates issued, and open alerts.
           </p>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button onClick={handleGenerateBinder} disabled={generatingBinder}>
               {generatingBinder ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileArchive className="mr-2 h-4 w-4" />}
               {generatingBinder ? "Generating..." : "Generate Binder PDF"}
