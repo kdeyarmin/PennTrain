@@ -112,12 +112,12 @@ export default function Landing() {
                 survey-ready record for every employee and facility.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
-                <a href="#contact">
-                  <Button size="lg" className="gap-2 shadow-lg shadow-blue-950/30" data-testid="button-hero-demo">
+                <Button asChild size="lg" className="gap-2 shadow-lg shadow-blue-950/30" data-testid="button-hero-demo">
+                  <a href="#contact">
                     Request a Demo
                     <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </a>
+                  </a>
+                </Button>
                 <Link href="/features">
                   <Button
                     size="lg"
