@@ -1,18 +1,15 @@
--- `alerts` has carried practicum_id/certificate_id columns and alert_type values
--- ('missing_document', 'certificate_expiring') since it was first created, but
--- recalculate_all_compliance() only ever populated the training-record branch --
--- practicums, missing required documents, and expiring certificates were never
--- actually alerted on. This migration completes that: three more alert-insertion
--- blocks, each following the existing dedup-against-open-alert pattern, plus
--- forwarding the two new alert types into the notification center alongside the
--- existing due-soon/overdue training alerts.
+-- Backfilled from the live database; see 20260704190000 for why this file is a reconstruction
+-- rather than the original recovered SQL.
+--
+-- recalculate_all_compliance() previously only generated alerts for expiring/expired
+-- employee_training_records. Expands it to cover the other compliance-relevant scenarios that
+-- already had a place in alerts.alert_type's check constraint but no generator: practicum
+-- due/expired, missing required documents, and expiring certificates. Also wires alerts into the
+-- notification center (20260704200000) via a per-insert trigger that maps alert_type to a
+-- learner-facing notification.
 
 create or replace function public.recalculate_all_compliance()
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
+returns void language plpgsql security definer set search_path to 'public' as $function$
 begin
   update public.employee_training_records r
   set
@@ -125,28 +122,23 @@ begin
       where a.certificate_id = c.id and a.status = 'open'
     );
 end;
-$$;
+$function$;
 
-alter table public.notifications drop constraint notifications_notification_type_check;
-alter table public.notifications add constraint notifications_notification_type_check
-  check (notification_type in (
-    'course_assigned', 'quiz_graded', 'certificate_issued', 'training_due_soon', 'training_expired',
-    'competency_recorded', 'missing_document', 'certificate_expiring'
-  ));
-
+-- Fan each newly-inserted alert out to the assigned employee's notification feed, mapping the
+-- alert's own type/target-column combination onto a learner-facing notification_type.
 create or replace function public.notify_training_alert()
 returns trigger language plpgsql security definer set search_path to 'public' as $function$
 declare v_profile_id uuid; v_notification_type text;
 begin
-  v_notification_type := case new.alert_type
-    when 'overdue' then 'training_expired'
-    when 'due_90' then 'training_due_soon'
-    when 'due_60' then 'training_due_soon'
-    when 'due_30' then 'training_due_soon'
-    when 'due_14' then 'training_due_soon'
-    when 'due_7' then 'training_due_soon'
-    when 'missing_document' then 'missing_document'
-    when 'certificate_expiring' then 'certificate_expiring'
+  v_notification_type := case
+    when new.alert_type = 'missing_document' then 'missing_document'
+    when new.alert_type = 'certificate_expiring' then 'certificate_expiring'
+    when new.practicum_id is not null and new.alert_type = 'overdue' then 'practicum_expired'
+    when new.practicum_id is not null
+         and new.alert_type in ('due_90', 'due_60', 'due_30', 'due_14', 'due_7') then 'practicum_due_soon'
+    when new.training_record_id is not null and new.alert_type = 'overdue' then 'training_expired'
+    when new.training_record_id is not null
+         and new.alert_type in ('due_90', 'due_60', 'due_30', 'due_14', 'due_7') then 'training_due_soon'
     else null
   end;
   if new.employee_id is null or v_notification_type is null then
@@ -159,3 +151,5 @@ begin
   return new;
 end;
 $function$;
+create trigger notify_training_alert after insert on public.alerts
+  for each row execute function public.notify_training_alert();
