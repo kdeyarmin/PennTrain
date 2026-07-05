@@ -70,11 +70,15 @@ Public (no auth): `/verify/:slug` — certificate verification.
   boundary. `is_platform_admin()` already grants full RLS access regardless of this selection; the selector only
   narrows which org's rows a handful of `/admin/*` list pages display. Persisted in `sessionStorage`.
 
-## Storage Buckets (all private)
+## Storage Buckets
 
-`course-documents`, `certificates` (no client write policy -- issuance is RPC/Edge-Function-only),
+All private: `course-documents`, `certificates` (no client write policy -- issuance is RPC/Edge-Function-only),
 `external-uploads`, `signin-sheets`, `competency-attachments`, `org-branding`, `binder-exports` (no client write
 policy -- generation is Edge-Function-only, downloaded via a short-lived signed URL returned by the function).
+
+One deliberate exception: `course-videos` is **public** -- it re-hosts AI-avatar-generated course videos after
+HeyGen's signed URLs expire (training content, not tenant-sensitive documents; rationale documented in
+`20260704155836_add_course_videos_public_bucket.sql`).
 
 ## Edge Functions
 
@@ -85,6 +89,10 @@ policy -- generation is Edge-Function-only, downloaded via a short-lived signed 
 - `bulk-import-employees` — CSV import of employees, runs as the calling user's own JWT (RLS already scopes it)
 - `generate-compliance-binder` — queries an org's facilities/training compliance/practicums/certificates/alerts and
   renders a multi-page PDF (`pdf-lib`), uploads it to `binder-exports`, returns a 10-minute signed URL
+- `generate-course-video` — kicks off HeyGen AI-avatar video generation for a course block
+- `check-course-video-status` — polls HeyGen for generation status and re-hosts the finished video in
+  `course-videos`
+- `list-heygen-options` — lists available HeyGen avatars/voices for the course authoring UI
 
 ## Demo Credentials (seeded)
 
