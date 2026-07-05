@@ -22,12 +22,7 @@ export default function Faq() {
           {FAQS.map((faq, i) => (
             <AccordionItem key={faq.question} value={`item-${i}`}>
               <AccordionTrigger className="gap-4 text-left text-base font-semibold">
-                <span className="flex items-baseline gap-3">
-                  <span className="font-mono text-xs tabular-nums text-muted-foreground/50">
-                    Q{String(i + 1).padStart(2, "0")}
-                  </span>
-                  {faq.question}
-                </span>
+                {faq.question}
               </AccordionTrigger>
               <AccordionContent className="text-sm text-muted-foreground">
                 {faq.answer}

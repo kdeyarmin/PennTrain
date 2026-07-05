@@ -192,7 +192,6 @@ export default function Landing() {
             <Reveal>
               <Card className="h-full border-border/60">
                 <CardHeader>
-                  <div className="font-mono text-[10px] tracking-wide text-muted-foreground/50">FIG. A</div>
                   <CardTitle className="text-base text-muted-foreground">The old way</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -209,7 +208,6 @@ export default function Landing() {
             <Reveal delay={0.1}>
               <Card className="h-full border-primary/30 bg-primary/[0.03] shadow-sm">
                 <CardHeader>
-                  <div className="font-mono text-[10px] tracking-wide text-primary/60">FIG. B</div>
                   <CardTitle className="text-base text-primary">With CareMetric Train</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
