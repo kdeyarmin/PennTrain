@@ -61,6 +61,7 @@ import PolicyDocumentDetail from "@/pages/app/PolicyDocumentDetail";
 import TrainerDashboard from "@/pages/trainer/TrainerDashboard";
 import TrainerClasses from "@/pages/trainer/TrainerClasses";
 import ClassDetail from "@/pages/trainer/ClassDetail";
+import ClassKiosk from "@/pages/trainer/ClassKiosk";
 import RetrainingMonitor from "@/pages/trainer/RetrainingMonitor";
 import EmployeeDashboard from "@/pages/employee/EmployeeDashboard";
 import MyTrainings from "@/pages/employee/MyTrainings";
@@ -70,6 +71,7 @@ import TakeCourse from "@/pages/employee/TakeCourse";
 import TakeQuiz from "@/pages/employee/TakeQuiz";
 import MyAttestations from "@/pages/employee/MyAttestations";
 import VerifyCertificate from "@/pages/VerifyCertificate";
+import CheckIn from "@/pages/CheckIn";
 
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/lib/auth";
@@ -139,6 +141,10 @@ const INSPECTION_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer"
 // aren't trainer-relevant); policy_documents_select itself is org-wide but there's no reason to
 // route trainer to a page whose Campaigns tab it can't see any data in.
 const POLICY_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
+// Matches training_classes_write RLS -- org_admin/facility_manager can already schedule/manage
+// any class in their org (not just trainer-owned ones) at the DB layer; this just gives them a
+// route to reach the same trainer-facing pages instead of needing a separate trainer account.
+const CLASS_SCHEDULING_ROLES: UserRole[] = ["trainer", "org_admin", "facility_manager"];
 
 function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -161,6 +167,10 @@ function Router() {
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/verify/:slug" component={VerifyCertificate} />
+      {/* Bare, chrome-less page (no ProtectedRoute/MainLayout wrapper) -- AuthProvider's own
+          global redirect already bounces a signed-out visitor to /login since this path isn't in
+          isPublicPath(); intentionally no sidebar for a page reached by scanning a QR code. */}
+      <Route path="/checkin/:token" component={CheckIn} />
 
       {/* Public marketing pages (nav targets from the landing page) */}
       <Route path="/features" component={Features} />
@@ -319,10 +329,13 @@ function Router() {
         {() => <ProtectedRoute component={TrainerDashboard} allowedRoles={["trainer"]} />}
       </Route>
       <Route path="/trainer/classes">
-        {() => <ProtectedRoute component={TrainerClasses} allowedRoles={["trainer"]} />}
+        {() => <ProtectedRoute component={TrainerClasses} allowedRoles={CLASS_SCHEDULING_ROLES} />}
       </Route>
       <Route path="/trainer/classes/:id">
-        {() => <ProtectedRoute component={ClassDetail} allowedRoles={["trainer"]} />}
+        {() => <ProtectedRoute component={ClassDetail} allowedRoles={CLASS_SCHEDULING_ROLES} />}
+      </Route>
+      <Route path="/trainer/classes/:id/kiosk">
+        {() => <ProtectedRoute component={ClassKiosk} allowedRoles={CLASS_SCHEDULING_ROLES} />}
       </Route>
       <Route path="/trainer/retraining">
         {() => <ProtectedRoute component={RetrainingMonitor} allowedRoles={["trainer"]} />}

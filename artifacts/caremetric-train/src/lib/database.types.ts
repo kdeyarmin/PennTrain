@@ -437,6 +437,38 @@ export type Database = {
           },
         ]
       }
+      class_checkin_tokens: {
+        Row: {
+          class_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          token: string
+        }
+        Insert: {
+          class_id: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          token?: string
+        }
+        Update: {
+          class_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_checkin_tokens_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "training_classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competency_record_items: {
         Row: {
           competency_record_id: string
@@ -1600,6 +1632,7 @@ export type Database = {
       employees: {
         Row: {
           administers_medications: boolean
+          checkin_pin_hash: string | null
           created_at: string
           department: string | null
           email: string | null
@@ -1621,6 +1654,7 @@ export type Database = {
         }
         Insert: {
           administers_medications?: boolean
+          checkin_pin_hash?: string | null
           created_at?: string
           department?: string | null
           email?: string | null
@@ -1642,6 +1676,7 @@ export type Database = {
         }
         Update: {
           administers_medications?: boolean
+          checkin_pin_hash?: string | null
           created_at?: string
           department?: string | null
           email?: string | null
@@ -3565,6 +3600,9 @@ export type Database = {
       training_class_attendees: {
         Row: {
           attended: boolean
+          checked_in_at: string | null
+          checked_out_at: string | null
+          checkin_method: string | null
           class_id: string
           created_at: string
           employee_id: string
@@ -3573,6 +3611,9 @@ export type Database = {
         }
         Insert: {
           attended?: boolean
+          checked_in_at?: string | null
+          checked_out_at?: string | null
+          checkin_method?: string | null
           class_id: string
           created_at?: string
           employee_id: string
@@ -3581,6 +3622,9 @@ export type Database = {
         }
         Update: {
           attended?: boolean
+          checked_in_at?: string | null
+          checked_out_at?: string | null
+          checkin_method?: string | null
           class_id?: string
           created_at?: string
           employee_id?: string
@@ -4014,6 +4058,46 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      checkin_via_kiosk_pin: {
+        Args: { p_class_id: string; p_employee_id: string; p_pin: string }
+        Returns: {
+          attended: boolean
+          checked_in_at: string | null
+          checked_out_at: string | null
+          checkin_method: string | null
+          class_id: string
+          created_at: string
+          employee_id: string
+          id: string
+          training_record_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "training_class_attendees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      checkin_via_token: {
+        Args: { p_token: string }
+        Returns: {
+          attended: boolean
+          checked_in_at: string | null
+          checked_out_at: string | null
+          checkin_method: string | null
+          class_id: string
+          created_at: string
+          employee_id: string
+          id: string
+          training_record_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "training_class_attendees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       complete_course_assignment: {
         Args: { p_assignment_id: string }
         Returns: undefined
@@ -4033,6 +4117,10 @@ export type Database = {
         Returns: undefined
       }
       escalate_unactioned_alerts: { Args: never; Returns: undefined }
+      generate_class_checkin_token: {
+        Args: { p_class_id: string; p_long_lived?: boolean }
+        Returns: string
+      }
       get_quiz_answer_choices: {
         Args: { p_quiz_id: string }
         Returns: {
@@ -4121,6 +4209,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      set_employee_checkin_pin: {
+        Args: { p_employee_id: string; p_pin: string }
+        Returns: undefined
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }

@@ -74,6 +74,7 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
           { href: "/app/training-matrix", label: "Training Matrix", icon: Grid },
           { href: "/app/courses", label: "Courses", icon: GraduationCap },
           { href: "/app/course-assignments", label: "Course Assignments", icon: FileCheck },
+          { href: "/trainer/classes", label: "In-Service Classes", icon: GraduationCap },
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
           { href: "/app/competency-templates", label: "Competency Templates", icon: ClipboardList },
           { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },

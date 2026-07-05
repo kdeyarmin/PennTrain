@@ -6,6 +6,7 @@ import {
 } from "@/hooks/useTrainingClasses";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useListProfiles } from "@/hooks/useProfiles";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +57,12 @@ export default function TrainerClasses() {
   const { data: attendeeCounts } = useClassAttendeeCounts();
   const createClass = useCreateTrainingClass();
 
+  // Only org_admin/facility_manager scheduling on someone else's behalf need to pick who's
+  // actually running it -- a trainer creating their own class stays attributed to themselves,
+  // same as before this page opened up to admin roles.
+  const isTrainer = user?.role === "trainer";
+  const { data: trainerProfiles } = useListProfiles({ organizationId: user?.organizationId ?? undefined, role: "trainer" });
+
   const [form, setForm] = useState({
     className: "",
     trainingTypeId: "",
@@ -64,6 +71,7 @@ export default function TrainerClasses() {
     location: "",
     durationHours: "1",
     notes: "",
+    instructorProfileId: "",
   });
 
   const trainingTypesById = useMemo(
@@ -103,12 +111,17 @@ export default function TrainerClasses() {
       location: "",
       durationHours: "1",
       notes: "",
+      instructorProfileId: "",
     });
   }
 
   function handleCreate() {
     if (!form.className.trim() || !form.trainingTypeId || !form.classDate) {
       toast({ title: "Please fill required fields", variant: "destructive" });
+      return;
+    }
+    if (!isTrainer && !form.instructorProfileId) {
+      toast({ title: "Select who's running this session", variant: "destructive" });
       return;
     }
     if (!user?.organizationId || !user?.id) return;
@@ -122,7 +135,7 @@ export default function TrainerClasses() {
         duration_hours: Number(form.durationHours) || 1,
         notes: form.notes.trim() || null,
         organization_id: user.organizationId,
-        trainer_profile_id: user.id,
+        trainer_profile_id: isTrainer ? user.id : form.instructorProfileId,
       },
       {
         onSuccess: () => {
@@ -210,6 +223,28 @@ export default function TrainerClasses() {
                   />
                 </div>
               </div>
+              {!isTrainer && (
+                <div className="space-y-2">
+                  <Label htmlFor="instructor">Instructor *</Label>
+                  <Select
+                    value={form.instructorProfileId}
+                    onValueChange={(v) =>
+                      setForm((f) => ({ ...f, instructorProfileId: v }))
+                    }
+                  >
+                    <SelectTrigger id="instructor">
+                      <SelectValue placeholder="Select who's running this session" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(trainerProfiles ?? []).map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.first_name} {p.last_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="facility">Facility</Label>

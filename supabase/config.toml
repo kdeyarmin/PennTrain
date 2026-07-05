@@ -21,6 +21,9 @@ verify_jwt = true
 [functions.attest-policy]
 verify_jwt = true
 
+[functions.generate-class-notice-pdf]
+verify_jwt = true
+
 [functions.generate-course-video]
 verify_jwt = true
 

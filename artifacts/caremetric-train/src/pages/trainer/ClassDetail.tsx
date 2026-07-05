@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
-import { useRoute, useLocation } from "wouter";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRoute, useLocation, Link } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import QRCode from "qrcode";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import {
@@ -10,6 +11,8 @@ import {
   useAddClassAttendee,
   useUpdateClassAttendee,
   useUpdateTrainingClass,
+  useGenerateClassCheckinToken,
+  useGenerateClassNoticePdf,
 } from "@/hooks/useTrainingClasses";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -54,6 +57,9 @@ import {
   FileCheck,
   Loader2,
   Download,
+  QrCode,
+  Monitor,
+  Printer,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -103,6 +109,97 @@ function RosterDocumentCard({ documentId }: { documentId: string }) {
         >
           <Download className="h-3.5 w-3.5 mr-2" />
           {getSignedUrl.isPending ? "Opening..." : "Open"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+const TOKEN_ROTATE_MS = 30_000;
+
+// Rotates the check-in QR every 30s (the token itself expires server-side after 45s, giving a
+// small grace window past each rotation) -- a photographed or shoulder-surfed QR code stops
+// working within seconds instead of staying valid for the rest of the class.
+function QrCheckinCard({ classId }: { classId: string }) {
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const generateToken = useGenerateClassCheckinToken();
+
+  useEffect(() => {
+    let cancelled = false;
+    const rotate = async () => {
+      try {
+        const token = await generateToken.mutateAsync(classId);
+        if (cancelled) return;
+        const checkinUrl = `${window.location.origin}/checkin/${token}`;
+        const dataUrl = await QRCode.toDataURL(checkinUrl, { width: 240, margin: 1 });
+        if (!cancelled) { setQrDataUrl(dataUrl); setError(null); }
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      }
+    };
+    rotate();
+    const interval = setInterval(rotate, TOKEN_ROTATE_MS);
+    return () => { cancelled = true; clearInterval(interval); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classId]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><QrCode className="h-5 w-5" /> QR Check-In</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col items-center gap-3">
+        {error ? (
+          <p className="text-sm text-destructive">{error}</p>
+        ) : qrDataUrl ? (
+          <img src={qrDataUrl} alt="Scan to check in" className="rounded-lg border" width={240} height={240} />
+        ) : (
+          <div className="h-[240px] w-[240px] bg-muted animate-pulse rounded-lg" />
+        )}
+        <p className="text-xs text-muted-foreground text-center max-w-xs">
+          Staff scan this with their phone to check in, then scan again on the way out to check out.
+          Refreshes automatically every 30 seconds.
+        </p>
+        <Link href={`/trainer/classes/${classId}/kiosk`}>
+          <Button variant="outline" size="sm"><Monitor className="mr-2 h-4 w-4" /> Open Kiosk Mode</Button>
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Prints a "Notice of Staff Meeting" -- class details, a long-lived (not the 45s rotating) QR
+// staff can scan any time during the meeting, and a paper sign-in table as a backup for anyone
+// who can't scan it. The completed paper sheet round-trips back into the app via the existing
+// "Upload Roster" button below (signin-sheets bucket / training_classes.roster_document_id) --
+// no new upload path needed, this just points at it.
+function MeetingNoticeCard({ classId }: { classId: string }) {
+  const { toast } = useToast();
+  const generateNotice = useGenerateClassNoticePdf();
+
+  const handlePrint = async () => {
+    try {
+      const result = await generateNotice.mutateAsync(classId);
+      window.open(result.url, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      toast({ title: "Failed to generate meeting notice", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="pt-6 flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <p className="text-sm font-medium">Notice of Staff Meeting (printable)</p>
+          <p className="text-xs text-muted-foreground max-w-md">
+            A PDF with the class details, a QR code staff can scan any time during the meeting to check in/out, and a
+            paper sign-in sheet as backup. Post it, hand it out, or leave it on the table -- then upload the
+            completed paper sheet with "Upload Roster" below once the meeting's done.
+          </p>
+        </div>
+        <Button variant="outline" onClick={handlePrint} disabled={generateNotice.isPending}>
+          <Printer className="mr-2 h-4 w-4" /> {generateNotice.isPending ? "Generating..." : "Print Meeting Notice"}
         </Button>
       </CardContent>
     </Card>
@@ -443,6 +540,9 @@ export default function ClassDetail() {
         </Card>
       )}
 
+      {isDraft && <QrCheckinCard classId={classId} />}
+      {isDraft && <MeetingNoticeCard classId={classId} />}
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -490,6 +590,7 @@ export default function ClassDetail() {
                     <th className="text-left p-3">Employee</th>
                     <th className="text-left p-3">Facility</th>
                     <th className="text-left p-3">Attended</th>
+                    <th className="text-left p-3">Check-In / Out</th>
                     <th className="text-left p-3">Record</th>
                   </tr>
                 </thead>
@@ -526,6 +627,17 @@ export default function ClassDetail() {
                           ) : (
                             <Badge variant="secondary">Absent</Badge>
                           )}
+                        </td>
+                        <td className="p-3 text-xs text-muted-foreground">
+                          {a.checked_in_at ? (
+                            <>
+                              <span>{new Date(a.checked_in_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                              {a.checked_out_at && (
+                                <span> – {new Date(a.checked_out_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                              )}
+                              {a.checkin_method && <span className="ml-1.5 uppercase text-[10px] tracking-wide">({a.checkin_method})</span>}
+                            </>
+                          ) : "—"}
                         </td>
                         <td className="p-3">
                           {a.training_record_id ? (

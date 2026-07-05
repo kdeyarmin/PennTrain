@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   ArrowLeft, User, BookOpen, CalendarCheck, Clock, Pencil, Trash2, FileText, Activity, Building2,
-  Download, ShieldCheck, Plus,
+  Download, ShieldCheck, Plus, KeyRound,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGetEmployee, useUpdateEmployee, useDeleteEmployee } from "@/hooks/useEmployees";
@@ -25,6 +25,7 @@ import { useListPracticums } from "@/hooks/usePracticums";
 import { useListTrainingHourBuckets } from "@/hooks/useTrainingHourBuckets";
 import { useListDocuments, useDocumentSignedUrl, type TrainingDocument } from "@/hooks/useDocuments";
 import { useListEmployeeCredentials } from "@/hooks/useEmployeeCredentials";
+import { useSetEmployeeCheckinPin } from "@/hooks/useTrainingClasses";
 import { useListAuditLogs } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -118,6 +119,9 @@ export default function EmployeeDetail() {
   const [showEditEmp, setShowEditEmp] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showRecordTraining, setShowRecordTraining] = useState(false);
+  const [showSetPin, setShowSetPin] = useState(false);
+  const [pinValue, setPinValue] = useState("");
+  const { mutate: setCheckinPin, isPending: settingPin } = useSetEmployeeCheckinPin();
   const [trainingForm, setTrainingForm] = useState({
     trainingTypeId: "", completionDate: todayISO(), hours: "", trainerName: "", documentId: "",
   });
@@ -317,6 +321,9 @@ export default function EmployeeDetail() {
           <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" size="sm" onClick={openEditEmp}>
               <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { setPinValue(""); setShowSetPin(true); }}>
+              <KeyRound className="mr-2 h-3.5 w-3.5" /> Set Check-In PIN
             </Button>
             <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setShowDeleteConfirm(true)}>
               <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
@@ -703,6 +710,40 @@ export default function EmployeeDetail() {
               disabled={createTrainingRecord.isPending || updateTrainingRecord.isPending}
             >
               {(createTrainingRecord.isPending || updateTrainingRecord.isPending) ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showSetPin} onOpenChange={setShowSetPin}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Set Check-In PIN</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label className="text-[13px]">4-6 Digit PIN</Label>
+            <Input
+              type="text" inputMode="numeric" maxLength={6} value={pinValue}
+              onChange={(e) => setPinValue(e.target.value.replace(/\D/g, ""))}
+              className="h-10 text-center text-lg tracking-widest"
+            />
+            <p className="text-xs text-muted-foreground">
+              Used at a kiosk-mode tablet to self check in/out for training classes. Not a login password.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSetPin(false)}>Cancel</Button>
+            <Button
+              disabled={!/^\d{4,6}$/.test(pinValue) || settingPin}
+              onClick={() => setCheckinPin(
+                { employeeId: employee.id, pin: pinValue },
+                {
+                  onSuccess: () => { toast({ title: "Check-in PIN set" }); setShowSetPin(false); },
+                  onError: (e: Error) => toast({ title: "Failed to set PIN", description: e.message, variant: "destructive" }),
+                },
+              )}
+            >
+              {settingPin ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
