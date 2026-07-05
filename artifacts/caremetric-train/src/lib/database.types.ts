@@ -4016,6 +4016,233 @@ export type Database = {
           },
         ]
       }
+      resident_compliance_items: {
+        Row: {
+          citation_topic_id: string | null
+          completed_date: string | null
+          created_at: string
+          due_date: string | null
+          facility_id: string
+          id: string
+          item_type: string
+          notes: string | null
+          organization_id: string
+          renewal_interval_days: number | null
+          resident_id: string
+          status: string
+          updated_at: string
+          warning_days: number
+        }
+        Insert: {
+          citation_topic_id?: string | null
+          completed_date?: string | null
+          created_at?: string
+          due_date?: string | null
+          facility_id: string
+          id?: string
+          item_type: string
+          notes?: string | null
+          organization_id: string
+          renewal_interval_days?: number | null
+          resident_id: string
+          status?: string
+          updated_at?: string
+          warning_days?: number
+        }
+        Update: {
+          citation_topic_id?: string | null
+          completed_date?: string | null
+          created_at?: string
+          due_date?: string | null
+          facility_id?: string
+          id?: string
+          item_type?: string
+          notes?: string | null
+          organization_id?: string
+          renewal_interval_days?: number | null
+          resident_id?: string
+          status?: string
+          updated_at?: string
+          warning_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_compliance_items_citation_topic_id_fkey"
+            columns: ["citation_topic_id"]
+            isOneToOne: false
+            referencedRelation: "dhs_citation_topics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_compliance_items_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_compliance_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_compliance_items_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_documents: {
+        Row: {
+          compliance_item_id: string | null
+          created_at: string
+          document_label: string | null
+          facility_id: string
+          file_name: string
+          file_size: number | null
+          file_type: string
+          id: string
+          organization_id: string
+          resident_id: string
+          storage_bucket: string
+          storage_path: string
+          uploaded_by_profile_id: string | null
+        }
+        Insert: {
+          compliance_item_id?: string | null
+          created_at?: string
+          document_label?: string | null
+          facility_id: string
+          file_name: string
+          file_size?: number | null
+          file_type: string
+          id?: string
+          organization_id: string
+          resident_id: string
+          storage_bucket?: string
+          storage_path: string
+          uploaded_by_profile_id?: string | null
+        }
+        Update: {
+          compliance_item_id?: string | null
+          created_at?: string
+          document_label?: string | null
+          facility_id?: string
+          file_name?: string
+          file_size?: number | null
+          file_type?: string
+          id?: string
+          organization_id?: string
+          resident_id?: string
+          storage_bucket?: string
+          storage_path?: string
+          uploaded_by_profile_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_documents_compliance_item_id_fkey"
+            columns: ["compliance_item_id"]
+            isOneToOne: false
+            referencedRelation: "resident_compliance_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_documents_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_documents_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_documents_uploaded_by_profile_id_fkey"
+            columns: ["uploaded_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      residents: {
+        Row: {
+          admission_date: string
+          created_at: string
+          discharge_date: string | null
+          facility_id: string
+          first_name: string
+          hospice: boolean
+          id: string
+          last_name: string
+          organization_id: string
+          room: string | null
+          sdcu: boolean
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          admission_date: string
+          created_at?: string
+          discharge_date?: string | null
+          facility_id: string
+          first_name: string
+          hospice?: boolean
+          id?: string
+          last_name: string
+          organization_id: string
+          room?: string | null
+          sdcu?: boolean
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          admission_date?: string
+          created_at?: string
+          discharge_date?: string | null
+          facility_id?: string
+          first_name?: string
+          hospice?: boolean
+          id?: string
+          last_name?: string
+          organization_id?: string
+          room?: string | null
+          sdcu?: boolean
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "residents_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "residents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_class_attendees: {
         Row: {
           attended: boolean
@@ -4668,6 +4895,10 @@ export type Database = {
         Args: { p_employee_id: string }
         Returns: undefined
       }
+      instantiate_resident_compliance_items: {
+        Args: { p_resident_id: string }
+        Returns: undefined
+      }
       is_assigned_to_facility: {
         Args: { target_facility_id: string }
         Returns: boolean
@@ -4706,6 +4937,10 @@ export type Database = {
       recalculate_incident_notifications: { Args: never; Returns: undefined }
       recalculate_org_compliance: {
         Args: { p_organization_id: string }
+        Returns: undefined
+      }
+      recalculate_resident_compliance_statuses: {
+        Args: never
         Returns: undefined
       }
       rescan_org_exclusion_matches: {

@@ -30,7 +30,8 @@ import {
   ShieldQuestion,
   Radar,
   Gavel,
-  BookOpen
+  BookOpen,
+  BedDouble
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -95,6 +96,7 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
         items: [
           { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
+          { href: "/app/residents", label: "Residents", icon: BedDouble },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
           { href: "/app/pending-approvals", label: "Pending Approvals", icon: ClipboardCheck },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
@@ -143,6 +145,7 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
         items: [
           { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
+          { href: "/app/residents", label: "Residents", icon: BedDouble },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
           { href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar },

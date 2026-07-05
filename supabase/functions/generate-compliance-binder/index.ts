@@ -213,6 +213,11 @@ Deno.serve(async (req: Request) => {
     .select("description, due_date, status, facility_id")
     .eq("organization_id", orgId)
     .neq("status", "completed");
+  let residentsQuery = adminClient.from("residents").select("id, first_name, last_name, facility_id, status, sdcu, hospice").eq("organization_id", orgId);
+  let residentComplianceQuery = adminClient
+    .from("resident_compliance_items")
+    .select("status, item_type, due_date, resident_id, facility_id, citation_topic_id")
+    .eq("organization_id", orgId);
   const citationTopicsQuery = adminClient.from("dhs_citation_topics").select("id, chapter, citation_ref, category, title, frequency_weight").order("sort_order");
 
   if (facilityScope) {
@@ -227,11 +232,14 @@ Deno.serve(async (req: Request) => {
     incidentsQuery = incidentsQuery.in("facility_id", facilityScope);
     inspectionItemsQuery = inspectionItemsQuery.in("facility_id", facilityScope);
     correctiveActionsQuery = correctiveActionsQuery.in("facility_id", facilityScope);
+    residentsQuery = residentsQuery.in("facility_id", facilityScope);
+    residentComplianceQuery = residentComplianceQuery.in("facility_id", facilityScope);
   }
 
   const [
     facilitiesRes, employeesRes, recordsRes, practicumsRes, certCountRes, alertsRes, attestationsRes,
     credentialsRes, incidentsRes, inspectionItemsRes, correctiveActionsRes, citationTopicsRes,
+    residentsRes, residentComplianceRes,
   ] = await Promise.all([
     facilitiesQuery,
     employeesQuery,
@@ -245,6 +253,8 @@ Deno.serve(async (req: Request) => {
     inspectionItemsQuery,
     correctiveActionsQuery,
     citationTopicsQuery,
+    residentsQuery,
+    residentComplianceQuery,
   ]);
 
   if (facilitiesRes.error) return json({ error: facilitiesRes.error.message }, 500);
@@ -258,6 +268,8 @@ Deno.serve(async (req: Request) => {
   if (inspectionItemsRes.error) return json({ error: inspectionItemsRes.error.message }, 500);
   if (correctiveActionsRes.error) return json({ error: correctiveActionsRes.error.message }, 500);
   if (citationTopicsRes.error) return json({ error: citationTopicsRes.error.message }, 500);
+  if (residentsRes.error) return json({ error: residentsRes.error.message }, 500);
+  if (residentComplianceRes.error) return json({ error: residentComplianceRes.error.message }, 500);
 
   const facilities = facilitiesRes.data ?? [];
   const employees = employeesRes.data ?? [];
@@ -271,6 +283,8 @@ Deno.serve(async (req: Request) => {
   const citationTopics = citationTopicsRes.data ?? [];
   const alerts = alertsRes.data ?? [];
   const attestations = attestationsRes.data ?? [];
+  const residents = residentsRes.data ?? [];
+  const residentCompliance = residentComplianceRes.data ?? [];
 
   const facilityMap = new Map(facilities.map((f) => [f.id, f]));
   const employeeMap = new Map(employees.map((e) => [e.id, e]));
@@ -281,6 +295,25 @@ Deno.serve(async (req: Request) => {
       activeCountByFacility.set(e.facility_id, (activeCountByFacility.get(e.facility_id) ?? 0) + 1);
     }
   }
+
+  // Resident census -- the census is the first thing a DHS entrance conference asks for
+  // (ROADMAP.md Tier 3.5), so it belongs at the top of the binder alongside facility/staff counts.
+  const activeResidents = residents.filter((r) => r.status === "active");
+  const residentCountByFacility = new Map<string, { total: number; sdcu: number; hospice: number }>();
+  for (const r of activeResidents) {
+    const bucket = residentCountByFacility.get(r.facility_id) ?? { total: 0, sdcu: 0, hospice: 0 };
+    bucket.total += 1;
+    if (r.sdcu) bucket.sdcu += 1;
+    if (r.hospice) bucket.hospice += 1;
+    residentCountByFacility.set(r.facility_id, bucket);
+  }
+
+  const residentComplianceStatusCounts = new Map<string, number>();
+  for (const rci of residentCompliance) residentComplianceStatusCounts.set(rci.status, (residentComplianceStatusCounts.get(rci.status) ?? 0) + 1);
+  const nonCompliantResidentItems = residentCompliance
+    .filter((rci) => rci.status === "expired" || rci.status === "due_soon" || rci.status === "missing")
+    .sort((a, b) => (a.due_date ?? "").localeCompare(b.due_date ?? ""));
+  const residentById = new Map(residents.map((r) => [r.id, r]));
 
   const recordStatusCounts = new Map<string, number>();
   for (const r of records) recordStatusCounts.set(r.status, (recordStatusCounts.get(r.status) ?? 0) + 1);
@@ -349,6 +382,7 @@ Deno.serve(async (req: Request) => {
   }
   for (const c of credentials) bump(c.citation_topic_id, c.status === "compliant", c.status !== "not_applicable");
   for (const i of inspectionItems) bump(i.citation_topic_id, i.status === "compliant", i.status !== "not_applicable");
+  for (const rci of residentCompliance) bump(rci.citation_topic_id, rci.status === "compliant", rci.status !== "not_applicable");
 
   const readinessRows = citationTopics
     .map((t) => ({ ...t, ...(readinessByTopic.get(t.id) ?? { compliant: 0, total: 0 }) }))
@@ -394,11 +428,21 @@ Deno.serve(async (req: Request) => {
     [110, 220, 60, 90, 60],
   );
 
-  pdf.heading("Facilities");
+  pdf.heading("Facilities & Resident Census");
+  pdf.text(
+    "Census demographics are typically the first document requested at a DHS entrance conference.",
+    { size: 8, color: [0.5, 0.5, 0.5], gap: 10 },
+  );
   pdf.table(
-    ["Facility", "Type", "License #", "Active Staff"],
-    facilities.map((f) => [f.name, f.facility_type, f.license_number ?? "—", String(activeCountByFacility.get(f.id) ?? 0)]),
-    [220, 80, 120, 90],
+    ["Facility", "Type", "License #", "Active Staff", "Residents", "SDCU", "Hospice"],
+    facilities.map((f) => {
+      const census = residentCountByFacility.get(f.id) ?? { total: 0, sdcu: 0, hospice: 0 };
+      return [
+        f.name, f.facility_type, f.license_number ?? "—", String(activeCountByFacility.get(f.id) ?? 0),
+        String(census.total), String(census.sdcu), String(census.hospice),
+      ];
+    }),
+    [150, 70, 90, 70, 60, 50, 60],
   );
 
   pdf.heading("Staff Training Compliance Summary");
@@ -639,6 +683,40 @@ Deno.serve(async (req: Request) => {
     );
     if (openCorrectiveActions.length > MAX_LISTED_ROWS) {
       pdf.text(`...and ${openCorrectiveActions.length - MAX_LISTED_ROWS} more (truncated for report length).`, {
+        size: 8,
+        color: [0.5, 0.5, 0.5],
+      });
+    }
+  }
+
+  // Resident RASP compliance -- new in Tier 3.5. Deliberately excludes any charting/eMAR/care-plan
+  // data (there is none to exclude -- residents is a compliance-date registry only).
+  pdf.heading("Resident RASP Compliance Summary");
+  pdf.table(
+    ["Status", "Count"],
+    Object.keys(STATUS_LABELS).map((k) => [STATUS_LABELS[k], String(residentComplianceStatusCounts.get(k) ?? 0)]),
+    [200, 100],
+  );
+  if (nonCompliantResidentItems.length > 0) {
+    pdf.heading(`Outstanding Resident Compliance Items (${nonCompliantResidentItems.length})`);
+    const shown = nonCompliantResidentItems.slice(0, MAX_LISTED_ROWS);
+    pdf.table(
+      ["Resident", "Facility", "Item", "Due Date", "Status"],
+      shown.map((rci) => {
+        const r = residentById.get(rci.resident_id);
+        const f = facilityMap.get(rci.facility_id);
+        return [
+          r ? `${r.first_name} ${r.last_name}` : "—",
+          f?.name ?? "—",
+          rci.item_type.replace(/_/g, " "),
+          rci.due_date ?? "—",
+          STATUS_LABELS[rci.status] ?? rci.status,
+        ];
+      }),
+      [130, 110, 160, 80, 80],
+    );
+    if (nonCompliantResidentItems.length > MAX_LISTED_ROWS) {
+      pdf.text(`...and ${nonCompliantResidentItems.length - MAX_LISTED_ROWS} more (truncated for report length).`, {
         size: 8,
         color: [0.5, 0.5, 0.5],
       });
