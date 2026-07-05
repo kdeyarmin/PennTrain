@@ -103,6 +103,7 @@ Hard rules, in priority order:
 4. Write instructionally sound content: each module should have a clear learning objective, and most modules should include at least one knowledge-check quiz where pedagogically appropriate (a short definitional or "list all types" module may not need one).
 5. Video module scripts (block_type "video") must be natural spoken narration -- shorter, more conversational, and distinct from the fuller lesson text a text module would contain. Never reuse dense written lesson text verbatim as a video script.
 6. Every quiz question needs at least 2 answers with exactly the correct ones marked is_correct: true. true_false questions must have exactly 2 answers.
+7. Always include a top-level "title" field, even when a working title was already given to you -- restate it (refined if appropriate) rather than omitting it.
 
 Call the emit_course_draft tool exactly once with the complete course draft. Do not include any commentary outside the tool call.`;
 
@@ -310,13 +311,14 @@ Deno.serve(async (req: Request) => {
   }
 
   const draft = extractToolInput(result.body, TOOL_NAME);
+  // The model occasionally omits the top-level "title" field when one was already supplied as
+  // title_hint (apparently treating it as redundant) even though the schema marks it required and
+  // the system prompt now explicitly calls this out. Fall back to the admin's own title_hint
+  // rather than failing a generation that is otherwise complete and well-formed.
+  if (draft && (typeof draft.title !== "string" || !draft.title.trim()) && title_hint?.trim()) {
+    draft.title = title_hint.trim();
+  }
   if (!isValidDraft(draft)) {
-    console.error("DEBUG_INVALID_DRAFT", JSON.stringify({
-      stop_reason: (result.body as { stop_reason?: unknown } | null)?.stop_reason,
-      content_types: ((result.body as { content?: unknown[] } | null)?.content ?? []).map((c) => (c as { type?: string; name?: string }).type + ":" + (c as { type?: string; name?: string }).name),
-      draft_keys: draft ? Object.keys(draft) : null,
-      draft_preview: draft ? JSON.stringify(draft).slice(0, 3000) : null,
-    }));
     await markFailed("AI response did not include a valid course draft (missing title/description/modules)");
     return json({ error: "AI response did not include a valid course draft", generation_id: generationId }, 502);
   }
