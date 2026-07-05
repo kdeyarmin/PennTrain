@@ -30,6 +30,11 @@ import TrainingPlans from "@/pages/app/TrainingPlans";
 import CompetencyTemplates from "@/pages/app/CompetencyTemplates";
 import CompetencyRecords from "@/pages/app/CompetencyRecords";
 import Practicums from "@/pages/app/Practicums";
+import EmployeeCredentials from "@/pages/app/EmployeeCredentials";
+import Incidents from "@/pages/app/Incidents";
+import IncidentDetail from "@/pages/app/IncidentDetail";
+import InspectionItems from "@/pages/app/InspectionItems";
+import InspectionItemDetail from "@/pages/app/InspectionItemDetail";
 import Alerts from "@/pages/app/Alerts";
 import Reports from "@/pages/app/Reports";
 import AuditLog from "@/pages/app/AuditLog";
@@ -46,6 +51,7 @@ import RetrainingMonitor from "@/pages/trainer/RetrainingMonitor";
 import EmployeeDashboard from "@/pages/employee/EmployeeDashboard";
 import MyTrainings from "@/pages/employee/MyTrainings";
 import MyCertificates from "@/pages/employee/MyCertificates";
+import MyCredentials from "@/pages/employee/MyCredentials";
 import TakeCourse from "@/pages/employee/TakeCourse";
 import TakeQuiz from "@/pages/employee/TakeQuiz";
 import VerifyCertificate from "@/pages/VerifyCertificate";
@@ -105,6 +111,15 @@ const ORG_ADMIN_ONLY: UserRole[] = ["org_admin"];
 // gets ORG_MANAGE_ROLES (Users/Settings are true admin config, not audit-relevant).
 const REPORTS_VIEW_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
 const AUDIT_LOG_ROLES: UserRole[] = ["org_admin", "auditor"];
+// Matches employee_credentials_select RLS -- trainer is excluded, unlike ORG_ROLES, because
+// clearance/license data is more sensitive than training records.
+const CREDENTIAL_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
+// Matches incidents_select RLS -- trainer AND self-service are both excluded (the incident
+// itself is sensitive, not any one employee's own record).
+const INCIDENT_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
+// Matches inspection_items_select RLS -- trainer is included, unlike credentials/incidents,
+// since physical-plant compliance is the least sensitive of the three new modules.
+const INSPECTION_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor"];
 
 function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -208,6 +223,21 @@ function Router() {
       <Route path="/app/practicums">
         {() => <ProtectedRoute component={Practicums} allowedRoles={ORG_ROLES} />}
       </Route>
+      <Route path="/app/credentials">
+        {() => <ProtectedRoute component={EmployeeCredentials} allowedRoles={CREDENTIAL_ROLES} />}
+      </Route>
+      <Route path="/app/incidents">
+        {() => <ProtectedRoute component={Incidents} allowedRoles={INCIDENT_ROLES} />}
+      </Route>
+      <Route path="/app/incidents/:id">
+        {() => <ProtectedRoute component={IncidentDetail} allowedRoles={INCIDENT_ROLES} />}
+      </Route>
+      <Route path="/app/inspections">
+        {() => <ProtectedRoute component={InspectionItems} allowedRoles={INSPECTION_ROLES} />}
+      </Route>
+      <Route path="/app/inspections/:id">
+        {() => <ProtectedRoute component={InspectionItemDetail} allowedRoles={INSPECTION_ROLES} />}
+      </Route>
       <Route path="/app/alerts">
         {() => <ProtectedRoute component={Alerts} allowedRoles={ORG_ROLES} />}
       </Route>
@@ -268,6 +298,9 @@ function Router() {
       </Route>
       <Route path="/me/documents">
         {() => <ProtectedRoute component={Documents} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/credentials">
+        {() => <ProtectedRoute component={MyCredentials} allowedRoles={["employee"]} />}
       </Route>
 
       <Route component={NotFound} />

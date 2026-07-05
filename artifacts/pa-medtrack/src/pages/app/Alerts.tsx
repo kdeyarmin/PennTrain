@@ -2,6 +2,9 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useListAlerts, useUpdateAlert, useBulkUpdateAlerts, type Alert } from "@/hooks/useAlerts";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useListAllIncidentNotifications } from "@/hooks/useIncidents";
+import { useListCorrectiveActions } from "@/hooks/useCorrectiveActions";
+import { useListAllInspectionEvents } from "@/hooks/useInspectionEvents";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,7 +48,36 @@ export default function Alerts() {
     facilityId: facilityId !== "all" ? facilityId : undefined,
     organizationId: viewingOrgId ?? undefined,
   });
+  // Alerts don't carry an incident_id/inspection_item_id directly for every alert type --
+  // incident_notification_overdue only has incident_notification_id, and
+  // corrective_action_overdue's corrective_actions row can point at either an incident or an
+  // inspection event -- so these small unfiltered lookups resolve the real deep-link target.
+  const { data: incidentNotifications } = useListAllIncidentNotifications();
+  const { data: correctiveActions } = useListCorrectiveActions();
+  const { data: inspectionEvents } = useListAllInspectionEvents();
   const { toast } = useToast();
+
+  const notificationIncidentId = new Map((incidentNotifications ?? []).map((n) => [n.id, n.incident_id]));
+  const correctiveActionById = new Map((correctiveActions ?? []).map((ca) => [ca.id, ca]));
+  const inspectionEventItemId = new Map((inspectionEvents ?? []).map((e) => [e.id, e.inspection_item_id]));
+
+  function resolveAlertLink(alert: Alert): { href: string; label: string } | null {
+    if (alert.employee_id) return { href: `${employeeDetailBase}/${alert.employee_id}`, label: "View Employee" };
+    if (alert.inspection_item_id) return { href: `/app/inspections/${alert.inspection_item_id}`, label: "View Inspection Item" };
+    if (alert.incident_notification_id) {
+      const incidentId = notificationIncidentId.get(alert.incident_notification_id);
+      if (incidentId) return { href: `/app/incidents/${incidentId}`, label: "View Incident" };
+    }
+    if (alert.corrective_action_id) {
+      const ca = correctiveActionById.get(alert.corrective_action_id);
+      if (ca?.incident_id) return { href: `/app/incidents/${ca.incident_id}`, label: "View Incident" };
+      if (ca?.inspection_event_id) {
+        const itemId = inspectionEventItemId.get(ca.inspection_event_id);
+        if (itemId) return { href: `/app/inspections/${itemId}`, label: "View Inspection Item" };
+      }
+    }
+    return null;
+  }
 
   const { mutate: updateAlert } = useUpdateAlert();
   const { mutate: bulkUpdateAlerts, isPending: bulkDismissing } = useBulkUpdateAlerts();
@@ -264,7 +296,9 @@ export default function Alerts() {
                 </div>
               )}
               <div className="space-y-3">
-                {paginated.map((alert: Alert) => (
+                {paginated.map((alert: Alert) => {
+                  const alertLink = resolveAlertLink(alert);
+                  return (
                   <div key={alert.id} className="flex items-start gap-4 p-4 rounded-lg border">
                     {canWrite && alert.status === "open" && (
                       <div className="mt-0.5">
@@ -287,12 +321,12 @@ export default function Alerts() {
                         <p className="text-xs text-muted-foreground">
                           {new Date(alert.created_at).toLocaleDateString()}
                         </p>
-                        {alert.employee_id && (
+                        {alertLink && (
                           <Link
-                            href={`${employeeDetailBase}/${alert.employee_id}`}
+                            href={alertLink.href}
                             className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1"
                           >
-                            <UserRound className="h-3 w-3" /> View Employee
+                            <UserRound className="h-3 w-3" /> {alertLink.label}
                           </Link>
                         )}
                       </div>
@@ -319,7 +353,8 @@ export default function Alerts() {
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4">

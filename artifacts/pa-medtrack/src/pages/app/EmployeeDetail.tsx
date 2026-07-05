@@ -11,11 +11,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   ArrowLeft, User, BookOpen, CalendarCheck, Clock, Pencil, Trash2, FileText, Activity, Building2,
-  type LucideIcon,
+  Download, ShieldCheck,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGetEmployee, useUpdateEmployee, useDeleteEmployee } from "@/hooks/useEmployees";
 import { useGetFacility, useListFacilities } from "@/hooks/useFacilities";
+import { useListTrainingRecords } from "@/hooks/useTrainingRecords";
+import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
+import { useListPracticums } from "@/hooks/usePracticums";
+import { useListTrainingHourBuckets } from "@/hooks/useTrainingHourBuckets";
+import { useListDocuments, useDocumentSignedUrl, type TrainingDocument } from "@/hooks/useDocuments";
+import { useListEmployeeCredentials } from "@/hooks/useEmployeeCredentials";
+import { useListAuditLogs } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -39,23 +46,12 @@ interface EmpFormData {
   notes: string;
 }
 
-function PlaceholderCard({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
+function EmptyState({ icon: Icon, text }: { icon: typeof BookOpen; text: string }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Icon className="h-5 w-5" /> {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-center py-8 text-muted-foreground">
-          <Icon className="h-10 w-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">
-            This section will be available once compliance tracking is migrated to Supabase in the next phase.
-          </p>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="text-center py-8 text-muted-foreground">
+      <Icon className="h-10 w-10 mx-auto mb-3 opacity-30" />
+      <p className="text-sm">{text}</p>
+    </div>
   );
 }
 
@@ -70,6 +66,9 @@ export default function EmployeeDetail() {
     : "/app/employees";
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
+  // Matches employee_credentials_select RLS -- trainer is excluded (clearance/license data is
+  // more sensitive than the training records shown above), unlike every other card here.
+  const canViewCredentials = ["platform_admin", "org_admin", "facility_manager", "auditor"].includes(user?.role ?? "");
 
   const [showEditEmp, setShowEditEmp] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -86,6 +85,26 @@ export default function EmployeeDetail() {
 
   const { mutate: updateEmployee, isPending: updating } = useUpdateEmployee();
   const { mutate: deleteEmployee, isPending: deleting } = useDeleteEmployee();
+
+  const { data: trainingRecords, isLoading: recordsLoading } = useListTrainingRecords({ employeeId: id });
+  const { data: trainingTypes } = useListTrainingTypes();
+  const { data: practicums, isLoading: practicumsLoading } = useListPracticums({ employeeId: id });
+  const { data: hourBuckets, isLoading: hoursLoading } = useListTrainingHourBuckets({ employeeId: id });
+  const { data: documents, isLoading: documentsLoading } = useListDocuments({ employeeId: id });
+  const { data: credentials, isLoading: credentialsLoading } = useListEmployeeCredentials({ employeeId: id });
+  const { data: auditLogs, isLoading: activityLoading } = useListAuditLogs({ entityId: id, limit: 20 });
+  const getSignedUrl = useDocumentSignedUrl();
+
+  const trainingTypeName = (typeId: string) => trainingTypes?.find(t => t.id === typeId)?.name ?? "Unknown requirement";
+
+  const handleDownloadDocument = async (doc: TrainingDocument) => {
+    try {
+      const signedUrl = await getSignedUrl.mutateAsync(doc);
+      window.open(signedUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      toast({ title: "Download failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+    }
+  };
 
   const openEditEmp = () => {
     if (!employee) return;
@@ -256,11 +275,182 @@ export default function EmployeeDetail() {
         </CardContent>
       </Card>
 
-      <PlaceholderCard icon={BookOpen} title="Training Records" />
-      <PlaceholderCard icon={CalendarCheck} title="Annual Practicums" />
-      <PlaceholderCard icon={Clock} title="Annual Training Hours" />
-      <PlaceholderCard icon={FileText} title="Documents" />
-      {canManage && <PlaceholderCard icon={Activity} title="Recent Activity" />}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BookOpen className="h-5 w-5" /> Training Records
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {recordsLoading ? (
+            <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+          ) : !trainingRecords?.length ? (
+            <EmptyState icon={BookOpen} text="No training requirements on record for this employee." />
+          ) : (
+            <div className="space-y-2">
+              {trainingRecords.map(r => (
+                <div key={r.id} className="flex items-center justify-between p-3 rounded-lg border">
+                  <div>
+                    <p className="font-medium text-sm">{trainingTypeName(r.training_type_id)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {r.completion_date ? `Completed ${r.completion_date}` : "Not yet completed"}
+                      {r.due_date ? ` · Due ${r.due_date}` : ""}
+                    </p>
+                  </div>
+                  <StatusBadge status={r.status} type="training" />
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CalendarCheck className="h-5 w-5" /> Annual Practicums
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {practicumsLoading ? (
+            <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+          ) : !practicums?.length ? (
+            <EmptyState icon={CalendarCheck} text="No practicums on record for this employee." />
+          ) : (
+            <div className="space-y-2">
+              {practicums.map(p => (
+                <div key={p.id} className="flex items-center justify-between p-3 rounded-lg border">
+                  <div>
+                    <p className="font-medium text-sm">Practicum Year {p.practicum_year}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {p.completion_date ? `Completed ${p.completion_date}` : "Not yet completed"}
+                      {p.due_date ? ` · Due ${p.due_date}` : ""}
+                    </p>
+                  </div>
+                  <StatusBadge status={p.status} type="training" />
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" /> Annual Training Hours
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {hoursLoading ? (
+            <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+          ) : !hourBuckets?.length ? (
+            <EmptyState icon={Clock} text="No annual training-hour tracking on record for this employee." />
+          ) : (
+            <div className="space-y-2">
+              {hourBuckets.map(b => (
+                <div key={b.id} className="flex items-center justify-between p-3 rounded-lg border">
+                  <div>
+                    <p className="font-medium text-sm">{b.training_year}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {Number(b.completed_hours ?? 0)} of {Number(b.required_hours ?? 0)} hours completed
+                    </p>
+                  </div>
+                  <StatusBadge status={b.status} type="training" />
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" /> Documents
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {documentsLoading ? (
+            <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+          ) : !documents?.length ? (
+            <EmptyState icon={FileText} text="No documents on file for this employee." />
+          ) : (
+            <div className="space-y-2">
+              {documents.map(doc => (
+                <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg border">
+                  <div>
+                    <p className="font-medium text-sm">{doc.file_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {doc.document_type.replace(/_/g, " ")} · {new Date(doc.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => handleDownloadDocument(doc)}>
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {canViewCredentials && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" /> Credentials &amp; Clearances
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {credentialsLoading ? (
+              <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+            ) : !credentials?.length ? (
+              <EmptyState icon={ShieldCheck} text="No credentials on record for this employee." />
+            ) : (
+              <div className="space-y-2">
+                {credentials.map(c => (
+                  <div key={c.id} className="flex items-center justify-between p-3 rounded-lg border">
+                    <div>
+                      <p className="font-medium text-sm">{c.credential_label || c.credential_type.replace(/_/g, " ")}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {c.expiration_date ? `Expires ${c.expiration_date}` : "No expiration on file"}
+                      </p>
+                    </div>
+                    <StatusBadge status={c.status} type="training" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {canManage && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" /> Recent Activity
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {activityLoading ? (
+              <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-8" />)}</div>
+            ) : !auditLogs?.length ? (
+              <EmptyState icon={Activity} text="No recorded activity for this employee yet." />
+            ) : (
+              <div className="space-y-2">
+                {auditLogs.map(log => (
+                  <div key={log.id} className="flex items-center justify-between py-1.5 border-b last:border-0 text-sm">
+                    <span>{log.action.replace(/_/g, " ")}</span>
+                    <span className="text-xs text-muted-foreground">{new Date(log.created_at).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Dialog open={showEditEmp} onOpenChange={o => { if (!o) setShowEditEmp(false); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">

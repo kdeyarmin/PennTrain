@@ -19,7 +19,9 @@ import {
   Package,
   ClipboardCheck,
   ListChecks,
-  ClipboardList
+  ClipboardList,
+  AlertTriangle,
+  Flame
 } from "lucide-react";
 
 export function Sidebar() {
@@ -77,11 +79,14 @@ export function Sidebar() {
           { href: "/app/competency-templates", label: "Competency Templates", icon: ClipboardList },
           { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
           { href: "/app/practicums", label: "Practicums", icon: FileCheck },
+          { href: "/app/credentials", label: "Credentials & Clearances", icon: ShieldCheck },
+          { href: "/app/inspections", label: "Inspections & Equipment", icon: Flame },
         ]
       },
       {
         title: "Compliance",
         items: [
+          { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
           { href: "/app/pending-approvals", label: "Pending Approvals", icon: ClipboardCheck },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
@@ -115,11 +120,14 @@ export function Sidebar() {
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
           { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
           { href: "/app/practicums", label: "Practicums", icon: FileCheck },
+          { href: "/app/credentials", label: "Credentials & Clearances", icon: ShieldCheck },
+          { href: "/app/inspections", label: "Inspections & Equipment", icon: Flame },
         ]
       },
       {
         title: "Compliance",
         items: [
+          { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
@@ -147,6 +155,10 @@ export function Sidebar() {
         items: [
           { href: "/trainer/facilities", label: "Facilities", icon: Building2 },
           { href: "/trainer/employees", label: "Employees", icon: Users },
+          // Mounted at /app/* (not /trainer/*) since inspections has no separate trainer-scoped
+          // page -- ProtectedRoute gates by role membership, not URL prefix, and
+          // INSPECTION_ROLES already includes trainer.
+          { href: "/app/inspections", label: "Inspections & Equipment", icon: Flame },
         ]
       }
     ];
@@ -158,6 +170,7 @@ export function Sidebar() {
           { href: "/me/trainings", label: "Training Records", icon: GraduationCap },
           { href: "/me/certificates", label: "My Certificates", icon: FileCheck },
           { href: "/me/documents", label: "My Documents", icon: Files },
+          { href: "/me/credentials", label: "My Credentials", icon: ShieldCheck },
         ]
       }
     ];
