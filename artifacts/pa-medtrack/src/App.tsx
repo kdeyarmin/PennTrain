@@ -33,6 +33,8 @@ import Practicums from "@/pages/app/Practicums";
 import EmployeeCredentials from "@/pages/app/EmployeeCredentials";
 import Incidents from "@/pages/app/Incidents";
 import IncidentDetail from "@/pages/app/IncidentDetail";
+import InspectionItems from "@/pages/app/InspectionItems";
+import InspectionItemDetail from "@/pages/app/InspectionItemDetail";
 import Alerts from "@/pages/app/Alerts";
 import Reports from "@/pages/app/Reports";
 import AuditLog from "@/pages/app/AuditLog";
@@ -115,6 +117,9 @@ const CREDENTIAL_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"
 // Matches incidents_select RLS -- trainer AND self-service are both excluded (the incident
 // itself is sensitive, not any one employee's own record).
 const INCIDENT_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
+// Matches inspection_items_select RLS -- trainer is included, unlike credentials/incidents,
+// since physical-plant compliance is the least sensitive of the three new modules.
+const INSPECTION_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor"];
 
 function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -226,6 +231,12 @@ function Router() {
       </Route>
       <Route path="/app/incidents/:id">
         {() => <ProtectedRoute component={IncidentDetail} allowedRoles={INCIDENT_ROLES} />}
+      </Route>
+      <Route path="/app/inspections">
+        {() => <ProtectedRoute component={InspectionItems} allowedRoles={INSPECTION_ROLES} />}
+      </Route>
+      <Route path="/app/inspections/:id">
+        {() => <ProtectedRoute component={InspectionItemDetail} allowedRoles={INSPECTION_ROLES} />}
       </Route>
       <Route path="/app/alerts">
         {() => <ProtectedRoute component={Alerts} allowedRoles={ORG_ROLES} />}

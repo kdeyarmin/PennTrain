@@ -28,6 +28,7 @@ export type Database = {
           facility_id: string | null
           id: string
           incident_notification_id: string | null
+          inspection_item_id: string | null
           message: string
           organization_id: string
           practicum_id: string | null
@@ -50,6 +51,7 @@ export type Database = {
           facility_id?: string | null
           id?: string
           incident_notification_id?: string | null
+          inspection_item_id?: string | null
           message: string
           organization_id: string
           practicum_id?: string | null
@@ -72,6 +74,7 @@ export type Database = {
           facility_id?: string | null
           id?: string
           incident_notification_id?: string | null
+          inspection_item_id?: string | null
           message?: string
           organization_id?: string
           practicum_id?: string | null
@@ -122,6 +125,13 @@ export type Database = {
             columns: ["incident_notification_id"]
             isOneToOne: false
             referencedRelation: "incident_notifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_inspection_item_id_fkey"
+            columns: ["inspection_item_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_items"
             referencedColumns: ["id"]
           },
           {
@@ -481,6 +491,7 @@ export type Database = {
           facility_id: string
           id: string
           incident_id: string | null
+          inspection_event_id: string | null
           organization_id: string
           owner_name: string | null
           owner_profile_id: string | null
@@ -496,6 +507,7 @@ export type Database = {
           facility_id: string
           id?: string
           incident_id?: string | null
+          inspection_event_id?: string | null
           organization_id: string
           owner_name?: string | null
           owner_profile_id?: string | null
@@ -511,6 +523,7 @@ export type Database = {
           facility_id?: string
           id?: string
           incident_id?: string | null
+          inspection_event_id?: string | null
           organization_id?: string
           owner_name?: string | null
           owner_profile_id?: string | null
@@ -531,6 +544,13 @@ export type Database = {
             columns: ["incident_id"]
             isOneToOne: false
             referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "corrective_actions_inspection_event_id_fkey"
+            columns: ["inspection_event_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_events"
             referencedColumns: ["id"]
           },
           {
@@ -1817,6 +1837,164 @@ export type Database = {
           },
         ]
       }
+      inspection_events: {
+        Row: {
+          created_at: string
+          deficiency_notes: string | null
+          facility_id: string
+          follow_up_required: boolean
+          id: string
+          inspection_item_id: string
+          notes: string | null
+          organization_id: string
+          performed_by: string
+          performed_by_profile_id: string | null
+          performed_date: string
+          result: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deficiency_notes?: string | null
+          facility_id: string
+          follow_up_required?: boolean
+          id?: string
+          inspection_item_id: string
+          notes?: string | null
+          organization_id: string
+          performed_by: string
+          performed_by_profile_id?: string | null
+          performed_date: string
+          result: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deficiency_notes?: string | null
+          facility_id?: string
+          follow_up_required?: boolean
+          id?: string
+          inspection_item_id?: string
+          notes?: string | null
+          organization_id?: string
+          performed_by?: string
+          performed_by_profile_id?: string | null
+          performed_date?: string
+          result?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_events_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_events_inspection_item_id_fkey"
+            columns: ["inspection_item_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_events_performed_by_profile_id_fkey"
+            columns: ["performed_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inspection_items: {
+        Row: {
+          created_at: string
+          facility_id: string
+          id: string
+          inspection_interval_days: number
+          install_date: string | null
+          is_active: boolean
+          item_kind: string
+          item_type: string
+          label: string
+          last_inspected_date: string | null
+          location_detail: string | null
+          manufacturer: string | null
+          model_number: string | null
+          next_due_date: string | null
+          notes: string | null
+          organization_id: string
+          serial_number: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          facility_id: string
+          id?: string
+          inspection_interval_days: number
+          install_date?: string | null
+          is_active?: boolean
+          item_kind: string
+          item_type: string
+          label: string
+          last_inspected_date?: string | null
+          location_detail?: string | null
+          manufacturer?: string | null
+          model_number?: string | null
+          next_due_date?: string | null
+          notes?: string | null
+          organization_id: string
+          serial_number?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          facility_id?: string
+          id?: string
+          inspection_interval_days?: number
+          install_date?: string | null
+          is_active?: boolean
+          item_kind?: string
+          item_type?: string
+          label?: string
+          last_inspected_date?: string | null
+          location_detail?: string | null
+          manufacturer?: string | null
+          model_number?: string | null
+          next_due_date?: string | null
+          notes?: string | null
+          organization_id?: string
+          serial_number?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_items_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string | null
@@ -2630,6 +2808,7 @@ export type Database = {
           file_size: number | null
           file_type: string
           id: string
+          inspection_event_id: string | null
           organization_id: string
           storage_bucket: string
           storage_path: string
@@ -2645,6 +2824,7 @@ export type Database = {
           file_size?: number | null
           file_type: string
           id?: string
+          inspection_event_id?: string | null
           organization_id: string
           storage_bucket: string
           storage_path: string
@@ -2660,6 +2840,7 @@ export type Database = {
           file_size?: number | null
           file_type?: string
           id?: string
+          inspection_event_id?: string | null
           organization_id?: string
           storage_bucket?: string
           storage_path?: string
@@ -2679,6 +2860,13 @@ export type Database = {
             columns: ["facility_id"]
             isOneToOne: false
             referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_documents_inspection_event_id_fkey"
+            columns: ["inspection_event_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_events"
             referencedColumns: ["id"]
           },
           {

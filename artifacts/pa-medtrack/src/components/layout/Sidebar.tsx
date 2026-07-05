@@ -20,7 +20,8 @@ import {
   ClipboardCheck,
   ListChecks,
   ClipboardList,
-  AlertTriangle
+  AlertTriangle,
+  Flame
 } from "lucide-react";
 
 export function Sidebar() {
@@ -79,6 +80,7 @@ export function Sidebar() {
           { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
           { href: "/app/practicums", label: "Practicums", icon: FileCheck },
           { href: "/app/credentials", label: "Credentials & Clearances", icon: ShieldCheck },
+          { href: "/app/inspections", label: "Inspections & Equipment", icon: Flame },
         ]
       },
       {
@@ -119,6 +121,7 @@ export function Sidebar() {
           { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
           { href: "/app/practicums", label: "Practicums", icon: FileCheck },
           { href: "/app/credentials", label: "Credentials & Clearances", icon: ShieldCheck },
+          { href: "/app/inspections", label: "Inspections & Equipment", icon: Flame },
         ]
       },
       {
@@ -152,6 +155,10 @@ export function Sidebar() {
         items: [
           { href: "/trainer/facilities", label: "Facilities", icon: Building2 },
           { href: "/trainer/employees", label: "Employees", icon: Users },
+          // Mounted at /app/* (not /trainer/*) since inspections has no separate trainer-scoped
+          // page -- ProtectedRoute gates by role membership, not URL prefix, and
+          // INSPECTION_ROLES already includes trainer.
+          { href: "/app/inspections", label: "Inspections & Equipment", icon: Flame },
         ]
       }
     ];
