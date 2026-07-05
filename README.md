@@ -29,6 +29,9 @@ React frontend talks to Supabase directly via `supabase-js`.
 
 ## Run locally
 
+> Requires a linux-x64-glibc environment (dev container, WSL2, CI): the workspace deliberately strips all other
+> platforms' native binaries (see the note in `DEPLOYMENT.md` section 3).
+
 ```bash
 pnpm install
 pnpm --filter @workspace/caremetric-train dev
@@ -36,6 +39,8 @@ pnpm --filter @workspace/caremetric-train dev
 
 Copy `artifacts/caremetric-train/.env.example` to `.env` and fill in your Supabase project URL and publishable
 (anon) key.
+
+For production deployment (Railway + Supabase), see `DEPLOYMENT.md`.
 
 ## Database / backend setup
 

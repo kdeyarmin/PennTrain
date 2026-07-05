@@ -20,7 +20,11 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
 
 - **Railway** hosts and runs `artifacts/caremetric-train` -- a static Vite/React build served by a small
   Node process (`artifacts/caremetric-train/server/index.mjs`). There is no API layer on Railway; the
-  browser talks to Supabase directly via `supabase-js`.
+  browser talks to Supabase directly via `supabase-js`. The server serves precompressed (brotli/
+  gzip) assets generated at build time by `server/precompress.mjs` (Railway's proxy does not
+  compress for you), sends baseline security headers (nosniff, frame denial, HSTS,
+  Referrer-Policy), binds dual-stack `::`, tunes keep-alive above the proxy's idle window, and
+  drains in-flight requests on SIGTERM.
 - **Supabase** ("CM Train" project) is the source of truth for everything else: schema, migrations,
   RLS policies, Auth (GoTrue), Storage buckets, and Edge Functions (`create-user`,
   `admin-update-user`, `bulk-import-employees`, `generate-compliance-binder`,
@@ -93,13 +97,30 @@ can see the whole workspace and lockfile.
 
 1. In Railway: **New Project -> Deploy from GitHub repo**, select this repository.
 2. Railway auto-detects `railway.json` at the repo root:
-   - Build: `pnpm install --frozen-lockfile && pnpm --filter @workspace/caremetric-train run build`
+   - Builder: **Railpack** (Railway's current default builder; Nixpacks is deprecated on Railway
+     and its hosted version cannot provision Node 24 -- it silently falls back to Node 18, which
+     breaks the Vite 7 build. Do not switch this service back to Nixpacks.)
+   - Build: `pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-train run typecheck && pnpm --filter @workspace/caremetric-train run build`
+     (Railpack also runs its own install beforehand; the explicit one is a harmless belt-and-braces
+     step, and the typecheck is the deploy's only static gate since no linter is configured)
    - Start: `pnpm --filter @workspace/caremetric-train run start`
    - Healthcheck: `GET /health`
-   Nixpacks reads `.node-version` (Node 24) and the `packageManager` field (`pnpm@10.28.1`) to
-   provision the right toolchain automatically.
-3. Add the environment variables below (Service -> Variables). Do **not** paste real secrets into
-   any file in this repo -- only into Railway's variable UI.
+   - Watch paths: only changes under `artifacts/caremetric-train/` and the root toolchain/config files
+     trigger a deploy, so pushes touching e.g. `artifacts/mockup-sandbox` or `scripts/` don't
+     redeploy production.
+   Railpack resolves Node from `engines.node` in package.json / `.nvmrc` / `.node-version` (all
+   pinned to Node 24 here; `RAILPACK_NODE_VERSION` would override) and installs pnpm 10.28.1 via
+   Corepack from the `packageManager` field. Because `railway.json` sets an explicit
+   `startCommand`, Railpack's Vite-SPA auto-detection (serving via Caddy) is overridden and the
+   custom Node server is used -- keep `startCommand` in place, or set `RAILPACK_NO_SPA=1` to make
+   that explicit.
+3. Add the environment variables below (Service -> Variables) **before the first deploy**. Do
+   **not** paste real secrets into any file in this repo -- only into Railway's variable UI.
+   **Important:** the two `VITE_` variables are baked into the JS bundle at build time, not read
+   at runtime. If they are missing the build now fails loudly (guard in `vite.config.ts`); if you
+   change them later, trigger a redeploy (which rebuilds) -- merely restarting the service ships
+   the old bundle, and `/health` will misleadingly report `"configured"` because it reads the
+   server process env, not the bundle.
 4. Deploy. Railway assigns a `*.up.railway.app` domain -- for this project it assigned
    `penntrain-production.up.railway.app` -- and the production custom domain
    (`caremetrictrain.com`) is attached under Service -> Settings -> Networking. Every domain the
@@ -124,11 +145,18 @@ can see the whole workspace and lockfile.
 
 | Variable | Required | Notes |
 |---|---|---|
-| `VITE_SUPABASE_URL` | yes | Supabase project URL (Project Settings -> API) |
-| `VITE_SUPABASE_ANON_KEY` | yes | anon/publishable key -- safe for the browser, RLS is the real gate |
-| `NODE_ENV` | recommended | set to `production` |
+| `VITE_SUPABASE_URL` | yes | Supabase project URL (Project Settings -> API). **Build-time**: baked into the bundle; changes require a redeploy, not just a restart |
+| `VITE_SUPABASE_ANON_KEY` | yes | anon/publishable key -- safe for the browser, RLS is the real gate. **Build-time**, same caveat as above |
+| `NODE_ENV` | no | Railpack already sets `production`; setting it yourself is harmless |
 | `PORT` | no | Railway injects this automatically; the server reads it |
+| `HOST` | no | the server binds dual-stack `::` by default (Railway's recommendation); override only if you need something else |
 | `BASE_PATH` | no | e.g. `/train/`; only needed if served from a non-root subpath. Set it identically for both the build (`vite.config.ts` reads it) and the running server (`server/index.mjs` strips it before resolving files) -- both read the same `BASE_PATH` var, so one value covers both. |
+
+Never set `NPM_CONFIG_PRODUCTION=true` on this service: every dependency of the app (including
+`vite` itself) lives in `devDependencies`, and that variable makes pnpm skip them at install,
+emptying the build. (The buildCommand passes `--prod=false` explicitly to defend against it, and
+Railpack itself sets `NPM_CONFIG_PRODUCTION=false`; for the same reason, never set
+`RAILPACK_PRUNE_DEPS=1`.)
 
 Not needed for this repo (and intentionally left out of `.env.example` -- see the comments there for
 why): `DATABASE_URL`, `NEXT_PUBLIC_*` (this is Vite, not Next.js), `SESSION_SECRET`/`AUTH_SECRET`
@@ -139,16 +167,23 @@ Edge Function secrets.
 
 ## 3. Local development
 
+> **Platform note:** `pnpm-workspace.yaml` deliberately strips every native binary except the
+> linux-x64-glibc variants (esbuild/rollup/lightningcss/@tailwindcss/oxide) to keep the deploy
+> surface minimal, so `pnpm install` + `pnpm run dev` only works on linux-x64-glibc environments
+> (dev containers, WSL2, CI, Railway itself). On macOS/Windows/ARM, develop inside a container,
+> or migrate the override list to pnpm's `supportedArchitectures` if native local dev is needed.
+
 ```bash
 pnpm install
 cp artifacts/caremetric-train/.env.example artifacts/caremetric-train/.env   # fill in your Supabase URL/anon key
 pnpm run dev          # -> pnpm --filter @workspace/caremetric-train run dev, http://localhost:5173
 ```
 
-To exercise the production build path locally:
+To exercise the production build path locally (the build fails fast if the `VITE_` vars are
+missing from your `.env`/environment -- that's the `vite.config.ts` guard doing its job):
 
 ```bash
-pnpm --filter @workspace/caremetric-train run build
+pnpm --filter @workspace/caremetric-train run build   # vite build + server/precompress.mjs (.br/.gz)
 pnpm --filter @workspace/caremetric-train run start   # node server/index.mjs, http://localhost:8080
 curl http://localhost:8080/health
 ```
@@ -306,6 +341,11 @@ curl -s https://penntrain-production.up.railway.app/health | jq
 Expect `status: "ok"` and `supabase: "configured"`. If `supabaseReachable` is `false`, double-check
 `VITE_SUPABASE_URL` on the Railway service and that the Supabase project is not paused.
 
+Remember that `/health` reflects the **server process env**, while the SPA uses values **baked in
+at build time** -- after changing `VITE_` variables, redeploy (rebuild); don't trust a green
+`/health` after a mere restart. Then load the app in a browser and confirm the login page renders
+(a blank page means the bundle was built without the `VITE_` vars).
+
 ## Limitations / manual steps remaining
 
 - Railway project creation, GitHub connection, and env var entry must be done in the Railway
@@ -319,6 +359,7 @@ Expect `status: "ok"` and `supabase: "configured"`. If `supabaseReachable` is `f
   allowed is closed (see section 7), but if self-service signup isn't an intended product feature,
   disable it in Authentication -> Providers as defense in depth.
 - No linter (ESLint/Biome/etc.) is configured in this repo; `pnpm run typecheck` (tsc, no-emit) is
-  the static check currently available. Add one separately if desired -- out of scope here.
+  the static check currently available, and the Railway buildCommand runs it (for the deployed
+  package) as a deploy gate. Add a linter separately if desired -- out of scope here.
 - `pnpm run db:migrate` requires `supabase login` + `supabase link --project-ref <ref>` to have been
   run once first (interactive, not scriptable).

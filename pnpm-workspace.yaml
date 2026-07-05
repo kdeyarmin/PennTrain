@@ -1,11 +1,14 @@
 packages:
   - artifacts/*
-  - lib/*
-  - lib/integrations/*
   - scripts
 
+# Forward-compatible form of onlyBuiltDependencies below (pnpm >=10.26 reads allowBuilds;
+# pnpm 11 removes onlyBuiltDependencies entirely). Keep the two lists in sync.
 allowBuilds:
-  esbuild: set this to true or false
+  '@swc/core': true
+  esbuild: true
+  msw: true
+  unrs-resolver: true
 
 autoInstallPeers: false
 
