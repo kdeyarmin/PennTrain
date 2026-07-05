@@ -45,10 +45,12 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    ```
    (equivalent to `pnpm run db:migrate` from the repo root once linked). This also creates the
    Storage buckets and RLS policies -- they're defined in the migrations, not a separate step.
-3. Deploy the Edge Functions:
+3. Deploy the Edge Functions (every function declared in `supabase/config.toml`):
    ```bash
    npx supabase functions deploy create-user admin-update-user bulk-import-employees \
-     generate-compliance-binder generate-course-video check-course-video-status list-heygen-options
+     generate-compliance-binder generate-certificate-pdf generate-incident-report-pdf \
+     attest-policy generate-class-notice-pdf generate-poc-document generate-course-video \
+     check-course-video-status list-heygen-options dispatch-notifications screen-exclusions
    ```
    Or connect the Supabase GitHub integration (Project Settings -> Integrations) so pushes to `main`
    auto-deploy both migrations and functions declared in `supabase/config.toml`.
