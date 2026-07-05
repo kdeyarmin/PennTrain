@@ -37,6 +37,10 @@ import {
   Database,
   Lock,
   History,
+  CalendarCheck,
+  ListChecks,
+  BarChart3,
+  FolderLock,
   type LucideIcon,
 } from "lucide-react";
 
@@ -134,6 +138,30 @@ const FEATURES = [
     description:
       "Onboard an entire facility roster in minutes with CSV import instead of one-by-one data entry.",
   },
+  {
+    icon: CalendarCheck,
+    title: "Live Class Scheduling & Sign-In",
+    description:
+      "Trainers schedule instructor-led classes and capture digital attendee sign-in, so in-person sessions count toward compliance right alongside online courses.",
+  },
+  {
+    icon: ListChecks,
+    title: "Training Plans, Built Per Role",
+    description:
+      "Assign the right training plan to each role once, and CareMetric Train tracks every employee's progress against it automatically.",
+  },
+  {
+    icon: BarChart3,
+    title: "Compliance Reporting Center",
+    description:
+      "Roll up training compliance, certifications, and practicums by facility, training type, or employee -- scoped to what each role is allowed to see.",
+  },
+  {
+    icon: FolderLock,
+    title: "Audit-Ready Document Storage",
+    description:
+      "Training documents, sign-in sheets, and competency attachments live in private storage, accessed only through short-lived signed links tied to the employee and facility they belong to.",
+  },
 ];
 
 const STEPS = [
@@ -163,6 +191,7 @@ const OLD_WAY = [
   "Paper practicum sign-off sheets that are easy to lose or fake",
   "Building a compliance binder means a night of printing and hole-punching",
   "No single view of where every facility actually stands",
+  "Re-checking each employee's hours against their license type's rules by hand, every renewal cycle",
 ];
 
 const NEW_WAY = [
@@ -171,6 +200,7 @@ const NEW_WAY = [
   "Digital competency checklists tied to each employee's role",
   "A survey-ready compliance binder PDF generated in seconds",
   "Real-time compliance dashboards across every facility, org-wide",
+  "Training types configured once per organization -- hours, renewal windows, and which facility types they apply to -- instead of re-explained to every new hire",
 ];
 
 const SECURITY_FEATURES = [
@@ -240,6 +270,21 @@ const FAQS = [
     question: "Can we bring over our existing employee roster?",
     answer:
       "Yes. Bulk CSV import lets you onboard an entire facility's staff in minutes instead of entering employees one at a time.",
+  },
+  {
+    question: "Do you support in-person, instructor-led training, or only online courses?",
+    answer:
+      "Both. Trainers can schedule live classes and capture digital attendee sign-in, so instructor-led sessions count toward each employee's in-service hours right alongside their online course progress -- no separate paper sign-in sheet to reconcile later.",
+  },
+  {
+    question: "Can one organization manage more than one facility?",
+    answer:
+      "Yes -- CareMetric Train is multi-facility from the ground up. An org admin sees compliance status across every facility in the organization, while a facility manager's view is scoped to just the facility (or facilities) they're assigned to.",
+  },
+  {
+    question: "Can we run compliance reports across the whole organization, not just one facility at a time?",
+    answer:
+      "Yes. The report center rolls up training compliance, certifications, and practicums by facility, training type, or employee, and it respects the same role-based scoping as the rest of the app -- an org admin sees every facility, a facility manager sees their own.",
   },
 ];
 
