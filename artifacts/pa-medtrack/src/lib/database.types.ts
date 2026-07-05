@@ -20,12 +20,14 @@ export type Database = {
           assigned_to_profile_id: string | null
           certificate_id: string | null
           competency_record_id: string | null
+          corrective_action_id: string | null
           course_assignment_id: string | null
           created_at: string
           employee_credential_id: string | null
           employee_id: string | null
           facility_id: string | null
           id: string
+          incident_notification_id: string | null
           message: string
           organization_id: string
           practicum_id: string | null
@@ -40,12 +42,14 @@ export type Database = {
           assigned_to_profile_id?: string | null
           certificate_id?: string | null
           competency_record_id?: string | null
+          corrective_action_id?: string | null
           course_assignment_id?: string | null
           created_at?: string
           employee_credential_id?: string | null
           employee_id?: string | null
           facility_id?: string | null
           id?: string
+          incident_notification_id?: string | null
           message: string
           organization_id: string
           practicum_id?: string | null
@@ -60,12 +64,14 @@ export type Database = {
           assigned_to_profile_id?: string | null
           certificate_id?: string | null
           competency_record_id?: string | null
+          corrective_action_id?: string | null
           course_assignment_id?: string | null
           created_at?: string
           employee_credential_id?: string | null
           employee_id?: string | null
           facility_id?: string | null
           id?: string
+          incident_notification_id?: string | null
           message?: string
           organization_id?: string
           practicum_id?: string | null
@@ -81,6 +87,13 @@ export type Database = {
             columns: ["assigned_to_profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_corrective_action_id_fkey"
+            columns: ["corrective_action_id"]
+            isOneToOne: false
+            referencedRelation: "corrective_actions"
             referencedColumns: ["id"]
           },
           {
@@ -102,6 +115,13 @@ export type Database = {
             columns: ["facility_id"]
             isOneToOne: false
             referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_incident_notification_id_fkey"
+            columns: ["incident_notification_id"]
+            isOneToOne: false
+            referencedRelation: "incident_notifications"
             referencedColumns: ["id"]
           },
           {
@@ -448,6 +468,83 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      corrective_actions: {
+        Row: {
+          completed_date: string | null
+          created_at: string
+          description: string
+          due_date: string
+          facility_id: string
+          id: string
+          incident_id: string | null
+          organization_id: string
+          owner_name: string | null
+          owner_profile_id: string | null
+          status: string
+          updated_at: string
+          verification_notes: string | null
+        }
+        Insert: {
+          completed_date?: string | null
+          created_at?: string
+          description: string
+          due_date: string
+          facility_id: string
+          id?: string
+          incident_id?: string | null
+          organization_id: string
+          owner_name?: string | null
+          owner_profile_id?: string | null
+          status?: string
+          updated_at?: string
+          verification_notes?: string | null
+        }
+        Update: {
+          completed_date?: string | null
+          created_at?: string
+          description?: string
+          due_date?: string
+          facility_id?: string
+          id?: string
+          incident_id?: string | null
+          organization_id?: string
+          owner_name?: string | null
+          owner_profile_id?: string | null
+          status?: string
+          updated_at?: string
+          verification_notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corrective_actions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "corrective_actions_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "corrective_actions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "corrective_actions_owner_profile_id_fkey"
+            columns: ["owner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1387,6 +1484,333 @@ export type Database = {
           {
             foreignKeyName: "facility_assignments_profile_id_fkey"
             columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      incident_documents: {
+        Row: {
+          created_at: string
+          document_label: string | null
+          facility_id: string
+          file_name: string
+          file_size: number | null
+          file_type: string
+          id: string
+          incident_id: string
+          organization_id: string
+          retain_until: string | null
+          storage_bucket: string
+          storage_path: string
+          uploaded_by_profile_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          document_label?: string | null
+          facility_id: string
+          file_name: string
+          file_size?: number | null
+          file_type: string
+          id?: string
+          incident_id: string
+          organization_id: string
+          retain_until?: string | null
+          storage_bucket?: string
+          storage_path: string
+          uploaded_by_profile_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          document_label?: string | null
+          facility_id?: string
+          file_name?: string
+          file_size?: number | null
+          file_type?: string
+          id?: string
+          incident_id?: string
+          organization_id?: string
+          retain_until?: string | null
+          storage_bucket?: string
+          storage_path?: string
+          uploaded_by_profile_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incident_documents_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_documents_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_documents_uploaded_by_profile_id_fkey"
+            columns: ["uploaded_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      incident_notifications: {
+        Row: {
+          completed_at: string | null
+          completed_by_profile_id: string | null
+          created_at: string
+          due_at: string
+          facility_id: string
+          id: string
+          incident_id: string
+          notes: string | null
+          notification_method: string | null
+          notification_type: string
+          organization_id: string
+          reference_number: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_by_profile_id?: string | null
+          created_at?: string
+          due_at: string
+          facility_id: string
+          id?: string
+          incident_id: string
+          notes?: string | null
+          notification_method?: string | null
+          notification_type: string
+          organization_id: string
+          reference_number?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          completed_by_profile_id?: string | null
+          created_at?: string
+          due_at?: string
+          facility_id?: string
+          id?: string
+          incident_id?: string
+          notes?: string | null
+          notification_method?: string | null
+          notification_type?: string
+          organization_id?: string
+          reference_number?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incident_notifications_completed_by_profile_id_fkey"
+            columns: ["completed_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_notifications_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_notifications_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_notifications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      incident_staff_involved: {
+        Row: {
+          created_at: string
+          employee_id: string
+          facility_id: string
+          id: string
+          incident_id: string
+          involvement_type: string
+          organization_id: string
+          statement: string | null
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          facility_id: string
+          id?: string
+          incident_id: string
+          involvement_type: string
+          organization_id: string
+          statement?: string | null
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          facility_id?: string
+          id?: string
+          incident_id?: string
+          involvement_type?: string
+          organization_id?: string
+          statement?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incident_staff_involved_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_staff_involved_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_staff_involved_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_staff_involved_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      incidents: {
+        Row: {
+          closed_at: string | null
+          closed_by_profile_id: string | null
+          created_at: string
+          facility_id: string
+          id: string
+          incident_type: string
+          investigation_findings: string | null
+          investigation_started_at: string | null
+          investigator_name: string | null
+          investigator_profile_id: string | null
+          location_detail: string | null
+          narrative: string
+          occurred_at: string
+          organization_id: string
+          reported_at: string
+          reported_by_profile_id: string | null
+          resident_identifier: string | null
+          root_cause: string | null
+          severity: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          closed_at?: string | null
+          closed_by_profile_id?: string | null
+          created_at?: string
+          facility_id: string
+          id?: string
+          incident_type: string
+          investigation_findings?: string | null
+          investigation_started_at?: string | null
+          investigator_name?: string | null
+          investigator_profile_id?: string | null
+          location_detail?: string | null
+          narrative: string
+          occurred_at: string
+          organization_id: string
+          reported_at?: string
+          reported_by_profile_id?: string | null
+          resident_identifier?: string | null
+          root_cause?: string | null
+          severity?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          closed_at?: string | null
+          closed_by_profile_id?: string | null
+          created_at?: string
+          facility_id?: string
+          id?: string
+          incident_type?: string
+          investigation_findings?: string | null
+          investigation_started_at?: string | null
+          investigator_name?: string | null
+          investigator_profile_id?: string | null
+          location_detail?: string | null
+          narrative?: string
+          occurred_at?: string
+          organization_id?: string
+          reported_at?: string
+          reported_by_profile_id?: string | null
+          resident_identifier?: string | null
+          root_cause?: string | null
+          severity?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incidents_closed_by_profile_id_fkey"
+            columns: ["closed_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_investigator_profile_id_fkey"
+            columns: ["investigator_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_reported_by_profile_id_fkey"
+            columns: ["reported_by_profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2550,6 +2974,7 @@ export type Database = {
       mark_notification_read: { Args: { p_id: string }; Returns: undefined }
       owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
       recalculate_all_compliance: { Args: never; Returns: undefined }
+      recalculate_incident_notifications: { Args: never; Returns: undefined }
       verify_certificate: {
         Args: { p_slug: string }
         Returns: {

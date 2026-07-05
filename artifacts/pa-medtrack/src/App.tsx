@@ -31,6 +31,8 @@ import CompetencyTemplates from "@/pages/app/CompetencyTemplates";
 import CompetencyRecords from "@/pages/app/CompetencyRecords";
 import Practicums from "@/pages/app/Practicums";
 import EmployeeCredentials from "@/pages/app/EmployeeCredentials";
+import Incidents from "@/pages/app/Incidents";
+import IncidentDetail from "@/pages/app/IncidentDetail";
 import Alerts from "@/pages/app/Alerts";
 import Reports from "@/pages/app/Reports";
 import AuditLog from "@/pages/app/AuditLog";
@@ -110,6 +112,9 @@ const AUDIT_LOG_ROLES: UserRole[] = ["org_admin", "auditor"];
 // Matches employee_credentials_select RLS -- trainer is excluded, unlike ORG_ROLES, because
 // clearance/license data is more sensitive than training records.
 const CREDENTIAL_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
+// Matches incidents_select RLS -- trainer AND self-service are both excluded (the incident
+// itself is sensitive, not any one employee's own record).
+const INCIDENT_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
 
 function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -215,6 +220,12 @@ function Router() {
       </Route>
       <Route path="/app/credentials">
         {() => <ProtectedRoute component={EmployeeCredentials} allowedRoles={CREDENTIAL_ROLES} />}
+      </Route>
+      <Route path="/app/incidents">
+        {() => <ProtectedRoute component={Incidents} allowedRoles={INCIDENT_ROLES} />}
+      </Route>
+      <Route path="/app/incidents/:id">
+        {() => <ProtectedRoute component={IncidentDetail} allowedRoles={INCIDENT_ROLES} />}
       </Route>
       <Route path="/app/alerts">
         {() => <ProtectedRoute component={Alerts} allowedRoles={ORG_ROLES} />}

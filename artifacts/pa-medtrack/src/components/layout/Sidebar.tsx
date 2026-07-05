@@ -19,7 +19,8 @@ import {
   Package,
   ClipboardCheck,
   ListChecks,
-  ClipboardList
+  ClipboardList,
+  AlertTriangle
 } from "lucide-react";
 
 export function Sidebar() {
@@ -83,6 +84,7 @@ export function Sidebar() {
       {
         title: "Compliance",
         items: [
+          { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
           { href: "/app/pending-approvals", label: "Pending Approvals", icon: ClipboardCheck },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
@@ -122,6 +124,7 @@ export function Sidebar() {
       {
         title: "Compliance",
         items: [
+          { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
