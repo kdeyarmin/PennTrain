@@ -1839,48 +1839,78 @@ export type Database = {
       }
       inspection_events: {
         Row: {
+          alarm_or_detector_operative: boolean | null
           created_at: string
           deficiency_notes: string | null
+          drill_time: string | null
+          evacuation_duration_seconds: number | null
+          exit_route_used: string | null
           facility_id: string
           follow_up_required: boolean
           id: string
           inspection_item_id: string
+          is_sleeping_hours_drill: boolean
           notes: string | null
           organization_id: string
           performed_by: string
           performed_by_profile_id: string | null
           performed_date: string
+          problems_encountered: string | null
+          residents_evacuated_count: number | null
+          residents_present_count: number | null
           result: string
+          shift: string | null
+          staff_participating_count: number | null
           updated_at: string
         }
         Insert: {
+          alarm_or_detector_operative?: boolean | null
           created_at?: string
           deficiency_notes?: string | null
+          drill_time?: string | null
+          evacuation_duration_seconds?: number | null
+          exit_route_used?: string | null
           facility_id: string
           follow_up_required?: boolean
           id?: string
           inspection_item_id: string
+          is_sleeping_hours_drill?: boolean
           notes?: string | null
           organization_id: string
           performed_by: string
           performed_by_profile_id?: string | null
           performed_date: string
+          problems_encountered?: string | null
+          residents_evacuated_count?: number | null
+          residents_present_count?: number | null
           result: string
+          shift?: string | null
+          staff_participating_count?: number | null
           updated_at?: string
         }
         Update: {
+          alarm_or_detector_operative?: boolean | null
           created_at?: string
           deficiency_notes?: string | null
+          drill_time?: string | null
+          evacuation_duration_seconds?: number | null
+          exit_route_used?: string | null
           facility_id?: string
           follow_up_required?: boolean
           id?: string
           inspection_item_id?: string
+          is_sleeping_hours_drill?: boolean
           notes?: string | null
           organization_id?: string
           performed_by?: string
           performed_by_profile_id?: string | null
           performed_date?: string
+          problems_encountered?: string | null
+          residents_evacuated_count?: number | null
+          residents_present_count?: number | null
           result?: string
+          shift?: string | null
+          staff_participating_count?: number | null
           updated_at?: string
         }
         Relationships: [
