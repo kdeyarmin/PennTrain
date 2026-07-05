@@ -116,8 +116,8 @@ export default function MyTrainings() {
             <p className="text-muted-foreground text-sm text-center py-8">No training records found.</p>
           ) : (
             <>
-              <div className="rounded-md border overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="rounded-md border overflow-x-auto">
+                <table className="w-full text-sm min-w-[520px]">
                   <thead className="bg-muted/50">
                     <tr>
                       <th className="text-left p-3 cursor-pointer hover:bg-muted" onClick={() => toggleSort("trainingTypeName")}>

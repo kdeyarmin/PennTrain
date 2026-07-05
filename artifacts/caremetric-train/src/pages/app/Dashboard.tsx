@@ -775,24 +775,24 @@ export default function OrgDashboard() {
 
             return (
               <Link key={facility.id} href={`/app/facilities/${facility.id}`}>
-                <div className="flex items-center justify-between px-6 py-4 hover:bg-muted/40 transition-colors cursor-pointer">
-                  <div className="flex items-center gap-4">
+                <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 hover:bg-muted/40 transition-colors cursor-pointer">
+                  <div className="flex items-center gap-4 min-w-0">
                     <div className="relative">
                       <div className="h-10 w-10 rounded-lg bg-primary/8 flex items-center justify-center">
                         <Building2 className="h-5 w-5 text-primary/70" />
                       </div>
                       <div className={`absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card ${dotColor}`} />
                     </div>
-                    <div>
-                      <p className="text-[13px] font-semibold">{facility.name}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold truncate">{facility.name}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
                         {facility.facility_type} {facility.license_number ? `· ${facility.license_number}` : ""}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 shrink-0">
                     {fc && (
-                      <div className="flex items-center gap-2.5">
+                      <div className="hidden sm:flex items-center gap-2.5">
                         <div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all duration-500 ${barColor}`}

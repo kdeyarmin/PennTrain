@@ -314,9 +314,9 @@ export default function EmployeeDashboard() {
               ) : (
                 <div className="space-y-2">
                   {allRecords.map(r => (
-                    <div key={r.id} className="flex items-center justify-between py-2 border-b last:border-0 text-sm">
-                      <span className="font-medium">{trainingTypeName(r)}</span>
-                      <div className="flex items-center gap-2">
+                    <div key={r.id} className="flex items-center justify-between gap-2 py-2 border-b last:border-0 text-sm">
+                      <span className="font-medium min-w-0 truncate">{trainingTypeName(r)}</span>
+                      <div className="flex items-center gap-2 shrink-0">
                         {r.completion_date && (
                           <span className="text-muted-foreground text-xs">
                             Completed {new Date(r.completion_date).toLocaleDateString()}

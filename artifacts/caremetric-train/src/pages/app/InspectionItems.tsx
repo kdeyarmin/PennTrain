@@ -160,7 +160,7 @@ export default function InspectionItems() {
 
   return (
     <div className="space-y-6">
-      <div className="page-header flex items-center justify-between">
+      <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Inspections &amp; Equipment</h1>
           <p>Track the fire-drill program, life-safety equipment, and emergency-preparedness requirements for each facility.</p>
@@ -212,8 +212,8 @@ export default function InspectionItems() {
           </div>
         ) : (
           <>
-            <div className="overflow-hidden">
-              <table className="data-table">
+            <div className="overflow-x-auto">
+              <table className="data-table min-w-[720px]">
                 <thead>
                   <tr>
                     <th>Facility</th>
@@ -276,7 +276,7 @@ export default function InspectionItems() {
       <Dialog open={showForm} onOpenChange={(o) => { if (!o) setShowForm(false); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Edit Inspection Item" : "Add Inspection Item"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5">
               <Label className="text-[13px]">Facility *</Label>
               <Select value={form.facilityId} onValueChange={(v) => field("facilityId", v)} disabled={!!editing}>
@@ -295,7 +295,7 @@ export default function InspectionItems() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Label *</Label>
               <Input value={form.label} onChange={(e) => field("label", e.target.value)} placeholder="e.g. Extinguisher — 2nd Floor Hallway" className="h-9" />
             </div>
@@ -323,7 +323,7 @@ export default function InspectionItems() {
               <Label className="text-[13px]">Install Date</Label>
               <Input type="date" value={form.installDate} onChange={(e) => field("installDate", e.target.value)} className="h-9" />
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Notes</Label>
               <Textarea value={form.notes} onChange={(e) => field("notes", e.target.value)} placeholder="Optional notes" />
             </div>

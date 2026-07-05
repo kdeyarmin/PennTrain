@@ -218,7 +218,7 @@ export default function InspectionItemDetail() {
       <Dialog open={showEventForm} onOpenChange={(o) => { if (!o) setShowEventForm(false); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Log Inspection</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5">
               <Label className="text-[13px]">Date *</Label>
               <Input type="date" value={performedDate} onChange={(e) => setPerformedDate(e.target.value)} className="h-9" />
@@ -227,7 +227,7 @@ export default function InspectionItemDetail() {
               <Label className="text-[13px]">Performed By *</Label>
               <Input value={performedBy} onChange={(e) => setPerformedBy(e.target.value)} placeholder="Staff name or vendor" className="h-9" />
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Result *</Label>
               <Select value={result} onValueChange={(v) => setResult(v as typeof result)}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
@@ -237,7 +237,7 @@ export default function InspectionItemDetail() {
               </Select>
             </div>
             {result !== "pass" && (
-              <div className="col-span-2 space-y-1.5">
+              <div className="col-span-full space-y-1.5">
                 <Label className="text-[13px]">Deficiency Notes</Label>
                 <Textarea value={deficiencyNotes} onChange={(e) => setDeficiencyNotes(e.target.value)} placeholder="What was found" />
               </div>
