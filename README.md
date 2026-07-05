@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="artifacts/caremetric-train/public/logo.svg" alt="CareMetric Train" width="360" />
+  <img src="artifacts/caremetric-train/public/logo.png" alt="CareMetric Train" width="360" />
 </p>
 
 # CareMetric Train
