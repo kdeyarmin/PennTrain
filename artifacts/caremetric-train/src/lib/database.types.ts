@@ -908,6 +908,7 @@ export type Database = {
           organization_id: string | null
           status: string
           title: string
+          training_type_id: string | null
           updated_at: string
         }
         Insert: {
@@ -921,6 +922,7 @@ export type Database = {
           organization_id?: string | null
           status?: string
           title: string
+          training_type_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -934,6 +936,7 @@ export type Database = {
           organization_id?: string | null
           status?: string
           title?: string
+          training_type_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -956,6 +959,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courses_training_type_id_fkey"
+            columns: ["training_type_id"]
+            isOneToOne: false
+            referencedRelation: "training_types"
             referencedColumns: ["id"]
           },
         ]
@@ -1144,11 +1154,13 @@ export type Database = {
       }
       employee_training_hour_buckets: {
         Row: {
+          bucket_type: string
           completed_hours: number
           created_at: string
           employee_id: string
           facility_id: string
           id: string
+          ojt_hours: number
           organization_id: string
           required_hours: number
           status: string
@@ -1156,11 +1168,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          bucket_type?: string
           completed_hours?: number
           created_at?: string
           employee_id: string
           facility_id: string
           id?: string
+          ojt_hours?: number
           organization_id: string
           required_hours?: number
           status?: string
@@ -1168,11 +1182,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          bucket_type?: string
           completed_hours?: number
           created_at?: string
           employee_id?: string
           facility_id?: string
           id?: string
+          ojt_hours?: number
           organization_id?: string
           required_hours?: number
           status?: string
@@ -3108,6 +3124,7 @@ export type Database = {
           created_at: string
           description: string | null
           document_required: boolean
+          hour_bucket: string | null
           id: string
           is_active: boolean
           is_system_default: boolean
@@ -3132,6 +3149,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           document_required?: boolean
+          hour_bucket?: string | null
           id?: string
           is_active?: boolean
           is_system_default?: boolean
@@ -3156,6 +3174,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           document_required?: boolean
+          hour_bucket?: string | null
           id?: string
           is_active?: boolean
           is_system_default?: boolean
@@ -3271,7 +3290,15 @@ export type Database = {
       mark_notification_read: { Args: { p_id: string }; Returns: undefined }
       owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
       recalculate_all_compliance: { Args: never; Returns: undefined }
+      recalculate_compliance_core: {
+        Args: { p_organization_id?: string }
+        Returns: undefined
+      }
       recalculate_incident_notifications: { Args: never; Returns: undefined }
+      recalculate_org_compliance: {
+        Args: { p_organization_id: string }
+        Returns: undefined
+      }
       send_monday_digest: { Args: never; Returns: undefined }
       set_certificate_pdf: {
         Args: { p_bucket: string; p_certificate_id: string; p_path: string }

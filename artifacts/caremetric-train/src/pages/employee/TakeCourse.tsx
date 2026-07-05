@@ -110,7 +110,10 @@ export default function TakeCourse() {
 
   // Persist progress on navigation only (not on every render): this fires
   // once the resumed starting step lands, and again each time stepIndex
-  // changes via Previous/Next.
+  // changes via Previous/Next. started_at is stamped once (reusing the
+  // already-loaded progress row's value if it has one) and never overwritten
+  // afterward -- complete_course_assignment() uses the gap between it and
+  // the completion request as a minimum-seat-time completion-integrity check.
   useEffect(() => {
     if (!resumed || !assignment || !blocks || blocks.length === 0) return;
     const block = blocks[stepIndex];
@@ -120,6 +123,7 @@ export default function TakeCourse() {
       assignment_id: assignment.id,
       last_block_id: block.id,
       percent_complete: percentComplete,
+      started_at: progress?.started_at ?? new Date().toISOString(),
     });
     // Only re-run when the resolved step (or the assignment/blocks it's
     // scoped to) actually changes -- upsertProgress.mutate is stable.

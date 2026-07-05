@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Settings as SettingsIcon, Palette, Bell, Clock, Upload, Building2, Send } from "lucide-react";
+import { Settings as SettingsIcon, Palette, Bell, Clock, Upload, Building2, Send, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { useGetOrganizationSettings, useUpsertOrganizationSettings } from "@/hooks/useOrganizationSettings";
 import { useListNotificationDeliveries } from "@/hooks/useNotifications";
+import { useRecalculateOrgCompliance } from "@/hooks/useTrainingRecords";
 
 const DEFAULT_PRIMARY_COLOR = "#2563eb";
 const DEFAULT_ACCENT_COLOR = "#7c3aed";
@@ -50,6 +51,7 @@ export default function Settings() {
   const { data: settings, isLoading } = useGetOrganizationSettings(user?.organizationId ?? undefined);
   const { mutate: upsertSettings, isPending: saving } = useUpsertOrganizationSettings();
   const { data: deliveries } = useListNotificationDeliveries(15);
+  const { mutate: recalculateCompliance, isPending: recalculating } = useRecalculateOrgCompliance();
 
   const [form, setForm] = useState<SettingsFormData>(EMPTY_FORM);
   const [logoPath, setLogoPath] = useState<string | null>(null);
@@ -375,6 +377,31 @@ export default function Settings() {
                   Individual training types can override this default.
                 </p>
               </div>
+              {canManage && user?.organizationId && (
+                <div className="mt-5 pt-4 border-t border-border/60 flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium">Recompute Now</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Statuses, alerts, and annual-hours tracking normally refresh automatically overnight. Use this
+                      to see a newly recorded training reflected immediately instead of waiting.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={recalculating}
+                    onClick={() =>
+                      recalculateCompliance(user.organizationId!, {
+                        onSuccess: () => toast({ title: "Compliance recomputed" }),
+                        onError: (e: Error) => toast({ title: "Failed to recompute", description: e.message, variant: "destructive" }),
+                      })
+                    }
+                  >
+                    <RefreshCw className={`mr-2 h-4 w-4 ${recalculating ? "animate-spin" : ""}`} />
+                    {recalculating ? "Recomputing..." : "Recompute Now"}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 

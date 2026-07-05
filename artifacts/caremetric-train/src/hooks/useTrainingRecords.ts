@@ -64,17 +64,23 @@ export function useDeleteTrainingRecord() {
   });
 }
 
-export function useRecalculateCompliance() {
+// recalculate_all_compliance() is cron-only now (no client grant at all -- see
+// 20260705141141_annual_hours_recalc_engine_and_hardening.sql); org_admin/facility_manager
+// get this org-scoped, authorization-checked RPC instead for an on-demand refresh so a newly
+// recorded training or completed course doesn't look stale until the next 6am cron run.
+export function useRecalculateOrgCompliance() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.rpc("recalculate_all_compliance");
+    mutationFn: async (organizationId: string) => {
+      const { error } = await supabase.rpc("recalculate_org_compliance", { p_organization_id: organizationId });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["training_records"] });
       queryClient.invalidateQueries({ queryKey: ["practicums"] });
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
+      queryClient.invalidateQueries({ queryKey: ["training_hour_buckets"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
 }

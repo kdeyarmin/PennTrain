@@ -23,6 +23,7 @@ import {
   useListCourseBlocks, useCreateCourseBlock, useDeleteCourseBlock,
   type CourseVersion, type CourseBlock, type CourseBlockInsert,
 } from "@/hooks/useCourses";
+import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useGetQuizByBlockId, useCreateQuiz } from "@/hooks/useQuizzes";
 import { useListCourseFeedback, summarizeCourseFeedback } from "@/hooks/useCourseFeedback";
 import { useListHeygenOptions, useGenerateCourseVideo, useCheckCourseVideoStatus } from "@/hooks/useCourseVideoGeneration";
@@ -34,7 +35,10 @@ interface CourseFormState {
   description: string;
   category: string;
   status: string;
+  trainingTypeId: string;
 }
+
+const NO_TRAINING_TYPE = "none";
 
 interface BlockFormState {
   block_type: "text" | "video" | "pdf" | "scorm" | "quiz";
@@ -155,8 +159,9 @@ export default function CourseDetail() {
 
   // --- Course metadata edit ---
   const [showEditCourse, setShowEditCourse] = useState(false);
-  const [courseForm, setCourseForm] = useState<CourseFormState>({ title: "", description: "", category: "", status: "draft" });
+  const [courseForm, setCourseForm] = useState<CourseFormState>({ title: "", description: "", category: "", status: "draft", trainingTypeId: NO_TRAINING_TYPE });
   const { mutate: updateCourse, isPending: savingCourse } = useUpdateCourse();
+  const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
 
   const openEditCourse = () => {
     if (!course) return;
@@ -165,6 +170,7 @@ export default function CourseDetail() {
       description: course.description ?? "",
       category: course.category ?? "",
       status: course.status,
+      trainingTypeId: course.training_type_id ?? NO_TRAINING_TYPE,
     });
     setShowEditCourse(true);
   };
@@ -182,6 +188,7 @@ export default function CourseDetail() {
         description: courseForm.description || null,
         category: courseForm.category || null,
         status: courseForm.status,
+        training_type_id: courseForm.trainingTypeId === NO_TRAINING_TYPE ? null : courseForm.trainingTypeId,
       },
       {
         onSuccess: () => { toast({ title: "Course updated" }); setShowEditCourse(false); },
@@ -694,6 +701,22 @@ export default function CourseDetail() {
             <p className="text-xs text-muted-foreground">
               This is the course's catalog status. It's independent of the per-version publish workflow below.
             </p>
+            <div className="space-y-1">
+              <Label>Compliance Training Type</Label>
+              <Select value={courseForm.trainingTypeId} onValueChange={v => setCourseForm(f => ({ ...f, trainingTypeId: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_TRAINING_TYPE}>Not linked to a compliance requirement</SelectItem>
+                  {(trainingTypes ?? []).map(tt => (
+                    <SelectItem key={tt.id} value={tt.id}>{tt.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                When a learner completes this course, it automatically records (or refreshes) their training record
+                for this requirement, so their annual-hours and due-date tracking update immediately.
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditCourse(false)}>Cancel</Button>

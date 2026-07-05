@@ -321,6 +321,16 @@ function byFacility<T extends { facility_id: string | null }>(items: T[], facili
   return facilityId === "all" ? items : items.filter((i) => i.facility_id === facilityId);
 }
 
+const BUCKET_TYPE_LABELS: Record<string, string> = {
+  general_annual: "General Annual",
+  alr_dementia: "ALR Dementia (§2800.69)",
+  sdcu_dementia: "Secured Dementia Unit (§2600.236)",
+};
+
+function formatBucketType(bucketType: string): string {
+  return BUCKET_TYPE_LABELS[bucketType] ?? bucketType;
+}
+
 // Returns true when `dateStr` falls within the optional [from, to] range (inclusive of the
 // entire `to` day). When both bounds are empty the filter is inactive and everything passes.
 // When the filter is active but a row has no date value to compare, the row is excluded.
@@ -685,19 +695,21 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
     const buckets = reportId === "annual-hours" ? scopedBuckets.filter((b) => b.training_year === currentYear) : scopedBuckets;
     const compliantCount = buckets.filter((b) => b.status === "compliant").length;
     const incompleteCount = buckets.length - compliantCount;
+    const staffTracked = new Set(buckets.map((b) => b.employee_id)).size;
     summaryCards.push(
-      { label: "Staff Tracked", value: buckets.length },
-      { label: "Compliant", value: compliantCount, variant: "success" },
-      { label: "Incomplete", value: incompleteCount, variant: incompleteCount > 0 ? "warning" : "success" }
+      { label: "Staff Tracked", value: staffTracked },
+      { label: "Compliant Buckets", value: compliantCount, variant: "success" },
+      { label: "Incomplete Buckets", value: incompleteCount, variant: incompleteCount > 0 ? "warning" : "success" }
     );
     return {
-      headers: ["Employee", "Year", "Required Hours", "Completed Hours", "Remaining", "Status"],
+      headers: ["Employee", "Bucket", "Year", "Required Hours", "Completed Hours", "Remaining", "Status"],
       rows: buckets.map((b) => {
         const e = employeeById.get(b.employee_id);
         const req = Number(b.required_hours ?? 0);
         const comp = Number(b.completed_hours ?? 0);
         return [
           e ? `${e.first_name} ${e.last_name}` : b.employee_id,
+          formatBucketType(b.bucket_type),
           String(b.training_year),
           String(req),
           String(comp),
