@@ -100,17 +100,6 @@ export default function Landing() {
                   </Button>
                 </Link>
               </div>
-              <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-white/60">
-                <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-[#59b2ff]" /> Role-based access
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-[#59b2ff]" /> Survey-ready reporting
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-[#59b2ff]" /> Built on Supabase security
-                </span>
-              </div>
             </div>
 
             {/* Product preview mock */}
