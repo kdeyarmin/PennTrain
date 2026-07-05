@@ -217,7 +217,7 @@ export default function RetrainingMonitor() {
                           {compliancePercent}%
                         </span>
                       </div>
-                      <div className="grid grid-cols-4 gap-3 text-center text-sm">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-sm">
                         <div className="rounded-lg bg-green-50 dark:bg-green-950/20 py-2">
                           <p className="text-lg font-bold text-green-700 dark:text-green-400">
                             {fac.compliantCount}

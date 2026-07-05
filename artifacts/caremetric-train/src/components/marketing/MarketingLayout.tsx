@@ -1,6 +1,9 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
+import { Menu } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { LogoMark } from "@/components/marketing/primitives";
 import { DEMO_MAILTO } from "@/components/marketing/content";
 import { MARKETING_NAV } from "@/lib/publicPaths";
@@ -16,13 +19,20 @@ function ScrollToTop() {
 
 function MarketingHeader() {
   const [location] = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Close the mobile menu on any route change.
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location]);
+
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-sm">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-2.5" data-testid="link-home">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-4 sm:px-6 lg:px-8">
+        <Link href="/" className="flex items-center gap-2.5 min-w-0" data-testid="link-home">
           <LogoMark />
-          <div className="flex flex-col leading-none">
-            <span className="whitespace-nowrap text-[15px] font-bold tracking-tight">
+          <div className="flex flex-col leading-none min-w-0">
+            <span className="truncate text-[15px] font-bold tracking-tight">
               CareMetric Train
             </span>
             <span className="hidden whitespace-nowrap text-[11px] font-medium text-muted-foreground sm:block">
@@ -51,7 +61,8 @@ function MarketingHeader() {
           })}
         </nav>
 
-        <div className="flex items-center gap-2">
+        {/* Desktop actions */}
+        <div className="hidden md:flex items-center gap-2 shrink-0">
           <Link href="/login">
             <Button variant="ghost" size="sm" data-testid="link-login">
               Log In
@@ -63,6 +74,53 @@ function MarketingHeader() {
             </Button>
           </a>
         </div>
+
+        {/* Mobile menu */}
+        <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+          <SheetTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 md:hidden"
+              aria-label="Open menu"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="right" className="w-[280px] max-w-[85vw]">
+            <nav className="mt-8 flex flex-col gap-1">
+              {MARKETING_NAV.map((item) => {
+                const active = location === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMenuOpen(false)}
+                    className={cn(
+                      "rounded-md px-3 py-2 text-sm font-medium",
+                      active
+                        ? "bg-muted text-foreground"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                    )}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+            <div className="mt-6 flex flex-col gap-2 border-t border-border/60 pt-6">
+              <Link href="/login" onClick={() => setMenuOpen(false)}>
+                <Button variant="outline" className="w-full">
+                  Log In
+                </Button>
+              </Link>
+              <a href={DEMO_MAILTO} onClick={() => setMenuOpen(false)}>
+                <Button className="w-full">Request a Demo</Button>
+              </a>
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     </header>
   );

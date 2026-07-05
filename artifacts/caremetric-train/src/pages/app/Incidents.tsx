@@ -147,7 +147,7 @@ export default function Incidents() {
 
   return (
     <div className="space-y-6">
-      <div className="page-header flex items-center justify-between">
+      <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Incidents &amp; Complaints</h1>
           <p>Log and track reportable incidents, required notifications, and investigations.</p>
@@ -198,8 +198,8 @@ export default function Incidents() {
           </div>
         ) : (
           <>
-            <div className="overflow-hidden">
-              <table className="data-table">
+            <div className="overflow-x-auto">
+              <table className="data-table min-w-[720px]">
                 <thead>
                   <tr>
                     <th>Occurred</th>
@@ -248,7 +248,7 @@ export default function Incidents() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Report Incident</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-[13px]">Facility *</Label>
                 <Select value={form.facilityId} onValueChange={(v) => setForm((f) => ({ ...f, facilityId: v }))}>

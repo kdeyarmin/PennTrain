@@ -214,7 +214,7 @@ export default function Packages() {
           <DialogHeader>
             <DialogTitle>{editId ? "Edit Package" : "Add Package"}</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="col-span-2 space-y-1.5">
               <Label className="text-[13px]">Name *</Label>
               <Input value={form.name} onChange={e => field("name", e.target.value)} placeholder="Professional" className="h-9" />

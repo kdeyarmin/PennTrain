@@ -45,8 +45,8 @@ export function ReportViewer({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4 no-print">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-4 no-print">
+        <div className="flex items-center gap-3 min-w-0">
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close report">
             <X className="h-5 w-5" />
           </Button>
@@ -85,7 +85,7 @@ export function ReportViewer({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 mb-4 no-print">
+        <div className="flex flex-wrap items-center gap-2 mb-4 no-print">
           <Badge variant="outline">{category}</Badge>
           <span className="text-xs text-muted-foreground">Ref: {requiredBy}</span>
           <span className="text-xs text-muted-foreground ml-auto">

@@ -189,7 +189,7 @@ export default function Employees() {
 
   return (
     <div className="space-y-6">
-      <div className="page-header flex items-center justify-between">
+      <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Employees</h1>
           <p>Manage staff and track their compliance status.</p>
@@ -249,8 +249,8 @@ export default function Employees() {
           </div>
         ) : (
           <>
-            <div className="overflow-hidden">
-              <table className="data-table">
+            <div className="overflow-x-auto">
+              <table className="data-table min-w-[720px]">
                 <thead>
                   <tr>
                     <th className="sortable" onClick={() => toggleSort("lastName")} onKeyDown={e => e.key === "Enter" && toggleSort("lastName")} tabIndex={0} role="columnheader" aria-sort={sortField === "lastName" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
@@ -362,7 +362,7 @@ export default function Employees() {
           <DialogHeader>
             <DialogTitle>{editEmp ? "Edit Employee" : "Add Employee"}</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5">
               <Label className="text-[13px]">First Name *</Label>
               <Input value={form.firstName} onChange={e => field("firstName", e.target.value)} placeholder="Jane" className="h-9" />

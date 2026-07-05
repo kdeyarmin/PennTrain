@@ -218,7 +218,7 @@ export default function InspectionItemDetail() {
       <Dialog open={showEventForm} onOpenChange={(o) => { if (!o) setShowEventForm(false); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Log Inspection</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5">
               <Label className="text-[13px]">Date *</Label>
               <Input type="date" value={performedDate} onChange={(e) => setPerformedDate(e.target.value)} className="h-9" />

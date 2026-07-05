@@ -249,7 +249,7 @@ export default function Users() {
 
   return (
     <div className="space-y-6">
-      <div className="page-header flex items-center justify-between">
+      <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Users</h1>
           <p>Manage user accounts and access levels.</p>
@@ -426,7 +426,7 @@ export default function Users() {
           <DialogHeader>
             <DialogTitle>Add User</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5">
               <Label className="text-[13px]">First Name *</Label>
               <Input value={createForm.firstName} onChange={e => createField("firstName", e.target.value)} placeholder="Jane" className="h-9" />
@@ -491,7 +491,7 @@ export default function Users() {
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5">
               <Label className="text-[13px]">First Name *</Label>
               <Input value={editForm.firstName} onChange={e => setEditForm(f => ({ ...f, firstName: e.target.value }))} className="h-9" />

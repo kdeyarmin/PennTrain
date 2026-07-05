@@ -2,6 +2,8 @@ import React from "react";
 import { useAuth } from "@/lib/auth";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import type { AuthUser } from "@/lib/auth";
 import {
   LayoutDashboard,
   Building2,
@@ -24,19 +26,12 @@ import {
   Flame
 } from "lucide-react";
 
-export function Sidebar() {
-  const { user } = useAuth();
-  const [location] = useLocation();
+type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
+type NavSection = { title?: string; items: NavItem[] };
 
-  if (!user) return null;
-
-  const role = user.role;
-
-  let navItems: Array<{ href: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [];
-  let navSections: Array<{ title?: string; items: typeof navItems }> = [];
-
+function getNavSections(role: AuthUser["role"]): NavSection[] {
   if (role === "platform_admin") {
-    navSections = [
+    return [
       {
         items: [
           { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -61,7 +56,7 @@ export function Sidebar() {
       }
     ];
   } else if (role === "org_admin" || role === "facility_manager") {
-    navSections = [
+    return [
       {
         items: [
           { href: "/app", label: "Dashboard", icon: LayoutDashboard },
@@ -104,7 +99,7 @@ export function Sidebar() {
       }
     ];
   } else if (role === "auditor") {
-    navSections = [
+    return [
       {
         items: [
           { href: "/app", label: "Dashboard", icon: LayoutDashboard },
@@ -137,7 +132,7 @@ export function Sidebar() {
       }
     ];
   } else if (role === "trainer") {
-    navSections = [
+    return [
       {
         items: [
           { href: "/trainer", label: "Dashboard", icon: LayoutDashboard },
@@ -163,7 +158,7 @@ export function Sidebar() {
       }
     ];
   } else if (role === "employee") {
-    navSections = [
+    return [
       {
         items: [
           { href: "/me", label: "My Training", icon: LayoutDashboard },
@@ -175,9 +170,24 @@ export function Sidebar() {
       }
     ];
   }
+  return [];
+}
+
+/**
+ * The sidebar's inner content (logo, nav sections, user footer). Shared by the
+ * desktop `<aside>` and the mobile drawer. `onNavigate` lets the mobile drawer
+ * close itself when a link is tapped.
+ */
+function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+  const { user } = useAuth();
+  const [location] = useLocation();
+
+  if (!user) return null;
+
+  const navSections = getNavSections(user.role);
 
   return (
-    <aside className="w-[260px] bg-sidebar text-sidebar-foreground flex flex-col h-full shrink-0 border-r border-sidebar-border">
+    <>
       <div className="h-[68px] flex items-center gap-3 px-6 shrink-0">
         <div className="h-9 w-9 rounded-lg bg-sidebar-primary flex items-center justify-center">
           <ShieldCheck className="h-5 w-5 text-sidebar-primary-foreground" />
@@ -207,6 +217,7 @@ export function Sidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={onNavigate}
                     className={cn(
                       "group flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 text-[13px] font-medium relative",
                       (isActive || isExactActive)
@@ -241,6 +252,49 @@ export function Sidebar() {
           </div>
         </div>
       </div>
+    </>
+  );
+}
+
+/** Desktop sidebar -- a fixed rail, hidden below md where the mobile drawer takes over. */
+export function Sidebar() {
+  const { user } = useAuth();
+  if (!user) return null;
+
+  return (
+    <aside className="hidden md:flex w-[260px] bg-sidebar text-sidebar-foreground flex-col h-full shrink-0 border-r border-sidebar-border">
+      <SidebarNav />
     </aside>
+  );
+}
+
+/** Mobile sidebar -- the same nav in an off-canvas drawer, opened from the header. */
+export function MobileSidebar({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { user } = useAuth();
+  const [location] = useLocation();
+
+  // Close the drawer on any route change (covers nav taps and programmatic navigation).
+  React.useEffect(() => {
+    onOpenChange(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location]);
+
+  if (!user) return null;
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="left"
+        className="w-[280px] max-w-[85vw] p-0 bg-sidebar text-sidebar-foreground border-sidebar-border flex flex-col gap-0"
+      >
+        <SidebarNav onNavigate={() => onOpenChange(false)} />
+      </SheetContent>
+    </Sheet>
   );
 }
