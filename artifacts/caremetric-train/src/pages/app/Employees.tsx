@@ -92,9 +92,7 @@ export default function Employees() {
   // Query string, e.g. "?action=add" -- distinct from the free-text `search` state above,
   // which is the employee name/role/department search box.
   const locationSearch = useSearch();
-  const basePath = user?.role === "platform_admin" ? "/admin/employees"
-    : user?.role === "trainer" ? "/trainer/employees"
-    : "/app/employees";
+  const basePath = user?.role === "platform_admin" ? "/admin/employees" : "/app/employees";
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
 

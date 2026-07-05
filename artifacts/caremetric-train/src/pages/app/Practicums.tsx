@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { todayISO, addDaysISO } from "@/lib/complianceDates";
 import { FileCheck, Plus, CheckCircle, XCircle, Pencil } from "lucide-react";
 
 // Matches practicums_insert/practicums_update RLS (supabase/migrations/
@@ -22,16 +23,6 @@ import { FileCheck, Plus, CheckCircle, XCircle, Pencil } from "lucide-react";
 // auditor can reach this page (it's in ORG_ROLES, see App.tsx) but has no write grant there, so
 // its create/edit controls must be hidden rather than rendered and left to fail at the database.
 const PRACTICUM_MANAGE_ROLES: Role[] = ["platform_admin", "org_admin", "facility_manager", "trainer"];
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function addDaysISO(dateISO: string, days: number): string {
-  const d = new Date(`${dateISO}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
 
 // Mirrors the practicums branch of recalculate_all_compliance() (supabase/migrations/
 // 20260704053624_compliance_rpcs_and_audit_trigger.sql, carried unchanged through every later

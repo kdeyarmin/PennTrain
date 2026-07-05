@@ -133,7 +133,7 @@ const ORG_ADMIN_ONLY: UserRole[] = ["org_admin"];
 // Read-only compliance views auditor needs alongside the org admin roles -- auditor never
 // gets ORG_MANAGE_ROLES (Users/Settings are true admin config, not audit-relevant).
 const REPORTS_VIEW_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
-const AUDIT_LOG_ROLES: UserRole[] = ["org_admin", "auditor"];
+const AUDIT_LOG_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
 // Matches employee_credentials_select RLS -- trainer is excluded, unlike ORG_ROLES, because
 // clearance/license data is more sensitive than training records.
 const CREDENTIAL_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
