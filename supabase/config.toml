@@ -36,3 +36,9 @@ verify_jwt = true
 # same system-wide pending queue regardless of caller, so this is not a data-exposure risk.
 [functions.dispatch-notifications]
 verify_jwt = false
+
+# Same reasoning as dispatch-notifications -- monthly pg_cron-invoked ingestion job, no
+# caller-supplied parameters, always re-ingests the same public dataset and re-scans the full
+# roster regardless of caller.
+[functions.screen-exclusions]
+verify_jwt = false

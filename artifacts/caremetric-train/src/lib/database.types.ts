@@ -26,6 +26,7 @@ export type Database = {
           employee_credential_id: string | null
           employee_id: string | null
           escalated_at: string | null
+          exclusion_screening_match_id: string | null
           facility_id: string | null
           id: string
           incident_notification_id: string | null
@@ -50,6 +51,7 @@ export type Database = {
           employee_credential_id?: string | null
           employee_id?: string | null
           escalated_at?: string | null
+          exclusion_screening_match_id?: string | null
           facility_id?: string | null
           id?: string
           incident_notification_id?: string | null
@@ -74,6 +76,7 @@ export type Database = {
           employee_credential_id?: string | null
           employee_id?: string | null
           escalated_at?: string | null
+          exclusion_screening_match_id?: string | null
           facility_id?: string | null
           id?: string
           incident_notification_id?: string | null
@@ -114,6 +117,13 @@ export type Database = {
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_exclusion_screening_match_id_fkey"
+            columns: ["exclusion_screening_match_id"]
+            isOneToOne: false
+            referencedRelation: "exclusion_screening_matches"
             referencedColumns: ["id"]
           },
           {
@@ -980,6 +990,111 @@ export type Database = {
           },
         ]
       }
+      employee_background_check_profiles: {
+        Row: {
+          created_at: string
+          employee_id: string
+          facility_id: string
+          id: string
+          non_disqualification_statement_signed: boolean
+          non_disqualification_statement_signed_at: string | null
+          organization_id: string
+          pa_resident_two_years: boolean | null
+          provisional_max_days: number | null
+          provisional_start_date: string | null
+          suitability_conditions: string | null
+          suitability_determination: string
+          suitability_determined_at: string | null
+          suitability_determined_by: string | null
+          suitability_notes: string | null
+          supervision_attestation_confirmed: boolean
+          supervision_attestation_confirmed_at: string | null
+          supervision_attestation_confirmed_by: string | null
+          supervision_attestation_notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          facility_id: string
+          id?: string
+          non_disqualification_statement_signed?: boolean
+          non_disqualification_statement_signed_at?: string | null
+          organization_id: string
+          pa_resident_two_years?: boolean | null
+          provisional_max_days?: number | null
+          provisional_start_date?: string | null
+          suitability_conditions?: string | null
+          suitability_determination?: string
+          suitability_determined_at?: string | null
+          suitability_determined_by?: string | null
+          suitability_notes?: string | null
+          supervision_attestation_confirmed?: boolean
+          supervision_attestation_confirmed_at?: string | null
+          supervision_attestation_confirmed_by?: string | null
+          supervision_attestation_notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          facility_id?: string
+          id?: string
+          non_disqualification_statement_signed?: boolean
+          non_disqualification_statement_signed_at?: string | null
+          organization_id?: string
+          pa_resident_two_years?: boolean | null
+          provisional_max_days?: number | null
+          provisional_start_date?: string | null
+          suitability_conditions?: string | null
+          suitability_determination?: string
+          suitability_determined_at?: string | null
+          suitability_determined_by?: string | null
+          suitability_notes?: string | null
+          supervision_attestation_confirmed?: boolean
+          supervision_attestation_confirmed_at?: string | null
+          supervision_attestation_confirmed_by?: string | null
+          supervision_attestation_notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_background_check_pro_supervision_attestation_conf_fkey"
+            columns: ["supervision_attestation_confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_background_check_profil_suitability_determined_by_fkey"
+            columns: ["suitability_determined_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_background_check_profiles_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: true
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_background_check_profiles_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_background_check_profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_credential_documents: {
         Row: {
           created_at: string
@@ -1436,6 +1551,144 @@ export type Database = {
             foreignKeyName: "employees_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exclusion_list_entries: {
+        Row: {
+          business_name: string | null
+          dob: string | null
+          exclusion_date: string | null
+          exclusion_type: string | null
+          first_name: string | null
+          id: string
+          imported_at: string
+          last_name: string | null
+          middle_name: string | null
+          npi: string | null
+          raw: Json | null
+          reinstate_date: string | null
+          source: string
+          upin: string | null
+          waiver_date: string | null
+        }
+        Insert: {
+          business_name?: string | null
+          dob?: string | null
+          exclusion_date?: string | null
+          exclusion_type?: string | null
+          first_name?: string | null
+          id?: string
+          imported_at?: string
+          last_name?: string | null
+          middle_name?: string | null
+          npi?: string | null
+          raw?: Json | null
+          reinstate_date?: string | null
+          source: string
+          upin?: string | null
+          waiver_date?: string | null
+        }
+        Update: {
+          business_name?: string | null
+          dob?: string | null
+          exclusion_date?: string | null
+          exclusion_type?: string | null
+          first_name?: string | null
+          id?: string
+          imported_at?: string
+          last_name?: string | null
+          middle_name?: string | null
+          npi?: string | null
+          raw?: Json | null
+          reinstate_date?: string | null
+          source?: string
+          upin?: string | null
+          waiver_date?: string | null
+        }
+        Relationships: []
+      }
+      exclusion_screening_matches: {
+        Row: {
+          created_at: string
+          employee_id: string
+          exclusion_list_entry_id: string
+          facility_id: string
+          id: string
+          match_score: number
+          matched_name: string
+          organization_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          reviewed_notes: string | null
+          source: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          exclusion_list_entry_id: string
+          facility_id: string
+          id?: string
+          match_score: number
+          matched_name: string
+          organization_id: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewed_notes?: string | null
+          source: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          exclusion_list_entry_id?: string
+          facility_id?: string
+          id?: string
+          match_score?: number
+          matched_name?: string
+          organization_id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewed_notes?: string | null
+          source?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exclusion_screening_matches_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exclusion_screening_matches_exclusion_list_entry_id_fkey"
+            columns: ["exclusion_list_entry_id"]
+            isOneToOne: false
+            referencedRelation: "exclusion_list_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exclusion_screening_matches_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exclusion_screening_matches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exclusion_screening_matches_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -2203,6 +2456,8 @@ export type Database = {
           default_warning_days: Json | null
           email_notifications_enabled: boolean
           id: string
+          oapsa_provisional_days_nonresident: number
+          oapsa_provisional_days_resident: number
           organization_id: string
           sms_notifications_enabled: boolean
           updated_at: string
@@ -2215,6 +2470,8 @@ export type Database = {
           default_warning_days?: Json | null
           email_notifications_enabled?: boolean
           id?: string
+          oapsa_provisional_days_nonresident?: number
+          oapsa_provisional_days_resident?: number
           organization_id: string
           sms_notifications_enabled?: boolean
           updated_at?: string
@@ -2227,6 +2484,8 @@ export type Database = {
           default_warning_days?: Json | null
           email_notifications_enabled?: boolean
           id?: string
+          oapsa_provisional_days_nonresident?: number
+          oapsa_provisional_days_resident?: number
           organization_id?: string
           sms_notifications_enabled?: boolean
           updated_at?: string
@@ -3689,6 +3948,10 @@ export type Database = {
       }
       mark_all_notifications_read: { Args: never; Returns: undefined }
       mark_notification_read: { Args: { p_id: string }; Returns: undefined }
+      match_exclusion_list_against_roster_core: {
+        Args: { p_organization_id?: string; p_source: string }
+        Returns: undefined
+      }
       owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
       recalculate_all_compliance: { Args: never; Returns: undefined }
       recalculate_compliance_core: {
@@ -3697,6 +3960,10 @@ export type Database = {
       }
       recalculate_incident_notifications: { Args: never; Returns: undefined }
       recalculate_org_compliance: {
+        Args: { p_organization_id: string }
+        Returns: undefined
+      }
+      rescan_org_exclusion_matches: {
         Args: { p_organization_id: string }
         Returns: undefined
       }
@@ -3726,6 +3993,8 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       verify_certificate: {
         Args: { p_slug: string }
         Returns: {

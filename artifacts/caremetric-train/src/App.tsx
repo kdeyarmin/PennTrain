@@ -40,6 +40,8 @@ import CompetencyRecords from "@/pages/app/CompetencyRecords";
 import Practicums from "@/pages/app/Practicums";
 import MedAdminRoster from "@/pages/app/MedAdminRoster";
 import EmployeeCredentials from "@/pages/app/EmployeeCredentials";
+import BackgroundChecks from "@/pages/app/BackgroundChecks";
+import ExclusionScreening from "@/pages/app/ExclusionScreening";
 import Incidents from "@/pages/app/Incidents";
 import IncidentDetail from "@/pages/app/IncidentDetail";
 import InspectionItems from "@/pages/app/InspectionItems";
@@ -261,6 +263,12 @@ function Router() {
       </Route>
       <Route path="/app/credentials">
         {() => <ProtectedRoute component={EmployeeCredentials} allowedRoles={CREDENTIAL_ROLES} />}
+      </Route>
+      <Route path="/app/background-checks">
+        {() => <ProtectedRoute component={BackgroundChecks} allowedRoles={CREDENTIAL_ROLES} />}
+      </Route>
+      <Route path="/app/exclusion-screening">
+        {() => <ProtectedRoute component={ExclusionScreening} allowedRoles={CREDENTIAL_ROLES} />}
       </Route>
       <Route path="/app/policy-documents">
         {() => <ProtectedRoute component={PolicyDocuments} allowedRoles={POLICY_ROLES} />}

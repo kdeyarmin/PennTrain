@@ -26,7 +26,8 @@ import {
   AlertTriangle,
   Flame,
   Pill,
-  FileSignature
+  FileSignature,
+  ShieldQuestion
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -79,6 +80,8 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
           { href: "/app/practicums", label: "Practicums", icon: FileCheck },
           { href: "/app/med-admin-roster", label: "Who Can Pass Meds", icon: Pill },
           { href: "/app/credentials", label: "Credentials & Clearances", icon: ShieldCheck },
+          { href: "/app/background-checks", label: "Background Checks", icon: ShieldQuestion },
+          { href: "/app/exclusion-screening", label: "Exclusion Screening", icon: ShieldAlert },
           { href: "/app/inspections", label: "Inspections & Equipment", icon: Flame },
         ]
       },
@@ -123,6 +126,8 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
           { href: "/app/practicums", label: "Practicums", icon: FileCheck },
           { href: "/app/med-admin-roster", label: "Who Can Pass Meds", icon: Pill },
           { href: "/app/credentials", label: "Credentials & Clearances", icon: ShieldCheck },
+          { href: "/app/background-checks", label: "Background Checks", icon: ShieldQuestion },
+          { href: "/app/exclusion-screening", label: "Exclusion Screening", icon: ShieldAlert },
           { href: "/app/inspections", label: "Inspections & Equipment", icon: Flame },
         ]
       },

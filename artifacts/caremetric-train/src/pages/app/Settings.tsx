@@ -16,6 +16,8 @@ import { useRecalculateOrgCompliance } from "@/hooks/useTrainingRecords";
 const DEFAULT_PRIMARY_COLOR = "#2563eb";
 const DEFAULT_ACCENT_COLOR = "#7c3aed";
 const DEFAULT_WARNING_DAYS = 90;
+const DEFAULT_OAPSA_DAYS_RESIDENT = 30;
+const DEFAULT_OAPSA_DAYS_NONRESIDENT = 90;
 const LOGO_BUCKET = "org-branding";
 
 interface SettingsFormData {
@@ -24,6 +26,8 @@ interface SettingsFormData {
   emailNotificationsEnabled: boolean;
   smsNotificationsEnabled: boolean;
   defaultWarningDays: string;
+  oapsaProvisionalDaysResident: string;
+  oapsaProvisionalDaysNonresident: string;
 }
 
 const EMPTY_FORM: SettingsFormData = {
@@ -32,6 +36,8 @@ const EMPTY_FORM: SettingsFormData = {
   emailNotificationsEnabled: true,
   smsNotificationsEnabled: false,
   defaultWarningDays: String(DEFAULT_WARNING_DAYS),
+  oapsaProvisionalDaysResident: String(DEFAULT_OAPSA_DAYS_RESIDENT),
+  oapsaProvisionalDaysNonresident: String(DEFAULT_OAPSA_DAYS_NONRESIDENT),
 };
 
 function parseDefaultWarningDays(json: unknown): number {
@@ -66,6 +72,8 @@ export default function Settings() {
         emailNotificationsEnabled: settings.email_notifications_enabled,
         smsNotificationsEnabled: settings.sms_notifications_enabled,
         defaultWarningDays: String(parseDefaultWarningDays(settings.default_warning_days)),
+        oapsaProvisionalDaysResident: String(settings.oapsa_provisional_days_resident ?? DEFAULT_OAPSA_DAYS_RESIDENT),
+        oapsaProvisionalDaysNonresident: String(settings.oapsa_provisional_days_nonresident ?? DEFAULT_OAPSA_DAYS_NONRESIDENT),
       });
       setLogoPath(settings.branding_logo_path ?? null);
     } else {
@@ -138,6 +146,8 @@ export default function Settings() {
   const handleSave = () => {
     if (!user?.organizationId) return;
     const parsedDays = parseInt(form.defaultWarningDays, 10);
+    const parsedOapsaResident = parseInt(form.oapsaProvisionalDaysResident, 10);
+    const parsedOapsaNonresident = parseInt(form.oapsaProvisionalDaysNonresident, 10);
     upsertSettings(
       {
         organization_id: user.organizationId,
@@ -146,6 +156,8 @@ export default function Settings() {
         email_notifications_enabled: form.emailNotificationsEnabled,
         sms_notifications_enabled: form.smsNotificationsEnabled,
         default_warning_days: { default: Number.isFinite(parsedDays) ? parsedDays : DEFAULT_WARNING_DAYS },
+        oapsa_provisional_days_resident: Number.isFinite(parsedOapsaResident) ? parsedOapsaResident : DEFAULT_OAPSA_DAYS_RESIDENT,
+        oapsa_provisional_days_nonresident: Number.isFinite(parsedOapsaNonresident) ? parsedOapsaNonresident : DEFAULT_OAPSA_DAYS_NONRESIDENT,
       },
       {
         onSuccess: () => toast({ title: "Settings saved" }),
@@ -375,6 +387,40 @@ export default function Settings() {
                 </div>
                 <p className="text-xs text-muted-foreground mt-1.5">
                   Individual training types can override this default.
+                </p>
+              </div>
+
+              <div className="mt-5 pt-4 border-t border-border/60 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]">OAPSA Provisional Period — PA Resident</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number" min={1} max={365}
+                      value={form.oapsaProvisionalDaysResident}
+                      onChange={(e) => field("oapsaProvisionalDaysResident", e.target.value)}
+                      disabled={!canManage}
+                      className="h-9 w-24"
+                    />
+                    <span className="text-sm text-muted-foreground">days</span>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]">OAPSA Provisional Period — Non-Resident</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number" min={1} max={365}
+                      value={form.oapsaProvisionalDaysNonresident}
+                      onChange={(e) => field("oapsaProvisionalDaysNonresident", e.target.value)}
+                      disabled={!canManage}
+                      className="h-9 w-24"
+                    />
+                    <span className="text-sm text-muted-foreground">days</span>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground sm:col-span-2">
+                  Default countdown for a new hire's provisional-employment period on the Background Checks page, based
+                  on OAPSA (6 Pa Code Sec 15.146) and the parallel PA Code provisions for personal care homes — confirm
+                  with your own regulatory counsel before relying on these defaults.
                 </p>
               </div>
               {canManage && user?.organizationId && (
