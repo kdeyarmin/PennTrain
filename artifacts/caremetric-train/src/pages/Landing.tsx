@@ -200,7 +200,7 @@ const NEW_WAY = [
   "Digital competency checklists tied to each employee's role",
   "A survey-ready compliance binder PDF generated in seconds",
   "Real-time compliance dashboards across every facility, org-wide",
-  "Each employee's required hours built automatically from their license type -- no manual rule-checking",
+  "Training types configured once per organization -- hours, renewal windows, and which facility types they apply to -- instead of re-explained to every new hire",
 ];
 
 const SECURITY_FEATURES = [
