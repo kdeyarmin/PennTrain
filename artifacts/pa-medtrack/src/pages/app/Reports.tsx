@@ -27,6 +27,9 @@ import { useListPracticums, type Practicum } from "@/hooks/usePracticums";
 import { useListAlerts, type Alert } from "@/hooks/useAlerts";
 import { useListDocuments, type TrainingDocument } from "@/hooks/useDocuments";
 import { useListTrainingHourBuckets } from "@/hooks/useTrainingHourBuckets";
+import { useListEmployeeCredentials, type EmployeeCredential } from "@/hooks/useEmployeeCredentials";
+import { useListIncidents, type Incident } from "@/hooks/useIncidents";
+import { useListInspectionItems, type InspectionItem } from "@/hooks/useInspectionItems";
 import { useListOrganizations, type Organization } from "@/hooks/useOrganizations";
 import type { Tables } from "@/lib/database.types";
 import { useToast } from "@/hooks/use-toast";
@@ -238,6 +241,33 @@ const ALL_REPORTS: ReportDef[] = [
     requiredBy: "55 Pa. Code §2600",
     roles: ["platform_admin"],
   },
+  {
+    id: "credential-status",
+    title: "Credential & Clearance Status",
+    description:
+      "Background clearances, licensure, and health screenings across all staff, with expiration status.",
+    icon: Shield,
+    category: "Credentials",
+    requiredBy: "OAPSA / PA Board of Nursing",
+  },
+  {
+    id: "incident-log",
+    title: "Incident Log",
+    description:
+      "All reported incidents with severity, status, and outstanding notification deadlines.",
+    icon: AlertTriangle,
+    category: "Incidents",
+    requiredBy: "55 Pa. Code §2600.16 / §2800.16",
+  },
+  {
+    id: "inspection-compliance",
+    title: "Inspection & Equipment Compliance",
+    description:
+      "Fire drills, life-safety equipment, and emergency-preparedness items with next-due dates.",
+    icon: FileText,
+    category: "Inspections",
+    requiredBy: "NFPA / CMS Emergency Preparedness Rule",
+  },
 ];
 
 const CATEGORIES = [
@@ -248,6 +278,9 @@ const CATEGORIES = [
   "Hours",
   "Staff",
   "Documents",
+  "Credentials",
+  "Incidents",
+  "Inspections",
 ];
 
 type SummaryCard = {
@@ -320,6 +353,9 @@ interface ReportContext {
   alerts: Alert[];
   organizations: Organization[];
   hourBuckets: HourBucket[];
+  credentials: EmployeeCredential[];
+  incidents: Incident[];
+  inspectionItems: InspectionItem[];
 }
 
 function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
@@ -818,6 +854,81 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
     };
   }
 
+  if (reportId === "credential-status") {
+    const scopedCredentials = byFacility(ctx.credentials, ctx.facilityId);
+    const compliantCount = scopedCredentials.filter((c) => c.status === "compliant").length;
+    const expiredCount = scopedCredentials.filter((c) => c.status === "expired").length;
+    const dueSoonCount = scopedCredentials.filter((c) => c.status === "due_soon").length;
+    summaryCards.push(
+      { label: "Total Credentials", value: scopedCredentials.length },
+      { label: "Compliant", value: compliantCount, variant: "success" },
+      { label: "Expired", value: expiredCount, variant: expiredCount > 0 ? "danger" : "success" },
+      { label: "Due Soon", value: dueSoonCount, variant: dueSoonCount > 0 ? "warning" : "success" }
+    );
+    return {
+      headers: ["Employee", "Credential", "Number", "Expiration", "Status"],
+      rows: scopedCredentials.map((c) => {
+        const e = employeeById.get(c.employee_id);
+        return [
+          e ? `${e.last_name}, ${e.first_name}` : `Employee #${c.employee_id.slice(0, 8)}`,
+          c.credential_label || c.credential_type.replace(/_/g, " "),
+          c.credential_number ?? "—",
+          c.expiration_date ?? "No expiration",
+          c.status,
+        ];
+      }),
+      summaryCards,
+    };
+  }
+
+  if (reportId === "incident-log") {
+    const scopedIncidents = byFacility(ctx.incidents, ctx.facilityId);
+    const openCount = scopedIncidents.filter((i) => i.status !== "closed").length;
+    const criticalCount = scopedIncidents.filter((i) => i.severity === "critical").length;
+    summaryCards.push(
+      { label: "Total Incidents", value: scopedIncidents.length },
+      { label: "Open", value: openCount, variant: openCount > 0 ? "warning" : "success" },
+      { label: "Critical", value: criticalCount, variant: criticalCount > 0 ? "danger" : "success" }
+    );
+    const facilityNameById = new Map(ctx.facilities.map((f) => [f.id, f.name]));
+    return {
+      headers: ["Occurred", "Facility", "Type", "Severity", "Status"],
+      rows: scopedIncidents.map((i) => [
+        new Date(i.occurred_at).toLocaleString(),
+        facilityNameById.get(i.facility_id) ?? "—",
+        i.incident_type.replace(/_/g, " "),
+        i.severity,
+        i.status,
+      ]),
+      summaryCards,
+    };
+  }
+
+  if (reportId === "inspection-compliance") {
+    const scopedItems = byFacility(ctx.inspectionItems, ctx.facilityId).filter((i) => i.is_active);
+    const compliantCount = scopedItems.filter((i) => i.status === "compliant").length;
+    const expiredCount = scopedItems.filter((i) => i.status === "expired").length;
+    const dueSoonCount = scopedItems.filter((i) => i.status === "due_soon").length;
+    summaryCards.push(
+      { label: "Total Items", value: scopedItems.length },
+      { label: "Compliant", value: compliantCount, variant: "success" },
+      { label: "Overdue", value: expiredCount, variant: expiredCount > 0 ? "danger" : "success" },
+      { label: "Due Soon", value: dueSoonCount, variant: dueSoonCount > 0 ? "warning" : "success" }
+    );
+    const facilityNameById = new Map(ctx.facilities.map((f) => [f.id, f.name]));
+    return {
+      headers: ["Facility", "Item", "Type", "Next Due", "Status"],
+      rows: scopedItems.map((i) => [
+        facilityNameById.get(i.facility_id) ?? "—",
+        i.label,
+        i.item_type.replace(/_/g, " "),
+        i.next_due_date ?? "—",
+        i.status,
+      ]),
+      summaryCards,
+    };
+  }
+
   return { headers: [], rows: [], summaryCards: [] };
 }
 
@@ -875,6 +986,9 @@ export default function Reports() {
   const alertsQuery = useListAlerts({ status: "open" });
   const hourBucketsQuery = useListTrainingHourBuckets({});
   const organizationsQuery = useListOrganizations();
+  const credentialsQuery = useListEmployeeCredentials({});
+  const incidentsQuery = useListIncidents({});
+  const inspectionItemsQuery = useListInspectionItems({});
 
   const facilities = facilitiesQuery.data ?? [];
   const employees = employeesQuery.data ?? [];
@@ -885,6 +999,9 @@ export default function Reports() {
   const alerts = alertsQuery.data ?? [];
   const hourBuckets = hourBucketsQuery.data ?? [];
   const organizations = organizationsQuery.data ?? [];
+  const credentials = credentialsQuery.data ?? [];
+  const incidents = incidentsQuery.data ?? [];
+  const inspectionItems = inspectionItemsQuery.data ?? [];
 
   const dataLoading =
     facilitiesQuery.isLoading ||
@@ -895,7 +1012,10 @@ export default function Reports() {
     documentsQuery.isLoading ||
     alertsQuery.isLoading ||
     hourBucketsQuery.isLoading ||
-    organizationsQuery.isLoading;
+    organizationsQuery.isLoading ||
+    credentialsQuery.isLoading ||
+    incidentsQuery.isLoading ||
+    inspectionItemsQuery.isLoading;
 
   const facilityName = facilityId !== "all" ? facilities.find((f) => f.id === facilityId)?.name : undefined;
 
@@ -926,8 +1046,14 @@ export default function Reports() {
       alerts,
       organizations,
       hourBuckets,
+      credentials,
+      incidents,
+      inspectionItems,
     }),
-    [facilityId, facilities, employees, trainingTypes, trainingRecords, practicums, documents, alerts, organizations, hourBuckets]
+    [
+      facilityId, facilities, employees, trainingTypes, trainingRecords, practicums, documents, alerts, organizations, hourBuckets,
+      credentials, incidents, inspectionItems,
+    ]
   );
 
   const viewReport = useCallback(

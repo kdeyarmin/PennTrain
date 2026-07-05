@@ -11,13 +11,15 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Building2, MapPin, Phone, Users, BookOpen, BarChart3, Clock, XCircle, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Building2, MapPin, Phone, Users, BookOpen, BarChart3, Clock, XCircle, Pencil, Trash2, AlertTriangle, Flame } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGetFacility, useUpdateFacility, useDeleteFacility } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListTrainingRecords } from "@/hooks/useTrainingRecords";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useListPracticums } from "@/hooks/usePracticums";
+import { useListIncidents } from "@/hooks/useIncidents";
+import { useListInspectionItems } from "@/hooks/useInspectionItems";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -53,12 +55,17 @@ export default function FacilityDetail() {
   const { toast } = useToast();
 
   const canManage = ["platform_admin", "org_admin"].includes(user?.role ?? "");
+  // Matches incidents_select RLS -- trainer is excluded (the incident data itself is sensitive),
+  // unlike the inspection-compliance card below, which every viewer of this page can see.
+  const canViewIncidents = ["platform_admin", "org_admin", "facility_manager", "auditor"].includes(user?.role ?? "");
 
   const { data: facility, isLoading: facLoading } = useGetFacility(id);
   const { data: employees, isLoading: empLoading } = useListEmployees({ facilityId: id });
   const { data: trainingRecords, isLoading: recordsLoading } = useListTrainingRecords({ facilityId: id });
   const { data: trainingTypes } = useListTrainingTypes();
   const { data: practicums, isLoading: practicumsLoading } = useListPracticums({ facilityId: id });
+  const { data: incidents, isLoading: incidentsLoading } = useListIncidents({ facilityId: id });
+  const { data: inspectionItems, isLoading: inspectionsLoading } = useListInspectionItems({ facilityId: id, isActive: true });
 
   const trainingTypeName = (typeId: string) => trainingTypes?.find(t => t.id === typeId)?.name ?? "Unknown requirement";
   const relevantRecords = (trainingRecords ?? []).filter(r => RELEVANT_STATUSES.has(r.status));
@@ -340,6 +347,79 @@ export default function FacilityDetail() {
                     <span className="text-xs text-muted-foreground shrink-0 ml-2">{r.due_date}</span>
                   </div>
                 ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {canViewIncidents && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <AlertTriangle className="h-4 w-4 text-muted-foreground" /> Open Incidents
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {incidentsLoading ? (
+                <Skeleton className="h-16" />
+              ) : (() => {
+                const openIncidents = (incidents ?? []).filter(i => i.status !== "closed");
+                return openIncidents.length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <AlertTriangle className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                    <p className="text-sm">No open incidents for this facility.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {openIncidents.slice(0, 5).map(i => (
+                      <Link key={i.id} href={`/app/incidents/${i.id}`} className="flex items-center justify-between text-sm hover:underline">
+                        <span className="truncate">{i.incident_type.replace(/_/g, " ")}</span>
+                        <Badge
+                          variant="outline"
+                          className={
+                            i.severity === "critical" ? "bg-destructive text-destructive-foreground hover:bg-destructive/80"
+                            : i.severity === "major" ? "bg-warning text-warning-foreground hover:bg-warning/80"
+                            : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                          }
+                        >
+                          {i.severity}
+                        </Badge>
+                      </Link>
+                    ))}
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        )}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Flame className="h-4 w-4 text-muted-foreground" /> Inspection Compliance
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {inspectionsLoading ? (
+              <Skeleton className="h-16" />
+            ) : !inspectionItems?.length ? (
+              <div className="text-center py-6 text-muted-foreground">
+                <Flame className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No inspection items tracked for this facility.</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {["compliant", "due_soon", "expired", "missing"].map(status => {
+                  const count = inspectionItems.filter(i => i.status === status).length;
+                  if (count === 0) return null;
+                  return (
+                    <div key={status} className="flex items-center justify-between text-sm">
+                      <StatusBadge status={status} type="training" />
+                      <span className="font-medium">{count}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>

@@ -18,6 +18,20 @@ export function useListInspectionEvents(inspectionItemId: string | undefined) {
   });
 }
 
+// Unfiltered (RLS-scoped) lookup of every event's parent inspection_item_id -- used to resolve
+// a corrective_actions.inspection_event_id into a "View Inspection Item" deep-link without a
+// per-alert fetch.
+export function useListAllInspectionEvents() {
+  return useQuery({
+    queryKey: ["inspection_events", "all"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("inspection_events").select("id, inspection_item_id");
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
 export function useCreateInspectionEvent() {
   const queryClient = useQueryClient();
   return useMutation({

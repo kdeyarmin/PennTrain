@@ -145,6 +145,19 @@ export function useRemoveIncidentStaffInvolved() {
   });
 }
 
+// Unfiltered (RLS-scoped) lookup of every notification's parent incident_id -- used to resolve
+// an alerts.incident_notification_id into a "View Incident" deep-link without a per-alert fetch.
+export function useListAllIncidentNotifications() {
+  return useQuery({
+    queryKey: ["incident_notifications", "all"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("incident_notifications").select("id, incident_id");
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
 export function useListIncidentNotifications(incidentId: string | undefined) {
   return useQuery({
     queryKey: ["incident_notifications", incidentId],
