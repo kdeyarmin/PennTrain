@@ -58,8 +58,8 @@ export default function Faq() {
           </p>
         </Reveal>
         <Accordion type="single" collapsible className="rounded-2xl border bg-card px-5 shadow-sm">
-          {REMAINING_QUESTIONS.map((faq, i) => (
-            <AccordionItem key={faq.question} value={`item-${i}`}>
+          {REMAINING_QUESTIONS.map((faq) => (
+            <AccordionItem key={faq.question} value={faq.question}>
               <AccordionTrigger className="gap-4 text-left text-base font-semibold">
                 {faq.question}
               </AccordionTrigger>
@@ -76,12 +76,12 @@ export default function Faq() {
             Send your facility type, state, and current training workflow. We can walk
             through how CareMetric Train would model it.
           </p>
-          <a href={DEMO_MAILTO} className="mt-5 inline-block">
-            <Button className="gap-2">
+          <Button asChild className="mt-5 gap-2">
+            <a href={DEMO_MAILTO}>
               <Mail className="h-4 w-4" />
               Ask about your workflow
-            </Button>
-          </a>
+            </a>
+          </Button>
         </Reveal>
       </section>
 
