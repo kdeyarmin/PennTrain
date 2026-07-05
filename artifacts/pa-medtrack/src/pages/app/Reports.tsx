@@ -555,6 +555,11 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
     const matrixTypes = ctx.trainingTypes.filter((t) => t.is_active);
     if (scopedEmployees.length === 0 || matrixTypes.length === 0) return { headers: [], rows: [], summaryCards: [] };
 
+    const facilityTypeById = new Map(ctx.facilities.map((f) => [f.id, f.facility_type]));
+    const appliesToEmployee = (t: TrainingType, e: Employee): boolean =>
+      t.applies_to_facility_type === "BOTH" ||
+      t.applies_to_facility_type === (e.facility_id ? facilityTypeById.get(e.facility_id) : undefined);
+
     const recordsByKey = new Map<string, TrainingRecord[]>();
     for (const r of scopedRecords) {
       const key = `${r.employee_id}:${r.training_type_id}`;
@@ -572,13 +577,20 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
       });
       return sorted[0].status;
     };
+    // A training type not scoped to this employee's facility type shouldn't be reported as a
+    // missing requirement -- only recast the synthetic "no_record" placeholder; a real record
+    // (e.g. a manually-tracked one) always wins regardless of scope.
+    const cellStatus = (e: Employee, t: TrainingType): string => {
+      const status = latestStatus(e.id, t.id);
+      return status === "no_record" && !appliesToEmployee(t, e) ? "not_applicable" : status;
+    };
 
     return {
       headers: ["Employee", "Job Title", ...matrixTypes.map((t) => t.name)],
       rows: scopedEmployees.map((e) => [
         `${e.first_name} ${e.last_name}`,
         e.job_title ?? "",
-        ...matrixTypes.map((t) => latestStatus(e.id, t.id)),
+        ...matrixTypes.map((t) => cellStatus(e, t)),
       ]),
       summaryCards: [
         { label: "Employees", value: scopedEmployees.length },
