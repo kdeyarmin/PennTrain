@@ -82,6 +82,7 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
           { href: "/app/credentials", label: "Credentials & Clearances", icon: ShieldCheck },
           { href: "/app/background-checks", label: "Background Checks", icon: ShieldQuestion },
           { href: "/app/exclusion-screening", label: "Exclusion Screening", icon: ShieldAlert },
+          { href: "/app/administrator-qualification", label: "Administrator Qualification", icon: GraduationCap },
           { href: "/app/inspections", label: "Inspections & Equipment", icon: Flame },
         ]
       },

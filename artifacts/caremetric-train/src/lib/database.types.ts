@@ -14,6 +14,135 @@ export type Database = {
   }
   public: {
     Tables: {
+      administrator_ce_entries: {
+        Row: {
+          administrator_profile_id: string
+          completed_date: string
+          created_at: string
+          document_path: string | null
+          hours: number
+          id: string
+          organization_id: string
+          provider: string | null
+          source: string | null
+          topic: string
+        }
+        Insert: {
+          administrator_profile_id: string
+          completed_date: string
+          created_at?: string
+          document_path?: string | null
+          hours: number
+          id?: string
+          organization_id: string
+          provider?: string | null
+          source?: string | null
+          topic: string
+        }
+        Update: {
+          administrator_profile_id?: string
+          completed_date?: string
+          created_at?: string
+          document_path?: string | null
+          hours?: number
+          id?: string
+          organization_id?: string
+          provider?: string | null
+          source?: string | null
+          topic?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "administrator_ce_entries_administrator_profile_id_fkey"
+            columns: ["administrator_profile_id"]
+            isOneToOne: false
+            referencedRelation: "administrator_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "administrator_ce_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      administrator_profiles: {
+        Row: {
+          competency_test_date: string | null
+          competency_test_passed: boolean
+          created_at: string
+          hundred_hour_course_completed_date: string | null
+          hundred_hour_course_document_path: string | null
+          hundred_hour_course_provider: string | null
+          id: string
+          nha_license_expiration: string | null
+          nha_license_number: string | null
+          nha_license_state: string | null
+          organization_id: string
+          profile_id: string
+          qualification_path: string | null
+          regional_office_verification_document_path: string | null
+          regional_office_verification_notes: string | null
+          regional_office_verification_submitted_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          competency_test_date?: string | null
+          competency_test_passed?: boolean
+          created_at?: string
+          hundred_hour_course_completed_date?: string | null
+          hundred_hour_course_document_path?: string | null
+          hundred_hour_course_provider?: string | null
+          id?: string
+          nha_license_expiration?: string | null
+          nha_license_number?: string | null
+          nha_license_state?: string | null
+          organization_id: string
+          profile_id: string
+          qualification_path?: string | null
+          regional_office_verification_document_path?: string | null
+          regional_office_verification_notes?: string | null
+          regional_office_verification_submitted_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          competency_test_date?: string | null
+          competency_test_passed?: boolean
+          created_at?: string
+          hundred_hour_course_completed_date?: string | null
+          hundred_hour_course_document_path?: string | null
+          hundred_hour_course_provider?: string | null
+          id?: string
+          nha_license_expiration?: string | null
+          nha_license_number?: string | null
+          nha_license_state?: string | null
+          organization_id?: string
+          profile_id?: string
+          qualification_path?: string | null
+          regional_office_verification_document_path?: string | null
+          regional_office_verification_notes?: string | null
+          regional_office_verification_submitted_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "administrator_profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "administrator_profiles_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alerts: {
         Row: {
           alert_type: string
