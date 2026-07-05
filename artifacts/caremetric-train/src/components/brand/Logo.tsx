@@ -11,8 +11,15 @@ import { cn } from "@/lib/utils";
 export const BRAND_BLUE = "#1d4fd7";
 export const BRAND_ORANGE = "#f97316";
 
-/** The emblem: open book + training screen with medical cross + rising road-arrow. */
-export function LogoMark({ className }: { className?: string }) {
+/**
+ * The emblem: open book + training screen with medical cross + rising road-arrow.
+ *
+ * Decorative by default (`aria-hidden`), since it almost always sits next to the
+ * visible "CareMetric Train" text and a name here would make screen readers
+ * announce the brand twice. Pass `label` only when the mark stands alone and
+ * needs its own accessible name.
+ */
+export function LogoMark({ className, label }: { className?: string; label?: string }) {
   const uid = useId();
   const road = `cmt-road-${uid}`;
   const frame = `cmt-frame-${uid}`;
@@ -21,8 +28,9 @@ export function LogoMark({ className }: { className?: string }) {
       viewBox="47 12 432 432"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      role="img"
-      aria-label="CareMetric Train emblem"
+      {...(label
+        ? { role: "img", "aria-label": label }
+        : { "aria-hidden": true, focusable: false })}
       className={cn("shrink-0", className)}
     >
       <defs>
