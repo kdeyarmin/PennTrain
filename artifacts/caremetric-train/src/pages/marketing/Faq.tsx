@@ -76,12 +76,12 @@ export default function Faq() {
             Send your facility type, state, and current training workflow. We can walk
             through how CareMetric Train would model it.
           </p>
-          <a href={DEMO_MAILTO} className="mt-5 inline-block">
-            <Button className="gap-2">
+          <Button asChild className="mt-5 gap-2">
+            <a href={DEMO_MAILTO}>
               <Mail className="h-4 w-4" />
               Ask about your workflow
-            </Button>
-          </a>
+            </a>
+          </Button>
         </Reveal>
       </section>
 
