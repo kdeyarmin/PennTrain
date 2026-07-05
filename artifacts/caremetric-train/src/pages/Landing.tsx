@@ -355,21 +355,6 @@ function TechIcon({ icon: Icon }: { icon: LucideIcon }) {
   );
 }
 
-/**
- * A section marker styled after a regulatory citation (e.g. "55 Pa. Code
- * Section 2600") -- the page reads like a compliance document's own table
- * of contents, which is the one structural conceit this design leans on.
- */
-function SectionLabel({ index, children }: { index: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-primary/70">
-      <span className="whitespace-nowrap tabular-nums">§ {index}</span>
-      <span aria-hidden className="hidden h-px w-8 bg-primary/25 sm:block" />
-      <span className="whitespace-nowrap">{children}</span>
-    </div>
-  );
-}
-
 export default function Landing() {
   return (
     <div className="min-h-screen w-full bg-background text-foreground">
@@ -542,8 +527,7 @@ export default function Landing() {
       <section className="border-y border-border/60 bg-muted/30">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
           <Reveal className="mx-auto max-w-2xl text-center">
-            <SectionLabel index="01">The Problem</SectionLabel>
-            <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
+            <h2 className="text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
               From binders and spreadsheets to one system of record
             </h2>
             <p className="mt-4 text-muted-foreground">
@@ -594,8 +578,7 @@ export default function Landing() {
       {/* Who it's for */}
       <section id="who-its-for" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <SectionLabel index="02">Who It's For</SectionLabel>
-          <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
+          <h2 className="text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
             Built for every care setting
           </h2>
           <p className="mt-4 text-muted-foreground">
@@ -628,8 +611,7 @@ export default function Landing() {
       <section id="features" className="border-y border-border/60 bg-muted/30">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
           <Reveal className="mx-auto max-w-2xl text-center">
-            <SectionLabel index="03">What's Included</SectionLabel>
-            <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
+            <h2 className="text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
               Everything compliance requires. Nothing it doesn't.
             </h2>
             <p className="mt-4 text-muted-foreground">
@@ -669,12 +651,7 @@ export default function Landing() {
         <TechGrid />
         <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
           <Reveal className="mx-auto max-w-2xl text-center">
-            <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-[#8eceff]">
-              <span className="whitespace-nowrap tabular-nums">§ 04</span>
-              <span aria-hidden className="hidden h-px w-8 bg-[#8eceff]/30 sm:block" />
-              <span className="whitespace-nowrap">Security</span>
-            </div>
-            <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
+            <h2 className="text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
               Enterprise-grade security, built in
             </h2>
             <p className="mt-4 text-white/60">
@@ -707,8 +684,7 @@ export default function Landing() {
       {/* How it works */}
       <section id="how-it-works" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <SectionLabel index="05">Getting Started</SectionLabel>
-          <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
+          <h2 className="text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
             Up and running in three steps
           </h2>
         </Reveal>
@@ -731,8 +707,7 @@ export default function Landing() {
       <section id="faq" className="border-y border-border/60 bg-muted/30">
         <div className="mx-auto max-w-3xl px-4 py-20 sm:px-6 lg:px-8">
           <Reveal className="text-center">
-            <SectionLabel index="06">FAQ</SectionLabel>
-            <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
+            <h2 className="text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
               Frequently asked questions
             </h2>
           </Reveal>
@@ -765,12 +740,7 @@ export default function Landing() {
         <TechGrid />
         <div className="absolute inset-0 opacity-20 [background:radial-gradient(circle_at_top_right,#59b2ff,transparent_60%)]" />
         <Reveal className="relative mx-auto max-w-4xl px-4 py-20 text-center sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-white/60">
-            <span className="whitespace-nowrap tabular-nums">§ 07</span>
-            <span aria-hidden className="hidden h-px w-8 bg-white/25 sm:block" />
-            <span className="whitespace-nowrap">Get Started</span>
-          </div>
-          <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
+          <h2 className="text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
             Ready to make compliance simple?
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-white/70">
