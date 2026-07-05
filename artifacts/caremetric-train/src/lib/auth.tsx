@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
 import { useLocation } from "wouter";
-import { supabase } from "./supabase";
+import { supabase, clearSupabaseRuntimeCache } from "./supabase";
 import { queryClient } from "./queryClient";
 import { isPublicPath } from "./publicPaths";
 import { useToast } from "@/hooks/use-toast";
@@ -130,6 +130,7 @@ export function useSignOut() {
       toast({ variant: "destructive", title: "Sign out failed", description: error.message });
     }
     queryClient.clear();
+    await clearSupabaseRuntimeCache();
     setLocation("/login");
   };
 }

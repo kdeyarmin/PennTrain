@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useListEmployees, useCreateEmployee, useUpdateEmployee, useDeleteEmployee,
   type Employee,
@@ -13,13 +14,16 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from "@/components/ui/alert-dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
-import { Users, Search, ChevronLeft, ChevronRight, UserPlus, Pencil, Trash2 } from "lucide-react";
-import { Link } from "wouter";
+import { Users, Search, ChevronLeft, ChevronRight, UserPlus, Pencil, Trash2, Upload } from "lucide-react";
+import { Link, useSearch } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 
 interface EmpFormData {
   firstName: string;
@@ -34,16 +38,35 @@ interface EmpFormData {
   status: "active" | "inactive" | "terminated" | "on_leave";
   administersMedications: boolean;
   trainerStatus: boolean;
+  scheduledHoursPerWeek: string;
+  workerType: "regular" | "agency" | "substitute" | "volunteer";
 }
 
 const EMPTY_EMP: EmpFormData = {
   firstName: "", lastName: "", email: "", phone: "", jobTitle: "",
   department: "", employeeNumber: "", facilityId: "none", hireDate: "",
   status: "active", administersMedications: false, trainerStatus: false,
+  scheduledHoursPerWeek: "", workerType: "regular",
 };
 
 const PAGE_SIZE = 15;
 type SortField = "lastName" | "status" | "hireDate" | "jobTitle";
+
+// Mirrors the per-row result shape returned by supabase/functions/bulk-import-employees.
+interface BulkImportRowResult {
+  row: number;
+  success: boolean;
+  error?: string;
+  employee_id?: string;
+}
+
+interface BulkImportResponse {
+  success: boolean;
+  total: number;
+  succeeded: number;
+  failed: number;
+  results: BulkImportRowResult[];
+}
 
 export default function Employees() {
   const [search, setSearch] = useState("");
@@ -56,10 +79,19 @@ export default function Employees() {
   const [editEmp, setEditEmp] = useState<Employee | null>(null);
   const [deleteEmp, setDeleteEmp] = useState<Employee | null>(null);
   const [form, setForm] = useState<EmpFormData>(EMPTY_EMP);
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
+  const [bulkImporting, setBulkImporting] = useState(false);
+  const [bulkResult, setBulkResult] = useState<BulkImportResponse | null>(null);
+  const [bulkError, setBulkError] = useState<string | null>(null);
 
   const { user } = useAuth();
   const { viewingOrgId } = useViewingOrg();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  // Query string, e.g. "?action=add" -- distinct from the free-text `search` state above,
+  // which is the employee name/role/department search box.
+  const locationSearch = useSearch();
   const basePath = user?.role === "platform_admin" ? "/admin/employees"
     : user?.role === "trainer" ? "/trainer/employees"
     : "/app/employees";
@@ -122,6 +154,18 @@ export default function Employees() {
     setShowForm(true);
   };
 
+  // Dashboard's "Add Employee" quick action links here with ?action=add, expecting this
+  // dialog to open automatically. Runs once on mount only -- a single deep-link action
+  // shouldn't reopen the dialog every time the query string changes while the user is
+  // already working on this page.
+  useEffect(() => {
+    const params = new URLSearchParams(locationSearch);
+    if (params.get("action") === "add") {
+      openCreate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const openEdit = (e: React.MouseEvent, emp: Employee) => {
     e.preventDefault();
     e.stopPropagation();
@@ -139,6 +183,8 @@ export default function Employees() {
       status: emp.status as EmpFormData["status"],
       administersMedications: emp.administers_medications ?? false,
       trainerStatus: emp.trainer_status ?? false,
+      scheduledHoursPerWeek: emp.scheduled_hours_per_week != null ? String(emp.scheduled_hours_per_week) : "",
+      workerType: (emp.worker_type ?? "regular") as EmpFormData["workerType"],
     });
     setShowForm(true);
   };
@@ -164,6 +210,8 @@ export default function Employees() {
       status: form.status,
       administers_medications: form.administersMedications,
       trainer_status: form.trainerStatus,
+      scheduled_hours_per_week: form.scheduledHoursPerWeek.trim() ? Number(form.scheduledHoursPerWeek) : null,
+      worker_type: form.workerType,
     };
     if (editEmp) {
       updateEmployee(
@@ -187,6 +235,58 @@ export default function Employees() {
   const field = (k: keyof EmpFormData, v: string | boolean) =>
     setForm(f => ({ ...f, [k]: v }));
 
+  const openBulkImport = () => {
+    setBulkFile(null);
+    setBulkResult(null);
+    setBulkError(null);
+    setShowBulkImport(true);
+  };
+
+  const handleBulkImport = async () => {
+    if (!bulkFile) {
+      toast({ title: "Choose a CSV file first", variant: "destructive" });
+      return;
+    }
+    setBulkImporting(true);
+    setBulkResult(null);
+    setBulkError(null);
+    try {
+      const csv = await bulkFile.text();
+      const body: { csv: string; organization_id?: string } = { csv };
+      // organization_id is only read by the function when the caller is platform_admin --
+      // every other role's own profile.organization_id is used server-side automatically.
+      if (user?.role === "platform_admin" && viewingOrgId) {
+        body.organization_id = viewingOrgId;
+      }
+      const { data, error } = await supabase.functions.invoke<BulkImportResponse>("bulk-import-employees", { body });
+      if (error) {
+        let message = error.message ?? "Bulk import failed";
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const errBody = await error.context.json();
+            if (errBody && typeof errBody.error === "string") message = errBody.error;
+          } catch {
+            // Response body wasn't JSON -- fall back to the generic error message above.
+          }
+        }
+        setBulkError(message);
+        return;
+      }
+      if (!data) {
+        setBulkError("The import function returned no data.");
+        return;
+      }
+      setBulkResult(data);
+      if (data.succeeded > 0) {
+        queryClient.invalidateQueries({ queryKey: ["employees"] });
+      }
+    } catch (err) {
+      setBulkError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBulkImporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
@@ -195,9 +295,14 @@ export default function Employees() {
           <p>Manage staff and track their compliance status.</p>
         </div>
         {canManage && (
-          <Button onClick={openCreate} className="shadow-sm">
-            <UserPlus className="mr-2 h-4 w-4" /> Add Employee
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={openBulkImport} className="shadow-sm">
+              <Upload className="mr-2 h-4 w-4" /> Bulk Import
+            </Button>
+            <Button onClick={openCreate} className="shadow-sm">
+              <UserPlus className="mr-2 h-4 w-4" /> Add Employee
+            </Button>
+          </div>
         )}
       </div>
 
@@ -304,6 +409,14 @@ export default function Employees() {
                           {emp.trainer_status && (
                             <Badge variant="outline" className="text-[10px] font-medium">Trainer</Badge>
                           )}
+                          {emp.worker_type !== "regular" && (
+                            <Badge variant="outline" className="text-[10px] font-medium capitalize">{emp.worker_type}</Badge>
+                          )}
+                          {!emp.cleared_for_unsupervised_duty && (
+                            <Badge className="text-[10px] font-medium bg-warning text-warning-foreground hover:bg-warning/80" variant="outline">
+                              Onboarding
+                            </Badge>
+                          )}
                         </div>
                       </td>
                       <td>
@@ -408,6 +521,26 @@ export default function Employees() {
               <Input type="date" value={form.hireDate} onChange={e => field("hireDate", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
+              <Label className="text-[13px]">Scheduled Hours / Week</Label>
+              <Input
+                type="number" min="1" step="0.5" value={form.scheduledHoursPerWeek}
+                onChange={e => field("scheduledHoursPerWeek", e.target.value)}
+                placeholder="e.g. 32" className="h-9"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Worker Type</Label>
+              <Select value={form.workerType} onValueChange={v => field("workerType", v as EmpFormData["workerType"])}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="regular">Regular</SelectItem>
+                  <SelectItem value="agency">Agency</SelectItem>
+                  <SelectItem value="substitute">Substitute</SelectItem>
+                  <SelectItem value="volunteer">Volunteer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
               <Label className="text-[13px]">Status</Label>
               <Select value={form.status} onValueChange={v => field("status", v as EmpFormData["status"])}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
@@ -444,6 +577,76 @@ export default function Employees() {
             <Button variant="outline" onClick={() => { setShowForm(false); setEditEmp(null); }}>Cancel</Button>
             <Button onClick={handleSubmit} disabled={creating || updating} className="shadow-sm">
               {creating || updating ? "Saving..." : editEmp ? "Save Changes" : "Create Employee"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showBulkImport} onOpenChange={o => { if (!o) setShowBulkImport(false); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Bulk Import Employees</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-[13px] text-muted-foreground leading-relaxed">
+              Upload a CSV file with a header row. Required columns:{" "}
+              <span className="font-medium text-foreground">first_name, last_name, job_title, facility_id</span>.
+              Optional columns: email, phone, employee_number, department, hire_date, status, administers_medications, trainer_status.
+              Up to 1,000 rows per file.
+            </p>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">CSV File</Label>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={e => { setBulkFile(e.target.files?.[0] ?? null); setBulkResult(null); setBulkError(null); }}
+                className="block w-full text-[13px] text-muted-foreground file:mr-3 file:h-8 file:px-3 file:rounded-md file:border-0 file:bg-primary/10 file:text-primary file:text-[13px] file:font-medium file:cursor-pointer cursor-pointer"
+              />
+            </div>
+
+            {bulkError && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-[13px] text-destructive">
+                {bulkError}
+              </div>
+            )}
+
+            {bulkResult && (
+              <div className="space-y-2">
+                <div
+                  className={`rounded-md border p-3 text-[13px] font-medium ${
+                    bulkResult.failed === 0
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : bulkResult.succeeded === 0
+                        ? "border-destructive/30 bg-destructive/5 text-destructive"
+                        : "border-amber-200 bg-amber-50 text-amber-700"
+                  }`}
+                >
+                  {bulkResult.succeeded} of {bulkResult.total} row{bulkResult.total === 1 ? "" : "s"} imported successfully
+                  {bulkResult.failed > 0 && ` — ${bulkResult.failed} failed`}
+                </div>
+                {bulkResult.failed > 0 && (
+                  <div className="space-y-1.5">
+                    <Label className="text-[13px]">Row Errors</Label>
+                    <ScrollArea className="h-40 rounded-md border">
+                      <div className="p-3 space-y-2">
+                        {bulkResult.results.filter(r => !r.success).map(r => (
+                          <p key={r.row} className="text-[12px] text-muted-foreground">
+                            <span className="font-medium text-foreground">Row {r.row}:</span> {r.error}
+                          </p>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkImport(false)}>
+              {bulkResult ? "Close" : "Cancel"}
+            </Button>
+            <Button onClick={handleBulkImport} disabled={bulkImporting || !bulkFile} className="shadow-sm">
+              {bulkImporting ? "Importing..." : "Import"}
             </Button>
           </DialogFooter>
         </DialogContent>

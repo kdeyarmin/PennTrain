@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useListCourses, useCreateCourse, type Course } from "@/hooks/useCourses";
+import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,13 +18,17 @@ interface CourseFormData {
   description: string;
   category: string;
   estimatedDurationMinutes: string;
+  trainingTypeId: string;
 }
+
+const NO_TRAINING_TYPE = "none";
 
 const EMPTY_FORM: CourseFormData = {
   title: "",
   description: "",
   category: "",
   estimatedDurationMinutes: "",
+  trainingTypeId: NO_TRAINING_TYPE,
 };
 
 function StatusPill({ status }: { status: string }) {
@@ -65,6 +70,7 @@ export default function Courses() {
     status: status !== "all" ? status : undefined,
   });
   const { mutate: createCourse, isPending: creating } = useCreateCourse();
+  const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
 
   const allCourses = courses ?? [];
 
@@ -112,6 +118,7 @@ export default function Courses() {
         category: form.category || null,
         estimated_duration_minutes: Number.isFinite(durationMinutes) ? durationMinutes : null,
         organization_id: user.organizationId,
+        training_type_id: form.trainingTypeId === NO_TRAINING_TYPE ? null : form.trainingTypeId,
       },
       {
         onSuccess: () => {
@@ -273,6 +280,21 @@ export default function Courses() {
                   className="h-9"
                 />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Compliance Training Type</Label>
+              <Select value={form.trainingTypeId} onValueChange={v => field("trainingTypeId", v)}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_TRAINING_TYPE}>Not linked to a compliance requirement</SelectItem>
+                  {(trainingTypes ?? []).map(tt => (
+                    <SelectItem key={tt.id} value={tt.id}>{tt.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Optional. Link this course to a training requirement so completing it records the matching training record automatically.
+              </p>
             </div>
           </div>
           <DialogFooter>

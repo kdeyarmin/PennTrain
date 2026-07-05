@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
-import { useRoute, Link } from "wouter";
+import { useParams, Link } from "wouter";
 import {
   useGetIncident, useUpdateIncident,
   useListIncidentStaffInvolved, useAddIncidentStaffInvolved, useRemoveIncidentStaffInvolved,
   useListIncidentNotifications, useAddIncidentNotification, useCompleteIncidentNotification,
+  useGenerateIncidentReportPdf,
 } from "@/hooks/useIncidents";
 import {
   useListCorrectiveActions, useCreateCorrectiveAction, useUpdateCorrectiveAction,
@@ -14,6 +15,8 @@ import {
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListProfiles } from "@/hooks/useProfiles";
+import { useListCourses } from "@/hooks/useCourses";
+import { useCreateCourseAssignment } from "@/hooks/useCourseAssignments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft, AlertTriangle, Users, Bell, ClipboardList, FileText, Upload, Download, Trash2, Check, Plus,
+  FileDown, GraduationCap,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -50,16 +54,19 @@ function CorrectiveActionStatusBadge({ status }: { status: string }) {
 }
 
 export default function IncidentDetail() {
-  const [, params] = useRoute("/app/incidents/:id");
-  const id = params?.id;
+  const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const canManage = ["org_admin", "facility_manager"].includes(user?.role ?? "");
+  // This page is mounted at both /app/incidents/:id (org roles) and /admin/incidents/:id
+  // (platform_admin, reached via Alerts deep links) -- back-navigation must match whichever
+  // prefix the viewer is under, mirroring EmployeeDetail.tsx/FacilityDetail.tsx.
+  const basePath = user?.role === "platform_admin" ? "/admin/incidents" : "/app/incidents";
+  const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   // incident_staff_involved_delete and incident_documents_delete are narrower than
-  // insert/update -- org_admin only -- so facility_manager must not be shown a delete/remove
-  // action that will always fail after confirmation.
-  const canDelete = user?.role === "org_admin";
+  // insert/update -- platform_admin or org_admin only -- so facility_manager must not be shown
+  // a delete/remove action that will always fail after confirmation.
+  const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
 
   const { data: incident, isLoading } = useGetIncident(id);
   const { data: facilities } = useListFacilities();
@@ -69,17 +76,20 @@ export default function IncidentDetail() {
   const { data: notifications, isLoading: notificationsLoading } = useListIncidentNotifications(id);
   const { data: correctiveActions, isLoading: correctiveLoading } = useListCorrectiveActions({ incidentId: id });
   const { data: documents, isLoading: documentsLoading } = useListIncidentDocuments(id);
+  const { data: courses } = useListCourses();
 
   const { mutate: updateIncident, isPending: updatingIncident } = useUpdateIncident();
   const { mutate: addStaff } = useAddIncidentStaffInvolved();
   const { mutate: removeStaff } = useRemoveIncidentStaffInvolved();
   const { mutate: addNotification } = useAddIncidentNotification();
-  const { mutate: completeNotification } = useCompleteIncidentNotification();
+  const { mutate: completeNotification, isPending: completingNotification } = useCompleteIncidentNotification();
   const { mutate: createCorrectiveAction } = useCreateCorrectiveAction();
   const { mutate: updateCorrectiveAction } = useUpdateCorrectiveAction();
+  const { mutateAsync: createCourseAssignment } = useCreateCourseAssignment();
   const uploadDocument = useUploadIncidentDocument();
   const getSignedUrl = useIncidentDocumentSignedUrl();
   const deleteDocument = useDeleteIncidentDocument();
+  const generateReportPdf = useGenerateIncidentReportPdf();
 
   const [newStaffEmployee, setNewStaffEmployee] = useState("");
   const [newStaffRole, setNewStaffRole] = useState<"involved_party" | "witness" | "first_responder" | "reporter">("witness");
@@ -87,6 +97,15 @@ export default function IncidentDetail() {
   const [newNotificationHours, setNewNotificationHours] = useState("24");
   const [newActionDescription, setNewActionDescription] = useState("");
   const [newActionDueDate, setNewActionDueDate] = useState("");
+  const [assignRetraining, setAssignRetraining] = useState(false);
+  const [retrainEmployeeId, setRetrainEmployeeId] = useState("");
+  const [retrainCourseId, setRetrainCourseId] = useState("");
+  const [creatingAction, setCreatingAction] = useState(false);
+  const [completingId, setCompletingId] = useState<string | null>(null);
+  const [completeMethod, setCompleteMethod] = useState("");
+  const [completeRecipient, setCompleteRecipient] = useState("");
+  const [completeReference, setCompleteReference] = useState("");
+  const [finalReportDate, setFinalReportDate] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const facilityName = facilities?.find((f) => f.id === incident?.facility_id)?.name;
@@ -131,7 +150,7 @@ export default function IncidentDetail() {
       <div className="text-center py-12">
         <p className="text-muted-foreground">Incident not found.</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href="/app/incidents">Back to Incidents</Link>
+          <Link href={basePath}>Back to Incidents</Link>
         </Button>
       </div>
     );
@@ -141,7 +160,7 @@ export default function IncidentDetail() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-          <Link href="/app/incidents"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
+          <Link href={basePath}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
         </Button>
       </div>
 
@@ -267,21 +286,55 @@ export default function IncidentDetail() {
           ) : (
             <div className="space-y-2">
               {notifications.map((n) => (
-                <div key={n.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
-                  <div>
-                    <span className="font-medium">{humanize(n.notification_type)}</span>
-                    <span className="text-xs text-muted-foreground ml-2">
-                      {n.completed_at ? `Completed ${new Date(n.completed_at).toLocaleString()}` : `Due ${new Date(n.due_at).toLocaleString()}`}
-                    </span>
+                <div key={n.id} className="rounded-lg border text-sm">
+                  <div className="flex items-center justify-between p-2">
+                    <div>
+                      <span className="font-medium">{humanize(n.notification_type)}</span>
+                      <span className="text-xs text-muted-foreground ml-2">
+                        {n.completed_at
+                          ? `Completed ${new Date(n.completed_at).toLocaleString()}${n.notification_method ? ` via ${n.notification_method}` : ""}${n.recipient ? ` — notified: ${n.recipient}` : ""}${n.reference_number ? ` — ref# ${n.reference_number}` : ""}`
+                          : `Due ${new Date(n.due_at).toLocaleString()}`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <NotificationStatusBadge status={n.status} />
+                      {canManage && n.status !== "completed" && (
+                        <Button
+                          variant="ghost" size="icon" className="h-7 w-7"
+                          onClick={() => {
+                            if (completingId === n.id) { setCompletingId(null); return; }
+                            setCompletingId(n.id); setCompleteMethod(""); setCompleteRecipient(""); setCompleteReference("");
+                          }}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <NotificationStatusBadge status={n.status} />
-                    {canManage && n.status !== "completed" && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => completeNotification({ id: n.id, incidentId: incident.id, completedByProfileId: user!.id })}>
-                        <Check className="h-3.5 w-3.5" />
+                  {completingId === n.id && (
+                    <div className="p-2 pt-0 space-y-2 border-t">
+                      <div className="grid grid-cols-3 gap-2">
+                        <Input placeholder="Method (phone, fax, portal...)" value={completeMethod} onChange={(e) => setCompleteMethod(e.target.value)} className="h-8 text-xs" />
+                        <Input placeholder="Recipient (who was notified)" value={completeRecipient} onChange={(e) => setCompleteRecipient(e.target.value)} className="h-8 text-xs" />
+                        <Input placeholder="Reference / confirmation #" value={completeReference} onChange={(e) => setCompleteReference(e.target.value)} className="h-8 text-xs" />
+                      </div>
+                      <Button
+                        size="sm"
+                        disabled={completingNotification}
+                        onClick={() => {
+                          completeNotification({
+                            id: n.id, incidentId: incident.id, completedByProfileId: user!.id,
+                            notificationMethod: completeMethod.trim() || undefined,
+                            recipient: completeRecipient.trim() || undefined,
+                            referenceNumber: completeReference.trim() || undefined,
+                          });
+                          setCompletingId(null);
+                        }}
+                      >
+                        {completingNotification ? "Saving..." : "Mark Notified"}
                       </Button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -329,7 +382,12 @@ export default function IncidentDetail() {
                 return (
                   <div key={ca.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
                     <div>
-                      <p>{ca.description}</p>
+                      <div className="flex items-center gap-1.5">
+                        {ca.description}
+                        {ca.course_assignment_id && (
+                          <Badge variant="outline" className="text-[10px]"><GraduationCap className="h-3 w-3 mr-1" /> Retraining</Badge>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         Due {ca.due_date}{owner ? ` · ${owner.first_name} ${owner.last_name}` : ca.owner_name ? ` · ${ca.owner_name}` : ""}
                       </p>
@@ -348,23 +406,85 @@ export default function IncidentDetail() {
             </div>
           )}
           {canManage && (
-            <div className="flex items-center gap-2 pt-2 border-t">
-              <Input value={newActionDescription} onChange={(e) => setNewActionDescription(e.target.value)} placeholder="Corrective action description" className="h-9 flex-1" />
-              <Input type="date" value={newActionDueDate} onChange={(e) => setNewActionDueDate(e.target.value)} className="h-9 w-40" />
-              <Button
-                size="sm"
-                disabled={!newActionDescription.trim() || !newActionDueDate}
-                onClick={() => {
-                  createCorrectiveAction({
-                    incident_id: incident.id, description: newActionDescription.trim(), due_date: newActionDueDate,
-                    owner_profile_id: user?.id ?? null, organization_id: incident.organization_id, facility_id: incident.facility_id,
-                  });
-                  setNewActionDescription("");
-                  setNewActionDueDate("");
-                }}
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
+            <div className="space-y-2 pt-2 border-t">
+              <label className="flex items-center gap-2 text-xs cursor-pointer">
+                <input
+                  type="checkbox" checked={assignRetraining}
+                  onChange={(e) => { setAssignRetraining(e.target.checked); setNewActionDescription(""); }}
+                />
+                Assign retraining to an involved staff member instead of a plain description
+              </label>
+              {assignRetraining ? (
+                <div className="flex items-center gap-2">
+                  <Select value={retrainEmployeeId} onValueChange={setRetrainEmployeeId}>
+                    <SelectTrigger className="h-9 flex-1"><SelectValue placeholder="Select staff member" /></SelectTrigger>
+                    <SelectContent>
+                      {(staffInvolved ?? []).map((s) => {
+                        const emp = employeeById.get(s.employee_id);
+                        return emp ? <SelectItem key={s.employee_id} value={s.employee_id}>{emp.last_name}, {emp.first_name}</SelectItem> : null;
+                      })}
+                    </SelectContent>
+                  </Select>
+                  <Select value={retrainCourseId} onValueChange={setRetrainCourseId}>
+                    <SelectTrigger className="h-9 flex-1"><SelectValue placeholder="Select course" /></SelectTrigger>
+                    <SelectContent>
+                      {(courses ?? []).map((c) => <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Input type="date" value={newActionDueDate} onChange={(e) => setNewActionDueDate(e.target.value)} className="h-9 w-40" />
+                  <Button
+                    size="sm"
+                    disabled={!retrainEmployeeId || !retrainCourseId || !newActionDueDate || creatingAction}
+                    onClick={async () => {
+                      const employee = employeeById.get(retrainEmployeeId);
+                      const course = (courses ?? []).find((c) => c.id === retrainCourseId);
+                      if (!employee || !course?.current_version_id) {
+                        toast({ title: course && !course.current_version_id ? "This course has no published version to assign" : "Select a staff member and course", variant: "destructive" });
+                        return;
+                      }
+                      setCreatingAction(true);
+                      try {
+                        const assignment = await createCourseAssignment({
+                          employee_id: employee.id, course_id: course.id, course_version_id: course.current_version_id,
+                          facility_id: incident.facility_id, organization_id: incident.organization_id,
+                          assigned_by: user?.id ?? null, due_date: newActionDueDate,
+                        });
+                        createCorrectiveAction({
+                          incident_id: incident.id, description: `Complete "${course.title}" retraining — ${employee.first_name} ${employee.last_name}`,
+                          due_date: newActionDueDate, course_assignment_id: assignment.id,
+                          owner_profile_id: user?.id ?? null, organization_id: incident.organization_id, facility_id: incident.facility_id,
+                        });
+                        setRetrainEmployeeId(""); setRetrainCourseId(""); setNewActionDueDate(""); setAssignRetraining(false);
+                      } catch (err) {
+                        toast({ title: "Failed to assign retraining", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+                      } finally {
+                        setCreatingAction(false);
+                      }
+                    }}
+                  >
+                    {creatingAction ? "Assigning..." : <Plus className="h-4 w-4" />}
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Input value={newActionDescription} onChange={(e) => setNewActionDescription(e.target.value)} placeholder="Corrective action description" className="h-9 flex-1" />
+                  <Input type="date" value={newActionDueDate} onChange={(e) => setNewActionDueDate(e.target.value)} className="h-9 w-40" />
+                  <Button
+                    size="sm"
+                    disabled={!newActionDescription.trim() || !newActionDueDate}
+                    onClick={() => {
+                      createCorrectiveAction({
+                        incident_id: incident.id, description: newActionDescription.trim(), due_date: newActionDueDate,
+                        owner_profile_id: user?.id ?? null, organization_id: incident.organization_id, facility_id: incident.facility_id,
+                      });
+                      setNewActionDescription("");
+                      setNewActionDueDate("");
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
@@ -408,6 +528,56 @@ export default function IncidentDetail() {
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><FileDown className="h-5 w-5" /> Final Report</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            This incident cannot be closed until a final report submission date is recorded here.
+          </p>
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={finalReportDate || (incident.final_report_submitted_at ? incident.final_report_submitted_at.slice(0, 10) : "")}
+              onChange={(e) => setFinalReportDate(e.target.value)}
+              className="h-9 w-48"
+              disabled={!canManage}
+            />
+            {canManage && (
+              <Button
+                size="sm" variant="outline"
+                disabled={!finalReportDate || updatingIncident}
+                onClick={() => {
+                  updateIncident({ id: incident.id, final_report_submitted_at: new Date(finalReportDate).toISOString() });
+                  setFinalReportDate("");
+                }}
+              >
+                {incident.final_report_submitted_at ? "Update Submission Date" : "Record Submission"}
+              </Button>
+            )}
+            {incident.final_report_submitted_at && (
+              <span className="text-xs text-muted-foreground">
+                Submitted {new Date(incident.final_report_submitted_at).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+          <Button
+            size="sm"
+            disabled={generateReportPdf.isPending}
+            onClick={() => {
+              generateReportPdf.mutate(incident.id, {
+                onSuccess: (result) => window.open(result.url, "_blank", "noopener,noreferrer"),
+                onError: (e: Error) => toast({ title: "Failed to generate report", description: e.message, variant: "destructive" }),
+              });
+            }}
+          >
+            <FileDown className="mr-2 h-4 w-4" />
+            {generateReportPdf.isPending ? "Generating..." : "Generate DHS Report PDF"}
+          </Button>
         </CardContent>
       </Card>
 

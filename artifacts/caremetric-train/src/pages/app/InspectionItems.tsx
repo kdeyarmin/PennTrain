@@ -33,6 +33,8 @@ const ITEM_TYPE_OPTIONS: Array<{ value: InspectionItem["item_type"]; label: stri
   { value: "other_equipment", label: "Other Equipment", kind: "equipment" },
   { value: "fire_drill_program", label: "Fire Drill Program", kind: "procedural" },
   { value: "emergency_prep_plan_review", label: "Emergency Preparedness Plan Review", kind: "procedural" },
+  { value: "evacuation_time_letter", label: "Fire-Safety-Expert Evacuation Time Letter", kind: "procedural" },
+  { value: "emergency_supply_check", label: "Emergency 3-Day Supply Check", kind: "procedural" },
   { value: "other_procedural", label: "Other Procedural Requirement", kind: "procedural" },
 ];
 
@@ -57,6 +59,15 @@ const EMPTY_FORM: ItemFormData = {
   facilityId: "", itemType: "fire_extinguisher", label: "", locationDetail: "",
   manufacturer: "", modelNumber: "", serialNumber: "", installDate: "",
   inspectionIntervalDays: "30", notes: "",
+};
+
+// Fire drills are monthly (55 Pa. Code 2600.132); everything else defaults to an annual cadence
+// when an administrator switches the type selector, saving a manual edit for the common case.
+const DEFAULT_INTERVAL_DAYS: Partial<Record<InspectionItem["item_type"], number>> = {
+  fire_drill_program: 30,
+  emergency_prep_plan_review: 365,
+  evacuation_time_letter: 365,
+  emergency_supply_check: 365,
 };
 
 export default function InspectionItems() {
@@ -288,7 +299,14 @@ export default function InspectionItems() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-[13px]">Type *</Label>
-              <Select value={form.itemType} onValueChange={(v) => field("itemType", v)}>
+              <Select
+                value={form.itemType}
+                onValueChange={(v) => {
+                  field("itemType", v);
+                  const defaultDays = DEFAULT_INTERVAL_DAYS[v as InspectionItem["item_type"]];
+                  if (defaultDays && !editing) field("inspectionIntervalDays", String(defaultDays));
+                }}
+              >
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {ITEM_TYPE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}

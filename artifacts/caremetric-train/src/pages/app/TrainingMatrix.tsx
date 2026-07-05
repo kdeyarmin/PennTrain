@@ -2,17 +2,52 @@ import { useState, useMemo } from "react";
 import { useListEmployees } from "@/hooks/useEmployees";
 import type { Employee } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
-import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
+import { useListTrainingTypes, type TrainingType } from "@/hooks/useTrainingTypes";
+import {
+  useListTrainingRecords, useCreateTrainingRecord, useUpdateTrainingRecord,
+  type TrainingRecord, type TrainingRecordInsert,
+} from "@/hooks/useTrainingRecords";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { ChevronUp, ChevronDown, ChevronsUpDown, Download, Users, ExternalLink } from "lucide-react";
+import { ChevronUp, ChevronDown, ChevronsUpDown, Download, Users, ExternalLink, Pencil } from "lucide-react";
 import { useLocation } from "wouter";
+import { useAuth, type Role } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
+
+// Matches employee_training_records_insert/_update RLS.
+const TRAINING_RECORD_MANAGE_ROLES: Role[] = ["org_admin", "facility_manager", "trainer"];
+
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function addDaysISO(dateISO: string, days: number): string {
+  const d = new Date(`${dateISO}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+// Mirrors the due_date/status formulas in recalculate_all_compliance(), same as
+// EmployeeDetail.tsx and PendingApprovals.tsx.
+function computeDueDate(completionDate: string | null, renewalIntervalDays: number | null | undefined): string | null {
+  if (!completionDate || renewalIntervalDays == null) return null;
+  return addDaysISO(completionDate, renewalIntervalDays);
+}
+
+function computeStatus(completionDate: string | null, dueDate: string | null, warningDays: number): string {
+  if (!completionDate) return "missing";
+  if (!dueDate) return "compliant";
+  const today = todayISO();
+  if (dueDate < today) return "expired";
+  if (dueDate <= addDaysISO(today, warningDays)) return "due_soon";
+  return "compliant";
+}
 
 const PAGE_SIZE = 15;
 
@@ -136,72 +171,151 @@ function CellDetailDialog({
   open,
   onClose,
   entry,
-  trainingTypeName,
-  employeeName,
-  employeeId,
+  trainingType,
+  employee,
+  canManage,
 }: {
   open: boolean;
   onClose: () => void;
   entry: MatrixCell | null;
-  trainingTypeName: string;
-  employeeName: string;
-  employeeId: string;
+  trainingType: TrainingType | null;
+  employee: Employee | null;
+  canManage: boolean;
 }) {
   const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [completionDate, setCompletionDate] = useState(todayISO());
+  const [hours, setHours] = useState("");
+  const [trainerName, setTrainerName] = useState("");
+  const createRecord = useCreateTrainingRecord();
+  const updateRecord = useUpdateTrainingRecord();
 
-  if (!entry) return null;
+  if (!entry || !trainingType || !employee) return null;
 
   const statusColor = getStatusColor(entry.status);
 
+  const openEdit = () => {
+    setCompletionDate(entry.completionDate ?? todayISO());
+    setHours(entry.hours != null ? String(entry.hours) : "");
+    setTrainerName(entry.trainerName ?? "");
+    setEditing(true);
+  };
+
+  const handleSave = () => {
+    if (!completionDate) {
+      toast({ title: "Completion date is required", variant: "destructive" });
+      return;
+    }
+    const dueDate = computeDueDate(completionDate, trainingType.renewal_interval_days);
+    const status = computeStatus(completionDate, dueDate, trainingType.warning_days_default);
+    const payload: TrainingRecordInsert = {
+      organization_id: employee.organization_id,
+      facility_id: employee.facility_id,
+      employee_id: employee.id,
+      training_type_id: trainingType.id,
+      completion_date: completionDate,
+      due_date: dueDate,
+      status,
+      hours: hours.trim() ? Number(hours) : (trainingType.required_hours ?? null),
+      trainer_name: trainerName.trim() || null,
+      completion_method: "manual_entry",
+    };
+    const onDone = {
+      onSuccess: () => { toast({ title: "Training recorded" }); setEditing(false); },
+      onError: (e: Error) => toast({ title: "Failed to record training", description: e.message, variant: "destructive" }),
+    };
+    if (entry.trainingRecordId) updateRecord.mutate({ id: entry.trainingRecordId, ...payload }, onDone);
+    else createRecord.mutate(payload, onDone);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); setEditing(false); } }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-base">{trainingTypeName}</DialogTitle>
+          <DialogTitle className="text-base">{trainingType.name}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="text-sm text-muted-foreground">{employeeName}</div>
+        {editing ? (
+          <div className="space-y-4">
+            <div className="text-sm text-muted-foreground">{employee.first_name} {employee.last_name}</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[13px]">Completion Date *</Label>
+                <Input type="date" className="h-9" value={completionDate} onChange={e => setCompletionDate(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[13px]">Hours</Label>
+                <Input
+                  type="number" step="0.25" min="0" className="h-9"
+                  placeholder={trainingType.required_hours != null ? String(trainingType.required_hours) : "0"}
+                  value={hours} onChange={e => setHours(e.target.value)}
+                />
+              </div>
+              <div className="col-span-2 space-y-1.5">
+                <Label className="text-[13px]">Trainer Name</Label>
+                <Input className="h-9" placeholder="Optional" value={trainerName} onChange={e => setTrainerName(e.target.value)} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
+              <Button onClick={handleSave} disabled={createRecord.isPending || updateRecord.isPending}>
+                {(createRecord.isPending || updateRecord.isPending) ? "Saving..." : "Save"}
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="text-sm text-muted-foreground">{employee.first_name} {employee.last_name}</div>
 
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <div className="text-muted-foreground text-xs mb-1">Status</div>
-              <Badge variant="outline" className="gap-1.5">
-                <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: statusColor, display: "inline-block" }} />
-                {getStatusLabel(entry.status)}
-              </Badge>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <div className="text-muted-foreground text-xs mb-1">Status</div>
+                <Badge variant="outline" className="gap-1.5">
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: statusColor, display: "inline-block" }} />
+                  {getStatusLabel(entry.status)}
+                </Badge>
+              </div>
+              <div>
+                <div className="text-muted-foreground text-xs mb-1">Training Type</div>
+                <div>{trainingType.name}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground text-xs mb-1">Last Completed</div>
+                <div>{entry.completionDate ? new Date(entry.completionDate).toLocaleDateString() : "—"}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground text-xs mb-1">Due Date</div>
+                <div>{entry.dueDate ? new Date(entry.dueDate).toLocaleDateString() : "—"}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground text-xs mb-1">Trainer</div>
+                <div>{entry.trainerName ?? "—"}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground text-xs mb-1">Hours</div>
+                <div>{entry.hours ?? "—"}</div>
+              </div>
             </div>
-            <div>
-              <div className="text-muted-foreground text-xs mb-1">Training Type</div>
-              <div>{trainingTypeName}</div>
-            </div>
-            <div>
-              <div className="text-muted-foreground text-xs mb-1">Last Completed</div>
-              <div>{entry.completionDate ? new Date(entry.completionDate).toLocaleDateString() : "—"}</div>
-            </div>
-            <div>
-              <div className="text-muted-foreground text-xs mb-1">Due Date</div>
-              <div>{entry.dueDate ? new Date(entry.dueDate).toLocaleDateString() : "—"}</div>
-            </div>
-            <div>
-              <div className="text-muted-foreground text-xs mb-1">Trainer</div>
-              <div>{entry.trainerName ?? "—"}</div>
-            </div>
-            <div>
-              <div className="text-muted-foreground text-xs mb-1">Hours</div>
-              <div>{entry.hours ?? "—"}</div>
+
+            <div className="flex gap-2">
+              {canManage && (
+                <Button variant="outline" size="sm" className="flex-1" onClick={openEdit}>
+                  <Pencil className="w-3.5 h-3.5 mr-2" />
+                  Record Training
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={() => { onClose(); navigate(`/app/employees/${employee.id}`); }}
+              >
+                <ExternalLink className="w-3.5 h-3.5 mr-2" />
+                View Employee
+              </Button>
             </div>
           </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            onClick={() => { onClose(); navigate(`/app/employees/${employeeId}`); }}
-          >
-            <ExternalLink className="w-3.5 h-3.5 mr-2" />
-            View Employee Detail
-          </Button>
-        </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -217,7 +331,9 @@ export default function TrainingMatrix() {
   const [sortField, setSortField] = useState<string>("lastName");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
-  const [selectedCell, setSelectedCell] = useState<{ entry: MatrixCell; trainingTypeName: string; employeeName: string; employeeId: string } | null>(null);
+  const [selectedCell, setSelectedCell] = useState<{ entry: MatrixCell; trainingType: TrainingType; employee: Employee } | null>(null);
+  const { user } = useAuth();
+  const canManage = !!user && TRAINING_RECORD_MANAGE_ROLES.includes(user.role);
 
   const { data: facilities } = useListFacilities({});
   const { data: employees } = useListEmployees({
@@ -524,16 +640,19 @@ export default function TrainingMatrix() {
                       <td className="py-2 pr-4 text-muted-foreground text-xs">{row.employee.job_title}</td>
                       {matrixTrainingTypes.map(tt => {
                         const cell = row.cells.find(c => c.trainingTypeId === tt.id);
+                        const fullTrainingType = trainingTypes?.find(t => t.id === tt.id);
                         return (
                           <td key={tt.id} className="py-2 px-2 text-center">
                             <StatusDot
                               entry={cell}
-                              onClick={() => setSelectedCell({
-                                entry: cell ?? { trainingTypeId: tt.id, trainingRecordId: null, status: "missing", completionDate: null, dueDate: null, trainerName: null, hours: null },
-                                trainingTypeName: tt.name,
-                                employeeName: `${row.employee.first_name} ${row.employee.last_name}`,
-                                employeeId: row.employee.id,
-                              })}
+                              onClick={() => {
+                                if (!fullTrainingType) return;
+                                setSelectedCell({
+                                  entry: cell ?? { trainingTypeId: tt.id, trainingRecordId: null, status: "missing", completionDate: null, dueDate: null, trainerName: null, hours: null },
+                                  trainingType: fullTrainingType,
+                                  employee: row.employee,
+                                });
+                              }}
                             />
                           </td>
                         );
@@ -576,9 +695,9 @@ export default function TrainingMatrix() {
         open={!!selectedCell}
         onClose={() => setSelectedCell(null)}
         entry={selectedCell?.entry ?? null}
-        trainingTypeName={selectedCell?.trainingTypeName ?? ""}
-        employeeName={selectedCell?.employeeName ?? ""}
-        employeeId={selectedCell?.employeeId ?? ""}
+        trainingType={selectedCell?.trainingType ?? null}
+        employee={selectedCell?.employee ?? null}
+        canManage={canManage}
       />
     </div>
   );

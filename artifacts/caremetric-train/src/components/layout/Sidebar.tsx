@@ -34,7 +34,14 @@ import {
   ListChecks,
   ClipboardList,
   AlertTriangle,
-  Flame
+  Flame,
+  Pill,
+  FileSignature,
+  ShieldQuestion,
+  Radar,
+  Gavel,
+  BookOpen,
+  BedDouble
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -81,11 +88,16 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
           { href: "/app/training-matrix", label: "Training Matrix", icon: Grid },
           { href: "/app/courses", label: "Courses", icon: GraduationCap },
           { href: "/app/course-assignments", label: "Course Assignments", icon: FileCheck },
+          { href: "/trainer/classes", label: "In-Service Classes", icon: GraduationCap },
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
           { href: "/app/competency-templates", label: "Competency Templates", icon: ClipboardList },
           { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
           { href: "/app/practicums", label: "Practicums", icon: FileCheck },
+          { href: "/app/med-admin-roster", label: "Who Can Pass Meds", icon: Pill },
           { href: "/app/credentials", label: "Credentials & Clearances", icon: ShieldCheck },
+          { href: "/app/background-checks", label: "Background Checks", icon: ShieldQuestion },
+          { href: "/app/exclusion-screening", label: "Exclusion Screening", icon: ShieldAlert },
+          { href: "/app/administrator-qualification", label: "Administrator Qualification", icon: GraduationCap },
           { href: "/app/inspections", label: "Inspections & Equipment", icon: Flame },
         ]
       },
@@ -93,10 +105,14 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
         title: "Compliance",
         items: [
           { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
+          { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
+          { href: "/app/residents", label: "Residents", icon: BedDouble },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
           { href: "/app/pending-approvals", label: "Pending Approvals", icon: ClipboardCheck },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
+          { href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar },
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
+          { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
           { href: "/app/documents", label: "Documents", icon: Files },
         ]
       },
@@ -104,6 +120,7 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
         title: "Settings",
         items: [
           { href: "/app/users", label: "Users", icon: Users },
+          { href: "/app/training-types", label: "Training Types", icon: ListChecks },
           { href: "/app/settings", label: "Settings", icon: Settings },
           { href: "/app/audit", label: "Audit Log", icon: ShieldAlert },
         ]
@@ -126,7 +143,10 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
           { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
           { href: "/app/practicums", label: "Practicums", icon: FileCheck },
+          { href: "/app/med-admin-roster", label: "Who Can Pass Meds", icon: Pill },
           { href: "/app/credentials", label: "Credentials & Clearances", icon: ShieldCheck },
+          { href: "/app/background-checks", label: "Background Checks", icon: ShieldQuestion },
+          { href: "/app/exclusion-screening", label: "Exclusion Screening", icon: ShieldAlert },
           { href: "/app/inspections", label: "Inspections & Equipment", icon: Flame },
         ]
       },
@@ -134,9 +154,13 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
         title: "Compliance",
         items: [
           { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
+          { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
+          { href: "/app/residents", label: "Residents", icon: BedDouble },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
+          { href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar },
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
+          { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
           { href: "/app/documents", label: "Documents", icon: Files },
           { href: "/app/audit", label: "Audit Log", icon: ShieldAlert },
         ]
@@ -173,10 +197,12 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
       {
         items: [
           { href: "/me", label: "My Training", icon: LayoutDashboard },
+          { href: "/me/courses", label: "My Courses", icon: BookOpen },
           { href: "/me/trainings", label: "Training Records", icon: GraduationCap },
           { href: "/me/certificates", label: "My Certificates", icon: FileCheck },
           { href: "/me/documents", label: "My Documents", icon: Files },
           { href: "/me/credentials", label: "My Credentials", icon: ShieldCheck },
+          { href: "/me/attestations", label: "My Attestations", icon: FileSignature },
         ]
       }
     ];

@@ -71,6 +71,20 @@ export function useUpdateCourseAssignment() {
   });
 }
 
+// Wires the assigned -> in_progress transition (previously dead -- protect_course_assignment_fields()
+// reverts any plain client .update() of status, so this has to go through the same
+// set_config('app.privileged_write', 'on', true) RPC pattern complete_course_assignment already uses.
+export function useStartCourseAssignment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (assignmentId: string) => {
+      const { error } = await supabase.rpc("start_course_assignment", { p_assignment_id: assignmentId });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["course_assignments"] }),
+  });
+}
+
 export function useCompleteCourseAssignment() {
   const queryClient = useQueryClient();
   return useMutation({

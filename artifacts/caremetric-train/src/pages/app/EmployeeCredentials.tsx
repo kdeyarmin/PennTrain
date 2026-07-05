@@ -42,6 +42,17 @@ function credentialTypeLabel(type: string): string {
   return CREDENTIAL_TYPE_OPTIONS.find((o) => o.value === type)?.label ?? type.replace(/_/g, " ");
 }
 
+// PATCH (Pennsylvania Access to Criminal History) and the PA Nurse Aide Registry are both
+// manual, no-API web lookups -- there's nothing to integrate against, so "verification logging"
+// just means recording which method + date an admin used, on the credential row itself.
+const VERIFICATION_METHOD_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "patch_online", label: "PATCH Online Check (epatch.pa.gov)" },
+  { value: "cna_registry_search", label: "PA Nurse Aide Registry Search" },
+  { value: "paper_submission", label: "Paper Submission" },
+  { value: "fbi_channeler", label: "FBI-Approved Channeler" },
+  { value: "other", label: "Other" },
+];
+
 interface CredentialFormData {
   employeeId: string;
   credentialType: EmployeeCredential["credential_type"];
@@ -53,12 +64,15 @@ interface CredentialFormData {
   warningDays: string;
   status: EmployeeCredential["status"];
   notes: string;
+  verificationMethod: string;
+  lastVerifiedDate: string;
 }
 
 const EMPTY_FORM: CredentialFormData = {
   employeeId: "", credentialType: "act34_criminal_history", credentialLabel: "",
   issuingAuthority: "", credentialNumber: "", issueDate: "", expirationDate: "",
   warningDays: "90", status: "missing", notes: "",
+  verificationMethod: "", lastVerifiedDate: "",
 };
 
 function CredentialDocuments({ credential, canManage, canDelete }: { credential: EmployeeCredential; canManage: boolean; canDelete: boolean }) {
@@ -201,6 +215,8 @@ export default function EmployeeCredentials() {
       warningDays: String(credential.warning_days),
       status: credential.status,
       notes: credential.notes ?? "",
+      verificationMethod: credential.verification_method ?? "",
+      lastVerifiedDate: credential.last_verified_date ?? "",
     });
     setShowForm(true);
   };
@@ -231,6 +247,14 @@ export default function EmployeeCredentials() {
       warning_days: Number(form.warningDays) || 90,
       status: form.status,
       notes: form.notes || null,
+      verification_method: form.verificationMethod || null,
+      last_verified_date: form.lastVerifiedDate || null,
+      // Stamped whenever a verification method is on the form -- "who last recorded a
+      // verification, and when" (full history of prior values lives in audit_logs, same as every
+      // other field on this table).
+      ...(form.verificationMethod
+        ? { verified_by_profile_id: user?.id ?? null, verified_at: new Date().toISOString() }
+        : {}),
     };
 
     if (editing) {
@@ -423,6 +447,20 @@ export default function EmployeeCredentials() {
             <div className="space-y-1.5">
               <Label className="text-[13px]">Warning Days</Label>
               <Input type="number" min={1} value={form.warningDays} onChange={(e) => field("warningDays", e.target.value)} className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Verification Method</Label>
+              <Select value={form.verificationMethod || "none"} onValueChange={(v) => field("verificationMethod", v === "none" ? "" : v)}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Not yet verified" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Not yet verified</SelectItem>
+                  {VERIFICATION_METHOD_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Last Verified Date</Label>
+              <Input type="date" value={form.lastVerifiedDate} onChange={(e) => field("lastVerifiedDate", e.target.value)} className="h-9" />
             </div>
             <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Status</Label>

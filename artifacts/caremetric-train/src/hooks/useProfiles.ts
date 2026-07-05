@@ -46,7 +46,7 @@ export function useGetProfile(id: string | undefined) {
  * only for the remaining, non-protected fields; role/org/active/email changes must go
  * through `useAdminUpdateUser()` instead.
  */
-export type ProfileSelfServiceUpdate = Pick<ProfileUpdate, "first_name" | "last_name" | "phone">;
+export type ProfileSelfServiceUpdate = Pick<ProfileUpdate, "first_name" | "last_name" | "phone" | "sms_opt_in" | "sms_consent_at">;
 
 export function useUpdateProfile() {
   const queryClient = useQueryClient();

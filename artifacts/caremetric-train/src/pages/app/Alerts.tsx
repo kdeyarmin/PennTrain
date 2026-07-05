@@ -28,9 +28,11 @@ export default function Alerts() {
   const { viewingOrgId } = useViewingOrg();
   const canWrite = !!user && ALERTS_WRITE_ROLES.includes(user.role);
   // This page is mounted at both /admin/alerts (platform_admin) and /app/alerts
-  // (org roles) -- EmployeeDetail has a matching route under each prefix, so the
-  // "View Employee" link below must match whichever one the viewer is under.
+  // (org roles) -- EmployeeDetail/IncidentDetail/InspectionItemDetail all have a matching
+  // route under each prefix, so every deep link below must match whichever one the viewer is under.
   const employeeDetailBase = user?.role === "platform_admin" ? "/admin/employees" : "/app/employees";
+  const incidentDetailBase = user?.role === "platform_admin" ? "/admin/incidents" : "/app/incidents";
+  const inspectionDetailBase = user?.role === "platform_admin" ? "/admin/inspections" : "/app/inspections";
   const [status, setStatus] = useState<string>("open");
   const [severity, setSeverity] = useState<string>("all");
   const [facilityId, setFacilityId] = useState<string>("all");
@@ -63,17 +65,17 @@ export default function Alerts() {
 
   function resolveAlertLink(alert: Alert): { href: string; label: string } | null {
     if (alert.employee_id) return { href: `${employeeDetailBase}/${alert.employee_id}`, label: "View Employee" };
-    if (alert.inspection_item_id) return { href: `/app/inspections/${alert.inspection_item_id}`, label: "View Inspection Item" };
+    if (alert.inspection_item_id) return { href: `${inspectionDetailBase}/${alert.inspection_item_id}`, label: "View Inspection Item" };
     if (alert.incident_notification_id) {
       const incidentId = notificationIncidentId.get(alert.incident_notification_id);
-      if (incidentId) return { href: `/app/incidents/${incidentId}`, label: "View Incident" };
+      if (incidentId) return { href: `${incidentDetailBase}/${incidentId}`, label: "View Incident" };
     }
     if (alert.corrective_action_id) {
       const ca = correctiveActionById.get(alert.corrective_action_id);
-      if (ca?.incident_id) return { href: `/app/incidents/${ca.incident_id}`, label: "View Incident" };
+      if (ca?.incident_id) return { href: `${incidentDetailBase}/${ca.incident_id}`, label: "View Incident" };
       if (ca?.inspection_event_id) {
         const itemId = inspectionEventItemId.get(ca.inspection_event_id);
-        if (itemId) return { href: `/app/inspections/${itemId}`, label: "View Inspection Item" };
+        if (itemId) return { href: `${inspectionDetailBase}/${itemId}`, label: "View Inspection Item" };
       }
     }
     return null;

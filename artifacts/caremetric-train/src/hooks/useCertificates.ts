@@ -70,3 +70,30 @@ export function useVerifyCertificate(slug: string | undefined) {
     enabled: !!slug,
   });
 }
+
+export interface GenerateCertificatePdfResult {
+  url: string;
+  path: string;
+  expiresIn: number;
+}
+
+interface GenerateCertificatePdfResponse extends GenerateCertificatePdfResult {
+  success?: boolean;
+  error?: string;
+}
+
+export function useGenerateCertificatePdf() {
+  return useMutation({
+    mutationFn: async (certificateId: string): Promise<GenerateCertificatePdfResult> => {
+      const { data, error } = await supabase.functions.invoke<GenerateCertificatePdfResponse>(
+        "generate-certificate-pdf",
+        { body: { certificateId } },
+      );
+      if (error) throw error;
+      if (!data || data.success === false || !data.url) {
+        throw new Error(data?.error ?? "Failed to generate certificate PDF");
+      }
+      return { url: data.url, path: data.path, expiresIn: data.expiresIn };
+    },
+  });
+}

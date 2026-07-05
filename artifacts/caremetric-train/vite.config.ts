@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 
 const rawPort = process.env.PORT;
@@ -32,7 +33,56 @@ export default defineConfig(({ command, mode }) => {
 
   return {
     base: basePath,
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      // Installable PWA course player (ROADMAP.md Tier 3.4). generateSW precaches the built app
+      // shell (JS/CSS/HTML) with a default cache-first strategy for those static assets --
+      // Supabase API/storage requests are runtime-cached separately below, network-first, so a
+      // learner always gets fresh data when online and the last-seen response when they briefly
+      // drop signal, without the app claiming to work fully offline (it doesn't -- there is no
+      // queued-write/background-sync story here, just resilience against flaky mobile networks).
+      //
+      // devOptions.enabled is deliberately NOT set: turning on the dev-mode service worker here
+      // reproduced a hard hang on every login in `npm run dev` (auth resolves, but the
+      // post-login redirect to /me never completes -- confirmed by toggling this one option with
+      // everything else unchanged). The manifest/SW themselves are unaffected and only need to be
+      // exercised against `vite build && vite preview` anyway, since that's the only place an
+      // install prompt is meaningful.
+      VitePWA({
+        registerType: "autoUpdate",
+        includeAssets: ["favicon.png", "apple-touch-icon.png"],
+        manifest: {
+          name: "CareMetric Train",
+          short_name: "CareMetric",
+          description: "Compliance training and credential tracking for personal care homes and assisted living residences.",
+          theme_color: "#102a43",
+          background_color: "#102a43",
+          display: "standalone",
+          start_url: "/me",
+          icons: [
+            { src: "pwa-192x192.png", sizes: "192x192", type: "image/png" },
+            { src: "pwa-512x512.png", sizes: "512x512", type: "image/png" },
+            { src: "pwa-maskable-512x512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+          ],
+        },
+        workbox: {
+          runtimeCaching: [
+            {
+              urlPattern: ({ url }) =>
+                url.hostname.endsWith(".supabase.co") &&
+                (url.pathname.startsWith("/rest/v1/") || url.pathname.startsWith("/storage/v1/")),
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "supabase-runtime",
+                networkTimeoutSeconds: 8,
+                expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 },
+              },
+            },
+          ],
+        },
+      }),
+    ],
     resolve: {
       alias: {
         "@": path.resolve(import.meta.dirname, "src"),

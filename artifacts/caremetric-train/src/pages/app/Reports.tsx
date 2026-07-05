@@ -28,7 +28,7 @@ import { useListAlerts, type Alert } from "@/hooks/useAlerts";
 import { useListDocuments, type TrainingDocument } from "@/hooks/useDocuments";
 import { useListTrainingHourBuckets } from "@/hooks/useTrainingHourBuckets";
 import { useListEmployeeCredentials, type EmployeeCredential } from "@/hooks/useEmployeeCredentials";
-import { useListIncidents, type Incident } from "@/hooks/useIncidents";
+import { useListIncidents, type Incident, useListAllIncidentNotificationsDetailed, type IncidentNotification } from "@/hooks/useIncidents";
 import { useListInspectionItems, type InspectionItem } from "@/hooks/useInspectionItems";
 import { useListOrganizations, type Organization } from "@/hooks/useOrganizations";
 import type { Tables } from "@/lib/database.types";
@@ -54,6 +54,7 @@ import {
   Grid3X3,
   Eye,
   Loader2,
+  Bell,
 } from "lucide-react";
 
 interface ReportDef {
@@ -260,6 +261,15 @@ const ALL_REPORTS: ReportDef[] = [
     requiredBy: "55 Pa. Code §2600.16 / §2800.16",
   },
   {
+    id: "incident-notification-register",
+    title: "Incident Notification Register",
+    description:
+      "Every required external notification (state hotline, law enforcement, etc.) with due time, completion time, channel, recipient, and confirmation number -- the reconciliation register a surveyor diffs against the regional office's own log.",
+    icon: Bell,
+    category: "Incidents",
+    requiredBy: "55 Pa. Code §2600.16 / §2800.16",
+  },
+  {
     id: "inspection-compliance",
     title: "Inspection & Equipment Compliance",
     description:
@@ -321,6 +331,29 @@ function byFacility<T extends { facility_id: string | null }>(items: T[], facili
   return facilityId === "all" ? items : items.filter((i) => i.facility_id === facilityId);
 }
 
+const BUCKET_TYPE_LABELS: Record<string, string> = {
+  general_annual: "General Annual",
+  alr_dementia: "ALR Dementia (§2800.69)",
+  sdcu_dementia: "Secured Dementia Unit (§2600.236)",
+};
+
+function formatBucketType(bucketType: string): string {
+  return BUCKET_TYPE_LABELS[bucketType] ?? bucketType;
+}
+
+// Returns true when `dateStr` falls within the optional [from, to] range (inclusive of the
+// entire `to` day). When both bounds are empty the filter is inactive and everything passes.
+// When the filter is active but a row has no date value to compare, the row is excluded.
+function inDateRange(dateStr: string | null | undefined, from?: string, to?: string): boolean {
+  if (!from && !to) return true;
+  if (!dateStr) return false;
+  const t = new Date(dateStr).getTime();
+  if (Number.isNaN(t)) return false;
+  if (from && t < new Date(from).getTime()) return false;
+  if (to && t >= new Date(to).getTime() + DAY_MS) return false;
+  return true;
+}
+
 const TRAINING_RECORD_HEADERS = ["Employee", "Job Title", "Training Type", "Completion Date", "Due Date", "Status"];
 
 function trainingRecordRows(
@@ -344,6 +377,8 @@ function trainingRecordRows(
 interface ReportContext {
   facilityId: string;
   employeeIdOverride?: string;
+  dateFrom?: string;
+  dateTo?: string;
   facilities: Facility[];
   employees: Employee[];
   trainingTypes: TrainingType[];
@@ -355,6 +390,7 @@ interface ReportContext {
   hourBuckets: HourBucket[];
   credentials: EmployeeCredential[];
   incidents: Incident[];
+  incidentNotifications: IncidentNotification[];
   inspectionItems: InspectionItem[];
 }
 
@@ -370,10 +406,11 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
   const trainingTypeById = new Map(ctx.trainingTypes.map((t) => [t.id, t]));
 
   if (reportId === "compliance-summary") {
-    const total = relevantRecords(scopedRecords).length;
-    const compliantCount = scopedRecords.filter((r) => r.status === "compliant").length;
-    const expiredCount = scopedRecords.filter((r) => r.status === "expired").length;
-    const dueSoonCount = scopedRecords.filter((r) => r.status === "due_soon").length;
+    const rangedRecords = scopedRecords.filter((r) => inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo));
+    const total = relevantRecords(rangedRecords).length;
+    const compliantCount = rangedRecords.filter((r) => r.status === "compliant").length;
+    const expiredCount = rangedRecords.filter((r) => r.status === "expired").length;
+    const dueSoonCount = rangedRecords.filter((r) => r.status === "due_soon").length;
     const compliancePct = pct(compliantCount, total);
     summaryCards.push(
       { label: "Total Employees", value: scopedEmployees.length, variant: "default" },
@@ -399,7 +436,9 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
     const facilityList =
       ctx.facilityId === "all" ? ctx.facilities : ctx.facilities.filter((f) => f.id === ctx.facilityId);
     const scored = facilityList.map((f) => {
-      const records = ctx.trainingRecords.filter((r) => r.facility_id === f.id);
+      const records = ctx.trainingRecords.filter(
+        (r) => r.facility_id === f.id && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo)
+      );
       const relevant = relevantRecords(records);
       const compliantCount = records.filter((r) => r.status === "compliant").length;
       const expiredCount = records.filter((r) => r.status === "expired").length;
@@ -524,13 +563,13 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
   }
 
   if (reportId === "expired-training") {
-    const records = scopedRecords.filter((r) => r.status === "expired");
+    const records = scopedRecords.filter((r) => r.status === "expired" && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo));
     summaryCards.push({ label: "Expired Records", value: records.length, variant: records.length > 0 ? "danger" : "success" });
     return { headers: TRAINING_RECORD_HEADERS, rows: trainingRecordRows(records, employeeById, trainingTypeById), summaryCards };
   }
 
   if (reportId === "due-soon") {
-    const records = scopedRecords.filter((r) => r.status === "due_soon");
+    const records = scopedRecords.filter((r) => r.status === "due_soon" && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo));
     summaryCards.push({ label: "Due Soon Records", value: records.length, variant: records.length > 0 ? "warning" : "success" });
     return { headers: TRAINING_RECORD_HEADERS, rows: trainingRecordRows(records, employeeById, trainingTypeById), summaryCards };
   }
@@ -541,7 +580,9 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
     const medAdminTypeIds = new Set(
       ctx.trainingTypes.filter((t) => t.is_active && t.applies_to_administers_meds).map((t) => t.id)
     );
-    const records = scopedRecords.filter((r) => medAdminIds.has(r.employee_id) && medAdminTypeIds.has(r.training_type_id));
+    const records = scopedRecords.filter(
+      (r) => medAdminIds.has(r.employee_id) && medAdminTypeIds.has(r.training_type_id) && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo)
+    );
     summaryCards.push(
       { label: "Med Admin Staff", value: medAdminEmployees.length },
       { label: "Training Records", value: records.length }
@@ -613,40 +654,48 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
   }
 
   if (reportId === "practicum-status") {
+    const rangedPracticums = scopedPracticums.filter((p) => inDateRange(p.due_date, ctx.dateFrom, ctx.dateTo));
     const medAdminEmployees = scopedEmployees.filter((e) => e.administers_medications);
-    const compliantCount = scopedPracticums.filter((p) => p.status === "compliant").length;
-    const pendingCount = scopedPracticums.length - compliantCount;
+    const compliantCount = rangedPracticums.filter((p) => p.status === "compliant").length;
+    const pendingCount = rangedPracticums.length - compliantCount;
     summaryCards.push(
       { label: "Med Admin Staff", value: medAdminEmployees.length },
       { label: "Compliant", value: compliantCount, variant: "success" },
       { label: "Pending", value: pendingCount, variant: pendingCount > 0 ? "warning" : "success" }
     );
     return {
-      headers: ["Employee ID", "Year", "Status", "Completion Date"],
-      rows: scopedPracticums.map((p) => [p.employee_id, String(p.practicum_year), p.status, p.completion_date ?? ""]),
+      headers: ["Employee", "Year", "Status", "Completion Date"],
+      rows: rangedPracticums.map((p) => {
+        const e = employeeById.get(p.employee_id);
+        return [e ? `${e.first_name} ${e.last_name}` : p.employee_id, String(p.practicum_year), p.status, p.completion_date ?? ""];
+      }),
       summaryCards,
     };
   }
 
   if (reportId === "annual-practicum") {
-    const completed = scopedPracticums.filter((p) => p.status === "compliant").length;
-    const pending = scopedPracticums.length - completed;
+    const rangedPracticums = scopedPracticums.filter((p) => inDateRange(p.due_date, ctx.dateFrom, ctx.dateTo));
+    const completed = rangedPracticums.filter((p) => p.status === "compliant").length;
+    const pending = rangedPracticums.length - completed;
     summaryCards.push(
-      { label: "Total Required", value: scopedPracticums.length },
+      { label: "Total Required", value: rangedPracticums.length },
       { label: "Completed", value: completed, variant: "success" },
       { label: "Pending", value: pending, variant: pending > 0 ? "warning" : "success" }
     );
     return {
-      headers: ["Employee ID", "Year", "Status", "Completion Date", "Observed By", "MAR Review", "Direct Observation"],
-      rows: scopedPracticums.map((p) => [
-        p.employee_id,
-        String(p.practicum_year),
-        p.status,
-        p.completion_date ?? "",
-        p.observed_by ?? "",
-        p.mar_review_completed ? "Yes" : "No",
-        p.direct_observation_completed ? "Yes" : "No",
-      ]),
+      headers: ["Employee", "Year", "Status", "Completion Date", "Observed By", "MAR Review", "Direct Observation"],
+      rows: rangedPracticums.map((p) => {
+        const e = employeeById.get(p.employee_id);
+        return [
+          e ? `${e.first_name} ${e.last_name}` : p.employee_id,
+          String(p.practicum_year),
+          p.status,
+          p.completion_date ?? "",
+          p.observed_by ?? "",
+          p.mar_review_completed ? "Yes" : "No",
+          p.direct_observation_completed ? "Yes" : "No",
+        ];
+      }),
       summaryCards,
     };
   }
@@ -657,17 +706,27 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
     const buckets = reportId === "annual-hours" ? scopedBuckets.filter((b) => b.training_year === currentYear) : scopedBuckets;
     const compliantCount = buckets.filter((b) => b.status === "compliant").length;
     const incompleteCount = buckets.length - compliantCount;
+    const staffTracked = new Set(buckets.map((b) => b.employee_id)).size;
     summaryCards.push(
-      { label: "Staff Tracked", value: buckets.length },
-      { label: "Compliant", value: compliantCount, variant: "success" },
-      { label: "Incomplete", value: incompleteCount, variant: incompleteCount > 0 ? "warning" : "success" }
+      { label: "Staff Tracked", value: staffTracked },
+      { label: "Compliant Buckets", value: compliantCount, variant: "success" },
+      { label: "Incomplete Buckets", value: incompleteCount, variant: incompleteCount > 0 ? "warning" : "success" }
     );
     return {
-      headers: ["Employee ID", "Year", "Required Hours", "Completed Hours", "Remaining", "Status"],
+      headers: ["Employee", "Bucket", "Year", "Required Hours", "Completed Hours", "Remaining", "Status"],
       rows: buckets.map((b) => {
+        const e = employeeById.get(b.employee_id);
         const req = Number(b.required_hours ?? 0);
         const comp = Number(b.completed_hours ?? 0);
-        return [b.employee_id, String(b.training_year), String(req), String(comp), String(Math.max(0, req - comp)), b.status];
+        return [
+          e ? `${e.first_name} ${e.last_name}` : b.employee_id,
+          formatBucketType(b.bucket_type),
+          String(b.training_year),
+          String(req),
+          String(comp),
+          String(Math.max(0, req - comp)),
+          b.status,
+        ];
       }),
       summaryCards,
     };
@@ -679,7 +738,9 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
     const trainerTypeIds = new Set(
       ctx.trainingTypes.filter((t) => t.is_active && t.applies_to_trainers).map((t) => t.id)
     );
-    const records = scopedRecords.filter((r) => trainerIds.has(r.employee_id) && trainerTypeIds.has(r.training_type_id));
+    const records = scopedRecords.filter(
+      (r) => trainerIds.has(r.employee_id) && trainerTypeIds.has(r.training_type_id) && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo)
+    );
     summaryCards.push(
       { label: "Trainers", value: trainers.length },
       { label: "Training Records", value: records.length }
@@ -705,7 +766,7 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
     const cutoff = new Date(Date.now() - 90 * DAY_MS);
     const newHires = scopedEmployees.filter((e) => e.hire_date && new Date(e.hire_date) >= cutoff);
     const newHireIds = new Set(newHires.map((e) => e.id));
-    const records = scopedRecords.filter((r) => newHireIds.has(r.employee_id));
+    const records = scopedRecords.filter((r) => newHireIds.has(r.employee_id) && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo));
     summaryCards.push(
       { label: "New Employees", value: newHires.length },
       { label: "Training Records", value: records.length }
@@ -731,10 +792,12 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
   if (reportId === "employee-transcript") {
     const employee = ctx.employeeIdOverride ? employeeById.get(ctx.employeeIdOverride) : undefined;
     const records = ctx.employeeIdOverride
-      ? ctx.trainingRecords.filter((r) => r.employee_id === ctx.employeeIdOverride)
+      ? ctx.trainingRecords.filter(
+          (r) => r.employee_id === ctx.employeeIdOverride && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo)
+        )
       : [];
     const practicums = ctx.employeeIdOverride
-      ? ctx.practicums.filter((p) => p.employee_id === ctx.employeeIdOverride)
+      ? ctx.practicums.filter((p) => p.employee_id === ctx.employeeIdOverride && inDateRange(p.due_date, ctx.dateFrom, ctx.dateTo))
       : [];
     summaryCards.push(
       { label: "Employee", value: employee ? `${employee.first_name} ${employee.last_name}` : "Unknown" },
@@ -762,34 +825,39 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
     const records = scopedRecords.filter((r) => {
       if (!r.due_date) return false;
       const due = new Date(r.due_date);
-      return due >= now && due <= cutoff;
+      return due >= now && due <= cutoff && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo);
     });
     summaryCards.push({ label: "Expiring (90 days)", value: records.length, variant: records.length > 0 ? "warning" : "success" });
     return { headers: TRAINING_RECORD_HEADERS, rows: trainingRecordRows(records, employeeById, trainingTypeById), summaryCards };
   }
 
   if (reportId === "missing-documents") {
-    const records = scopedRecords.filter((r) => r.status === "missing" && r.document_required);
+    const records = scopedRecords.filter(
+      (r) => r.status === "missing" && r.document_required && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo)
+    );
     summaryCards.push({ label: "Missing Documents", value: records.length, variant: records.length > 0 ? "warning" : "success" });
     return { headers: TRAINING_RECORD_HEADERS, rows: trainingRecordRows(records, employeeById, trainingTypeById), summaryCards };
   }
 
   if (reportId === "document-audit") {
-    const recordsRequiringDocs = scopedRecords.filter((r) => r.status === "missing" && r.document_required).length;
+    const rangedDocuments = scopedDocuments.filter((d) => inDateRange(d.created_at, ctx.dateFrom, ctx.dateTo));
+    const recordsRequiringDocs = scopedRecords.filter(
+      (r) => r.status === "missing" && r.document_required && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo)
+    ).length;
     summaryCards.push(
-      { label: "Total Documents", value: scopedDocuments.length },
+      { label: "Total Documents", value: rangedDocuments.length },
       { label: "Records Need Docs", value: recordsRequiringDocs, variant: recordsRequiringDocs > 0 ? "warning" : "success" }
     );
     return {
       headers: ["File Name", "Type", "Uploaded By", "Created"],
-      rows: scopedDocuments.map((d) => [d.file_name, d.document_type, d.uploaded_by_profile_id ?? "", d.created_at]),
+      rows: rangedDocuments.map((d) => [d.file_name, d.document_type, d.uploaded_by_profile_id ?? "", d.created_at]),
       summaryCards,
     };
   }
 
   if (reportId === "overdue-training") {
-    const expiredRecords = scopedRecords.filter((r) => r.status === "expired");
-    const expiredPracticums = scopedPracticums.filter((p) => p.status === "expired");
+    const expiredRecords = scopedRecords.filter((r) => r.status === "expired" && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo));
+    const expiredPracticums = scopedPracticums.filter((p) => p.status === "expired" && inDateRange(p.due_date, ctx.dateFrom, ctx.dateTo));
     const rows: string[][] = [
       ...expiredRecords.map((r) => {
         const e = employeeById.get(r.employee_id);
@@ -822,7 +890,9 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
     const rows = ctx.organizations.map((o) => {
       const orgFacilities = ctx.facilities.filter((f) => f.organization_id === o.id);
       const orgEmployees = ctx.employees.filter((e) => e.organization_id === o.id);
-      const orgRecords = ctx.trainingRecords.filter((r) => r.organization_id === o.id);
+      const orgRecords = ctx.trainingRecords.filter(
+        (r) => r.organization_id === o.id && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo)
+      );
       const relevantOrgRecords = relevantRecords(orgRecords);
       const compliantCount = orgRecords.filter((r) => r.status === "compliant").length;
       const expiredCount = orgRecords.filter((r) => r.status === "expired").length;
@@ -855,7 +925,9 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
   }
 
   if (reportId === "credential-status") {
-    const scopedCredentials = byFacility(ctx.credentials, ctx.facilityId);
+    const scopedCredentials = byFacility(ctx.credentials, ctx.facilityId).filter((c) =>
+      inDateRange(c.expiration_date, ctx.dateFrom, ctx.dateTo)
+    );
     const compliantCount = scopedCredentials.filter((c) => c.status === "compliant").length;
     const expiredCount = scopedCredentials.filter((c) => c.status === "expired").length;
     const dueSoonCount = scopedCredentials.filter((c) => c.status === "due_soon").length;
@@ -882,7 +954,9 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
   }
 
   if (reportId === "incident-log") {
-    const scopedIncidents = byFacility(ctx.incidents, ctx.facilityId);
+    const scopedIncidents = byFacility(ctx.incidents, ctx.facilityId).filter((i) =>
+      inDateRange(i.occurred_at, ctx.dateFrom, ctx.dateTo)
+    );
     const openCount = scopedIncidents.filter((i) => i.status !== "closed").length;
     const criticalCount = scopedIncidents.filter((i) => i.severity === "critical").length;
     summaryCards.push(
@@ -904,8 +978,48 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
     };
   }
 
+  if (reportId === "incident-notification-register") {
+    const incidentById = new Map(ctx.incidents.map((i) => [i.id, i]));
+    const facilityNameById = new Map(ctx.facilities.map((f) => [f.id, f.name]));
+    const scopedNotifications = ctx.incidentNotifications
+      .filter((n) => {
+        const incident = incidentById.get(n.incident_id);
+        if (!incident) return false;
+        if (ctx.facilityId !== "all" && incident.facility_id !== ctx.facilityId) return false;
+        return inDateRange(n.due_at, ctx.dateFrom, ctx.dateTo);
+      })
+      .sort((a, b) => (a.due_at < b.due_at ? 1 : -1));
+    const completedCount = scopedNotifications.filter((n) => n.status === "completed").length;
+    const overdueCount = scopedNotifications.filter((n) => n.status === "overdue").length;
+    summaryCards.push(
+      { label: "Total Notifications", value: scopedNotifications.length },
+      { label: "Completed", value: completedCount, variant: "success" },
+      { label: "Overdue", value: overdueCount, variant: overdueCount > 0 ? "danger" : "success" }
+    );
+    return {
+      headers: ["Incident", "Facility", "Notification Type", "Due", "Completed", "Method", "Recipient", "Reference #", "Status"],
+      rows: scopedNotifications.map((n) => {
+        const incident = incidentById.get(n.incident_id);
+        return [
+          incident ? `${incident.incident_type.replace(/_/g, " ")} (${new Date(incident.occurred_at).toLocaleDateString()})` : n.incident_id,
+          incident ? facilityNameById.get(incident.facility_id) ?? "—" : "—",
+          n.notification_type.replace(/_/g, " "),
+          new Date(n.due_at).toLocaleString(),
+          n.completed_at ? new Date(n.completed_at).toLocaleString() : "",
+          n.notification_method ?? "",
+          n.recipient ?? "",
+          n.reference_number ?? "",
+          n.status,
+        ];
+      }),
+      summaryCards,
+    };
+  }
+
   if (reportId === "inspection-compliance") {
-    const scopedItems = byFacility(ctx.inspectionItems, ctx.facilityId).filter((i) => i.is_active);
+    const scopedItems = byFacility(ctx.inspectionItems, ctx.facilityId).filter(
+      (i) => i.is_active && inDateRange(i.next_due_date, ctx.dateFrom, ctx.dateTo)
+    );
     const compliantCount = scopedItems.filter((i) => i.status === "compliant").length;
     const expiredCount = scopedItems.filter((i) => i.status === "expired").length;
     const dueSoonCount = scopedItems.filter((i) => i.status === "due_soon").length;
@@ -963,6 +1077,8 @@ export default function Reports() {
   const [facilityId, setFacilityId] = useState<string>("all");
   const [category, setCategory] = useState<string>("All");
   const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
   const [pendingReport, setPendingReport] = useState<ReportDef | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("none");
 
@@ -988,6 +1104,7 @@ export default function Reports() {
   const organizationsQuery = useListOrganizations();
   const credentialsQuery = useListEmployeeCredentials({});
   const incidentsQuery = useListIncidents({});
+  const incidentNotificationsQuery = useListAllIncidentNotificationsDetailed();
   const inspectionItemsQuery = useListInspectionItems({});
 
   const facilities = facilitiesQuery.data ?? [];
@@ -1001,6 +1118,7 @@ export default function Reports() {
   const organizations = organizationsQuery.data ?? [];
   const credentials = credentialsQuery.data ?? [];
   const incidents = incidentsQuery.data ?? [];
+  const incidentNotifications = incidentNotificationsQuery.data ?? [];
   const inspectionItems = inspectionItemsQuery.data ?? [];
 
   const dataLoading =
@@ -1015,6 +1133,7 @@ export default function Reports() {
     organizationsQuery.isLoading ||
     credentialsQuery.isLoading ||
     incidentsQuery.isLoading ||
+    incidentNotificationsQuery.isLoading ||
     inspectionItemsQuery.isLoading;
 
   const facilityName = facilityId !== "all" ? facilities.find((f) => f.id === facilityId)?.name : undefined;
@@ -1037,6 +1156,8 @@ export default function Reports() {
     (employeeIdOverride?: string): ReportContext => ({
       facilityId,
       employeeIdOverride,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
       facilities,
       employees,
       trainingTypes,
@@ -1048,11 +1169,12 @@ export default function Reports() {
       hourBuckets,
       credentials,
       incidents,
+      incidentNotifications,
       inspectionItems,
     }),
     [
-      facilityId, facilities, employees, trainingTypes, trainingRecords, practicums, documents, alerts, organizations, hourBuckets,
-      credentials, incidents, inspectionItems,
+      facilityId, dateFrom, dateTo, facilities, employees, trainingTypes, trainingRecords, practicums, documents, alerts, organizations,
+      hourBuckets, credentials, incidents, incidentNotifications, inspectionItems,
     ]
   );
 
@@ -1213,6 +1335,43 @@ export default function Reports() {
             ))}
           </SelectContent>
         </Select>
+        <div className="flex items-center gap-1.5">
+          <Label htmlFor="report-date-from" className="text-xs text-muted-foreground whitespace-nowrap">
+            From
+          </Label>
+          <Input
+            id="report-date-from"
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="w-40"
+          />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Label htmlFor="report-date-to" className="text-xs text-muted-foreground whitespace-nowrap">
+            To
+          </Label>
+          <Input
+            id="report-date-to"
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="w-40"
+          />
+        </div>
+        {(dateFrom || dateTo) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-muted-foreground"
+            onClick={() => {
+              setDateFrom("");
+              setDateTo("");
+            }}
+          >
+            Clear dates
+          </Button>
+        )}
       </div>
 
       <p className="text-sm text-muted-foreground">
@@ -1222,6 +1381,12 @@ export default function Reports() {
           <span>
             {" "}
             &middot; Filtered to <strong>{facilityName}</strong>
+          </span>
+        )}
+        {(dateFrom || dateTo) && (
+          <span>
+            {" "}
+            &middot; Date range: <strong>{dateFrom || "any"}</strong> to <strong>{dateTo || "any"}</strong>
           </span>
         )}
         {dataLoading && <span className="ml-2 text-xs">(loading report data…)</span>}
@@ -1237,6 +1402,9 @@ export default function Reports() {
             Hours: { border: "border-l-amber-500", bg: "bg-amber-100 dark:bg-amber-950/30", text: "text-amber-600 dark:text-amber-400" },
             Staff: { border: "border-l-indigo-500", bg: "bg-indigo-100 dark:bg-indigo-950/30", text: "text-indigo-600 dark:text-indigo-400" },
             Documents: { border: "border-l-slate-500", bg: "bg-slate-100 dark:bg-slate-950/30", text: "text-slate-600 dark:text-slate-400" },
+            Credentials: { border: "border-l-teal-500", bg: "bg-teal-100 dark:bg-teal-950/30", text: "text-teal-600 dark:text-teal-400" },
+            Incidents: { border: "border-l-rose-500", bg: "bg-rose-100 dark:bg-rose-950/30", text: "text-rose-600 dark:text-rose-400" },
+            Inspections: { border: "border-l-cyan-500", bg: "bg-cyan-100 dark:bg-cyan-950/30", text: "text-cyan-600 dark:text-cyan-400" },
           };
           const colors = catColors[report.category] ?? catColors.Compliance;
           return (

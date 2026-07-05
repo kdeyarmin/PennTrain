@@ -38,6 +38,7 @@ export function isPublicPath(path: string): boolean {
     p === "/" ||
     p === "/login" ||
     p === "/forgot-password" ||
+    p === "/reset-password" ||
     p.startsWith("/verify/") ||
     MARKETING_PATHS.includes(p)
   );

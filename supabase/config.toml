@@ -12,6 +12,21 @@ verify_jwt = true
 [functions.generate-compliance-binder]
 verify_jwt = true
 
+[functions.generate-certificate-pdf]
+verify_jwt = true
+
+[functions.generate-incident-report-pdf]
+verify_jwt = true
+
+[functions.attest-policy]
+verify_jwt = true
+
+[functions.generate-class-notice-pdf]
+verify_jwt = true
+
+[functions.generate-poc-document]
+verify_jwt = true
+
 [functions.generate-course-video]
 verify_jwt = true
 
@@ -20,3 +35,16 @@ verify_jwt = true
 
 [functions.list-heygen-options]
 verify_jwt = true
+
+# Internal cron-only endpoint invoked by pg_net from a pg_cron schedule (see
+# supabase/migrations/20260705061816_notification_delivery_engine.sql) -- pg_net has no way to
+# supply a user JWT. The function takes no caller-supplied parameters and always processes the
+# same system-wide pending queue regardless of caller, so this is not a data-exposure risk.
+[functions.dispatch-notifications]
+verify_jwt = false
+
+# Same reasoning as dispatch-notifications -- monthly pg_cron-invoked ingestion job, no
+# caller-supplied parameters, always re-ingests the same public dataset and re-scans the full
+# roster regardless of caller.
+[functions.screen-exclusions]
+verify_jwt = false
