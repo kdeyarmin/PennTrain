@@ -21,7 +21,7 @@ export const BRAND_ORANGE = "#f97316";
 export function LogoMark({ className, label }: { className?: string; label?: string }) {
   return (
     <img
-      src="/logo-mark.png"
+      src={`${import.meta.env.BASE_URL}logo-mark.png`}
       alt={label ?? ""}
       aria-hidden={label ? undefined : true}
       className={cn("shrink-0 object-contain", className)}
