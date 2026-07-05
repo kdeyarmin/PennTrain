@@ -158,19 +158,29 @@ export function useUpdateQuizQuestion() {
     mutationFn: async ({ id, explanation, ...payload }: QuizQuestionUpdatePayload) => {
       const { data, error } = await supabase.from("quiz_questions").update(payload).eq("id", id).select().single();
       if (error) throw error;
+      let finalExplanation: string | null;
       if (explanation !== undefined) {
-        const trimmed = explanation?.trim() || null;
-        if (trimmed) {
+        finalExplanation = explanation?.trim() || null;
+        if (finalExplanation) {
           const { error: explError } = await supabase
             .from("quiz_question_explanations")
-            .upsert({ question_id: id, organization_id: data.organization_id, explanation: trimmed }, { onConflict: "question_id" });
+            .upsert({ question_id: id, organization_id: data.organization_id, explanation: finalExplanation }, { onConflict: "question_id" });
           if (explError) throw explError;
         } else {
           const { error: delError } = await supabase.from("quiz_question_explanations").delete().eq("question_id", id);
           if (delError) throw delError;
         }
+      } else {
+        // Caller didn't touch explanation -- look up its current value rather than assuming
+        // null, since the row (or lack of one) in quiz_question_explanations is untouched.
+        const { data: existing } = await supabase
+          .from("quiz_question_explanations")
+          .select("explanation")
+          .eq("question_id", id)
+          .maybeSingle();
+        finalExplanation = existing?.explanation ?? null;
       }
-      return { ...data, explanation: explanation?.trim() || null } as QuizQuestionWithExplanation;
+      return { ...data, explanation: finalExplanation } as QuizQuestionWithExplanation;
     },
     onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["quiz_questions", data.quiz_id] }),
   });

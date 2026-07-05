@@ -2330,7 +2330,7 @@ export type Database = {
         Returns: {
           answer_id: string
           answer_text: string
-          explanation: string
+          explanation: string | null
           is_correct: boolean
           question_id: string
         }[]

@@ -254,11 +254,6 @@ function LogoMark({ className = "h-9 w-9" }: { className?: string }) {
 }
 
 /**
- * A section marker styled after a regulatory citation (e.g. "55 Pa. Code
- * Section 2600") -- the page reads like a compliance document's own table
- * of contents, which is the one structural conceit this design leans on.
- */
-/**
  * Reveals content on scroll -- a single quiet fade/rise, not a barrage of
  * effects. Falls back to a static div for prefers-reduced-motion.
  */
@@ -315,6 +310,11 @@ function TechIcon({ icon: Icon }: { icon: LucideIcon }) {
   );
 }
 
+/**
+ * A section marker styled after a regulatory citation (e.g. "55 Pa. Code
+ * Section 2600") -- the page reads like a compliance document's own table
+ * of contents, which is the one structural conceit this design leans on.
+ */
 function SectionLabel({ index, children }: { index: string; children: ReactNode }) {
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-primary/70">

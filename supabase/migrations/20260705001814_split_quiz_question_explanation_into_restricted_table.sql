@@ -9,9 +9,11 @@
 --
 -- Splits explanation into its own table with the same row-level restriction as quiz_answers, so
 -- get_quiz_review() remains the only sanctioned way for a learner to see it (already correctly
--- gated on submitted_at + passed/attempts-exhausted). No frontend code reads or writes
--- quiz_questions.explanation today -- this backend-only feature was never wired to any UI -- so
--- there is no client code to update alongside this migration.
+-- gated on submitted_at + passed/attempts-exhausted). At the time this migration was written, no
+-- frontend code read or wrote quiz_questions.explanation; the QuizBuilder authoring UI and its
+-- useQuizzes.ts hooks (useListQuizQuestions/useCreateQuizQuestion/useUpdateQuizQuestion) were
+-- added later by a separately-merged PR and have since been updated to join/upsert/delete against
+-- quiz_question_explanations instead of a plain column.
 
 create table public.quiz_question_explanations (
   question_id     uuid primary key references public.quiz_questions(id) on delete cascade,
