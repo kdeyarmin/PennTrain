@@ -51,7 +51,7 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
      generate-compliance-binder generate-certificate-pdf generate-incident-report-pdf \
      attest-policy generate-class-notice-pdf generate-poc-document generate-course-video \
      check-course-video-status list-heygen-options dispatch-notifications screen-exclusions \
-     send-auth-email
+     send-auth-email invite-user signup-organization
    ```
    Or connect the Supabase GitHub integration (Project Settings -> Integrations) so pushes to `main`
    auto-deploy both migrations and functions declared in `supabase/config.toml`.

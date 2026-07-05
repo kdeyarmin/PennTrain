@@ -15,6 +15,7 @@ import HowItWorks from "@/pages/marketing/HowItWorks";
 import Faq from "@/pages/marketing/Faq";
 
 import Login from "@/pages/auth/Login";
+import Signup from "@/pages/auth/Signup";
 import ForgotPassword from "@/pages/auth/ForgotPassword";
 import ResetPassword from "@/pages/auth/ResetPassword";
 
@@ -181,6 +182,7 @@ function Router() {
       </Route>
 
       <Route path="/login" component={Login} />
+      <Route path="/signup" component={Signup} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/verify/:slug" component={VerifyCertificate} />

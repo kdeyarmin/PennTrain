@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  useListProfiles, useUpdateProfile, useCreateUserViaAdmin, useAdminUpdateUser,
+  useListProfiles, useUpdateProfile, useCreateUserViaAdmin, useInviteUser, useAdminUpdateUser,
   type Profile,
 } from "@/hooks/useProfiles";
 import { useListOrganizations } from "@/hooks/useOrganizations";
@@ -28,12 +28,15 @@ const ROLE_LABELS: Record<string, string> = {
 
 const ALL_ROLES: Role[] = ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"];
 
-// Which roles a given caller role is allowed to grant to a new user, or edit on an
-// existing one. Only platform_admin may create/manage platform_admin or org_admin
-// accounts -- org_admin/facility_manager are restricted to the roles beneath org_admin.
+// Which roles a given caller role is allowed to grant to a new user, or edit on an existing
+// one. Only platform_admin may create/manage platform_admin accounts. org_admin may create/
+// manage any other role including peer org_admin accounts within their own org (matches the
+// create-user/admin-update-user/invite-user Edge Functions, which only ever forbid
+// platform_admin for an org_admin caller); facility_manager is restricted to the roles beneath
+// org_admin.
 const ASSIGNABLE_ROLES: Record<Role, Role[]> = {
   platform_admin: ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"],
-  org_admin: ["facility_manager", "trainer", "employee", "auditor"],
+  org_admin: ["facility_manager", "trainer", "employee", "auditor", "org_admin"],
   facility_manager: ["facility_manager", "trainer", "employee", "auditor"],
   trainer: [],
   employee: [],
@@ -89,6 +92,7 @@ export default function Users() {
   const [page, setPage] = useState(1);
 
   const [showCreate, setShowCreate] = useState(false);
+  const [inviteMode, setInviteMode] = useState(true);
   const [createForm, setCreateForm] = useState<CreateFormData>({
     email: "", password: randomPassword(), firstName: "", lastName: "",
     role: assignableRoles[0] ?? "employee", organizationId: "none",
@@ -104,6 +108,7 @@ export default function Users() {
   const orgMap = new Map((organizations ?? []).map(o => [o.id, o.name]));
 
   const { mutate: createUser, isPending: creating } = useCreateUserViaAdmin();
+  const { mutate: inviteUser, isPending: inviting } = useInviteUser();
   const { mutate: adminUpdateUser, isPending: adminUpdating } = useAdminUpdateUser();
   const { mutate: updateProfile, isPending: updatingProfile } = useUpdateProfile();
 
@@ -153,6 +158,7 @@ export default function Users() {
       email: "", password: randomPassword(), firstName: "", lastName: "",
       role: assignableRoles[0] ?? "employee", organizationId: "none",
     });
+    setInviteMode(true);
     setShowCreate(true);
   };
 
@@ -160,7 +166,10 @@ export default function Users() {
     setCreateForm(f => ({ ...f, [k]: v }));
 
   const handleCreate = () => {
-    if (!createForm.email.trim() || !createForm.password.trim() || !createForm.firstName.trim() || !createForm.lastName.trim()) {
+    const requiredFieldsPresent = inviteMode
+      ? createForm.email.trim() && createForm.firstName.trim() && createForm.lastName.trim()
+      : createForm.email.trim() && createForm.password.trim() && createForm.firstName.trim() && createForm.lastName.trim();
+    if (!requiredFieldsPresent) {
       toast({ title: "All fields are required", variant: "destructive" });
       return;
     }
@@ -179,6 +188,31 @@ export default function Users() {
     }
     if (isPlatformAdmin && createForm.role !== "platform_admin" && !organizationId) {
       toast({ title: "An organization is required for this role", variant: "destructive" });
+      return;
+    }
+
+    if (inviteMode) {
+      // Matches App.tsx's WouterRouter/publicPaths.ts convention for combining origin + base
+      // path -- accepting an invite lands on /reset-password, the same page password-reset
+      // links use, since both establish a session the same way.
+      const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+      inviteUser(
+        {
+          email: createForm.email.trim(),
+          firstName: createForm.firstName.trim(),
+          lastName: createForm.lastName.trim(),
+          role: createForm.role,
+          organizationId,
+          redirectTo: `${window.location.origin}${basePath}/reset-password`,
+        },
+        {
+          onSuccess: () => {
+            toast({ title: "Invite sent", description: `${createForm.email.trim()} will receive an email to set up their account.` });
+            setShowCreate(false);
+          },
+          onError: (e: Error) => toast({ title: "Failed to send invite", description: e.message, variant: "destructive" }),
+        },
+      );
       return;
     }
 
@@ -435,9 +469,19 @@ export default function Users() {
       <Dialog open={showCreate} onOpenChange={o => { if (!o) setShowCreate(false); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add User</DialogTitle>
+            <DialogTitle>{inviteMode ? "Invite User" : "Add User"}</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
+            <div className="col-span-full flex items-start gap-2 rounded-md border p-3">
+              <Switch checked={inviteMode} onCheckedChange={setInviteMode} id="invite-mode" />
+              <label htmlFor="invite-mode" className="text-[13px] cursor-pointer">
+                <span className="font-medium">Send an email invite</span>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  They'll get an email with a link to set their own password. Turn this off to set a
+                  temporary password yourself instead.
+                </p>
+              </label>
+            </div>
             <div className="space-y-1.5">
               <Label className="text-[13px]">First Name *</Label>
               <Input value={createForm.firstName} onChange={e => createField("firstName", e.target.value)} placeholder="Jane" className="h-9" />
@@ -450,18 +494,20 @@ export default function Users() {
               <Label className="text-[13px]">Email *</Label>
               <Input type="email" value={createForm.email} onChange={e => createField("email", e.target.value)} placeholder="jane@example.com" className="h-9" />
             </div>
-            <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Temporary Password *</Label>
-              <div className="flex gap-2">
-                <Input value={createForm.password} onChange={e => createField("password", e.target.value)} className="h-9 font-mono" />
-                <Button type="button" variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => createField("password", randomPassword())} aria-label="Generate a new temporary password">
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
+            {!inviteMode && (
+              <div className="col-span-full space-y-1.5">
+                <Label className="text-[13px]">Temporary Password *</Label>
+                <div className="flex gap-2">
+                  <Input value={createForm.password} onChange={e => createField("password", e.target.value)} className="h-9 font-mono" />
+                  <Button type="button" variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => createField("password", randomPassword())} aria-label="Generate a new temporary password">
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Share this with the user securely. They sign in with it and should change it right after.
+                </p>
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Share this with the user securely. They sign in with it and should change it right after.
-              </p>
-            </div>
+            )}
             <div className="space-y-1.5">
               <Label className="text-[13px]">Role *</Label>
               <Select value={createForm.role} onValueChange={v => createField("role", v as Role)}>
@@ -490,8 +536,8 @@ export default function Users() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={creating} className="shadow-sm">
-              {creating ? "Creating..." : "Create User"}
+            <Button onClick={handleCreate} disabled={creating || inviting} className="shadow-sm">
+              {inviteMode ? (inviting ? "Sending invite..." : "Send Invite") : (creating ? "Creating..." : "Create User")}
             </Button>
           </DialogFooter>
         </DialogContent>

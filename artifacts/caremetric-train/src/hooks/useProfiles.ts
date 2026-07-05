@@ -134,6 +134,51 @@ export function useCreateUserViaAdmin() {
 }
 
 /**
+ * `useInviteUser()` sends an email invite instead of setting a temporary password: the
+ * `invite-user` Edge Function calls `supabase.auth.admin.inviteUserByEmail()` (queuing the
+ * "invite" auth email -- routed through SendGrid via the send-auth-email Send Email Hook, same
+ * as password-reset mail) then `admin_update_profile()` to apply the real role/organization_id,
+ * since `handle_new_user()` has no app_metadata to read yet at invite time and only ever
+ * defaults to role="employee"/organization_id=null. Authorization matrix matches
+ * `useCreateUserViaAdmin()`. `redirectTo` should point at `/reset-password` (the same page
+ * password-reset links use) -- accepting an invite establishes a session the same way a
+ * recovery link does, and that page already handles either.
+ *
+ * On success: 2xx with `{ success: true, user: { id, email }, profile: {...} }`. On failure:
+ * non-2xx with `{ error: string }`.
+ */
+export interface InviteUserRequest {
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  organizationId: string | null;
+  redirectTo: string;
+}
+
+export interface InviteUserResponse {
+  success?: boolean;
+  user?: { id: string; email: string };
+  profile?: Profile;
+}
+
+export function useInviteUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ email, firstName, lastName, role, organizationId, redirectTo }: InviteUserRequest) =>
+      invokeEdgeFunction<InviteUserResponse>("invite-user", {
+        email,
+        first_name: firstName,
+        last_name: lastName,
+        role,
+        organization_id: organizationId,
+        redirect_to: redirectTo,
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["profiles"] }),
+  });
+}
+
+/**
  * `useAdminUpdateUser()` takes a camelCase payload and translates it to the snake_case
  * wire shape the deployed `admin-update-user` Edge Function actually expects:
  *

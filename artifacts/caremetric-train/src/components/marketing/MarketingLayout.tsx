@@ -69,6 +69,11 @@ function MarketingHeader() {
               Log In
             </Button>
           </Link>
+          <Link href="/signup">
+            <Button variant="outline" size="sm" data-testid="link-signup">
+              Sign Up
+            </Button>
+          </Link>
           <a href={DEMO_MAILTO}>
             <Button size="sm" data-testid="button-request-demo">
               Request a Demo
@@ -114,6 +119,11 @@ function MarketingHeader() {
               <Link href="/login" onClick={() => setMenuOpen(false)}>
                 <Button variant="outline" className="w-full">
                   Log In
+                </Button>
+              </Link>
+              <Link href="/signup" onClick={() => setMenuOpen(false)}>
+                <Button variant="outline" className="w-full">
+                  Sign Up
                 </Button>
               </Link>
               <a href={DEMO_MAILTO} onClick={() => setMenuOpen(false)}>
@@ -164,6 +174,7 @@ function MarketingFooter() {
               </div>
               <ul className="mt-3 space-y-2 text-sm">
                 <li><Link href="/login" className="text-muted-foreground hover:text-foreground">Log In</Link></li>
+                <li><Link href="/signup" className="text-muted-foreground hover:text-foreground">Sign Up</Link></li>
                 <li><a href={DEMO_MAILTO} className="text-muted-foreground hover:text-foreground">Request a Demo</a></li>
               </ul>
             </div>
