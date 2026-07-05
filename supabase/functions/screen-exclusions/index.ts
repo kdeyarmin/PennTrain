@@ -103,7 +103,7 @@ interface SamExclusionRecord {
 // see api.sam.gov/entity-information/v4/exclusions. Queried once per active employee name; the
 // low daily rate limit on personal accounts (as few as ~10 requests/day) makes this realistically
 // only usable with a registered system account's key, hence the graceful skip below when no key
-// is configured (same pattern as RESEND_API_KEY/TWILIO_* in dispatch-notifications).
+// is configured (same pattern as SENDGRID_API_KEY/TWILIO_* in dispatch-notifications).
 async function ingestSamGovForEmployee(
   apiKey: string,
   firstName: string,

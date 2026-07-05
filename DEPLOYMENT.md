@@ -54,10 +54,20 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    auto-deploy both migrations and functions declared in `supabase/config.toml`.
 4. Set Edge Function secrets (these run on Supabase's infrastructure, never on Railway):
    ```bash
-   npx supabase secrets set HEYGEN_API_KEY=... 
+   npx supabase secrets set HEYGEN_API_KEY=... \
+     SENDGRID_API_KEY=... \
+     NOTIFICATION_FROM_EMAIL='CareMetric Train <notifications@caremetrictrain.com>' \
+     TWILIO_ACCOUNT_SID=... TWILIO_AUTH_TOKEN=... TWILIO_FROM_NUMBER=...
    ```
    `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are injected into Edge
    Functions automatically by Supabase -- you do not set those secrets yourself.
+   `SENDGRID_API_KEY`/`NOTIFICATION_FROM_EMAIL` and the `TWILIO_*` trio are read by the
+   `dispatch-notifications` function (training due/expired reminders, escalations, the Monday
+   digest); each channel is skipped (not failed) if its credentials aren't set, so these can be
+   added later without breaking anything. Create the SendGrid API key with **Mail Send** scope only,
+   and verify the `NOTIFICATION_FROM_EMAIL` sender identity (Single Sender Verification or a
+   verified domain) in the SendGrid dashboard first -- SendGrid rejects sends from an unverified
+   `from` address.
 5. **Auth URL configuration** (Authentication -> URL Configuration in the dashboard): set **Site URL**
    to the public domain (production: `https://caremetrictrain.com`) and add a **Redirect URL** for
    every origin the app is served from (production: `https://caremetrictrain.com/login` and
@@ -65,10 +75,17 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    `ForgotPassword.tsx` calls `supabase.auth.resetPasswordForEmail` with
    `redirectTo: window.location.origin + "/login"`, and Supabase Auth rejects redirects to
    unlisted origins.
-6. Seed demo/admin users via the Supabase Admin API or the `create-user` Edge Function -- there is no
+6. **(Optional) Route Supabase Auth's own mail through SendGrid too.** Step 4 above wires SendGrid
+   into the `dispatch-notifications` Edge Function (training reminders/digests), but password-reset
+   and email-change confirmation mail is sent separately by Supabase Auth's built-in mailer. To send
+   those through SendGrid as well: Authentication -> Emails -> SMTP Settings in the dashboard, enable
+   "Custom SMTP", and use SendGrid's SMTP relay (`smtp.sendgrid.net:587`, username `apikey`, password
+   = a SendGrid API key with Mail Send scope). This is a dashboard-only setting, not something a
+   migration or Edge Function secret can configure.
+7. Seed demo/admin users via the Supabase Admin API or the `create-user` Edge Function -- there is no
    public self-signup route by design (see `ARCHITECTURE.md` "Roles"). The `handle_new_user()` trigger
    creates the matching `profiles` row automatically.
-7. Generate TypeScript types after any schema change:
+8. Generate TypeScript types after any schema change:
    ```bash
    npx supabase gen types typescript --project-id <your-project-ref> \
      > artifacts/caremetric-train/src/lib/database.types.ts
@@ -160,10 +177,10 @@ Railpack itself sets `NPM_CONFIG_PRODUCTION=false`; for the same reason, never s
 
 Not needed for this repo (and intentionally left out of `.env.example` -- see the comments there for
 why): `DATABASE_URL`, `NEXT_PUBLIC_*` (this is Vite, not Next.js), `SESSION_SECRET`/`AUTH_SECRET`
-(Supabase Auth owns session state, no server-side session here), `STRIPE_SECRET_KEY` /
-`RESEND_API_KEY` (no billing or transactional-email integration exists in this codebase today).
-`SUPABASE_SERVICE_ROLE_KEY` must never be set on the Railway service -- it belongs only in Supabase
-Edge Function secrets.
+(Supabase Auth owns session state, no server-side session here), `STRIPE_SECRET_KEY` (no billing
+integration exists in this codebase today). `SUPABASE_SERVICE_ROLE_KEY` must never be set on the
+Railway service -- it belongs only in Supabase Edge Function secrets, alongside `SENDGRID_API_KEY`
+and `TWILIO_*` (see step 4 below) -- none of these are Railway variables.
 
 ## 3. Local development
 
@@ -363,3 +380,7 @@ at build time** -- after changing `VITE_` variables, redeploy (rebuild); don't t
   package) as a deploy gate. Add a linter separately if desired -- out of scope here.
 - `pnpm run db:migrate` requires `supabase login` + `supabase link --project-ref <ref>` to have been
   run once first (interactive, not scriptable).
+- `SENDGRID_API_KEY` must be set via `supabase secrets set` (step 1.4) for the training-reminder
+  emails `dispatch-notifications` sends to actually go out -- without it, those deliveries are
+  logged as `skipped` rather than failing loudly. Routing Supabase Auth's own password-reset/
+  email-change mail through SendGrid too (step 1.6) is a separate, optional dashboard setting.
