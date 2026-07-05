@@ -26,6 +26,14 @@ export type QuizQuestion = Tables<"quiz_questions">;
 export type QuizQuestionInsert = TablesInsert<"quiz_questions">;
 export type QuizQuestionUpdate = TablesUpdate<"quiz_questions">;
 
+// explanation lives in its own quiz_question_explanations table (RLS-restricted to
+// org_admin/trainer/auditor, unlike the rest of quiz_questions) rather than as a plain
+// column, so it isn't readable by a learner before they've taken the quiz. The hooks
+// below read/write it as a joined field so authoring UI can treat it as if it were.
+export type QuizQuestionWithExplanation = QuizQuestion & { explanation: string | null };
+export type QuizQuestionCreatePayload = QuizQuestionInsert & { explanation?: string | null };
+export type QuizQuestionUpdatePayload = QuizQuestionUpdate & { id: string; explanation?: string | null };
+
 /** Author-side shape -- includes is_correct. See boundary note at the top of this file. */
 export type QuizAnswer = Tables<"quiz_answers">;
 export type QuizAnswerInsert = TablesInsert<"quiz_answers">;
@@ -109,11 +117,14 @@ export function useListQuizQuestions(quizId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quiz_questions")
-        .select("*")
+        .select("*, quiz_question_explanations(explanation)")
         .eq("quiz_id", quizId!)
         .order("sort_order");
       if (error) throw error;
-      return data;
+      return data.map(({ quiz_question_explanations, ...q }) => ({
+        ...q,
+        explanation: quiz_question_explanations?.explanation ?? null,
+      })) as QuizQuestionWithExplanation[];
     },
     enabled: !!quizId,
   });
@@ -125,10 +136,17 @@ export function useListQuizQuestions(quizId: string | undefined) {
 export function useCreateQuizQuestion() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: QuizQuestionInsert) => {
+    mutationFn: async ({ explanation, ...payload }: QuizQuestionCreatePayload) => {
       const { data, error } = await supabase.from("quiz_questions").insert(payload).select().single();
       if (error) throw error;
-      return data;
+      const trimmed = explanation?.trim() || null;
+      if (trimmed) {
+        const { error: explError } = await supabase
+          .from("quiz_question_explanations")
+          .insert({ question_id: data.id, organization_id: data.organization_id, explanation: trimmed });
+        if (explError) throw explError;
+      }
+      return { ...data, explanation: trimmed } as QuizQuestionWithExplanation;
     },
     onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["quiz_questions", data.quiz_id] }),
   });
@@ -137,10 +155,22 @@ export function useCreateQuizQuestion() {
 export function useUpdateQuizQuestion() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...payload }: QuizQuestionUpdate & { id: string }) => {
+    mutationFn: async ({ id, explanation, ...payload }: QuizQuestionUpdatePayload) => {
       const { data, error } = await supabase.from("quiz_questions").update(payload).eq("id", id).select().single();
       if (error) throw error;
-      return data;
+      if (explanation !== undefined) {
+        const trimmed = explanation?.trim() || null;
+        if (trimmed) {
+          const { error: explError } = await supabase
+            .from("quiz_question_explanations")
+            .upsert({ question_id: id, organization_id: data.organization_id, explanation: trimmed }, { onConflict: "question_id" });
+          if (explError) throw explError;
+        } else {
+          const { error: delError } = await supabase.from("quiz_question_explanations").delete().eq("question_id", id);
+          if (delError) throw delError;
+        }
+      }
+      return { ...data, explanation: explanation?.trim() || null } as QuizQuestionWithExplanation;
     },
     onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["quiz_questions", data.quiz_id] }),
   });

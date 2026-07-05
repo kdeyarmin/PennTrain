@@ -20,7 +20,7 @@ import {
   useListQuizQuestions, useCreateQuizQuestion, useUpdateQuizQuestion, useDeleteQuizQuestion,
   useListQuizAnswers, useCreateQuizAnswer, useUpdateQuizAnswer, useDeleteQuizAnswer,
   useQuizQuestionStats,
-  type QuizQuestion, type QuizAnswer, type QuestionStats,
+  type QuizQuestionWithExplanation, type QuizAnswer, type QuestionStats,
 } from "@/hooks/useQuizzes";
 import { useGetCourseBlock, useGetCourseVersion, useGetCourse } from "@/hooks/useCourses";
 import { useAuth } from "@/lib/auth";
@@ -129,7 +129,7 @@ function QuestionCard({
   onEdit,
   onDelete,
 }: {
-  question: QuizQuestion;
+  question: QuizQuestionWithExplanation;
   index: number;
   locked: boolean;
   stats: QuestionStats | undefined;
@@ -296,12 +296,12 @@ export default function QuizBuilder() {
 
   // --- Question add/edit ---
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
-  const [editingQuestion, setEditingQuestion] = useState<QuizQuestion | null>(null);
+  const [editingQuestion, setEditingQuestion] = useState<QuizQuestionWithExplanation | null>(null);
   const [questionForm, setQuestionForm] = useState<QuestionFormState>(EMPTY_QUESTION_FORM);
   const { mutate: createQuestion, isPending: creatingQuestion } = useCreateQuizQuestion();
   const { mutate: updateQuestion, isPending: updatingQuestion } = useUpdateQuizQuestion();
   const { mutate: deleteQuestion, isPending: deletingQuestion } = useDeleteQuizQuestion();
-  const [questionPendingDelete, setQuestionPendingDelete] = useState<QuizQuestion | null>(null);
+  const [questionPendingDelete, setQuestionPendingDelete] = useState<QuizQuestionWithExplanation | null>(null);
 
   const openAddQuestion = () => {
     setEditingQuestion(null);
@@ -309,7 +309,7 @@ export default function QuizBuilder() {
     setShowQuestionDialog(true);
   };
 
-  const openEditQuestion = (q: QuizQuestion) => {
+  const openEditQuestion = (q: QuizQuestionWithExplanation) => {
     setEditingQuestion(q);
     setQuestionForm({
       question_text: q.question_text,
