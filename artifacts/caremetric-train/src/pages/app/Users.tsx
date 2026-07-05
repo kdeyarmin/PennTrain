@@ -435,11 +435,11 @@ export default function Users() {
               <Label className="text-[13px]">Last Name *</Label>
               <Input value={createForm.lastName} onChange={e => createField("lastName", e.target.value)} placeholder="Smith" className="h-9" />
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Email *</Label>
               <Input type="email" value={createForm.email} onChange={e => createField("email", e.target.value)} placeholder="jane@example.com" className="h-9" />
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Temporary Password *</Label>
               <div className="flex gap-2">
                 <Input value={createForm.password} onChange={e => createField("password", e.target.value)} className="h-9 font-mono" />
@@ -500,11 +500,11 @@ export default function Users() {
               <Label className="text-[13px]">Last Name *</Label>
               <Input value={editForm.lastName} onChange={e => setEditForm(f => ({ ...f, lastName: e.target.value }))} className="h-9" />
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Phone</Label>
               <Input value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} placeholder="(215) 555-0100" className="h-9" />
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Email</Label>
               <Input value={editProfile?.email ?? ""} disabled className="h-9" />
               <p className="text-[11px] text-muted-foreground">Email changes require an admin action; contact platform support.</p>

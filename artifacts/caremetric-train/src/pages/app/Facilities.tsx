@@ -224,7 +224,7 @@ export default function Facilities() {
             <DialogTitle>{editId ? "Edit Facility" : "Add Facility"}</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Facility Name *</Label>
               <Input value={form.name} onChange={e => field("name", e.target.value)} placeholder="Sunrise Manor" className="h-9" />
             </div>
@@ -243,7 +243,7 @@ export default function Facilities() {
               <Label className="text-[13px]">License Number</Label>
               <Input value={form.licenseNumber} onChange={e => field("licenseNumber", e.target.value)} placeholder="LIC-0001" className="h-9" />
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Address</Label>
               <Input value={form.address} onChange={e => field("address", e.target.value)} placeholder="123 Main St" className="h-9" />
             </div>

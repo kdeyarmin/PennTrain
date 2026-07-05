@@ -382,7 +382,7 @@ export default function EmployeeCredentials() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Edit Credential" : "Add Credential"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Employee *</Label>
               <Select value={form.employeeId} onValueChange={(v) => field("employeeId", v)} disabled={!!editing}>
                 <SelectTrigger className="h-9"><SelectValue placeholder="Select employee" /></SelectTrigger>
@@ -424,7 +424,7 @@ export default function EmployeeCredentials() {
               <Label className="text-[13px]">Warning Days</Label>
               <Input type="number" min={1} value={form.warningDays} onChange={(e) => field("warningDays", e.target.value)} className="h-9" />
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Status</Label>
               <Select value={form.status} onValueChange={(v) => field("status", v as CredentialFormData["status"])}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
@@ -436,12 +436,12 @@ export default function EmployeeCredentials() {
               </Select>
               <p className="text-xs text-muted-foreground">Recalculated automatically overnight from the expiration date; set manually only to override.</p>
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Notes</Label>
               <Textarea value={form.notes} onChange={(e) => field("notes", e.target.value)} placeholder="Optional notes" />
             </div>
             {editing && (
-              <div className="col-span-2 pt-2 border-t">
+              <div className="col-span-full pt-2 border-t">
                 <CredentialDocuments credential={editing} canManage={canManage} canDelete={canDelete} />
               </div>
             )}

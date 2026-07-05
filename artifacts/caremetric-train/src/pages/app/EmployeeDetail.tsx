@@ -511,7 +511,7 @@ export default function EmployeeDetail() {
               <Label>Hire Date</Label>
               <Input type="date" value={empForm.hireDate} onChange={e => field("hireDate", e.target.value)} />
             </div>
-            <div className="col-span-2 flex gap-6">
+            <div className="col-span-full flex gap-6">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={empForm.administersMedications} onChange={e => field("administersMedications", e.target.checked)} className="h-4 w-4" />
                 <span className="text-sm">Administers Medications</span>
@@ -521,7 +521,7 @@ export default function EmployeeDetail() {
                 <span className="text-sm">Designated Trainer</span>
               </label>
             </div>
-            <div className="col-span-2 space-y-1">
+            <div className="col-span-full space-y-1">
               <Label>Notes</Label>
               <Textarea value={empForm.notes} onChange={e => field("notes", e.target.value)} placeholder="Optional notes" />
             </div>

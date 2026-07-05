@@ -288,7 +288,7 @@ export default function Incidents() {
                 <Label className="text-[13px]">Location</Label>
                 <Input value={form.locationDetail} onChange={(e) => setForm((f) => ({ ...f, locationDetail: e.target.value }))} className="h-9" />
               </div>
-              <div className="col-span-2 space-y-1.5">
+              <div className="col-span-full space-y-1.5">
                 <Label className="text-[13px]">Narrative *</Label>
                 <Textarea value={form.narrative} onChange={(e) => setForm((f) => ({ ...f, narrative: e.target.value }))} placeholder="What happened, what was done immediately" rows={4} />
               </div>

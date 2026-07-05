@@ -175,11 +175,11 @@ export default function Organizations() {
             <DialogTitle>Add Organization</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Name *</Label>
               <Input value={form.name} onChange={e => handleNameChange(e.target.value)} placeholder="Acme Care Group" className="h-9" />
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Slug *</Label>
               <Input
                 value={form.slug}
@@ -188,7 +188,7 @@ export default function Organizations() {
                 className="h-9"
               />
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Package</Label>
               <Select value={form.packageId || "none"} onValueChange={v => field("packageId", v === "none" ? "" : v)}>
                 <SelectTrigger className="h-9"><SelectValue placeholder="No package" /></SelectTrigger>

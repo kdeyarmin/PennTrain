@@ -17,13 +17,28 @@ export const MARKETING_NAV = [
 
 const MARKETING_PATHS: readonly string[] = MARKETING_NAV.map((item) => item.href);
 
+// Deployments may serve the app under a base path (vite `base` / BASE_PATH,
+// e.g. "/train/"). Wouter strips this before matching routes, but the auth
+// guard checks the raw window.location.pathname -- so strip it here too, or a
+// signed-out visitor loading "/train/features" directly would be bounced to
+// /login. Empty ("") when the app is served from the root.
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+function stripBase(path: string): string {
+  if (BASE && (path === BASE || path.startsWith(`${BASE}/`))) {
+    return path.slice(BASE.length) || "/";
+  }
+  return path;
+}
+
 /** True for any path a signed-out visitor may view without being sent to /login. */
 export function isPublicPath(path: string): boolean {
+  const p = stripBase(path);
   return (
-    path === "/" ||
-    path === "/login" ||
-    path === "/forgot-password" ||
-    path.startsWith("/verify/") ||
-    MARKETING_PATHS.includes(path)
+    p === "/" ||
+    p === "/login" ||
+    p === "/forgot-password" ||
+    p.startsWith("/verify/") ||
+    MARKETING_PATHS.includes(p)
   );
 }

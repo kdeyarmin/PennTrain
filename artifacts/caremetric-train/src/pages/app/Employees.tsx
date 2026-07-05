@@ -419,7 +419,7 @@ export default function Employees() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="col-span-2 flex gap-6 pt-1">
+            <div className="col-span-full flex gap-6 pt-1">
               <label className="flex items-center gap-2.5 cursor-pointer">
                 <input
                   type="checkbox"

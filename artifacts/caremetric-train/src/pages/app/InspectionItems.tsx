@@ -295,7 +295,7 @@ export default function InspectionItems() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Label *</Label>
               <Input value={form.label} onChange={(e) => field("label", e.target.value)} placeholder="e.g. Extinguisher — 2nd Floor Hallway" className="h-9" />
             </div>
@@ -323,7 +323,7 @@ export default function InspectionItems() {
               <Label className="text-[13px]">Install Date</Label>
               <Input type="date" value={form.installDate} onChange={(e) => field("installDate", e.target.value)} className="h-9" />
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Notes</Label>
               <Textarea value={form.notes} onChange={(e) => field("notes", e.target.value)} placeholder="Optional notes" />
             </div>

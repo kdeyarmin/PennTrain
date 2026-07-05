@@ -227,7 +227,7 @@ export default function InspectionItemDetail() {
               <Label className="text-[13px]">Performed By *</Label>
               <Input value={performedBy} onChange={(e) => setPerformedBy(e.target.value)} placeholder="Staff name or vendor" className="h-9" />
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Result *</Label>
               <Select value={result} onValueChange={(v) => setResult(v as typeof result)}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
@@ -237,7 +237,7 @@ export default function InspectionItemDetail() {
               </Select>
             </div>
             {result !== "pass" && (
-              <div className="col-span-2 space-y-1.5">
+              <div className="col-span-full space-y-1.5">
                 <Label className="text-[13px]">Deficiency Notes</Label>
                 <Textarea value={deficiencyNotes} onChange={(e) => setDeficiencyNotes(e.target.value)} placeholder="What was found" />
               </div>
