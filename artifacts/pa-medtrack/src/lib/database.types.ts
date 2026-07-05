@@ -22,6 +22,7 @@ export type Database = {
           competency_record_id: string | null
           course_assignment_id: string | null
           created_at: string
+          employee_credential_id: string | null
           employee_id: string | null
           facility_id: string | null
           id: string
@@ -41,6 +42,7 @@ export type Database = {
           competency_record_id?: string | null
           course_assignment_id?: string | null
           created_at?: string
+          employee_credential_id?: string | null
           employee_id?: string | null
           facility_id?: string | null
           id?: string
@@ -60,6 +62,7 @@ export type Database = {
           competency_record_id?: string | null
           course_assignment_id?: string | null
           created_at?: string
+          employee_credential_id?: string | null
           employee_id?: string | null
           facility_id?: string | null
           id?: string
@@ -78,6 +81,13 @@ export type Database = {
             columns: ["assigned_to_profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_employee_credential_id_fkey"
+            columns: ["employee_credential_id"]
+            isOneToOne: false
+            referencedRelation: "employee_credentials"
             referencedColumns: ["id"]
           },
           {
@@ -826,6 +836,188 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_credential_documents: {
+        Row: {
+          created_at: string
+          credential_id: string
+          document_label: string | null
+          employee_id: string
+          facility_id: string
+          file_name: string
+          file_size: number | null
+          file_type: string
+          id: string
+          organization_id: string
+          retain_until: string | null
+          storage_bucket: string
+          storage_path: string
+          uploaded_by_profile_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          credential_id: string
+          document_label?: string | null
+          employee_id: string
+          facility_id: string
+          file_name: string
+          file_size?: number | null
+          file_type: string
+          id?: string
+          organization_id: string
+          retain_until?: string | null
+          storage_bucket?: string
+          storage_path: string
+          uploaded_by_profile_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          credential_id?: string
+          document_label?: string | null
+          employee_id?: string
+          facility_id?: string
+          file_name?: string
+          file_size?: number | null
+          file_type?: string
+          id?: string
+          organization_id?: string
+          retain_until?: string | null
+          storage_bucket?: string
+          storage_path?: string
+          uploaded_by_profile_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_credential_documents_credential_id_fkey"
+            columns: ["credential_id"]
+            isOneToOne: false
+            referencedRelation: "employee_credentials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_credential_documents_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_credential_documents_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_credential_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_credential_documents_uploaded_by_profile_id_fkey"
+            columns: ["uploaded_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_credentials: {
+        Row: {
+          created_at: string
+          credential_label: string | null
+          credential_number: string | null
+          credential_type: string
+          employee_id: string
+          expiration_date: string | null
+          facility_id: string
+          id: string
+          issue_date: string | null
+          issuing_authority: string | null
+          last_verified_date: string | null
+          notes: string | null
+          organization_id: string
+          status: string
+          updated_at: string
+          verification_method: string | null
+          verified_at: string | null
+          verified_by_profile_id: string | null
+          warning_days: number
+        }
+        Insert: {
+          created_at?: string
+          credential_label?: string | null
+          credential_number?: string | null
+          credential_type: string
+          employee_id: string
+          expiration_date?: string | null
+          facility_id: string
+          id?: string
+          issue_date?: string | null
+          issuing_authority?: string | null
+          last_verified_date?: string | null
+          notes?: string | null
+          organization_id: string
+          status?: string
+          updated_at?: string
+          verification_method?: string | null
+          verified_at?: string | null
+          verified_by_profile_id?: string | null
+          warning_days?: number
+        }
+        Update: {
+          created_at?: string
+          credential_label?: string | null
+          credential_number?: string | null
+          credential_type?: string
+          employee_id?: string
+          expiration_date?: string | null
+          facility_id?: string
+          id?: string
+          issue_date?: string | null
+          issuing_authority?: string | null
+          last_verified_date?: string | null
+          notes?: string | null
+          organization_id?: string
+          status?: string
+          updated_at?: string
+          verification_method?: string | null
+          verified_at?: string | null
+          verified_by_profile_id?: string | null
+          warning_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_credentials_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_credentials_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_credentials_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_credentials_verified_by_profile_id_fkey"
+            columns: ["verified_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2330,7 +2522,7 @@ export type Database = {
         Returns: {
           answer_id: string
           answer_text: string
-          explanation: string | null
+          explanation: string
           is_correct: boolean
           question_id: string
         }[]
@@ -2349,6 +2541,10 @@ export type Database = {
           p_expires_at?: string
         }
         Returns: string
+      }
+      log_document_access: {
+        Args: { p_document_id: string; p_document_table: string }
+        Returns: undefined
       }
       mark_all_notifications_read: { Args: never; Returns: undefined }
       mark_notification_read: { Args: { p_id: string }; Returns: undefined }

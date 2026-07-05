@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   ArrowLeft, User, BookOpen, CalendarCheck, Clock, Pencil, Trash2, FileText, Activity, Building2,
-  Download,
+  Download, ShieldCheck,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGetEmployee, useUpdateEmployee, useDeleteEmployee } from "@/hooks/useEmployees";
@@ -21,6 +21,7 @@ import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useListPracticums } from "@/hooks/usePracticums";
 import { useListTrainingHourBuckets } from "@/hooks/useTrainingHourBuckets";
 import { useListDocuments, useDocumentSignedUrl, type TrainingDocument } from "@/hooks/useDocuments";
+import { useListEmployeeCredentials } from "@/hooks/useEmployeeCredentials";
 import { useListAuditLogs } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -65,6 +66,9 @@ export default function EmployeeDetail() {
     : "/app/employees";
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
+  // Matches employee_credentials_select RLS -- trainer is excluded (clearance/license data is
+  // more sensitive than the training records shown above), unlike every other card here.
+  const canViewCredentials = ["platform_admin", "org_admin", "facility_manager", "auditor"].includes(user?.role ?? "");
 
   const [showEditEmp, setShowEditEmp] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -87,6 +91,7 @@ export default function EmployeeDetail() {
   const { data: practicums, isLoading: practicumsLoading } = useListPracticums({ employeeId: id });
   const { data: hourBuckets, isLoading: hoursLoading } = useListTrainingHourBuckets({ employeeId: id });
   const { data: documents, isLoading: documentsLoading } = useListDocuments({ employeeId: id });
+  const { data: credentials, isLoading: credentialsLoading } = useListEmployeeCredentials({ employeeId: id });
   const { data: auditLogs, isLoading: activityLoading } = useListAuditLogs({ entityId: id, limit: 20 });
   const getSignedUrl = useDocumentSignedUrl();
 
@@ -389,6 +394,37 @@ export default function EmployeeDetail() {
           )}
         </CardContent>
       </Card>
+
+      {canViewCredentials && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" /> Credentials &amp; Clearances
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {credentialsLoading ? (
+              <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+            ) : !credentials?.length ? (
+              <EmptyState icon={ShieldCheck} text="No credentials on record for this employee." />
+            ) : (
+              <div className="space-y-2">
+                {credentials.map(c => (
+                  <div key={c.id} className="flex items-center justify-between p-3 rounded-lg border">
+                    <div>
+                      <p className="font-medium text-sm">{c.credential_label || c.credential_type.replace(/_/g, " ")}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {c.expiration_date ? `Expires ${c.expiration_date}` : "No expiration on file"}
+                      </p>
+                    </div>
+                    <StatusBadge status={c.status} type="training" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {canManage && (
         <Card>

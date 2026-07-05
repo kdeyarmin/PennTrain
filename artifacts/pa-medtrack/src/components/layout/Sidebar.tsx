@@ -77,6 +77,7 @@ export function Sidebar() {
           { href: "/app/competency-templates", label: "Competency Templates", icon: ClipboardList },
           { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
           { href: "/app/practicums", label: "Practicums", icon: FileCheck },
+          { href: "/app/credentials", label: "Credentials & Clearances", icon: ShieldCheck },
         ]
       },
       {
@@ -115,6 +116,7 @@ export function Sidebar() {
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
           { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
           { href: "/app/practicums", label: "Practicums", icon: FileCheck },
+          { href: "/app/credentials", label: "Credentials & Clearances", icon: ShieldCheck },
         ]
       },
       {
@@ -158,6 +160,7 @@ export function Sidebar() {
           { href: "/me/trainings", label: "Training Records", icon: GraduationCap },
           { href: "/me/certificates", label: "My Certificates", icon: FileCheck },
           { href: "/me/documents", label: "My Documents", icon: Files },
+          { href: "/me/credentials", label: "My Credentials", icon: ShieldCheck },
         ]
       }
     ];

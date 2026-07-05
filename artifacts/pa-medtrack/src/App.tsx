@@ -30,6 +30,7 @@ import TrainingPlans from "@/pages/app/TrainingPlans";
 import CompetencyTemplates from "@/pages/app/CompetencyTemplates";
 import CompetencyRecords from "@/pages/app/CompetencyRecords";
 import Practicums from "@/pages/app/Practicums";
+import EmployeeCredentials from "@/pages/app/EmployeeCredentials";
 import Alerts from "@/pages/app/Alerts";
 import Reports from "@/pages/app/Reports";
 import AuditLog from "@/pages/app/AuditLog";
@@ -46,6 +47,7 @@ import RetrainingMonitor from "@/pages/trainer/RetrainingMonitor";
 import EmployeeDashboard from "@/pages/employee/EmployeeDashboard";
 import MyTrainings from "@/pages/employee/MyTrainings";
 import MyCertificates from "@/pages/employee/MyCertificates";
+import MyCredentials from "@/pages/employee/MyCredentials";
 import TakeCourse from "@/pages/employee/TakeCourse";
 import TakeQuiz from "@/pages/employee/TakeQuiz";
 import VerifyCertificate from "@/pages/VerifyCertificate";
@@ -105,6 +107,9 @@ const ORG_ADMIN_ONLY: UserRole[] = ["org_admin"];
 // gets ORG_MANAGE_ROLES (Users/Settings are true admin config, not audit-relevant).
 const REPORTS_VIEW_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
 const AUDIT_LOG_ROLES: UserRole[] = ["org_admin", "auditor"];
+// Matches employee_credentials_select RLS -- trainer is excluded, unlike ORG_ROLES, because
+// clearance/license data is more sensitive than training records.
+const CREDENTIAL_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
 
 function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -208,6 +213,9 @@ function Router() {
       <Route path="/app/practicums">
         {() => <ProtectedRoute component={Practicums} allowedRoles={ORG_ROLES} />}
       </Route>
+      <Route path="/app/credentials">
+        {() => <ProtectedRoute component={EmployeeCredentials} allowedRoles={CREDENTIAL_ROLES} />}
+      </Route>
       <Route path="/app/alerts">
         {() => <ProtectedRoute component={Alerts} allowedRoles={ORG_ROLES} />}
       </Route>
@@ -268,6 +276,9 @@ function Router() {
       </Route>
       <Route path="/me/documents">
         {() => <ProtectedRoute component={Documents} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/credentials">
+        {() => <ProtectedRoute component={MyCredentials} allowedRoles={["employee"]} />}
       </Route>
 
       <Route component={NotFound} />
