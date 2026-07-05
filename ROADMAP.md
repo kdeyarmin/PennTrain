@@ -227,7 +227,7 @@ Efforts: **S** = days, **M** = 1–2 weeks, **L** = multi-week. Sequence within 
 ### Tier 2 — High-impact features (each M unless noted)
 
 1. **Email/SMS notification delivery engine** — *the unanimous #1 multiplier.*
-   Outbox table + delivery edge function (Twilio SMS via a registered A2P 10DLC campaign; Resend/SendGrid email)
+   Outbox table + delivery edge function (Twilio SMS via a registered A2P 10DLC campaign; SendGrid email)
    driven by the already-enabled `pg_cron`/`pg_net`, consuming the existing alerts/notifications tables.
    Per-user channel + consent capture (TCPA: training reminders are informational, but consent, STOP handling,
    and quiet hours are still mandatory), magic-link deep links into courses, supervisor escalation when staff

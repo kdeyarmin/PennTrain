@@ -23,7 +23,7 @@ function json(body: unknown, status = 200) {
 }
 
 const BATCH_SIZE = 200;
-const NOT_CONFIGURED_EMAIL = "RESEND_API_KEY is not set -- email delivery is not configured for this deployment.";
+const NOT_CONFIGURED_EMAIL = "SENDGRID_API_KEY is not set -- email delivery is not configured for this deployment.";
 const NOT_CONFIGURED_SMS = "TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_FROM_NUMBER are not fully set -- SMS delivery is not configured for this deployment.";
 
 interface PendingDelivery {
@@ -34,19 +34,42 @@ interface PendingDelivery {
   notifications: { title: string; body: string | null } | null;
 }
 
+// Accepts either a plain address or a "Display Name <email>" string (the format Resend used to
+// take directly) and splits it into the {email, name} shape SendGrid's v3 API requires.
+function parseFromAddress(raw: string): { email: string; name?: string } {
+  const match = raw.match(/^(.*)<([^<>]+)>\s*$/);
+  if (!match) return { email: raw.trim() };
+  const name = match[1].trim().replace(/^"|"$/g, "");
+  return { email: match[2].trim(), name: name || undefined };
+}
+
 async function sendEmail(to: string, subject: string, body: string): Promise<{ ok: boolean; providerId?: string; error?: string }> {
-  const apiKey = Deno.env.get("RESEND_API_KEY");
+  const apiKey = Deno.env.get("SENDGRID_API_KEY");
   if (!apiKey) return { ok: false, error: NOT_CONFIGURED_EMAIL };
-  const fromAddress = Deno.env.get("NOTIFICATION_FROM_EMAIL") || "CareMetric Train <notifications@caremetrictrain.com>";
+  const from = parseFromAddress(
+    Deno.env.get("NOTIFICATION_FROM_EMAIL") || "CareMetric Train <notifications@caremetrictrain.com>",
+  );
   try {
-    const resp = await fetch("https://api.resend.com/emails", {
+    const resp = await fetch("https://api.sendgrid.com/v3/mail/send", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: fromAddress, to: [to], subject, text: body }),
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: to }] }],
+        from,
+        subject,
+        content: [{ type: "text/plain", value: body }],
+      }),
     });
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) return { ok: false, error: typeof data?.message === "string" ? data.message : `Resend API returned ${resp.status}` };
-    return { ok: true, providerId: data?.id };
+    // SendGrid returns 202 with an empty body on success and an X-Message-Id header;
+    // errors come back as { errors: [{ message, field, help }] }.
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      const message = Array.isArray(data?.errors) && typeof data.errors[0]?.message === "string"
+        ? data.errors[0].message
+        : `SendGrid API returned ${resp.status}`;
+      return { ok: false, error: message };
+    }
+    return { ok: true, providerId: resp.headers.get("x-message-id") ?? undefined };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
