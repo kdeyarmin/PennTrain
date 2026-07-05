@@ -2348,6 +2348,292 @@ export type Database = {
         }
         Relationships: []
       }
+      policy_attestation_campaigns: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          due_date: string | null
+          id: string
+          name: string
+          organization_id: string
+          policy_document_id: string
+          policy_document_version_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          policy_document_id: string
+          policy_document_version_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          policy_document_id?: string
+          policy_document_version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "policy_attestation_campaigns_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_attestation_campaigns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_attestation_campaigns_policy_document_id_fkey"
+            columns: ["policy_document_id"]
+            isOneToOne: false
+            referencedRelation: "policy_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_attestation_campaigns_policy_document_version_id_fkey"
+            columns: ["policy_document_version_id"]
+            isOneToOne: false
+            referencedRelation: "policy_document_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      policy_attestations: {
+        Row: {
+          attested_at: string | null
+          auth_method: string | null
+          campaign_id: string
+          created_at: string
+          document_version_hash: string | null
+          due_date: string | null
+          employee_id: string
+          facility_id: string
+          id: string
+          ip_address: string | null
+          organization_id: string
+          policy_document_version_id: string
+          reminder_sent_at: string | null
+          status: string
+          updated_at: string
+          user_agent: string | null
+        }
+        Insert: {
+          attested_at?: string | null
+          auth_method?: string | null
+          campaign_id: string
+          created_at?: string
+          document_version_hash?: string | null
+          due_date?: string | null
+          employee_id: string
+          facility_id: string
+          id?: string
+          ip_address?: string | null
+          organization_id: string
+          policy_document_version_id: string
+          reminder_sent_at?: string | null
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Update: {
+          attested_at?: string | null
+          auth_method?: string | null
+          campaign_id?: string
+          created_at?: string
+          document_version_hash?: string | null
+          due_date?: string | null
+          employee_id?: string
+          facility_id?: string
+          id?: string
+          ip_address?: string | null
+          organization_id?: string
+          policy_document_version_id?: string
+          reminder_sent_at?: string | null
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "policy_attestations_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "policy_attestation_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_attestations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_attestations_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_attestations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_attestations_policy_document_version_id_fkey"
+            columns: ["policy_document_version_id"]
+            isOneToOne: false
+            referencedRelation: "policy_document_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      policy_document_versions: {
+        Row: {
+          content_hash: string
+          created_at: string
+          created_by: string | null
+          file_name: string
+          file_size: number | null
+          file_type: string
+          id: string
+          organization_id: string
+          policy_document_id: string
+          published_at: string | null
+          status: string
+          storage_bucket: string
+          storage_path: string
+          version_number: number
+        }
+        Insert: {
+          content_hash: string
+          created_at?: string
+          created_by?: string | null
+          file_name: string
+          file_size?: number | null
+          file_type: string
+          id?: string
+          organization_id: string
+          policy_document_id: string
+          published_at?: string | null
+          status?: string
+          storage_bucket?: string
+          storage_path: string
+          version_number: number
+        }
+        Update: {
+          content_hash?: string
+          created_at?: string
+          created_by?: string | null
+          file_name?: string
+          file_size?: number | null
+          file_type?: string
+          id?: string
+          organization_id?: string
+          policy_document_id?: string
+          published_at?: string | null
+          status?: string
+          storage_bucket?: string
+          storage_path?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "policy_document_versions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_document_versions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_document_versions_policy_document_id_fkey"
+            columns: ["policy_document_id"]
+            isOneToOne: false
+            referencedRelation: "policy_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      policy_documents: {
+        Row: {
+          category: string | null
+          created_at: string
+          created_by: string | null
+          current_version_id: string | null
+          description: string | null
+          id: string
+          organization_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_version_id?: string | null
+          description?: string | null
+          id?: string
+          organization_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_version_id?: string | null
+          description?: string | null
+          id?: string
+          organization_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "policy_documents_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_documents_current_version_id_fkey"
+            columns: ["current_version_id"]
+            isOneToOne: false
+            referencedRelation: "policy_document_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       practicums: {
         Row: {
           certificate_document_id: string | null
@@ -3415,6 +3701,7 @@ export type Database = {
         Returns: undefined
       }
       send_monday_digest: { Args: never; Returns: undefined }
+      send_policy_attestation_reminders: { Args: never; Returns: undefined }
       set_certificate_pdf: {
         Args: { p_bucket: string; p_certificate_id: string; p_path: string }
         Returns: {

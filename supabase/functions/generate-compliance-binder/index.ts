@@ -187,6 +187,13 @@ Deno.serve(async (req: Request) => {
   let practicumsQuery = adminClient.from("practicums").select("status, due_date, employee_id, facility_id").eq("organization_id", orgId);
   let certCountQuery = adminClient.from("certificates").select("id", { count: "exact", head: true }).eq("organization_id", orgId);
   let alertsQuery = adminClient.from("alerts").select("severity, title, created_at").eq("organization_id", orgId).eq("status", "open").order("severity");
+  let attestationsQuery = adminClient
+    .from("policy_attestations")
+    .select(
+      "status, due_date, attested_at, auth_method, ip_address, employee_id, facility_id, " +
+        "policy_attestation_campaigns(name, policy_documents(title))",
+    )
+    .eq("organization_id", orgId);
 
   if (facilityScope) {
     facilitiesQuery = facilitiesQuery.in("id", facilityScope);
@@ -195,15 +202,17 @@ Deno.serve(async (req: Request) => {
     practicumsQuery = practicumsQuery.in("facility_id", facilityScope);
     certCountQuery = certCountQuery.in("facility_id", facilityScope);
     alertsQuery = alertsQuery.in("facility_id", facilityScope);
+    attestationsQuery = attestationsQuery.in("facility_id", facilityScope);
   }
 
-  const [facilitiesRes, employeesRes, recordsRes, practicumsRes, certCountRes, alertsRes] = await Promise.all([
+  const [facilitiesRes, employeesRes, recordsRes, practicumsRes, certCountRes, alertsRes, attestationsRes] = await Promise.all([
     facilitiesQuery,
     employeesQuery,
     recordsQuery,
     practicumsQuery,
     certCountQuery,
     alertsQuery,
+    attestationsQuery,
   ]);
 
   if (facilitiesRes.error) return json({ error: facilitiesRes.error.message }, 500);
@@ -211,6 +220,7 @@ Deno.serve(async (req: Request) => {
   if (recordsRes.error) return json({ error: recordsRes.error.message }, 500);
   if (practicumsRes.error) return json({ error: practicumsRes.error.message }, 500);
   if (alertsRes.error) return json({ error: alertsRes.error.message }, 500);
+  if (attestationsRes.error) return json({ error: attestationsRes.error.message }, 500);
 
   const facilities = facilitiesRes.data ?? [];
   const employees = employeesRes.data ?? [];
@@ -218,6 +228,7 @@ Deno.serve(async (req: Request) => {
   const practicums = practicumsRes.data ?? [];
   const certCount = certCountRes.count ?? 0;
   const alerts = alertsRes.data ?? [];
+  const attestations = attestationsRes.data ?? [];
 
   const facilityMap = new Map(facilities.map((f) => [f.id, f]));
   const employeeMap = new Map(employees.map((e) => [e.id, e]));
@@ -243,6 +254,19 @@ Deno.serve(async (req: Request) => {
 
   const alertSeverityCounts = new Map<string, number>();
   for (const a of alerts) alertSeverityCounts.set(a.severity, (alertSeverityCounts.get(a.severity) ?? 0) + 1);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const attestedCount = attestations.filter((a) => a.status === "attested").length;
+  const overdueAttestations = attestations.filter((a) => a.status === "pending" && a.due_date && a.due_date < today);
+  const pendingAttestations = attestations.filter((a) => a.status === "pending" && (!a.due_date || a.due_date >= today));
+  const signedAttestations = attestations
+    .filter((a) => a.status === "attested")
+    .sort((a, b) => (b.attested_at ?? "").localeCompare(a.attested_at ?? ""));
+
+  function policyTitle(a: (typeof attestations)[number]): string {
+    const campaign = a.policy_attestation_campaigns as unknown as { name: string; policy_documents: { title: string } | null } | null;
+    return campaign?.policy_documents?.title ?? campaign?.name ?? "—";
+  }
 
   const pdf = await PdfWriter.create();
   const generatedAt = new Date().toISOString();
@@ -340,6 +364,71 @@ Deno.serve(async (req: Request) => {
       shown.map((a) => [a.severity, a.title, new Date(a.created_at).toLocaleDateString()]),
       [80, 300, 100],
     );
+  }
+
+  pdf.heading("Policy Attestation Compliance Summary");
+  pdf.table(
+    ["Status", "Count"],
+    [
+      ["Attested", String(attestedCount)],
+      ["Pending", String(pendingAttestations.length)],
+      ["Overdue", String(overdueAttestations.length)],
+    ],
+    [200, 100],
+  );
+
+  const outstandingAttestations = [...overdueAttestations, ...pendingAttestations];
+  if (outstandingAttestations.length > 0) {
+    pdf.heading(`Outstanding Policy Attestations (${outstandingAttestations.length})`);
+    const shown = outstandingAttestations.slice(0, MAX_LISTED_ROWS);
+    pdf.table(
+      ["Employee", "Facility", "Policy", "Due Date", "Status"],
+      shown.map((a) => {
+        const e = employeeMap.get(a.employee_id);
+        const f = facilityMap.get(a.facility_id);
+        return [
+          e ? `${e.first_name} ${e.last_name}` : "—",
+          f?.name ?? "—",
+          policyTitle(a),
+          a.due_date ?? "—",
+          a.due_date && a.due_date < today ? "Overdue" : "Pending",
+        ];
+      }),
+      [150, 110, 150, 80, 80],
+    );
+    if (outstandingAttestations.length > MAX_LISTED_ROWS) {
+      pdf.text(`...and ${outstandingAttestations.length - MAX_LISTED_ROWS} more (truncated for report length).`, {
+        size: 8,
+        color: [0.5, 0.5, 0.5],
+      });
+    }
+  }
+
+  // ESIGN/UETA audit trail: who signed what, when, and from where -- the exact evidence a DHS
+  // inspector or plaintiff's attorney would ask for to establish non-repudiation.
+  if (signedAttestations.length > 0) {
+    pdf.heading(`Signed Attestations Log (${signedAttestations.length})`);
+    const shown = signedAttestations.slice(0, MAX_LISTED_ROWS);
+    pdf.table(
+      ["Employee", "Policy", "Attested At", "Auth Method", "IP Address"],
+      shown.map((a) => {
+        const e = employeeMap.get(a.employee_id);
+        return [
+          e ? `${e.first_name} ${e.last_name}` : "—",
+          policyTitle(a),
+          a.attested_at ? new Date(a.attested_at).toLocaleString() : "—",
+          a.auth_method ?? "—",
+          a.ip_address ?? "—",
+        ];
+      }),
+      [130, 150, 130, 100, 90],
+    );
+    if (signedAttestations.length > MAX_LISTED_ROWS) {
+      pdf.text(`...and ${signedAttestations.length - MAX_LISTED_ROWS} more (truncated for report length).`, {
+        size: 8,
+        color: [0.5, 0.5, 0.5],
+      });
+    }
   }
 
   const pdfBytes = await pdf.save();

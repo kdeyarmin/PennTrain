@@ -25,7 +25,8 @@ import {
   ClipboardList,
   AlertTriangle,
   Flame,
-  Pill
+  Pill,
+  FileSignature
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -89,6 +90,7 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
           { href: "/app/pending-approvals", label: "Pending Approvals", icon: ClipboardCheck },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
+          { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
           { href: "/app/documents", label: "Documents", icon: Files },
         ]
       },
@@ -131,6 +133,7 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
           { href: "/app/alerts", label: "Alerts", icon: Bell },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
+          { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
           { href: "/app/documents", label: "Documents", icon: Files },
           { href: "/app/audit", label: "Audit Log", icon: ShieldAlert },
         ]
@@ -171,6 +174,7 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
           { href: "/me/certificates", label: "My Certificates", icon: FileCheck },
           { href: "/me/documents", label: "My Documents", icon: Files },
           { href: "/me/credentials", label: "My Credentials", icon: ShieldCheck },
+          { href: "/me/attestations", label: "My Attestations", icon: FileSignature },
         ]
       }
     ];

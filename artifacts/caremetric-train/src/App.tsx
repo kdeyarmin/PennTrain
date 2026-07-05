@@ -52,6 +52,8 @@ import Documents from "@/pages/app/Documents";
 import PendingApprovals from "@/pages/app/PendingApprovals";
 import Settings from "@/pages/app/Settings";
 import ComplianceBinder from "@/pages/app/ComplianceBinder";
+import PolicyDocuments from "@/pages/app/PolicyDocuments";
+import PolicyDocumentDetail from "@/pages/app/PolicyDocumentDetail";
 
 import TrainerDashboard from "@/pages/trainer/TrainerDashboard";
 import TrainerClasses from "@/pages/trainer/TrainerClasses";
@@ -63,6 +65,7 @@ import MyCertificates from "@/pages/employee/MyCertificates";
 import MyCredentials from "@/pages/employee/MyCredentials";
 import TakeCourse from "@/pages/employee/TakeCourse";
 import TakeQuiz from "@/pages/employee/TakeQuiz";
+import MyAttestations from "@/pages/employee/MyAttestations";
 import VerifyCertificate from "@/pages/VerifyCertificate";
 
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -129,6 +132,10 @@ const INCIDENT_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
 // Matches inspection_items_select RLS -- trainer is included, unlike credentials/incidents,
 // since physical-plant compliance is the least sensitive of the three new modules.
 const INSPECTION_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor"];
+// Matches policy_attestation_campaigns_select RLS -- trainer is excluded (campaigns/rosters
+// aren't trainer-relevant); policy_documents_select itself is org-wide but there's no reason to
+// route trainer to a page whose Campaigns tab it can't see any data in.
+const POLICY_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
 
 function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -255,6 +262,12 @@ function Router() {
       <Route path="/app/credentials">
         {() => <ProtectedRoute component={EmployeeCredentials} allowedRoles={CREDENTIAL_ROLES} />}
       </Route>
+      <Route path="/app/policy-documents">
+        {() => <ProtectedRoute component={PolicyDocuments} allowedRoles={POLICY_ROLES} />}
+      </Route>
+      <Route path="/app/policy-documents/:id">
+        {() => <ProtectedRoute component={PolicyDocumentDetail} allowedRoles={POLICY_ROLES} />}
+      </Route>
       <Route path="/app/incidents">
         {() => <ProtectedRoute component={Incidents} allowedRoles={INCIDENT_ROLES} />}
       </Route>
@@ -330,6 +343,9 @@ function Router() {
       </Route>
       <Route path="/me/credentials">
         {() => <ProtectedRoute component={MyCredentials} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/attestations">
+        {() => <ProtectedRoute component={MyAttestations} allowedRoles={["employee"]} />}
       </Route>
 
       <Route component={NotFound} />
