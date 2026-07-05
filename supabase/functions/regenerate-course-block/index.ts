@@ -20,8 +20,10 @@ const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
 const PRIMARY_MODEL = "claude-sonnet-5";
 const FALLBACK_MODEL = "claude-sonnet-4-5-20250929";
-const ANTHROPIC_TIMEOUT_MS = 60_000;
-const MAX_TOKENS = 4096;
+// Matches the headroom bump in generate-course-curriculum -- a quiz-question regeneration with
+// many questions/answers/explanations can also exceed a tight token budget.
+const ANTHROPIC_TIMEOUT_MS = 90_000;
+const MAX_TOKENS = 8192;
 
 const GROUNDING_RULES = `Ground every factual claim strictly in the original content and the reviewer's feedback. Never invent specific regulation numbers, statute citations, or agency rule references that were not already present in the original content -- if the feedback asks for a citation you cannot verify from the original content, note the uncertainty in the text instead of fabricating one. Apply the feedback faithfully while keeping the result instructionally sound.`;
 
@@ -141,8 +143,6 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!anthropicApiKey) return json({ error: "ANTHROPIC_API_KEY is not configured" }, 500);
 
   const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
@@ -162,6 +162,11 @@ Deno.serve(async (req: Request) => {
   if (!ALLOWED_ROLES.includes(callerProfile.role as string)) {
     return json({ error: "not authorized to regenerate course content with AI" }, 403);
   }
+
+  // Checked only after auth/role so an unconfigured secret never leaks ahead of a 401/403 to a
+  // caller who wasn't going to be allowed to use this endpoint anyway.
+  const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!anthropicApiKey) return json({ error: "ANTHROPIC_API_KEY is not configured" }, 500);
 
   let body: RegenerateRequestBody;
   try {
@@ -289,7 +294,7 @@ Deno.serve(async (req: Request) => {
   } catch (e) {
     clearTimeout(timeoutId);
     if (e instanceof Error && e.name === "AbortError") {
-      await markFailed("Anthropic API request timed out after 60s");
+      await markFailed(`Anthropic API request timed out after ${ANTHROPIC_TIMEOUT_MS / 1000}s`);
       return json({ error: "AI regeneration timed out", generation_id: generationId }, 504);
     }
     const message = e instanceof Error ? e.message : String(e);

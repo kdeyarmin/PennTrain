@@ -25,8 +25,12 @@ const ANTHROPIC_VERSION = "2023-06-01";
 // request on the course_ai_generations audit row.
 const PRIMARY_MODEL = "claude-sonnet-5";
 const FALLBACK_MODEL = "claude-sonnet-4-5-20250929";
-const ANTHROPIC_TIMEOUT_MS = 60_000;
-const MAX_TOKENS = 8192;
+// A full multi-module course draft (lesson text + video scripts + quiz questions/answers/
+// explanations) reliably exceeds 8192 output tokens and was observed truncating mid-generation,
+// producing a tool_use block with no usable input. 16000 gives real headroom; the timeout below
+// is raised in step to match how long that much generation can take.
+const ANTHROPIC_TIMEOUT_MS = 120_000;
+const MAX_TOKENS = 16000;
 
 const TOOL_NAME = "emit_course_draft";
 
@@ -184,8 +188,6 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!anthropicApiKey) return json({ error: "ANTHROPIC_API_KEY is not configured" }, 500);
 
   const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
@@ -205,6 +207,11 @@ Deno.serve(async (req: Request) => {
   if (!ALLOWED_ROLES.includes(callerProfile.role as string)) {
     return json({ error: "not authorized to generate AI course curricula" }, 403);
   }
+
+  // Checked only after auth/role so an unconfigured secret never leaks ahead of a 401/403 to a
+  // caller who wasn't going to be allowed to use this endpoint anyway.
+  const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!anthropicApiKey) return json({ error: "ANTHROPIC_API_KEY is not configured" }, 500);
 
   let body: CurriculumRequestBody;
   try {
@@ -283,7 +290,7 @@ Deno.serve(async (req: Request) => {
   } catch (e) {
     clearTimeout(timeoutId);
     if (e instanceof Error && e.name === "AbortError") {
-      await markFailed("Anthropic API request timed out after 60s");
+      await markFailed(`Anthropic API request timed out after ${ANTHROPIC_TIMEOUT_MS / 1000}s`);
       return json({ error: "AI course generation timed out", generation_id: generationId }, 504);
     }
     const message = e instanceof Error ? e.message : String(e);
@@ -304,6 +311,12 @@ Deno.serve(async (req: Request) => {
 
   const draft = extractToolInput(result.body, TOOL_NAME);
   if (!isValidDraft(draft)) {
+    console.error("DEBUG_INVALID_DRAFT", JSON.stringify({
+      stop_reason: (result.body as { stop_reason?: unknown } | null)?.stop_reason,
+      content_types: ((result.body as { content?: unknown[] } | null)?.content ?? []).map((c) => (c as { type?: string; name?: string }).type + ":" + (c as { type?: string; name?: string }).name),
+      draft_keys: draft ? Object.keys(draft) : null,
+      draft_preview: draft ? JSON.stringify(draft).slice(0, 3000) : null,
+    }));
     await markFailed("AI response did not include a valid course draft (missing title/description/modules)");
     return json({ error: "AI response did not include a valid course draft", generation_id: generationId }, 502);
   }
