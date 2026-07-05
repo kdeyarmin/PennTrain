@@ -4,6 +4,13 @@ CareMetric Train's backend (Postgres, Auth, Storage, RLS, Edge Functions) alread
 Supabase -- see `ARCHITECTURE.md` and `README.md` for the architecture. This document covers the piece that
 was missing: running the frontend in production on **Railway**, and how the two systems fit together.
 
+> **Production URLs**: the public domain is **https://caremetrictrain.com**, a custom domain
+> attached to the Railway service, which is also reachable at its Railway-provided domain
+> **https://penntrain-production.up.railway.app**. Wherever this doc says `<your-domain>` or
+> `your-app.up.railway.app`, use `caremetrictrain.com` for the current production environment.
+> Because the app answers on *both* origins, Supabase Auth's Redirect URL allowlist must contain
+> both (see step 1.5 below).
+
 ## Architecture at a glance
 
 ```
@@ -48,9 +55,9 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are injected into Edge
    Functions automatically by Supabase -- you do not set those secrets yourself.
 5. **Auth URL configuration** (Authentication -> URL Configuration in the dashboard): set **Site URL**
-   to the production domain (`https://caremetrictrain.com`) and add a **Redirect URL** for every domain
-   the app is served from, e.g. `https://caremetrictrain.com/login` plus your
-   `https://your-app.up.railway.app/login` fallback domain --
+   to the public domain (production: `https://caremetrictrain.com`) and add a **Redirect URL** for
+   every origin the app is served from (production: `https://caremetrictrain.com/login` and
+   `https://penntrain-production.up.railway.app/login`) --
    `ForgotPassword.tsx` calls `supabase.auth.resetPasswordForEmail` with
    `redirectTo: window.location.origin + "/login"`, and Supabase Auth rejects redirects to
    unlisted origins.
@@ -93,10 +100,12 @@ can see the whole workspace and lockfile.
    provision the right toolchain automatically.
 3. Add the environment variables below (Service -> Variables). Do **not** paste real secrets into
    any file in this repo -- only into Railway's variable UI.
-4. Deploy. Railway assigns a `*.up.railway.app` domain; attach the production custom domain
-   (`caremetrictrain.com`, under Service -> Settings -> Networking) and use both domains in step 1.5
-   above (Supabase Auth redirect URLs).
-5. Verify `GET https://<your-domain>/health` returns:
+4. Deploy. Railway assigns a `*.up.railway.app` domain -- for this project it assigned
+   `penntrain-production.up.railway.app` -- and the production custom domain
+   (`caremetrictrain.com`) is attached under Service -> Settings -> Networking. Every domain the
+   app answers on must be listed in step 1.5 above (Supabase Auth redirect URLs); update that
+   list and re-deploy whenever a domain is added.
+5. Verify `GET https://caremetrictrain.com/health` returns:
    ```json
    {
      "status": "ok",
@@ -289,7 +298,9 @@ policy at all, so it was never exploitable there, but the trigger was extended f
 ## 8. Verifying the deployment
 
 ```bash
-curl -s https://<your-domain>/health | jq
+curl -s https://caremetrictrain.com/health | jq
+# same app on the Railway-provided domain:
+curl -s https://penntrain-production.up.railway.app/health | jq
 ```
 
 Expect `status: "ok"` and `supabase: "configured"`. If `supabaseReachable` is `false`, double-check
@@ -299,8 +310,9 @@ Expect `status: "ok"` and `supabase: "configured"`. If `supabaseReachable` is `f
 
 - Railway project creation, GitHub connection, and env var entry must be done in the Railway
   dashboard -- not scriptable from this repo.
-- Supabase Auth redirect URL and Site URL configuration must be set in the Supabase dashboard once
-  you know your Railway domain.
+- Supabase Auth redirect URL and Site URL configuration must be set in the Supabase dashboard.
+  The production values: Site URL `https://caremetrictrain.com`; Redirect URLs
+  `https://caremetrictrain.com/login` and `https://penntrain-production.up.railway.app/login`.
 - Leaked password protection (Authentication -> Policies) is still disabled and must be toggled on
   manually in the dashboard -- it's an Auth config setting, not something a SQL migration can flip.
 - Public email signup is currently enabled on the live project. The privilege-escalation path this
