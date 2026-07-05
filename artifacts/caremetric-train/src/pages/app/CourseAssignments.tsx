@@ -249,7 +249,7 @@ export default function CourseAssignments() {
 
   return (
     <div className="space-y-6">
-      <div className="page-header flex items-center justify-between">
+      <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Course Assignments</h1>
           <p>Assign courses to employees and track completion.</p>
@@ -308,8 +308,8 @@ export default function CourseAssignments() {
           </div>
         ) : (
           <>
-            <div className="overflow-hidden">
-              <table className="data-table">
+            <div className="overflow-x-auto">
+              <table className="data-table min-w-[720px]">
                 <thead>
                   <tr>
                     <th>Employee</th>

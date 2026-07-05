@@ -674,7 +674,7 @@ export default function CourseDetail() {
               <Label>Description</Label>
               <Textarea value={courseForm.description} onChange={e => setCourseForm(f => ({ ...f, description: e.target.value }))} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <Label>Category</Label>
                 <Input value={courseForm.category} onChange={e => setCourseForm(f => ({ ...f, category: e.target.value }))} />
@@ -792,7 +792,7 @@ export default function CourseDetail() {
               <Label>Quiz Title *</Label>
               <Input value={quizForm.title} onChange={e => setQuizForm(f => ({ ...f, title: e.target.value }))} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <Label>Passing Score (%)</Label>
                 <Input type="number" min="0" max="100" value={quizForm.passingScore} onChange={e => setQuizForm(f => ({ ...f, passingScore: e.target.value }))} />

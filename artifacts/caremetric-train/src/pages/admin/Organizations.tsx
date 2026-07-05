@@ -137,14 +137,14 @@ export default function Organizations() {
             <div className="space-y-2">
               {filtered.map(org => (
                 <Link key={org.id} href={`/admin/organizations/${org.id}`}>
-                  <div className="flex items-center justify-between p-4 rounded-lg hover:bg-muted/50 border transition-colors cursor-pointer">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <div className="flex items-center justify-between gap-3 p-4 rounded-lg hover:bg-muted/50 border transition-colors cursor-pointer">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                         <Building2 className="h-5 w-5 text-primary" />
                       </div>
-                      <div>
-                        <p className="font-semibold">{org.name}</p>
-                        <p className="text-sm text-muted-foreground">{org.contact_email}</p>
+                      <div className="min-w-0">
+                        <p className="font-semibold truncate">{org.name}</p>
+                        <p className="text-sm text-muted-foreground truncate">{org.contact_email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -174,12 +174,12 @@ export default function Organizations() {
           <DialogHeader>
             <DialogTitle>Add Organization</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2">
-            <div className="col-span-2 space-y-1.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Name *</Label>
               <Input value={form.name} onChange={e => handleNameChange(e.target.value)} placeholder="Acme Care Group" className="h-9" />
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Slug *</Label>
               <Input
                 value={form.slug}
@@ -188,7 +188,7 @@ export default function Organizations() {
                 className="h-9"
               />
             </div>
-            <div className="col-span-2 space-y-1.5">
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Package</Label>
               <Select value={form.packageId || "none"} onValueChange={v => field("packageId", v === "none" ? "" : v)}>
                 <SelectTrigger className="h-9"><SelectValue placeholder="No package" /></SelectTrigger>

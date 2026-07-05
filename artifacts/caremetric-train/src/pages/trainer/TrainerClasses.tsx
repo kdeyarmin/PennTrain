@@ -177,7 +177,7 @@ export default function TrainerClasses() {
                   placeholder="e.g. Q2 Med Admin Refresher"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="trainingType">Training Type *</Label>
                   <Select
@@ -210,7 +210,7 @@ export default function TrainerClasses() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="facility">Facility</Label>
                   <Select
