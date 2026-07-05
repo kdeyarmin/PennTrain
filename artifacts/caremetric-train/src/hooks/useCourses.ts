@@ -14,6 +14,11 @@ export type CourseBlockUpdate = TablesUpdate<"course_blocks">;
 export interface ListCoursesFilters {
   organizationId?: string;
   status?: string;
+  // Restricts the list to system-catalog courses (organization_id IS NULL).
+  // platform_admin's RLS grant bypasses the org filter entirely, so without this
+  // its unfiltered list interleaves every organization's courses -- this is the
+  // opt-in "System Catalog" view for that role (see Courses.tsx).
+  systemOnly?: boolean;
 }
 
 // Courses can be org-owned or system-catalog (organization_id null); RLS already
@@ -27,6 +32,7 @@ export function useListCourses(filters: ListCoursesFilters = {}) {
       let query = supabase.from("courses").select("*").order("title");
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
       if (filters.status) query = query.eq("status", filters.status);
+      if (filters.systemOnly) query = query.is("organization_id", null);
       const { data, error } = await query;
       if (error) throw error;
       return data;

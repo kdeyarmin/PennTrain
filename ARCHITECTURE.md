@@ -41,10 +41,14 @@ Six roles on `profiles.role`: `platform_admin`, `org_admin`, `facility_manager`,
 
 - `platform_admin` — confined to `/admin/*`. Broad, unrestricted RLS access to every table (no impersonation --
   see "Viewing as Org" below). Routes: `/admin`, `/admin/organizations(/:id)`, `/admin/facilities(/:id)`,
-  `/admin/employees(/:id)`, `/admin/alerts`, `/admin/users`, `/admin/audit`, `/admin/packages`
-- `org_admin` / `facility_manager` — `/app/*`: dashboard, facilities, employees, training matrix, courses, course
-  assignments, training plans, competency templates/records, practicums, alerts, reports, compliance binder,
-  documents, pending approvals, users (org-scoped), settings, audit log
+  `/admin/employees(/:id)`, `/admin/alerts`, `/admin/users`, `/admin/audit`, `/admin/packages`,
+  `/admin/courses(/:id)`, `/admin/quizzes/:quizId`, `/admin/courses/new-ai`. The **only** role that can author
+  courses (create/edit/publish `courses`, `course_versions`, `course_blocks`, `quizzes`, `quiz_questions`,
+  `quiz_answers`), manually or via AI generation
+- `org_admin` / `facility_manager` — `/app/*`: dashboard, facilities, employees, training matrix, courses
+  (browse/read-only -- authoring is platform_admin-exclusive, see below), course assignments, training plans,
+  competency templates/records, practicums, alerts, reports, compliance binder, documents, pending approvals,
+  users (org-scoped), settings, audit log
 - `auditor` — `/app/*`, read-only subset: dashboard, facilities, employees, training matrix, course assignments,
   training plans, competency records, practicums, alerts, reports, compliance binder, documents, audit log. Every
   write action across these pages is gated by a role allowlist that excludes auditor; RLS is the actual backstop
@@ -66,6 +70,9 @@ Public (no auth): `/verify/:slug` — certificate verification.
   Edge Functions, using an `app.privileged_write` GUC escape hatch set only from trusted server-side code.
 - Course content is immutable once `course_versions.status = 'published'` (enforced by trigger, overridable only by
   a genuine platform_admin).
+- Course authoring (create/edit/publish `courses`, `course_versions`, `course_blocks`, `quizzes`,
+  `quiz_questions`, `quiz_answers`) is `platform_admin`-exclusive; `org_admin`/`facility_manager`/`trainer`
+  retain course browsing (read-only) and enrollment via `course_assignments` only.
 - "Viewing as Org X" (header selector, platform_admin only) is a **UX-only convenience** — it is not a security
   boundary. `is_platform_admin()` already grants full RLS access regardless of this selection; the selector only
   narrows which org's rows a handful of `/admin/*` list pages display. Persisted in `sessionStorage`.
@@ -93,6 +100,20 @@ HeyGen's signed URLs expire (training content, not tenant-sensitive documents; r
 - `check-course-video-status` — polls HeyGen for generation status and re-hosts the finished video in
   `course-videos`
 - `list-heygen-options` — lists available HeyGen avatars/voices for the course authoring UI
+- `generate-course-curriculum` — platform_admin-only; drafts a full course (modules, quiz questions/answers,
+  video narration scripts) via the Anthropic Messages API (forced tool-use for structured JSON), grounded in
+  optional pasted `source_material` to curb hallucination risk in regulated content
+- `regenerate-course-block` — platform_admin-only; regenerates a single text/video/quiz block via Claude from
+  reviewer feedback; rejected once the parent course version is published
+- `poll-heygen-video-statuses` — cron-invoked (`pg_cron`, `verify_jwt=false`) batch poll of every course block
+  with an in-progress HeyGen job, so video status flips to "completed" without a manual per-block "check status"
+  click
+
+AI-generated course content cannot be published unreviewed: `course_versions.ai_generated` gates a mandatory
+self-review step (`ai_reviewed_at`/`ai_reviewed_by`), enforced by a database trigger with **no platform_admin
+bypass** -- unlike the immutability trigger above, this one applies to platform_admin specifically, since
+platform_admin is the only role that can generate AI content. Every generation call (success or failure) is
+logged to the `course_ai_generations` audit table.
 
 ## Demo Credentials (seeded)
 
@@ -121,7 +142,8 @@ Tenancy/identity: `organizations`, `organization_settings`, `facilities`, `profi
 `employees`, `packages`. Compliance core: `training_types`, `employee_training_records`,
 `employee_training_hour_buckets`, `practicums`, `training_documents`, `alerts`, `audit_logs`, `training_classes`,
 `training_class_attendees`. LMS: `courses`, `course_versions`, `course_blocks`, `quizzes`, `quiz_questions`,
-`quiz_answers`, `course_assignments`, `course_progress`, `quiz_attempts`, `quiz_attempt_answers`, `training_plans`,
+`quiz_answers`, `course_assignments`, `course_progress`, `quiz_attempts`, `quiz_attempt_answers`,
+`course_ai_generations` (AI-generation audit trail), `training_plans`,
 `training_plan_items`, `competency_templates`, `competency_template_items`, `competency_records`,
 `competency_record_items`, `certificates`.
 

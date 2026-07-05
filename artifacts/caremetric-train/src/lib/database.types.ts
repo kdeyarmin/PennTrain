@@ -763,6 +763,93 @@ export type Database = {
           },
         ]
       }
+      course_ai_generations: {
+        Row: {
+          course_block_id: string | null
+          course_id: string | null
+          course_version_id: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          kind: string
+          model: string
+          request_params: Json
+          requested_by: string
+          response_summary: Json | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          course_block_id?: string | null
+          course_id?: string | null
+          course_version_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          kind: string
+          model: string
+          request_params: Json
+          requested_by: string
+          response_summary?: Json | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          course_block_id?: string | null
+          course_id?: string | null
+          course_version_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          kind?: string
+          model?: string
+          request_params?: Json
+          requested_by?: string
+          response_summary?: Json | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_ai_generations_course_block_id_fkey"
+            columns: ["course_block_id"]
+            isOneToOne: false
+            referencedRelation: "course_blocks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_ai_generations_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_ai_generations_course_version_id_fkey"
+            columns: ["course_version_id"]
+            isOneToOne: false
+            referencedRelation: "course_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_ai_generations_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_ai_generations_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_assignments: {
         Row: {
           assigned_at: string
@@ -1038,6 +1125,9 @@ export type Database = {
       }
       course_versions: {
         Row: {
+          ai_generated: boolean
+          ai_reviewed_at: string | null
+          ai_reviewed_by: string | null
           course_id: string
           created_at: string
           description: string | null
@@ -1049,6 +1139,9 @@ export type Database = {
           version_number: number
         }
         Insert: {
+          ai_generated?: boolean
+          ai_reviewed_at?: string | null
+          ai_reviewed_by?: string | null
           course_id: string
           created_at?: string
           description?: string | null
@@ -1060,6 +1153,9 @@ export type Database = {
           version_number: number
         }
         Update: {
+          ai_generated?: boolean
+          ai_reviewed_at?: string | null
+          ai_reviewed_by?: string | null
           course_id?: string
           created_at?: string
           description?: string | null
@@ -1071,6 +1167,13 @@ export type Database = {
           version_number?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "course_versions_ai_reviewed_by_fkey"
+            columns: ["ai_reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "course_versions_course_id_fkey"
             columns: ["course_id"]
@@ -4843,6 +4946,13 @@ export type Database = {
         Args: { p_version_id: string }
         Returns: boolean
       }
+      create_course_from_ai_draft: {
+        Args: { p_draft: Json; p_generation_id: string }
+        Returns: {
+          course_id: string
+          course_version_id: string
+        }[]
+      }
       current_org_id: { Args: never; Returns: string }
       current_role: { Args: never; Returns: string }
       ensure_training_requirement_record: {
@@ -4941,6 +5051,10 @@ export type Database = {
       }
       recalculate_resident_compliance_statuses: {
         Args: never
+        Returns: undefined
+      }
+      replace_quiz_questions: {
+        Args: { p_questions: Json; p_quiz_id: string }
         Returns: undefined
       }
       rescan_org_exclusion_matches: {

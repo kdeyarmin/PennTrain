@@ -12,10 +12,13 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft, BookOpen, Pencil, Plus, Rocket, FileText, Video, File as FileIcon,
-  ListChecks, Trash2, Lock, Layers, Sparkles, RefreshCw, Star, type LucideIcon,
+  ListChecks, Trash2, Lock, Layers, Sparkles, RefreshCw, Star, Wand2, type LucideIcon,
 } from "lucide-react";
 import {
   useGetCourse, useUpdateCourse,
@@ -26,9 +29,13 @@ import {
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useGetQuizByBlockId, useCreateQuiz } from "@/hooks/useQuizzes";
 import { useListCourseFeedback, summarizeCourseFeedback } from "@/hooks/useCourseFeedback";
-import { useListHeygenOptions, useGenerateCourseVideo, useCheckCourseVideoStatus } from "@/hooks/useCourseVideoGeneration";
-import { useAuth } from "@/lib/auth";
+import {
+  useListHeygenOptions, useGenerateCourseVideo, useCheckCourseVideoStatus, useAutoCheckVideoStatuses,
+} from "@/hooks/useCourseVideoGeneration";
+import { useRegenerateCourseBlock, useListCourseAiGenerations, useMarkAiGenerationReviewed } from "@/hooks/useAiCourseGeneration";
+import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { coursesListPath, quizBuilderPath } from "@/lib/courseRoutes";
 
 interface CourseFormState {
   title: string;
@@ -97,7 +104,17 @@ function BlockTypeBadge({ blockType }: { blockType: string }) {
   );
 }
 
-function QuizBlockSummary({ blockId, onConfigure }: { blockId: string; onConfigure: () => void }) {
+function QuizBlockSummary({
+  blockId,
+  onConfigure,
+  canManage,
+  role,
+}: {
+  blockId: string;
+  onConfigure: () => void;
+  canManage: boolean;
+  role: Role | undefined;
+}) {
   const { data: quiz, isLoading, isError } = useGetQuizByBlockId(blockId);
 
   if (isLoading) return <p className="text-xs text-muted-foreground">Loading quiz…</p>;
@@ -106,9 +123,11 @@ function QuizBlockSummary({ blockId, onConfigure }: { blockId: string; onConfigu
     return (
       <div className="flex items-center gap-2">
         <p className="text-xs text-muted-foreground italic">No quiz configured yet for this block.</p>
-        <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={onConfigure}>
-          Configure quiz
-        </Button>
+        {canManage && (
+          <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={onConfigure}>
+            Configure quiz
+          </Button>
+        )}
       </div>
     );
   }
@@ -119,9 +138,11 @@ function QuizBlockSummary({ blockId, onConfigure }: { blockId: string; onConfigu
         "{quiz.title}" — passing score {quiz.passing_score_percent}%
         {quiz.max_attempts ? `, max ${quiz.max_attempts} attempt${quiz.max_attempts === 1 ? "" : "s"}` : ""}
       </p>
-      <Link href={`/app/quizzes/${quiz.id}`} className="text-xs font-medium text-primary hover:underline">
-        Manage Questions
-      </Link>
+      {canManage && (
+        <Link href={quizBuilderPath(quiz.id, role)} className="text-xs font-medium text-primary hover:underline">
+          Manage Questions
+        </Link>
+      )}
     </div>
   );
 }
@@ -131,7 +152,7 @@ export default function CourseDetail() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const canManage = user?.role === "org_admin" || user?.role === "trainer";
+  const canManage = user?.role === "platform_admin";
 
   const { data: course, isLoading: courseLoading } = useGetCourse(id);
   const { data: courseFeedback } = useListCourseFeedback({ courseId: id });
@@ -156,6 +177,10 @@ export default function CourseDetail() {
   const isVersionLocked = selectedVersion?.status === "published";
 
   const { data: blocks, isLoading: blocksLoading } = useListCourseBlocks(selectedVersion?.id);
+
+  // Client-side backstop that keeps in-flight HeyGen video statuses fresh without requiring
+  // the manual "check status" button (which stays below as an instant fallback).
+  useAutoCheckVideoStatuses(blocks);
 
   // --- Course metadata edit ---
   const [showEditCourse, setShowEditCourse] = useState(false);
@@ -398,6 +423,158 @@ export default function CourseDetail() {
     });
   };
 
+  // --- Bulk "Generate All Videos": one avatar/voice pick, applied to every video block in
+  // this version that doesn't have a video yet, using each block's AI-authored body.script
+  // as the narration. Blocks with no script (never AI-generated/authored) are skipped rather
+  // than guessed at -- the admin has to add a script manually first. ---
+  const eligibleVideoBlocks = (blocks ?? []).filter(b => b.block_type === "video" && !b.video_url);
+  const eligibleVideoBlocksWithScript = eligibleVideoBlocks.filter(
+    b => !!(b.body as { script?: string } | null)?.script?.trim(),
+  );
+  const eligibleVideoBlocksMissingScript = eligibleVideoBlocks.length - eligibleVideoBlocksWithScript.length;
+
+  const [showBulkVideoGen, setShowBulkVideoGen] = useState(false);
+  const [bulkVideoForm, setBulkVideoForm] = useState({ avatarId: "", voiceId: "" });
+  const { data: bulkHeygenOptions, isLoading: bulkHeygenOptionsLoading } = useListHeygenOptions(showBulkVideoGen);
+  const { mutateAsync: generateVideoAsync } = useGenerateCourseVideo();
+  // Once set, the dialog shows the per-block progress list instead of the avatar/voice form.
+  const [bulkGenBlockIds, setBulkGenBlockIds] = useState<string[] | null>(null);
+  const [bulkGenSkippedCount, setBulkGenSkippedCount] = useState(0);
+  const [bulkGenStartFailures, setBulkGenStartFailures] = useState<Set<string>>(new Set());
+  const [bulkGenStarting, setBulkGenStarting] = useState(false);
+
+  const openBulkVideoGen = () => {
+    setBulkVideoForm({ avatarId: "", voiceId: "" });
+    setBulkGenBlockIds(null);
+    setBulkGenSkippedCount(0);
+    setBulkGenStartFailures(new Set());
+    setShowBulkVideoGen(true);
+  };
+
+  const closeBulkVideoGen = () => {
+    setShowBulkVideoGen(false);
+    setBulkGenBlockIds(null);
+    setBulkGenSkippedCount(0);
+    setBulkGenStartFailures(new Set());
+  };
+
+  const handleGenerateAllVideos = async () => {
+    if (!bulkVideoForm.avatarId || !bulkVideoForm.voiceId) {
+      toast({ title: "Avatar and voice are required", variant: "destructive" });
+      return;
+    }
+    if (eligibleVideoBlocksWithScript.length === 0) return;
+
+    setBulkGenSkippedCount(eligibleVideoBlocksMissingScript);
+    setBulkGenBlockIds(eligibleVideoBlocksWithScript.map(b => b.id));
+    setBulkGenStartFailures(new Set());
+    setBulkGenStarting(true);
+
+    const results = await Promise.allSettled(
+      eligibleVideoBlocksWithScript.map(b =>
+        generateVideoAsync({
+          courseBlockId: b.id,
+          avatarId: bulkVideoForm.avatarId,
+          voiceId: bulkVideoForm.voiceId,
+          script: ((b.body as { script?: string } | null)?.script ?? "").trim(),
+          title: b.title ?? undefined,
+        }),
+      ),
+    );
+    setBulkGenStarting(false);
+
+    const failedIds = new Set(
+      eligibleVideoBlocksWithScript.filter((_, i) => results[i].status === "rejected").map(b => b.id),
+    );
+    setBulkGenStartFailures(failedIds);
+    const succeeded = results.length - failedIds.size;
+    toast({
+      title: "Bulk video generation started",
+      description: `${succeeded} of ${results.length} block${results.length === 1 ? "" : "s"} started successfully.`
+        + (failedIds.size > 0 ? ` ${failedIds.size} failed to start.` : "")
+        + " Status updates automatically as each one finishes.",
+      variant: failedIds.size > 0 && succeeded === 0 ? "destructive" : undefined,
+    });
+  };
+
+  type BulkVideoGenStatus = "queued" | "processing" | "completed" | "failed";
+
+  const getBulkVideoGenStatus = (block: CourseBlock | undefined, blockId: string): BulkVideoGenStatus => {
+    if (bulkGenStartFailures.has(blockId)) return "failed";
+    if (!block) return "queued";
+    if (block.video_url) return "completed";
+    const heygenStatus = (block.body as { heygen?: { status?: string } } | null)?.heygen?.status;
+    if (heygenStatus === "failed") return "failed";
+    if (heygenStatus && heygenStatus !== "completed") return "processing";
+    return "queued";
+  };
+
+  const BULK_STATUS_META: Record<BulkVideoGenStatus, { label: string; className: string }> = {
+    queued: { label: "Queued", className: "bg-secondary text-secondary-foreground" },
+    processing: { label: "Processing", className: "bg-info text-info-foreground" },
+    completed: { label: "Completed", className: "bg-success text-success-foreground" },
+    failed: { label: "Failed", className: "bg-destructive text-destructive-foreground" },
+  };
+
+  // --- Regenerate a content block with AI (any block type) ---
+  const [regenerateBlock, setRegenerateBlock] = useState<CourseBlock | null>(null);
+  const [regenerateFeedback, setRegenerateFeedback] = useState("");
+  const { mutate: regenerateBlockMutate, isPending: regeneratingBlock } = useRegenerateCourseBlock();
+
+  const openRegenerateBlock = (block: CourseBlock) => {
+    setRegenerateBlock(block);
+    setRegenerateFeedback("");
+  };
+
+  const handleRegenerateBlock = () => {
+    if (!regenerateBlock || !selectedVersion) return;
+    if (!regenerateFeedback.trim()) {
+      toast({ title: "Feedback is required", description: "Tell the AI what to change so it has something to act on.", variant: "destructive" });
+      return;
+    }
+    regenerateBlockMutate(
+      { courseBlockId: regenerateBlock.id, courseVersionId: selectedVersion.id, feedback: regenerateFeedback.trim() },
+      {
+        onSuccess: () => { toast({ title: "Block regenerated" }); setRegenerateBlock(null); },
+        onError: (e: Error) => toast({ title: "Failed to regenerate block", description: e.message, variant: "destructive" }),
+      },
+    );
+  };
+
+  // --- AI review gate: for versions drafted by the AI wizard, require an explicit
+  // self-review acknowledgment before they can be published (the DB trigger from
+  // Part 3 is the real enforcement; this is a UX courtesy pointing at the same rule). ---
+  const [reviewChecked, setReviewChecked] = useState(false);
+  useEffect(() => { setReviewChecked(false); }, [selectedVersionId]);
+
+  const needsAiReview = !!selectedVersion?.ai_generated && !selectedVersion?.ai_reviewed_at;
+  const { data: aiGenerations } = useListCourseAiGenerations(course?.id, needsAiReview && !!course?.id);
+  const { mutate: markReviewed, isPending: markingReviewed } = useMarkAiGenerationReviewed();
+
+  const handleMarkReviewed = () => {
+    if (!selectedVersion || !user) return;
+    const matchingGeneration = aiGenerations?.find(
+      g => g.kind === "create_course" && g.course_version_id === selectedVersion.id,
+    );
+    markReviewed(
+      { courseVersionId: selectedVersion.id, generationId: matchingGeneration?.id, reviewedBy: user.id },
+      {
+        onSuccess: (result) => {
+          if (result.generationFailed) {
+            toast({
+              title: "Marked reviewed",
+              description: "The version is reviewed, but updating the generation audit record failed -- not blocking, just noting it.",
+            });
+          } else {
+            toast({ title: "Marked reviewed" });
+          }
+          setReviewChecked(false);
+        },
+        onError: (e: Error) => toast({ title: "Failed to mark as reviewed", description: e.message, variant: "destructive" }),
+      },
+    );
+  };
+
   if (courseLoading) {
     return (
       <div className="space-y-6">
@@ -413,7 +590,7 @@ export default function CourseDetail() {
       <div className="text-center py-12">
         <p className="text-muted-foreground">Course not found.</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href="/app/courses">Back to Courses</Link>
+          <Link href={coursesListPath(user?.role)}>Back to Courses</Link>
         </Button>
       </div>
     );
@@ -423,7 +600,7 @@ export default function CourseDetail() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-          <Link href="/app/courses">
+          <Link href={coursesListPath(user?.role)}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Link>
         </Button>
@@ -443,6 +620,11 @@ export default function CourseDetail() {
                 <Badge variant="outline" className="text-[10px] font-medium">System Catalog</Badge>
               ) : (
                 <Badge variant="secondary" className="text-[10px] font-medium">Org Course</Badge>
+              )}
+              {selectedVersion?.ai_generated && (
+                <Badge variant="outline" className="text-[10px] font-medium bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-50">
+                  <Sparkles className="h-3 w-3 mr-1" /> AI-Generated
+                </Badge>
               )}
             </div>
           </div>
@@ -532,15 +714,32 @@ export default function CourseDetail() {
                     )}
                   </div>
                   {canManage && v.status === "draft" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={publishingVersionId === v.id}
-                      onClick={(e) => { e.stopPropagation(); handlePublish(v); }}
-                    >
-                      <Rocket className="mr-2 h-3.5 w-3.5" />
-                      {publishingVersionId === v.id ? "Publishing..." : "Publish"}
-                    </Button>
+                    v.ai_generated && !v.ai_reviewed_at ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          {/* Wrapping span, not the disabled Button itself, is the trigger --
+                              disabled buttons have pointer-events:none and won't fire hover. */}
+                          <span onClick={(e) => e.stopPropagation()} className="inline-block">
+                            <Button size="sm" variant="outline" disabled>
+                              <Rocket className="mr-2 h-3.5 w-3.5" /> Publish
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          AI-generated content must be reviewed before publishing -- see the review checklist below.
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={publishingVersionId === v.id}
+                        onClick={(e) => { e.stopPropagation(); handlePublish(v); }}
+                      >
+                        <Rocket className="mr-2 h-3.5 w-3.5" />
+                        {publishingVersionId === v.id ? "Publishing..." : "Publish"}
+                      </Button>
+                    )
                   )}
                 </div>
               ))}
@@ -548,6 +747,34 @@ export default function CourseDetail() {
           )}
         </CardContent>
       </Card>
+
+      {canManage && needsAiReview && (
+        <Alert className="border-warning/40 bg-warning/10">
+          <Sparkles className="h-4 w-4" />
+          <AlertTitle>AI-generated content needs review</AlertTitle>
+          <AlertDescription>
+            <p className="mb-3">
+              This version's content was drafted by AI and hasn't been reviewed yet. Read through each block below
+              for accuracy before publishing -- AI-authored regulatory or policy content can be wrong or outdated.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="ai-reviewed-checkbox"
+                  checked={reviewChecked}
+                  onCheckedChange={c => setReviewChecked(c === true)}
+                />
+                <Label htmlFor="ai-reviewed-checkbox" className="text-sm font-normal cursor-pointer">
+                  I've reviewed this content for accuracy
+                </Label>
+              </div>
+              <Button size="sm" disabled={!reviewChecked || markingReviewed} onClick={handleMarkReviewed}>
+                {markingReviewed ? "Marking..." : "Mark Reviewed"}
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {selectedVersion && (
         <Card>
@@ -559,11 +786,18 @@ export default function CourseDetail() {
                   (v{selectedVersion.version_number} — {selectedVersion.title})
                 </span>
               </CardTitle>
-              {canManage && !isVersionLocked && (
-                <Button size="sm" onClick={openAddBlock}>
-                  <Plus className="mr-2 h-3.5 w-3.5" /> Add Block
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {canManage && !isVersionLocked && eligibleVideoBlocks.length > 0 && (
+                  <Button size="sm" variant="outline" onClick={openBulkVideoGen}>
+                    <Video className="mr-2 h-3.5 w-3.5" /> Generate All Videos
+                  </Button>
+                )}
+                {canManage && !isVersionLocked && (
+                  <Button size="sm" onClick={openAddBlock}>
+                    <Plus className="mr-2 h-3.5 w-3.5" /> Add Block
+                  </Button>
+                )}
+              </div>
             </div>
             {isVersionLocked && (
               <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
@@ -616,7 +850,12 @@ export default function CourseDetail() {
                       )}
                       {b.block_type === "quiz" && (
                         <div className="mt-1">
-                          <QuizBlockSummary blockId={b.id} onConfigure={() => openQuizPrompt(b)} />
+                          <QuizBlockSummary
+                            blockId={b.id}
+                            onConfigure={() => openQuizPrompt(b)}
+                            canManage={canManage}
+                            role={user?.role}
+                          />
                         </div>
                       )}
                     </div>
@@ -648,6 +887,17 @@ export default function CourseDetail() {
                           <Sparkles className="h-3.5 w-3.5" />
                         </Button>
                       </>
+                    )}
+                    {canManage && !isVersionLocked && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground shrink-0"
+                        onClick={() => openRegenerateBlock(b)}
+                        aria-label="Regenerate with AI"
+                      >
+                        <Wand2 className="h-3.5 w-3.5" />
+                      </Button>
                     )}
                     {canManage && !isVersionLocked && (
                       <Button
@@ -880,6 +1130,119 @@ export default function CourseDetail() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setVideoGenBlock(null)}>Cancel</Button>
             <Button onClick={handleGenerateVideo} disabled={generatingVideo}>{generatingVideo ? "Starting..." : "Generate Video"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk-generate AI avatar videos for every eligible video block in this version */}
+      <Dialog open={showBulkVideoGen} onOpenChange={o => { if (!o) closeBulkVideoGen(); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Generate All Videos</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            {!bulkGenBlockIds ? (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Generates an AI avatar video for every video block in this version that doesn't have one yet, using
+                  one avatar and voice for all of them, and each block's AI-authored narration script.
+                </p>
+                <div className="space-y-1">
+                  <Label>Avatar *</Label>
+                  <Select value={bulkVideoForm.avatarId} onValueChange={v => setBulkVideoForm(f => ({ ...f, avatarId: v }))} disabled={bulkHeygenOptionsLoading}>
+                    <SelectTrigger><SelectValue placeholder={bulkHeygenOptionsLoading ? "Loading avatars..." : "Select an avatar"} /></SelectTrigger>
+                    <SelectContent>
+                      {bulkHeygenOptions?.avatars.map(a => (
+                        <SelectItem key={a.id} value={a.id}>{a.name}{a.gender ? ` (${a.gender})` : ""}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Voice *</Label>
+                  <Select value={bulkVideoForm.voiceId} onValueChange={v => setBulkVideoForm(f => ({ ...f, voiceId: v }))} disabled={bulkHeygenOptionsLoading}>
+                    <SelectTrigger><SelectValue placeholder={bulkHeygenOptionsLoading ? "Loading voices..." : "Select a voice"} /></SelectTrigger>
+                    <SelectContent>
+                      {bulkHeygenOptions?.voices.map(v => (
+                        <SelectItem key={v.voice_id} value={v.voice_id}>{v.name}{v.language ? ` — ${v.language}` : ""}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {eligibleVideoBlocksWithScript.length} block{eligibleVideoBlocksWithScript.length === 1 ? "" : "s"} will be generated.
+                </p>
+                {eligibleVideoBlocksMissingScript > 0 && (
+                  <p className="text-xs text-muted-foreground border border-warning/40 bg-warning/10 rounded px-2 py-1.5">
+                    {eligibleVideoBlocksMissingScript} block{eligibleVideoBlocksMissingScript === 1 ? "" : "s"} skipped -- no script available, add one manually first.
+                  </p>
+                )}
+              </>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Generation runs in the background and typically takes a few minutes per video -- status below
+                  updates automatically, no need to keep this dialog open.
+                </p>
+                {bulkGenSkippedCount > 0 && (
+                  <p className="text-xs text-muted-foreground border border-warning/40 bg-warning/10 rounded px-2 py-1.5">
+                    {bulkGenSkippedCount} block{bulkGenSkippedCount === 1 ? "" : "s"} skipped -- no script available, add one manually first.
+                  </p>
+                )}
+                <div className="space-y-1.5">
+                  {bulkGenBlockIds.map(blockId => {
+                    const block = blocks?.find(b => b.id === blockId);
+                    const status = getBulkVideoGenStatus(block, blockId);
+                    const meta = BULK_STATUS_META[status];
+                    return (
+                      <div key={blockId} className="flex items-center justify-between gap-2 text-sm border rounded-lg px-2.5 py-1.5">
+                        <span className="truncate">{block?.title ?? "Untitled block"}</span>
+                        <Badge variant="outline" className={meta.className}>{meta.label}</Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            {!bulkGenBlockIds ? (
+              <>
+                <Button variant="outline" onClick={closeBulkVideoGen}>Cancel</Button>
+                <Button
+                  onClick={handleGenerateAllVideos}
+                  disabled={bulkGenStarting || bulkHeygenOptionsLoading || eligibleVideoBlocksWithScript.length === 0}
+                >
+                  {bulkGenStarting ? "Starting..." : "Generate"}
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" onClick={closeBulkVideoGen}>Close</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Regenerate a block's content with AI */}
+      <Dialog open={!!regenerateBlock} onOpenChange={o => { if (!o) setRegenerateBlock(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Regenerate with AI</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-xs text-muted-foreground">
+              Claude will rewrite this block's {regenerateBlock?.block_type === "quiz" ? "entire question set" : "content"} from
+              scratch based on your feedback, replacing what's there now.
+            </p>
+            <div className="space-y-1">
+              <Label>What should change? *</Label>
+              <Textarea
+                value={regenerateFeedback}
+                onChange={e => setRegenerateFeedback(e.target.value)}
+                placeholder="e.g. &quot;make this shorter and more conversational&quot; or &quot;add more detail on fall-prevention procedures&quot;"
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRegenerateBlock(null)}>Cancel</Button>
+            <Button onClick={handleRegenerateBlock} disabled={regeneratingBlock}>{regeneratingBlock ? "Generating..." : "Generate"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

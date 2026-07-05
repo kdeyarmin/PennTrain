@@ -22,6 +22,7 @@ import AdminDashboard from "@/pages/admin/AdminDashboard";
 import Organizations from "@/pages/admin/Organizations";
 import OrganizationDetail from "@/pages/admin/OrganizationDetail";
 import Packages from "@/pages/admin/Packages";
+import AiCourseWizard from "@/pages/admin/AiCourseWizard";
 
 import OrgDashboard from "@/pages/app/Dashboard";
 import Facilities from "@/pages/app/Facilities";
@@ -125,10 +126,6 @@ function ProtectedRoute({
 const PLATFORM_ADMIN: UserRole[] = ["platform_admin"];
 const ORG_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor"];
 const ORG_MANAGE_ROLES: UserRole[] = ["org_admin", "facility_manager"];
-// quiz_questions/quiz_answers RLS grants select/write only to org_admin and trainer
-// (not facility_manager or auditor) -- routing anyone else here would just show an
-// empty, RLS-filtered page, so keep this narrower than ORG_ROLES.
-const QUIZ_AUTHOR_ROLES: UserRole[] = ["org_admin", "trainer"];
 const ORG_ADMIN_ONLY: UserRole[] = ["org_admin"];
 // Read-only compliance views auditor needs alongside the org admin roles -- auditor never
 // gets ORG_MANAGE_ROLES (Users/Settings are true admin config, not audit-relevant).
@@ -231,6 +228,20 @@ function Router() {
       <Route path="/admin/packages">
         {() => <ProtectedRoute component={Packages} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
+      <Route path="/admin/courses">
+        {() => <ProtectedRoute component={Courses} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      {/* Must be registered before "/admin/courses/:id" -- wouter matches routes in
+          declaration order, so "new-ai" would otherwise be swallowed as the :id param. */}
+      <Route path="/admin/courses/new-ai">
+        {() => <ProtectedRoute component={AiCourseWizard} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/courses/:id">
+        {() => <ProtectedRoute component={CourseDetail} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/quizzes/:quizId">
+        {() => <ProtectedRoute component={QuizBuilder} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
 
       {/* Org/Facility routes */}
       <Route path="/app">
@@ -259,9 +270,6 @@ function Router() {
       </Route>
       <Route path="/app/courses/:id">
         {() => <ProtectedRoute component={CourseDetail} allowedRoles={ORG_ROLES} />}
-      </Route>
-      <Route path="/app/quizzes/:quizId">
-        {() => <ProtectedRoute component={QuizBuilder} allowedRoles={QUIZ_AUTHOR_ROLES} />}
       </Route>
       <Route path="/app/course-assignments">
         {() => <ProtectedRoute component={CourseAssignments} allowedRoles={ORG_ROLES} />}

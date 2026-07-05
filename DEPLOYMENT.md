@@ -55,6 +55,7 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
 4. Set Edge Function secrets (these run on Supabase's infrastructure, never on Railway):
    ```bash
    npx supabase secrets set HEYGEN_API_KEY=... 
+   npx supabase secrets set ANTHROPIC_API_KEY=...
    ```
    `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are injected into Edge
    Functions automatically by Supabase -- you do not set those secrets yourself.

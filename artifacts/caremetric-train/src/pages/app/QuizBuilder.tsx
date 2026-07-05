@@ -25,6 +25,7 @@ import {
 import { useGetCourseBlock, useGetCourseVersion, useGetCourse } from "@/hooks/useCourses";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { coursesListPath, courseDetailPath } from "@/lib/courseRoutes";
 
 const QUESTION_TYPE_LABEL: Record<string, string> = {
   single_choice: "Single choice",
@@ -247,7 +248,7 @@ export default function QuizBuilder() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const canManage = user?.role === "org_admin" || user?.role === "trainer";
+  const canManage = user?.role === "platform_admin";
 
   const { data: quiz, isLoading: quizLoading } = useGetQuiz(quizId);
   const { data: courseBlock } = useGetCourseBlock(quiz?.course_block_id);
@@ -387,7 +388,7 @@ export default function QuizBuilder() {
       <div className="text-center py-12">
         <p className="text-muted-foreground">Quiz not found.</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href="/app/courses">Back to Courses</Link>
+          <Link href={coursesListPath(user?.role)}>Back to Courses</Link>
         </Button>
       </div>
     );
@@ -397,7 +398,7 @@ export default function QuizBuilder() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-          <Link href={course ? `/app/courses/${course.id}` : "/app/courses"}>
+          <Link href={course ? courseDetailPath(course.id, user?.role) : coursesListPath(user?.role)}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Course
           </Link>
         </Button>
