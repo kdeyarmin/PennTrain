@@ -242,7 +242,7 @@ export default function Landing() {
         <div className="mt-12 grid gap-6 sm:grid-cols-2">
           {HIGHLIGHTS.map((item, i) => (
             <Reveal key={item.href} delay={(i % 2) * 0.08}>
-              <Link href={item.href} className="group block h-full" data-testid={`link-highlight-${item.title}`}>
+              <Link href={item.href} className="group block h-full" data-testid={`link-highlight-${item.href.slice(1)}`}>
                 <Card className="flex h-full flex-col border-border/60 transition-colors group-hover:border-primary/40">
                   <CardHeader>
                     <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
