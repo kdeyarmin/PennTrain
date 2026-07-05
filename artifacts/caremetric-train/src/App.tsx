@@ -10,6 +10,7 @@ import Landing from "@/pages/Landing";
 
 import Login from "@/pages/auth/Login";
 import ForgotPassword from "@/pages/auth/ForgotPassword";
+import ResetPassword from "@/pages/auth/ResetPassword";
 
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import Organizations from "@/pages/admin/Organizations";
@@ -140,6 +141,7 @@ function Router() {
 
       <Route path="/login" component={Login} />
       <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route path="/verify/:slug" component={VerifyCertificate} />
 
       {/* Platform Admin routes */}
@@ -172,6 +174,12 @@ function Router() {
       </Route>
       <Route path="/admin/alerts">
         {() => <ProtectedRoute component={Alerts} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/incidents/:id">
+        {() => <ProtectedRoute component={IncidentDetail} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/inspections/:id">
+        {() => <ProtectedRoute component={InspectionItemDetail} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
       <Route path="/admin/packages">
         {() => <ProtectedRoute component={Packages} allowedRoles={PLATFORM_ADMIN} />}

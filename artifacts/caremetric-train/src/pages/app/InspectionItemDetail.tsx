@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useRoute, Link } from "wouter";
+import { useParams, Link } from "wouter";
 import { useGetInspectionItem, useUpdateInspectionItem } from "@/hooks/useInspectionItems";
 import { useListInspectionEvents, useCreateInspectionEvent } from "@/hooks/useInspectionEvents";
 import { useListCorrectiveActions, useCreateCorrectiveAction, useUpdateCorrectiveAction } from "@/hooks/useCorrectiveActions";
@@ -83,12 +83,14 @@ function EventCorrectiveActions({ event, canManage }: { event: InspectionEvent; 
 }
 
 export default function InspectionItemDetail() {
-  const [, params] = useRoute("/app/inspections/:id");
-  const id = params?.id;
+  const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const canManage = ["org_admin", "facility_manager", "trainer"].includes(user?.role ?? "");
+  // Mounted at both /app/inspections/:id (org roles) and /admin/inspections/:id
+  // (platform_admin, reached via Alerts deep links); basePath keeps back-navigation correct.
+  const basePath = user?.role === "platform_admin" ? "/admin/inspections" : "/app/inspections";
+  const canManage = ["platform_admin", "org_admin", "facility_manager", "trainer"].includes(user?.role ?? "");
 
   const { data: item, isLoading } = useGetInspectionItem(id);
   const { data: facilities } = useListFacilities();
@@ -137,7 +139,7 @@ export default function InspectionItemDetail() {
       <div className="text-center py-12">
         <p className="text-muted-foreground">Inspection item not found.</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href="/app/inspections">Back to Inspections</Link>
+          <Link href={basePath}>Back to Inspections</Link>
         </Button>
       </div>
     );
@@ -147,7 +149,7 @@ export default function InspectionItemDetail() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-          <Link href="/app/inspections"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
+          <Link href={basePath}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
         </Button>
       </div>
 

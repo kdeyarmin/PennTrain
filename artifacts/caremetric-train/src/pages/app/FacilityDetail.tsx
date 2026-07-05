@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useRoute, useLocation, Link } from "wouter";
+import { useParams, useLocation, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,11 +48,16 @@ const EMPTY_FORM: FacilityFormData = {
 const RELEVANT_STATUSES = new Set(["compliant", "due_soon", "expired", "missing"]);
 
 export default function FacilityDetail() {
-  const [, params] = useRoute("/app/facilities/:id");
-  const id = params?.id;
+  const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
+
+  // This page is mounted at both /admin/facilities/:id (platform_admin) and
+  // /app/facilities/:id (org roles) -- every internal link/redirect must match whichever
+  // prefix the viewer is under, mirroring the pattern in EmployeeDetail.tsx.
+  const basePath = user?.role === "platform_admin" ? "/admin/facilities" : "/app/facilities";
+  const employeeBasePath = user?.role === "platform_admin" ? "/admin/employees" : "/app/employees";
 
   const canManage = ["platform_admin", "org_admin"].includes(user?.role ?? "");
   // Matches incidents_select RLS -- trainer is excluded (the incident data itself is sensitive),
@@ -135,7 +140,7 @@ export default function FacilityDetail() {
     deleteFacility(facility.id, {
       onSuccess: () => {
         toast({ title: "Facility deleted" });
-        navigate("/app/facilities");
+        navigate(basePath);
       },
       onError: (e: Error) => toast({ title: "Failed to delete facility", description: e.message, variant: "destructive" }),
     });
@@ -158,7 +163,7 @@ export default function FacilityDetail() {
       <div className="text-center py-12">
         <p className="text-muted-foreground">Facility not found.</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href="/app/facilities">Back to Facilities</Link>
+          <Link href={basePath}>Back to Facilities</Link>
         </Button>
       </div>
     );
@@ -168,7 +173,7 @@ export default function FacilityDetail() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-          <Link href="/app/facilities">
+          <Link href={basePath}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Link>
         </Button>
@@ -442,7 +447,7 @@ export default function FacilityDetail() {
           ) : (
             <div className="space-y-2">
               {employees.map(emp => (
-                <Link key={emp.id} href={`/app/employees/${emp.id}`}>
+                <Link key={emp.id} href={`${employeeBasePath}/${emp.id}`}>
                   <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/5 cursor-pointer">
                     <div>
                       <p className="font-medium text-sm">{emp.first_name} {emp.last_name}</p>

@@ -31,6 +31,11 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 
 type DecisionAction = "pending" | "approved" | "rejected";
 
+// Matches employee_training_records_insert/_update RLS -- auditor can reach this page (it's in
+// ORG_ROLES) but has no write grant, so its Approve/Reject/Save-as-Pending controls must be hidden
+// rather than rendered and left to fail at the database.
+const PENDING_APPROVAL_MANAGE_ROLES = ["platform_admin", "org_admin", "facility_manager", "trainer"];
+
 // employee_training_records has no "unlinked" flag of its own -- a document counts as still
 // awaiting triage as long as no record's external_certificate_document_id points at it. There's
 // no server-side way to express that as a single filter on training_documents (the FK lives on
@@ -171,13 +176,14 @@ interface UnlinkedDocumentRowProps {
   allRecords: TrainingRecord[];
   currentUserId: string;
   busy: boolean;
+  canManage: boolean;
   onDecide: (existing: TrainingRecord | undefined, payload: TrainingRecordInsert) => Promise<void>;
   onView: (doc: TrainingDocument) => void;
   viewPending: boolean;
 }
 
 function UnlinkedDocumentRow({
-  doc, employees, trainingTypes, allRecords, currentUserId, busy, onDecide, onView, viewPending,
+  doc, employees, trainingTypes, allRecords, currentUserId, busy, canManage, onDecide, onView, viewPending,
 }: UnlinkedDocumentRowProps) {
   const { toast } = useToast();
   const [manualEmployeeId, setManualEmployeeId] = useState("");
@@ -273,22 +279,26 @@ function UnlinkedDocumentRow({
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-muted-foreground">Review Comments (required to reject)</label>
-        <Textarea rows={2} value={comment} onChange={e => setComment(e.target.value)} placeholder="Notes for the employee's file..." />
-      </div>
+      {canManage && (
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Review Comments (required to reject)</label>
+          <Textarea rows={2} value={comment} onChange={e => setComment(e.target.value)} placeholder="Notes for the employee's file..." />
+        </div>
+      )}
 
-      <div className="flex items-center gap-2 justify-end flex-wrap">
-        <Button variant="outline" size="sm" disabled={busy} onClick={() => handleDecide("pending")}>
-          Save as Pending
-        </Button>
-        <Button variant="destructive" size="sm" disabled={busy} onClick={() => handleDecide("rejected")}>
-          <X className="h-3.5 w-3.5 mr-1.5" /> Reject
-        </Button>
-        <Button size="sm" disabled={busy} onClick={() => handleDecide("approved")}>
-          <Check className="h-3.5 w-3.5 mr-1.5" /> Approve
-        </Button>
-      </div>
+      {canManage && (
+        <div className="flex items-center gap-2 justify-end flex-wrap">
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => handleDecide("pending")}>
+            Save as Pending
+          </Button>
+          <Button variant="destructive" size="sm" disabled={busy} onClick={() => handleDecide("rejected")}>
+            <X className="h-3.5 w-3.5 mr-1.5" /> Reject
+          </Button>
+          <Button size="sm" disabled={busy} onClick={() => handleDecide("approved")}>
+            <Check className="h-3.5 w-3.5 mr-1.5" /> Approve
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -300,13 +310,14 @@ interface PendingRecordRowProps {
   doc: TrainingDocument | undefined;
   currentUserId: string;
   busy: boolean;
+  canManage: boolean;
   onDecide: (payload: Partial<TrainingRecord> & { id: string }) => Promise<void>;
   onView: (doc: TrainingDocument) => void;
   viewPending: boolean;
 }
 
 function PendingRecordRow({
-  record, employeeName, trainingType, doc, currentUserId, busy, onDecide, onView, viewPending,
+  record, employeeName, trainingType, doc, currentUserId, busy, canManage, onDecide, onView, viewPending,
 }: PendingRecordRowProps) {
   const { toast } = useToast();
   const [comment, setComment] = useState("");
@@ -362,19 +373,23 @@ function PendingRecordRow({
         )}
       </div>
 
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-muted-foreground">Review Comments (required to reject)</label>
-        <Textarea rows={2} value={comment} onChange={e => setComment(e.target.value)} placeholder="Notes for the employee's file..." />
-      </div>
+      {canManage && (
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Review Comments (required to reject)</label>
+          <Textarea rows={2} value={comment} onChange={e => setComment(e.target.value)} placeholder="Notes for the employee's file..." />
+        </div>
+      )}
 
-      <div className="flex items-center gap-2 justify-end">
-        <Button variant="destructive" size="sm" disabled={busy} onClick={handleReject}>
-          <X className="h-3.5 w-3.5 mr-1.5" /> Reject
-        </Button>
-        <Button size="sm" disabled={busy} onClick={handleApprove}>
-          <Check className="h-3.5 w-3.5 mr-1.5" /> Approve
-        </Button>
-      </div>
+      {canManage && (
+        <div className="flex items-center gap-2 justify-end">
+          <Button variant="destructive" size="sm" disabled={busy} onClick={handleReject}>
+            <X className="h-3.5 w-3.5 mr-1.5" /> Reject
+          </Button>
+          <Button size="sm" disabled={busy} onClick={handleApprove}>
+            <Check className="h-3.5 w-3.5 mr-1.5" /> Approve
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -382,6 +397,7 @@ function PendingRecordRow({
 export default function PendingApprovals() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const canManage = PENDING_APPROVAL_MANAGE_ROLES.includes(user?.role ?? "");
 
   const { data: documents, isLoading: documentsLoading } = useListDocuments({ documentTypes: EXTERNAL_CERT_DOC_TYPES });
   const { data: employees } = useListEmployees({});
@@ -490,6 +506,7 @@ export default function PendingApprovals() {
                       allRecords={allRecords ?? []}
                       currentUserId={user?.id ?? ""}
                       busy={busy}
+                      canManage={canManage}
                       onDecide={handleDecideUnlinked}
                       onView={handleView}
                       viewPending={getSignedUrl.isPending}
@@ -536,6 +553,7 @@ export default function PendingApprovals() {
                         doc={doc}
                         currentUserId={user?.id ?? ""}
                         busy={busy}
+                        canManage={canManage}
                         onDecide={handleDecideLinked}
                         onView={handleView}
                         viewPending={getSignedUrl.isPending}
