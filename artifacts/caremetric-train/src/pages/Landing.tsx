@@ -118,17 +118,18 @@ export default function Landing() {
                     <ArrowRight className="h-4 w-4" />
                   </a>
                 </Button>
-                <Link href="/features">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="gap-2 border-white/25 bg-white/5 text-white hover:bg-white/12"
-                    data-testid="button-hero-tour"
-                  >
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  className="gap-2 border-white/25 bg-white/5 text-white hover:bg-white/12"
+                  data-testid="button-hero-tour"
+                >
+                  <Link href="/features">
                     <PlayCircle className="h-4 w-4" />
                     See what it does
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               </div>
             </div>
 
