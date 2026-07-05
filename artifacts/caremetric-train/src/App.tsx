@@ -44,6 +44,8 @@ import BackgroundChecks from "@/pages/app/BackgroundChecks";
 import ExclusionScreening from "@/pages/app/ExclusionScreening";
 import AdministratorQualification from "@/pages/app/AdministratorQualification";
 import Incidents from "@/pages/app/Incidents";
+import Violations from "@/pages/app/Violations";
+import ViolationDetail from "@/pages/app/ViolationDetail";
 import IncidentDetail from "@/pages/app/IncidentDetail";
 import InspectionItems from "@/pages/app/InspectionItems";
 import InspectionItemDetail from "@/pages/app/InspectionItemDetail";
@@ -135,6 +137,9 @@ const CREDENTIAL_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"
 // Matches incidents_select RLS -- trainer AND self-service are both excluded (the incident
 // itself is sensitive, not any one employee's own record).
 const INCIDENT_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
+// Matches dhs_violations_select RLS -- same no-trainer, no-self-service sensitivity model as
+// incidents (a cited DHS violation and its POC are an org-compliance matter).
+const VIOLATION_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
 // Matches inspection_items_select RLS -- trainer is included, unlike credentials/incidents,
 // since physical-plant compliance is the least sensitive of the three new modules.
 const INSPECTION_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor"];
@@ -299,6 +304,12 @@ function Router() {
       </Route>
       <Route path="/app/incidents/:id">
         {() => <ProtectedRoute component={IncidentDetail} allowedRoles={INCIDENT_ROLES} />}
+      </Route>
+      <Route path="/app/violations">
+        {() => <ProtectedRoute component={Violations} allowedRoles={VIOLATION_ROLES} />}
+      </Route>
+      <Route path="/app/violations/:id">
+        {() => <ProtectedRoute component={ViolationDetail} allowedRoles={VIOLATION_ROLES} />}
       </Route>
       <Route path="/app/inspections">
         {() => <ProtectedRoute component={InspectionItems} allowedRoles={INSPECTION_ROLES} />}

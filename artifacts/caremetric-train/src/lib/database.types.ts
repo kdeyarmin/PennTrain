@@ -673,6 +673,7 @@ export type Database = {
           status: string
           updated_at: string
           verification_notes: string | null
+          violation_id: string | null
         }
         Insert: {
           completed_date?: string | null
@@ -690,6 +691,7 @@ export type Database = {
           status?: string
           updated_at?: string
           verification_notes?: string | null
+          violation_id?: string | null
         }
         Update: {
           completed_date?: string | null
@@ -707,6 +709,7 @@ export type Database = {
           status?: string
           updated_at?: string
           verification_notes?: string | null
+          violation_id?: string | null
         }
         Relationships: [
           {
@@ -749,6 +752,13 @@ export type Database = {
             columns: ["owner_profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "corrective_actions_violation_id_fkey"
+            columns: ["violation_id"]
+            isOneToOne: false
+            referencedRelation: "dhs_violations"
             referencedColumns: ["id"]
           },
         ]
@@ -1186,6 +1196,92 @@ export type Database = {
           title?: string
         }
         Relationships: []
+      }
+      dhs_violations: {
+        Row: {
+          citation_ref: string | null
+          citation_topic_id: string | null
+          created_at: string
+          description: string
+          facility_id: string
+          id: string
+          inspection_date: string
+          organization_id: string
+          poc_due_date: string | null
+          poc_submitted_at: string | null
+          severity: string
+          status: string
+          surveyor_name: string | null
+          updated_at: string
+          verified_at: string | null
+          verified_by_profile_id: string | null
+        }
+        Insert: {
+          citation_ref?: string | null
+          citation_topic_id?: string | null
+          created_at?: string
+          description: string
+          facility_id: string
+          id?: string
+          inspection_date: string
+          organization_id: string
+          poc_due_date?: string | null
+          poc_submitted_at?: string | null
+          severity?: string
+          status?: string
+          surveyor_name?: string | null
+          updated_at?: string
+          verified_at?: string | null
+          verified_by_profile_id?: string | null
+        }
+        Update: {
+          citation_ref?: string | null
+          citation_topic_id?: string | null
+          created_at?: string
+          description?: string
+          facility_id?: string
+          id?: string
+          inspection_date?: string
+          organization_id?: string
+          poc_due_date?: string | null
+          poc_submitted_at?: string | null
+          severity?: string
+          status?: string
+          surveyor_name?: string | null
+          updated_at?: string
+          verified_at?: string | null
+          verified_by_profile_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dhs_violations_citation_topic_id_fkey"
+            columns: ["citation_topic_id"]
+            isOneToOne: false
+            referencedRelation: "dhs_citation_topics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dhs_violations_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dhs_violations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dhs_violations_verified_by_profile_id_fkey"
+            columns: ["verified_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       employee_background_check_profiles: {
         Row: {
@@ -4128,6 +4224,83 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      violation_documents: {
+        Row: {
+          created_at: string
+          document_label: string | null
+          document_type: string
+          facility_id: string
+          file_name: string
+          file_size: number | null
+          file_type: string
+          id: string
+          organization_id: string
+          storage_bucket: string
+          storage_path: string
+          uploaded_by_profile_id: string | null
+          violation_id: string
+        }
+        Insert: {
+          created_at?: string
+          document_label?: string | null
+          document_type?: string
+          facility_id: string
+          file_name: string
+          file_size?: number | null
+          file_type: string
+          id?: string
+          organization_id: string
+          storage_bucket?: string
+          storage_path: string
+          uploaded_by_profile_id?: string | null
+          violation_id: string
+        }
+        Update: {
+          created_at?: string
+          document_label?: string | null
+          document_type?: string
+          facility_id?: string
+          file_name?: string
+          file_size?: number | null
+          file_type?: string
+          id?: string
+          organization_id?: string
+          storage_bucket?: string
+          storage_path?: string
+          uploaded_by_profile_id?: string | null
+          violation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "violation_documents_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "violation_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "violation_documents_uploaded_by_profile_id_fkey"
+            columns: ["uploaded_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "violation_documents_violation_id_fkey"
+            columns: ["violation_id"]
+            isOneToOne: false
+            referencedRelation: "dhs_violations"
             referencedColumns: ["id"]
           },
         ]
