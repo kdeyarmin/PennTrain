@@ -15,11 +15,8 @@ export default function HowItWorks() {
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-3">
           {STEPS.map((step, i) => (
-            <Reveal key={step.step} delay={i * 0.1} className="relative">
-              <div className="font-mono text-5xl font-semibold tabular-nums text-primary/15">
-                {step.step}
-              </div>
-              <h3 className="mt-2 text-lg font-semibold">{step.title}</h3>
+            <Reveal key={step.title} delay={i * 0.1} className="relative">
+              <h3 className="text-lg font-semibold">{step.title}</h3>
               <p className="mt-2 text-sm text-muted-foreground">{step.description}</p>
               {i < STEPS.length - 1 && (
                 <ArrowRight className="absolute right-0 top-2 hidden h-5 w-5 text-muted-foreground/40 lg:-right-6 lg:block" />

@@ -40,45 +40,39 @@ export type IconItem = {
   description: string;
 };
 
-export const SETTINGS: (IconItem & { code: string })[] = [
+export const SETTINGS: IconItem[] = [
   {
     icon: Building2,
-    code: "12 HRS / YR",
     title: "Personal Care Homes",
     description:
       "12 hours of yearly in-service per direct care worker (up to 6 may be supervised on-the-job training), plus 6 more for staff on a secured dementia unit -- 55 Pa. Code Section 2600.65, tracked automatically per employee.",
   },
   {
     icon: HeartHandshake,
-    code: "16 HRS / YR",
     title: "Assisted Living Residences",
     description:
       "16 hours of yearly in-service per direct care worker, plus dementia-specific training at hire and 2 hours every year after -- 55 Pa. Code Section 2800.65/.69, all tracked against the clock automatically.",
   },
   {
     icon: Accessibility,
-    code: "24 / 12 HRS / YR",
     title: "Group Homes",
     description:
       "24 hours of yearly training for direct service workers and their supervisors, 12 hours for every other staff role -- 55 Pa. Code Section 6400.52, each role's requirement tracked separately and automatically.",
   },
   {
     icon: BedDouble,
-    code: "12 HRS / YR",
     title: "Nursing Homes",
     description:
       "12 hours of yearly in-service per nurse aide under federal OBRA rules (42 CFR 483.95), targeted to each employee's most recent performance review -- not just a generic annual class.",
   },
   {
     icon: HomeIcon,
-    code: "12 HRS / YR",
     title: "Home Health Agencies",
     description:
       "12 hours of yearly in-service per home health aide, RN-supervised and documented under 42 CFR 484.80 -- tracked automatically across your whole field staff.",
   },
   {
     icon: Stethoscope,
-    code: "12 HRS / YR",
     title: "Hospice Agencies",
     description:
       "12 hours of yearly in-service per hospice aide, RN-supervised and documented under 42 CFR 418.76, across every discipline on your interdisciplinary team.",
@@ -162,19 +156,16 @@ export const FEATURES: IconItem[] = [
 
 export const STEPS = [
   {
-    step: "01",
     title: "Set up your organization",
     description:
       "Add your facilities, import your employee roster, and configure the training types your state requires.",
   },
   {
-    step: "02",
     title: "Assign training & practicums",
     description:
       "Build training plans and course assignments once, and let CareMetric Train track completion for every employee.",
   },
   {
-    step: "03",
     title: "Stay survey-ready",
     description:
       "Alerts flag what's expiring, reports show where you stand, and the compliance binder is always one click away.",

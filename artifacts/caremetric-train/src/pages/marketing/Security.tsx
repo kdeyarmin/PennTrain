@@ -17,10 +17,7 @@ export default function Security() {
           <div className="grid gap-6 sm:grid-cols-2">
             {SECURITY_FEATURES.map((feature, i) => (
               <Reveal key={feature.title} delay={(i % 2) * 0.08}>
-                <div className="relative flex h-full gap-4 rounded-xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-sm transition-colors hover:border-[#59b2ff]/40">
-                  <span className="absolute right-4 top-4 font-mono text-[10px] tabular-nums text-white/30">
-                    CTRL-{String(i + 1).padStart(2, "0")}
-                  </span>
+                <div className="flex h-full gap-4 rounded-xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-sm transition-colors hover:border-[#59b2ff]/40">
                   <TechIcon icon={feature.icon} />
                   <div>
                     <h3 className="font-semibold text-white">{feature.title}</h3>
