@@ -25,18 +25,6 @@ export function useListPolicyAttestationCampaigns(filters: ListPolicyAttestation
   });
 }
 
-export function useGetPolicyAttestationCampaign(id: string | undefined) {
-  return useQuery({
-    queryKey: ["policy_attestation_campaigns", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("policy_attestation_campaigns").select("*").eq("id", id!).single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
-}
-
 export function useCreatePolicyAttestationCampaign() {
   const queryClient = useQueryClient();
   return useMutation({

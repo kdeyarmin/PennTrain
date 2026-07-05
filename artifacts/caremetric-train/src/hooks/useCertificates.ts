@@ -23,18 +23,6 @@ export function useListCertificates(filters: ListCertificatesFilters = {}) {
   });
 }
 
-export function useGetCertificate(id: string | undefined) {
-  return useQuery({
-    queryKey: ["certificates", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("certificates").select("*").eq("id", id!).single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
-}
-
 export interface IssueCertificatePayload {
   employeeId: string;
   courseId: string;
