@@ -36,6 +36,9 @@ verify_jwt = true
 [functions.list-heygen-options]
 verify_jwt = true
 
+[functions.invite-user]
+verify_jwt = true
+
 # Internal cron-only endpoint invoked by pg_net from a pg_cron schedule (see
 # supabase/migrations/20260705061816_notification_delivery_engine.sql) -- pg_net has no way to
 # supply a user JWT. The function takes no caller-supplied parameters and always processes the
@@ -47,4 +50,17 @@ verify_jwt = false
 # caller-supplied parameters, always re-ingests the same public dataset and re-scans the full
 # roster regardless of caller.
 [functions.screen-exclusions]
+verify_jwt = false
+
+# Supabase Auth's "Send Email" hook (Authentication -> Hooks) calls this over the public
+# internet with no user JWT -- authenticity is verified inside the function via the Standard
+# Webhooks signature (SEND_EMAIL_HOOK_SECRET), not verify_jwt.
+[functions.send-auth-email]
+verify_jwt = false
+
+# Public, unauthenticated self-service signup endpoint by design -- there is no caller session
+# yet at signup time. Always creates a brand-new organization and grants org_admin on it (never
+# an existing organization or a different role), which is what keeps it safe to leave open; see
+# the comment at the top of the function itself for the full reasoning.
+[functions.signup-organization]
 verify_jwt = false
