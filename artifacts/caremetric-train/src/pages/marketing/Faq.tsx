@@ -58,8 +58,8 @@ export default function Faq() {
           </p>
         </Reveal>
         <Accordion type="single" collapsible className="rounded-2xl border bg-card px-5 shadow-sm">
-          {REMAINING_QUESTIONS.map((faq, i) => (
-            <AccordionItem key={faq.question} value={`item-${i}`}>
+          {REMAINING_QUESTIONS.map((faq) => (
+            <AccordionItem key={faq.question} value={faq.question}>
               <AccordionTrigger className="gap-4 text-left text-base font-semibold">
                 {faq.question}
               </AccordionTrigger>
