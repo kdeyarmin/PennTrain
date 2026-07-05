@@ -11,8 +11,8 @@ Browser  --https-->  Railway (Node server, static SPA build)
 Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
 ```
 
-- **Railway** hosts and runs `artifacts/pa-medtrack` -- a static Vite/React build served by a small
-  Node process (`artifacts/pa-medtrack/server/index.mjs`). There is no API layer on Railway; the
+- **Railway** hosts and runs `artifacts/caremetric-train` -- a static Vite/React build served by a small
+  Node process (`artifacts/caremetric-train/server/index.mjs`). There is no API layer on Railway; the
   browser talks to Supabase directly via `supabase-js`.
 - **Supabase** ("CM Train" project) is the source of truth for everything else: schema, migrations,
   RLS policies, Auth (GoTrue), Storage buckets, and Edge Functions (`create-user`,
@@ -48,7 +48,9 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are injected into Edge
    Functions automatically by Supabase -- you do not set those secrets yourself.
 5. **Auth URL configuration** (Authentication -> URL Configuration in the dashboard): set **Site URL**
-   and add a **Redirect URL** for your Railway domain, e.g. `https://your-app.up.railway.app/login` --
+   to the production domain (`https://caremetrictrain.com`) and add a **Redirect URL** for every domain
+   the app is served from, e.g. `https://caremetrictrain.com/login` plus your
+   `https://your-app.up.railway.app/login` fallback domain --
    `ForgotPassword.tsx` calls `supabase.auth.resetPasswordForEmail` with
    `redirectTo: window.location.origin + "/login"`, and Supabase Auth rejects redirects to
    unlisted origins.
@@ -58,7 +60,7 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
 7. Generate TypeScript types after any schema change:
    ```bash
    npx supabase gen types typescript --project-id <your-project-ref> \
-     > artifacts/pa-medtrack/src/lib/database.types.ts
+     > artifacts/caremetric-train/src/lib/database.types.ts
    ```
 
 ### Remaining recommended Supabase hardening (one manual dashboard step)
@@ -78,22 +80,22 @@ real tenant data outside the scope of this task.
 
 ## 2. Railway deployment
 
-The repo root is a pnpm workspace; the deployable app is the `@workspace/pa-medtrack` package. Keep
-Railway's **Root Directory** setting at the repo root (not `artifacts/pa-medtrack`) so `pnpm --filter`
+The repo root is a pnpm workspace; the deployable app is the `@workspace/caremetric-train` package. Keep
+Railway's **Root Directory** setting at the repo root (not `artifacts/caremetric-train`) so `pnpm --filter`
 can see the whole workspace and lockfile.
 
 1. In Railway: **New Project -> Deploy from GitHub repo**, select this repository.
 2. Railway auto-detects `railway.json` at the repo root:
-   - Build: `pnpm install --frozen-lockfile && pnpm --filter @workspace/pa-medtrack run build`
-   - Start: `pnpm --filter @workspace/pa-medtrack run start`
+   - Build: `pnpm install --frozen-lockfile && pnpm --filter @workspace/caremetric-train run build`
+   - Start: `pnpm --filter @workspace/caremetric-train run start`
    - Healthcheck: `GET /health`
    Nixpacks reads `.node-version` (Node 24) and the `packageManager` field (`pnpm@10.28.1`) to
    provision the right toolchain automatically.
 3. Add the environment variables below (Service -> Variables). Do **not** paste real secrets into
    any file in this repo -- only into Railway's variable UI.
-4. Deploy. Railway assigns a `*.up.railway.app` domain (or attach a custom domain under
-   Service -> Settings -> Networking); use that domain in step 1.5 above (Supabase Auth redirect
-   URLs) and re-deploy/update once you know it.
+4. Deploy. Railway assigns a `*.up.railway.app` domain; attach the production custom domain
+   (`caremetrictrain.com`, under Service -> Settings -> Networking) and use both domains in step 1.5
+   above (Supabase Auth redirect URLs).
 5. Verify `GET https://<your-domain>/health` returns:
    ```json
    {
@@ -130,15 +132,15 @@ Edge Function secrets.
 
 ```bash
 pnpm install
-cp artifacts/pa-medtrack/.env.example artifacts/pa-medtrack/.env   # fill in your Supabase URL/anon key
-pnpm run dev          # -> pnpm --filter @workspace/pa-medtrack run dev, http://localhost:5173
+cp artifacts/caremetric-train/.env.example artifacts/caremetric-train/.env   # fill in your Supabase URL/anon key
+pnpm run dev          # -> pnpm --filter @workspace/caremetric-train run dev, http://localhost:5173
 ```
 
 To exercise the production build path locally:
 
 ```bash
-pnpm --filter @workspace/pa-medtrack run build
-pnpm --filter @workspace/pa-medtrack run start   # node server/index.mjs, http://localhost:8080
+pnpm --filter @workspace/caremetric-train run build
+pnpm --filter @workspace/caremetric-train run start   # node server/index.mjs, http://localhost:8080
 curl http://localhost:8080/health
 ```
 
@@ -173,7 +175,7 @@ handles migrations/functions) -- both can watch the same repo without conflictin
 ## 6. Data-access layer (already implemented)
 
 The required data-access functions for this SaaS already exist in
-`artifacts/pa-medtrack/src/hooks/*.ts` and `src/lib/auth.tsx` -- this change did not need to build
+`artifacts/caremetric-train/src/hooks/*.ts` and `src/lib/auth.tsx` -- this change did not need to build
 them from scratch:
 
 - current user profile / session -- `src/lib/auth.tsx` (`useAuth()`)
@@ -266,8 +268,8 @@ policy at all, so it was never exploitable there, but the trigger was extended f
 
 ### Standing security posture
 
-- The service-role key is never referenced anywhere under `artifacts/pa-medtrack/src` or
-  `artifacts/pa-medtrack/server` -- confirmed by grep as part of this change. Vite only exposes
+- The service-role key is never referenced anywhere under `artifacts/caremetric-train/src` or
+  `artifacts/caremetric-train/server` -- confirmed by grep as part of this change. Vite only exposes
   `VITE_`-prefixed variables to the client bundle (`import.meta.env`), which is itself a structural
   guardrail against accidentally shipping the service-role key to the browser.
 - RLS is enabled on every table (`mcp__Supabase__list_tables` confirms `rls_enabled: true` across

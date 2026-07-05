@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Production static file server for the pa-medtrack SPA, deployed to Railway.
+// Production static file server for the CareMetric Train SPA, deployed to Railway.
 //
 // This app has no backend of its own -- the browser talks to Supabase directly
 // via supabase-js. This server exists only to (a) serve the built Vite bundle

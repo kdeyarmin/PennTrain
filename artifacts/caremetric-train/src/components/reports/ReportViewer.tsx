@@ -73,8 +73,8 @@ export function ReportViewer({
             <div className="flex items-center gap-3">
               <ShieldCheck className="h-8 w-8 text-primary" />
               <div>
-                <h1 className="text-xl font-bold">PA MedTrack</h1>
-                <p className="text-sm text-muted-foreground">Pennsylvania Care Provider Compliance Platform</p>
+                <h1 className="text-xl font-bold">CareMetric Train</h1>
+                <p className="text-sm text-muted-foreground">Compliance Training &amp; LMS for Long-Term Care</p>
               </div>
             </div>
             <div className="text-right text-sm">
@@ -178,7 +178,7 @@ export function ReportViewer({
 
         <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground print-footer">
           <p>Showing {rows.length} record{rows.length !== 1 ? "s" : ""}</p>
-          <p>PA MedTrack &middot; 55 Pa. Code Chapter 2600 Compliance Platform</p>
+          <p>CareMetric Train &middot; CareMetricTrain.com</p>
         </div>
       </div>
     </div>
