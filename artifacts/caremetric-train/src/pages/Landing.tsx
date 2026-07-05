@@ -423,8 +423,6 @@ export default function Landing() {
           <div className="grid items-center gap-12 lg:grid-cols-2">
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-700">
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-[#8eceff]">
-                <span className="whitespace-nowrap tabular-nums">Rec. 2600-T</span>
-                <span aria-hidden className="hidden h-px w-8 bg-[#8eceff]/30 sm:block" />
                 <span className="whitespace-nowrap">Compliance Training Platform</span>
               </div>
               <h1 className="mt-5 text-balance text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-[52px] lg:leading-[1.05]">
@@ -850,7 +848,7 @@ export default function Landing() {
           <div className="mt-10 flex flex-col gap-2 border-t border-border/60 pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
             <span>&copy; {new Date().getFullYear()} CareMetric Train. All rights reserved.</span>
             <span className="font-mono tabular-nums text-muted-foreground/60">
-              Rec. 2600-T &middot; Rev. {new Date().getFullYear()}.1
+              Rev. {new Date().getFullYear()}.1
             </span>
           </div>
         </div>
