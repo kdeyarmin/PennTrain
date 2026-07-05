@@ -79,11 +79,6 @@ const ROLE_VIEWS = [
   "Auditors get read-only evidence without changing records.",
 ];
 
-const PROOF_POINTS = [
-  { value: "6", label: "care settings supported" },
-  { value: "1", label: "record per employee" },
-  { value: "24/7", label: "survey readiness" },
-];
 
 const DASHBOARD_ROWS = [
   { label: "Annual in-service hours", value: 92, status: "On track" },
@@ -134,14 +129,6 @@ export default function Landing() {
                     See what it does
                   </Button>
                 </Link>
-              </div>
-              <div className="mt-8 grid gap-3 text-sm text-white/70 sm:grid-cols-3">
-                {PROOF_POINTS.map((point) => (
-                  <div key={point.label} className="rounded-xl border border-white/10 bg-white/[0.06] p-3 backdrop-blur">
-                    <div className="font-mono text-xl font-bold text-white">{point.value}</div>
-                    <div>{point.label}</div>
-                  </div>
-                ))}
               </div>
             </div>
 

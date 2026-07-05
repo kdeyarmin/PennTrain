@@ -1,4 +1,4 @@
-import { useAuth } from "@/lib/auth";
+import { useAuth, useSignOut } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useListOrganizations } from "@/hooks/useOrganizations";
 import {
@@ -8,7 +8,6 @@ import {
   useMarkAllNotificationsRead,
   type Notification,
 } from "@/hooks/useNotifications";
-import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Bell, Building2, CheckCheck, Menu } from "lucide-react";
@@ -23,7 +22,6 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useLocation } from "wouter";
-import { queryClient } from "@/lib/queryClient";
 
 function ViewingOrgSelector() {
   const { viewingOrgId, setViewingOrgId } = useViewingOrg();
@@ -126,13 +124,8 @@ function NotificationsMenu() {
 
 export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   const { user } = useAuth();
-  const [location, setLocation] = useLocation();
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    queryClient.clear();
-    setLocation("/login");
-  };
+  const [location] = useLocation();
+  const handleLogout = useSignOut();
 
   const initials = (user?.firstName?.[0] ?? "") + (user?.lastName?.[0] ?? "");
 
