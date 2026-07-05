@@ -5,6 +5,7 @@ import { useLocation } from "wouter";
 import { supabase } from "./supabase";
 import { queryClient } from "./queryClient";
 import { isPublicPath } from "./publicPaths";
+import { useToast } from "@/hooks/use-toast";
 
 export type Role = "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee" | "auditor";
 
@@ -122,8 +123,12 @@ export function useAuth() {
 // so they all clear cached query data and land on /login the same way.
 export function useSignOut() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   return async () => {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast({ variant: "destructive", title: "Sign out failed", description: error.message });
+    }
     queryClient.clear();
     setLocation("/login");
   };
