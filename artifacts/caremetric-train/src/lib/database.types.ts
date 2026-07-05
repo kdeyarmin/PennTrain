@@ -1388,6 +1388,71 @@ export type Database = {
           },
         ]
       }
+      employee_checkin_logs: {
+        Row: {
+          check_in_day: number
+          completed_at: string
+          completed_by_profile_id: string | null
+          created_at: string
+          employee_id: string
+          facility_id: string
+          id: string
+          notes: string | null
+          organization_id: string
+        }
+        Insert: {
+          check_in_day: number
+          completed_at?: string
+          completed_by_profile_id?: string | null
+          created_at?: string
+          employee_id: string
+          facility_id: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+        }
+        Update: {
+          check_in_day?: number
+          completed_at?: string
+          completed_by_profile_id?: string | null
+          created_at?: string
+          employee_id?: string
+          facility_id?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_checkin_logs_completed_by_profile_id_fkey"
+            columns: ["completed_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_checkin_logs_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_checkin_logs_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_checkin_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_credential_documents: {
         Row: {
           created_at: string
@@ -1576,6 +1641,96 @@ export type Database = {
             columns: ["verified_by_profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_onboarding_items: {
+        Row: {
+          category: string
+          completed_at: string | null
+          completed_by_profile_id: string | null
+          created_at: string
+          due_date: string | null
+          employee_id: string
+          facility_id: string
+          id: string
+          is_blocking: boolean
+          label: string
+          notes: string | null
+          organization_id: string
+          status: string
+          template_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          completed_at?: string | null
+          completed_by_profile_id?: string | null
+          created_at?: string
+          due_date?: string | null
+          employee_id: string
+          facility_id: string
+          id?: string
+          is_blocking?: boolean
+          label: string
+          notes?: string | null
+          organization_id: string
+          status?: string
+          template_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          completed_at?: string | null
+          completed_by_profile_id?: string | null
+          created_at?: string
+          due_date?: string | null
+          employee_id?: string
+          facility_id?: string
+          id?: string
+          is_blocking?: boolean
+          label?: string
+          notes?: string | null
+          organization_id?: string
+          status?: string
+          template_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_onboarding_items_completed_by_profile_id_fkey"
+            columns: ["completed_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_onboarding_items_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_onboarding_items_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_onboarding_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_onboarding_items_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "onboarding_checklist_templates"
             referencedColumns: ["id"]
           },
         ]
@@ -1775,6 +1930,7 @@ export type Database = {
         Row: {
           administers_medications: boolean
           checkin_pin_hash: string | null
+          cleared_for_unsupervised_duty: boolean
           created_at: string
           department: string | null
           email: string | null
@@ -1789,14 +1945,17 @@ export type Database = {
           organization_id: string
           phone: string | null
           profile_id: string | null
+          scheduled_hours_per_week: number | null
           status: string
           termination_date: string | null
           trainer_status: boolean
           updated_at: string
+          worker_type: string
         }
         Insert: {
           administers_medications?: boolean
           checkin_pin_hash?: string | null
+          cleared_for_unsupervised_duty?: boolean
           created_at?: string
           department?: string | null
           email?: string | null
@@ -1811,14 +1970,17 @@ export type Database = {
           organization_id: string
           phone?: string | null
           profile_id?: string | null
+          scheduled_hours_per_week?: number | null
           status?: string
           termination_date?: string | null
           trainer_status?: boolean
           updated_at?: string
+          worker_type?: string
         }
         Update: {
           administers_medications?: boolean
           checkin_pin_hash?: string | null
+          cleared_for_unsupervised_duty?: boolean
           created_at?: string
           department?: string | null
           email?: string | null
@@ -1833,10 +1995,12 @@ export type Database = {
           organization_id?: string
           phone?: string | null
           profile_id?: string | null
+          scheduled_hours_per_week?: number | null
           status?: string
           termination_date?: string | null
           trainer_status?: boolean
           updated_at?: string
+          worker_type?: string
         }
         Relationships: [
           {
@@ -2803,6 +2967,65 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onboarding_checklist_templates: {
+        Row: {
+          applies_to_facility_type: string
+          applies_to_track: string
+          category: string
+          code: string
+          created_at: string
+          deadline_basis: string
+          deadline_value: number | null
+          id: string
+          is_active: boolean
+          is_blocking: boolean
+          label: string
+          organization_id: string | null
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          applies_to_facility_type?: string
+          applies_to_track?: string
+          category: string
+          code: string
+          created_at?: string
+          deadline_basis: string
+          deadline_value?: number | null
+          id?: string
+          is_active?: boolean
+          is_blocking?: boolean
+          label: string
+          organization_id?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          applies_to_facility_type?: string
+          applies_to_track?: string
+          category?: string
+          code?: string
+          created_at?: string
+          deadline_basis?: string
+          deadline_value?: number | null
+          id?: string
+          is_active?: boolean
+          is_blocking?: boolean
+          label?: string
+          organization_id?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_checklist_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -4437,6 +4660,10 @@ export type Database = {
         }[]
       }
       grade_quiz_attempt: { Args: { p_attempt_id: string }; Returns: undefined }
+      instantiate_employee_onboarding_checklist: {
+        Args: { p_employee_id: string }
+        Returns: undefined
+      }
       instantiate_missing_requirements: {
         Args: { p_employee_id: string }
         Returns: undefined

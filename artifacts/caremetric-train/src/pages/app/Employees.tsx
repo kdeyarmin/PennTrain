@@ -38,12 +38,15 @@ interface EmpFormData {
   status: "active" | "inactive" | "terminated" | "on_leave";
   administersMedications: boolean;
   trainerStatus: boolean;
+  scheduledHoursPerWeek: string;
+  workerType: "regular" | "agency" | "substitute" | "volunteer";
 }
 
 const EMPTY_EMP: EmpFormData = {
   firstName: "", lastName: "", email: "", phone: "", jobTitle: "",
   department: "", employeeNumber: "", facilityId: "none", hireDate: "",
   status: "active", administersMedications: false, trainerStatus: false,
+  scheduledHoursPerWeek: "", workerType: "regular",
 };
 
 const PAGE_SIZE = 15;
@@ -180,6 +183,8 @@ export default function Employees() {
       status: emp.status as EmpFormData["status"],
       administersMedications: emp.administers_medications ?? false,
       trainerStatus: emp.trainer_status ?? false,
+      scheduledHoursPerWeek: emp.scheduled_hours_per_week != null ? String(emp.scheduled_hours_per_week) : "",
+      workerType: (emp.worker_type ?? "regular") as EmpFormData["workerType"],
     });
     setShowForm(true);
   };
@@ -205,6 +210,8 @@ export default function Employees() {
       status: form.status,
       administers_medications: form.administersMedications,
       trainer_status: form.trainerStatus,
+      scheduled_hours_per_week: form.scheduledHoursPerWeek.trim() ? Number(form.scheduledHoursPerWeek) : null,
+      worker_type: form.workerType,
     };
     if (editEmp) {
       updateEmployee(
@@ -402,6 +409,14 @@ export default function Employees() {
                           {emp.trainer_status && (
                             <Badge variant="outline" className="text-[10px] font-medium">Trainer</Badge>
                           )}
+                          {emp.worker_type !== "regular" && (
+                            <Badge variant="outline" className="text-[10px] font-medium capitalize">{emp.worker_type}</Badge>
+                          )}
+                          {!emp.cleared_for_unsupervised_duty && (
+                            <Badge className="text-[10px] font-medium bg-warning text-warning-foreground hover:bg-warning/80" variant="outline">
+                              Onboarding
+                            </Badge>
+                          )}
                         </div>
                       </td>
                       <td>
@@ -504,6 +519,26 @@ export default function Employees() {
             <div className="space-y-1.5">
               <Label className="text-[13px]">Hire Date</Label>
               <Input type="date" value={form.hireDate} onChange={e => field("hireDate", e.target.value)} className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Scheduled Hours / Week</Label>
+              <Input
+                type="number" min="1" step="0.5" value={form.scheduledHoursPerWeek}
+                onChange={e => field("scheduledHoursPerWeek", e.target.value)}
+                placeholder="e.g. 32" className="h-9"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Worker Type</Label>
+              <Select value={form.workerType} onValueChange={v => field("workerType", v as EmpFormData["workerType"])}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="regular">Regular</SelectItem>
+                  <SelectItem value="agency">Agency</SelectItem>
+                  <SelectItem value="substitute">Substitute</SelectItem>
+                  <SelectItem value="volunteer">Volunteer</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label className="text-[13px]">Status</Label>

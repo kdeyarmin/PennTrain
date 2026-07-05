@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   ArrowLeft, User, BookOpen, CalendarCheck, Clock, Pencil, Trash2, FileText, Activity, Building2,
-  Download, ShieldCheck, Plus, KeyRound,
+  Download, ShieldCheck, Plus, KeyRound, ClipboardList, Check, MessageCircle,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGetEmployee, useUpdateEmployee, useDeleteEmployee } from "@/hooks/useEmployees";
@@ -26,6 +26,10 @@ import { useListTrainingHourBuckets } from "@/hooks/useTrainingHourBuckets";
 import { useListDocuments, useDocumentSignedUrl, type TrainingDocument } from "@/hooks/useDocuments";
 import { useListEmployeeCredentials } from "@/hooks/useEmployeeCredentials";
 import { useSetEmployeeCheckinPin } from "@/hooks/useTrainingClasses";
+import {
+  useListEmployeeOnboardingItems, useUpdateEmployeeOnboardingItem,
+  useListEmployeeCheckinLogs, useLogEmployeeCheckin,
+} from "@/hooks/useOnboarding";
 import { useListAuditLogs } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +52,8 @@ interface EmpFormData {
   administersMedications: boolean;
   trainerStatus: boolean;
   notes: string;
+  scheduledHoursPerWeek: string;
+  workerType: "regular" | "agency" | "substitute" | "volunteer";
 }
 
 function EmptyState({ icon: Icon, text }: { icon: typeof BookOpen; text: string }) {
@@ -130,6 +136,7 @@ export default function EmployeeDetail() {
     firstName: "", lastName: "", email: "", phone: "", jobTitle: "",
     department: "", employeeNumber: "", facilityId: "", hireDate: "",
     status: "active", administersMedications: false, trainerStatus: false, notes: "",
+    scheduledHoursPerWeek: "", workerType: "regular",
   });
 
   const { data: employee, isLoading: empLoading } = useGetEmployee(id);
@@ -148,6 +155,10 @@ export default function EmployeeDetail() {
   const { data: documents, isLoading: documentsLoading } = useListDocuments({ employeeId: id });
   const { data: credentials, isLoading: credentialsLoading } = useListEmployeeCredentials({ employeeId: id });
   const { data: auditLogs, isLoading: activityLoading } = useListAuditLogs({ entityId: id, limit: 20 });
+  const { data: onboardingItems, isLoading: onboardingLoading } = useListEmployeeOnboardingItems(id);
+  const { data: checkinLogs } = useListEmployeeCheckinLogs(id);
+  const { mutate: updateOnboardingItem } = useUpdateEmployeeOnboardingItem();
+  const { mutate: logCheckin, isPending: loggingCheckin } = useLogEmployeeCheckin();
   const getSignedUrl = useDocumentSignedUrl();
 
   const trainingTypeName = (typeId: string) => trainingTypes?.find(t => t.id === typeId)?.name ?? "Unknown requirement";
@@ -177,6 +188,8 @@ export default function EmployeeDetail() {
       administersMedications: employee.administers_medications ?? false,
       trainerStatus: employee.trainer_status ?? false,
       notes: employee.notes ?? "",
+      scheduledHoursPerWeek: employee.scheduled_hours_per_week != null ? String(employee.scheduled_hours_per_week) : "",
+      workerType: (employee.worker_type ?? "regular") as EmpFormData["workerType"],
     });
     setShowEditEmp(true);
   };
@@ -203,6 +216,8 @@ export default function EmployeeDetail() {
         administers_medications: empForm.administersMedications,
         trainer_status: empForm.trainerStatus,
         notes: empForm.notes || null,
+        scheduled_hours_per_week: empForm.scheduledHoursPerWeek.trim() ? Number(empForm.scheduledHoursPerWeek) : null,
+        worker_type: empForm.workerType,
       },
       {
         onSuccess: () => { toast({ title: "Employee updated" }); setShowEditEmp(false); },
@@ -314,6 +329,10 @@ export default function EmployeeDetail() {
               <StatusBadge status={employee.status} type="employee" />
               {employee.administers_medications && <Badge variant="outline">Medication Administrator</Badge>}
               {employee.trainer_status && <Badge variant="outline">Trainer</Badge>}
+              {employee.worker_type !== "regular" && <Badge variant="outline">{employee.worker_type}</Badge>}
+              <Badge className={employee.cleared_for_unsupervised_duty ? "bg-success text-success-foreground hover:bg-success/80" : "bg-warning text-warning-foreground hover:bg-warning/80"} variant="outline">
+                {employee.cleared_for_unsupervised_duty ? "Cleared for Unsupervised Duty" : "Onboarding In Progress"}
+              </Badge>
             </div>
           </div>
         </div>
@@ -362,6 +381,95 @@ export default function EmployeeDetail() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" /> New-Hire Onboarding Checklist</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {onboardingLoading ? (
+            <Skeleton className="h-10" />
+          ) : !onboardingItems?.length ? (
+            <p className="text-sm text-muted-foreground">No onboarding checklist instantiated for this hire.</p>
+          ) : (
+            <div className="space-y-2">
+              {onboardingItems.map((item) => (
+                <div key={item.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      {item.label}
+                      {item.is_blocking && <Badge variant="outline" className="text-[10px]">Blocking</Badge>}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {item.category}{item.due_date ? ` · Due ${item.due_date}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge
+                      className={
+                        item.status === "completed" ? "bg-success text-success-foreground hover:bg-success/80"
+                        : item.status === "not_applicable" ? "bg-muted text-muted-foreground"
+                        : "bg-warning text-warning-foreground hover:bg-warning/80"
+                      }
+                      variant="outline"
+                    >
+                      {item.status.replace(/_/g, " ")}
+                    </Badge>
+                    {canManage && item.status === "pending" && (
+                      <Button
+                        variant="ghost" size="icon" className="h-7 w-7"
+                        onClick={() => updateOnboardingItem({
+                          id: item.id, status: "completed", completed_at: new Date().toISOString(), completed_by_profile_id: user?.id ?? null,
+                        })}
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5" /> Retention Check-Ins</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Half of first-year quits happen inside 90 days -- log a 7/14/30/60/90-day check-in conversation here.
+          </p>
+          <div className="grid grid-cols-5 gap-2">
+            {[7, 14, 30, 60, 90].map((day) => {
+              const log = checkinLogs?.find((c) => c.check_in_day === day);
+              return (
+                <div key={day} className="flex flex-col items-center gap-1 p-2 rounded-lg border text-center">
+                  <span className="text-xs font-medium">Day {day}</span>
+                  {log ? (
+                    <Badge className="bg-success text-success-foreground hover:bg-success/80 text-[10px]" variant="outline">
+                      Logged {new Date(log.completed_at).toLocaleDateString()}
+                    </Badge>
+                  ) : canManage ? (
+                    <Button
+                      size="sm" variant="outline" className="h-7 text-xs px-2" disabled={loggingCheckin}
+                      onClick={() => logCheckin({
+                        employee_id: employee.id, organization_id: employee.organization_id, facility_id: employee.facility_id,
+                        check_in_day: day, completed_by_profile_id: user?.id ?? null,
+                      })}
+                    >
+                      Log
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -616,6 +724,28 @@ export default function EmployeeDetail() {
             <div className="space-y-1">
               <Label>Hire Date</Label>
               <Input type="date" value={empForm.hireDate} onChange={e => field("hireDate", e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Scheduled Hours / Week</Label>
+              <Input
+                type="number" min="1" step="0.5" value={empForm.scheduledHoursPerWeek}
+                onChange={e => field("scheduledHoursPerWeek", e.target.value)}
+                placeholder="e.g. 32"
+              />
+              <p className="text-xs text-muted-foreground">Drives the 40-scheduled-hour orientation deadline.</p>
+            </div>
+            <div className="space-y-1">
+              <Label>Worker Type</Label>
+              <Select value={empForm.workerType} onValueChange={v => field("workerType", v as EmpFormData["workerType"])}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="regular">Regular</SelectItem>
+                  <SelectItem value="agency">Agency</SelectItem>
+                  <SelectItem value="substitute">Substitute</SelectItem>
+                  <SelectItem value="volunteer">Volunteer</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Agency/substitute/volunteer get the rapid-orientation checklist.</p>
             </div>
             <div className="col-span-full flex gap-6">
               <label className="flex items-center gap-2 cursor-pointer">
