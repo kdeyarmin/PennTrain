@@ -15,7 +15,7 @@ export default function Features() {
         <div className="grid gap-x-12 gap-y-9 sm:grid-cols-2">
           {FEATURES.map((feature, i) => (
             <Reveal key={feature.title} delay={(i % 4) * 0.05}>
-              <div className="flex gap-4 border-t border-border/70 pt-6">
+              <div className="border-t border-border/70 pt-6">
                 <div>
                   <div className="flex items-center gap-2">
                     <feature.icon className="h-4 w-4 text-primary" />
