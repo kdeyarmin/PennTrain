@@ -5,13 +5,22 @@
       <stop offset="100%" stop-color="#0f3f92"/>
     </linearGradient>
   </defs>
-  <rect width="180" height="180" rx="36" fill="url(#bg)"/>
-  <path
-    d="M90 36 L134 52 V88 C134 116 116 136 90 146 C64 136 46 116 46 88 V52 Z"
-    fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"
-  />
-  <path
-    d="M70 90 L84 104 L112 74"
-    fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"
-  />
+  <rect width="180" height="180" rx="40" fill="url(#bg)"/>
+
+  <!-- Open book -->
+  <path d="M90 114 C 78 105 58 102 34 106 L 34 134 C 58 130 78 133 90 142 C 102 133 122 130 146 134 L 146 106 C 122 102 102 105 90 114 Z"
+        fill="#ffffff"/>
+
+  <!-- Rising road + arrow -->
+  <path d="M 66 142
+           C 78 104 96 72 120 44
+           L 110 37
+           L 150 22
+           L 149 64
+           L 138 56
+           C 114 86 102 112 98 146
+           C 90 155 72 153 66 142
+           Z"
+        fill="#ffffff" stroke="#173e9e" stroke-width="8" paint-order="stroke"/>
+  <path d="M 81 132 C 93 102 106 78 126 54" stroke="#2563eb" stroke-width="7" stroke-linecap="round" stroke-dasharray="13 12" fill="none"/>
 </svg>
