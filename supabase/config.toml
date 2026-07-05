@@ -36,6 +36,12 @@ verify_jwt = true
 [functions.list-heygen-options]
 verify_jwt = true
 
+[functions.generate-course-curriculum]
+verify_jwt = true
+
+[functions.regenerate-course-block]
+verify_jwt = true
+
 [functions.invite-user]
 verify_jwt = true
 
@@ -50,6 +56,13 @@ verify_jwt = false
 # caller-supplied parameters, always re-ingests the same public dataset and re-scans the full
 # roster regardless of caller.
 [functions.screen-exclusions]
+verify_jwt = false
+
+# Same reasoning as dispatch-notifications -- pg_cron-invoked HeyGen status-polling job (every 5
+# minutes, see supabase/migrations/20260705211500_schedule_heygen_video_status_polling.sql), no
+# caller-supplied parameters, always re-polls the same system-wide non-terminal video job queue
+# regardless of caller.
+[functions.poll-heygen-video-statuses]
 verify_jwt = false
 
 # Supabase Auth's "Send Email" hook (Authentication -> Hooks) calls this over the public

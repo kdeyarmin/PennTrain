@@ -63,6 +63,7 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
           { href: "/admin/facilities", label: "Facilities", icon: Grid },
           { href: "/admin/employees", label: "Employees", icon: Users },
           { href: "/admin/users", label: "Users", icon: Users },
+          { href: "/admin/courses", label: "Courses", icon: GraduationCap },
           { href: "/admin/packages", label: "Packages", icon: Package },
         ]
       },

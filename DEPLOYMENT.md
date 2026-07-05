@@ -50,14 +50,16 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    npx supabase functions deploy create-user admin-update-user bulk-import-employees \
      generate-compliance-binder generate-certificate-pdf generate-incident-report-pdf \
      attest-policy generate-class-notice-pdf generate-poc-document generate-course-video \
-     check-course-video-status list-heygen-options dispatch-notifications screen-exclusions \
-     send-auth-email invite-user signup-organization
+     check-course-video-status list-heygen-options generate-course-curriculum \
+     regenerate-course-block poll-heygen-video-statuses dispatch-notifications \
+     screen-exclusions send-auth-email invite-user signup-organization
    ```
    Or connect the Supabase GitHub integration (Project Settings -> Integrations) so pushes to `main`
    auto-deploy both migrations and functions declared in `supabase/config.toml`.
 4. Set Edge Function secrets (these run on Supabase's infrastructure, never on Railway):
    ```bash
    npx supabase secrets set HEYGEN_API_KEY=... \
+     ANTHROPIC_API_KEY=... \
      SENDGRID_API_KEY=... \
      NOTIFICATION_FROM_EMAIL='CareMetric Train <notifications@caremetrictrain.com>' \
      TWILIO_ACCOUNT_SID=... TWILIO_AUTH_TOKEN=... TWILIO_FROM_NUMBER=...
