@@ -18,7 +18,10 @@ export interface HeygenJobState {
 export interface HeygenPollableBlock {
   id: string;
   organization_id: string | null;
-  body: { heygen?: HeygenJobState } | null;
+  // Deliberately not narrowed to `{ heygen?: HeygenJobState }` -- video blocks also store AI
+  // narration under body.script, and every write below must preserve that (and any other
+  // sibling key) rather than replacing the whole jsonb column with just `heygen`.
+  body: (Record<string, unknown> & { heygen?: HeygenJobState }) | null;
 }
 
 export interface HeygenPollResult {
@@ -67,7 +70,10 @@ export async function pollAndResolveHeygenVideo(
     const failureMessage = statusBody.data.failure_message ?? "video generation failed";
     await writeClient
       .from("course_blocks")
-      .update({ body: { heygen: { ...job, status: "failed", error: failureMessage } } })
+      // Copilot review finding: `body: { heygen: ... }` alone replaces the entire jsonb column,
+      // silently dropping body.script (AI narration) and any other sibling key. Spread the
+      // existing body first so only the `heygen` key actually changes.
+      .update({ body: { ...block.body, heygen: { ...job, status: "failed", error: failureMessage } } })
       .eq("id", block.id);
     return { status: "failed", error: failureMessage };
   }
@@ -75,7 +81,7 @@ export async function pollAndResolveHeygenVideo(
   if (heygenStatus !== "completed") {
     await writeClient
       .from("course_blocks")
-      .update({ body: { heygen: { ...job, status: heygenStatus } } })
+      .update({ body: { ...block.body, heygen: { ...job, status: heygenStatus } } })
       .eq("id", block.id);
     return { status: heygenStatus };
   }
@@ -99,7 +105,7 @@ export async function pollAndResolveHeygenVideo(
     .from("course_blocks")
     .update({
       video_url: publicUrlData.publicUrl,
-      body: { heygen: { ...job, status: "completed", completed_at: new Date().toISOString() } },
+      body: { ...block.body, heygen: { ...job, status: "completed", completed_at: new Date().toISOString() } },
     })
     .eq("id", block.id);
   if (updateError) return { status: "error", error: updateError.message };

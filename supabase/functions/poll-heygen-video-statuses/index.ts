@@ -27,7 +27,7 @@ const BATCH_SIZE = 50;
 interface PollableCourseBlock {
   id: string;
   organization_id: string | null;
-  body: { heygen?: HeygenJobState } | null;
+  body: (Record<string, unknown> & { heygen?: HeygenJobState }) | null;
 }
 
 Deno.serve(async (req: Request) => {
@@ -40,14 +40,18 @@ Deno.serve(async (req: Request) => {
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-  // "processing" is the only non-terminal status generate-course-video/check-course-video-status
-  // ever write; "completed" and "failed" are terminal. Blocks with no heygen job at all (body ->
-  // 'heygen' ->> 'status' is null) are naturally excluded since null never equals 'processing'.
+  // Codex/Copilot review finding: pollAndResolveHeygenVideo persists whatever non-terminal status
+  // HeyGen itself reports (status: heygenStatus for any status that isn't "completed"), not just
+  // "processing" -- so filtering on exactly 'processing' would stop re-polling a block the moment
+  // HeyGen reports some other in-flight status (e.g. "pending", "waiting"), leaving it stuck until
+  // a human happens to load the page. Select anything with a job that hasn't reached a terminal
+  // state instead. NULL status (no heygen job at all) is naturally excluded: NULL NOT IN (...) is
+  // NULL, not true, so those rows never match.
   const { data: pending, error: fetchError } = await adminClient
     .from("course_blocks")
     .select("id, organization_id, body")
     .eq("block_type", "video")
-    .eq("body->heygen->>status", "processing")
+    .not("body->heygen->>status", "in", "(completed,failed)")
     .limit(BATCH_SIZE);
 
   if (fetchError) return json({ error: fetchError.message }, 500);

@@ -13,7 +13,9 @@ function json(body: unknown, status = 200) {
   });
 }
 
-const WRITER_ROLES = ["platform_admin", "org_admin", "trainer"];
+// Narrowed alongside generate-course-video/index.ts: course_blocks write RLS is now
+// platform_admin-only, so org_admin/trainer could never persist a status update here anyway.
+const WRITER_ROLES = ["platform_admin"];
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });

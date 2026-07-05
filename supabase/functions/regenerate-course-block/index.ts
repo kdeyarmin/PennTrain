@@ -371,5 +371,16 @@ Deno.serve(async (req: Request) => {
     .update({ status: "completed", response_summary: { block_type: block.block_type } })
     .eq("id", generationId);
 
+  // Codex review finding: regenerating a block writes new AI content but, without this, never
+  // touched the owning version's review-gate columns. A manually-authored draft would stay
+  // ai_generated=false (skipping the gate for the AI content it now contains), and an
+  // already-reviewed AI draft would keep its stale ai_reviewed_at (letting the just-regenerated,
+  // unreviewed content publish on the strength of a review that predates it). Every successful
+  // regeneration must (re)arm the gate on the parent version.
+  await callerClient
+    .from("course_versions")
+    .update({ ai_generated: true, ai_reviewed_at: null, ai_reviewed_by: null })
+    .eq("id", block.course_version_id);
+
   return json({ success: true, course_block_id, generation_id: generationId });
 });
