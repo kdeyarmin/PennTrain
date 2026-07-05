@@ -1151,6 +1151,42 @@ export type Database = {
           },
         ]
       }
+      dhs_citation_topics: {
+        Row: {
+          category: string
+          chapter: string
+          citation_ref: string | null
+          created_at: string
+          frequency_weight: number
+          id: string
+          notes: string | null
+          sort_order: number
+          title: string
+        }
+        Insert: {
+          category: string
+          chapter: string
+          citation_ref?: string | null
+          created_at?: string
+          frequency_weight?: number
+          id?: string
+          notes?: string | null
+          sort_order?: number
+          title: string
+        }
+        Update: {
+          category?: string
+          chapter?: string
+          citation_ref?: string | null
+          created_at?: string
+          frequency_weight?: number
+          id?: string
+          notes?: string | null
+          sort_order?: number
+          title?: string
+        }
+        Relationships: []
+      }
       employee_background_check_profiles: {
         Row: {
           created_at: string
@@ -1345,6 +1381,7 @@ export type Database = {
       }
       employee_credentials: {
         Row: {
+          citation_topic_id: string | null
           created_at: string
           credential_label: string | null
           credential_number: string | null
@@ -1366,6 +1403,7 @@ export type Database = {
           warning_days: number
         }
         Insert: {
+          citation_topic_id?: string | null
           created_at?: string
           credential_label?: string | null
           credential_number?: string | null
@@ -1387,6 +1425,7 @@ export type Database = {
           warning_days?: number
         }
         Update: {
+          citation_topic_id?: string | null
           created_at?: string
           credential_label?: string | null
           credential_number?: string | null
@@ -1408,6 +1447,13 @@ export type Database = {
           warning_days?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "employee_credentials_citation_topic_id_fkey"
+            columns: ["citation_topic_id"]
+            isOneToOne: false
+            referencedRelation: "dhs_citation_topics"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "employee_credentials_employee_id_fkey"
             columns: ["employee_id"]
@@ -1716,6 +1762,50 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: true
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      entrance_conference_items: {
+        Row: {
+          category: string
+          created_at: string
+          data_source: string
+          id: string
+          is_active: boolean
+          organization_id: string | null
+          prompt: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          data_source: string
+          id?: string
+          is_active?: boolean
+          organization_id?: string | null
+          prompt: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          data_source?: string
+          id?: string
+          is_active?: boolean
+          organization_id?: string | null
+          prompt?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entrance_conference_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -2414,6 +2504,7 @@ export type Database = {
       }
       inspection_items: {
         Row: {
+          citation_topic_id: string | null
           created_at: string
           facility_id: string
           id: string
@@ -2435,6 +2526,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          citation_topic_id?: string | null
           created_at?: string
           facility_id: string
           id?: string
@@ -2456,6 +2548,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          citation_topic_id?: string | null
           created_at?: string
           facility_id?: string
           id?: string
@@ -2477,6 +2570,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "inspection_items_citation_topic_id_fkey"
+            columns: ["citation_topic_id"]
+            isOneToOne: false
+            referencedRelation: "dhs_citation_topics"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "inspection_items_facility_id_fkey"
             columns: ["facility_id"]
@@ -3942,6 +4042,7 @@ export type Database = {
           applies_to_trainers: boolean | null
           category: string
           citation_note: string | null
+          citation_topic_id: string | null
           code: string
           created_at: string
           description: string | null
@@ -3968,6 +4069,7 @@ export type Database = {
           applies_to_trainers?: boolean | null
           category: string
           citation_note?: string | null
+          citation_topic_id?: string | null
           code: string
           created_at?: string
           description?: string | null
@@ -3994,6 +4096,7 @@ export type Database = {
           applies_to_trainers?: boolean | null
           category?: string
           citation_note?: string | null
+          citation_topic_id?: string | null
           code?: string
           created_at?: string
           description?: string | null
@@ -4013,6 +4116,13 @@ export type Database = {
           warning_days_default?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "training_types_citation_topic_id_fkey"
+            columns: ["citation_topic_id"]
+            isOneToOne: false
+            referencedRelation: "dhs_citation_topics"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "training_types_organization_id_fkey"
             columns: ["organization_id"]
@@ -4120,6 +4230,19 @@ export type Database = {
       generate_class_checkin_token: {
         Args: { p_class_id: string; p_long_lived?: boolean }
         Returns: string
+      }
+      get_facility_readiness_breakdown: {
+        Args: { p_facility_id: string }
+        Returns: {
+          category: string
+          chapter: string
+          citation_ref: string
+          citation_topic_id: string
+          compliant_count: number
+          frequency_weight: number
+          title: string
+          total_count: number
+        }[]
       }
       get_quiz_answer_choices: {
         Args: { p_quiz_id: string }

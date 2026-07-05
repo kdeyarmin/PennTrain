@@ -55,6 +55,7 @@ import Documents from "@/pages/app/Documents";
 import PendingApprovals from "@/pages/app/PendingApprovals";
 import Settings from "@/pages/app/Settings";
 import ComplianceBinder from "@/pages/app/ComplianceBinder";
+import InspectionReadiness from "@/pages/app/InspectionReadiness";
 import PolicyDocuments from "@/pages/app/PolicyDocuments";
 import PolicyDocumentDetail from "@/pages/app/PolicyDocumentDetail";
 
@@ -265,6 +266,9 @@ function Router() {
       </Route>
       <Route path="/app/compliance-binder">
         {() => <ProtectedRoute component={ComplianceBinder} allowedRoles={REPORTS_VIEW_ROLES} />}
+      </Route>
+      <Route path="/app/inspection-readiness">
+        {() => <ProtectedRoute component={InspectionReadiness} allowedRoles={REPORTS_VIEW_ROLES} />}
       </Route>
       <Route path="/app/practicums">
         {() => <ProtectedRoute component={Practicums} allowedRoles={ORG_ROLES} />}
