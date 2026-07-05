@@ -6,6 +6,7 @@ import { queryClient } from "@/lib/queryClient";
 import { AuthProvider } from "@/lib/auth";
 import { ViewingOrgProvider } from "@/lib/viewingOrg";
 import NotFound from "@/pages/not-found";
+import Landing from "@/pages/Landing";
 
 import Login from "@/pages/auth/Login";
 import ForgotPassword from "@/pages/auth/ForgotPassword";
@@ -113,7 +114,7 @@ function Router() {
       <Route path="/">
         {() => {
           if (isLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
-          if (!isAuthenticated) return <Redirect to="/login" />;
+          if (!isAuthenticated) return <Landing />;
           if (user?.role === "platform_admin") return <Redirect to="/admin" />;
           if (user?.role === "trainer") return <Redirect to="/trainer" />;
           if (user?.role === "employee") return <Redirect to="/me" />;

@@ -32,6 +32,7 @@ interface MatrixTrainingType {
   id: string;
   code: string;
   name: string;
+  applies_to_facility_type: string;
 }
 
 interface MatrixRow {
@@ -44,6 +45,7 @@ const STATUS_COLORS: Record<string, string> = {
   due_soon: "#f59e0b",
   expired: "#ef4444",
   missing: "#94a3b8",
+  not_applicable: "#cbd5e1",
 };
 
 // Compliance-bearing statuses, mirroring Dashboard.tsx's computeDashboardSummary convention:
@@ -232,17 +234,27 @@ export default function TrainingMatrix() {
     [trainingTypes],
   );
 
+  const facilityTypeById = useMemo(
+    () => new Map((facilities ?? []).map(f => [f.id, f.facility_type])),
+    [facilities],
+  );
+
   const matrixRows: MatrixRow[] = useMemo(() => {
     const emps = employees ?? [];
     const records = trainingRecords ?? [];
     return emps.map(emp => {
       const empRecords = records.filter(r => r.employee_id === emp.id);
+      const empFacilityType = emp.facility_id ? facilityTypeById.get(emp.facility_id) : undefined;
       const cells: MatrixCell[] = matrixTrainingTypes.map(tt => {
         const record = pickCurrentRecord(empRecords.filter(r => r.training_type_id === tt.id));
+        // A training type not scoped to this employee's facility type shouldn't count as a
+        // missing requirement -- only synthesize "not_applicable" when there's no real record;
+        // an existing record (e.g. a manually-tracked one) always wins regardless of scope.
+        const applies = tt.applies_to_facility_type === "BOTH" || tt.applies_to_facility_type === empFacilityType;
         return {
           trainingTypeId: tt.id,
           trainingRecordId: record?.id ?? null,
-          status: record?.status ?? "missing",
+          status: record?.status ?? (applies ? "missing" : "not_applicable"),
           completionDate: record?.completion_date ?? null,
           dueDate: record?.due_date ?? null,
           trainerName: record?.trainer_name ?? null,
@@ -251,7 +263,7 @@ export default function TrainingMatrix() {
       });
       return { employee: emp, cells };
     });
-  }, [employees, trainingRecords, matrixTrainingTypes]);
+  }, [employees, trainingRecords, matrixTrainingTypes, facilityTypeById]);
 
   const getWorstStatus = (row: MatrixRow): string => {
     // Exclude not_applicable/pending_review cells from classification, matching

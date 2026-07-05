@@ -12,6 +12,7 @@ import { useGetPackage, useListPackages } from "@/hooks/usePackages";
 import { useGenerateComplianceBinder } from "@/hooks/useComplianceBinder";
 import { useToast } from "@/hooks/use-toast";
 import { useViewingOrg } from "@/lib/viewingOrg";
+import { facilityTypeBadgeClass } from "@/lib/facilityTypes";
 
 export default function OrganizationDetail() {
   const [, params] = useRoute("/admin/organizations/:id");
@@ -243,7 +244,7 @@ export default function OrganizationDetail() {
                     <p className="text-xs text-muted-foreground">{fac.city}, {fac.state} — {fac.license_number ?? "No license"}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">{fac.facility_type}</Badge>
+                    <Badge variant="outline" className={`text-xs ${facilityTypeBadgeClass(fac.facility_type)}`}>{fac.facility_type}</Badge>
                     <Badge variant={fac.is_active ? "default" : "secondary"} className="text-xs">{fac.is_active ? "Active" : "Inactive"}</Badge>
                   </div>
                 </div>

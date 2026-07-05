@@ -15,10 +15,11 @@ import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useToast } from "@/hooks/use-toast";
+import { FACILITY_TYPES, facilityTypeBadgeClass, type FacilityType } from "@/lib/facilityTypes";
 
 interface FacilityFormData {
   name: string;
-  facilityType: "PCH" | "ALR";
+  facilityType: FacilityType;
   licenseNumber: string;
   address: string;
   city: string;
@@ -66,7 +67,7 @@ export default function Facilities() {
     setEditId(facility.id);
     setForm({
       name: facility.name,
-      facilityType: (facility.facility_type as "PCH" | "ALR") ?? "PCH",
+      facilityType: (facility.facility_type as FacilityType) ?? "PCH",
       licenseNumber: facility.license_number ?? "",
       address: facility.address ?? "",
       city: facility.city ?? "",
@@ -127,7 +128,7 @@ export default function Facilities() {
       <div className="page-header flex items-center justify-between">
         <div>
           <h1>Facilities</h1>
-          <p>View and manage your PCH and ALR facilities.</p>
+          <p>View and manage your personal care, assisted living, nursing, home health, hospice, and group home facilities.</p>
         </div>
         {canManage && (
           <Button onClick={openCreate} className="shadow-sm">
@@ -173,11 +174,7 @@ export default function Facilities() {
                 <h3 className="font-semibold text-[15px] text-foreground mb-2">{facility.name}</h3>
 
                 <div className="flex items-center gap-2 mb-3">
-                  <Badge variant="outline" className={`text-[10px] font-medium ${
-                    facility.facility_type === "ALR"
-                      ? "border-violet-200 text-violet-700 bg-violet-50"
-                      : "border-blue-200 text-blue-700 bg-blue-50"
-                  }`}>
+                  <Badge variant="outline" className={`text-[10px] font-medium ${facilityTypeBadgeClass(facility.facility_type)}`}>
                     {facility.facility_type}
                   </Badge>
                   <Badge variant="outline" className={`text-[10px] font-medium ${
@@ -233,11 +230,12 @@ export default function Facilities() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-[13px]">Type *</Label>
-              <Select value={form.facilityType} onValueChange={v => field("facilityType", v as "PCH" | "ALR")}>
+              <Select value={form.facilityType} onValueChange={v => field("facilityType", v as FacilityType)}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="PCH">PCH</SelectItem>
-                  <SelectItem value="ALR">ALR</SelectItem>
+                  {FACILITY_TYPES.map(t => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

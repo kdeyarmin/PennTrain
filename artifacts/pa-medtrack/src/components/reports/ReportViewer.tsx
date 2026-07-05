@@ -74,7 +74,7 @@ export function ReportViewer({
               <ShieldCheck className="h-8 w-8 text-primary" />
               <div>
                 <h1 className="text-xl font-bold">PA MedTrack</h1>
-                <p className="text-sm text-muted-foreground">Pennsylvania PCH/ALR Compliance Platform</p>
+                <p className="text-sm text-muted-foreground">Pennsylvania Care Provider Compliance Platform</p>
               </div>
             </div>
             <div className="text-right text-sm">
@@ -178,7 +178,7 @@ export function ReportViewer({
 
         <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground print-footer">
           <p>Showing {rows.length} record{rows.length !== 1 ? "s" : ""}</p>
-          <p>PA MedTrack &middot; 28 Pa. Code Chapter 2600 Compliance Platform</p>
+          <p>PA MedTrack &middot; 55 Pa. Code Chapter 2600 Compliance Platform</p>
         </div>
       </div>
     </div>

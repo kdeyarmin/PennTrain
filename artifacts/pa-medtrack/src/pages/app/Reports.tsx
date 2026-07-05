@@ -73,7 +73,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Overview of total, compliant, expired, and due-soon training records with compliance percentages.",
     icon: BarChart3,
     category: "Compliance",
-    requiredBy: "28 Pa. Code §2600",
+    requiredBy: "55 Pa. Code §2600",
   },
   {
     id: "facility-compliance",
@@ -118,7 +118,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Track initial and recertification training for all medication-administering staff.",
     icon: FileText,
     category: "Training",
-    requiredBy: "28 Pa. Code §2600.77",
+    requiredBy: "55 Pa. Code §2600.77",
   },
   {
     id: "training-matrix",
@@ -127,7 +127,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Cross-reference matrix showing each employee's status across all required training types.",
     icon: Grid3X3,
     category: "Training",
-    requiredBy: "28 Pa. Code §2600.77",
+    requiredBy: "55 Pa. Code §2600.77",
   },
   {
     id: "practicum-status",
@@ -136,7 +136,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Completion status of required annual medication administration practicums.",
     icon: CheckCircle,
     category: "Practicum",
-    requiredBy: "28 Pa. Code §2600.78",
+    requiredBy: "55 Pa. Code §2600.78",
   },
   {
     id: "annual-practicum",
@@ -145,16 +145,16 @@ const ALL_REPORTS: ReportDef[] = [
       "Detailed view of annual practicum records including MAR review and direct observation.",
     icon: CheckCircle,
     category: "Practicum",
-    requiredBy: "28 Pa. Code §2600.78",
+    requiredBy: "55 Pa. Code §2600.78",
   },
   {
     id: "annual-hours",
     title: "Annual Training Hours",
     description:
-      "PCH 12-hour and ALR 16-hour annual training hour requirements with completion tracking.",
+      "Annual training hour requirements across every licensed setting, from 12-hour PCH and NH/HHA/HOS aide in-services up to 24-hour group home direct-service-worker training, with completion tracking.",
     icon: Clock,
     category: "Hours",
-    requiredBy: "28 Pa. Code §2600.64",
+    requiredBy: "55 Pa. Code §2600.64",
   },
   {
     id: "training-hours",
@@ -163,7 +163,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Detailed training hours breakdown by employee and training year.",
     icon: Clock,
     category: "Hours",
-    requiredBy: "28 Pa. Code §2600.64",
+    requiredBy: "55 Pa. Code §2600.64",
   },
   {
     id: "trainer-certification",
@@ -172,7 +172,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Track initial and recertification status for all designated trainers.",
     icon: GraduationCap,
     category: "Staff",
-    requiredBy: "28 Pa. Code §2600.77(g)",
+    requiredBy: "55 Pa. Code §2600.77(g)",
   },
   {
     id: "new-employee-training",
@@ -181,7 +181,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Training completion for recently hired staff within their first 90 days.",
     icon: Users,
     category: "Staff",
-    requiredBy: "28 Pa. Code §2600.77",
+    requiredBy: "55 Pa. Code §2600.77",
   },
   {
     id: "employee-transcript",
@@ -236,7 +236,7 @@ const ALL_REPORTS: ReportDef[] = [
       "High-level compliance metrics and trends across the entire organization.",
     icon: BarChart3,
     category: "Compliance",
-    requiredBy: "28 Pa. Code §2600",
+    requiredBy: "55 Pa. Code §2600",
     roles: ["platform_admin"],
   },
 ];
@@ -555,6 +555,11 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
     const matrixTypes = ctx.trainingTypes.filter((t) => t.is_active);
     if (scopedEmployees.length === 0 || matrixTypes.length === 0) return { headers: [], rows: [], summaryCards: [] };
 
+    const facilityTypeById = new Map(ctx.facilities.map((f) => [f.id, f.facility_type]));
+    const appliesToEmployee = (t: TrainingType, e: Employee): boolean =>
+      t.applies_to_facility_type === "BOTH" ||
+      t.applies_to_facility_type === (e.facility_id ? facilityTypeById.get(e.facility_id) : undefined);
+
     const recordsByKey = new Map<string, TrainingRecord[]>();
     for (const r of scopedRecords) {
       const key = `${r.employee_id}:${r.training_type_id}`;
@@ -572,13 +577,20 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
       });
       return sorted[0].status;
     };
+    // A training type not scoped to this employee's facility type shouldn't be reported as a
+    // missing requirement -- only recast the synthetic "no_record" placeholder; a real record
+    // (e.g. a manually-tracked one) always wins regardless of scope.
+    const cellStatus = (e: Employee, t: TrainingType): string => {
+      const status = latestStatus(e.id, t.id);
+      return status === "no_record" && !appliesToEmployee(t, e) ? "not_applicable" : status;
+    };
 
     return {
       headers: ["Employee", "Job Title", ...matrixTypes.map((t) => t.name)],
       rows: scopedEmployees.map((e) => [
         `${e.first_name} ${e.last_name}`,
         e.job_title ?? "",
-        ...matrixTypes.map((t) => latestStatus(e.id, t.id)),
+        ...matrixTypes.map((t) => cellStatus(e, t)),
       ]),
       summaryCards: [
         { label: "Employees", value: scopedEmployees.length },
