@@ -2339,6 +2339,16 @@ export type Database = {
           updated_at: string
           verified_at: string | null
           verified_by_profile_id: string | null
+          window1_evidence_document_id: string | null
+          window1_mar_review_by: string | null
+          window1_mar_review_date: string | null
+          window1_observation_by: string | null
+          window1_observation_date: string | null
+          window2_evidence_document_id: string | null
+          window2_mar_review_by: string | null
+          window2_mar_review_date: string | null
+          window2_observation_by: string | null
+          window2_observation_date: string | null
         }
         Insert: {
           certificate_document_id?: string | null
@@ -2362,6 +2372,16 @@ export type Database = {
           updated_at?: string
           verified_at?: string | null
           verified_by_profile_id?: string | null
+          window1_evidence_document_id?: string | null
+          window1_mar_review_by?: string | null
+          window1_mar_review_date?: string | null
+          window1_observation_by?: string | null
+          window1_observation_date?: string | null
+          window2_evidence_document_id?: string | null
+          window2_mar_review_by?: string | null
+          window2_mar_review_date?: string | null
+          window2_observation_by?: string | null
+          window2_observation_date?: string | null
         }
         Update: {
           certificate_document_id?: string | null
@@ -2385,6 +2405,16 @@ export type Database = {
           updated_at?: string
           verified_at?: string | null
           verified_by_profile_id?: string | null
+          window1_evidence_document_id?: string | null
+          window1_mar_review_by?: string | null
+          window1_mar_review_date?: string | null
+          window1_observation_by?: string | null
+          window1_observation_date?: string | null
+          window2_evidence_document_id?: string | null
+          window2_mar_review_by?: string | null
+          window2_mar_review_date?: string | null
+          window2_observation_by?: string | null
+          window2_observation_date?: string | null
         }
         Relationships: [
           {
@@ -2427,6 +2457,48 @@ export type Database = {
             columns: ["verified_by_profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practicums_window1_evidence_document_id_fkey"
+            columns: ["window1_evidence_document_id"]
+            isOneToOne: false
+            referencedRelation: "training_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practicums_window1_mar_review_by_fkey"
+            columns: ["window1_mar_review_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practicums_window1_observation_by_fkey"
+            columns: ["window1_observation_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practicums_window2_evidence_document_id_fkey"
+            columns: ["window2_evidence_document_id"]
+            isOneToOne: false
+            referencedRelation: "training_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practicums_window2_mar_review_by_fkey"
+            columns: ["window2_mar_review_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practicums_window2_observation_by_fkey"
+            columns: ["window2_observation_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
             referencedColumns: ["id"]
           },
         ]

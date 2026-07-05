@@ -21,7 +21,8 @@ import {
   ListChecks,
   ClipboardList,
   AlertTriangle,
-  Flame
+  Flame,
+  Pill
 } from "lucide-react";
 
 export function Sidebar() {
@@ -79,6 +80,7 @@ export function Sidebar() {
           { href: "/app/competency-templates", label: "Competency Templates", icon: ClipboardList },
           { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
           { href: "/app/practicums", label: "Practicums", icon: FileCheck },
+          { href: "/app/med-admin-roster", label: "Who Can Pass Meds", icon: Pill },
           { href: "/app/credentials", label: "Credentials & Clearances", icon: ShieldCheck },
           { href: "/app/inspections", label: "Inspections & Equipment", icon: Flame },
         ]
@@ -121,6 +123,7 @@ export function Sidebar() {
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
           { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
           { href: "/app/practicums", label: "Practicums", icon: FileCheck },
+          { href: "/app/med-admin-roster", label: "Who Can Pass Meds", icon: Pill },
           { href: "/app/credentials", label: "Credentials & Clearances", icon: ShieldCheck },
           { href: "/app/inspections", label: "Inspections & Equipment", icon: Flame },
         ]

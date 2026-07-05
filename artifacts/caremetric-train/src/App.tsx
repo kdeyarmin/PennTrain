@@ -32,6 +32,7 @@ import TrainingPlans from "@/pages/app/TrainingPlans";
 import CompetencyTemplates from "@/pages/app/CompetencyTemplates";
 import CompetencyRecords from "@/pages/app/CompetencyRecords";
 import Practicums from "@/pages/app/Practicums";
+import MedAdminRoster from "@/pages/app/MedAdminRoster";
 import EmployeeCredentials from "@/pages/app/EmployeeCredentials";
 import Incidents from "@/pages/app/Incidents";
 import IncidentDetail from "@/pages/app/IncidentDetail";
@@ -234,6 +235,9 @@ function Router() {
       </Route>
       <Route path="/app/practicums">
         {() => <ProtectedRoute component={Practicums} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/med-admin-roster">
+        {() => <ProtectedRoute component={MedAdminRoster} allowedRoles={ORG_ROLES} />}
       </Route>
       <Route path="/app/credentials">
         {() => <ProtectedRoute component={EmployeeCredentials} allowedRoles={CREDENTIAL_ROLES} />}

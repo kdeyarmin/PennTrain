@@ -61,9 +61,15 @@ interface PracticumFormState {
   completionDate: string;
   dueDate: string;
   reminderDays: string;
-  marReviewCompleted: boolean;
-  directObservationCompleted: boolean;
   observedBy: string;
+  window1ObservationDate: string;
+  window1ObservationBy: string;
+  window1MarReviewDate: string;
+  window1MarReviewBy: string;
+  window2ObservationDate: string;
+  window2ObservationBy: string;
+  window2MarReviewDate: string;
+  window2MarReviewBy: string;
   remediationRequired: boolean;
   remediationNotes: string;
   notes: string;
@@ -76,9 +82,15 @@ function emptyPracticumForm(defaultYear: number): PracticumFormState {
     completionDate: "",
     dueDate: "",
     reminderDays: "30",
-    marReviewCompleted: false,
-    directObservationCompleted: false,
     observedBy: "",
+    window1ObservationDate: "",
+    window1ObservationBy: "",
+    window1MarReviewDate: "",
+    window1MarReviewBy: "",
+    window2ObservationDate: "",
+    window2ObservationBy: "",
+    window2MarReviewDate: "",
+    window2MarReviewBy: "",
     remediationRequired: false,
     remediationNotes: "",
     notes: "",
@@ -92,9 +104,15 @@ function practicumToForm(p: Practicum): PracticumFormState {
     completionDate: p.completion_date ?? "",
     dueDate: p.due_date ?? "",
     reminderDays: String(p.reminder_days),
-    marReviewCompleted: p.mar_review_completed,
-    directObservationCompleted: p.direct_observation_completed,
     observedBy: p.observed_by ?? "",
+    window1ObservationDate: p.window1_observation_date ?? "",
+    window1ObservationBy: p.window1_observation_by ?? "",
+    window1MarReviewDate: p.window1_mar_review_date ?? "",
+    window1MarReviewBy: p.window1_mar_review_by ?? "",
+    window2ObservationDate: p.window2_observation_date ?? "",
+    window2ObservationBy: p.window2_observation_by ?? "",
+    window2MarReviewDate: p.window2_mar_review_date ?? "",
+    window2MarReviewBy: p.window2_mar_review_by ?? "",
     remediationRequired: p.remediation_required,
     remediationNotes: p.remediation_notes ?? "",
     notes: p.notes ?? "",
@@ -121,7 +139,13 @@ export default function Practicums() {
   // Practicums track annual medication-administration competency, so only staff who administer
   // medications are relevant here -- mirrors this page's pre-existing employee filter.
   const employees = useMemo(() => employeesAll?.filter(e => e.administers_medications), [employeesAll]);
-  const employeeMap = useMemo(() => new Map((employees ?? []).map(e => [e.id, e])), [employees]);
+  const employeeMap = useMemo(() => new Map((employeesAll ?? []).map(e => [e.id, e])), [employeesAll]);
+  // "Qualified observer" roster for the window observer pickers: a designated trainer, or someone
+  // already administering medications themselves (able to verify a peer's technique/MAR review).
+  const qualifiedObservers = useMemo(
+    () => (employeesAll ?? []).filter(e => e.trainer_status || e.administers_medications),
+    [employeesAll],
+  );
   const facilityNameById = useMemo(() => new Map((facilities ?? []).map(f => [f.id, f.name])), [facilities]);
 
   const getEmployee = (id: string) => employeeMap.get(id);
@@ -206,9 +230,19 @@ export default function Practicums() {
       due_date: dueDate,
       reminder_days: reminderDaysNum,
       status: computePracticumStatus(dueDate, reminderDaysNum),
-      mar_review_completed: form.marReviewCompleted,
-      direct_observation_completed: form.directObservationCompleted,
+      // mar_review_completed/direct_observation_completed are NOT sent -- the
+      // derive_practicum_completion_flags trigger (supabase/migrations/
+      // 20260705143706_med_admin_practicum_windows_and_diabetes_education.sql) derives them
+      // from the window columns below, so they can never drift out of sync with the dates.
       observed_by: form.observedBy.trim() || null,
+      window1_observation_date: form.window1ObservationDate || null,
+      window1_observation_by: form.window1ObservationBy || null,
+      window1_mar_review_date: form.window1MarReviewDate || null,
+      window1_mar_review_by: form.window1MarReviewBy || null,
+      window2_observation_date: form.window2ObservationDate || null,
+      window2_observation_by: form.window2ObservationBy || null,
+      window2_mar_review_date: form.window2MarReviewDate || null,
+      window2_mar_review_by: form.window2MarReviewBy || null,
       remediation_required: form.remediationRequired,
       remediation_notes: form.remediationRequired ? (form.remediationNotes.trim() || null) : null,
       notes: form.notes.trim() || null,
@@ -406,21 +440,63 @@ export default function Practicums() {
               </div>
             </div>
 
+            <div className="space-y-3">
+              <p className="text-[13px] font-medium">
+                Practicum Windows <span className="font-normal text-muted-foreground">(2 observations + 2 MAR reviews/year, one per 6-month window)</span>
+              </p>
+              {([
+                { label: "Window 1 (Jan – Jun)", obsDate: "window1ObservationDate" as const, obsBy: "window1ObservationBy" as const, marDate: "window1MarReviewDate" as const, marBy: "window1MarReviewBy" as const },
+                { label: "Window 2 (Jul – Dec)", obsDate: "window2ObservationDate" as const, obsBy: "window2ObservationBy" as const, marDate: "window2MarReviewDate" as const, marBy: "window2MarReviewBy" as const },
+              ]).map(w => (
+                <div key={w.label} className="rounded-lg border p-3 space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">{w.label}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Direct Observation Date</Label>
+                      <Input
+                        type="date" className="h-8 text-sm"
+                        value={form[w.obsDate]}
+                        onChange={e => setForm(f => ({ ...f, [w.obsDate]: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Observed By</Label>
+                      <Select value={form[w.obsBy] || "none"} onValueChange={v => setForm(f => ({ ...f, [w.obsBy]: v === "none" ? "" : v }))}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select observer" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">—</SelectItem>
+                          {qualifiedObservers.map(o => (
+                            <SelectItem key={o.id} value={o.id}>{o.first_name} {o.last_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">MAR Review Date</Label>
+                      <Input
+                        type="date" className="h-8 text-sm"
+                        value={form[w.marDate]}
+                        onChange={e => setForm(f => ({ ...f, [w.marDate]: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Reviewed By</Label>
+                      <Select value={form[w.marBy] || "none"} onValueChange={v => setForm(f => ({ ...f, [w.marBy]: v === "none" ? "" : v }))}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select reviewer" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">—</SelectItem>
+                          {qualifiedObservers.map(o => (
+                            <SelectItem key={o.id} value={o.id}>{o.first_name} {o.last_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
             <div className="flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <Checkbox
-                  checked={form.marReviewCompleted}
-                  onCheckedChange={checked => setForm(f => ({ ...f, marReviewCompleted: !!checked }))}
-                />
-                MAR Review Completed
-              </label>
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <Checkbox
-                  checked={form.directObservationCompleted}
-                  onCheckedChange={checked => setForm(f => ({ ...f, directObservationCompleted: !!checked }))}
-                />
-                Direct Observation Completed
-              </label>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <Checkbox
                   checked={form.remediationRequired}
