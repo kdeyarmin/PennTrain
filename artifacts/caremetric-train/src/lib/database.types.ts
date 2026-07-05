@@ -488,6 +488,7 @@ export type Database = {
       corrective_actions: {
         Row: {
           completed_date: string | null
+          course_assignment_id: string | null
           created_at: string
           description: string
           due_date: string
@@ -504,6 +505,7 @@ export type Database = {
         }
         Insert: {
           completed_date?: string | null
+          course_assignment_id?: string | null
           created_at?: string
           description: string
           due_date: string
@@ -520,6 +522,7 @@ export type Database = {
         }
         Update: {
           completed_date?: string | null
+          course_assignment_id?: string | null
           created_at?: string
           description?: string
           due_date?: string
@@ -535,6 +538,13 @@ export type Database = {
           verification_notes?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "corrective_actions_course_assignment_id_fkey"
+            columns: ["course_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "course_assignments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "corrective_actions_facility_id_fkey"
             columns: ["facility_id"]
@@ -1619,6 +1629,7 @@ export type Database = {
           notification_method: string | null
           notification_type: string
           organization_id: string
+          recipient: string | null
           reference_number: string | null
           status: string
           updated_at: string
@@ -1635,6 +1646,7 @@ export type Database = {
           notification_method?: string | null
           notification_type: string
           organization_id: string
+          recipient?: string | null
           reference_number?: string | null
           status?: string
           updated_at?: string
@@ -1651,6 +1663,7 @@ export type Database = {
           notification_method?: string | null
           notification_type?: string
           organization_id?: string
+          recipient?: string | null
           reference_number?: string | null
           status?: string
           updated_at?: string
@@ -1754,6 +1767,8 @@ export type Database = {
           closed_by_profile_id: string | null
           created_at: string
           facility_id: string
+          final_report_document_id: string | null
+          final_report_submitted_at: string | null
           id: string
           incident_type: string
           investigation_findings: string | null
@@ -1764,6 +1779,8 @@ export type Database = {
           narrative: string
           occurred_at: string
           organization_id: string
+          report_pdf_storage_bucket: string | null
+          report_pdf_storage_path: string | null
           reported_at: string
           reported_by_profile_id: string | null
           resident_identifier: string | null
@@ -1777,6 +1794,8 @@ export type Database = {
           closed_by_profile_id?: string | null
           created_at?: string
           facility_id: string
+          final_report_document_id?: string | null
+          final_report_submitted_at?: string | null
           id?: string
           incident_type: string
           investigation_findings?: string | null
@@ -1787,6 +1806,8 @@ export type Database = {
           narrative: string
           occurred_at: string
           organization_id: string
+          report_pdf_storage_bucket?: string | null
+          report_pdf_storage_path?: string | null
           reported_at?: string
           reported_by_profile_id?: string | null
           resident_identifier?: string | null
@@ -1800,6 +1821,8 @@ export type Database = {
           closed_by_profile_id?: string | null
           created_at?: string
           facility_id?: string
+          final_report_document_id?: string | null
+          final_report_submitted_at?: string | null
           id?: string
           incident_type?: string
           investigation_findings?: string | null
@@ -1810,6 +1833,8 @@ export type Database = {
           narrative?: string
           occurred_at?: string
           organization_id?: string
+          report_pdf_storage_bucket?: string | null
+          report_pdf_storage_path?: string | null
           reported_at?: string
           reported_by_profile_id?: string | null
           resident_identifier?: string | null
@@ -1831,6 +1856,13 @@ export type Database = {
             columns: ["facility_id"]
             isOneToOne: false
             referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_final_report_document_id_fkey"
+            columns: ["final_report_document_id"]
+            isOneToOne: false
+            referencedRelation: "incident_documents"
             referencedColumns: ["id"]
           },
           {

@@ -28,7 +28,7 @@ import { useListAlerts, type Alert } from "@/hooks/useAlerts";
 import { useListDocuments, type TrainingDocument } from "@/hooks/useDocuments";
 import { useListTrainingHourBuckets } from "@/hooks/useTrainingHourBuckets";
 import { useListEmployeeCredentials, type EmployeeCredential } from "@/hooks/useEmployeeCredentials";
-import { useListIncidents, type Incident } from "@/hooks/useIncidents";
+import { useListIncidents, type Incident, useListAllIncidentNotificationsDetailed, type IncidentNotification } from "@/hooks/useIncidents";
 import { useListInspectionItems, type InspectionItem } from "@/hooks/useInspectionItems";
 import { useListOrganizations, type Organization } from "@/hooks/useOrganizations";
 import type { Tables } from "@/lib/database.types";
@@ -54,6 +54,7 @@ import {
   Grid3X3,
   Eye,
   Loader2,
+  Bell,
 } from "lucide-react";
 
 interface ReportDef {
@@ -260,6 +261,15 @@ const ALL_REPORTS: ReportDef[] = [
     requiredBy: "55 Pa. Code §2600.16 / §2800.16",
   },
   {
+    id: "incident-notification-register",
+    title: "Incident Notification Register",
+    description:
+      "Every required external notification (state hotline, law enforcement, etc.) with due time, completion time, channel, recipient, and confirmation number -- the reconciliation register a surveyor diffs against the regional office's own log.",
+    icon: Bell,
+    category: "Incidents",
+    requiredBy: "55 Pa. Code §2600.16 / §2800.16",
+  },
+  {
     id: "inspection-compliance",
     title: "Inspection & Equipment Compliance",
     description:
@@ -380,6 +390,7 @@ interface ReportContext {
   hourBuckets: HourBucket[];
   credentials: EmployeeCredential[];
   incidents: Incident[];
+  incidentNotifications: IncidentNotification[];
   inspectionItems: InspectionItem[];
 }
 
@@ -967,6 +978,44 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
     };
   }
 
+  if (reportId === "incident-notification-register") {
+    const incidentById = new Map(ctx.incidents.map((i) => [i.id, i]));
+    const facilityNameById = new Map(ctx.facilities.map((f) => [f.id, f.name]));
+    const scopedNotifications = ctx.incidentNotifications
+      .filter((n) => {
+        const incident = incidentById.get(n.incident_id);
+        if (!incident) return false;
+        if (ctx.facilityId !== "all" && incident.facility_id !== ctx.facilityId) return false;
+        return inDateRange(n.due_at, ctx.dateFrom, ctx.dateTo);
+      })
+      .sort((a, b) => (a.due_at < b.due_at ? 1 : -1));
+    const completedCount = scopedNotifications.filter((n) => n.status === "completed").length;
+    const overdueCount = scopedNotifications.filter((n) => n.status === "overdue").length;
+    summaryCards.push(
+      { label: "Total Notifications", value: scopedNotifications.length },
+      { label: "Completed", value: completedCount, variant: "success" },
+      { label: "Overdue", value: overdueCount, variant: overdueCount > 0 ? "danger" : "success" }
+    );
+    return {
+      headers: ["Incident", "Facility", "Notification Type", "Due", "Completed", "Method", "Recipient", "Reference #", "Status"],
+      rows: scopedNotifications.map((n) => {
+        const incident = incidentById.get(n.incident_id);
+        return [
+          incident ? `${incident.incident_type.replace(/_/g, " ")} (${new Date(incident.occurred_at).toLocaleDateString()})` : n.incident_id,
+          incident ? facilityNameById.get(incident.facility_id) ?? "—" : "—",
+          n.notification_type.replace(/_/g, " "),
+          new Date(n.due_at).toLocaleString(),
+          n.completed_at ? new Date(n.completed_at).toLocaleString() : "",
+          n.notification_method ?? "",
+          n.recipient ?? "",
+          n.reference_number ?? "",
+          n.status,
+        ];
+      }),
+      summaryCards,
+    };
+  }
+
   if (reportId === "inspection-compliance") {
     const scopedItems = byFacility(ctx.inspectionItems, ctx.facilityId).filter(
       (i) => i.is_active && inDateRange(i.next_due_date, ctx.dateFrom, ctx.dateTo)
@@ -1055,6 +1104,7 @@ export default function Reports() {
   const organizationsQuery = useListOrganizations();
   const credentialsQuery = useListEmployeeCredentials({});
   const incidentsQuery = useListIncidents({});
+  const incidentNotificationsQuery = useListAllIncidentNotificationsDetailed();
   const inspectionItemsQuery = useListInspectionItems({});
 
   const facilities = facilitiesQuery.data ?? [];
@@ -1068,6 +1118,7 @@ export default function Reports() {
   const organizations = organizationsQuery.data ?? [];
   const credentials = credentialsQuery.data ?? [];
   const incidents = incidentsQuery.data ?? [];
+  const incidentNotifications = incidentNotificationsQuery.data ?? [];
   const inspectionItems = inspectionItemsQuery.data ?? [];
 
   const dataLoading =
@@ -1082,6 +1133,7 @@ export default function Reports() {
     organizationsQuery.isLoading ||
     credentialsQuery.isLoading ||
     incidentsQuery.isLoading ||
+    incidentNotificationsQuery.isLoading ||
     inspectionItemsQuery.isLoading;
 
   const facilityName = facilityId !== "all" ? facilities.find((f) => f.id === facilityId)?.name : undefined;
@@ -1117,11 +1169,12 @@ export default function Reports() {
       hourBuckets,
       credentials,
       incidents,
+      incidentNotifications,
       inspectionItems,
     }),
     [
       facilityId, dateFrom, dateTo, facilities, employees, trainingTypes, trainingRecords, practicums, documents, alerts, organizations,
-      hourBuckets, credentials, incidents, inspectionItems,
+      hourBuckets, credentials, incidents, incidentNotifications, inspectionItems,
     ]
   );
 

@@ -324,8 +324,13 @@ export default function Incidents() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-[13px]">Required Notifications</Label>
-                <Button variant="outline" size="sm" onClick={() => setNotificationRows((r) => [...r, { notificationType: "state_hotline", dueInHours: "24" }])}>
+                <div>
+                  <Label className="text-[13px]">Additional Notifications</Label>
+                  <p className="text-xs text-muted-foreground">
+                    The state-hotline/law-enforcement notification this incident type requires is added automatically on save. Add any others here (e.g. family/guardian).
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setNotificationRows((r) => [...r, { notificationType: "family_guardian", dueInHours: "24" }])}>
                   <Plus className="mr-1 h-3.5 w-3.5" /> Add
                 </Button>
               </div>
