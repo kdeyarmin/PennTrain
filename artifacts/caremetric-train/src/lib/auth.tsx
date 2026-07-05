@@ -3,7 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
 import { useLocation } from "wouter";
 import { supabase } from "./supabase";
+import { queryClient } from "./queryClient";
 import { isPublicPath } from "./publicPaths";
+import { useToast } from "@/hooks/use-toast";
 
 export type Role = "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee" | "auditor";
 
@@ -115,4 +117,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   return useContext(AuthContext);
+}
+
+// Shared by every sign-out affordance (header user menu, sidebar user menu, ...)
+// so they all clear cached query data and land on /login the same way.
+export function useSignOut() {
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  return async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast({ variant: "destructive", title: "Sign out failed", description: error.message });
+    }
+    queryClient.clear();
+    setLocation("/login");
+  };
 }
