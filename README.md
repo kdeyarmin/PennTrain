@@ -7,6 +7,9 @@ assisted living facilities, and related healthcare organizations. It is built di
 Row-Level Security, Supabase Auth, Supabase Storage, and Edge Functions. There is no separate API server -- the
 React frontend talks to Supabase directly via `supabase-js`.
 
+**Production**: https://caremetrictrain.com (Railway-hosted, service domain
+`penntrain-production.up.railway.app`; see `DEPLOYMENT.md`).
+
 ## What's included
 
 - Six-role RBAC (`platform_admin`, `org_admin`, `facility_manager`, `trainer`, `employee`, `auditor`) enforced by
