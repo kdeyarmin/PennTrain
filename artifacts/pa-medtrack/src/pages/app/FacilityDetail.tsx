@@ -17,10 +17,11 @@ import { useGetFacility, useUpdateFacility, useDeleteFacility } from "@/hooks/us
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { FACILITY_TYPES, facilityTypeBadgeClass, type FacilityType } from "@/lib/facilityTypes";
 
 interface FacilityFormData {
   name: string;
-  facilityType: "PCH" | "ALR";
+  facilityType: FacilityType;
   licenseNumber: string;
   address: string;
   city: string;
@@ -64,7 +65,7 @@ export default function FacilityDetail() {
     if (!facility) return;
     setForm({
       name: facility.name,
-      facilityType: facility.facility_type === "ALR" ? "ALR" : "PCH",
+      facilityType: (facility.facility_type as FacilityType) ?? "PCH",
       licenseNumber: facility.license_number ?? "",
       address: facility.address ?? "",
       city: facility.city ?? "",
@@ -161,7 +162,7 @@ export default function FacilityDetail() {
           <div>
             <h1 className="text-2xl font-bold">{facility.name}</h1>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <Badge variant="outline">{facility.facility_type}</Badge>
+              <Badge variant="outline" className={facilityTypeBadgeClass(facility.facility_type)}>{facility.facility_type}</Badge>
               <Badge variant={facility.is_active ? "default" : "secondary"}>{facility.is_active ? "Active" : "Inactive"}</Badge>
             </div>
           </div>
@@ -321,11 +322,12 @@ export default function FacilityDetail() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-[13px]">Type *</Label>
-              <Select value={form.facilityType} onValueChange={v => field("facilityType", v as "PCH" | "ALR")}>
+              <Select value={form.facilityType} onValueChange={v => field("facilityType", v as FacilityType)}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="PCH">PCH</SelectItem>
-                  <SelectItem value="ALR">ALR</SelectItem>
+                  {FACILITY_TYPES.map(t => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

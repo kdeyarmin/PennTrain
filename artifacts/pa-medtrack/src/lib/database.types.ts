@@ -1736,10 +1736,48 @@ export type Database = {
           },
         ]
       }
+      quiz_question_explanations: {
+        Row: {
+          created_at: string
+          explanation: string
+          organization_id: string | null
+          question_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          explanation: string
+          organization_id?: string | null
+          question_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          explanation?: string
+          organization_id?: string | null
+          question_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_question_explanations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_question_explanations_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: true
+            referencedRelation: "quiz_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quiz_questions: {
         Row: {
           created_at: string
-          explanation: string | null
           id: string
           organization_id: string | null
           points: number
@@ -1750,7 +1788,6 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          explanation?: string | null
           id?: string
           organization_id?: string | null
           points?: number
@@ -1761,7 +1798,6 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          explanation?: string | null
           id?: string
           organization_id?: string | null
           points?: number

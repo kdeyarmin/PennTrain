@@ -151,7 +151,7 @@ const ALL_REPORTS: ReportDef[] = [
     id: "annual-hours",
     title: "Annual Training Hours",
     description:
-      "PCH 12-hour and ALR 16-hour annual training hour requirements with completion tracking.",
+      "Annual training hour requirements across every licensed setting, from 12-hour PCH and NH/HHA/HOS aide in-services up to 24-hour group home direct-service-worker training, with completion tracking.",
     icon: Clock,
     category: "Hours",
     requiredBy: "55 Pa. Code §2600.64",

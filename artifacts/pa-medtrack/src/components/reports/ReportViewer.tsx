@@ -74,7 +74,7 @@ export function ReportViewer({
               <ShieldCheck className="h-8 w-8 text-primary" />
               <div>
                 <h1 className="text-xl font-bold">PA MedTrack</h1>
-                <p className="text-sm text-muted-foreground">Pennsylvania PCH/ALR Compliance Platform</p>
+                <p className="text-sm text-muted-foreground">Pennsylvania Care Provider Compliance Platform</p>
               </div>
             </div>
             <div className="text-right text-sm">
