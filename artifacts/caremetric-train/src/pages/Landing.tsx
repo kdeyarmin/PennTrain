@@ -99,7 +99,7 @@ const FEATURES = [
   },
   {
     icon: GraduationCap,
-    title: "Built-in LMS",
+    title: "Built-in Course Builder",
     description:
       "Author courses, quizzes with server-side grading, and issue certificates -- no separate training vendor required.",
   },
@@ -375,7 +375,7 @@ export default function Landing() {
                 style={{ color: BRAND_BLUE }}
               />
               <span className="hidden whitespace-nowrap text-[11px] font-medium text-muted-foreground sm:block">
-                Compliance Training &amp; LMS
+                Compliance Training Platform
               </span>
             </div>
           </div>
@@ -430,7 +430,7 @@ export default function Landing() {
                 <span className="whitespace-nowrap text-[#59b2ff]">survey-ready</span>, every day.
               </h1>
               <p className="mt-6 max-w-xl text-lg text-white/70">
-                CareMetric Train is the compliance-training platform and LMS built for
+                CareMetric Train is the compliance-training platform built for
                 personal care homes, assisted living, group homes, nursing homes, home
                 health, and hospice agencies -- replacing spreadsheets and paper binders
                 with one system of record for yearly in-services, certifications, and
@@ -798,7 +798,7 @@ export default function Landing() {
                 <BrandName className="text-sm font-bold" style={{ color: BRAND_BLUE }} />
               </div>
               <p className="mt-3 text-sm text-muted-foreground">
-                Compliance training and LMS for personal care homes, assisted living,
+                Compliance training platform for personal care homes, assisted living,
                 group homes, nursing homes, home health, and hospice agencies.
               </p>
             </div>

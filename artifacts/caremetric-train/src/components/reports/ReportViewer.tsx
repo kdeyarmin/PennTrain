@@ -77,7 +77,7 @@ export function ReportViewer({
                 <h1 className="text-xl font-bold" style={{ color: BRAND_BLUE }}>
                   <BrandName />
                 </h1>
-                <p className="text-sm text-muted-foreground">Compliance Training &amp; LMS for Long-Term Care</p>
+                <p className="text-sm text-muted-foreground">Compliance Training Platform for Long-Term Care</p>
               </div>
             </div>
             <div className="text-right text-sm">
