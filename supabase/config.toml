@@ -48,3 +48,9 @@ verify_jwt = false
 # roster regardless of caller.
 [functions.screen-exclusions]
 verify_jwt = false
+
+# Supabase Auth's "Send Email" hook (Authentication -> Hooks) calls this over the public
+# internet with no user JWT -- authenticity is verified inside the function via the Standard
+# Webhooks signature (SEND_EMAIL_HOOK_SECRET), not verify_jwt.
+[functions.send-auth-email]
+verify_jwt = false

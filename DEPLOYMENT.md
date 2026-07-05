@@ -50,7 +50,8 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    npx supabase functions deploy create-user admin-update-user bulk-import-employees \
      generate-compliance-binder generate-certificate-pdf generate-incident-report-pdf \
      attest-policy generate-class-notice-pdf generate-poc-document generate-course-video \
-     check-course-video-status list-heygen-options dispatch-notifications screen-exclusions
+     check-course-video-status list-heygen-options dispatch-notifications screen-exclusions \
+     send-auth-email
    ```
    Or connect the Supabase GitHub integration (Project Settings -> Integrations) so pushes to `main`
    auto-deploy both migrations and functions declared in `supabase/config.toml`.
@@ -78,12 +79,27 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    `redirectTo: window.location.origin + "/login"`, and Supabase Auth rejects redirects to
    unlisted origins.
 6. **(Optional) Route Supabase Auth's own mail through SendGrid too.** Step 4 above wires SendGrid
-   into the `dispatch-notifications` Edge Function (training reminders/digests), but password-reset
-   and email-change confirmation mail is sent separately by Supabase Auth's built-in mailer. To send
-   those through SendGrid as well: Authentication -> Emails -> SMTP Settings in the dashboard, enable
-   "Custom SMTP", and use SendGrid's SMTP relay (`smtp.sendgrid.net:587`, username `apikey`, password
-   = a SendGrid API key with Mail Send scope). This is a dashboard-only setting, not something a
-   migration or Edge Function secret can configure.
+   into the `dispatch-notifications` Edge Function (training reminders/digests), but password-reset,
+   invite, and email-change confirmation mail is sent separately by Supabase Auth's built-in mailer.
+   Two ways to redirect that, in order of preference:
+   - **Send Email Hook (recommended).** Deploy the `send-auth-email` Edge Function
+     (`npx supabase functions deploy send-auth-email`), then in the dashboard: Authentication ->
+     Hooks -> add a **Send Email** hook of type HTTPS, pointing at
+     `https://<project-ref>.supabase.co/functions/v1/send-auth-email`. The dashboard generates a
+     signing secret when you save it -- set that as `npx supabase secrets set
+     SEND_EMAIL_HOOK_SECRET='v1,whsec_...'`. Once the hook is enabled, Supabase Auth calls this
+     function over plain HTTPS for every auth email instead of using SMTP, so it goes through the
+     exact same SendGrid `v3/mail/send` API (and the same `SENDGRID_API_KEY`/
+     `NOTIFICATION_FROM_EMAIL` secrets) as `dispatch-notifications` -- no SMTP involved at all.
+     This is the more reliable option: raw SMTP relays are more prone to being slow or silently
+     blocked on outbound network paths than a plain HTTPS API call.
+   - **Custom SMTP (simpler, less reliable).** Authentication -> Emails -> SMTP Settings, enable
+     "Custom SMTP", and use SendGrid's SMTP relay (`smtp.sendgrid.net:587`, username `apikey`,
+     password = a SendGrid API key with Mail Send scope). Both this and the Hook are dashboard-only
+     settings, not something a migration can configure. If the Hook is enabled, it takes priority
+     and Custom SMTP is bypassed entirely (see [Supabase's Send Email Hook
+     docs](https://supabase.com/docs/guides/auth/auth-hooks/send-email-hook) for the exact
+     precedence rules).
 7. Seed demo/admin users via the Supabase Admin API or the `create-user` Edge Function -- there is no
    public self-signup route by design (see `ARCHITECTURE.md` "Roles"). The `handle_new_user()` trigger
    creates the matching `profiles` row automatically.
