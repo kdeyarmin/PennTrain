@@ -73,11 +73,13 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    `from` address.
 5. **Auth URL configuration** (Authentication -> URL Configuration in the dashboard): set **Site URL**
    to the public domain (production: `https://caremetrictrain.com`) and add a **Redirect URL** for
-   every origin the app is served from (production: `https://caremetrictrain.com/login` and
-   `https://penntrain-production.up.railway.app/login`) --
-   `ForgotPassword.tsx` calls `supabase.auth.resetPasswordForEmail` with
-   `redirectTo: window.location.origin + "/login"`, and Supabase Auth rejects redirects to
-   unlisted origins.
+   every origin the app is served from -- production needs both
+   `https://caremetrictrain.com/reset-password` and
+   `https://penntrain-production.up.railway.app/reset-password`. `ForgotPassword.tsx` calls
+   `supabase.auth.resetPasswordForEmail` with `redirectTo: window.location.origin + basePath +
+   "/reset-password"` (not `/login`), and Supabase Auth silently falls back to the bare Site URL --
+   no error shown anywhere -- when `redirect_to` isn't an allowlisted match, which strands the user on
+   the marketing/login page instead of the password-set form after they click a legitimate reset link.
 6. **(Optional) Route Supabase Auth's own mail through SendGrid too.** Step 4 above wires SendGrid
    into the `dispatch-notifications` Edge Function (training reminders/digests), but password-reset,
    invite, and email-change confirmation mail is sent separately by Supabase Auth's built-in mailer.
