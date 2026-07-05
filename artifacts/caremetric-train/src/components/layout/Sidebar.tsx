@@ -2,6 +2,7 @@ import React from "react";
 import { useAuth } from "@/lib/auth";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
+import { LogoMark, BrandName } from "@/components/brand/Logo";
 import {
   LayoutDashboard,
   Building2,
@@ -179,11 +180,11 @@ export function Sidebar() {
   return (
     <aside className="w-[260px] bg-sidebar text-sidebar-foreground flex flex-col h-full shrink-0 border-r border-sidebar-border">
       <div className="h-[68px] flex items-center gap-3 px-6 shrink-0">
-        <div className="h-9 w-9 rounded-lg bg-sidebar-primary flex items-center justify-center">
-          <ShieldCheck className="h-5 w-5 text-sidebar-primary-foreground" />
+        <div className="h-9 w-9 rounded-lg bg-white flex items-center justify-center">
+          <LogoMark className="h-[30px] w-[30px]" />
         </div>
         <div className="flex flex-col">
-          <span className="font-bold text-[15px] text-sidebar-foreground leading-tight">CareMetric Train</span>
+          <BrandName className="font-bold text-[15px] text-sidebar-foreground leading-tight" />
           <span className="text-[11px] text-sidebar-foreground/50 font-medium">Compliance Platform</span>
         </div>
       </div>

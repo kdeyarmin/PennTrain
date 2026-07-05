@@ -43,6 +43,7 @@ import {
   FolderLock,
   type LucideIcon,
 } from "lucide-react";
+import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 
 const SETTINGS = [
   {
@@ -288,16 +289,6 @@ const FAQS = [
   },
 ];
 
-function LogoMark({ className = "h-9 w-9" }: { className?: string }) {
-  return (
-    <div
-      className={`${className} rounded-xl bg-gradient-to-br from-primary to-[#0f3f92] flex items-center justify-center shadow-sm shrink-0`}
-    >
-      <ShieldCheck className="h-[55%] w-[55%] text-primary-foreground" />
-    </div>
-  );
-}
-
 /**
  * Reveals content on scroll -- a single quiet fade/rise, not a barrage of
  * effects. Falls back to a static div for prefers-reduced-motion.
@@ -377,11 +368,12 @@ export default function Landing() {
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2.5">
-            <LogoMark />
+            <LogoMark className="h-10 w-10" />
             <div className="flex flex-col leading-none">
-              <span className="whitespace-nowrap text-[15px] font-bold tracking-tight">
-                CareMetric Train
-              </span>
+              <BrandName
+                className="whitespace-nowrap text-[15px] font-bold tracking-tight"
+                style={{ color: BRAND_BLUE }}
+              />
               <span className="hidden whitespace-nowrap text-[11px] font-medium text-muted-foreground sm:block">
                 Compliance Training &amp; LMS
               </span>
@@ -805,7 +797,7 @@ export default function Landing() {
             <div className="max-w-sm">
               <div className="flex items-center gap-2.5">
                 <LogoMark className="h-8 w-8" />
-                <span className="text-sm font-bold">CareMetric Train</span>
+                <BrandName className="text-sm font-bold" style={{ color: BRAND_BLUE }} />
               </div>
               <p className="mt-3 text-sm text-muted-foreground">
                 Compliance training and LMS for personal care homes, assisted living,

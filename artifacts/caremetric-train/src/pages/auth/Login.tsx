@@ -8,7 +8,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import type { Role } from "@/lib/auth";
-import { Loader2, ShieldCheck, ArrowRight } from "lucide-react";
+import { Loader2, ArrowRight } from "lucide-react";
+import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 
 function roleHome(role: Role | undefined) {
   if (role === "platform_admin") return "/admin";
@@ -83,11 +84,13 @@ export default function Login() {
       
       <div className="w-full max-w-[420px] space-y-8 relative z-10 px-4">
         <div className="flex flex-col items-center text-center space-y-3">
-          <Link href="/" className="h-14 w-14 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
-            <ShieldCheck className="h-7 w-7 text-primary-foreground" />
+          <Link href="/" aria-label="CareMetric Train home">
+            <LogoMark className="h-20 w-20" />
           </Link>
           <div className="space-y-1.5">
-            <h1 className="text-[28px] font-bold tracking-tight text-foreground">CareMetric Train</h1>
+            <h1 className="text-[28px] font-bold tracking-tight" style={{ color: BRAND_BLUE }}>
+              <BrandName />
+            </h1>
             <p className="text-sm text-muted-foreground">Healthcare Learning &amp; Compliance Platform</p>
           </div>
         </div>
