@@ -6,9 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useListDocuments, useDocumentSignedUrl, type TrainingDocument } from "@/hooks/useDocuments";
 import { useListEmployees, type Employee } from "@/hooks/useEmployees";
+import { useListFacilities } from "@/hooks/useFacilities";
 import { useListTrainingTypes, type TrainingType } from "@/hooks/useTrainingTypes";
 import {
   useListTrainingRecords, useCreateTrainingRecord, useUpdateTrainingRecord,
@@ -35,6 +37,13 @@ type DecisionAction = "pending" | "approved" | "rejected";
 // ORG_ROLES) but has no write grant, so its Approve/Reject/Save-as-Pending controls must be hidden
 // rather than rendered and left to fail at the database.
 const PENDING_APPROVAL_MANAGE_ROLES = ["platform_admin", "org_admin", "facility_manager", "trainer"];
+
+// Default age cutoff for the "New Submissions" tab -- a document uploaded this long ago without
+// ever being linked to a training record is presumably already handled some other way (or simply
+// never going to be), so it defaults to hidden rather than cluttering the awaiting-review list
+// forever. This is a client-side default view only: the toggle can always reveal everything, and
+// no document/record is ever deleted or dismissed by it.
+const UNLINKED_DOCUMENT_AGE_CUTOFF_DAYS = 90;
 
 // employee_training_records has no "unlinked" flag of its own -- a document counts as still
 // awaiting triage as long as no record's external_certificate_document_id points at it. There's
@@ -399,8 +408,12 @@ export default function PendingApprovals() {
   const { toast } = useToast();
   const canManage = PENDING_APPROVAL_MANAGE_ROLES.includes(user?.role ?? "");
 
+  const [facilityId, setFacilityId] = useState<string>("all");
+  const [hideOldDocuments, setHideOldDocuments] = useState(true);
+
   const { data: documents, isLoading: documentsLoading } = useListDocuments({ documentTypes: EXTERNAL_CERT_DOC_TYPES });
   const { data: employees } = useListEmployees({});
+  const { data: facilities } = useListFacilities();
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
   const { data: allRecords, isLoading: recordsLoading } = useListTrainingRecords({});
   const { data: pendingRecords, isLoading: pendingLoading } = useListTrainingRecords({ approvalStatus: "pending" });
@@ -411,10 +424,26 @@ export default function PendingApprovals() {
 
   const linkedDocumentIds = useLinkedDocumentIds(allRecords);
 
-  const unlinkedDocuments = useMemo(
+  // Unfiltered by facility/age -- used only to tell "genuinely nothing to review" apart from
+  // "the view filters are just hiding everything" in the empty state below.
+  const allUnlinkedRegardlessOfViewFilters = useMemo(
     () => (documents ?? []).filter(d => !linkedDocumentIds.has(d.id)),
     [documents, linkedDocumentIds],
   );
+
+  // "New Submissions" awaiting-review list -- narrowed by an optional facility filter and, by
+  // default, an age cutoff (see UNLINKED_DOCUMENT_AGE_CUTOFF_DAYS above). Neither filter touches
+  // the underlying documents/records; a document that ages out of view here still exists and
+  // still shows up the moment the age toggle is switched off or the facility filter is cleared.
+  const unlinkedDocuments = useMemo(() => {
+    const cutoffMs = Date.now() - UNLINKED_DOCUMENT_AGE_CUTOFF_DAYS * 24 * 60 * 60 * 1000;
+    return (documents ?? []).filter(d => {
+      if (linkedDocumentIds.has(d.id)) return false;
+      if (facilityId !== "all" && d.facility_id !== facilityId) return false;
+      if (hideOldDocuments && new Date(d.created_at).getTime() < cutoffMs) return false;
+      return true;
+    });
+  }, [documents, linkedDocumentIds, facilityId, hideOldDocuments]);
 
   const employeeById = useMemo(() => new Map((employees ?? []).map(e => [e.id, e])), [employees]);
   const trainingTypeById = useMemo(() => new Map((trainingTypes ?? []).map(t => [t.id, t])), [trainingTypes]);
@@ -485,6 +514,24 @@ export default function PendingApprovals() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              <div className="flex flex-wrap items-center gap-4 pb-4 mb-4 border-b">
+                <Select value={facilityId} onValueChange={setFacilityId}>
+                  <SelectTrigger className="w-56 h-9"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Facilities</SelectItem>
+                    {facilities?.map(f => (
+                      <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                  <Checkbox
+                    checked={hideOldDocuments}
+                    onCheckedChange={v => setHideOldDocuments(v === true)}
+                  />
+                  Hide documents older than {UNLINKED_DOCUMENT_AGE_CUTOFF_DAYS} days
+                </label>
+              </div>
               {unlinkedLoading ? (
                 <div className="space-y-3">
                   {[...Array(3)].map((_, i) => <div key={i} className="h-40 bg-muted animate-pulse rounded-lg" />)}
@@ -493,7 +540,11 @@ export default function PendingApprovals() {
                 <div className="text-center py-12 text-muted-foreground">
                   <Inbox className="h-12 w-12 mx-auto mb-4 opacity-40" />
                   <p className="font-medium">No pending approvals</p>
-                  <p className="text-sm mt-1">Newly uploaded external certificates will show up here for review.</p>
+                  <p className="text-sm mt-1">
+                    {allUnlinkedRegardlessOfViewFilters.length > 0
+                      ? "No submissions match the current facility filter or age cutoff. Adjust the filters above to see more."
+                      : "Newly uploaded external certificates will show up here for review."}
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-3">
