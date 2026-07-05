@@ -29,7 +29,8 @@ import {
   FileSignature,
   ShieldQuestion,
   Radar,
-  Gavel
+  Gavel,
+  BookOpen
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -183,6 +184,7 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
       {
         items: [
           { href: "/me", label: "My Training", icon: LayoutDashboard },
+          { href: "/me/courses", label: "My Courses", icon: BookOpen },
           { href: "/me/trainings", label: "Training Records", icon: GraduationCap },
           { href: "/me/certificates", label: "My Certificates", icon: FileCheck },
           { href: "/me/documents", label: "My Documents", icon: Files },

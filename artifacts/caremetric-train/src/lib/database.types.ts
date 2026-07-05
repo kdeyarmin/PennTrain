@@ -4693,9 +4693,14 @@ export type Database = {
         Returns: undefined
       }
       owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
+      queue_course_continuation_reminders: { Args: never; Returns: undefined }
       recalculate_all_compliance: { Args: never; Returns: undefined }
       recalculate_compliance_core: {
         Args: { p_organization_id?: string }
+        Returns: undefined
+      }
+      recalculate_course_assignment_statuses: {
+        Args: never
         Returns: undefined
       }
       recalculate_incident_notifications: { Args: never; Returns: undefined }
@@ -4739,6 +4744,10 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      start_course_assignment: {
+        Args: { p_assignment_id: string }
+        Returns: undefined
+      }
       verify_certificate: {
         Args: { p_slug: string }
         Returns: {

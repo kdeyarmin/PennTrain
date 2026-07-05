@@ -68,6 +68,7 @@ import ClassKiosk from "@/pages/trainer/ClassKiosk";
 import RetrainingMonitor from "@/pages/trainer/RetrainingMonitor";
 import EmployeeDashboard from "@/pages/employee/EmployeeDashboard";
 import MyTrainings from "@/pages/employee/MyTrainings";
+import MyCourses from "@/pages/employee/MyCourses";
 import MyCertificates from "@/pages/employee/MyCertificates";
 import MyCredentials from "@/pages/employee/MyCredentials";
 import TakeCourse from "@/pages/employee/TakeCourse";
@@ -371,6 +372,9 @@ function Router() {
       </Route>
       <Route path="/me/certificates">
         {() => <ProtectedRoute component={MyCertificates} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/courses">
+        {() => <ProtectedRoute component={MyCourses} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/courses/:assignmentId">
         {() => <ProtectedRoute component={TakeCourse} allowedRoles={["employee"]} />}

@@ -7,6 +7,7 @@ import {
   useGetCourseProgress,
   useUpsertCourseProgress,
   useCompleteCourseAssignment,
+  useStartCourseAssignment,
 } from "@/hooks/useCourseAssignments";
 import { useIssueCertificate } from "@/hooks/useCertificates";
 import { useGetCourse, useListCourseBlocks, type CourseBlock } from "@/hooks/useCourses";
@@ -65,6 +66,18 @@ const BLOCK_ICON: Record<string, LucideIcon> = {
   quiz: ListChecks,
 };
 
+// Mirrors StatusPill in src/pages/app/CourseAssignments.tsx -- the in_progress/overdue values
+// this reads had display styling waiting for them since that page shipped, but no code path ever
+// wrote those statuses until this (Tier 3.4's start_course_assignment RPC + nightly recompute).
+function AssignmentStatusBadge({ status }: { status: string }) {
+  const className =
+    status === "completed" ? "bg-success text-success-foreground hover:bg-success/80"
+    : status === "overdue" ? "bg-destructive text-destructive-foreground hover:bg-destructive/80"
+    : status === "in_progress" ? "bg-info text-info-foreground hover:bg-info/80"
+    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"; // assigned
+  return <Badge className={className} variant="outline">{status.replace(/_/g, " ")}</Badge>;
+}
+
 export default function TakeCourse() {
   const { assignmentId } = useParams<{ assignmentId: string }>();
   const { user } = useAuth();
@@ -79,6 +92,7 @@ export default function TakeCourse() {
   const { data: quizAttempts } = useListQuizAttempts({ assignmentId });
 
   const upsertProgress = useUpsertCourseProgress();
+  const startAssignment = useStartCourseAssignment();
   const completeAssignment = useCompleteCourseAssignment();
   const issueCertificate = useIssueCertificate();
   const { data: existingFeedback } = useGetCourseFeedbackForAssignment(assignmentId);
@@ -129,6 +143,40 @@ export default function TakeCourse() {
     // scoped to) actually changes -- upsertProgress.mutate is stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumed, stepIndex, assignment?.id, blocks]);
+
+  // Wires the previously-dead assigned -> in_progress transition (see ROADMAP.md Tier 3.4):
+  // fires once the assignment loads if it's still in its just-assigned state. The RPC itself is
+  // idempotent (only flips status when it's still 'assigned'), so a duplicate call from a fast
+  // re-render is harmless -- no extra guard needed beyond the status check itself.
+  useEffect(() => {
+    if (assignment?.status === "assigned" && !startAssignment.isPending) {
+      startAssignment.mutate(assignment.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignment?.id, assignment?.status]);
+
+  // Reliable progress checkpointing on mobile (ROADMAP.md Tier 3.4): the stepIndex-triggered save
+  // above only fires on Previous/Next, so backgrounding the tab mid-block (locking the phone,
+  // switching apps) mid-lesson would otherwise lose that lesson's progress until the learner
+  // navigates again. `visibilitychange` fires reliably when a mobile browser is backgrounded,
+  // unlike `beforeunload`, which mobile Safari/Chrome do not reliably fire.
+  useEffect(() => {
+    if (!resumed || !assignment || !blocks || blocks.length === 0) return;
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "hidden") return;
+      const block = blocks[stepIndex];
+      if (!block) return;
+      upsertProgress.mutate({
+        assignment_id: assignment.id,
+        last_block_id: block.id,
+        percent_complete: Math.round(((stepIndex + 1) / blocks.length) * 100),
+        started_at: progress?.started_at ?? new Date().toISOString(),
+      });
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumed, assignment?.id, blocks, stepIndex]);
 
   const currentBlock: CourseBlock | undefined = blocks?.[stepIndex];
   const isQuizBlock = currentBlock?.block_type === "quiz";
@@ -260,7 +308,7 @@ export default function TakeCourse() {
           {alreadyCompleted ? (
             <Badge>Completed</Badge>
           ) : (
-            <Badge variant="secondary">{assignment.status}</Badge>
+            <AssignmentStatusBadge status={assignment.status} />
           )}
           {assignment.due_date && (
             <span className="text-sm text-muted-foreground">
