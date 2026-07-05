@@ -30,8 +30,11 @@ backend logic lives in the Supabase project (`xsqobvvreaovwibxwyvv`, "CM Train")
 - **Backend**: Supabase (Postgres 17, Auth, Storage, Edge Functions, `pg_cron`)
 - **Data access**: `supabase-js` directly from the frontend; hand-written TanStack Query hooks per domain in
   `src/hooks/*.ts` (no codegen layer — the query builder is already typed via generated `database.types.ts`)
-- **Auth**: Supabase Auth (GoTrue). No public self-signup — every account is provisioned by an admin via a trusted
-  Edge Function (`create-user`)
+- **Auth**: Supabase Auth (GoTrue). Every account is provisioned server-side via a trusted Edge Function: an admin
+  creates or invites a user directly (`create-user`, `invite-user`), or a facility admin self-registers a
+  brand-new organization (`signup-organization`, `/signup`) and becomes its `org_admin`. Plain
+  `POST /auth/v1/signup` remains enabled at the project level but is unused by the app UI and confers no
+  organization/role either way (see the trust-boundary fix in `20260704180244_fix_handle_new_user_trust_boundary.sql`)
 - **Authorization**: Row-Level Security on every table, plus a handful of `SECURITY DEFINER` RPCs for atomic
   multi-row operations, plus Edge Functions for anything needing the service-role key or outbound HTTP
 
@@ -56,7 +59,8 @@ Six roles on `profiles.role`: `platform_admin`, `org_admin`, `facility_manager`,
 - `employee` — `/me/*`: my training (dashboard), training records, course-taking (`/me/courses/:assignmentId`,
   reached from a training record's assignment), certificates, documents
 
-Public (no auth): `/verify/:slug` — certificate verification.
+Public (no auth): `/verify/:slug` — certificate verification; `/signup` — self-service organization creation
+(always grants `org_admin` on a brand-new organization, never an existing one or a different role).
 
 ## RLS / Authorization Model
 

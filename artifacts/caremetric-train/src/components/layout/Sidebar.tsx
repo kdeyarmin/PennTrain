@@ -41,7 +41,8 @@ import {
   Radar,
   Gavel,
   BookOpen,
-  BedDouble
+  BedDouble,
+  FileStack
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -114,6 +115,7 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
           { href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar },
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
           { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
+          { href: "/app/template-documents", label: "Template Documents", icon: FileStack },
           { href: "/app/documents", label: "Documents", icon: Files },
         ]
       },
@@ -162,6 +164,7 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
           { href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar },
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
           { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
+          { href: "/app/template-documents", label: "Template Documents", icon: FileStack },
           { href: "/app/documents", label: "Documents", icon: Files },
           { href: "/app/audit", label: "Audit Log", icon: ShieldAlert },
         ]

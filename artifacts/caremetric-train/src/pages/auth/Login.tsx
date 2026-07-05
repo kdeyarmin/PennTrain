@@ -126,6 +126,12 @@ export default function Login() {
                 )}
               </Button>
             </form>
+            <p className="mt-4 text-center text-[13px] text-muted-foreground">
+              New facility?{" "}
+              <Link href="/signup" className="font-medium text-primary hover:text-primary/80">
+                Create your organization
+              </Link>
+            </p>
           </CardContent>
         </Card>
 

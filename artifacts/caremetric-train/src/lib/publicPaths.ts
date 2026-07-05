@@ -37,6 +37,7 @@ export function isPublicPath(path: string): boolean {
   return (
     p === "/" ||
     p === "/login" ||
+    p === "/signup" ||
     p === "/forgot-password" ||
     p === "/reset-password" ||
     p.startsWith("/verify/") ||
