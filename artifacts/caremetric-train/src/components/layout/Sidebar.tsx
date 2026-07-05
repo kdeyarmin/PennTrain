@@ -1,10 +1,18 @@
 import React from "react";
-import { useAuth } from "@/lib/auth";
+import { useAuth, useSignOut } from "@/lib/auth";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { AuthUser } from "@/lib/auth";
 import { LogoMark, BrandName } from "@/components/brand/Logo";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard,
   Building2,
@@ -19,6 +27,8 @@ import {
   GraduationCap,
   ShieldCheck,
   ChevronRight,
+  ChevronsUpDown,
+  LogOut,
   Package,
   ClipboardCheck,
   ListChecks,
@@ -208,6 +218,7 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
 function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const { user } = useAuth();
   const [location] = useLocation();
+  const handleLogout = useSignOut();
 
   if (!user) return null;
 
@@ -269,15 +280,35 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <div className="px-4 py-4 border-t border-sidebar-border">
-        <div className="flex items-center gap-3 px-2">
-          <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center text-[11px] font-bold text-sidebar-primary">
-            {user.firstName?.[0]}{user.lastName?.[0]}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-medium text-sidebar-foreground truncate">{user.firstName} {user.lastName}</p>
-            <p className="text-[11px] text-sidebar-foreground/40 capitalize truncate">{user.role.replace(/_/g, " ")}</p>
-          </div>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="w-full flex items-center gap-3 px-2 py-1.5 -mx-2 rounded-lg text-left hover:bg-sidebar-accent/60 transition-colors"
+              aria-label="Account menu"
+            >
+              <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center text-[11px] font-bold text-sidebar-primary shrink-0">
+                {user.firstName?.[0]}{user.lastName?.[0]}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-medium text-sidebar-foreground truncate">{user.firstName} {user.lastName}</p>
+                <p className="text-[11px] text-sidebar-foreground/40 capitalize truncate">{user.role.replace(/_/g, " ")}</p>
+              </div>
+              <ChevronsUpDown className="h-4 w-4 text-sidebar-foreground/40 shrink-0" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-56" align="start" side="top">
+            <DropdownMenuLabel className="flex flex-col gap-0">
+              <span className="text-sm font-medium leading-tight">{user.firstName} {user.lastName}</span>
+              <span className="text-xs font-normal text-muted-foreground leading-tight">{user.email}</span>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive cursor-pointer">
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Log out</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </>
   );
