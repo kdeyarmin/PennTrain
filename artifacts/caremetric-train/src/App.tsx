@@ -62,6 +62,8 @@ import ComplianceBinder from "@/pages/app/ComplianceBinder";
 import InspectionReadiness from "@/pages/app/InspectionReadiness";
 import PolicyDocuments from "@/pages/app/PolicyDocuments";
 import PolicyDocumentDetail from "@/pages/app/PolicyDocumentDetail";
+import TemplateDocuments from "@/pages/app/TemplateDocuments";
+import TemplateDocumentDetail from "@/pages/app/TemplateDocumentDetail";
 
 import TrainerDashboard from "@/pages/trainer/TrainerDashboard";
 import TrainerClasses from "@/pages/trainer/TrainerClasses";
@@ -153,6 +155,9 @@ const INSPECTION_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer"
 // aren't trainer-relevant); policy_documents_select itself is org-wide but there's no reason to
 // route trainer to a page whose Campaigns tab it can't see any data in.
 const POLICY_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
+// Static reference content (no RLS-backed table), same audience as policy documents -- an
+// internal compliance/admin tool, not trainer-relevant.
+const TEMPLATE_DOCUMENT_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
 // Matches training_classes_write RLS -- org_admin/facility_manager can already schedule/manage
 // any class in their org (not just trainer-owned ones) at the DB layer; this just gives them a
 // route to reach the same trainer-facing pages instead of needing a separate trainer account.
@@ -304,6 +309,12 @@ function Router() {
       </Route>
       <Route path="/app/policy-documents/:id">
         {() => <ProtectedRoute component={PolicyDocumentDetail} allowedRoles={POLICY_ROLES} />}
+      </Route>
+      <Route path="/app/template-documents">
+        {() => <ProtectedRoute component={TemplateDocuments} allowedRoles={TEMPLATE_DOCUMENT_ROLES} />}
+      </Route>
+      <Route path="/app/template-documents/:code">
+        {() => <ProtectedRoute component={TemplateDocumentDetail} allowedRoles={TEMPLATE_DOCUMENT_ROLES} />}
       </Route>
       <Route path="/app/incidents">
         {() => <ProtectedRoute component={Incidents} allowedRoles={INCIDENT_ROLES} />}
