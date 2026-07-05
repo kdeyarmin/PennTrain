@@ -23,3 +23,10 @@ verify_jwt = true
 
 [functions.list-heygen-options]
 verify_jwt = true
+
+# Internal cron-only endpoint invoked by pg_net from a pg_cron schedule (see
+# supabase/migrations/20260705061816_notification_delivery_engine.sql) -- pg_net has no way to
+# supply a user JWT. The function takes no caller-supplied parameters and always processes the
+# same system-wide pending queue regardless of caller, so this is not a data-exposure risk.
+[functions.dispatch-notifications]
+verify_jwt = false

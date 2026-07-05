@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { Settings as SettingsIcon, Palette, Bell, Clock, Upload, Building2 } from "lucide-react";
+import { Settings as SettingsIcon, Palette, Bell, Clock, Upload, Building2, Send } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { useGetOrganizationSettings, useUpsertOrganizationSettings } from "@/hooks/useOrganizationSettings";
+import { useListNotificationDeliveries } from "@/hooks/useNotifications";
 
 const DEFAULT_PRIMARY_COLOR = "#2563eb";
 const DEFAULT_ACCENT_COLOR = "#7c3aed";
@@ -47,6 +49,7 @@ export default function Settings() {
 
   const { data: settings, isLoading } = useGetOrganizationSettings(user?.organizationId ?? undefined);
   const { mutate: upsertSettings, isPending: saving } = useUpsertOrganizationSettings();
+  const { data: deliveries } = useListNotificationDeliveries(15);
 
   const [form, setForm] = useState<SettingsFormData>(EMPTY_FORM);
   const [logoPath, setLogoPath] = useState<string | null>(null);
@@ -293,6 +296,55 @@ export default function Settings() {
                   disabled={!canManage}
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Send className="h-5 w-5" />
+                Recent Notification Deliveries
+              </CardTitle>
+              <CardDescription>
+                Email/SMS attempts for training due-soon and expired alerts, sent every 15 minutes by the delivery engine.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!deliveries?.length ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  No deliveries yet -- these appear once email or SMS notifications above are turned on and a staff
+                  member has a training due-soon or expired alert.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {deliveries.map(d => (
+                    <div key={d.id} className="flex items-center justify-between p-2.5 rounded-lg border text-sm">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs uppercase">{d.channel}</Badge>
+                          <span className="text-muted-foreground truncate">{d.recipient}</span>
+                        </div>
+                        {d.error_message && (
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate" title={d.error_message}>
+                            {d.error_message}
+                          </p>
+                        )}
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={
+                          d.status === "sent" ? "bg-success text-success-foreground hover:bg-success/80"
+                          : d.status === "failed" ? "bg-destructive text-destructive-foreground hover:bg-destructive/80"
+                          : d.status === "skipped" ? "bg-muted text-muted-foreground"
+                          : "bg-info text-info-foreground hover:bg-info/80"
+                        }
+                      >
+                        {d.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 

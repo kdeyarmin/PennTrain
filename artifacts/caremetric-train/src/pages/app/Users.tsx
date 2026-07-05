@@ -61,6 +61,7 @@ interface EditFormData {
   firstName: string;
   lastName: string;
   phone: string;
+  smsOptIn: boolean;
 }
 
 const PAGE_SIZE = 15;
@@ -94,7 +95,7 @@ export default function Users() {
   });
 
   const [editProfile, setEditProfile] = useState<Profile | null>(null);
-  const [editForm, setEditForm] = useState<EditFormData>({ firstName: "", lastName: "", phone: "" });
+  const [editForm, setEditForm] = useState<EditFormData>({ firstName: "", lastName: "", phone: "", smsOptIn: false });
 
   const { data: profiles, isLoading } = useListProfiles(
     isPlatformAdmin ? {} : { organizationId: user?.organizationId ?? undefined },
@@ -204,7 +205,7 @@ export default function Users() {
     e.preventDefault();
     e.stopPropagation();
     setEditProfile(p);
-    setEditForm({ firstName: p.first_name, lastName: p.last_name, phone: p.phone ?? "" });
+    setEditForm({ firstName: p.first_name, lastName: p.last_name, phone: p.phone ?? "", smsOptIn: p.sms_opt_in });
   };
 
   const handleEditSubmit = () => {
@@ -213,12 +214,22 @@ export default function Users() {
       toast({ title: "First and last name are required", variant: "destructive" });
       return;
     }
+    if (editForm.smsOptIn && !editForm.phone.trim()) {
+      toast({ title: "A phone number is required to enable SMS reminders", variant: "destructive" });
+      return;
+    }
+    // sms_consent_at is only ever set (never cleared) here -- it's a timestamped record that
+    // consent was captured at some point, not a live reflection of the current toggle state;
+    // sms_opt_in itself is the switch that actually gates delivery.
+    const wasOptedIn = editProfile.sms_opt_in;
     updateProfile(
       {
         id: editProfile.id,
         first_name: editForm.firstName.trim(),
         last_name: editForm.lastName.trim(),
         phone: editForm.phone || null,
+        sms_opt_in: editForm.smsOptIn,
+        ...(editForm.smsOptIn && !wasOptedIn ? { sms_consent_at: new Date().toISOString() } : {}),
       },
       {
         onSuccess: () => { toast({ title: "User updated" }); setEditProfile(null); },
@@ -503,6 +514,20 @@ export default function Users() {
             <div className="col-span-2 space-y-1.5">
               <Label className="text-[13px]">Phone</Label>
               <Input value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} placeholder="(215) 555-0100" className="h-9" />
+            </div>
+            <div className="col-span-2 flex items-start gap-2 rounded-md border p-3">
+              <input
+                type="checkbox" id="sms-opt-in" checked={editForm.smsOptIn}
+                onChange={e => setEditForm(f => ({ ...f, smsOptIn: e.target.checked }))}
+                className="h-4 w-4 mt-0.5"
+              />
+              <label htmlFor="sms-opt-in" className="text-[13px] cursor-pointer">
+                <span className="font-medium">Send SMS training reminders to this phone number</span>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Requires explicit consent -- only enable this after the user has agreed to receive text messages.
+                  Also requires SMS reminders to be turned on for the organization in Settings.
+                </p>
+              </label>
             </div>
             <div className="col-span-2 space-y-1.5">
               <Label className="text-[13px]">Email</Label>

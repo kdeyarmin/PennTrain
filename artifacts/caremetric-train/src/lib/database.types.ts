@@ -25,6 +25,7 @@ export type Database = {
           created_at: string
           employee_credential_id: string | null
           employee_id: string | null
+          escalated_at: string | null
           facility_id: string | null
           id: string
           incident_notification_id: string | null
@@ -48,6 +49,7 @@ export type Database = {
           created_at?: string
           employee_credential_id?: string | null
           employee_id?: string | null
+          escalated_at?: string | null
           facility_id?: string | null
           id?: string
           incident_notification_id?: string | null
@@ -71,6 +73,7 @@ export type Database = {
           created_at?: string
           employee_credential_id?: string | null
           employee_id?: string | null
+          escalated_at?: string | null
           facility_id?: string | null
           id?: string
           incident_notification_id?: string | null
@@ -2025,6 +2028,73 @@ export type Database = {
           },
         ]
       }
+      notification_deliveries: {
+        Row: {
+          channel: string
+          created_at: string
+          delivery_type: string
+          error_message: string | null
+          id: string
+          notification_id: string | null
+          organization_id: string
+          profile_id: string
+          provider_message_id: string | null
+          recipient: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          delivery_type?: string
+          error_message?: string | null
+          id?: string
+          notification_id?: string | null
+          organization_id: string
+          profile_id: string
+          provider_message_id?: string | null
+          recipient: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          delivery_type?: string
+          error_message?: string | null
+          id?: string
+          notification_id?: string | null
+          organization_id?: string
+          profile_id?: string
+          provider_message_id?: string | null
+          recipient?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_deliveries_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_deliveries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_deliveries_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string | null
@@ -2356,6 +2426,8 @@ export type Database = {
           organization_id: string | null
           phone: string | null
           role: string
+          sms_consent_at: string | null
+          sms_opt_in: boolean
           updated_at: string
         }
         Insert: {
@@ -2368,6 +2440,8 @@ export type Database = {
           organization_id?: string | null
           phone?: string | null
           role?: string
+          sms_consent_at?: string | null
+          sms_opt_in?: boolean
           updated_at?: string
         }
         Update: {
@@ -2380,6 +2454,8 @@ export type Database = {
           organization_id?: string | null
           phone?: string | null
           role?: string
+          sms_consent_at?: string | null
+          sms_opt_in?: boolean
           updated_at?: string
         }
         Relationships: [
@@ -3127,6 +3203,8 @@ export type Database = {
           organization_id: string | null
           phone: string | null
           role: string
+          sms_consent_at: string | null
+          sms_opt_in: boolean
           updated_at: string
         }
         SetofOptions: {
@@ -3150,6 +3228,7 @@ export type Database = {
       }
       current_org_id: { Args: never; Returns: string }
       current_role: { Args: never; Returns: string }
+      escalate_unactioned_alerts: { Args: never; Returns: undefined }
       get_quiz_answer_choices: {
         Args: { p_quiz_id: string }
         Returns: {
@@ -3193,6 +3272,31 @@ export type Database = {
       owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
       recalculate_all_compliance: { Args: never; Returns: undefined }
       recalculate_incident_notifications: { Args: never; Returns: undefined }
+      send_monday_digest: { Args: never; Returns: undefined }
+      set_certificate_pdf: {
+        Args: { p_bucket: string; p_certificate_id: string; p_path: string }
+        Returns: {
+          course_assignment_id: string | null
+          course_id: string
+          created_at: string
+          employee_id: string
+          expires_at: string | null
+          facility_id: string
+          id: string
+          issued_at: string
+          organization_id: string
+          pdf_storage_bucket: string | null
+          pdf_storage_path: string | null
+          slug: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "certificates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       verify_certificate: {
         Args: { p_slug: string }
         Returns: {
