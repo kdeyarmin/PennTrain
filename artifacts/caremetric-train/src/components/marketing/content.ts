@@ -94,7 +94,7 @@ export const FEATURES: IconItem[] = [
   },
   {
     icon: GraduationCap,
-    title: "Built-in LMS",
+    title: "Built-in Course Builder",
     description:
       "Author courses, quizzes with server-side grading, and issue certificates -- no separate training vendor required.",
   },

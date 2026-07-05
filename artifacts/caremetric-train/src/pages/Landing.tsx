@@ -20,7 +20,8 @@ import {
 } from "@/components/ui/card";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
-import { LogoMark, Reveal, TechGrid } from "@/components/marketing/primitives";
+import { Reveal, TechGrid } from "@/components/marketing/primitives";
+import { LogoMark } from "@/components/brand/Logo";
 import { OLD_WAY, NEW_WAY } from "@/components/marketing/content";
 
 /** Landing-page teasers -- each links out to its dedicated marketing page. */
@@ -30,7 +31,7 @@ const HIGHLIGHTS: { href: string; icon: LucideIcon; title: string; blurb: string
     icon: GraduationCap,
     title: "Features",
     blurb:
-      "Compliance tracking, a built-in LMS, one-click compliance binders, and more -- the full toolkit.",
+      "Compliance tracking, a built-in course builder, one-click compliance binders, and more -- the full toolkit.",
   },
   {
     href: "/who-its-for",
@@ -68,8 +69,6 @@ export default function Landing() {
           <div className="grid items-center gap-12 lg:grid-cols-2">
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-700">
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-[#8eceff]">
-                <span className="whitespace-nowrap tabular-nums">Rec. 2600-T</span>
-                <span aria-hidden className="hidden h-px w-8 bg-[#8eceff]/30 sm:block" />
                 <span className="whitespace-nowrap">Compliance Training Platform</span>
               </div>
               <h1 className="mt-5 text-balance text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-[52px] lg:leading-[1.05]">
@@ -77,7 +76,7 @@ export default function Landing() {
                 <span className="whitespace-nowrap text-[#59b2ff]">survey-ready</span>, every day.
               </h1>
               <p className="mt-6 max-w-xl text-lg text-white/70">
-                CareMetric Train is the compliance-training platform and LMS built for
+                CareMetric Train is the compliance-training platform built for
                 personal care homes, assisted living, group homes, nursing homes, home
                 health, and hospice agencies -- replacing spreadsheets and paper binders
                 with one system of record for yearly in-services, certifications, and

@@ -4,7 +4,7 @@ import { Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { LogoMark } from "@/components/marketing/primitives";
+import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 import { DEMO_MAILTO } from "@/components/marketing/content";
 import { MARKETING_NAV } from "@/lib/publicPaths";
 
@@ -30,13 +30,14 @@ function MarketingHeader() {
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-2.5 min-w-0" data-testid="link-home">
-          <LogoMark />
+          <LogoMark className="h-10 w-10" />
           <div className="flex flex-col leading-none min-w-0">
-            <span className="truncate text-[15px] font-bold tracking-tight">
-              CareMetric Train
-            </span>
+            <BrandName
+              className="truncate text-[15px] font-bold tracking-tight"
+              style={{ color: BRAND_BLUE }}
+            />
             <span className="hidden whitespace-nowrap text-[11px] font-medium text-muted-foreground sm:block">
-              Compliance Training &amp; LMS
+              Compliance Training Platform
             </span>
           </div>
         </Link>
@@ -134,10 +135,10 @@ function MarketingFooter() {
           <div className="max-w-sm">
             <Link href="/" className="flex items-center gap-2.5">
               <LogoMark className="h-8 w-8" />
-              <span className="text-sm font-bold">CareMetric Train</span>
+              <BrandName className="text-sm font-bold" style={{ color: BRAND_BLUE }} />
             </Link>
             <p className="mt-3 text-sm text-muted-foreground">
-              Compliance training and LMS for personal care homes, assisted living,
+              Compliance training platform for personal care homes, assisted living,
               group homes, nursing homes, home health, and hospice agencies.
             </p>
           </div>
@@ -189,7 +190,7 @@ function MarketingFooter() {
         <div className="mt-10 flex flex-col gap-2 border-t border-border/60 pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <span>&copy; {new Date().getFullYear()} CareMetric Train. All rights reserved.</span>
           <span className="font-mono tabular-nums text-muted-foreground/60">
-            Rec. 2600-T &middot; Rev. {new Date().getFullYear()}.1
+            Rev. {new Date().getFullYear()}.1
           </span>
         </div>
       </div>

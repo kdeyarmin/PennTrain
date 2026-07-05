@@ -1,18 +1,8 @@
 import type { ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { ShieldCheck, type LucideIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 /** Presentational primitives shared across every public marketing page. */
-
-export function LogoMark({ className = "h-9 w-9" }: { className?: string }) {
-  return (
-    <div
-      className={`${className} rounded-xl bg-gradient-to-br from-primary to-[#0f3f92] flex items-center justify-center shadow-sm shrink-0`}
-    >
-      <ShieldCheck className="h-[55%] w-[55%] text-primary-foreground" />
-    </div>
-  );
-}
 
 /**
  * Reveals content on scroll -- a single quiet fade/rise, not a barrage of
