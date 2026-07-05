@@ -88,7 +88,8 @@ export function useDeleteCredentialDocument() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (doc: CredentialDocument) => {
-      await supabase.storage.from(doc.storage_bucket).remove([doc.storage_path]);
+      const { error: storageError } = await supabase.storage.from(doc.storage_bucket).remove([doc.storage_path]);
+      if (storageError) throw storageError;
       const { error } = await supabase.from("employee_credential_documents").delete().eq("id", doc.id);
       if (error) throw error;
     },

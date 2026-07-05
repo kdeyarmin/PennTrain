@@ -56,6 +56,10 @@ export default function IncidentDetail() {
   const { toast } = useToast();
 
   const canManage = ["org_admin", "facility_manager"].includes(user?.role ?? "");
+  // incident_staff_involved_delete and incident_documents_delete are narrower than
+  // insert/update -- org_admin only -- so facility_manager must not be shown a delete/remove
+  // action that will always fail after confirmation.
+  const canDelete = user?.role === "org_admin";
 
   const { data: incident, isLoading } = useGetIncident(id);
   const { data: facilities } = useListFacilities();
@@ -212,7 +216,7 @@ export default function IncidentDetail() {
                 return (
                   <div key={s.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
                     <span>{emp ? `${emp.last_name}, ${emp.first_name}` : "Unknown"} — {humanize(s.involvement_type)}</span>
-                    {canManage && (
+                    {canDelete && (
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeStaff({ id: s.id, incidentId: incident.id })}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -394,7 +398,7 @@ export default function IncidentDetail() {
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownload(doc)}>
                       <Download className="h-3.5 w-3.5" />
                     </Button>
-                    {canManage && (
+                    {canDelete && (
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteDocument.mutate(doc)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>

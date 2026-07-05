@@ -61,7 +61,7 @@ const EMPTY_FORM: CredentialFormData = {
   warningDays: "90", status: "missing", notes: "",
 };
 
-function CredentialDocuments({ credential, canManage }: { credential: EmployeeCredential; canManage: boolean }) {
+function CredentialDocuments({ credential, canManage, canDelete }: { credential: EmployeeCredential; canManage: boolean; canDelete: boolean }) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: documents, isLoading } = useListCredentialDocuments({ credentialId: credential.id });
@@ -123,7 +123,7 @@ function CredentialDocuments({ credential, canManage }: { credential: EmployeeCr
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownload(doc)} aria-label="Download document">
                   <Download className="h-3.5 w-3.5" />
                 </Button>
-                {canManage && (
+                {canDelete && (
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteDocument.mutate(doc)} aria-label="Delete document">
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
@@ -151,10 +151,13 @@ export default function EmployeeCredentials() {
   const [form, setForm] = useState<CredentialFormData>(EMPTY_FORM);
   const [deleteTarget, setDeleteTarget] = useState<EmployeeCredential | null>(null);
 
-  // Matches employee_credentials RLS insert/update/delete policies exactly (org_admin,
-  // facility_manager only -- trainer is deliberately excluded from this module, unlike most
-  // other compliance records, because clearance/license data is more sensitive).
+  // Matches employee_credentials/employee_credential_documents RLS insert/update policies
+  // (org_admin, facility_manager -- trainer is deliberately excluded from this module, unlike
+  // most other compliance records, because clearance/license data is more sensitive).
   const canManage = ["org_admin", "facility_manager"].includes(user?.role ?? "");
+  // The delete policies on both tables are narrower than insert/update -- org_admin only -- so
+  // a facility_manager must not be shown a delete action that will always fail after confirmation.
+  const canDelete = user?.role === "org_admin";
 
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees();
@@ -336,14 +339,18 @@ export default function EmployeeCredentials() {
                         <td className="text-muted-foreground">{c.expiration_date ?? "No expiration"}</td>
                         <td><StatusBadge status={c.status} type="training" /></td>
                         <td>
-                          {canManage && (
+                          {(canManage || canDelete) && (
                             <div className="flex items-center gap-1">
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(c)} aria-label="Edit credential">
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTarget(c)} aria-label="Delete credential">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
+                              {canManage && (
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(c)} aria-label="Edit credential">
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              {canDelete && (
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTarget(c)} aria-label="Delete credential">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
                             </div>
                           )}
                         </td>
@@ -435,7 +442,7 @@ export default function EmployeeCredentials() {
             </div>
             {editing && (
               <div className="col-span-2 pt-2 border-t">
-                <CredentialDocuments credential={editing} canManage={canManage} />
+                <CredentialDocuments credential={editing} canManage={canManage} canDelete={canDelete} />
               </div>
             )}
           </div>

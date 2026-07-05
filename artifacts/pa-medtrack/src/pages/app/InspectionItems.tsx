@@ -73,9 +73,12 @@ export default function InspectionItems() {
   const [form, setForm] = useState<ItemFormData>(EMPTY_FORM);
   const [deleteTarget, setDeleteTarget] = useState<InspectionItem | null>(null);
 
-  // Matches inspection_items RLS -- trainer included (unlike credentials/incidents), since
-  // physical-plant compliance is the least sensitive of the three new modules.
+  // Matches inspection_items insert/update RLS -- trainer included (unlike credentials/incidents),
+  // since physical-plant compliance is the least sensitive of the three new modules.
   const canManage = ["org_admin", "facility_manager", "trainer"].includes(user?.role ?? "");
+  // inspection_items_delete is narrower than insert/update -- org_admin only -- so
+  // facility_manager/trainer must not be shown a delete action that will always fail.
+  const canDelete = user?.role === "org_admin";
 
   const { data: facilities } = useListFacilities();
   const { data: items, isLoading } = useListInspectionItems({
@@ -232,14 +235,18 @@ export default function InspectionItems() {
                       <td className="text-muted-foreground">{item.next_due_date ?? "—"}</td>
                       <td><StatusBadge status={item.status} type="training" /></td>
                       <td>
-                        {canManage && (
+                        {(canManage || canDelete) && (
                           <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTarget(item)}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            {canManage && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            {canDelete && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTarget(item)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                           </div>
                         )}
                       </td>
