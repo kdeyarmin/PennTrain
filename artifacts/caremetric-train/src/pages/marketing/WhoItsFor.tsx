@@ -10,6 +10,7 @@ import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { PageHero, Reveal } from "@/components/marketing/primitives";
 import { SETTINGS } from "@/components/marketing/content";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 const RESIDENT_CARE_POINTS = [
   "Preadmission screening, 15-day initial assessment, annual reassessment, and significant-change reassessment, each on its own due date.",
@@ -24,6 +25,12 @@ const OPERATING_MODES = [
 ];
 
 export default function WhoItsFor() {
+  usePageMeta({
+    title: "Who It's For — CareMetric Train for PCH, ALR, Group Homes & More",
+    description:
+      "CareMetric Train adapts to personal care homes, assisted living residences, group homes, nursing homes, home health, and hospice agencies -- each with rules matched to their setting.",
+    path: "/who-its-for",
+  });
   return (
     <MarketingLayout>
       <PageHero

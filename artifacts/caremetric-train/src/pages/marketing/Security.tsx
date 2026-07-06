@@ -3,6 +3,7 @@ import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { PageHero, Reveal, TechGrid, TechIcon } from "@/components/marketing/primitives";
 import { SECURITY_FEATURES } from "@/components/marketing/content";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 const SECURITY_PROMISES = [
   "Users are scoped by organization, facility, and role before records are shown.",
@@ -12,6 +13,12 @@ const SECURITY_PROMISES = [
 ];
 
 export default function Security() {
+  usePageMeta({
+    title: "Security — CareMetric Train",
+    description:
+      "Row-level security, six enforced access roles, private signed-URL storage, and an immutable audit trail -- see how CareMetric Train protects sensitive compliance data.",
+    path: "/security",
+  });
   return (
     <MarketingLayout>
       <PageHero

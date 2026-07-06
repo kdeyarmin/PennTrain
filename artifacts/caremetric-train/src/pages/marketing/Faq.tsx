@@ -10,11 +10,18 @@ import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { PageHero, Reveal } from "@/components/marketing/primitives";
 import { DEMO_MAILTO, FAQS } from "@/components/marketing/content";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 const FEATURED_QUESTIONS = FAQS.slice(0, 3);
 const REMAINING_QUESTIONS = FAQS.slice(3);
 
 export default function Faq() {
+  usePageMeta({
+    title: "FAQ — CareMetric Train",
+    description:
+      "Answers to common questions about CareMetric Train: regulations covered, in-service hours by facility type, resident assessments, AI course generation, and more.",
+    path: "/faq",
+  });
   return (
     <MarketingLayout>
       <PageHero

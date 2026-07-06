@@ -36,6 +36,7 @@ import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { LogoMark } from "@/components/brand/Logo";
 import { OLD_WAY, NEW_WAY } from "@/components/marketing/content";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 const HIGHLIGHTS: { href: string; icon: LucideIcon; title: string; blurb: string }[] = [
   {
@@ -131,7 +132,20 @@ const DASHBOARD_ROWS = [
   { label: "Completed course assignments", value: 96, status: "Strong" },
 ];
 
+const PLATFORM_STATS = [
+  { value: "6", label: "facility types, each with its own rules" },
+  { value: "8", label: "feature categories across the platform" },
+  { value: "60+", label: "survey-ready form templates included" },
+  { value: "6", label: "roles enforced by database policy" },
+];
+
 export default function Landing() {
+  usePageMeta({
+    title: "CareMetric Train — Compliance Training Platform",
+    description:
+      "CareMetric Train is the compliance-training platform for personal care homes, assisted living residences, group homes, nursing homes, home health, and hospice agencies -- yearly in-services, resident assessments, incidents, and survey-ready compliance binders tracked automatically in one system.",
+    path: "/",
+  });
   return (
     <MarketingLayout>
       <section className="relative overflow-hidden bg-gradient-to-br from-[#071626] via-[#0d2742] to-[#143a5c] text-white">
@@ -254,6 +268,15 @@ export default function Landing() {
               </div>
             </div>
           </div>
+
+          <Reveal className="mt-14 grid grid-cols-2 gap-6 border-t border-white/10 pt-8 sm:grid-cols-4">
+            {PLATFORM_STATS.map((stat) => (
+              <div key={stat.label}>
+                <div className="font-mono text-2xl font-bold tabular-nums text-white">{stat.value}</div>
+                <div className="mt-1 text-xs leading-5 text-white/60">{stat.label}</div>
+              </div>
+            ))}
+          </Reveal>
         </div>
       </section>
 

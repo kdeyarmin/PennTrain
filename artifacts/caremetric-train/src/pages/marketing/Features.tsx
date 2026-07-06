@@ -5,6 +5,7 @@ import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { PageHero, Reveal } from "@/components/marketing/primitives";
 import { FEATURE_CATEGORIES } from "@/components/marketing/content";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 const FEATURE_OUTCOMES = [
   "Replace spreadsheets, binders, shared drives, and one-off LMS exports.",
@@ -13,6 +14,12 @@ const FEATURE_OUTCOMES = [
 ];
 
 export default function Features() {
+  usePageMeta({
+    title: "Features — CareMetric Train Compliance & Training Platform",
+    description:
+      "See every CareMetric Train feature: training LMS, resident assessments, incident and inspection tracking, AI course generation, credential screening, and shift scheduling in one platform.",
+    path: "/features",
+  });
   return (
     <MarketingLayout>
       <PageHero
