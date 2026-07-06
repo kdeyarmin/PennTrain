@@ -108,7 +108,7 @@ function ProtectedRoute({
   requireFacilityTypes?: readonly string[];
 }) {
   const { user, isLoading, isAuthenticated } = useAuth();
-  const { facilityTypes, isLoading: facilityTypesLoading } = useVisibleFacilityTypes();
+  const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
 
   if (isLoading) {
     return (
@@ -138,7 +138,9 @@ function ProtectedRoute({
         </div>
       );
     }
-    if (!hasAnyFacilityType(facilityTypes, requireFacilityTypes)) {
+    // Only redirect on a confirmed non-match -- a query error isn't "confirmed no", and should
+    // fail open (render the page) rather than silently bounce the user away with no explanation.
+    if (!facilityTypesError && !hasAnyFacilityType(facilityTypes, requireFacilityTypes)) {
       if (user.role === "trainer") return <Redirect to="/trainer" />;
       return <Redirect to="/app" />;
     }

@@ -19,8 +19,11 @@ const FACILITY_SCOPED_ROLES = new Set(["facility_manager", "trainer"]);
  * that runs more than one facility type (as the demo org already does) sees the union of what
  * all its relevant facilities need.
  *
- * `facilityTypes` is `undefined` while the underlying data is still loading, or for roles this
- * doesn't apply to (see RESTRICTABLE_ROLES).
+ * `facilityTypes` is `undefined` while the underlying data is still loading (or has failed to
+ * load -- see `isError`), or for roles this doesn't apply to (see RESTRICTABLE_ROLES). Callers
+ * should treat `isLoading`/`isError` as "unresolved" and fail open (rather than reading an
+ * `undefined`/empty `facilityTypes` as a confirmed "no") -- this only gates a UX convenience, not
+ * a security boundary, since RLS still governs the underlying data either way.
  */
 export function useVisibleFacilityTypes() {
   const { user } = useAuth();
@@ -32,6 +35,7 @@ export function useVisibleFacilityTypes() {
   const assignmentsQuery = useListMyFacilityAssignments(user?.id, enabled && isFacilityScoped);
 
   const isLoading = enabled && (facilitiesQuery.isLoading || (isFacilityScoped && assignmentsQuery.isLoading));
+  const isError = enabled && (facilitiesQuery.isError || (isFacilityScoped && assignmentsQuery.isError));
 
   const facilityTypes = useMemo(() => {
     if (!enabled || !facilitiesQuery.data) return undefined;
@@ -45,5 +49,5 @@ export function useVisibleFacilityTypes() {
     );
   }, [enabled, isFacilityScoped, facilitiesQuery.data, assignmentsQuery.data]);
 
-  return { facilityTypes, isLoading };
+  return { facilityTypes, isLoading, isError };
 }

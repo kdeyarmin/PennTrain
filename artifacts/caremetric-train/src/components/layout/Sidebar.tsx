@@ -230,11 +230,15 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const { user } = useAuth();
   const [location] = useLocation();
   const handleLogout = useSignOut();
-  const { facilityTypes, isLoading: facilityTypesLoading } = useVisibleFacilityTypes();
+  const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
 
   if (!user) return null;
 
-  const showPchAlrModules = !facilityTypesLoading && hasAnyFacilityType(facilityTypes, PCH_ALR_ONLY_FACILITY_TYPES);
+  // Fail open (show) while the facility-type data is still loading or failed to load, rather
+  // than hiding these items -- otherwise every PCH/ALR org (the common case) would see this
+  // section flicker out on every fresh page load, and a query error would permanently hide it.
+  const showPchAlrModules = facilityTypesLoading || facilityTypesError
+    || hasAnyFacilityType(facilityTypes, PCH_ALR_ONLY_FACILITY_TYPES);
   const navSections = getNavSections(user.role, showPchAlrModules);
 
   return (
