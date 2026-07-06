@@ -13,4 +13,32 @@
 -- Authorization mirrors grade_quiz_attempt: the owning employee, or an org_admin/
 -- facility_manager/trainer in the attempt's organization, or a platform_admin.
 
-alter table public.quiz_questions add column explanation text
+alter table public.quiz_questions add column explanation text;
+
+create or replace function public.get_quiz_review(p_attempt_id uuid)
+returns table (
+  question_id uuid,
+  answer_id   uuid,
+  answer_text text,
+  is_correct  boolean,
+  explanation text
+)
+language sql stable security definer set search_path to 'public' as $function$
+  select a.question_id, a.id, a.answer_text, a.is_correct, q.explanation
+  from public.quiz_answers a
+  join public.quiz_questions q on q.id = a.question_id
+  join public.quiz_attempts att on att.quiz_id = q.quiz_id
+  where att.id = p_attempt_id
+    and att.submitted_at is not null
+    and (
+      public.is_platform_admin()
+      or public.owns_employee(att.employee_id)
+      or (att.organization_id = public.current_org_id()
+          and public."current_role"() in ('org_admin', 'facility_manager', 'trainer'))
+    )
+  order by a.sort_order;
+$function$;
+
+revoke all on function public.get_quiz_review(uuid) from public;
+
+grant execute on function public.get_quiz_review(uuid) to authenticated;

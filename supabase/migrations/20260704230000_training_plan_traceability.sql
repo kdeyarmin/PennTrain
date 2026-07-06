@@ -6,4 +6,7 @@
 
 alter table public.course_assignments
   add column training_plan_id uuid references public.training_plans(id) on delete set null,
-  add column training_plan_item_id uuid references public.training_plan_items(id) on delete set null
+  add column training_plan_item_id uuid references public.training_plan_items(id) on delete set null;
+
+create index course_assignments_training_plan_idx
+  on public.course_assignments(training_plan_id) where training_plan_id is not null;
