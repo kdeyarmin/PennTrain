@@ -355,7 +355,6 @@ Efforts: **S** = days, **M** = 1–2 weeks, **L** = multi-week. Sequence within 
 | SCORM import/player | Defer | Small PCHs rarely own SCORM content; it's an LMS-evaluation checkbox for upmarket switchers. Feasible later without licensing (scorm-again + an edge-function commit endpoint) — nothing is lost by waiting. |
 | Multi-state regulation packs | Defer | The PA pack itself doesn't function yet. Design the Tier 2 rulepack engine with a state column so packs become additive data later; earn the abstraction after PA works. |
 | Family portal / activity calendars / engagement suite | **No** | Bloat tier for 5–50-bed operators per review evidence; StoriiCare and Icon own the category; requires resident data the product deliberately lacks. |
-| Stripe billing & subscription enforcement | Defer | Internal plumbing with zero administrator-facing compliance value. The `packages` table and `subscription_status` fields already exist as the landing zone when sales volume demands it. |
 | Spanish / i18n | Defer (revisit soon) | Competitively validated (CareAcademy's flagship Spanish UX; Relias's translated aide library) and workforce-fit, but it's a large cross-cutting retrofit; sequence after the notification rail and mobile experience so there is a Spanish experience worth translating into. |
 | Regulatory update feed; portable training passport | Defer | Nice-to-haves; no citation risk attached; revisit post-Tier-3. |
 

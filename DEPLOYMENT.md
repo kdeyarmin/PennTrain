@@ -199,8 +199,7 @@ Railpack itself sets `NPM_CONFIG_PRODUCTION=false`; for the same reason, never s
 
 Not needed for this repo (and intentionally left out of `.env.example` -- see the comments there for
 why): `DATABASE_URL`, `NEXT_PUBLIC_*` (this is Vite, not Next.js), `SESSION_SECRET`/`AUTH_SECRET`
-(Supabase Auth owns session state, no server-side session here), `STRIPE_SECRET_KEY` (no billing
-integration exists in this codebase today). `SUPABASE_SERVICE_ROLE_KEY` must never be set on the
+(Supabase Auth owns session state, no server-side session here). `SUPABASE_SERVICE_ROLE_KEY` must never be set on the
 Railway service -- it belongs only in Supabase Edge Function secrets, alongside `SENDGRID_API_KEY`
 and `TWILIO_*` (see step 4 below) -- none of these are Railway variables.
 
