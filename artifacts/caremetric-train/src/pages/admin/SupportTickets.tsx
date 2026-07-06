@@ -31,11 +31,14 @@ export default function SupportTickets() {
   const { data: ticketsData, isLoading } = useListSupportTickets({
     status: statusFilter !== "all" ? statusFilter : undefined,
   });
+  // Independent of statusFilter -- deriving this from the (possibly filtered) list above would
+  // read as 0 whenever a non-"open" filter is selected.
+  const { data: openTicketsData } = useListSupportTickets({ status: "open" });
   const { data: orgNameMap } = useOrganizationNameMap();
   const { data: profileNameMap } = useProfileNameMap();
 
   const tickets = ticketsData ?? [];
-  const openCount = tickets.filter((t) => t.status === "open").length;
+  const openCount = openTicketsData?.length ?? 0;
 
   return (
     <div className="space-y-6">

@@ -21,7 +21,7 @@ function MessageAttachment({ message }: { message: SupportTicketMessage }) {
   const { toast } = useToast();
   const { mutate: getSignedUrl, isPending } = useTicketAttachmentSignedUrl();
 
-  if (!message.attachment_path) return null;
+  if (!message.attachment_bucket || !message.attachment_path) return null;
 
   const handleOpen = () => {
     getSignedUrl(message, {
