@@ -134,11 +134,17 @@ export default function ScheduleDetail() {
 
   function handleEditSave() {
     if (!editTarget) return;
+    // Keep start_time/end_time in sync with whichever shift type is now selected -- these are
+    // denormalized onto the assignment, so leaving them stale would show the new shift's name
+    // next to the old shift's hours in both the manager grid and the employee's own view.
+    const selectedShiftDef = activeShiftDefs.find((s) => s.id === editForm.shiftDefinitionId);
     updateAssignment.mutate(
       {
         id: editTarget.id,
         unit_id: editForm.unitId === UNASSIGNED ? null : editForm.unitId,
         shift_definition_id: editForm.shiftDefinitionId || null,
+        start_time: selectedShiftDef?.start_time ?? editTarget.start_time,
+        end_time: selectedShiftDef?.end_time ?? editTarget.end_time,
         status: editForm.status,
         notes: editForm.notes.trim() || null,
       },
