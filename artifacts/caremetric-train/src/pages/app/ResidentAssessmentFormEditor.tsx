@@ -4,6 +4,7 @@ import { useGetResident } from "@/hooks/useResidents";
 import { useListFacilities } from "@/hooks/useFacilities";
 import {
   useGetResidentAssessmentForm, useSaveResidentAssessmentFormDraft, useFinalizeResidentAssessmentForm,
+  useGenerateResidentAssessmentFormPdf,
 } from "@/hooks/useResidentAssessmentForms";
 import {
   ADL_ITEMS, SENSORY_ITEMS, SOCIAL_ITEMS, behavioralItems, responsiblePartyOptions,
@@ -239,6 +240,7 @@ export default function ResidentAssessmentFormEditor() {
   const { data: form, isLoading } = useGetResidentAssessmentForm(formId);
   const saveDraft = useSaveResidentAssessmentFormDraft();
   const finalize = useFinalizeResidentAssessmentForm();
+  const generatePdf = useGenerateResidentAssessmentFormPdf();
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const facility = facilities?.find((f) => f.id === resident?.facility_id);
@@ -325,6 +327,18 @@ export default function ResidentAssessmentFormEditor() {
         {!isReadOnly && (
           <Button onClick={handleFinalize} disabled={finalize.isPending || saveDraft.isPending}>
             {finalize.isPending || saveDraft.isPending ? "Finalizing..." : `Finalize ${formLabel}`}
+          </Button>
+        )}
+        {canManage && form.status === "finalized" && (
+          <Button
+            variant="outline"
+            disabled={generatePdf.isPending}
+            onClick={() => generatePdf.mutate(formId!, {
+              onSuccess: () => toast({ title: `${formLabel} PDF generated` }),
+              onError: (e: Error) => toast({ title: "Failed to generate PDF", description: e.message, variant: "destructive" }),
+            })}
+          >
+            {generatePdf.isPending ? "Generating..." : "Regenerate PDF"}
           </Button>
         )}
       </div>

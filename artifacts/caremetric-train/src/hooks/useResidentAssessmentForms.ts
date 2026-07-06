@@ -69,6 +69,18 @@ export function useSaveResidentAssessmentFormDraft() {
   });
 }
 
+async function invokeGenerateAssessmentPdf(formId: string) {
+  const { data: pdfData, error: pdfError } = await supabase.functions.invoke<{ success?: boolean; error?: string; url?: string }>(
+    "generate-resident-assessment-pdf",
+    { body: { formId } },
+  );
+  if (pdfError) throw pdfError;
+  if (!pdfData || pdfData.success === false) {
+    throw new Error(pdfData?.error ?? "Failed to generate the assessment PDF");
+  }
+  return pdfData;
+}
+
 // Locks the form, marks the prior version superseded, and completes the linked
 // resident_compliance_items row (feeding Phase 2's support-plan cross-trigger) -- all server-side
 // in finalize_resident_assessment_form(). Also generates and attaches the PDF, mirroring
@@ -79,16 +91,7 @@ export function useFinalizeResidentAssessmentForm() {
     mutationFn: async (formId: string) => {
       const { error: finalizeError } = await supabase.rpc("finalize_resident_assessment_form", { p_form_id: formId });
       if (finalizeError) throw finalizeError;
-
-      const { data: pdfData, error: pdfError } = await supabase.functions.invoke<{ success?: boolean; error?: string; url?: string }>(
-        "generate-resident-assessment-pdf",
-        { body: { formId } },
-      );
-      if (pdfError) throw pdfError;
-      if (!pdfData || pdfData.success === false) {
-        throw new Error(pdfData?.error ?? "Failed to generate the assessment PDF");
-      }
-      return pdfData;
+      return invokeGenerateAssessmentPdf(formId);
     },
     // onSettled, not onSuccess: if the DB finalize RPC succeeds but the PDF-generation call then
     // fails, the mutation still errors overall -- but the row is already finalized server-side, so
@@ -97,6 +100,21 @@ export function useFinalizeResidentAssessmentForm() {
       queryClient.invalidateQueries({ queryKey: ["resident_assessment_forms"] });
       queryClient.invalidateQueries({ queryKey: ["resident_assessment_forms", "detail", formId] });
       queryClient.invalidateQueries({ queryKey: ["resident_compliance_items"] });
+      queryClient.invalidateQueries({ queryKey: ["resident_documents"] });
+    },
+  });
+}
+
+// Retries PDF generation/attachment for a form that's already finalized -- covers the case where
+// finalize_resident_assessment_form() succeeded but the edge-function call then failed (storage
+// hiccup, transient network error): the form is finalized either way, but without this the editor's
+// read-only finalized view offers no way to produce the still-missing required document.
+export function useGenerateResidentAssessmentFormPdf() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: invokeGenerateAssessmentPdf,
+    onSettled: (_data, _error, formId) => {
+      queryClient.invalidateQueries({ queryKey: ["resident_assessment_forms", "detail", formId] });
       queryClient.invalidateQueries({ queryKey: ["resident_documents"] });
     },
   });
