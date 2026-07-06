@@ -1,7 +1,3 @@
--- Inspection evidence (photos of extinguisher tags, fire-marshal reports, drill sign-in sheets)
--- reuses the existing generic training_documents table + external-uploads bucket rather than a
--- new bucket -- that bucket already grants exactly the role shape inspections need
--- (org_admin/facility_manager/trainer write, org_admin/auditor/facility_manager/trainer read).
 alter table public.training_documents add column inspection_event_id uuid references public.inspection_events(id);
 create index training_documents_inspection_event_idx on public.training_documents(inspection_event_id);
 
@@ -21,8 +17,6 @@ alter table public.alerts add constraint alerts_alert_type_check check (alert_ty
   'competency_due','training_plan_assigned','inservice_scheduled','credential_expiring',
   'incident_notification_overdue','corrective_action_overdue','inspection_due'));
 
--- Full rewrite of recalculate_all_compliance() -- everything above the inspection_items phase at
--- the bottom is unchanged from 20260705030400_incident_alerts_and_compliance.sql.
 create or replace function public.recalculate_all_compliance()
 returns void
 language plpgsql
@@ -182,10 +176,6 @@ begin
       where a.corrective_action_id = ca.id and a.status = 'open'
     );
 
-  -- Facility inspections/equipment. next_due_date is recomputed from each item's most recent
-  -- inspection_events row (or install_date/created_at if it's never been inspected) every run,
-  -- so a newly logged inspection event always pushes the next due date forward without any
-  -- separate "close out the old due date" step.
   update public.inspection_items i
   set
     last_inspected_date = h.last_date,
@@ -225,7 +215,3 @@ begin
     );
 end;
 $$;
-
--- notify_training_alert() needs no changes: inspection_due alerts have employee_id null (no
--- natural owner), and the existing "if new.employee_id is null ... return new" guard already
--- keeps them out of anyone's personal notification feed.

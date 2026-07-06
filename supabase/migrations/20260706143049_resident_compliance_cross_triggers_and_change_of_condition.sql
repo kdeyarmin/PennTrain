@@ -1,17 +1,5 @@
--- Tier 3.6 Phase 2: support-plan cross-trigger + change-of-condition logging. Moves completion
--- logic server-side (out of the client hook) so it's correct regardless of which UI surface
--- touches the row, and adds the significant_change_reassessment item type's only entry point.
-
--- Lets the UI show "Support Plan Revision -- triggered by Annual Reassessment completed <date>"
--- instead of an unexplained duplicate row.
 alter table public.resident_compliance_items add column triggered_by_item_id uuid references public.resident_compliance_items(id);
 
--- Replaces the client-side two-call (update + insert) logic in useCompleteResidentComplianceItem().
--- Recurring items (renewal_interval_days set) schedule their next cycle as a new row, same
--- convention as before. New: completing annual_reassessment or significant_change_reassessment
--- also inserts a linked support_plan_30day row due 30 days out, satisfying 2600.227/2800.227's
--- support-plan revision requirement -- guarded by an idempotency check so re-invoking this RPC on
--- an already-completed item never double-spawns the revision.
 create or replace function public.complete_resident_compliance_item(p_item_id uuid)
 returns public.resident_compliance_items
 language plpgsql security definer set search_path to 'public' as $$
@@ -62,12 +50,6 @@ $$;
 revoke all on function public.complete_resident_compliance_item(uuid) from public, anon;
 grant execute on function public.complete_resident_compliance_item(uuid) to authenticated;
 
--- Only entry point for significant_change_reassessment: PA DHS states no numeric turnaround for
--- this trigger anywhere in the regulation text or RCG, so due_date is the date logged (immediate),
--- zero grace -- see the comment on resident_compliance_items.grace_period_days for the same note.
--- p_notes is a short compliance-tracking annotation (e.g. "fall, ER visit 7/3"), the same shape as
--- free-text fields already used elsewhere in this schema (e.g. incidents.description) -- not a
--- clinical record.
 create or replace function public.log_resident_change_of_condition(p_resident_id uuid, p_notes text default null)
 returns public.resident_compliance_items
 language plpgsql security definer set search_path to 'public' as $$
