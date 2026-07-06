@@ -73,6 +73,9 @@ import PolicyDocuments from "@/pages/app/PolicyDocuments";
 import PolicyDocumentDetail from "@/pages/app/PolicyDocumentDetail";
 import TemplateDocuments from "@/pages/app/TemplateDocuments";
 import TemplateDocumentDetail from "@/pages/app/TemplateDocumentDetail";
+import Schedule from "@/pages/app/Schedule";
+import ScheduleDetail from "@/pages/app/ScheduleDetail";
+import ScheduleSetup from "@/pages/app/ScheduleSetup";
 
 import TrainerDashboard from "@/pages/trainer/TrainerDashboard";
 import TrainerClasses from "@/pages/trainer/TrainerClasses";
@@ -81,6 +84,7 @@ import ClassKiosk from "@/pages/trainer/ClassKiosk";
 import RetrainingMonitor from "@/pages/trainer/RetrainingMonitor";
 import EmployeeDashboard from "@/pages/employee/EmployeeDashboard";
 import MyTrainings from "@/pages/employee/MyTrainings";
+import MySchedule from "@/pages/employee/MySchedule";
 import MyCourses from "@/pages/employee/MyCourses";
 import MyCertificates from "@/pages/employee/MyCertificates";
 import MyCredentials from "@/pages/employee/MyCredentials";
@@ -93,6 +97,8 @@ import CheckIn from "@/pages/CheckIn";
 import { MainLayout } from "@/components/layout/MainLayout";
 import MaintenanceBanner from "@/components/layout/MaintenanceBanner";
 import { useAuth } from "@/lib/auth";
+import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
+import { PCH_ALR_ONLY_FACILITY_TYPES, hasAnyFacilityType } from "@/lib/facilityTypes";
 import { Loader2 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -101,11 +107,17 @@ type UserRole = "platform_admin" | "org_admin" | "facility_manager" | "trainer" 
 function ProtectedRoute({
   component: Component,
   allowedRoles,
+  requireFacilityTypes,
 }: {
   component: ComponentType;
   allowedRoles?: UserRole[];
+  // When set, the route is only reachable if the user has at least one facility of one of these
+  // types (see useVisibleFacilityTypes) -- the route-level mirror of Sidebar.tsx hiding the nav
+  // item, so directly navigating to the URL doesn't reach a page with nothing in it either.
+  requireFacilityTypes?: readonly string[];
 }) {
   const { user, isLoading, isAuthenticated } = useAuth();
+  const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
 
   if (isLoading) {
     return (
@@ -125,6 +137,22 @@ function ProtectedRoute({
     if (user.role === "trainer") return <Redirect to="/trainer" />;
     if (user.role === "employee") return <Redirect to="/me" />;
     return <Redirect to="/login" />;
+  }
+
+  if (requireFacilityTypes && user) {
+    if (facilityTypesLoading) {
+      return (
+        <div className="min-h-screen w-full flex items-center justify-center bg-background">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+    // Only redirect on a confirmed non-match -- a query error isn't "confirmed no", and should
+    // fail open (render the page) rather than silently bounce the user away with no explanation.
+    if (!facilityTypesError && !hasAnyFacilityType(facilityTypes, requireFacilityTypes)) {
+      if (user.role === "trainer") return <Redirect to="/trainer" />;
+      return <Redirect to="/app" />;
+    }
   }
 
   return (
@@ -172,6 +200,9 @@ const TEMPLATE_DOCUMENT_ROLES: UserRole[] = ["org_admin", "facility_manager", "a
 // any class in their org (not just trainer-owned ones) at the DB layer; this just gives them a
 // route to reach the same trainer-facing pages instead of needing a separate trainer account.
 const CLASS_SCHEDULING_ROLES: UserRole[] = ["trainer", "org_admin", "facility_manager"];
+// Matches schedules_write / facility_units_write / shift_definitions_write / employee_schedule_preferences_write
+// RLS -- shift scheduling is org_admin/facility_manager only (no trainer, no auditor write).
+const SCHEDULE_MANAGE_ROLES: UserRole[] = ["org_admin", "facility_manager"];
 
 function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -319,13 +350,13 @@ function Router() {
         {() => <ProtectedRoute component={ComplianceBinder} allowedRoles={REPORTS_VIEW_ROLES} />}
       </Route>
       <Route path="/app/inspection-readiness">
-        {() => <ProtectedRoute component={InspectionReadiness} allowedRoles={REPORTS_VIEW_ROLES} />}
+        {() => <ProtectedRoute component={InspectionReadiness} allowedRoles={REPORTS_VIEW_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/practicums">
-        {() => <ProtectedRoute component={Practicums} allowedRoles={ORG_ROLES} />}
+        {() => <ProtectedRoute component={Practicums} allowedRoles={ORG_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/med-admin-roster">
-        {() => <ProtectedRoute component={MedAdminRoster} allowedRoles={ORG_ROLES} />}
+        {() => <ProtectedRoute component={MedAdminRoster} allowedRoles={ORG_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/credentials">
         {() => <ProtectedRoute component={EmployeeCredentials} allowedRoles={CREDENTIAL_ROLES} />}
@@ -337,7 +368,7 @@ function Router() {
         {() => <ProtectedRoute component={ExclusionScreening} allowedRoles={CREDENTIAL_ROLES} />}
       </Route>
       <Route path="/app/administrator-qualification">
-        {() => <ProtectedRoute component={AdministratorQualification} allowedRoles={ORG_MANAGE_ROLES} />}
+        {() => <ProtectedRoute component={AdministratorQualification} allowedRoles={ORG_MANAGE_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/policy-documents">
         {() => <ProtectedRoute component={PolicyDocuments} allowedRoles={POLICY_ROLES} />}
@@ -364,22 +395,22 @@ function Router() {
         {() => <ProtectedRoute component={ViolationDetail} allowedRoles={VIOLATION_ROLES} />}
       </Route>
       <Route path="/app/residents">
-        {() => <ProtectedRoute component={Residents} allowedRoles={RESIDENT_ROLES} />}
+        {() => <ProtectedRoute component={Residents} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/residents/:id">
-        {() => <ProtectedRoute component={ResidentDetail} allowedRoles={RESIDENT_ROLES} />}
+        {() => <ProtectedRoute component={ResidentDetail} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/resident-compliance">
-        {() => <ProtectedRoute component={ResidentComplianceReport} allowedRoles={RESIDENT_ROLES} />}
+        {() => <ProtectedRoute component={ResidentComplianceReport} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/residents/:residentId/assessment-forms/:formId">
-        {() => <ProtectedRoute component={ResidentAssessmentFormEditor} allowedRoles={RESIDENT_ROLES} />}
+        {() => <ProtectedRoute component={ResidentAssessmentFormEditor} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/inspections">
-        {() => <ProtectedRoute component={InspectionItems} allowedRoles={INSPECTION_ROLES} />}
+        {() => <ProtectedRoute component={InspectionItems} allowedRoles={INSPECTION_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/inspections/:id">
-        {() => <ProtectedRoute component={InspectionItemDetail} allowedRoles={INSPECTION_ROLES} />}
+        {() => <ProtectedRoute component={InspectionItemDetail} allowedRoles={INSPECTION_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/alerts">
         {() => <ProtectedRoute component={Alerts} allowedRoles={ORG_ROLES} />}
@@ -401,6 +432,18 @@ function Router() {
       </Route>
       <Route path="/app/audit">
         {() => <ProtectedRoute component={AuditLog} allowedRoles={AUDIT_LOG_ROLES} />}
+      </Route>
+      <Route path="/app/schedule">
+        {() => <ProtectedRoute component={Schedule} allowedRoles={SCHEDULE_MANAGE_ROLES} />}
+      </Route>
+      {/* Must be registered before "/app/schedule/:id" -- wouter matches routes in declaration
+          order, so "setup" would otherwise be swallowed as the :id param (same gotcha as
+          "/admin/courses/new-ai" above). */}
+      <Route path="/app/schedule/setup">
+        {() => <ProtectedRoute component={ScheduleSetup} allowedRoles={SCHEDULE_MANAGE_ROLES} />}
+      </Route>
+      <Route path="/app/schedule/:id">
+        {() => <ProtectedRoute component={ScheduleDetail} allowedRoles={SCHEDULE_MANAGE_ROLES} />}
       </Route>
 
       {/* Trainer routes */}
@@ -432,6 +475,9 @@ function Router() {
       </Route>
       <Route path="/me/trainings">
         {() => <ProtectedRoute component={MyTrainings} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/schedule">
+        {() => <ProtectedRoute component={MySchedule} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/certificates">
         {() => <ProtectedRoute component={MyCertificates} allowedRoles={["employee"]} />}
