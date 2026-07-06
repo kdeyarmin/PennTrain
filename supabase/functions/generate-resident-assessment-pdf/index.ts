@@ -307,9 +307,13 @@ Deno.serve(async (req: Request) => {
   const { formId } = body;
   if (!formId) return json({ error: "formId is required" }, 400);
 
-  // RLS-scoped read on the caller's own client: resident_assessment_forms_select already gates who
-  // can see this form (platform_admin, org_admin/auditor org-wide, facility_manager assigned to its
-  // facility) -- no separate authorization check needed here, same pattern as generate-poc-document.
+  // RLS-scoped read on the caller's own client: resident_assessment_forms_select gates who can even
+  // SEE this form (platform_admin, org_admin/auditor org-wide, facility_manager assigned to its
+  // facility) -- but that's a read policy, and it includes auditor, who must not be able to trigger
+  // a service-role write. Unlike generate-poc-document (which only ever runs against an
+  // already-finalized violation record), this function can be pointed at a still-draft form, so a
+  // status check and an explicit write-role check are both required before the service-role
+  // upload/insert below, mirroring resident_documents_insert's RLS policy exactly.
   const { data: form, error: formError } = await callerClient
     .from("resident_assessment_forms")
     .select(
@@ -321,6 +325,26 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
   if (formError) return json({ error: formError.message }, 500);
   if (!form) return json({ error: "Assessment form not found" }, 404);
+
+  if (form.status !== "finalized") {
+    return json({ error: "Only finalized assessment forms can be exported to PDF" }, 400);
+  }
+
+  const isPlatformAdmin = callerProfile.role === "platform_admin";
+  const isOrgAdminInOrg = callerProfile.role === "org_admin" && callerProfile.organization_id === form.organization_id;
+  let hasWriteAccess = isPlatformAdmin || isOrgAdminInOrg;
+  if (!hasWriteAccess && callerProfile.role === "facility_manager" && callerProfile.organization_id === form.organization_id) {
+    const { data: assignment } = await callerClient
+      .from("facility_assignments")
+      .select("id")
+      .eq("profile_id", callerUser.id)
+      .eq("facility_id", form.facility_id)
+      .maybeSingle();
+    hasWriteAccess = !!assignment;
+  }
+  if (!hasWriteAccess) {
+    return json({ error: "Not authorized to generate this document" }, 403);
+  }
 
   const facility = form.facilities as unknown as {
     name: string; license_number: string | null; address: string | null; city: string | null; state: string | null; zip: string | null;
