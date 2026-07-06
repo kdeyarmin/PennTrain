@@ -2,6 +2,8 @@ import React from "react";
 import { useAuth, useSignOut } from "@/lib/auth";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
+import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
+import { PCH_ALR_ONLY_FACILITY_TYPES, hasAnyFacilityType } from "@/lib/facilityTypes";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { AuthUser } from "@/lib/auth";
 import { LogoMark, BrandName } from "@/components/brand/Logo";
@@ -48,7 +50,7 @@ import {
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 type NavSection = { title?: string; items: NavItem[] };
 
-function getNavSections(role: AuthUser["role"]): NavSection[] {
+function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): NavSection[] {
   if (role === "platform_admin") {
     return [
       {
@@ -94,13 +96,13 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
           { href: "/app/competency-templates", label: "Competency Templates", icon: ClipboardList },
           { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
-          { href: "/app/practicums", label: "Practicums", icon: FileCheck },
-          { href: "/app/med-admin-roster", label: "Who Can Pass Meds", icon: Pill },
+          ...(showPchAlrModules ? [{ href: "/app/practicums", label: "Practicums", icon: FileCheck }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/med-admin-roster", label: "Who Can Pass Meds", icon: Pill }] : []),
           { href: "/app/credentials", label: "Credentials & Clearances", icon: ShieldCheck },
           { href: "/app/background-checks", label: "Background Checks", icon: ShieldQuestion },
           { href: "/app/exclusion-screening", label: "Exclusion Screening", icon: ShieldAlert },
-          { href: "/app/administrator-qualification", label: "Administrator Qualification", icon: GraduationCap },
-          { href: "/app/inspections", label: "Inspections & Equipment", icon: Flame },
+          ...(showPchAlrModules ? [{ href: "/app/administrator-qualification", label: "Administrator Qualification", icon: GraduationCap }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & Equipment", icon: Flame }] : []),
         ]
       },
       {
@@ -108,12 +110,12 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
         items: [
           { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
-          { href: "/app/residents", label: "Residents", icon: BedDouble },
-          { href: "/app/resident-compliance", label: "Resident Compliance", icon: ClipboardList },
+          ...(showPchAlrModules ? [{ href: "/app/residents", label: "Residents", icon: BedDouble }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/resident-compliance", label: "Resident Compliance", icon: ClipboardList }] : []),
           { href: "/app/alerts", label: "Alerts", icon: Bell },
           { href: "/app/pending-approvals", label: "Pending Approvals", icon: ClipboardCheck },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
-          { href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar },
+          ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar }] : []),
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
           { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
           { href: "/app/template-documents", label: "Template Documents", icon: FileStack },
@@ -149,12 +151,12 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
           { href: "/app/course-assignments", label: "Course Assignments", icon: FileCheck },
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
           { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
-          { href: "/app/practicums", label: "Practicums", icon: FileCheck },
-          { href: "/app/med-admin-roster", label: "Who Can Pass Meds", icon: Pill },
+          ...(showPchAlrModules ? [{ href: "/app/practicums", label: "Practicums", icon: FileCheck }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/med-admin-roster", label: "Who Can Pass Meds", icon: Pill }] : []),
           { href: "/app/credentials", label: "Credentials & Clearances", icon: ShieldCheck },
           { href: "/app/background-checks", label: "Background Checks", icon: ShieldQuestion },
           { href: "/app/exclusion-screening", label: "Exclusion Screening", icon: ShieldAlert },
-          { href: "/app/inspections", label: "Inspections & Equipment", icon: Flame },
+          ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & Equipment", icon: Flame }] : []),
         ]
       },
       {
@@ -162,11 +164,11 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
         items: [
           { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
-          { href: "/app/residents", label: "Residents", icon: BedDouble },
-          { href: "/app/resident-compliance", label: "Resident Compliance", icon: ClipboardList },
+          ...(showPchAlrModules ? [{ href: "/app/residents", label: "Residents", icon: BedDouble }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/resident-compliance", label: "Resident Compliance", icon: ClipboardList }] : []),
           { href: "/app/alerts", label: "Alerts", icon: Bell },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
-          { href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar },
+          ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar }] : []),
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
           { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
           { href: "/app/template-documents", label: "Template Documents", icon: FileStack },
@@ -197,7 +199,7 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
           // Mounted at /app/* (not /trainer/*) since inspections has no separate trainer-scoped
           // page -- ProtectedRoute gates by role membership, not URL prefix, and
           // INSPECTION_ROLES already includes trainer.
-          { href: "/app/inspections", label: "Inspections & Equipment", icon: Flame },
+          ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & Equipment", icon: Flame }] : []),
         ]
       }
     ];
@@ -228,10 +230,16 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const { user } = useAuth();
   const [location] = useLocation();
   const handleLogout = useSignOut();
+  const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
 
   if (!user) return null;
 
-  const navSections = getNavSections(user.role);
+  // Fail open (show) while the facility-type data is still loading or failed to load, rather
+  // than hiding these items -- otherwise every PCH/ALR org (the common case) would see this
+  // section flicker out on every fresh page load, and a query error would permanently hide it.
+  const showPchAlrModules = facilityTypesLoading || facilityTypesError
+    || hasAnyFacilityType(facilityTypes, PCH_ALR_ONLY_FACILITY_TYPES);
+  const navSections = getNavSections(user.role, showPchAlrModules);
 
   return (
     <>

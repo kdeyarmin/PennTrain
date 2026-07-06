@@ -27,6 +27,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, getComplianceFormLabel, formatDateOnly } from "@/lib/residentCompliance";
 import { isDigitalFormEligible, deriveAssessmentReason } from "@/lib/residentAssessmentFormSchema";
+import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 
 type SupportRow = Partial<Pick<ResidentInformalSupport, "id">> & { name: string; relationship: string; phone: string };
 
@@ -120,7 +121,8 @@ export default function ResidentDetail() {
   // instantiate_resident_compliance_items() only seeds rule-pack rows for PCH/ALR (Phase 5) --
   // mirror that gate here so an unsupported facility type can't get a significant_change_reassessment
   // item via this button either (the RPC now enforces this server-side too).
-  const isTrackedFacilityType = facility?.facility_type === "PCH" || facility?.facility_type === "ALR";
+  const isTrackedFacilityType = !!facility?.facility_type
+    && (PCH_ALR_ONLY_FACILITY_TYPES as readonly string[]).includes(facility.facility_type);
 
   const openContactsDialog = () => {
     if (!resident || informalSupportsLoading) return;

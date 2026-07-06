@@ -1,13 +1,26 @@
 export type FacilityType = "PCH" | "ALR" | "NH" | "HHA" | "HOS" | "GH";
 
 export const FACILITY_TYPES: { value: FacilityType; label: string }[] = [
-  { value: "PCH", label: "PCH" },
-  { value: "ALR", label: "ALR" },
-  { value: "NH", label: "NH" },
-  { value: "HHA", label: "HHA" },
-  { value: "HOS", label: "HOS" },
-  { value: "GH", label: "GH" },
+  { value: "PCH", label: "Personal Care Home (PCH)" },
+  { value: "ALR", label: "Assisted Living Residence (ALR/ALF)" },
+  { value: "NH", label: "Skilled Nursing Facility (SNF/NH)" },
+  { value: "HHA", label: "Home Health Agency (HHA)" },
+  { value: "HOS", label: "Hospice Agency (HOS)" },
+  { value: "GH", label: "Group Home (GH)" },
 ];
+
+// Facility types this app's PCH/ALR-specific regulatory modules (resident RASP/ASP tracking,
+// medication-admin practicums, the administrator-qualification course, fire-drill logging) have
+// working content for -- see the resident_compliance_rule_packs migration and ROADMAP.md. Nav
+// items and routes for those modules are hidden for every other facility type (NH, HHA, HOS, GH)
+// rather than shown with nothing in them.
+export const PCH_ALR_ONLY_FACILITY_TYPES: readonly FacilityType[] = ["PCH", "ALR"];
+
+/** True if any of `candidates` is in `facilityTypes` (always false while `facilityTypes` is undefined/loading). */
+export function hasAnyFacilityType(facilityTypes: Set<string> | undefined, candidates: readonly string[]): boolean {
+  if (!facilityTypes) return false;
+  return candidates.some(c => facilityTypes.has(c));
+}
 
 const FACILITY_TYPE_BADGE_CLASSES: Record<FacilityType, string> = {
   PCH: "border-blue-200 text-blue-700 bg-blue-50",
