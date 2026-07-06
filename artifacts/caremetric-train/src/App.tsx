@@ -50,6 +50,8 @@ import Violations from "@/pages/app/Violations";
 import ViolationDetail from "@/pages/app/ViolationDetail";
 import Residents from "@/pages/app/Residents";
 import ResidentDetail from "@/pages/app/ResidentDetail";
+import ResidentComplianceReport from "@/pages/app/ResidentComplianceReport";
+import ResidentAssessmentFormEditor from "@/pages/app/ResidentAssessmentFormEditor";
 import IncidentDetail from "@/pages/app/IncidentDetail";
 import InspectionItems from "@/pages/app/InspectionItems";
 import InspectionItemDetail from "@/pages/app/InspectionItemDetail";
@@ -343,6 +345,12 @@ function Router() {
       </Route>
       <Route path="/app/residents/:id">
         {() => <ProtectedRoute component={ResidentDetail} allowedRoles={RESIDENT_ROLES} />}
+      </Route>
+      <Route path="/app/resident-compliance">
+        {() => <ProtectedRoute component={ResidentComplianceReport} allowedRoles={RESIDENT_ROLES} />}
+      </Route>
+      <Route path="/app/residents/:residentId/assessment-forms/:formId">
+        {() => <ProtectedRoute component={ResidentAssessmentFormEditor} allowedRoles={RESIDENT_ROLES} />}
       </Route>
       <Route path="/app/inspections">
         {() => <ProtectedRoute component={InspectionItems} allowedRoles={INSPECTION_ROLES} />}

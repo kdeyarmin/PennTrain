@@ -1,44 +1,38 @@
-import { useRef } from "react";
-import { useParams, Link } from "wouter";
+import { useRef, useState } from "react";
+import { useParams, Link, useLocation } from "wouter";
 import { useGetResident, useUpdateResident } from "@/hooks/useResidents";
-import { useListResidentComplianceItems, useCompleteResidentComplianceItem } from "@/hooks/useResidentComplianceItems";
+import {
+  useListResidentComplianceItems, useCompleteResidentComplianceItem, useLogResidentChangeOfCondition,
+} from "@/hooks/useResidentComplianceItems";
 import {
   useListResidentDocuments, useUploadResidentDocument, useResidentDocumentSignedUrl, useDeleteResidentDocument,
 } from "@/hooks/useResidentDocuments";
+import { useListResidentAssessmentForms, useStartResidentAssessmentForm } from "@/hooks/useResidentAssessmentForms";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, BedDouble, ClipboardList, FileText, Upload, Download, Trash2, Check } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, BedDouble, ClipboardList, FileText, Upload, Download, Trash2, Check, TriangleAlert, FilePenLine, Lock } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, getComplianceFormLabel } from "@/lib/residentCompliance";
+import { isDigitalFormEligible, deriveAssessmentReason } from "@/lib/residentAssessmentFormSchema";
 
 function humanize(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
-const ITEM_TYPE_LABELS: Record<string, string> = {
-  preadmission_screening: "Preadmission Screening",
-  initial_assessment_15day: "15-Day Initial Assessment",
-  support_plan_30day: "30-Day Support Plan",
-  annual_reassessment: "Annual Reassessment",
-  medical_evaluation: "Medical Evaluation",
-};
-
 function ComplianceStatusBadge({ status }: { status: string }) {
-  const className =
-    status === "compliant" ? "bg-success text-success-foreground hover:bg-success/80"
-    : status === "due_soon" ? "bg-warning text-warning-foreground hover:bg-warning/80"
-    : status === "expired" ? "bg-destructive text-destructive-foreground hover:bg-destructive/80"
-    : status === "not_applicable" ? "bg-muted text-muted-foreground"
-    : "bg-muted text-muted-foreground"; // missing
-  return <Badge className={className} variant="outline">{humanize(status)}</Badge>;
+  return <Badge className={complianceStatusBadgeClassName(status)} variant="outline">{humanize(status)}</Badge>;
 }
 
 export default function ResidentDetail() {
   const { id } = useParams<{ id: string }>();
+  const [, navigate] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -49,16 +43,51 @@ export default function ResidentDetail() {
   const { data: facilities } = useListFacilities();
   const { data: items, isLoading: itemsLoading } = useListResidentComplianceItems(id);
   const { data: documents, isLoading: documentsLoading } = useListResidentDocuments(id);
+  const { data: assessmentForms, isLoading: assessmentFormsLoading } = useListResidentAssessmentForms(id);
 
   const { mutate: updateResident } = useUpdateResident();
   const completeItem = useCompleteResidentComplianceItem();
+  const logChangeOfCondition = useLogResidentChangeOfCondition();
   const uploadDocument = useUploadResidentDocument();
   const getSignedUrl = useResidentDocumentSignedUrl();
   const deleteDocument = useDeleteResidentDocument();
+  const startAssessmentForm = useStartResidentAssessmentForm();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showChangeDialog, setShowChangeDialog] = useState(false);
+  const [changeNotes, setChangeNotes] = useState("");
 
-  const facilityName = facilities?.find((f) => f.id === resident?.facility_id)?.name;
+  const itemById = new Map((items ?? []).map((i) => [i.id, i]));
+
+  const handleLogChangeOfCondition = () => {
+    if (!resident) return;
+    logChangeOfCondition.mutate(
+      { residentId: resident.id, notes: changeNotes.trim() || undefined },
+      {
+        onSuccess: () => {
+          toast({ title: "Significant change reassessment logged" });
+          setShowChangeDialog(false);
+          setChangeNotes("");
+        },
+        onError: (e: Error) => toast({ title: "Failed to log change of condition", description: e.message, variant: "destructive" }),
+      },
+    );
+  };
+
+  const handleCompleteInCareMetric = (item: NonNullable<typeof items>[number]) => {
+    if (!resident) return;
+    startAssessmentForm.mutate(
+      { residentId: resident.id, reason: deriveAssessmentReason(item.item_type), complianceItemId: item.id },
+      {
+        onSuccess: (newForm) => navigate(`/app/residents/${resident.id}/assessment-forms/${newForm.id}`),
+        onError: (e: Error) => toast({ title: "Failed to start assessment form", description: e.message, variant: "destructive" }),
+      },
+    );
+  };
+
+  const facility = facilities?.find((f) => f.id === resident?.facility_id);
+  const facilityName = facility?.name;
+  const formLabel = getComplianceFormLabel(facility?.facility_type);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -153,7 +182,14 @@ export default function ResidentDetail() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" /> RASP Compliance Checklist</CardTitle>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" /> {formLabel} Compliance Checklist</CardTitle>
+            {canManage && (
+              <Button variant="outline" size="sm" onClick={() => setShowChangeDialog(true)}>
+                <TriangleAlert className="mr-2 h-3.5 w-3.5" /> Log Change of Condition
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           {itemsLoading ? (
@@ -174,20 +210,101 @@ export default function ResidentDetail() {
                     <p className="text-xs text-muted-foreground">
                       Due {item.due_date ?? "—"}{item.completed_date ? ` · Completed ${item.completed_date}` : ""}
                     </p>
+                    {item.triggered_by_item_id && itemById.get(item.triggered_by_item_id) && (
+                      <p className="text-xs text-muted-foreground italic">
+                        → triggered by {ITEM_TYPE_LABELS[itemById.get(item.triggered_by_item_id)!.item_type]
+                          ?? humanize(itemById.get(item.triggered_by_item_id)!.item_type)} completed{" "}
+                        {itemById.get(item.triggered_by_item_id)!.completed_date}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <ComplianceStatusBadge status={item.status} />
                     {canManage && item.status !== "compliant" && item.status !== "not_applicable" && (
-                      <Button
-                        variant="ghost" size="icon" className="h-7 w-7" disabled={completeItem.isPending}
-                        onClick={() => completeItem.mutate(item, {
-                          onError: (e: Error) => toast({ title: "Failed to mark complete", description: e.message, variant: "destructive" }),
-                        })}
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                      </Button>
+                      <>
+                        {isDigitalFormEligible(item.item_type) && (
+                          <Button
+                            variant="outline" size="sm" className="h-7 text-xs" disabled={startAssessmentForm.isPending}
+                            onClick={() => handleCompleteInCareMetric(item)}
+                          >
+                            <FilePenLine className="mr-1.5 h-3.5 w-3.5" /> Complete in CareMetric
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost" size="icon" className="h-7 w-7" title="Mark complete without the digital form"
+                          disabled={completeItem.isPending}
+                          onClick={() => completeItem.mutate(item, {
+                            onError: (e: Error) => toast({ title: "Failed to mark complete", description: e.message, variant: "destructive" }),
+                          })}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
                     )}
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={showChangeDialog} onOpenChange={(o) => { setShowChangeDialog(o); if (!o) setChangeNotes(""); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Log Change of Condition</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">
+              PA DHS requires a reassessment when a resident's condition significantly changes, but
+              specifies no exact turnaround time — this schedules it as due immediately so it stays
+              visible until completed.
+            </p>
+            <Textarea
+              placeholder="Optional note (e.g. fall, ER visit 7/3)"
+              value={changeNotes}
+              onChange={(e) => setChangeNotes(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowChangeDialog(false)}>Cancel</Button>
+            <Button onClick={handleLogChangeOfCondition} disabled={logChangeOfCondition.isPending}>
+              {logChangeOfCondition.isPending ? "Logging..." : "Log Change of Condition"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><FilePenLine className="h-5 w-5" /> Digital {formLabel} Forms</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {assessmentFormsLoading ? (
+            <Skeleton className="h-10" />
+          ) : !assessmentForms?.length ? (
+            <p className="text-sm text-muted-foreground">
+              No {formLabel} completed in CareMetric yet — use "Complete in CareMetric" on a checklist item above to start one.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {assessmentForms.map((f) => (
+                <div key={f.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      Version {f.version_number} — {humanize(f.reason)}
+                      {f.status === "finalized"
+                        ? <Badge variant="outline"><Lock className="mr-1 h-3 w-3" /> Finalized</Badge>
+                        : <Badge variant="outline">Draft</Badge>}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {f.status === "finalized" ? `Finalized ${new Date(f.finalized_at!).toLocaleDateString()}` : `Prepared by ${f.prepared_by_name || "—"}`}
+                    </p>
+                  </div>
+                  <Link href={`/app/residents/${id}/assessment-forms/${f.id}`} className="text-sm text-primary hover:underline">
+                    {f.status === "finalized" ? "View" : "Continue"}
+                  </Link>
                 </div>
               ))}
             </div>
@@ -213,7 +330,7 @@ export default function ResidentDetail() {
           {documentsLoading ? (
             <Skeleton className="h-10" />
           ) : !documents?.length ? (
-            <p className="text-sm text-muted-foreground">No documents uploaded. Completed DHS RASP/DME forms go here.</p>
+            <p className="text-sm text-muted-foreground">No documents uploaded. Completed DHS {formLabel}/DME forms go here.</p>
           ) : (
             <div className="space-y-2">
               {documents.map((doc) => (

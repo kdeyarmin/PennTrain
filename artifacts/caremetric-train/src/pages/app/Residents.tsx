@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useListResidents, useCreateResident, type ResidentInsert } from "@/hooks/useResidents";
+import { useListAllResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { BedDouble, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { worstComplianceStatus, complianceStatusBadgeClassName, getComplianceFormLabel } from "@/lib/residentCompliance";
 
 const PAGE_SIZE = 15;
 
@@ -33,11 +35,12 @@ interface ResidentFormData {
   admissionDate: string;
   sdcu: boolean;
   hospice: boolean;
+  admissionTrack: "standard" | "expedited";
 }
 
 const EMPTY_FORM: ResidentFormData = {
   facilityId: "", firstName: "", lastName: "", room: "",
-  admissionDate: new Date().toISOString().slice(0, 10), sdcu: false, hospice: false,
+  admissionDate: new Date().toISOString().slice(0, 10), sdcu: false, hospice: false, admissionTrack: "standard",
 };
 
 export default function Residents() {
@@ -60,10 +63,23 @@ export default function Residents() {
     facilityId: facilityFilter !== "all" ? facilityFilter : undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
   });
+  // One query for every resident's compliance items, not one per row -- avoids the N+1 pattern a
+  // facility manager previously had to work around by clicking into each resident individually.
+  const { data: complianceItems } = useListAllResidentComplianceItems();
 
   const { mutate: createResident, isPending: creating } = useCreateResident();
 
   const facilityById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
+  const complianceByResident = useMemo(() => {
+    const map = new Map<string, { worstStatus: string; openCount: number }>();
+    for (const item of complianceItems ?? []) {
+      const existing = map.get(item.resident_id);
+      const statuses = existing ? [existing.worstStatus, item.status] : [item.status];
+      const openCount = (existing?.openCount ?? 0) + (item.status === "due_soon" || item.status === "expired" || item.status === "missing" ? 1 : 0);
+      map.set(item.resident_id, { worstStatus: worstComplianceStatus(statuses), openCount });
+    }
+    return map;
+  }, [complianceItems]);
 
   const allResidents = residents ?? [];
   const totalPages = Math.max(1, Math.ceil(allResidents.length / PAGE_SIZE));
@@ -91,20 +107,24 @@ export default function Residents() {
       admission_date: form.admissionDate,
       sdcu: form.sdcu,
       hospice: form.hospice,
+      admission_track: facility.facility_type === "ALR" ? form.admissionTrack : "standard",
     };
 
+    const formLabel = getComplianceFormLabel(facility.facility_type);
     createResident(payload, {
-      onSuccess: () => { toast({ title: "Resident added — RASP compliance checklist generated" }); setShowForm(false); },
+      onSuccess: () => { toast({ title: `Resident added — ${formLabel} compliance checklist generated` }); setShowForm(false); },
       onError: (e: Error) => toast({ title: "Failed to add resident", description: e.message, variant: "destructive" }),
     });
   };
+
+  const selectedFacility = facilityById.get(form.facilityId);
 
   return (
     <div className="space-y-6">
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Residents</h1>
-          <p>Track RASP compliance deadlines by resident — preadmission screening through annual reassessment. No charting or care-plan data is stored here.</p>
+          <p>Track RASP/ASP compliance deadlines by resident — preadmission screening through annual reassessment. No charting or care-plan data is stored here.</p>
         </div>
         {canManage && (
           <Button onClick={openCreate} className="shadow-sm">
@@ -140,13 +160,13 @@ export default function Residents() {
             <BedDouble className="h-10 w-10 text-muted-foreground/30 mb-3" />
             <p className="text-sm font-medium text-muted-foreground">No residents found</p>
             <p className="text-xs text-muted-foreground/60 mt-1">
-              {canManage ? "Add a resident to start their RASP compliance checklist." : "Try adjusting your filters."}
+              {canManage ? "Add a resident to start their RASP/ASP compliance checklist." : "Try adjusting your filters."}
             </p>
           </div>
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="data-table min-w-[760px]">
+              <table className="data-table min-w-[900px]">
                 <thead>
                   <tr>
                     <th>Name</th>
@@ -154,6 +174,7 @@ export default function Residents() {
                     <th>Room</th>
                     <th>Admission Date</th>
                     <th>Flags</th>
+                    <th>Compliance</th>
                     <th>Status</th>
                     <th className="w-16" />
                   </tr>
@@ -171,6 +192,22 @@ export default function Residents() {
                           {r.hospice && <Badge variant="outline" className="text-[10px]">Hospice</Badge>}
                           {!r.sdcu && !r.hospice && <span className="text-muted-foreground">—</span>}
                         </div>
+                      </td>
+                      <td>
+                        {(() => {
+                          const compliance = complianceByResident.get(r.id);
+                          if (!compliance) return <span className="text-muted-foreground">—</span>;
+                          return (
+                            <div className="flex items-center gap-1.5">
+                              <Badge className={complianceStatusBadgeClassName(compliance.worstStatus)} variant="outline">
+                                {humanize(compliance.worstStatus)}
+                              </Badge>
+                              {compliance.openCount > 0 && (
+                                <span className="text-xs text-muted-foreground">{compliance.openCount} open</span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td><StatusPill status={r.status} /></td>
                       <td>
@@ -239,6 +276,25 @@ export default function Residents() {
                   Hospice
                 </label>
               </div>
+              {selectedFacility?.facility_type === "ALR" && (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-[13px]">Admission Track</Label>
+                  <Select
+                    value={form.admissionTrack}
+                    onValueChange={(v) => setForm((f) => ({ ...f, admissionTrack: v as ResidentFormData["admissionTrack"] }))}
+                  >
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="standard">Standard (assessment due 30 days before admission)</SelectItem>
+                      <SelectItem value="expedited">Expedited (assessment due 15 days after admission)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Expedited applies only for: direct transfer from an acute-care hospital, admission to escape an
+                    abusive situation, or no alternative living arrangement available.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
