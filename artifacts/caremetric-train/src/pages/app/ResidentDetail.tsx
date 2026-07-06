@@ -154,6 +154,22 @@ export default function ResidentDetail() {
       const keptIds = new Set(nonBlankRows.filter((r) => r.id).map((r) => r.id!));
       const removed = [...originalSupportIds.current].filter((rid) => !keptIds.has(rid));
 
+      // resident_informal_supports_delete only permits org_admin/platform_admin (same tier as
+      // resident_documents_delete) -- a facility_manager has no way to remove a persisted row, not
+      // via the trash icon (already hidden for them) and not by blanking its name either, since that
+      // would otherwise still attempt this same RLS-rejected delete. Block the whole save up front
+      // with a clear explanation instead of letting the resident-contact update go through and then
+      // failing on the support delete.
+      if (removed.length && !canDelete) {
+        toast({
+          title: "Can't remove existing supports",
+          description: "Only an org admin can remove an already-saved informal support. Ask one to remove it, or restore the name to keep it.",
+          variant: "destructive",
+        });
+        setIsSavingContacts(false);
+        return;
+      }
+
       await Promise.all([
         new Promise<void>((resolve, reject) => {
           updateResident({ id: resident.id, ...contactsForm, date_of_birth: contactsForm.date_of_birth || null }, { onSuccess: () => resolve(), onError: reject });
