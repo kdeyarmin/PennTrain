@@ -126,7 +126,10 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
           { href: "/app/users", label: "Users", icon: Users },
           { href: "/app/training-types", label: "Training Types", icon: ListChecks },
           { href: "/app/settings", label: "Settings", icon: Settings },
-          { href: "/app/audit", label: "Audit Log", icon: ShieldAlert },
+          // Audit Log is org_admin/auditor-only (see AUDIT_LOG_ROLES in App.tsx) -- audit_logs has
+          // no facility_id column, so it can't be scoped to a facility_manager's own facility the
+          // way every other facility_manager grant in this schema is.
+          ...(role === "org_admin" ? [{ href: "/app/audit", label: "Audit Log", icon: ShieldAlert }] : []),
         ]
       }
     ];

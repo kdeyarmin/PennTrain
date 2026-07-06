@@ -24,22 +24,6 @@ export function useListBackgroundCheckProfiles(filters: ListBackgroundCheckProfi
   });
 }
 
-export function useGetBackgroundCheckProfileByEmployeeId(employeeId: string | undefined) {
-  return useQuery({
-    queryKey: ["background_check_profiles", "by-employee", employeeId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("employee_background_check_profiles")
-        .select("*")
-        .eq("employee_id", employeeId!)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!employeeId,
-  });
-}
-
 // One profile row per employee -- upsert-on-employee_id so the same dialog handles both "create
 // on first use" and "edit an existing profile" without the caller needing to know which case
 // it is.

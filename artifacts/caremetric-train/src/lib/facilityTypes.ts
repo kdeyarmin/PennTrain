@@ -9,15 +9,6 @@ export const FACILITY_TYPES: { value: FacilityType; label: string }[] = [
   { value: "GH", label: "GH" },
 ];
 
-export const FACILITY_TYPE_NAMES: Record<FacilityType, string> = {
-  PCH: "Personal Care Home",
-  ALR: "Assisted Living Residence",
-  NH: "Nursing Home",
-  HHA: "Home Health Agency",
-  HOS: "Hospice Agency",
-  GH: "Group Home",
-};
-
 const FACILITY_TYPE_BADGE_CLASSES: Record<FacilityType, string> = {
   PCH: "border-blue-200 text-blue-700 bg-blue-50",
   ALR: "border-violet-200 text-violet-700 bg-violet-50",

@@ -34,18 +34,6 @@ export function useListCompetencyTemplates() {
   });
 }
 
-export function useGetCompetencyTemplate(id: string | undefined) {
-  return useQuery({
-    queryKey: ["competency_templates", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("competency_templates").select("*").eq("id", id!).single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
-}
-
 export function useCreateCompetencyTemplate() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -189,18 +177,6 @@ export function useListCompetencyRecords(filters: ListCompetencyRecordsFilters =
       if (error) throw error;
       return data;
     },
-  });
-}
-
-export function useGetCompetencyRecord(id: string | undefined) {
-  return useQuery({
-    queryKey: ["competency_records", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("competency_records").select("*").eq("id", id!).single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
   });
 }
 

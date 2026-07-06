@@ -17,6 +17,10 @@ export function courseDetailPath(id: string, role: Role | undefined): string {
   return isPlatformAdmin(role) ? `/admin/courses/${id}` : `/app/courses/${id}`;
 }
 
-export function quizBuilderPath(quizId: string, role: Role | undefined): string {
-  return isPlatformAdmin(role) ? `/admin/quizzes/${quizId}` : `/app/quizzes/${quizId}`;
+// Unlike coursesListPath/courseDetailPath above, quiz authoring has no org-scoped `/app/quizzes/*`
+// route -- course/quiz authoring is platform_admin-exclusive by RLS and UI (see
+// 20260705203242_restrict_course_authoring_to_platform_admin.sql), so there is only ever an
+// `/admin/quizzes/:quizId` destination to link to.
+export function quizBuilderPath(quizId: string, _role: Role | undefined): string {
+  return `/admin/quizzes/${quizId}`;
 }

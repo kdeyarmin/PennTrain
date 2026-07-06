@@ -24,18 +24,6 @@ export function useListProfiles(filters: ListProfilesFilters = {}) {
   });
 }
 
-export function useGetProfile(id: string | undefined) {
-  return useQuery({
-    queryKey: ["profiles", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", id!).single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
-}
-
 /**
  * `profiles.role` / `organization_id` / `is_active` / `email` are protected by the
  * `protect_profile_privileged_fields()` DB trigger (see

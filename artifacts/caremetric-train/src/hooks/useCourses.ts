@@ -76,17 +76,6 @@ export function useUpdateCourse() {
   });
 }
 
-export function useDeleteCourse() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("courses").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["courses"] }),
-  });
-}
-
 // Course versions are scoped under the "courses" query-key namespace (rather than
 // their own top-level "course_versions" key) so that a broad invalidateQueries({
 // queryKey: ["courses"] }) -- e.g. after useUpdateCourse changes current_version_id

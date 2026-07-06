@@ -18,6 +18,7 @@ import {
 } from "@/hooks/useTrainingRecords";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { todayISO, addDaysISO, computeDueDate, computeStatus } from "@/lib/complianceDates";
 import { ClipboardCheck, FileText, ExternalLink, Check, X, Inbox } from "lucide-react";
 
 // The three document_type values that can carry an external training credential. 'roster',
@@ -76,35 +77,10 @@ function findCurrentRecord(records: TrainingRecord[], employeeId: string, traini
   });
 }
 
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function addDaysISO(dateISO: string, days: number): string {
-  const d = new Date(`${dateISO}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-// Mirrors the due_date formula in recalculate_all_compliance() (supabase/migrations/
-// 20260704053624_compliance_rpcs_and_audit_trigger.sql): completion_date + renewal_interval_days,
-// or no due date at all for one-time trainings.
-function computeDueDate(completionDate: string | null, renewalIntervalDays: number | null | undefined): string | null {
-  if (!completionDate || renewalIntervalDays == null) return null;
-  return addDaysISO(completionDate, renewalIntervalDays);
-}
-
-// Mirrors the status formula in the same RPC. That RPC deliberately leaves 'pending_review' (and
-// 'not_applicable') rows untouched, so approving a record here has to compute the real status
-// ourselves -- recalculate_all_compliance() would never move it out of pending_review on its own.
-function computeStatus(completionDate: string | null, dueDate: string | null, warningDays: number): string {
-  if (!completionDate) return "missing";
-  if (!dueDate) return "compliant";
-  const today = todayISO();
-  if (dueDate < today) return "expired";
-  if (dueDate <= addDaysISO(today, warningDays)) return "due_soon";
-  return "compliant";
-}
+// recalculate_all_compliance() (supabase/migrations/20260704053624_compliance_rpcs_and_audit_trigger.sql)
+// deliberately leaves 'pending_review' (and 'not_applicable') rows untouched, so approving a
+// record here has to compute the real status ourselves via computeStatus() -- the nightly recalc
+// would never move it out of pending_review on its own.
 
 interface DecisionInput {
   organizationId: string;

@@ -57,13 +57,3 @@ export function useUpdateCorrectiveAction() {
   });
 }
 
-export function useDeleteCorrectiveAction() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("corrective_actions").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["corrective_actions"] }),
-  });
-}
