@@ -125,6 +125,28 @@ function resolveIsRecoverySession(session: Session | null): boolean {
   return isKnownRecoverySession(session);
 }
 
+// Codex review finding: if a visitor opens a reset/invite link and then closes the tab (rather
+// than navigating away within the app, which is what runs ResetPassword.tsx's own abandonment
+// signOut()), the marker set above is never cleared -- it isn't tied to a timeout or to the
+// specific link/token, only to the account's user id. The next time that SAME account signs in for
+// real with their actual password, isKnownRecoverySession would still match and incorrectly keep
+// isAuthenticated false, with no obvious way for the user to recover short of clearing storage.
+//
+// Login.tsx/Signup.tsx/Demo.tsx -- the only three places this app calls signInWithPassword --
+// call markExplicitPasswordSignIn() immediately before doing so. Successfully authenticating with
+// a password is the strongest possible proof this is a real login for that account, regardless of
+// what any stale marker says, so the very next SIGNED_IN event (auth-js fires it synchronously as
+// part of signInWithPassword's own call chain, before the caller's `await` resumes -- never
+// INITIAL_SESSION, which only fires once on initial client load, not on a later interactive call)
+// clears that account's marker rather than trusting it. The short expiry is just a backstop for a
+// failed sign-in attempt (wrong password: no SIGNED_IN fires at all, so nothing consumes the flag)
+// so a stale "expect a real login" flag can't linger indefinitely and wrongly bless some unrelated
+// later SIGNED_IN in the same tab.
+let explicitPasswordSignInExpiresAt = 0;
+export function markExplicitPasswordSignIn() {
+  explicitPasswordSignInExpiresAt = Date.now() + 15_000;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -149,17 +171,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSessionLoading(false);
     });
 
-    // Every event except SIGNED_OUT resolves isRecoverySession the same way, through
-    // resolveIsRecoverySession -- which also handles PASSWORD_RECOVERY (the `recovery` implicit-
-    // grant type resolves through the same pendingImplicitGrantType snapshot as `invite` does) and
-    // a relayed SIGNED_IN from another tab (its fallback to the shared, cross-tab
-    // RECOVERY_SESSION_KEY marker catches that automatically). An ordinary interactive login
-    // (Login/Signup/Demo, all via supabase.auth.signInWithPassword) resolves false here without
-    // needing its own special case, since isKnownRecoverySession can never match a session that
-    // was never marked. SIGNED_OUT is the only event that should ever clear an established marker.
+    // Every event resolves isRecoverySession through resolveIsRecoverySession -- which also
+    // handles PASSWORD_RECOVERY (the `recovery` implicit-grant type resolves through the same
+    // pendingImplicitGrantType snapshot as `invite` does) and a relayed SIGNED_IN from another tab
+    // (its fallback to the shared, cross-tab RECOVERY_SESSION_KEY marker catches that
+    // automatically) -- except two events with their own explicit handling: SIGNED_OUT always
+    // clears the marker (nothing to resolve, there's no session left), and a SIGNED_IN that
+    // immediately followed markExplicitPasswordSignIn() is a just-confirmed real password login,
+    // which overrides and clears even a stale, never-cleaned-up marker for this exact account (see
+    // that function's own comment for why a marker can go stale in the first place).
     const { data: subscription } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      // Only ever consumed here, on SIGNED_IN specifically -- never reset on some other,
+      // unrelated event in between, for the same reason pendingImplicitGrantType above is only
+      // consumed when actually checked: an earlier fix that cleared a similar one-shot flag
+      // unconditionally on every event let an unrelated event consume it before the one it was
+      // meant to gate ever arrived.
+      const isConfirmedPasswordSignIn =
+        event === "SIGNED_IN" && !!nextSession && Date.now() < explicitPasswordSignInExpiresAt;
+      if (event === "SIGNED_IN") {
+        explicitPasswordSignInExpiresAt = 0;
+      }
+
       if (event === "SIGNED_OUT") {
         clearRecoverySession(lastSessionRef.current?.user.id);
+        setIsRecoverySession(false);
+      } else if (isConfirmedPasswordSignIn) {
+        clearRecoverySession(nextSession.user.id);
         setIsRecoverySession(false);
       } else {
         setIsRecoverySession(resolveIsRecoverySession(nextSession));

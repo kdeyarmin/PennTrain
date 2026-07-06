@@ -91,12 +91,18 @@ export async function pollAndResolveHeygenVideo(
     // Copilot review finding: `body: { heygen: ... }` alone replaces the entire jsonb column,
     // silently dropping body.script (AI narration) and any other sibling key. Spread the
     // existing body first so only the `heygen` key actually changes.
-    await writeCourseBlock({ body: { ...block.body, heygen: { ...job, status: "failed", error: failureMessage } } });
+    const { error: writeError } = await writeCourseBlock({ body: { ...block.body, heygen: { ...job, status: "failed", error: failureMessage } } });
+    // Copilot review finding: a failed write here was silently ignored, so the DB row could be
+    // left unchanged (still showing the prior in-flight status) while this call reports "failed" --
+    // the cron poller would then keep re-polling HeyGen for a job that's already known to have
+    // failed, instead of surfacing the write error itself.
+    if (writeError) return { status: "error", error: writeError.message };
     return { status: "failed", error: failureMessage };
   }
 
   if (heygenStatus !== "completed") {
-    await writeCourseBlock({ body: { ...block.body, heygen: { ...job, status: heygenStatus } } });
+    const { error: writeError } = await writeCourseBlock({ body: { ...block.body, heygen: { ...job, status: heygenStatus } } });
+    if (writeError) return { status: "error", error: writeError.message };
     return { status: heygenStatus };
   }
 
