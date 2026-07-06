@@ -23,6 +23,12 @@ function json(body: unknown, status = 200) {
 }
 
 const BATCH_SIZE = 200;
+// A row claimed (flipped to 'processing') longer ago than this is treated as abandoned -- the
+// Edge Function that claimed it must have timed out, been redeployed mid-batch, or crashed before
+// its per-row finalize update ran -- and becomes eligible to be claimed again. Comfortably shorter
+// than the 15-minute cron interval this function runs on, so a genuinely-stuck row is reclaimed on
+// the very next scheduled run rather than staying stuck indefinitely.
+const PROCESSING_STALE_MS = 10 * 60 * 1000;
 const NOT_CONFIGURED_EMAIL = "SENDGRID_API_KEY is not set -- email delivery is not configured for this deployment.";
 const NOT_CONFIGURED_SMS = "TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_FROM_NUMBER are not fully set -- SMS delivery is not configured for this deployment.";
 
@@ -105,12 +111,29 @@ Deno.serve(async (req: Request) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
+  // Atomically claim a batch via claim_pending_notification_deliveries() -- a `FOR UPDATE SKIP
+  // LOCKED` RPC (20260706110200_add_updated_at_to_notification_deliveries_for_reclaim.sql), the
+  // standard, unambiguous Postgres pattern for claiming up to N work-queue rows under concurrency.
+  // Deliberately not a plain `.update(...).order(...).limit(...)`: whether PostgREST's limit/order
+  // actually bounds an UPDATE's affected rows (vs. just the rows it returns) isn't something to
+  // leave to chance here. Also reclaims a row stuck in 'processing' past PROCESSING_STALE_MS (an
+  // earlier invocation that timed out, was redeployed mid-batch, or crashed before its per-row
+  // finalize update ran), instead of leaving it claimed forever.
+  const { data: claimed, error: claimError } = await adminClient.rpc("claim_pending_notification_deliveries", {
+    p_batch_size: BATCH_SIZE,
+    p_stale_after_seconds: Math.round(PROCESSING_STALE_MS / 1000),
+  });
+
+  if (claimError) return json({ error: claimError.message }, 500);
+  if (!claimed || claimed.length === 0) return json({ processed: 0, sent: 0, skipped: 0, failed: 0 });
+
+  // Second read for the display data (title/body via the notifications embed) -- safe even though
+  // it's a separate round trip from the claim above: these rows are already ours (status =
+  // 'processing'), so no other invocation can also be processing them in the meantime.
   const { data: pending, error: fetchError } = await adminClient
     .from("notification_deliveries")
     .select("id, channel, recipient, notification_id, notifications(title, body)")
-    .eq("status", "pending")
-    .order("created_at", { ascending: true })
-    .limit(BATCH_SIZE);
+    .in("id", claimed.map((row: { id: string }) => row.id));
 
   if (fetchError) return json({ error: fetchError.message }, 500);
   if (!pending || pending.length === 0) return json({ processed: 0, sent: 0, skipped: 0, failed: 0 });

@@ -63,7 +63,7 @@ Deno.serve(async (req: Request) => {
 
   for (const rawBlock of pending) {
     const block = rawBlock as unknown as PollableCourseBlock;
-    const result = await pollAndResolveHeygenVideo(adminClient, adminClient, block, heygenApiKey);
+    const result = await pollAndResolveHeygenVideo(adminClient, adminClient, block, heygenApiKey, true);
     if (result.status === "completed") completed++;
     else if (result.status === "failed" || result.status === "error") failed++;
     else stillProcessing++;

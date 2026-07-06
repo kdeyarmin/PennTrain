@@ -8,11 +8,11 @@
 --
 -- Coverage is deliberately narrow (a "minimal" harness, not exhaustive): one representative
 -- employee-scoped table (employee_training_records), one org-config table with a narrower write
--- role than most (training_types, org_admin-only), and the core recalculate_all_compliance()
+-- role than most (training_types, org_admin-only), and the core recalculate_org_compliance()
 -- due_date/status formula. Extend with the same pattern for other tables as they matter.
 
 begin;
-select plan(14);
+select plan(13);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures: two orgs, one facility each, one profile per role we need.
@@ -56,6 +56,13 @@ insert into public.employees (id, organization_id, facility_id, first_name, last
 
 insert into public.training_types (id, organization_id, code, name, category, renewal_interval_days, warning_days_default, is_system_default) values
   ('00000000-0000-0000-0000-0000000000a7', null, 'TEST-ANNUAL', 'Test Annual Training', 'Test', 365, 90, true);
+
+-- The insert above fires the PA-rulepack auto-instantiation trigger (20260705142938) for every
+-- existing active employee it applies to, so it already created a 'missing' employee_training_records
+-- shell row for a6/a7 -- clear it so the RLS tests below own the only row for this employee/type pair.
+delete from public.employee_training_records
+where employee_id = '00000000-0000-0000-0000-0000000000a6'
+  and training_type_id = '00000000-0000-0000-0000-0000000000a7';
 
 -- Helper: simulate an authenticated request from the given profile for the rest of the
 -- transaction block (mirrors how PostgREST sets these GUCs per-request in production).
@@ -144,36 +151,49 @@ select isnt_empty(
 );
 
 -- ---------------------------------------------------------------------------
--- recalculate_all_compliance(): due_date and status formula, run as org_admin.
+-- recalculate_org_compliance(): authorization, plus the due_date/status formula, run as org_admin.
+-- Queries below are scoped to training_type_id = a7 since the training_types inserts above and
+-- below each trigger the auto-instantiation trigger, which creates additional employee_training_records
+-- shell rows for a6 on other training types.
 -- ---------------------------------------------------------------------------
+select pg_temp.act_as('00000000-0000-0000-0000-0000000000b3'); -- org_admin, org B (cross-org)
+
+select throws_ok(
+  $$ select public.recalculate_org_compliance('00000000-0000-0000-0000-0000000000a1') $$,
+  null, null,
+  'org_admin from a different org cannot recalculate org A''s compliance'
+);
+
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000a3');
 
 update public.employee_training_records
 set completion_date = current_date - 400 -- completed 400 days ago; renewal_interval_days = 365
-where employee_id = '00000000-0000-0000-0000-0000000000a6';
+where employee_id = '00000000-0000-0000-0000-0000000000a6'
+  and training_type_id = '00000000-0000-0000-0000-0000000000a7';
 
-select recalculate_all_compliance();
+select recalculate_org_compliance('00000000-0000-0000-0000-0000000000a1');
 
 select results_eq(
-  $$ select due_date from public.employee_training_records where employee_id = '00000000-0000-0000-0000-0000000000a6' $$,
+  $$ select due_date from public.employee_training_records where employee_id = '00000000-0000-0000-0000-0000000000a6' and training_type_id = '00000000-0000-0000-0000-0000000000a7' $$,
   $$ select (current_date - 400 + 365)::date $$,
-  'recalculate_all_compliance sets due_date = completion_date + renewal_interval_days'
+  'recalculate_org_compliance sets due_date = completion_date + renewal_interval_days'
 );
 
 select results_eq(
-  $$ select status from public.employee_training_records where employee_id = '00000000-0000-0000-0000-0000000000a6' $$,
+  $$ select status from public.employee_training_records where employee_id = '00000000-0000-0000-0000-0000000000a6' and training_type_id = '00000000-0000-0000-0000-0000000000a7' $$,
   ARRAY['expired'],
   'a record whose due_date has passed is marked expired'
 );
 
 update public.employee_training_records
 set completion_date = current_date - 300 -- due_date = current_date + 65, inside the 90-day warning window
-where employee_id = '00000000-0000-0000-0000-0000000000a6';
+where employee_id = '00000000-0000-0000-0000-0000000000a6'
+  and training_type_id = '00000000-0000-0000-0000-0000000000a7';
 
-select recalculate_all_compliance();
+select recalculate_org_compliance('00000000-0000-0000-0000-0000000000a1');
 
 select results_eq(
-  $$ select status from public.employee_training_records where employee_id = '00000000-0000-0000-0000-0000000000a6' $$,
+  $$ select status from public.employee_training_records where employee_id = '00000000-0000-0000-0000-0000000000a6' and training_type_id = '00000000-0000-0000-0000-0000000000a7' $$,
   ARRAY['due_soon'],
   'a record due within the warning window (but not yet past due) is marked due_soon'
 );

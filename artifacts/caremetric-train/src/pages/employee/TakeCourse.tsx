@@ -88,7 +88,7 @@ export default function TakeCourse() {
   const { data: assignment, isLoading: assignmentLoading } = useGetCourseAssignment(assignmentId);
   const { data: course } = useGetCourse(assignment?.course_id);
   const { data: blocks, isLoading: blocksLoading } = useListCourseBlocks(assignment?.course_version_id);
-  const { data: progress } = useGetCourseProgress(assignmentId);
+  const { data: progress, isLoading: progressLoading } = useGetCourseProgress(assignmentId);
   const { data: quizAttempts } = useListQuizAttempts({ assignmentId });
 
   const upsertProgress = useUpsertCourseProgress();
@@ -114,13 +114,13 @@ export default function TakeCourse() {
   // as soon as blocks are loaded. If there's no progress row yet (brand new
   // assignment) or the stored block no longer exists, we simply start at 0.
   useEffect(() => {
-    if (resumed || !blocks || blocks.length === 0) return;
+    if (resumed || !blocks || blocks.length === 0 || progressLoading) return;
     if (progress?.last_block_id) {
       const idx = blocks.findIndex(b => b.id === progress.last_block_id);
       if (idx >= 0) setStepIndex(idx);
     }
     setResumed(true);
-  }, [resumed, blocks, progress]);
+  }, [resumed, blocks, progress, progressLoading]);
 
   // Persist progress on navigation only (not on every render): this fires
   // once the resumed starting step lands, and again each time stepIndex

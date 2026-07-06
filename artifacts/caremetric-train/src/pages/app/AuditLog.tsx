@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useListAuditLogs } from "@/hooks/useAuditLogs";
 import { useListOrganizations } from "@/hooks/useOrganizations";
+import { useListEmployees } from "@/hooks/useEmployees";
+import { useListFacilities } from "@/hooks/useFacilities";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useQuery } from "@tanstack/react-query";
@@ -48,11 +50,33 @@ export default function AuditLog() {
   });
   const { data: profileNameMap } = useProfileNameMap();
   const { data: organizations } = useListOrganizations();
+  const { data: employeesData } = useListEmployees();
+  const { data: facilitiesData } = useListFacilities();
   const orgNameMap = useMemo(() => {
     const map: Record<string, string> = {};
     for (const o of organizations ?? []) map[o.id] = o.name;
     return map;
   }, [organizations]);
+  const employeeNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const e of employeesData ?? []) map.set(e.id, `${e.first_name} ${e.last_name}`.trim());
+    return map;
+  }, [employeesData]);
+  const facilityNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const f of facilitiesData ?? []) map.set(f.id, f.name);
+    return map;
+  }, [facilitiesData]);
+
+  // Resolves the two entity_types with an unambiguous, single-table row id
+  // (audit_log_trigger() targets, per 20260704053624_compliance_rpcs_and_audit_trigger.sql) to a
+  // human-readable label; every other entity_type keeps the raw #<uuid> fallback rather than
+  // attempting unbounded generic resolution across the dozens of other audited tables.
+  function getEntityLabel(entityType: string, entityId: string): string {
+    if (entityType === "employees") return employeeNameById.get(entityId) ?? `#${entityId}`;
+    if (entityType === "facilities") return facilityNameById.get(entityId) ?? `#${entityId}`;
+    return `#${entityId}`;
+  }
 
   const logs = logsData ?? [];
 
@@ -119,7 +143,9 @@ export default function AuditLog() {
                         {label}
                       </span>
                       <span className="text-sm font-medium capitalize">{log.entity_type?.replace(/_/g, " ")}</span>
-                      {log.entity_id && <span className="text-xs text-muted-foreground">#{log.entity_id}</span>}
+                      {log.entity_id && (
+                        <span className="text-xs text-muted-foreground">{getEntityLabel(log.entity_type, log.entity_id)}</span>
+                      )}
                       {isPlatformAdmin && orgName && <span className="text-xs text-muted-foreground">· {orgName}</span>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">

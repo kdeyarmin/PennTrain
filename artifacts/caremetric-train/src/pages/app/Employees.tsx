@@ -95,6 +95,7 @@ export default function Employees() {
   const basePath = user?.role === "platform_admin" ? "/admin/employees" : "/app/employees";
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
+  const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
 
   const { data: employees, isLoading } = useListEmployees({
     facilityId: facilityId !== "all" ? facilityId : undefined,
@@ -420,20 +421,20 @@ export default function Employees() {
                       <td>
                         <div className="flex items-center gap-0.5 justify-end">
                           {canManage && (
-                            <>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={e => openEdit(e, emp)} aria-label={`Edit ${emp.first_name} ${emp.last_name}`}>
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                onClick={e => { e.preventDefault(); e.stopPropagation(); setDeleteEmp(emp); }}
-                                aria-label={`Delete ${emp.first_name} ${emp.last_name}`}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={e => openEdit(e, emp)} aria-label={`Edit ${emp.first_name} ${emp.last_name}`}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={e => { e.preventDefault(); e.stopPropagation(); setDeleteEmp(emp); }}
+                              aria-label={`Delete ${emp.first_name} ${emp.last_name}`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           )}
                           <Link href={`${basePath}/${emp.id}`}>
                             <ChevronRight className="h-4 w-4 text-muted-foreground/40 cursor-pointer" />

@@ -141,6 +141,14 @@ export default function InspectionItemDetail() {
       toast({ title: "Performed by is required", variant: "destructive" });
       return;
     }
+    if (
+      isFireDrill &&
+      (!drillTime || !shift || !exitRouteUsed.trim() || !residentsPresent.trim() ||
+        !residentsEvacuated.trim() || !staffParticipating.trim() || !problemsEncountered.trim())
+    ) {
+      toast({ title: "All DHS fire drill fields are required", variant: "destructive" });
+      return;
+    }
     const totalSeconds = durationMinutes.trim() || durationSeconds.trim()
       ? (Number(durationMinutes || 0) * 60) + Number(durationSeconds || 0)
       : null;

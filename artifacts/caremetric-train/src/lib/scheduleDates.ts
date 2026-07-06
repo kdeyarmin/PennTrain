@@ -8,7 +8,9 @@ export function isoDate(d: Date): string {
 }
 
 export function todayIso(): string {
-  return isoDate(new Date());
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 export function addDaysIso(iso: string, days: number): string {

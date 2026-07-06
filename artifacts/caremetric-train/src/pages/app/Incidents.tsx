@@ -31,6 +31,11 @@ function humanize(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
+function toLocalDatetimeInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function SeverityBadge({ severity }: { severity: string }) {
   const className =
     severity === "critical" ? "bg-destructive text-destructive-foreground hover:bg-destructive/80"
@@ -58,10 +63,16 @@ interface IncidentFormData {
   severity: "minor" | "moderate" | "major" | "critical";
 }
 
-const EMPTY_FORM: IncidentFormData = {
-  facilityId: "", incidentType: "other", occurredAt: new Date().toISOString().slice(0, 16),
-  residentIdentifier: "", locationDetail: "", narrative: "", severity: "moderate",
-};
+// A function, not a frozen constant: occurredAt must reflect "now" at the moment a form is
+// actually opened/reset, not the moment this module was first loaded -- a tab left open for
+// hours (or a second incident reported after the first) would otherwise keep prefilling a
+// long-stale timestamp instead of the current time.
+function emptyForm(): IncidentFormData {
+  return {
+    facilityId: "", incidentType: "other", occurredAt: toLocalDatetimeInputValue(new Date()),
+    residentIdentifier: "", locationDetail: "", narrative: "", severity: "moderate",
+  };
+}
 
 interface StaffRow { employeeId: string; involvementType: "involved_party" | "witness" | "first_responder" | "reporter" }
 interface NotificationRow { notificationType: (typeof NOTIFICATION_TYPE_OPTIONS)[number]; dueInHours: string }
@@ -76,7 +87,7 @@ export default function Incidents() {
   const [page, setPage] = useState(1);
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<IncidentFormData>(EMPTY_FORM);
+  const [form, setForm] = useState<IncidentFormData>(emptyForm);
   const [staffRows, setStaffRows] = useState<StaffRow[]>([]);
   const [notificationRows, setNotificationRows] = useState<NotificationRow[]>([]);
 
@@ -103,7 +114,7 @@ export default function Incidents() {
   const paginated = allIncidents.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const openCreate = () => {
-    setForm(EMPTY_FORM);
+    setForm(emptyForm());
     setStaffRows([]);
     setNotificationRows([]);
     setShowForm(true);

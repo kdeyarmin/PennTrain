@@ -31,16 +31,19 @@ const ROLE_LABELS: Record<string, string> = {
 
 const ALL_ROLES: Role[] = ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"];
 
-// Which roles a given caller role is allowed to grant to a new user, or edit on an existing
-// one. Only platform_admin may create/manage platform_admin accounts. org_admin may create/
-// manage any other role including peer org_admin accounts within their own org (matches the
-// create-user/admin-update-user/invite-user Edge Functions, which only ever forbid
-// platform_admin for an org_admin caller); facility_manager is restricted to the roles beneath
-// org_admin.
+// Which roles a given caller role is allowed to grant to a new user via create-user/invite-user.
+// Only platform_admin may create/manage platform_admin accounts. org_admin may create/manage any
+// other role including peer org_admin accounts within their own org (matches the
+// create-user/admin-update-user/invite-user Edge Functions, which only ever forbid platform_admin
+// for an org_admin caller); facility_manager is restricted to trainer/employee, matching
+// create-user's and invite-user's "facility_manager can only create/invite trainer or employee
+// users" restriction. Editing existing users (role changes, activate/deactivate) goes through
+// admin-update-user, which only allows platform_admin and org_admin callers at all -- see
+// canEditRow below.
 const ASSIGNABLE_ROLES: Record<Role, Role[]> = {
   platform_admin: ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"],
   org_admin: ["facility_manager", "trainer", "employee", "auditor", "org_admin"],
-  facility_manager: ["facility_manager", "trainer", "employee", "auditor"],
+  facility_manager: ["trainer", "employee"],
   trainer: [],
   employee: [],
   auditor: [],
@@ -122,8 +125,11 @@ export default function Users() {
 
   const allProfiles = profiles ?? [];
 
+  // admin-update-user (used by handleRoleChange/handleActiveToggle below) only authorizes
+  // platform_admin and org_admin callers -- facility_manager gets a 403 unconditionally, so these
+  // controls must never be rendered as editable for facility_manager.
   const canEditRow = (p: Profile) =>
-    p.id !== user?.id && (isPlatformAdmin || assignableRoles.includes(p.role as Role));
+    p.id !== user?.id && (isPlatformAdmin || user?.role === "org_admin") && assignableRoles.includes(p.role as Role);
 
   const filtered = allProfiles.filter(p => {
     if (roleFilter !== "all" && p.role !== roleFilter) return false;

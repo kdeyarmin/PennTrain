@@ -6,6 +6,7 @@ import {
   useGetResidentAssessmentForm, useSaveResidentAssessmentFormDraft, useFinalizeResidentAssessmentForm,
   useGenerateResidentAssessmentFormPdf,
 } from "@/hooks/useResidentAssessmentForms";
+import { useListResidentDocuments } from "@/hooks/useResidentDocuments";
 import {
   ADL_ITEMS, SENSORY_ITEMS, SOCIAL_ITEMS, behavioralItems, responsiblePartyOptions,
   createEmptyContent, mergeContentWithDefaults,
@@ -238,6 +239,7 @@ export default function ResidentAssessmentFormEditor() {
   const { data: resident } = useGetResident(residentId);
   const { data: facilities } = useListFacilities();
   const { data: form, isLoading } = useGetResidentAssessmentForm(formId);
+  const { data: residentDocuments } = useListResidentDocuments(residentId);
   const saveDraft = useSaveResidentAssessmentFormDraft();
   const finalize = useFinalizeResidentAssessmentForm();
   const generatePdf = useGenerateResidentAssessmentFormPdf();
@@ -327,6 +329,11 @@ export default function ResidentAssessmentFormEditor() {
 
   const formType = form.form_type as FormType;
   const degreeScale = CARE_DEGREE_OPTIONS;
+  // generate-resident-assessment-pdf/index.ts refuses (409) once a resident_documents row with this
+  // form's document_label exists -- it's a one-shot "finalize succeeded but PDF generation failed"
+  // retry, not a true regenerate. Only offer the button while that row is still missing, otherwise
+  // it's guaranteed to fail.
+  const hasGeneratedPdf = (residentDocuments ?? []).some((d) => d.document_label === `resident_assessment_form:${form.id}`);
 
   return (
     <div className="space-y-6">
@@ -351,7 +358,7 @@ export default function ResidentAssessmentFormEditor() {
             {finalize.isPending || saveDraft.isPending ? "Finalizing..." : `Finalize ${formLabel}`}
           </Button>
         )}
-        {canManage && form.status === "finalized" && (
+        {canManage && form.status === "finalized" && !hasGeneratedPdf && (
           <Button
             variant="outline"
             disabled={generatePdf.isPending}
@@ -360,7 +367,7 @@ export default function ResidentAssessmentFormEditor() {
               onError: (e: Error) => toast({ title: "Failed to generate PDF", description: e.message, variant: "destructive" }),
             })}
           >
-            {generatePdf.isPending ? "Generating..." : "Regenerate PDF"}
+            {generatePdf.isPending ? "Generating..." : "Generate PDF"}
           </Button>
         )}
       </div>

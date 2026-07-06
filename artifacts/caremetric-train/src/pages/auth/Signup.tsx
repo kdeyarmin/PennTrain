@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
+import { markExplicitPasswordSignIn } from "@/lib/auth";
 import { useSignupOrganization } from "@/hooks/useSignup";
 import { Loader2, ArrowRight } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
@@ -56,6 +57,7 @@ export default function Signup() {
       },
       {
         onSuccess: async () => {
+          markExplicitPasswordSignIn();
           const { error } = await supabase.auth.signInWithPassword({ email: form.email.trim(), password: form.password });
           if (error) {
             toast({ title: "Account created", description: "Sign in with your new credentials." });

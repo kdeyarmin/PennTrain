@@ -16,9 +16,10 @@ function json(body: unknown, status = 200) {
 // Function (rather than a plain RPC) because a plain Postgres RPC has no way to read the caller's
 // IP address or User-Agent from the request itself.
 function clientIp(req: Request): string | null {
+  const trusted = req.headers.get("cf-connecting-ip") ?? req.headers.get("x-real-ip");
+  if (trusted) return trusted;
   const forwardedFor = req.headers.get("x-forwarded-for");
-  if (forwardedFor) return forwardedFor.split(",")[0].trim();
-  return req.headers.get("cf-connecting-ip") ?? req.headers.get("x-real-ip");
+  return forwardedFor ? forwardedFor.split(",")[0].trim() : null;
 }
 
 Deno.serve(async (req: Request) => {
