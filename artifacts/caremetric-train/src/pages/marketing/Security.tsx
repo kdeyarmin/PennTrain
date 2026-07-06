@@ -8,6 +8,7 @@ const SECURITY_PROMISES = [
   "Users are scoped by organization, facility, and role before records are shown.",
   "Private evidence files use short-lived access links instead of public buckets.",
   "Compliance-impacting actions are preserved in an audit trail for review.",
+  "A facility outside a viewer's assigned scope shows as 'Not Assigned' -- never a false all-clear.",
 ];
 
 export default function Security() {

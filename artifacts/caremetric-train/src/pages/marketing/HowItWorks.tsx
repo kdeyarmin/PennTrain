@@ -9,6 +9,7 @@ const DELIVERABLES = [
   "Employee training plans tied to role, facility, and license type",
   "Completion evidence from online courses, live classes, outside records, and practicums",
   "Dashboards, alerts, certificates, documents, audit log, and binder exports",
+  "Resident assessments, incidents, inspections, and plans of correction tracked alongside staff compliance",
 ];
 
 export default function HowItWorks() {
