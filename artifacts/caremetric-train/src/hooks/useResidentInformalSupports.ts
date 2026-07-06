@@ -40,7 +40,7 @@ export function useUpsertResidentInformalSupport() {
 export function useDeleteResidentInformalSupport() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (support: ResidentInformalSupport) => {
+    mutationFn: async (support: Pick<ResidentInformalSupport, "id" | "resident_id">) => {
       const { error } = await supabase.from("resident_informal_supports").delete().eq("id", support.id);
       if (error) throw error;
       return support;

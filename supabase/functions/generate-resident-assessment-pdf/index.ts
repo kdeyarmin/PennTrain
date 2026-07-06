@@ -143,8 +143,12 @@ class PdfWriter {
   }
 }
 
-function degreeSummary(item: AnyRecord): string {
-  if (item.degreePreliminary || item.degreeAllOther) {
+function degreeSummary(formType: string, item: AnyRecord): string {
+  // Branch on the authoritative formType, not field truthiness: DegreeItemEditor's onChange always
+  // mirrors degree into degreePreliminary (see ResidentAssessmentFormEditor.tsx's DegreeSelect), so a
+  // truthy-check on degreePreliminary alone would render RASP items as "Preliminary/All Other" too,
+  // when only ASP's doubled Preliminary/All-Other mechanic actually applies.
+  if (formType === "ASP") {
     return `Preliminary: ${item.degreePreliminary || "—"}, All Other: ${item.degreeAllOther || "—"}`;
   }
   return item.degree || "—";
@@ -159,8 +163,8 @@ function planSummary(item: AnyRecord): string {
   return parts.length ? parts.join(" — ") : "—";
 }
 
-function writeDegreeItem(w: PdfWriter, label: string, item: AnyRecord) {
-  w.row(`${label} — Degree: ${degreeSummary(item)}`);
+function writeDegreeItem(w: PdfWriter, formType: string, label: string, item: AnyRecord) {
+  w.row(`${label} — Degree: ${degreeSummary(formType, item)}`);
   if (!item.serviceNeedNotApplicable && item.serviceNeedDescription) w.row(`  Need: ${item.serviceNeedDescription}`);
   w.row(`  ${planSummary(item)}`);
 }
@@ -258,7 +262,7 @@ async function buildAssessmentPdf(input: {
     w.row(`Plan: ${s.planDescription || "—"}`);
   }
   for (const [key, label] of ADL_ITEMS) {
-    writeDegreeItem(w, label, content.section1?.items?.[key] ?? {});
+    writeDegreeItem(w, input.formType, label, content.section1?.items?.[key] ?? {});
   }
 
   w.heading("Section 2 — Medical, Dental, Dietary, Sensory Needs");
@@ -274,7 +278,7 @@ async function buildAssessmentPdf(input: {
   writeDiagnosisRows(w, "Psychological Diagnoses", content.section3?.psychologicalDiagnoses ?? [], !!content.section3?.noPsychologicalDiagnoses);
   const behavioralList = input.formType === "ASP" ? BEHAVIORAL_ITEMS_ASP : BEHAVIORAL_ITEMS_RASP;
   for (const [key, label] of behavioralList) {
-    writeDegreeItem(w, label, content.section3?.items?.[key] ?? {});
+    writeDegreeItem(w, input.formType, label, content.section3?.items?.[key] ?? {});
   }
 
   w.heading("Section 4 — Social and Recreational Needs");

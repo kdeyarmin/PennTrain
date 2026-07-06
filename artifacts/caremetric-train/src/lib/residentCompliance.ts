@@ -45,3 +45,12 @@ export function complianceStatusBadgeClassName(status: string): string {
     : status === "not_applicable" ? "bg-muted text-muted-foreground"
     : "bg-muted text-muted-foreground"; // missing
 }
+
+// Postgres `date` columns come back as a bare "YYYY-MM-DD" string. new Date(that) parses it as UTC
+// midnight, so toLocaleDateString() in a timezone west of UTC renders the previous calendar day.
+// Building the Date from local year/month/day components instead avoids the conversion entirely.
+export function formatDateOnly(value: string | null | undefined): string {
+  if (!value) return "—";
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString();
+}

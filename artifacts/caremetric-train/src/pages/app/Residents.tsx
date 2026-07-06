@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { BedDouble, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { worstComplianceStatus, complianceStatusBadgeClassName, getComplianceFormLabel } from "@/lib/residentCompliance";
+import { worstComplianceStatus, complianceStatusBadgeClassName, getComplianceFormLabel, formatDateOnly } from "@/lib/residentCompliance";
 
 const PAGE_SIZE = 15;
 
@@ -185,7 +185,7 @@ export default function Residents() {
                       <td className="font-medium text-foreground">{r.last_name}, {r.first_name}</td>
                       <td className="text-muted-foreground">{facilityById.get(r.facility_id)?.name ?? "—"}</td>
                       <td className="text-muted-foreground">{r.room ?? "—"}</td>
-                      <td className="text-muted-foreground">{new Date(r.admission_date).toLocaleDateString()}</td>
+                      <td className="text-muted-foreground">{formatDateOnly(r.admission_date)}</td>
                       <td>
                         <div className="flex items-center gap-1">
                           {r.sdcu && <Badge variant="outline" className="text-[10px]">SDCU</Badge>}

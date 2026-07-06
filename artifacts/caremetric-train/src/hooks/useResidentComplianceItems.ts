@@ -1,9 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import type { Tables, TablesUpdate } from "@/lib/database.types";
+import type { Tables } from "@/lib/database.types";
 
 export type ResidentComplianceItem = Tables<"resident_compliance_items">;
-export type ResidentComplianceItemUpdate = TablesUpdate<"resident_compliance_items">;
 
 export function useListResidentComplianceItems(residentId: string | undefined) {
   return useQuery({
@@ -42,18 +41,6 @@ export function useListAllResidentComplianceItems(filters: ListAllResidentCompli
       if (error) throw error;
       return data;
     },
-  });
-}
-
-export function useUpdateResidentComplianceItem() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, ...payload }: ResidentComplianceItemUpdate & { id: string }) => {
-      const { data, error } = await supabase.from("resident_compliance_items").update(payload).eq("id", id).select().single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["resident_compliance_items", data.resident_id] }),
   });
 }
 

@@ -25,7 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, BedDouble, ClipboardList, FileText, Upload, Download, Trash2, Check, TriangleAlert, FilePenLine, Lock, Users, Plus, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, getComplianceFormLabel } from "@/lib/residentCompliance";
+import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, getComplianceFormLabel, formatDateOnly } from "@/lib/residentCompliance";
 import { isDigitalFormEligible, deriveAssessmentReason } from "@/lib/residentAssessmentFormSchema";
 
 type SupportRow = Partial<Pick<ResidentInformalSupport, "id">> & { name: string; relationship: string; phone: string };
@@ -34,15 +34,6 @@ const emptySupportRow = (): SupportRow => ({ name: "", relationship: "", phone: 
 
 function humanize(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-}
-
-// Postgres `date` columns come back as a bare "YYYY-MM-DD" string. new Date(that) parses it as UTC
-// midnight, so toLocaleDateString() in a timezone west of UTC renders the previous calendar day.
-// Building the Date from local year/month/day components instead avoids the conversion entirely.
-function formatDateOnly(value: string | null | undefined): string {
-  if (!value) return "—";
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString();
 }
 
 function ComplianceStatusBadge({ status }: { status: string }) {
@@ -88,6 +79,7 @@ export default function ResidentDetail() {
   });
   const [supportRows, setSupportRows] = useState<SupportRow[]>([]);
   const [isSavingContacts, setIsSavingContacts] = useState(false);
+  const originalSupportIds = useRef<Set<string>>(new Set());
 
   const itemById = new Map((items ?? []).map((i) => [i.id, i]));
 
@@ -126,7 +118,7 @@ export default function ResidentDetail() {
   const isTrackedFacilityType = facility?.facility_type === "PCH" || facility?.facility_type === "ALR";
 
   const openContactsDialog = () => {
-    if (!resident) return;
+    if (!resident || informalSupportsLoading) return;
     setContactsForm({
       date_of_birth: resident.date_of_birth ?? "",
       primary_physician_name: resident.primary_physician_name ?? "",
@@ -137,7 +129,12 @@ export default function ResidentDetail() {
       case_manager_phone: resident.case_manager_phone ?? "",
       designated_person_name: resident.designated_person_name ?? "",
     });
-    setSupportRows((informalSupports ?? []).map((s) => ({ id: s.id, name: s.name, relationship: s.relationship ?? "", phone: s.phone ?? "" })));
+    const supports = informalSupports ?? [];
+    // Snapshot both the editable rows AND which ids existed at open time -- handleSaveContacts diffs
+    // against this snapshot, not against whatever the live query happens to hold at save time, so a
+    // background refetch while the dialog is open can never make every persisted row look "removed".
+    originalSupportIds.current = new Set(supports.map((s) => s.id));
+    setSupportRows(supports.map((s) => ({ id: s.id, name: s.name, relationship: s.relationship ?? "", phone: s.phone ?? "" })));
     setShowContactsDialog(true);
   };
 
@@ -145,18 +142,24 @@ export default function ResidentDetail() {
     if (!resident) return;
     setIsSavingContacts(true);
     try {
-      await new Promise<void>((resolve, reject) => {
-        updateResident({ id: resident.id, ...contactsForm, date_of_birth: contactsForm.date_of_birth || null }, { onSuccess: () => resolve(), onError: reject });
-      });
-
-      const originalIds = new Set((informalSupports ?? []).map((s) => s.id));
-      const keptIds = new Set(supportRows.filter((r) => r.id).map((r) => r.id!));
-      const removed = [...originalIds].filter((rid) => !keptIds.has(rid));
+      // Diff against the ids snapshotted when the dialog opened (originalSupportIds), not against
+      // whatever the live informalSupports query happens to hold right now -- otherwise a background
+      // refetch between open and save (or opening before the initial fetch even resolves) makes every
+      // persisted row look "removed" and this would delete them all out from under the user.
+      // A row keeps its slot only if it still has a non-blank name -- clearing a persisted row's name
+      // is how a facility_manager (who has no delete button on persisted rows) removes one, and
+      // without this a blanked-out row was silently skipped by both the upsert and delete branches,
+      // leaving the stale record untouched while the UI still reported success.
+      const nonBlankRows = supportRows.filter((r) => r.name.trim());
+      const keptIds = new Set(nonBlankRows.filter((r) => r.id).map((r) => r.id!));
+      const removed = [...originalSupportIds.current].filter((rid) => !keptIds.has(rid));
 
       await Promise.all([
-        ...supportRows
-          .filter((r) => r.name.trim())
-          .map((r) => upsertSupport.mutateAsync({
+        new Promise<void>((resolve, reject) => {
+          updateResident({ id: resident.id, ...contactsForm, date_of_birth: contactsForm.date_of_birth || null }, { onSuccess: () => resolve(), onError: reject });
+        }),
+        ...nonBlankRows
+          .map((r, sortOrder) => upsertSupport.mutateAsync({
             id: r.id,
             organization_id: resident.organization_id,
             facility_id: resident.facility_id,
@@ -164,11 +167,9 @@ export default function ResidentDetail() {
             name: r.name.trim(),
             relationship: r.relationship.trim() || null,
             phone: r.phone.trim() || null,
+            sort_order: sortOrder,
           })),
-        ...removed.map((rid) => {
-          const support = informalSupports!.find((s) => s.id === rid)!;
-          return deleteSupport.mutateAsync(support);
-        }),
+        ...removed.map((rid) => deleteSupport.mutateAsync({ id: rid, resident_id: resident.id })),
       ]);
 
       toast({ title: "Contacts & supports updated" });
@@ -276,7 +277,7 @@ export default function ResidentDetail() {
           <div className="flex items-center justify-between flex-wrap gap-2">
             <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Contacts &amp; Supports (Part I)</CardTitle>
             {canManage && (
-              <Button variant="outline" size="sm" onClick={openContactsDialog}>
+              <Button variant="outline" size="sm" onClick={openContactsDialog} disabled={informalSupportsLoading}>
                 <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
               </Button>
             )}
