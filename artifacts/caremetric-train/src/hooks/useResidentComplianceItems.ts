@@ -18,18 +18,6 @@ export function useListResidentComplianceItems(residentId: string | undefined) {
   });
 }
 
-export function useUpdateResidentComplianceItem() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, ...payload }: ResidentComplianceItemUpdate & { id: string }) => {
-      const { data, error } = await supabase.from("resident_compliance_items").update(payload).eq("id", id).select().single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["resident_compliance_items", data.resident_id] }),
-  });
-}
-
 // Recurring items (renewal_interval_days set -- annual_reassessment, medical_evaluation) schedule
 // their next cycle as a NEW row rather than overwriting this one, mirroring
 // employee_training_records' own "successive renewal cycles accumulate as separate rows"

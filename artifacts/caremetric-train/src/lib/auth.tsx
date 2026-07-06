@@ -40,14 +40,6 @@ export function hasRole(user: AuthUser | null, ...roles: Role[]): boolean {
   return !!user && roles.includes(user.role);
 }
 
-export function isPlatformAdmin(user: AuthUser | null): boolean {
-  return hasRole(user, "platform_admin");
-}
-
-export function canManageOrganization(user: AuthUser | null): boolean {
-  return hasRole(user, "platform_admin", "org_admin", "facility_manager");
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();

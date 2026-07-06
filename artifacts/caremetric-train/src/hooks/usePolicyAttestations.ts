@@ -37,24 +37,6 @@ export function useCreatePolicyAttestationCampaign() {
   });
 }
 
-export function useDeletePolicyAttestationCampaign() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      // policy_attestations.campaign_id is ON DELETE CASCADE -- deleting a campaign drops every
-      // per-employee attestation row it created, including any already-attested (signed) ones.
-      // That's an audit-trail-destroying action, so the calling page should gate this behind a
-      // clear confirmation rather than a bare click.
-      const { error } = await supabase.from("policy_attestation_campaigns").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["policy_attestation_campaigns"] });
-      queryClient.invalidateQueries({ queryKey: ["policy_attestations"] });
-    },
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Per-employee attestation rows.
 //
