@@ -36,6 +36,15 @@ function humanize(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
+// Postgres `date` columns come back as a bare "YYYY-MM-DD" string. new Date(that) parses it as UTC
+// midnight, so toLocaleDateString() in a timezone west of UTC renders the previous calendar day.
+// Building the Date from local year/month/day components instead avoids the conversion entirely.
+function formatDateOnly(value: string | null | undefined): string {
+  if (!value) return "—";
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString();
+}
+
 function ComplianceStatusBadge({ status }: { status: string }) {
   return <Badge className={complianceStatusBadgeClassName(status)} variant="outline">{humanize(status)}</Badge>;
 }
@@ -111,6 +120,10 @@ export default function ResidentDetail() {
   const facility = facilities?.find((f) => f.id === resident?.facility_id);
   const facilityName = facility?.name;
   const formLabel = getComplianceFormLabel(facility?.facility_type);
+  // instantiate_resident_compliance_items() only seeds rule-pack rows for PCH/ALR (Phase 5) --
+  // mirror that gate here so an unsupported facility type can't get a significant_change_reassessment
+  // item via this button either (the RPC now enforces this server-side too).
+  const isTrackedFacilityType = facility?.facility_type === "PCH" || facility?.facility_type === "ALR";
 
   const openContactsDialog = () => {
     if (!resident) return;
@@ -227,7 +240,7 @@ export default function ResidentDetail() {
           <div>
             <h1 className="text-2xl font-bold">{resident.last_name}, {resident.first_name}</h1>
             <p className="text-muted-foreground">
-              {facilityName}{resident.room ? ` · Room ${resident.room}` : ""} · Admitted {new Date(resident.admission_date).toLocaleDateString()}
+              {facilityName}{resident.room ? ` · Room ${resident.room}` : ""} · Admitted {formatDateOnly(resident.admission_date)}
             </p>
           </div>
         </div>
@@ -255,7 +268,7 @@ export default function ResidentDetail() {
       </div>
 
       {resident.status === "discharged" && resident.discharge_date && (
-        <p className="text-sm text-muted-foreground">Discharged {new Date(resident.discharge_date).toLocaleDateString()}</p>
+        <p className="text-sm text-muted-foreground">Discharged {formatDateOnly(resident.discharge_date)}</p>
       )}
 
       <Card>
@@ -274,7 +287,7 @@ export default function ResidentDetail() {
             Pulled directly into the {formLabel} — no need to retype it on the form itself.
           </p>
           <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1">
-            <p><span className="text-muted-foreground">Date of Birth:</span> {resident.date_of_birth ? new Date(resident.date_of_birth).toLocaleDateString() : "—"}</p>
+            <p><span className="text-muted-foreground">Date of Birth:</span> {formatDateOnly(resident.date_of_birth)}</p>
             <p><span className="text-muted-foreground">Physician:</span> {resident.primary_physician_name || "—"}{resident.primary_physician_phone ? ` (${resident.primary_physician_phone})` : ""}</p>
             <p><span className="text-muted-foreground">Dentist:</span> {resident.dentist_name || "—"}{resident.dentist_phone ? ` (${resident.dentist_phone})` : ""}</p>
             <p><span className="text-muted-foreground">Case Manager:</span> {resident.case_manager_name || "—"}{resident.case_manager_phone ? ` (${resident.case_manager_phone})` : ""}</p>
@@ -385,7 +398,7 @@ export default function ResidentDetail() {
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-2">
             <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" /> {formLabel} Compliance Checklist</CardTitle>
-            {canManage && (
+            {canManage && isTrackedFacilityType && (
               <Button variant="outline" size="sm" onClick={() => setShowChangeDialog(true)}>
                 <TriangleAlert className="mr-2 h-3.5 w-3.5" /> Log Change of Condition
               </Button>

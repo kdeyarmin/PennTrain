@@ -248,6 +248,7 @@ export default function ResidentAssessmentFormEditor() {
 
   const [content, setContent] = useState<ResidentAssessmentFormContent | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSave = useRef<{ id: string; content: ResidentAssessmentFormContent } | null>(null);
   const isReadOnly = !canManage || form?.status === "finalized";
 
   useEffect(() => {
@@ -263,13 +264,24 @@ export default function ResidentAssessmentFormEditor() {
   const update = (next: ResidentAssessmentFormContent) => {
     setContent(next);
     if (isReadOnly || !formId) return;
+    pendingSave.current = { id: formId, content: next };
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
+      pendingSave.current = null;
       saveDraft.mutate({ id: formId, content: next });
     }, AUTOSAVE_DEBOUNCE_MS);
   };
 
-  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
+  // Navigating away (e.g. "Back to Resident") within the debounce window used to just cancel the
+  // scheduled save and drop those edits silently -- there's no separate manual Save button, so the
+  // debounced autosave is the only path those changes had. Flush whatever's pending instead of
+  // discarding it; the mutation still completes even though the component has unmounted.
+  useEffect(() => () => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      if (pendingSave.current) saveDraft.mutate(pendingSave.current);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const behavioralList = useMemo(() => behavioralItems((form?.form_type as FormType) ?? "RASP"), [form?.form_type]);
 
@@ -281,6 +293,7 @@ export default function ResidentAssessmentFormEditor() {
     if (saveTimer.current) {
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
+      pendingSave.current = null;
       try {
         await saveDraft.mutateAsync({ id: formId, content });
       } catch (e) {
