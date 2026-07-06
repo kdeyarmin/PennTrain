@@ -26,9 +26,9 @@ const OPERATING_MODES = [
 
 export default function WhoItsFor() {
   usePageMeta({
-    title: "Who It's For — CareMetric Train for PCH, ALR, Group Homes & More",
+    title: "Who It's For — CareMetric Train for PCH, ALF, Group Homes & More",
     description:
-      "CareMetric Train adapts to personal care homes, assisted living residences, group homes, nursing homes, home health, and hospice agencies -- each with rules matched to their setting.",
+      "CareMetric Train adapts to personal care homes, assisted living facilities, group homes, nursing homes, home health, and hospice agencies -- each with rules matched to their setting.",
     path: "/who-its-for",
   });
   return (
@@ -82,10 +82,10 @@ export default function WhoItsFor() {
           <Reveal>
             <div className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs font-semibold text-primary shadow-sm">
               <FilePenLine className="h-3.5 w-3.5" />
-              PCH &amp; ALR only
+              PCH &amp; ALF only
             </div>
             <h2 className="mt-4 text-2xl font-extrabold tracking-tight">
-              Personal care homes and assisted living residences also get resident-level compliance
+              Personal care homes and assisted living facilities also get resident-level compliance
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               Beyond staff training, CareMetric Train tracks the resident-side regulatory

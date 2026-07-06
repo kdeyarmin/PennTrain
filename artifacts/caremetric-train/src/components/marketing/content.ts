@@ -78,7 +78,7 @@ export const SETTINGS: IconItem[] = [
   },
   {
     icon: HeartHandshake,
-    title: "Assisted Living Residences",
+    title: "Assisted Living Facilities",
     description:
       "16 hours of yearly in-service per direct care worker, plus dementia-specific training at hire and 2 hours every year after -- 55 Pa. Code Section 2800.65/.69, all tracked against the clock automatically. Also includes ASP resident assessment tracking, with an expedited track for hospital transfers and other DHS-recognized exceptions.",
   },
@@ -225,7 +225,7 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
   {
     id: "resident-care",
     category: "Resident Care Compliance",
-    blurb: "For personal care homes and assisted living residences: resident-level regulatory tracking, not just staff training.",
+    blurb: "For personal care homes and assisted living facilities: resident-level regulatory tracking, not just staff training.",
     items: [
       {
         icon: FilePenLine,
@@ -498,7 +498,7 @@ export const FAQS = [
   {
     question: "What is CareMetric Train?",
     answer:
-      "CareMetric Train is a multi-tenant compliance-training platform and learning management system built for personal care homes, assisted living residences, group homes, nursing homes, home health, and hospice agencies. It replaces spreadsheets and paper binders with one system for yearly in-services, training records, certifications, medication practicums, resident assessments, incidents, and survey-ready reporting.",
+      "CareMetric Train is a multi-tenant compliance-training platform and learning management system built for personal care homes, assisted living facilities, group homes, nursing homes, home health, and hospice agencies. It replaces spreadsheets and paper binders with one system for yearly in-services, training records, certifications, medication practicums, resident assessments, incidents, and survey-ready reporting.",
   },
   {
     question: "How does CareMetric Train track our staff's yearly in-services?",
@@ -508,12 +508,12 @@ export const FAQS = [
   {
     question: "How many yearly in-service hours does my type of provider actually need?",
     answer:
-      "It depends on your license type, and CareMetric Train already knows the difference: personal care homes need 12 hours per direct care worker per year (55 Pa. Code Section 2600.65), plus 6 more for staff on a secured dementia unit. Assisted living residences need 16 hours (Section 2800.65/.69), plus dementia-specific training at hire and 2 hours annually after that. Group homes need 24 hours for direct service workers and their supervisors, and 12 for every other role (Section 6400.52). Nursing homes, home health agencies, and hospice agencies each require 12 hours per aide per year under federal rules (42 CFR 483.95, 484.80, and 418.76). Set your organization's license type once, and every employee's training plan is built to the right number automatically.",
+      "It depends on your license type, and CareMetric Train already knows the difference: personal care homes need 12 hours per direct care worker per year (55 Pa. Code Section 2600.65), plus 6 more for staff on a secured dementia unit. Assisted living facilities need 16 hours (Section 2800.65/.69), plus dementia-specific training at hire and 2 hours annually after that. Group homes need 24 hours for direct service workers and their supervisors, and 12 for every other role (Section 6400.52). Nursing homes, home health agencies, and hospice agencies each require 12 hours per aide per year under federal rules (42 CFR 483.95, 484.80, and 418.76). Set your organization's license type once, and every employee's training plan is built to the right number automatically.",
   },
   {
     question: "Which regulations does it help us comply with?",
     answer:
-      "CareMetric Train grew out of Pennsylvania's 55 Pa. Code Chapter 2600 personal care home, Chapter 2800 assisted living, and Chapter 6400 group home requirements -- training hours, resident assessments (RASP/ASP), fire drills and emergency preparedness, medication administration, and reportable incidents -- and every training type, competency checklist, and practicum is configurable, so your organization can model the specific requirements your state and license type require.",
+      "CareMetric Train grew out of Pennsylvania's 55 Pa. Code Chapter 2600 personal care home, Chapter 2800 assisted living facility, and Chapter 6400 group home requirements -- training hours, resident assessments (RASP/ASP), fire drills and emergency preparedness, medication administration, and reportable incidents -- and every training type, competency checklist, and practicum is configurable, so your organization can model the specific requirements your state and license type require.",
   },
   {
     question: "Do our employees need to install anything?",
@@ -553,7 +553,7 @@ export const FAQS = [
   {
     question: "Does CareMetric Train track resident-level compliance, not just staff training?",
     answer:
-      "Yes, for personal care homes and assisted living residences. CareMetric Train tracks each resident's RASP/ASP preadmission screening, 15-day initial assessment, annual reassessment, significant-change reassessment, and support-plan updates -- each with its own due date -- alongside a digital version of the actual DHS assessment form.",
+      "Yes, for personal care homes and assisted living facilities. CareMetric Train tracks each resident's RASP/ASP preadmission screening, 15-day initial assessment, annual reassessment, significant-change reassessment, and support-plan updates -- each with its own due date -- alongside a digital version of the actual DHS assessment form.",
   },
   {
     question: "Do you screen employees against background-check and exclusion requirements?",

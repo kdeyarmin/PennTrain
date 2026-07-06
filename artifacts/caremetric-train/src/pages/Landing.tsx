@@ -143,7 +143,7 @@ export default function Landing() {
   usePageMeta({
     title: "CareMetric Train — Compliance Training Platform",
     description:
-      "CareMetric Train is the compliance-training platform for personal care homes, assisted living residences, group homes, nursing homes, home health, and hospice agencies -- yearly in-services, resident assessments, incidents, and survey-ready compliance binders tracked automatically in one system.",
+      "CareMetric Train is the compliance-training platform for personal care homes, assisted living facilities, group homes, nursing homes, home health, and hospice agencies -- yearly in-services, resident assessments, incidents, and survey-ready compliance binders tracked automatically in one system.",
     path: "/",
   });
   return (

@@ -1,8 +1,12 @@
+// The "ALR" code is a stored value (database column, RLS policies, migrations, existing rows) --
+// never rename it without a real migration. What changes is the LABEL: this org calls the facility
+// type "Assisted Living Facility (ALF)", not "Assisted Living Residence (ALR)" -- every user-facing
+// string (marketing copy, UI labels, dropdown options) should say ALF, never ALR or "Residence".
 export type FacilityType = "PCH" | "ALR" | "NH" | "HHA" | "HOS" | "GH";
 
 export const FACILITY_TYPES: { value: FacilityType; label: string }[] = [
   { value: "PCH", label: "Personal Care Home (PCH)" },
-  { value: "ALR", label: "Assisted Living Residence (ALR/ALF)" },
+  { value: "ALR", label: "Assisted Living Facility (ALF)" },
   { value: "NH", label: "Skilled Nursing Facility (SNF/NH)" },
   { value: "HHA", label: "Home Health Agency (HHA)" },
   { value: "HOS", label: "Hospice Agency (HOS)" },

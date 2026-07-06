@@ -333,7 +333,7 @@ function byFacility<T extends { facility_id: string | null }>(items: T[], facili
 
 const BUCKET_TYPE_LABELS: Record<string, string> = {
   general_annual: "General Annual",
-  alr_dementia: "ALR Dementia (§2800.69)",
+  alr_dementia: "ALF Dementia (§2800.69)",
   sdcu_dementia: "Secured Dementia Unit (§2600.236)",
 };
 
