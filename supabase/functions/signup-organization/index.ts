@@ -64,13 +64,31 @@ Deno.serve(async (req: Request) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
+  const { data: signupSetting } = await adminClient
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "signup_enabled")
+    .maybeSingle();
+  const signupEnabled = signupSetting?.value !== false;
+  if (!signupEnabled) {
+    return json({ error: "Self-service signup is currently disabled. Please contact us directly." }, 403);
+  }
+
+  const { data: trialDaysSetting } = await adminClient
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "default_trial_days")
+    .maybeSingle();
+  const trialDays = typeof trialDaysSetting?.value === "number" ? trialDaysSetting.value : 14;
+  const trialEndsAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString();
+
   const baseSlug = slugify(organization_name);
   let organization: { id: string; name: string } | null = null;
   for (let attempt = 0; attempt < 5; attempt++) {
     const slug = attempt === 0 ? baseSlug : `${baseSlug}-${Math.random().toString(36).slice(2, 6)}`;
     const { data, error } = await adminClient
       .from("organizations")
-      .insert({ name: organization_name.trim(), slug })
+      .insert({ name: organization_name.trim(), slug, trial_ends_at: trialEndsAt })
       .select("id, name")
       .single();
     if (!error) {

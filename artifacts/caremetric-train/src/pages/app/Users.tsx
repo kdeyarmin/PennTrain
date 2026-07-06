@@ -1,19 +1,22 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
 import {
   useListProfiles, useUpdateProfile, useCreateUserViaAdmin, useInviteUser, useAdminUpdateUser,
   type Profile,
 } from "@/hooks/useProfiles";
 import { useListOrganizations } from "@/hooks/useOrganizations";
+import { useStartImpersonation } from "@/hooks/useImpersonation";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
-import { Users as UsersIcon, Search, ChevronLeft, ChevronRight, UserPlus, Pencil, Shield, RefreshCw } from "lucide-react";
+import { Users as UsersIcon, Search, ChevronLeft, ChevronRight, UserPlus, Pencil, Shield, RefreshCw, LogIn } from "lucide-react";
 import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -74,6 +77,7 @@ export default function Users() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { viewingOrgId } = useViewingOrg();
+  const [, navigate] = useLocation();
 
   const isPlatformAdmin = user?.role === "platform_admin";
   const assignableRoles = ASSIGNABLE_ROLES[(user?.role as Role) ?? "employee"] ?? [];
@@ -100,6 +104,10 @@ export default function Users() {
 
   const [editProfile, setEditProfile] = useState<Profile | null>(null);
   const [editForm, setEditForm] = useState<EditFormData>({ firstName: "", lastName: "", phone: "", smsOptIn: false });
+
+  const [impersonateProfile, setImpersonateProfile] = useState<Profile | null>(null);
+  const [impersonateReason, setImpersonateReason] = useState("");
+  const { mutate: startImpersonation, isPending: startingImpersonation } = useStartImpersonation();
 
   const { data: profiles, isLoading } = useListProfiles(
     isPlatformAdmin ? {} : { organizationId: user?.organizationId ?? undefined },
@@ -292,6 +300,34 @@ export default function Users() {
     );
   };
 
+  const canImpersonate = (p: Profile) =>
+    isPlatformAdmin && p.id !== user?.id && p.role !== "platform_admin" && p.is_active;
+
+  const openImpersonate = (e: React.MouseEvent, p: Profile) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setImpersonateProfile(p);
+    setImpersonateReason("");
+  };
+
+  const handleConfirmImpersonate = () => {
+    if (!impersonateProfile) return;
+    if (impersonateReason.trim().length < 3) {
+      toast({ title: "A reason is required", description: "Explain why you're impersonating this user (at least 3 characters).", variant: "destructive" });
+      return;
+    }
+    startImpersonation(
+      { targetUserId: impersonateProfile.id, reason: impersonateReason.trim() },
+      {
+        onSuccess: () => {
+          setImpersonateProfile(null);
+          navigate("/");
+        },
+        onError: (e: Error) => toast({ title: "Failed to start impersonation", description: e.message, variant: "destructive" }),
+      },
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
@@ -425,7 +461,19 @@ export default function Users() {
                           </div>
                         </td>
                         <td>
-                          <div className="flex items-center justify-end">
+                          <div className="flex items-center justify-end gap-1">
+                            {canImpersonate(p) && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                onClick={e => openImpersonate(e, p)}
+                                aria-label={`Log in as ${p.first_name} ${p.last_name}`}
+                                title="Log in as this user"
+                              >
+                                <LogIn className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
@@ -585,6 +633,35 @@ export default function Users() {
             <Button variant="outline" onClick={() => setEditProfile(null)}>Cancel</Button>
             <Button onClick={handleEditSubmit} disabled={updatingProfile} className="shadow-sm">
               {updatingProfile ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!impersonateProfile} onOpenChange={o => { if (!o) setImpersonateProfile(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Log In As {impersonateProfile?.first_name} {impersonateProfile?.last_name}?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-[13px] text-muted-foreground">
+              This starts a real session as this user for support purposes. It's fully audit-logged and you can
+              return to your own admin session at any time from the banner at the top of the screen.
+            </p>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Reason *</Label>
+              <Textarea
+                value={impersonateReason}
+                onChange={e => setImpersonateReason(e.target.value)}
+                placeholder="e.g. Investigating a support ticket about missing course progress"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImpersonateProfile(null)}>Cancel</Button>
+            <Button onClick={handleConfirmImpersonate} disabled={startingImpersonation} className="shadow-sm">
+              {startingImpersonation ? "Starting..." : "Log In As User"}
             </Button>
           </DialogFooter>
         </DialogContent>

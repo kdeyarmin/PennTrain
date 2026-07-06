@@ -3213,6 +3213,7 @@ export type Database = {
           slug: string
           state: string | null
           subscription_status: string
+          trial_ends_at: string | null
           updated_at: string
           zip: string | null
         }
@@ -3232,6 +3233,7 @@ export type Database = {
           slug: string
           state?: string | null
           subscription_status?: string
+          trial_ends_at?: string | null
           updated_at?: string
           zip?: string | null
         }
@@ -3251,6 +3253,7 @@ export type Database = {
           slug?: string
           state?: string | null
           subscription_status?: string
+          trial_ends_at?: string | null
           updated_at?: string
           zip?: string | null
         }
@@ -3302,6 +3305,35 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      platform_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       policy_attestation_campaigns: {
         Row: {
@@ -5405,7 +5437,9 @@ export type Database = {
         }
       }
       mark_all_notifications_read: { Args: never; Returns: undefined }
+      get_platform_health: { Args: never; Returns: Json }
       mark_notification_read: { Args: { p_id: string }; Returns: undefined }
+      retry_notification_delivery: { Args: { p_delivery_id: string }; Returns: undefined }
       match_exclusion_list_against_roster_core: {
         Args: { p_organization_id?: string; p_source: string }
         Returns: undefined
