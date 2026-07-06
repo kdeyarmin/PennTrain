@@ -43,8 +43,14 @@ export function hasRole(user: AuthUser | null, ...roles: Role[]): boolean {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [session, setSession] = useState<Session | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
+  // A PASSWORD_RECOVERY event means this session was minted from a reset/invite link, not a real
+  // login -- only ResetPassword.tsx is allowed to use it. Until the visitor finishes (or abandons)
+  // that flow, it must not count as "signed in" anywhere else, or opening someone else's reset
+  // link would land the visitor straight in that person's dashboard.
+  const [isRecoverySession, setIsRecoverySession] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -52,9 +58,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSessionLoading(false);
     });
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    // SIGNED_IN fires only on an explicit sign-in action (Login/Signup/Demo all funnel through
+    // supabase.auth.signInWithPassword) -- never on session-restore-from-storage (that's
+    // INITIAL_SESSION) -- so clearing here can't wipe an already-authenticated tab on refresh,
+    // but does stop a second user's sign-in on a shared device from reusing the previous
+    // tenant's cached query data.
+    const { data: subscription } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setIsRecoverySession(true);
+      } else if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
+        setIsRecoverySession(false);
+      }
       setSession(nextSession);
-      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      if (event === "SIGNED_IN") {
+        queryClient.clear();
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["profile"] });
+      }
     });
 
     return () => subscription.subscription.unsubscribe();
@@ -76,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   const isLoading = sessionLoading || (!!session && profileLoading);
-  const isAuthenticated = !!session && !!profile;
+  const isAuthenticated = !!session && !!profile && profile.is_active && !isRecoverySession;
 
   const user: AuthUser | null = profile
     ? {
@@ -97,6 +117,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
   }, [isLoading, session, isError, setLocation]);
+
+  // A deactivated profile still has a valid Supabase session -- isAuthenticated above already
+  // treats that as signed out, but the session itself needs to be torn down too, or the very
+  // next getSession()/onAuthStateChange tick would let RLS-scoped reads resume as soon as an
+  // admin reactivates them without the user needing to sign back in.
+  useEffect(() => {
+    if (!profile || profile.is_active) return;
+    (async () => {
+      await supabase.auth.signOut();
+      queryClient.clear();
+      toast({
+        variant: "destructive",
+        title: "Account deactivated",
+        description: "Your account has been deactivated. Contact your administrator for access.",
+      });
+      setLocation("/login");
+    })();
+  }, [profile, queryClient, toast, setLocation]);
 
   return (
     <AuthContext.Provider

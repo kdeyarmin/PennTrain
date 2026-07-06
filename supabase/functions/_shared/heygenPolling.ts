@@ -40,12 +40,23 @@ export interface HeygenPollResult {
  *
  * `writeClient` and `storageClient` may be the same client (e.g. a service-role client, as used
  * by the cron-invoked poll-heygen-video-statuses function, which has no caller JWT at all).
+ *
+ * `usePrivilegedRpc` must be true whenever `writeClient` is a service-role client with no caller
+ * JWT (poll-heygen-video-statuses): lock_published_course_block()'s only other bypass,
+ * is_platform_admin(), needs auth.uid() and can never be true for that client, and a bare
+ * `.update()` runs as its own PostgREST transaction, so a separate prior set_config() call
+ * wouldn't be visible to it anyway. Routes the write through write_course_block_heygen_state()
+ * (20260706101500_write_course_block_heygen_state_rpc.sql) instead, which sets the transaction-local
+ * app.privileged_write GUC and performs the update in the same statement. check-course-video-status
+ * (authenticated platform_admin caller) leaves this false -- its direct `.update()` already
+ * satisfies the is_platform_admin() bypass today.
  */
 export async function pollAndResolveHeygenVideo(
   writeClient: SupabaseClient,
   storageClient: SupabaseClient,
   block: HeygenPollableBlock,
   heygenApiKey: string,
+  usePrivilegedRpc = false,
 ): Promise<HeygenPollResult> {
   const job = block.body?.heygen;
   if (!job?.video_id) {
@@ -55,6 +66,15 @@ export async function pollAndResolveHeygenVideo(
   if (job.status === "completed") {
     return { status: "completed" };
   }
+
+  const writeCourseBlock = (updates: { body: Record<string, unknown>; video_url?: string }) =>
+    usePrivilegedRpc
+      ? writeClient.rpc("write_course_block_heygen_state", {
+          p_block_id: block.id,
+          p_body: updates.body,
+          p_video_url: updates.video_url ?? null,
+        })
+      : writeClient.from("course_blocks").update(updates).eq("id", block.id);
 
   const statusRes = await fetch(`https://api.heygen.com/v3/videos/${job.video_id}`, {
     headers: { "x-api-key": heygenApiKey },
@@ -68,21 +88,15 @@ export async function pollAndResolveHeygenVideo(
 
   if (heygenStatus === "failed") {
     const failureMessage = statusBody.data.failure_message ?? "video generation failed";
-    await writeClient
-      .from("course_blocks")
-      // Copilot review finding: `body: { heygen: ... }` alone replaces the entire jsonb column,
-      // silently dropping body.script (AI narration) and any other sibling key. Spread the
-      // existing body first so only the `heygen` key actually changes.
-      .update({ body: { ...block.body, heygen: { ...job, status: "failed", error: failureMessage } } })
-      .eq("id", block.id);
+    // Copilot review finding: `body: { heygen: ... }` alone replaces the entire jsonb column,
+    // silently dropping body.script (AI narration) and any other sibling key. Spread the
+    // existing body first so only the `heygen` key actually changes.
+    await writeCourseBlock({ body: { ...block.body, heygen: { ...job, status: "failed", error: failureMessage } } });
     return { status: "failed", error: failureMessage };
   }
 
   if (heygenStatus !== "completed") {
-    await writeClient
-      .from("course_blocks")
-      .update({ body: { ...block.body, heygen: { ...job, status: heygenStatus } } })
-      .eq("id", block.id);
+    await writeCourseBlock({ body: { ...block.body, heygen: { ...job, status: heygenStatus } } });
     return { status: heygenStatus };
   }
 
@@ -101,13 +115,10 @@ export async function pollAndResolveHeygenVideo(
 
   const { data: publicUrlData } = storageClient.storage.from("course-videos").getPublicUrl(storagePath);
 
-  const { error: updateError } = await writeClient
-    .from("course_blocks")
-    .update({
-      video_url: publicUrlData.publicUrl,
-      body: { ...block.body, heygen: { ...job, status: "completed", completed_at: new Date().toISOString() } },
-    })
-    .eq("id", block.id);
+  const { error: updateError } = await writeCourseBlock({
+    video_url: publicUrlData.publicUrl,
+    body: { ...block.body, heygen: { ...job, status: "completed", completed_at: new Date().toISOString() } },
+  });
   if (updateError) return { status: "error", error: updateError.message };
 
   return { status: "completed", video_url: publicUrlData.publicUrl };

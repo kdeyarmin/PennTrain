@@ -1,4 +1,10 @@
+import { useMemo } from "react";
 import { useListAuditLogs } from "@/hooks/useAuditLogs";
+import { useListProfiles } from "@/hooks/useProfiles";
+import { useListEmployees } from "@/hooks/useEmployees";
+import { useListFacilities } from "@/hooks/useFacilities";
+import { useListOrganizations } from "@/hooks/useOrganizations";
+import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShieldAlert } from "lucide-react";
 
@@ -13,8 +19,44 @@ function getActionDisplay(action: string): { color: string; label: string } {
 }
 
 export default function AuditLog() {
+  const { user } = useAuth();
+  const isPlatformAdmin = user?.role === "platform_admin";
   const { data: logsData, isLoading } = useListAuditLogs({ limit: 100 });
+  const { data: profilesData } = useListProfiles();
+  const { data: employeesData } = useListEmployees();
+  const { data: facilitiesData } = useListFacilities();
+  const { data: organizationsData } = useListOrganizations();
   const logs = logsData ?? [];
+
+  const actorNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of profilesData ?? []) map.set(p.id, `${p.first_name} ${p.last_name}`.trim());
+    return map;
+  }, [profilesData]);
+
+  const employeeNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const e of employeesData ?? []) map.set(e.id, `${e.first_name} ${e.last_name}`.trim());
+    return map;
+  }, [employeesData]);
+
+  const facilityNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const f of facilitiesData ?? []) map.set(f.id, f.name);
+    return map;
+  }, [facilitiesData]);
+
+  const organizationNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const o of organizationsData ?? []) map.set(o.id, o.name);
+    return map;
+  }, [organizationsData]);
+
+  function getEntityLabel(entityType: string, entityId: string): string {
+    if (entityType === "employees") return employeeNameById.get(entityId) ?? `#${entityId}`;
+    if (entityType === "facilities") return facilityNameById.get(entityId) ?? `#${entityId}`;
+    return `#${entityId}`;
+  }
 
   return (
     <div className="space-y-6">
@@ -47,10 +89,18 @@ export default function AuditLog() {
                         {label}
                       </span>
                       <span className="text-sm font-medium capitalize">{log.entity_type?.replace(/_/g, " ")}</span>
-                      {log.entity_id && <span className="text-xs text-muted-foreground">#{log.entity_id}</span>}
+                      {log.entity_id && (
+                        <span className="text-xs text-muted-foreground">{getEntityLabel(log.entity_type, log.entity_id)}</span>
+                      )}
+                      {isPlatformAdmin && log.organization_id && (
+                        <span className="text-xs text-muted-foreground">
+                          · {organizationNameById.get(log.organization_id) ?? `Org #${log.organization_id}`}
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      User #{log.actor_profile_id ?? "System"} · {new Date(log.created_at).toLocaleString()}
+                      {log.actor_profile_id ? actorNameById.get(log.actor_profile_id) ?? `User #${log.actor_profile_id}` : "System"}
+                      {" · "}{new Date(log.created_at).toLocaleString()}
                       {log.ip_address && ` · ${log.ip_address}`}
                     </p>
                   </div>

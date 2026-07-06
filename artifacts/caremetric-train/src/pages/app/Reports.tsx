@@ -31,6 +31,7 @@ import { useListEmployeeCredentials, type EmployeeCredential } from "@/hooks/use
 import { useListIncidents, type Incident, useListAllIncidentNotificationsDetailed, type IncidentNotification } from "@/hooks/useIncidents";
 import { useListInspectionItems, type InspectionItem } from "@/hooks/useInspectionItems";
 import { useListOrganizations, type Organization } from "@/hooks/useOrganizations";
+import { useListProfiles, type Profile } from "@/hooks/useProfiles";
 import type { Tables } from "@/lib/database.types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
@@ -233,16 +234,6 @@ const ALL_REPORTS: ReportDef[] = [
     requiredBy: "Internal Compliance",
   },
   {
-    id: "org-compliance",
-    title: "Organization Compliance Overview",
-    description:
-      "High-level compliance metrics and trends across the entire organization.",
-    icon: BarChart3,
-    category: "Compliance",
-    requiredBy: "55 Pa. Code §2600",
-    roles: ["platform_admin"],
-  },
-  {
     id: "credential-status",
     title: "Credential & Clearance Status",
     description:
@@ -387,6 +378,7 @@ interface ReportContext {
   documents: TrainingDocument[];
   alerts: Alert[];
   organizations: Organization[];
+  profiles: Profile[];
   hourBuckets: HourBucket[];
   credentials: EmployeeCredential[];
   incidents: Incident[];
@@ -404,6 +396,7 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
 
   const employeeById = new Map(ctx.employees.map((e) => [e.id, e]));
   const trainingTypeById = new Map(ctx.trainingTypes.map((t) => [t.id, t]));
+  const profileById = new Map(ctx.profiles.map((p) => [p.id, p]));
 
   if (reportId === "compliance-summary") {
     const rangedRecords = scopedRecords.filter((r) => inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo));
@@ -475,9 +468,12 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
   }
 
   if (reportId === "survey-readiness") {
-    const total = relevantRecords(scopedRecords).length;
-    const compliantCount = scopedRecords.filter((r) => r.status === "compliant").length;
-    const expiredCount = scopedRecords.filter((r) => r.status === "expired").length;
+    const rangedRecords = scopedRecords.filter((r) => inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo));
+    const rangedPracticums = scopedPracticums.filter((p) => inDateRange(p.due_date, ctx.dateFrom, ctx.dateTo));
+
+    const total = relevantRecords(rangedRecords).length;
+    const compliantCount = rangedRecords.filter((r) => r.status === "compliant").length;
+    const expiredCount = rangedRecords.filter((r) => r.status === "expired").length;
     const overallComplianceScore = pct(compliantCount, total);
 
     const medAdminStaff = scopedEmployees.filter((e) => e.administers_medications);
@@ -492,18 +488,18 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
       ctx.trainingTypes.filter((t) => t.is_active && t.applies_to_trainers).map((t) => t.id)
     );
 
-    const medAdminBadRecords = scopedRecords.filter(
+    const medAdminBadRecords = rangedRecords.filter(
       (r) => medAdminIds.has(r.employee_id) && medAdminTypeIds.has(r.training_type_id) && (r.status === "expired" || r.status === "missing")
     );
-    const trainerBadRecords = scopedRecords.filter(
+    const trainerBadRecords = rangedRecords.filter(
       (r) => trainerIds.has(r.employee_id) && trainerTypeIds.has(r.training_type_id) && (r.status === "expired" || r.status === "missing")
     );
 
     const currentYear = new Date().getFullYear();
-    const yearPracticums = scopedPracticums.filter((p) => p.practicum_year === currentYear);
+    const yearPracticums = rangedPracticums.filter((p) => p.practicum_year === currentYear);
     const pendingPracticums = yearPracticums.filter((p) => p.status !== "compliant");
 
-    const missingDocsRecords = scopedRecords.filter((r) => r.status === "missing" && r.document_required);
+    const missingDocsRecords = rangedRecords.filter((r) => r.status === "missing" && r.document_required);
 
     const criticalAlerts = byFacility(ctx.alerts, ctx.facilityId).filter((a) => a.severity === "critical");
 
@@ -703,7 +699,14 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
   if (reportId === "annual-hours" || reportId === "training-hours") {
     const scopedBuckets = byFacility(ctx.hourBuckets, ctx.facilityId);
     const currentYear = new Date().getFullYear();
-    const buckets = reportId === "annual-hours" ? scopedBuckets.filter((b) => b.training_year === currentYear) : scopedBuckets;
+    const fromYear = ctx.dateFrom ? new Date(ctx.dateFrom).getFullYear() : undefined;
+    const toYear = ctx.dateTo ? new Date(ctx.dateTo).getFullYear() : undefined;
+    const buckets = scopedBuckets.filter((b) => {
+      if (fromYear !== undefined && b.training_year < fromYear) return false;
+      if (toYear !== undefined && b.training_year > toYear) return false;
+      if (fromYear === undefined && toYear === undefined && reportId === "annual-hours") return b.training_year === currentYear;
+      return true;
+    });
     const compliantCount = buckets.filter((b) => b.status === "compliant").length;
     const incompleteCount = buckets.length - compliantCount;
     const staffTracked = new Set(buckets.map((b) => b.employee_id)).size;
@@ -850,7 +853,15 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
     );
     return {
       headers: ["File Name", "Type", "Uploaded By", "Created"],
-      rows: rangedDocuments.map((d) => [d.file_name, d.document_type, d.uploaded_by_profile_id ?? "", d.created_at]),
+      rows: rangedDocuments.map((d) => {
+        const uploader = d.uploaded_by_profile_id ? profileById.get(d.uploaded_by_profile_id) : undefined;
+        return [
+          d.file_name,
+          d.document_type,
+          uploader ? `${uploader.first_name} ${uploader.last_name}` : d.uploaded_by_profile_id ?? "",
+          d.created_at,
+        ];
+      }),
       summaryCards,
     };
   }
@@ -884,44 +895,6 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
     ];
     summaryCards.push({ label: "Overdue Items", value: rows.length, variant: rows.length > 0 ? "danger" : "success" });
     return { headers: ["Employee", "Job Title", "Type", "Item", "Due Date", "Status"], rows, summaryCards };
-  }
-
-  if (reportId === "org-compliance") {
-    const rows = ctx.organizations.map((o) => {
-      const orgFacilities = ctx.facilities.filter((f) => f.organization_id === o.id);
-      const orgEmployees = ctx.employees.filter((e) => e.organization_id === o.id);
-      const orgRecords = ctx.trainingRecords.filter(
-        (r) => r.organization_id === o.id && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo)
-      );
-      const relevantOrgRecords = relevantRecords(orgRecords);
-      const compliantCount = orgRecords.filter((r) => r.status === "compliant").length;
-      const expiredCount = orgRecords.filter((r) => r.status === "expired").length;
-      const dueSoonCount = orgRecords.filter((r) => r.status === "due_soon").length;
-      return {
-        org: o,
-        totalEmployees: orgEmployees.length,
-        totalFacilities: orgFacilities.length,
-        totalRecords: relevantOrgRecords.length,
-        compliantCount,
-        expiredCount,
-        dueSoonCount,
-        compliancePercentage: pct(compliantCount, relevantOrgRecords.length),
-      };
-    });
-    return {
-      headers: ["Org ID", "Total Employees", "Facilities", "Total Records", "Compliant", "Expired", "Due Soon", "Compliance %"],
-      rows: rows.map((r) => [
-        r.org.name,
-        String(r.totalEmployees),
-        String(r.totalFacilities),
-        String(r.totalRecords),
-        String(r.compliantCount),
-        String(r.expiredCount),
-        String(r.dueSoonCount),
-        `${r.compliancePercentage}%`,
-      ]),
-      summaryCards: [{ label: "Organizations", value: rows.length }],
-    };
   }
 
   if (reportId === "credential-status") {
@@ -1102,6 +1075,7 @@ export default function Reports() {
   const alertsQuery = useListAlerts({ status: "open" });
   const hourBucketsQuery = useListTrainingHourBuckets({});
   const organizationsQuery = useListOrganizations();
+  const profilesQuery = useListProfiles({});
   const credentialsQuery = useListEmployeeCredentials({});
   const incidentsQuery = useListIncidents({});
   const incidentNotificationsQuery = useListAllIncidentNotificationsDetailed();
@@ -1116,6 +1090,7 @@ export default function Reports() {
   const alerts = alertsQuery.data ?? [];
   const hourBuckets = hourBucketsQuery.data ?? [];
   const organizations = organizationsQuery.data ?? [];
+  const profiles = profilesQuery.data ?? [];
   const credentials = credentialsQuery.data ?? [];
   const incidents = incidentsQuery.data ?? [];
   const incidentNotifications = incidentNotificationsQuery.data ?? [];
@@ -1131,6 +1106,7 @@ export default function Reports() {
     alertsQuery.isLoading ||
     hourBucketsQuery.isLoading ||
     organizationsQuery.isLoading ||
+    profilesQuery.isLoading ||
     credentialsQuery.isLoading ||
     incidentsQuery.isLoading ||
     incidentNotificationsQuery.isLoading ||
@@ -1166,6 +1142,7 @@ export default function Reports() {
       documents,
       alerts,
       organizations,
+      profiles,
       hourBuckets,
       credentials,
       incidents,
@@ -1174,7 +1151,7 @@ export default function Reports() {
     }),
     [
       facilityId, dateFrom, dateTo, facilities, employees, trainingTypes, trainingRecords, practicums, documents, alerts, organizations,
-      hourBuckets, credentials, incidents, incidentNotifications, inspectionItems,
+      profiles, hourBuckets, credentials, incidents, incidentNotifications, inspectionItems,
     ]
   );
 

@@ -14,6 +14,28 @@ function json(body: unknown, status = 200) {
 
 const VALID_ROLES = ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"];
 
+// Falls back to this default when redirect_to is missing/invalid -- lands the invited user on the
+// same reset-password flow the frontend normally requests.
+const DEFAULT_APP_ORIGIN = "https://caremetrictrain.com";
+// Known app origins (see DEPLOYMENT.md's Supabase Auth redirect URL config) -- the caller-supplied
+// redirect_to is only honored if it matches one of these, so this endpoint can't be used to embed
+// an attacker-controlled domain in the invite email GoTrue sends.
+const ALLOWED_APP_ORIGINS = new Set([
+  "https://caremetrictrain.com",
+  "https://penntrain-production.up.railway.app",
+]);
+
+function resolveRedirectTo(candidate: string | undefined): string {
+  if (candidate) {
+    try {
+      if (ALLOWED_APP_ORIGINS.has(new URL(candidate).origin)) return candidate;
+    } catch {
+      // fall through to default
+    }
+  }
+  return `${DEFAULT_APP_ORIGIN}/reset-password`;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -99,7 +121,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
     data: { first_name, last_name },
-    redirectTo: redirect_to,
+    redirectTo: resolveRedirectTo(redirect_to),
   });
   if (inviteError) return json({ error: inviteError.message }, 400);
 

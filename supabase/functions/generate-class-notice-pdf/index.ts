@@ -24,6 +24,13 @@ const SIGNIN_ROWS = 18;
 // generate-certificate-pdf already prints on issued certificates ("Verify at
 // caremetrictrain.com/verify/...") for consistency across every PDF this app generates.
 const DEFAULT_APP_ORIGIN = "https://caremetrictrain.com";
+// Known app origins (see DEPLOYMENT.md's Supabase Auth redirect URL config) -- the caller-supplied
+// baseUrl is only honored if it matches one of these, so this endpoint can't be used to embed an
+// arbitrary attacker domain in the check-in QR code printed on the class notice.
+const ALLOWED_APP_ORIGINS = new Set([
+  "https://caremetrictrain.com",
+  "https://penntrain-production.up.railway.app",
+]);
 
 class PdfWriter {
   doc!: PDFDocument;
@@ -118,7 +125,8 @@ Deno.serve(async (req: Request) => {
   });
   if (tokenError) return json({ error: tokenError.message }, 500);
 
-  const origin = baseUrl?.replace(/\/$/, "") || DEFAULT_APP_ORIGIN;
+  const requestedOrigin = baseUrl?.replace(/\/$/, "");
+  const origin = requestedOrigin && ALLOWED_APP_ORIGINS.has(requestedOrigin) ? requestedOrigin : DEFAULT_APP_ORIGIN;
   const checkinUrl = `${origin}/checkin/${token}`;
   const qrPng = await QRCode.toBuffer(checkinUrl, { width: 220, margin: 1 });
 

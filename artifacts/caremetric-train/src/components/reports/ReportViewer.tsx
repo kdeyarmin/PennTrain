@@ -194,13 +194,14 @@ function getStatusTextColor(value: string): string {
   if (v === "expired" || v === "fail" || v === "overdue") return "text-red-600 dark:text-red-400";
   if (v === "due_soon" || v === "due soon") return "text-amber-600 dark:text-amber-400";
   if (v === "missing") return "text-gray-500 dark:text-gray-400";
+  if (v === "not_applicable" || v === "not applicable" || v === "pending_review" || v === "pending review") return "text-gray-500 dark:text-gray-400";
   return "";
 }
 
 function isStatusCell(header: string, value: string): boolean {
   const h = (header ?? "").toLowerCase();
   if (h === "status" || h === "overall status" || h === "check result") return true;
-  return ["compliant", "expired", "due_soon", "missing", "pending", "pass", "fail", "partial", "warning", "overdue", "incomplete"].includes(value);
+  return ["compliant", "expired", "due_soon", "missing", "pending", "pass", "fail", "partial", "warning", "overdue", "incomplete", "not_applicable", "pending_review"].includes(value);
 }
 
 function isPercentCell(header: string): boolean {

@@ -63,7 +63,7 @@ export default function ViolationDetail() {
   const { data: documents, isLoading: documentsLoading } = useListViolationDocuments(id);
 
   const { mutate: updateViolation, isPending: updatingViolation } = useUpdateViolation();
-  const { mutate: createCorrectiveAction } = useCreateCorrectiveAction();
+  const { mutate: createCorrectiveAction, mutateAsync: createCorrectiveActionAsync } = useCreateCorrectiveAction();
   const { mutate: updateCorrectiveAction } = useUpdateCorrectiveAction();
   const { mutateAsync: createCourseAssignment } = useCreateCourseAssignment();
   const uploadDocument = useUploadViolationDocument();
@@ -245,20 +245,28 @@ export default function ViolationDetail() {
                         return;
                       }
                       setCreatingAction(true);
+                      let assignment;
                       try {
-                        const assignment = await createCourseAssignment({
+                        assignment = await createCourseAssignment({
                           employee_id: employee.id, course_id: course.id, course_version_id: course.current_version_id,
                           facility_id: violation.facility_id, organization_id: violation.organization_id,
                           assigned_by: user?.id ?? null, due_date: newActionDueDate,
                         });
-                        createCorrectiveAction({
+                      } catch (err) {
+                        toast({ title: "Failed to assign retraining", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+                        setRetrainEmployeeId(""); setRetrainCourseId(""); setNewActionDueDate(""); setAssignRetraining(false);
+                        setCreatingAction(false);
+                        return;
+                      }
+                      try {
+                        await createCorrectiveActionAsync({
                           violation_id: violation.id, description: `Complete "${course.title}" retraining — ${employee.first_name} ${employee.last_name}`,
                           due_date: newActionDueDate, course_assignment_id: assignment.id,
                           owner_profile_id: user?.id ?? null, organization_id: violation.organization_id, facility_id: violation.facility_id,
                         });
                         setRetrainEmployeeId(""); setRetrainCourseId(""); setNewActionDueDate(""); setAssignRetraining(false);
                       } catch (err) {
-                        toast({ title: "Failed to assign retraining", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+                        toast({ title: "Retraining assigned, but failed to record corrective action", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
                       } finally {
                         setCreatingAction(false);
                       }

@@ -158,8 +158,7 @@ can see the whole workspace and lockfile.
    **Important:** the two `VITE_` variables are baked into the JS bundle at build time, not read
    at runtime. If they are missing the build now fails loudly (guard in `vite.config.ts`); if you
    change them later, trigger a redeploy (which rebuilds) -- merely restarting the service ships
-   the old bundle, and `/health` will misleadingly report `"configured"` because it reads the
-   server process env, not the bundle.
+   the old bundle, and `/health` has no way to detect that (see step 5 below).
 4. Deploy. Railway assigns a `*.up.railway.app` domain -- for this project it assigned
    `penntrain-production.up.railway.app` -- and the production custom domain
    (`caremetrictrain.com`) is attached under Service -> Settings -> Networking. Every domain the
@@ -170,15 +169,16 @@ can see the whole workspace and lockfile.
    {
      "status": "ok",
      "service": "caremetric-train",
-     "timestamp": "2026-07-04T12:00:00.000Z",
-     "supabase": "configured",
-     "supabaseReachable": true
+     "timestamp": "2026-07-04T12:00:00.000Z"
    }
    ```
-   `supabase` reflects whether `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` are set on the Railway
-   service; `supabaseReachable` is a best-effort live check against Supabase Auth's public health
-   route (2s timeout, never touches the service-role key, never fails the healthcheck response
-   itself -- Railway only cares about the HTTP 200).
+   `/health` deliberately reports nothing about Supabase configuration or reachability: this server
+   never talks to Supabase itself (the browser does, using whatever `VITE_SUPABASE_URL`/
+   `VITE_SUPABASE_ANON_KEY` were baked into the bundle at build time), so a field derived from this
+   process's own env vars at request time could silently diverge from what the served bundle
+   actually contains (no rebuild on a runtime variable change, dummy build-time values, etc.) --
+   exactly the false assurance a healthcheck must not give. A green `/health` only means the Node
+   process is up; confirm Supabase connectivity by loading the app in a browser (step 8).
 
 ### Environment variables to set on the Railway service
 
@@ -376,13 +376,12 @@ curl -s https://caremetrictrain.com/health | jq
 curl -s https://penntrain-production.up.railway.app/health | jq
 ```
 
-Expect `status: "ok"` and `supabase: "configured"`. If `supabaseReachable` is `false`, double-check
-`VITE_SUPABASE_URL` on the Railway service and that the Supabase project is not paused.
-
-Remember that `/health` reflects the **server process env**, while the SPA uses values **baked in
-at build time** -- after changing `VITE_` variables, redeploy (rebuild); don't trust a green
-`/health` after a mere restart. Then load the app in a browser and confirm the login page renders
-(a blank page means the bundle was built without the `VITE_` vars).
+Expect `status: "ok"` -- that only confirms the Node process is up and serving requests, nothing
+about Supabase. `/health` intentionally can't tell you whether the served bundle has working
+`VITE_` values (see step 5), so the real verification is to load the app in a browser and confirm
+the login page renders (a blank page means the bundle was built without the `VITE_` vars) --
+after changing `VITE_` variables, redeploy (rebuild); a mere restart ships the old bundle and a
+green `/health` would not reveal that.
 
 ## Limitations / manual steps remaining
 

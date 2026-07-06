@@ -25,6 +25,9 @@ import { useListPracticums } from "@/hooks/usePracticums";
 import { useListTrainingHourBuckets } from "@/hooks/useTrainingHourBuckets";
 import { useListDocuments, useDocumentSignedUrl, type TrainingDocument } from "@/hooks/useDocuments";
 import { useListEmployeeCredentials } from "@/hooks/useEmployeeCredentials";
+import {
+  useListEmployeeFacilityAssignments, useAddEmployeeFacilityAssignment, useRemoveEmployeeFacilityAssignment,
+} from "@/hooks/useEmployeeFacilityAssignments";
 import { useSetEmployeeCheckinPin } from "@/hooks/useTrainingClasses";
 import {
   useListEmployeeOnboardingItems, useUpdateEmployeeOnboardingItem,
@@ -92,6 +95,7 @@ export default function EmployeeDetail() {
     : "/app/employees";
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
+  const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
   // Matches employee_credentials_select RLS -- trainer is excluded (clearance/license data is
   // more sensitive than the training records shown above), unlike every other card here.
   const canViewCredentials = ["platform_admin", "org_admin", "facility_manager", "auditor"].includes(user?.role ?? "");
@@ -134,6 +138,11 @@ export default function EmployeeDetail() {
   const { mutate: updateOnboardingItem } = useUpdateEmployeeOnboardingItem();
   const { mutate: logCheckin, isPending: loggingCheckin } = useLogEmployeeCheckin();
   const getSignedUrl = useDocumentSignedUrl();
+
+  const { data: facilityAssignments, isLoading: facilityAssignmentsLoading } = useListEmployeeFacilityAssignments({ employeeId: id });
+  const addFacilityAssignment = useAddEmployeeFacilityAssignment();
+  const removeFacilityAssignment = useRemoveEmployeeFacilityAssignment();
+  const [addFacilityId, setAddFacilityId] = useState("");
 
   const trainingTypeName = (typeId: string) => trainingTypes?.find(t => t.id === typeId)?.name ?? "Unknown requirement";
 
@@ -255,6 +264,17 @@ export default function EmployeeDetail() {
     });
   };
 
+  const handleAddFacilityAssignment = () => {
+    if (!employee || !addFacilityId) return;
+    addFacilityAssignment.mutate(
+      { organization_id: employee.organization_id, employee_id: employee.id, facility_id: addFacilityId, is_primary: false },
+      {
+        onSuccess: () => { setAddFacilityId(""); toast({ title: "Facility assignment added" }); },
+        onError: (e: Error) => toast({ title: "Failed to add facility assignment", description: e.message, variant: "destructive" }),
+      },
+    );
+  };
+
   const field = (k: keyof EmpFormData, v: string | boolean) =>
     setEmpForm(f => ({ ...f, [k]: v }));
 
@@ -310,17 +330,23 @@ export default function EmployeeDetail() {
             </div>
           </div>
         </div>
-        {canManage && (
+        {(canManage || canDelete) && (
           <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="outline" size="sm" onClick={openEditEmp}>
-              <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => { setPinValue(""); setShowSetPin(true); }}>
-              <KeyRound className="mr-2 h-3.5 w-3.5" /> Set Check-In PIN
-            </Button>
-            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setShowDeleteConfirm(true)}>
-              <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
-            </Button>
+            {canManage && (
+              <>
+                <Button variant="outline" size="sm" onClick={openEditEmp}>
+                  <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => { setPinValue(""); setShowSetPin(true); }}>
+                  <KeyRound className="mr-2 h-3.5 w-3.5" /> Set Check-In PIN
+                </Button>
+              </>
+            )}
+            {canDelete && (
+              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setShowDeleteConfirm(true)}>
+                <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -355,6 +381,66 @@ export default function EmployeeDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {canManage && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" /> Facility Assignments</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Facilities this employee can be scheduled at. Their primary facility is kept in sync with the
+              Facility field above and can't be removed here.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {facilityAssignmentsLoading ? (
+              <Skeleton className="h-10" />
+            ) : !facilityAssignments?.length ? (
+              <EmptyState icon={Building2} text="No facility assignments on record for this employee." />
+            ) : (
+              <div className="space-y-2">
+                {facilityAssignments.map(fa => (
+                  <div key={fa.id} className="flex items-center justify-between p-3 rounded-lg border">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">
+                        {facilities?.find(f => f.id === fa.facility_id)?.name ?? "Unknown facility"}
+                      </span>
+                      {fa.is_primary && <Badge variant="outline">Primary</Badge>}
+                    </div>
+                    {!fa.is_primary && (
+                      <Button
+                        variant="ghost" size="icon"
+                        onClick={() => removeFacilityAssignment.mutate(fa.id, {
+                          onError: (e: Error) => toast({ title: "Failed to remove facility assignment", description: e.message, variant: "destructive" }),
+                        })}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {(() => {
+              const assignedFacilityIds = new Set((facilityAssignments ?? []).map(fa => fa.facility_id));
+              const availableFacilities = (facilities ?? []).filter(f => !assignedFacilityIds.has(f.id));
+              if (!availableFacilities.length) return null;
+              return (
+                <div className="flex gap-2 pt-1">
+                  <Select value={addFacilityId} onValueChange={setAddFacilityId}>
+                    <SelectTrigger className="max-w-xs"><SelectValue placeholder="Add a facility" /></SelectTrigger>
+                    <SelectContent>
+                      {availableFacilities.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" onClick={handleAddFacilityAssignment} disabled={!addFacilityId || addFacilityAssignment.isPending}>
+                    <Plus className="mr-2 h-3.5 w-3.5" /> Add
+                  </Button>
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

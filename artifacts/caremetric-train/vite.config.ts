@@ -59,7 +59,7 @@ export default defineConfig(({ command, mode }) => {
           theme_color: "#102a43",
           background_color: "#102a43",
           display: "standalone",
-          start_url: "/me",
+          start_url: `${basePath}me`,
           icons: [
             { src: "pwa-192x192.png", sizes: "192x192", type: "image/png" },
             { src: "pwa-512x512.png", sizes: "512x512", type: "image/png" },

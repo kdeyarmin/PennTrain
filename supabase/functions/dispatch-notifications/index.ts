@@ -105,14 +105,19 @@ Deno.serve(async (req: Request) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-  const { data: pending, error: fetchError } = await adminClient
+  // Atomically claim a batch by flipping status pending -> processing in a single UPDATE, so an
+  // overlapping cron-fired invocation's claim never matches rows this invocation already grabbed
+  // (same status='pending' compare-and-swap shape as attest-policy's update).
+  const { data: pending, error: claimError } = await adminClient
     .from("notification_deliveries")
-    .select("id, channel, recipient, notification_id, notifications(title, body)")
+    .update({ status: "processing" })
     .eq("status", "pending")
     .order("created_at", { ascending: true })
-    .limit(BATCH_SIZE);
+    .order("id", { ascending: true })
+    .limit(BATCH_SIZE)
+    .select("id, channel, recipient, notification_id, notifications(title, body)");
 
-  if (fetchError) return json({ error: fetchError.message }, 500);
+  if (claimError) return json({ error: claimError.message }, 500);
   if (!pending || pending.length === 0) return json({ processed: 0, sent: 0, skipped: 0, failed: 0 });
 
   let sent = 0, skipped = 0, failed = 0;

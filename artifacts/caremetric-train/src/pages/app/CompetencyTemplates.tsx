@@ -328,7 +328,7 @@ export default function CompetencyTemplates() {
                         <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground hover:text-foreground" onClick={() => setManagingTemplate(t)}>
                           <ListChecks className="mr-1.5 h-3.5 w-3.5" /> Items
                         </Button>
-                        {canManage && (
+                        {canManage && t.organization_id !== null && (
                           <>
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => openEdit(t)} aria-label={`Edit ${t.name}`}>
                               <Pencil className="h-3.5 w-3.5" />

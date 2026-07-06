@@ -14,6 +14,10 @@ import {
   type EmployeeSchedulePreference,
 } from "@/hooks/useEmployeeSchedulePreferences";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -164,6 +168,7 @@ function ShiftsPanel({ facilityId, organizationId }: { facilityId: string; organ
   const update = useUpdateShiftDefinition();
   const del = useDeleteShiftDefinition();
   const [form, setForm] = useState({ name: "", startTime: "07:00", endTime: "15:00", color: COLOR_PRESETS[0] });
+  const [deleteTarget, setDeleteTarget] = useState<ShiftDefinition | null>(null);
 
   function handleAdd() {
     if (!form.name.trim()) return;
@@ -242,7 +247,7 @@ function ShiftsPanel({ facilityId, organizationId }: { facilityId: string; organ
                   <Button variant="ghost" size="sm" onClick={() => update.mutate({ id: s.id, is_active: !s.is_active })}>
                     {s.is_active ? "Deactivate" : "Activate"}
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => del.mutate(s.id)}>
+                  <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(s)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
@@ -251,6 +256,34 @@ function ShiftsPanel({ facilityId, organizationId }: { facilityId: string; organ
           </div>
         )}
       </CardContent>
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Shift Type</AlertDialogTitle>
+            <AlertDialogDescription>
+              Delete "{deleteTarget?.name}"? Every employee's typical-pattern preference built on this shift
+              type will be permanently removed too (shift_definition_id cascades on delete). This can't be
+              undone -- consider "Deactivate" instead if you just want to stop it from being offered for new
+              patterns while keeping past schedules and preferences intact.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (!deleteTarget) return;
+                del.mutate(deleteTarget.id, {
+                  onError: (e: Error) => toast({ title: "Couldn't delete shift type", description: e.message, variant: "destructive" }),
+                });
+                setDeleteTarget(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
