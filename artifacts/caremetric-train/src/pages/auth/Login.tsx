@@ -132,6 +132,12 @@ export default function Login() {
                 Create your organization
               </Link>
             </p>
+            <p className="mt-2 text-center text-[13px] text-muted-foreground">
+              Just exploring?{" "}
+              <Link href="/demo" className="font-medium text-primary hover:text-primary/80">
+                Try a demo account
+              </Link>
+            </p>
           </CardContent>
         </Card>
 
