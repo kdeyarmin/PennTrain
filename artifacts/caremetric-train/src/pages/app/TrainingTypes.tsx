@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 const FACILITY_SCOPE_OPTIONS = [
   { value: "BOTH", label: "All facility types" },
   { value: "PCH", label: "Personal Care Home" },
-  { value: "ALR", label: "Assisted Living Residence" },
+  { value: "ALR", label: "Assisted Living Facility" },
   { value: "NH", label: "Nursing Home" },
   { value: "HHA", label: "Home Health Agency" },
   { value: "HOS", label: "Hospice Agency" },
