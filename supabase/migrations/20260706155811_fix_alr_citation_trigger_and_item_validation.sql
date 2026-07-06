@@ -1,18 +1,3 @@
--- Further fixes for PR #36 review findings from Codex, on the second fix migration.
---
--- Finding D (Codex P2): the prior fix migration only corrected citation_topic_id for the ONE
--- insert path it touched (the triggered support_plan_30day row in
--- complete_resident_compliance_item()). Two other insert paths still relied on
--- auto_tag_resident_compliance_item_citation_topic()'s fallback, which has zero facility-type
--- awareness and always assigns the PCH-numbered (2600.x) topic: the renewal-row insert in
--- complete_resident_compliance_item() (for recurring annual_reassessment/medical_evaluation
--- cycles) and log_resident_change_of_condition()'s significant_change_reassessment insert. Rather
--- than patch every individual call site one at a time (clearly error-prone, as this finding
--- demonstrates), this fixes the root cause: the trigger itself is now facility-type-aware, so
--- every insert path that leaves citation_topic_id null -- present, future, anywhere in the
--- codebase -- gets the correct topic automatically. stamp_scope_from_resident() (trigger name
--- "stamp_scope") fires before trg_auto_tag_resident_compliance_item_citation_topic()
--- alphabetically, so new.facility_id is already populated by the time this runs.
 create or replace function public.auto_tag_resident_compliance_item_citation_topic()
 returns trigger language plpgsql security definer set search_path to 'public' as $$
 declare v_facility_type text; v_category text;
@@ -23,19 +8,14 @@ begin
     if new.item_type = 'medical_evaluation' then
       v_category := case when v_facility_type = 'ALR' then 'ALR Medical Evaluations' else 'Resident Medical Evaluations' end;
     elsif new.item_type = 'preadmission_screening' then
-      -- ALR doesn't seed this item type at all (Phase 5's rule pack has no ALR preadmission_screening
-      -- row), so this branch is effectively PCH-only already.
       v_category := 'Resident Preadmission Screening';
     elsif new.item_type in ('support_plan_30day', 'initial_assessment_15day') then
-      -- Ch. 2800.224 covers the initial assessment AND preliminary support plan together for ALR;
-      -- PCH keeps its existing split (2600.227 for the support plan, 2600.225 for the assessment).
       v_category := case
         when v_facility_type = 'ALR' then 'ALR Initial Assessment & Support Plan'
         when new.item_type = 'support_plan_30day' then 'Resident Support Plans'
         else 'Resident Assessments'
       end;
     else
-      -- annual_reassessment, significant_change_reassessment
       v_category := case when v_facility_type = 'ALR' then 'ALR Annual & Significant-Change Reassessment' else 'Resident Assessments' end;
     end if;
 
@@ -46,10 +26,6 @@ end;
 $$;
 revoke all on function public.auto_tag_resident_compliance_item_citation_topic() from public, anon, authenticated;
 
--- Finding E (Codex P2): p_compliance_item_id was accepted and stored without verifying it actually
--- belongs to p_resident_id. A caller authorized for one resident could pass a different resident's
--- compliance_item_id; finalizing that form would then call complete_resident_compliance_item() on
--- the wrong resident's row, marking an unrelated deadline compliant.
 create or replace function public.start_resident_assessment_form(
   p_resident_id uuid, p_reason text, p_compliance_item_id uuid default null
 )

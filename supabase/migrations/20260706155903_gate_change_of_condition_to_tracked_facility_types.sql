@@ -1,14 +1,3 @@
--- Further fix for a PR #36 review finding from Codex, on the fifth fix migration (round 6).
---
--- Finding M (Codex P2): instantiate_resident_compliance_items() gates NH/HHA/HOS/GH facilities out
--- of RASP/ASP tracking implicitly -- its rule-pack join simply matches zero rows for any
--- facility_type other than 'PCH'/'ALR', so those residents get no compliance items at all (by
--- design, per Phase 5). log_resident_change_of_condition() has no equivalent guard, so a manager at
--- an unsupported facility type can still create a significant_change_reassessment item (plus its
--- downstream dashboard row, alert, and PCH-shaped 2600.225 citation tag) for a resident this app
--- doesn't model regulatory tracking for -- and ResidentDetail.tsx's "Log Change of Condition" button
--- is shown unconditionally, so there's no client-side gate either. Add the same facility-type check
--- here explicitly, matching the shape of this function's existing authorization checks.
 create or replace function public.log_resident_change_of_condition(p_resident_id uuid, p_notes text default null)
 returns public.resident_compliance_items
 language plpgsql security definer set search_path to 'public' as $$

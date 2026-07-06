@@ -1,25 +1,3 @@
--- Further fixes for PR #36 (Tier 3.6) review findings from Codex, this time on the previous fix
--- migration (20260706100000) itself -- each re-verified against the actual code before being
--- addressed here.
-
--- Finding A (Codex P1): complete_resident_compliance_item()'s idempotency guard (from the prior fix
--- migration) reads the row with a plain SELECT, which takes no lock. Two concurrent calls on the
--- same item (double-click, retry, two browser tabs) can both execute that SELECT before either
--- UPDATE commits, so both see a non-compliant row, both bypass the early-return, and both insert a
--- renewal/support-plan row -- the sequential-double-call case is fixed, but the truly-concurrent
--- case isn't. `for update` locks the row so a second concurrent caller blocks until the first
--- transaction commits, then sees the already-completed row and correctly hits the early return.
--- The same race-condition class applies to finalize_resident_assessment_form()'s read of v_form,
--- even though Codex's comment was anchored to complete_resident_compliance_item() specifically --
--- fixed here too, proactively.
---
--- Finding B (Codex P2): when an ALR resident's annual/significant-change reassessment triggers the
--- linked support_plan_30day row, the insert didn't set citation_topic_id, so
--- auto_tag_resident_compliance_item_citation_topic() (from the original Tier 3.6 migration) always
--- assigned the hardcoded PCH "Resident Support Plans" (2600.227) topic -- even for ALR residents,
--- who should get "ALR Initial Assessment & Support Plan" (2800.224). Fixed by looking up the
--- resident's facility_type and choosing the correct citation_ref explicitly, mirroring how
--- instantiate_resident_compliance_items() already derives citation_topic_id from the rule pack.
 create or replace function public.complete_resident_compliance_item(p_item_id uuid)
 returns public.resident_compliance_items
 language plpgsql security definer set search_path to 'public' as $$
@@ -125,14 +103,6 @@ $$;
 revoke all on function public.finalize_resident_assessment_form(uuid) from public, anon;
 grant execute on function public.finalize_resident_assessment_form(uuid) to authenticated;
 
--- Finding C (Codex P2): two concurrent start_resident_assessment_form() calls for the same
--- resident+form_type can both read the same max(version_number) before either insert commits,
--- assigning the same version_number to two different rows. Two layers of defense: a unique
--- constraint as a data-integrity backstop (so corrupt duplicate versions can never actually persist,
--- even if the lock below were ever bypassed), and a transaction-scoped advisory lock keyed on
--- resident_id+form_type so a second concurrent caller blocks until the first commits, then correctly
--- computes the next version rather than colliding -- nicer than surfacing a unique-violation error
--- for the client to retry.
 alter table public.resident_assessment_forms
   add constraint resident_assessment_forms_resident_form_version_uk unique (resident_id, form_type, version_number);
 
@@ -168,8 +138,6 @@ begin
   select facility_type into v_facility_type from public.facilities where id = v_res.facility_id;
   v_form_type := case when v_facility_type = 'ALR' then 'ASP' else 'RASP' end;
 
-  -- Transaction-scoped advisory lock, released automatically at commit/rollback -- serializes
-  -- concurrent starts for the same resident+form_type so version-number allocation below can't race.
   perform pg_advisory_xact_lock(hashtext(p_resident_id::text || ':' || v_form_type));
 
   select * into v_prior_finalized from public.resident_assessment_forms

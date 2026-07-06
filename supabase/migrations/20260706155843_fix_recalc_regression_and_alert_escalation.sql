@@ -1,30 +1,3 @@
--- Further fixes for PR #36 review findings from Codex, on the third fix migration (round 4).
---
--- Finding G (Codex P1): 20260706090200_resident_compliance_alerts.sql's "Full rewrite of
--- recalculate_all_compliance()" was based on an out-of-date copy of the function -- one predating
--- 20260705141141_annual_hours_recalc_engine_and_hardening.sql, which had already extracted the
--- employee_training_records/practicums status recompute, the training-alert insert (with proper
--- due_90->overdue rank-based escalation of an already-open alert), and the annual
--- employee_training_hour_buckets rollup into a shared recalculate_compliance_core(), leaving
--- recalculate_all_compliance() as a thin `perform recalculate_compliance_core(null)` wrapper. By
--- reintroducing the old inline logic instead of calling that helper, the resident-compliance
--- migration silently regressed the nightly job: employee_training_hour_buckets stopped being
--- recomputed at all, and training-record alerts lost their rank-based escalation (falling back to
--- a plain not-exists insert that, like the resident-item block below, never escalates an
--- already-open warning to critical). Fix: call recalculate_compliance_core(null) for that piece
--- again, exactly as 20260705141141 established, and keep only the blocks that function doesn't
--- cover (practicum/missing-document/certificate/credential/corrective-action/resident-item alerts,
--- and the incident-notification and resident-status recompute calls) inline here, unchanged.
---
--- Finding H (Codex P2): the resident-compliance alert insert only ever fires when there is no
--- already-open alert for that item (`not exists (... status = 'open')`). So once a due_soon warning
--- alert opens for an item, that item's later transition to expired can never surface as a critical
--- overdue alert -- there's no update path, unlike training-record alerts' rank-based escalation.
--- Since there are only two resident-item alert states (due_soon, overdue) the fix doesn't need the
--- full multi-tier rank CTE recalculate_compliance_core() uses for training records: escalate any
--- open due_soon alert straight to overdue/critical the moment its item expires, immediately before
--- the existing not-exists insert (which still handles brand-new alerts, including items that jump
--- straight to expired without ever having been due_soon).
 create or replace function public.recalculate_all_compliance()
 returns void
 language plpgsql

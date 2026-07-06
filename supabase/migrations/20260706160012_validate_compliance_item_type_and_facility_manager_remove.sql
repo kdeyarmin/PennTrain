@@ -1,18 +1,3 @@
--- Further fixes for PR #36 review findings from Codex, on the fifth fix migration (round 9).
---
--- Finding V (Codex P2): start_resident_assessment_form()/finalize_resident_assessment_form() both
--- validate that a compliance_item_id belongs to the resident, but neither checks that its item_type
--- is actually one of the four types isDigitalFormEligible() (residentAssessmentFormSchema.ts) allows
--- for digital completion (initial_assessment_15day, annual_reassessment,
--- significant_change_reassessment, support_plan_30day) -- preadmission_screening and
--- medical_evaluation are deliberately excluded from the "Complete in CareMetric" UI path, since
--- those have their own separate DME/screening documentation, not a RASP/ASP section. Nothing
--- server-side enforced that exclusion, so a manager could bind/repoint a draft to a same-resident
--- preadmission_screening or medical_evaluation item and finalizing would incorrectly mark that
--- unrelated deadline complete. This is the THIRD time this exact validation has needed a fix in this
--- PR (first added, then found duplicated in two places, now needing an additional check in both) --
--- rather than patch both RPCs separately again, extract it into one shared helper both call, so a
--- future change to this rule only has one place to update.
 create or replace function public.assert_resident_assessment_compliance_item_valid(
   p_compliance_item_id uuid, p_resident_id uuid
 )

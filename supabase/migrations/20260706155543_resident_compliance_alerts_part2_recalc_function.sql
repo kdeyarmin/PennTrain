@@ -1,43 +1,3 @@
--- Tier 3.6 Phase 4: proactive alerts for resident_compliance_items, closing the "biggest time
--- suck" gap -- staff shouldn't have to remember to check the dashboard. Mirrors the
--- employee_credentials alerts pattern (schema shape: one alert_type covers a wide range of
--- renewal windows, severity carries urgency) and the incidents multi-recipient fan-out pattern
--- (a resident compliance item has no single employee/profile owner, same as an incident).
---
--- In restoring the full historical alert_type list below, this also fixes a pre-existing bug
--- unrelated to this feature: 20260705160331_exclusion_screening_core.sql's rewrite of
--- alerts_alert_type_check silently dropped 'incident_notification_overdue',
--- 'corrective_action_overdue', and 'inspection_due' (added by two earlier migrations), which would
--- make recalculate_incident_notifications()'s hourly cron job (and escalate_unactioned_alerts() /
--- the nightly inspection-due pass) throw a check-constraint violation the next time either found a
--- row to insert. Restored here since this migration already has to rewrite the same constraint.
-
-alter table public.alerts add column resident_compliance_item_id uuid references public.resident_compliance_items(id);
-create index alerts_resident_compliance_item_idx on public.alerts(resident_compliance_item_id);
-
-alter table public.alerts drop constraint alerts_alert_type_check;
-alter table public.alerts add constraint alerts_alert_type_check check (alert_type in (
-  'due_90','due_60','due_30','due_14','due_7','overdue','missing_document',
-  'course_assigned','certificate_expiring','external_cert_pending_review',
-  'competency_due','training_plan_assigned','inservice_scheduled','credential_expiring',
-  'incident_notification_overdue','corrective_action_overdue','inspection_due','exclusion_match_found',
-  'resident_compliance_due_soon'));
-
-alter table public.notifications drop constraint notifications_notification_type_check;
-alter table public.notifications add constraint notifications_notification_type_check
-  check (notification_type in (
-    'course_assigned', 'quiz_graded', 'certificate_issued', 'training_due_soon', 'training_expired',
-    'competency_recorded', 'missing_document', 'certificate_expiring', 'practicum_due_soon',
-    'practicum_expired', 'credential_expiring', 'incident_reported', 'policy_attestation_assigned',
-    'policy_attestation_due_soon', 'course_continuation_reminder', 'resident_compliance_due'
-  ));
-
--- Full rewrite of recalculate_all_compliance() -- everything above the new block at the bottom is
--- unchanged; adds resident_compliance_items alerts using the same dedup-on-open-alert insert shape
--- every other domain here uses. Reuses the existing 'overdue' alert_type for expired items (rather
--- than inventing a new one) so escalate_unactioned_alerts()'s existing auto-escalation
--- (alert_type in ('due_7','overdue') open 5+ days -> every org_admin/facility_manager) applies to
--- a missed zero-grace RASP/ASP deadline for free.
 create or replace function public.recalculate_all_compliance()
 returns void
 language plpgsql
@@ -197,10 +157,6 @@ begin
       where a.corrective_action_id = ca.id and a.status = 'open'
     );
 
-  -- Resident RASP/ASP compliance items: recalculate_resident_compliance_statuses() already handles
-  -- the status recompute (grace-period-aware, Phase 1) and runs on its own nightly schedule --
-  -- calling it here too means the nightly full-compliance run never misses it even if that
-  -- schedule were ever paused, same reasoning recalculate_incident_notifications() above uses.
   perform public.recalculate_resident_compliance_statuses();
 
   insert into public.alerts (organization_id, facility_id, resident_compliance_item_id, alert_type, title, message, severity)
@@ -222,47 +178,3 @@ begin
     );
 end;
 $$;
-
--- notify_training_alert() needs no changes: resident_compliance_due_soon/overdue-with-
--- resident_compliance_item_id-set alerts have employee_id null, and its existing
--- "if new.employee_id is null ... return new" guard already no-ops for these, exactly as it
--- already does for every other no-employee-owner alert type.
-
--- First multi-recipient notification trigger for this domain (mirrors notify_incident_reported()):
--- a resident compliance item has no employee/profile owner, so this fans out to every active
--- org_admin in the org plus every active facility_manager assigned to the item's facility. A WHEN
--- clause keeps this fully additive alongside notify_training_alert() on the same table/event.
-create or replace function public.notify_resident_compliance_alert()
-returns trigger language plpgsql security definer set search_path to 'public' as $function$
-declare v_profile_id uuid;
-begin
-  for v_profile_id in
-    select p.id
-    from public.profiles p
-    where p.organization_id = new.organization_id
-      and p.is_active
-      and p.role = 'org_admin'
-    union
-    select fa.profile_id
-    from public.facility_assignments fa
-    join public.profiles p on p.id = fa.profile_id
-    where fa.facility_id = new.facility_id
-      and p.is_active
-      and p.role = 'facility_manager'
-  loop
-    insert into public.notifications (organization_id, profile_id, notification_type, title, body, link)
-    values (
-      new.organization_id, v_profile_id, 'resident_compliance_due',
-      new.title,
-      new.message,
-      '/app/resident-compliance'
-    );
-  end loop;
-  return new;
-end;
-$function$;
-revoke all on function public.notify_resident_compliance_alert() from public, anon, authenticated;
-
-create trigger notify_resident_compliance_alert after insert on public.alerts
-  for each row when (new.resident_compliance_item_id is not null)
-  execute function public.notify_resident_compliance_alert();
