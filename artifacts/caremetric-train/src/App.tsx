@@ -28,6 +28,7 @@ import AiCourseWizard from "@/pages/admin/AiCourseWizard";
 import AiGenerationLog from "@/pages/admin/AiGenerationLog";
 import NotificationDeliveries from "@/pages/admin/NotificationDeliveries";
 import PlatformSettings from "@/pages/admin/PlatformSettings";
+import SecurityGovernance from "@/pages/admin/SecurityGovernance";
 
 import OrgDashboard from "@/pages/app/Dashboard";
 import Facilities from "@/pages/app/Facilities";
@@ -269,6 +270,9 @@ function Router() {
       </Route>
       <Route path="/admin/settings">
         {() => <ProtectedRoute component={PlatformSettings} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/security">
+        {() => <ProtectedRoute component={SecurityGovernance} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
 
       {/* Org/Facility routes */}

@@ -1,5 +1,11 @@
+import { useMemo, useState } from "react";
 import { useListAuditLogs } from "@/hooks/useAuditLogs";
+import { useListOrganizations } from "@/hooks/useOrganizations";
+import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ShieldAlert } from "lucide-react";
 
 // audit_log_trigger() (see supabase/migrations/20260704053624_compliance_rpcs_and_audit_trigger.sql)
@@ -12,9 +18,51 @@ function getActionDisplay(action: string): { color: string; label: string } {
   return { color: "bg-gray-100 text-gray-800", label: action };
 }
 
+function useProfileNameMap() {
+  return useQuery({
+    queryKey: ["profiles", "name_map"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles").select("id, first_name, last_name");
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      for (const p of data ?? []) map[p.id] = `${p.first_name} ${p.last_name}`.trim();
+      return map;
+    },
+  });
+}
+
+const ENTITY_TYPE_ALL = "all";
+const ORG_ALL = "all";
+
 export default function AuditLog() {
-  const { data: logsData, isLoading } = useListAuditLogs({ limit: 100 });
+  const { user } = useAuth();
+  const isPlatformAdmin = user?.role === "platform_admin";
+
+  const [entityTypeFilter, setEntityTypeFilter] = useState(ENTITY_TYPE_ALL);
+  const [orgFilter, setOrgFilter] = useState(ORG_ALL);
+
+  const { data: logsData, isLoading } = useListAuditLogs({
+    limit: 300,
+    entityType: entityTypeFilter !== ENTITY_TYPE_ALL ? entityTypeFilter : undefined,
+    organizationId: isPlatformAdmin && orgFilter !== ORG_ALL ? orgFilter : undefined,
+  });
+  const { data: profileNameMap } = useProfileNameMap();
+  const { data: organizations } = useListOrganizations();
+  const orgNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const o of organizations ?? []) map[o.id] = o.name;
+    return map;
+  }, [organizations]);
+
   const logs = logsData ?? [];
+
+  // Entity-type options are derived from whatever's currently loaded rather than a fixed list --
+  // this table spans ~25+ audited tables and the set naturally grows as new features ship, so a
+  // hardcoded dropdown would constantly drift out of date.
+  const entityTypeOptions = useMemo(() => {
+    const types = new Set(logs.map((l) => l.entity_type).filter(Boolean));
+    return Array.from(types).sort();
+  }, [logs]);
 
   return (
     <div className="space-y-6">
@@ -24,8 +72,30 @@ export default function AuditLog() {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-3">
           <CardTitle>Recent Activity</CardTitle>
+          <div className="flex items-center gap-2">
+            <Select value={entityTypeFilter} onValueChange={setEntityTypeFilter}>
+              <SelectTrigger className="w-44 h-9"><SelectValue placeholder="All Entity Types" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ENTITY_TYPE_ALL}>All Entity Types</SelectItem>
+                {entityTypeOptions.map((t) => (
+                  <SelectItem key={t} value={t}>{t.replace(/_/g, " ")}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {isPlatformAdmin && (
+              <Select value={orgFilter} onValueChange={setOrgFilter}>
+                <SelectTrigger className="w-48 h-9"><SelectValue placeholder="All Organizations" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ORG_ALL}>All Organizations</SelectItem>
+                  {organizations?.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -36,6 +106,8 @@ export default function AuditLog() {
             <div className="space-y-2">
               {logs.map((log) => {
                 const { color, label } = getActionDisplay(log.action);
+                const actorName = log.actor_profile_id ? profileNameMap?.[log.actor_profile_id] ?? "Unknown user" : "System";
+                const orgName = log.organization_id ? orgNameMap[log.organization_id] : undefined;
                 return (
                 <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors">
                   <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center shrink-0">
@@ -48,9 +120,10 @@ export default function AuditLog() {
                       </span>
                       <span className="text-sm font-medium capitalize">{log.entity_type?.replace(/_/g, " ")}</span>
                       {log.entity_id && <span className="text-xs text-muted-foreground">#{log.entity_id}</span>}
+                      {isPlatformAdmin && orgName && <span className="text-xs text-muted-foreground">· {orgName}</span>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      User #{log.actor_profile_id ?? "System"} · {new Date(log.created_at).toLocaleString()}
+                      {actorName} · {new Date(log.created_at).toLocaleString()}
                       {log.ip_address && ` · ${log.ip_address}`}
                     </p>
                   </div>

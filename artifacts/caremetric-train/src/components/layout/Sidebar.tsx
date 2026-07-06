@@ -45,7 +45,8 @@ import {
   FileStack,
   Sparkles,
   Send,
-  Sliders
+  Sliders,
+  Eye
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -88,6 +89,7 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
           { href: "/admin/alerts", label: "Alerts", icon: Bell },
           { href: "/admin/audit", label: "Audit Log", icon: ShieldAlert },
           { href: "/admin/notifications", label: "Notification Delivery", icon: Send },
+          { href: "/admin/security", label: "Security & Governance", icon: Eye },
         ]
       },
       {

@@ -8,9 +8,36 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Building2, Search, ChevronRight, Plus } from "lucide-react";
+import { Building2, Search, ChevronRight, Plus, Download } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+
+function toCsv(headers: string[], rows: string[][]): string {
+  const allRows = [headers, ...rows];
+  return allRows
+    .map((row) =>
+      row
+        .map((cell) => {
+          const str = String(cell ?? "");
+          if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
+        })
+        .join(",")
+    )
+    .join("\n");
+}
+
+function downloadCsv(csv: string, filename: string) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 interface OrgFormData {
   name: string;
@@ -52,6 +79,21 @@ export default function Organizations() {
   const filtered = orgs?.filter(o =>
     !search || o.name.toLowerCase().includes(search.toLowerCase())
   ) ?? [];
+
+  const handleExportCsv = () => {
+    const headers = ["Name", "Slug", "Status", "Plan", "Contact Email", "Max Facilities", "Max Users", "Trial Ends"];
+    const rows = filtered.map(o => [
+      o.name,
+      o.slug,
+      o.subscription_status ?? "",
+      o.plan_name ?? "",
+      o.contact_email ?? "",
+      o.max_facilities?.toString() ?? "",
+      o.max_users?.toString() ?? "",
+      o.trial_ends_at ? new Date(o.trial_ends_at).toLocaleDateString() : "",
+    ]);
+    downloadCsv(toCsv(headers, rows), `organizations-${new Date().toISOString().slice(0, 10)}.csv`);
+  };
 
   const openCreate = () => {
     setForm(EMPTY_ORG);
@@ -111,9 +153,14 @@ export default function Organizations() {
           <h1 className="text-2xl font-bold">Organizations</h1>
           <p className="text-muted-foreground">Manage all tenant organizations.</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" /> Add Organization
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleExportCsv} disabled={!filtered.length}>
+            <Download className="mr-2 h-4 w-4" /> Export CSV
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" /> Add Organization
+          </Button>
+        </div>
       </div>
 
       <Card>
