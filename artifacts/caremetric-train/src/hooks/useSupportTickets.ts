@@ -59,6 +59,25 @@ export interface CreateSupportTicketInput {
   category: string;
   priority: string;
   message: string;
+  file?: File;
+}
+
+const ATTACHMENT_BUCKET = "support-ticket-attachments";
+
+// Path convention (org/ticket/uuid-filename) matches the storage RLS write policy's foldername
+// parse -- see 20260706170704_support_ticket_attachments.sql. Uploaded before the message row
+// exists (the write policy reverse-joins to support_tickets, which already exists by then).
+async function uploadTicketAttachment(organizationId: string, ticketId: string, file: File) {
+  const path = `${organizationId}/${ticketId}/${crypto.randomUUID()}-${file.name}`;
+  const { error } = await supabase.storage.from(ATTACHMENT_BUCKET).upload(path, file);
+  if (error) throw error;
+  return {
+    attachment_bucket: ATTACHMENT_BUCKET,
+    attachment_path: path,
+    attachment_name: file.name,
+    attachment_type: file.type,
+    attachment_size: file.size,
+  };
 }
 
 // Two inserts, not one RPC -- same "each write gets its own independently-enforced RLS check"
@@ -67,7 +86,7 @@ export interface CreateSupportTicketInput {
 export function useCreateSupportTicket() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ organizationId, createdBy, subject, category, priority, message }: CreateSupportTicketInput) => {
+    mutationFn: async ({ organizationId, createdBy, subject, category, priority, message, file }: CreateSupportTicketInput) => {
       const { data: ticket, error: ticketError } = await supabase
         .from("support_tickets")
         .insert({ organization_id: organizationId, created_by: createdBy, subject, category, priority })
@@ -75,9 +94,11 @@ export function useCreateSupportTicket() {
         .single();
       if (ticketError) throw ticketError;
 
+      const attachment = file ? await uploadTicketAttachment(organizationId, ticket.id, file) : {};
+
       const { error: messageError } = await supabase
         .from("support_ticket_messages")
-        .insert({ ticket_id: ticket.id, organization_id: ticket.organization_id, sender_id: createdBy, body: message });
+        .insert({ ticket_id: ticket.id, organization_id: ticket.organization_id, sender_id: createdBy, body: message, ...attachment });
       if (messageError) throw messageError;
 
       return ticket;
@@ -108,6 +129,7 @@ export interface SendSupportTicketMessageInput {
   organizationId: string;
   senderId: string;
   body: string;
+  file?: File;
 }
 
 // organization_id is required in the generated Insert type (the column is NOT NULL with no DB
@@ -117,10 +139,11 @@ export interface SendSupportTicketMessageInput {
 export function useSendSupportTicketMessage() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ ticketId, organizationId, senderId, body }: SendSupportTicketMessageInput) => {
+    mutationFn: async ({ ticketId, organizationId, senderId, body, file }: SendSupportTicketMessageInput) => {
+      const attachment = file ? await uploadTicketAttachment(organizationId, ticketId, file) : {};
       const { data, error } = await supabase
         .from("support_ticket_messages")
-        .insert({ ticket_id: ticketId, organization_id: organizationId, sender_id: senderId, body })
+        .insert({ ticket_id: ticketId, organization_id: organizationId, sender_id: senderId, body, ...attachment })
         .select()
         .single();
       if (error) throw error;
@@ -129,6 +152,24 @@ export function useSendSupportTicketMessage() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["support_tickets", "messages", variables.ticketId] });
       queryClient.invalidateQueries({ queryKey: ["support_tickets"] });
+    },
+  });
+}
+
+// 60-second signed URL, matching useIncidentDocumentSignedUrl/useCredentialDocumentSignedUrl's
+// convention exactly. No read-access-logging RPC here (unlike credential-/incident-documents) --
+// a ticket attachment isn't the HIPAA/credentialing-grade sensitive document those logs exist for.
+export function useTicketAttachmentSignedUrl() {
+  return useMutation({
+    mutationFn: async (message: SupportTicketMessage) => {
+      if (!message.attachment_bucket || !message.attachment_path) {
+        throw new Error("This message has no attachment.");
+      }
+      const { data, error } = await supabase.storage
+        .from(message.attachment_bucket)
+        .createSignedUrl(message.attachment_path, 60);
+      if (error) throw error;
+      return data.signedUrl;
     },
   });
 }

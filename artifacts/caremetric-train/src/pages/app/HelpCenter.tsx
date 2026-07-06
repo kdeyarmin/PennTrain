@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,16 +9,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
-  FAQ_CATEGORIES, FAQ_ENTRIES, searchFaqEntries,
-  JOB_AIDE_CATEGORIES, JOB_AIDES, searchJobAides, type JobAide,
-} from "@/lib/helpCenterContent";
+  useListHelpArticles, type HelpArticle, type FaqContent, type JobAideContent,
+} from "@/hooks/useHelpArticles";
 import {
   useListSupportTickets, useCreateSupportTicket,
   SUPPORT_TICKET_CATEGORIES, SUPPORT_TICKET_PRIORITIES,
 } from "@/hooks/useSupportTickets";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { Search, FileDown, Plus, ChevronRight, Lightbulb, ExternalLink } from "lucide-react";
+import { Search, FileDown, Plus, ChevronRight, Lightbulb, ExternalLink, Paperclip, X } from "lucide-react";
 
 const STATUS_DISPLAY: Record<string, { color: string; label: string }> = {
   open: { color: "bg-blue-100 text-blue-800", label: "Open" },
@@ -27,10 +26,32 @@ const STATUS_DISPLAY: Record<string, { color: string; label: string }> = {
   closed: { color: "bg-gray-100 text-gray-600", label: "Closed" },
 };
 
+function searchArticles(articles: HelpArticle[], query: string): HelpArticle[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return articles;
+  return articles.filter(
+    (a) =>
+      a.title.toLowerCase().includes(q) ||
+      a.category.toLowerCase().includes(q) ||
+      JSON.stringify(a.content).toLowerCase().includes(q)
+  );
+}
+
+function articleCategories(articles: HelpArticle[]): string[] {
+  return [...new Set(articles.map((a) => a.category))];
+}
+
 function FaqTab() {
   const [query, setQuery] = useState("");
-  const filtered = useMemo(() => searchFaqEntries(query), [query]);
+  const { data, isLoading } = useListHelpArticles("faq");
+  const articles = useMemo(() => data ?? [], [data]);
+  const filtered = useMemo(() => searchArticles(articles, query), [articles, query]);
+  const categories = useMemo(() => articleCategories(articles), [articles]);
   const isSearching = query.trim().length > 0;
+
+  if (isLoading) {
+    return <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}</div>;
+  }
 
   return (
     <div className="space-y-4">
@@ -51,8 +72,8 @@ function FaqTab() {
               <Accordion type="multiple" className="space-y-2">
                 {filtered.map((f) => (
                   <AccordionItem key={f.id} value={f.id} className="border rounded-lg px-4">
-                    <AccordionTrigger className="text-left text-sm font-medium hover:no-underline">{f.question}</AccordionTrigger>
-                    <AccordionContent className="text-sm text-muted-foreground">{f.answer}</AccordionContent>
+                    <AccordionTrigger className="text-left text-sm font-medium hover:no-underline">{f.title}</AccordionTrigger>
+                    <AccordionContent className="text-sm text-muted-foreground">{(f.content as unknown as FaqContent).answer}</AccordionContent>
                   </AccordionItem>
                 ))}
               </Accordion>
@@ -60,9 +81,9 @@ function FaqTab() {
           </CardContent>
         </Card>
       ) : (
-        <Accordion type="multiple" defaultValue={[FAQ_CATEGORIES[0]]} className="space-y-3">
-          {FAQ_CATEGORIES.map((category) => {
-            const entries = FAQ_ENTRIES.filter((f) => f.category === category);
+        <Accordion type="multiple" defaultValue={categories.slice(0, 1)} className="space-y-3">
+          {categories.map((category) => {
+            const entries = articles.filter((f) => f.category === category);
             if (!entries.length) return null;
             return (
               <AccordionItem key={category} value={category} className="border rounded-lg px-4">
@@ -76,8 +97,8 @@ function FaqTab() {
                   <Accordion type="multiple" className="space-y-2">
                     {entries.map((f) => (
                       <AccordionItem key={f.id} value={f.id} className="border rounded-lg px-3">
-                        <AccordionTrigger className="text-left text-sm font-medium hover:no-underline">{f.question}</AccordionTrigger>
-                        <AccordionContent className="text-sm text-muted-foreground">{f.answer}</AccordionContent>
+                        <AccordionTrigger className="text-left text-sm font-medium hover:no-underline">{f.title}</AccordionTrigger>
+                        <AccordionContent className="text-sm text-muted-foreground">{(f.content as unknown as FaqContent).answer}</AccordionContent>
                       </AccordionItem>
                     ))}
                   </Accordion>
@@ -91,12 +112,13 @@ function FaqTab() {
   );
 }
 
-function JobAideItem({ aide }: { aide: JobAide }) {
+function JobAideItem({ article }: { article: HelpArticle }) {
+  const aide = article.content as unknown as JobAideContent;
   return (
-    <AccordionItem value={aide.code} className="border rounded-lg px-4">
+    <AccordionItem value={article.id} className="border rounded-lg px-4">
       <AccordionTrigger className="hover:no-underline text-left">
         <div>
-          <p className="text-sm font-semibold">{aide.title}</p>
+          <p className="text-sm font-semibold">{article.title}</p>
           <p className="text-xs text-muted-foreground font-normal mt-0.5">{aide.summary}</p>
         </div>
       </AccordionTrigger>
@@ -127,8 +149,15 @@ function JobAideItem({ aide }: { aide: JobAide }) {
 
 function JobAidesTab() {
   const [query, setQuery] = useState("");
-  const filtered = useMemo(() => searchJobAides(query), [query]);
+  const { data, isLoading } = useListHelpArticles("job_aide");
+  const articles = useMemo(() => data ?? [], [data]);
+  const filtered = useMemo(() => searchArticles(articles, query), [articles, query]);
+  const categories = useMemo(() => articleCategories(articles), [articles]);
   const isSearching = query.trim().length > 0;
+
+  if (isLoading) {
+    return <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}</div>;
+  }
 
   return (
     <div className="space-y-4">
@@ -147,15 +176,15 @@ function JobAidesTab() {
               <p className="text-sm text-muted-foreground text-center py-8">No job aides match your search.</p>
             ) : (
               <Accordion type="multiple" className="space-y-2">
-                {filtered.map((aide) => <JobAideItem key={aide.code} aide={aide} />)}
+                {filtered.map((a) => <JobAideItem key={a.id} article={a} />)}
               </Accordion>
             )}
           </CardContent>
         </Card>
       ) : (
-        <Accordion type="multiple" defaultValue={[JOB_AIDE_CATEGORIES[0]]} className="space-y-3">
-          {JOB_AIDE_CATEGORIES.map((category) => {
-            const aides = JOB_AIDES.filter((a) => a.category === category);
+        <Accordion type="multiple" defaultValue={categories.slice(0, 1)} className="space-y-3">
+          {categories.map((category) => {
+            const aides = articles.filter((a) => a.category === category);
             if (!aides.length) return null;
             return (
               <AccordionItem key={category} value={category} className="border rounded-lg px-4">
@@ -167,7 +196,7 @@ function JobAidesTab() {
                 </AccordionTrigger>
                 <AccordionContent>
                   <Accordion type="multiple" className="space-y-2">
-                    {aides.map((aide) => <JobAideItem key={aide.code} aide={aide} />)}
+                    {aides.map((a) => <JobAideItem key={a.id} article={a} />)}
                   </Accordion>
                 </AccordionContent>
               </AccordionItem>
@@ -212,6 +241,8 @@ function SupportTab({ base }: { base: string }) {
   const [category, setCategory] = useState<string>("general");
   const [priority, setPriority] = useState<string>("normal");
   const [message, setMessage] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: ticketsData, isLoading } = useListSupportTickets();
   const { mutate: createTicket, isPending: creating } = useCreateSupportTicket();
@@ -239,6 +270,7 @@ function SupportTab({ base }: { base: string }) {
         category,
         priority,
         message: message.trim(),
+        file: file ?? undefined,
       },
       {
         onSuccess: (ticket) => {
@@ -248,6 +280,7 @@ function SupportTab({ base }: { base: string }) {
           setMessage("");
           setCategory("general");
           setPriority("normal");
+          setFile(null);
           setLocation(`${base}/help/tickets/${ticket.id}`);
         },
         onError: (e: Error) => toast({ title: "Failed to submit ticket", description: e.message, variant: "destructive" }),
@@ -304,6 +337,28 @@ function SupportTab({ base }: { base: string }) {
                 rows={5}
                 placeholder="What's going on? Include any steps to reproduce, or what you expected to happen."
               />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Attachment (optional)</label>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                  <Paperclip className="h-3.5 w-3.5 mr-1.5" /> {file ? "Replace File" : "Attach File"}
+                </Button>
+                {file && (
+                  <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground bg-muted rounded px-2 py-1">
+                    {file.name}
+                    <button type="button" onClick={() => setFile(null)} aria-label="Remove attachment">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                />
+              </div>
             </div>
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>

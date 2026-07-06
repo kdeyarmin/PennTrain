@@ -1,14 +1,15 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Send, Paperclip, X } from "lucide-react";
 import {
   useGetSupportTicket, useListSupportTicketMessages, useSendSupportTicketMessage, useUpdateSupportTicket,
-  SUPPORT_TICKET_CATEGORIES, SUPPORT_TICKET_PRIORITIES, SUPPORT_TICKET_STATUSES,
+  useTicketAttachmentSignedUrl, SUPPORT_TICKET_CATEGORIES, SUPPORT_TICKET_PRIORITIES, SUPPORT_TICKET_STATUSES,
+  type SupportTicketMessage,
 } from "@/hooks/useSupportTickets";
 import { useOrganizationNameMap } from "@/hooks/useAdminNotificationDeliveries";
 import { useProfileNameMap } from "@/hooks/useSecurityAuditLog";
@@ -16,11 +17,38 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
+function MessageAttachment({ message }: { message: SupportTicketMessage }) {
+  const { toast } = useToast();
+  const { mutate: getSignedUrl, isPending } = useTicketAttachmentSignedUrl();
+
+  if (!message.attachment_path) return null;
+
+  const handleOpen = () => {
+    getSignedUrl(message, {
+      onSuccess: (url) => window.open(url, "_blank", "noopener,noreferrer"),
+      onError: (e: Error) => toast({ title: "Failed to open attachment", description: e.message, variant: "destructive" }),
+    });
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleOpen}
+      disabled={isPending}
+      className="mt-1.5 inline-flex items-center gap-1.5 text-xs underline underline-offset-2 text-inherit"
+    >
+      <Paperclip className="h-3 w-3" /> {message.attachment_name}
+    </button>
+  );
+}
+
 export default function SupportTicketDetail() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
   const [reply, setReply] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: ticket, isLoading } = useGetSupportTicket(id);
   const { data: messages, isLoading: messagesLoading } = useListSupportTicketMessages(id);
@@ -32,9 +60,12 @@ export default function SupportTicketDetail() {
   const handleSend = () => {
     if (!id || !user || !ticket || !reply.trim()) return;
     sendMessage(
-      { ticketId: id, organizationId: ticket.organization_id, senderId: user.id, body: reply.trim() },
+      { ticketId: id, organizationId: ticket.organization_id, senderId: user.id, body: reply.trim(), file: file ?? undefined },
       {
-        onSuccess: () => setReply(""),
+        onSuccess: () => {
+          setReply("");
+          setFile(null);
+        },
         onError: (e: Error) => toast({ title: "Failed to send reply", description: e.message, variant: "destructive" }),
       }
     );
@@ -131,6 +162,7 @@ export default function SupportTicketDetail() {
                     {m.is_admin_reply ? "You (Support)" : profileNameMap?.[m.sender_id] ?? "Requester"}
                   </p>
                   <p className="text-sm whitespace-pre-wrap">{m.body}</p>
+                  <MessageAttachment message={m} />
                   <p className="text-[11px] text-muted-foreground mt-1.5">{new Date(m.created_at).toLocaleString()}</p>
                 </div>
               ))}
@@ -139,6 +171,25 @@ export default function SupportTicketDetail() {
 
           <div className="space-y-2 pt-2 border-t">
             <Textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={3} placeholder="Reply to the requester..." />
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                <Paperclip className="h-3.5 w-3.5 mr-1.5" /> {file ? "Replace File" : "Attach File"}
+              </Button>
+              {file && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground bg-muted rounded px-2 py-1">
+                  {file.name}
+                  <button type="button" onClick={() => setFile(null)} aria-label="Remove attachment">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
             <div className="flex justify-end">
               <Button size="sm" onClick={handleSend} disabled={sending || !reply.trim()}>
                 <Send className="h-3.5 w-3.5 mr-1.5" /> Send Reply

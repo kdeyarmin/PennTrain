@@ -2597,6 +2597,53 @@ export type Database = {
           },
         ]
       }
+      help_articles: {
+        Row: {
+          article_type: string
+          category: string
+          content: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          is_published: boolean
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          article_type: string
+          category: string
+          content: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_published?: boolean
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          article_type?: string
+          category?: string
+          content?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_published?: boolean
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "help_articles_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incident_documents: {
         Row: {
           created_at: string
@@ -5068,6 +5115,11 @@ export type Database = {
       }
       support_ticket_messages: {
         Row: {
+          attachment_bucket: string | null
+          attachment_name: string | null
+          attachment_path: string | null
+          attachment_size: number | null
+          attachment_type: string | null
           body: string
           created_at: string
           id: string
@@ -5077,6 +5129,11 @@ export type Database = {
           ticket_id: string
         }
         Insert: {
+          attachment_bucket?: string | null
+          attachment_name?: string | null
+          attachment_path?: string | null
+          attachment_size?: number | null
+          attachment_type?: string | null
           body: string
           created_at?: string
           id?: string
@@ -5086,6 +5143,11 @@ export type Database = {
           ticket_id: string
         }
         Update: {
+          attachment_bucket?: string | null
+          attachment_name?: string | null
+          attachment_path?: string | null
+          attachment_size?: number | null
+          attachment_type?: string | null
           body?: string
           created_at?: string
           id?: string

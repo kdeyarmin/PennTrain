@@ -31,6 +31,7 @@ import PlatformSettings from "@/pages/admin/PlatformSettings";
 import SecurityGovernance from "@/pages/admin/SecurityGovernance";
 import AdminSupportTickets from "@/pages/admin/SupportTickets";
 import AdminSupportTicketDetail from "@/pages/admin/SupportTicketDetail";
+import AdminHelpContent from "@/pages/admin/HelpContent";
 
 import OrgDashboard from "@/pages/app/Dashboard";
 import Facilities from "@/pages/app/Facilities";
@@ -323,6 +324,9 @@ function Router() {
       </Route>
       <Route path="/admin/support-tickets/:id">
         {() => <ProtectedRoute component={AdminSupportTicketDetail} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/help-content">
+        {() => <ProtectedRoute component={AdminHelpContent} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
 
       {/* Org/Facility routes */}
