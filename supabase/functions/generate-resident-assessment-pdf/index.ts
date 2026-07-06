@@ -24,6 +24,11 @@ function humanize(value: string | null | undefined): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
+function formatContact(name: string | null, phone: string | null): string {
+  if (!name) return "None";
+  return phone ? `${name} (${phone})` : name;
+}
+
 // Mirrors artifacts/caremetric-train/src/lib/residentAssessmentFormSchema.ts's item lists --
 // duplicated here (a Deno edge function can't import from the frontend package) and must stay in
 // sync if that file's item lists ever change.
@@ -189,6 +194,14 @@ async function buildAssessmentPdf(input: {
   residentName: string;
   residentDob: string | null;
   admissionDate: string;
+  primaryPhysicianName: string | null;
+  primaryPhysicianPhone: string | null;
+  dentistName: string | null;
+  dentistPhone: string | null;
+  caseManagerName: string | null;
+  caseManagerPhone: string | null;
+  designatedPersonName: string | null;
+  informalSupports: { name: string; relationship: string | null; phone: string | null }[];
   content: AnyRecord;
 }): Promise<Uint8Array> {
   const w = new PdfWriter();
@@ -214,6 +227,22 @@ async function buildAssessmentPdf(input: {
   w.field("Resident", input.residentName);
   w.field("Date of Birth", input.residentDob ?? "—");
   w.field("Admission Date", input.admissionDate);
+
+  w.subheading("Formal Supports");
+  w.row(`Physician: ${formatContact(input.primaryPhysicianName, input.primaryPhysicianPhone)}`);
+  w.row(`Dentist: ${formatContact(input.dentistName, input.dentistPhone)}`);
+  w.row(`Case Manager: ${formatContact(input.caseManagerName, input.caseManagerPhone)}`);
+  if (input.formType === "ASP") w.row(`Designated Person: ${input.designatedPersonName || "None"}`);
+
+  w.subheading("Informal Supports");
+  if (!input.informalSupports.length) {
+    w.row("None on file");
+  } else {
+    for (const s of input.informalSupports) {
+      w.row(`${s.name}${s.relationship ? ` — ${s.relationship}` : ""}${s.phone ? ` (${s.phone})` : ""}`);
+    }
+  }
+
   w.field("Reason for Assessment", humanize(content.assessmentInfo?.assessmentReason));
   w.field("Reason for Support Plan", humanize(content.assessmentInfo?.supportPlanReason));
   w.field("Last Assessment Date", content.assessmentInfo?.lastAssessmentDate || "—");
@@ -319,7 +348,9 @@ Deno.serve(async (req: Request) => {
     .select(
       "id, organization_id, facility_id, resident_id, compliance_item_id, form_type, reason, version_number, status, " +
         "content, prepared_by_name, prepared_by_title, prepared_date, finalized_at, " +
-        "facilities(name, license_number, address, city, state, zip), residents(first_name, last_name, date_of_birth, admission_date)",
+        "facilities(name, license_number, address, city, state, zip), " +
+        "residents(first_name, last_name, date_of_birth, admission_date, primary_physician_name, primary_physician_phone, " +
+        "dentist_name, dentist_phone, case_manager_name, case_manager_phone, designated_person_name)",
     )
     .eq("id", formId)
     .maybeSingle();
@@ -349,11 +380,27 @@ Deno.serve(async (req: Request) => {
   const facility = form.facilities as unknown as {
     name: string; license_number: string | null; address: string | null; city: string | null; state: string | null; zip: string | null;
   } | null;
-  const resident = form.residents as unknown as { first_name: string; last_name: string; date_of_birth: string | null; admission_date: string } | null;
+  const resident = form.residents as unknown as {
+    first_name: string; last_name: string; date_of_birth: string | null; admission_date: string;
+    primary_physician_name: string | null; primary_physician_phone: string | null;
+    dentist_name: string | null; dentist_phone: string | null;
+    case_manager_name: string | null; case_manager_phone: string | null;
+    designated_person_name: string | null;
+  } | null;
 
   const facilityAddress = facility
     ? [facility.address, facility.city, facility.state, facility.zip].filter(Boolean).join(", ")
     : "—";
+
+  // Part I "Informal Supports" (up to 5 rows both forms ask for) -- a resident-scoped child table,
+  // not embedded in resident_assessment_forms.content since it's a live resident fact, not a
+  // per-version assessment answer.
+  const { data: informalSupports, error: supportsError } = await callerClient
+    .from("resident_informal_supports")
+    .select("name, relationship, phone")
+    .eq("resident_id", form.resident_id)
+    .order("sort_order");
+  if (supportsError) return json({ error: supportsError.message }, 500);
 
   const pdfBytes = await buildAssessmentPdf({
     formType: form.form_type,
@@ -370,6 +417,14 @@ Deno.serve(async (req: Request) => {
     residentName: resident ? `${resident.last_name}, ${resident.first_name}` : "—",
     residentDob: resident?.date_of_birth ?? null,
     admissionDate: resident?.admission_date ?? "—",
+    primaryPhysicianName: resident?.primary_physician_name ?? null,
+    primaryPhysicianPhone: resident?.primary_physician_phone ?? null,
+    dentistName: resident?.dentist_name ?? null,
+    dentistPhone: resident?.dentist_phone ?? null,
+    caseManagerName: resident?.case_manager_name ?? null,
+    caseManagerPhone: resident?.case_manager_phone ?? null,
+    designatedPersonName: resident?.designated_person_name ?? null,
+    informalSupports: informalSupports ?? [],
     content: (form.content ?? {}) as AnyRecord,
   });
 

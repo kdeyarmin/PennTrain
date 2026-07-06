@@ -8,19 +8,29 @@ import {
   useListResidentDocuments, useUploadResidentDocument, useResidentDocumentSignedUrl, useDeleteResidentDocument,
 } from "@/hooks/useResidentDocuments";
 import { useListResidentAssessmentForms, useStartResidentAssessmentForm } from "@/hooks/useResidentAssessmentForms";
+import {
+  useListResidentInformalSupports, useUpsertResidentInformalSupport, useDeleteResidentInformalSupport,
+  type ResidentInformalSupport,
+} from "@/hooks/useResidentInformalSupports";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, BedDouble, ClipboardList, FileText, Upload, Download, Trash2, Check, TriangleAlert, FilePenLine, Lock } from "lucide-react";
+import { ArrowLeft, BedDouble, ClipboardList, FileText, Upload, Download, Trash2, Check, TriangleAlert, FilePenLine, Lock, Users, Plus, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, getComplianceFormLabel } from "@/lib/residentCompliance";
 import { isDigitalFormEligible, deriveAssessmentReason } from "@/lib/residentAssessmentFormSchema";
+
+type SupportRow = Partial<Pick<ResidentInformalSupport, "id">> & { name: string; relationship: string; phone: string };
+
+const emptySupportRow = (): SupportRow => ({ name: "", relationship: "", phone: "" });
 
 function humanize(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
@@ -44,18 +54,31 @@ export default function ResidentDetail() {
   const { data: items, isLoading: itemsLoading } = useListResidentComplianceItems(id);
   const { data: documents, isLoading: documentsLoading } = useListResidentDocuments(id);
   const { data: assessmentForms, isLoading: assessmentFormsLoading } = useListResidentAssessmentForms(id);
+  const { data: informalSupports, isLoading: informalSupportsLoading } = useListResidentInformalSupports(id);
 
-  const { mutate: updateResident } = useUpdateResident();
+  const { mutate: updateResident, isPending: isSavingResident } = useUpdateResident();
   const completeItem = useCompleteResidentComplianceItem();
   const logChangeOfCondition = useLogResidentChangeOfCondition();
   const uploadDocument = useUploadResidentDocument();
   const getSignedUrl = useResidentDocumentSignedUrl();
   const deleteDocument = useDeleteResidentDocument();
   const startAssessmentForm = useStartResidentAssessmentForm();
+  const upsertSupport = useUpsertResidentInformalSupport();
+  const deleteSupport = useDeleteResidentInformalSupport();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showChangeDialog, setShowChangeDialog] = useState(false);
   const [changeNotes, setChangeNotes] = useState("");
+  const [showContactsDialog, setShowContactsDialog] = useState(false);
+  const [contactsForm, setContactsForm] = useState({
+    date_of_birth: "",
+    primary_physician_name: "", primary_physician_phone: "",
+    dentist_name: "", dentist_phone: "",
+    case_manager_name: "", case_manager_phone: "",
+    designated_person_name: "",
+  });
+  const [supportRows, setSupportRows] = useState<SupportRow[]>([]);
+  const [isSavingContacts, setIsSavingContacts] = useState(false);
 
   const itemById = new Map((items ?? []).map((i) => [i.id, i]));
 
@@ -88,6 +111,61 @@ export default function ResidentDetail() {
   const facility = facilities?.find((f) => f.id === resident?.facility_id);
   const facilityName = facility?.name;
   const formLabel = getComplianceFormLabel(facility?.facility_type);
+
+  const openContactsDialog = () => {
+    if (!resident) return;
+    setContactsForm({
+      date_of_birth: resident.date_of_birth ?? "",
+      primary_physician_name: resident.primary_physician_name ?? "",
+      primary_physician_phone: resident.primary_physician_phone ?? "",
+      dentist_name: resident.dentist_name ?? "",
+      dentist_phone: resident.dentist_phone ?? "",
+      case_manager_name: resident.case_manager_name ?? "",
+      case_manager_phone: resident.case_manager_phone ?? "",
+      designated_person_name: resident.designated_person_name ?? "",
+    });
+    setSupportRows((informalSupports ?? []).map((s) => ({ id: s.id, name: s.name, relationship: s.relationship ?? "", phone: s.phone ?? "" })));
+    setShowContactsDialog(true);
+  };
+
+  const handleSaveContacts = async () => {
+    if (!resident) return;
+    setIsSavingContacts(true);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        updateResident({ id: resident.id, ...contactsForm, date_of_birth: contactsForm.date_of_birth || null }, { onSuccess: () => resolve(), onError: reject });
+      });
+
+      const originalIds = new Set((informalSupports ?? []).map((s) => s.id));
+      const keptIds = new Set(supportRows.filter((r) => r.id).map((r) => r.id!));
+      const removed = [...originalIds].filter((rid) => !keptIds.has(rid));
+
+      await Promise.all([
+        ...supportRows
+          .filter((r) => r.name.trim())
+          .map((r) => upsertSupport.mutateAsync({
+            id: r.id,
+            organization_id: resident.organization_id,
+            facility_id: resident.facility_id,
+            resident_id: resident.id,
+            name: r.name.trim(),
+            relationship: r.relationship.trim() || null,
+            phone: r.phone.trim() || null,
+          })),
+        ...removed.map((rid) => {
+          const support = informalSupports!.find((s) => s.id === rid)!;
+          return deleteSupport.mutateAsync(support);
+        }),
+      ]);
+
+      toast({ title: "Contacts & supports updated" });
+      setShowContactsDialog(false);
+    } catch (err) {
+      toast({ title: "Failed to save contacts & supports", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+    } finally {
+      setIsSavingContacts(false);
+    }
+  };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -179,6 +257,129 @@ export default function ResidentDetail() {
       {resident.status === "discharged" && resident.discharge_date && (
         <p className="text-sm text-muted-foreground">Discharged {new Date(resident.discharge_date).toLocaleDateString()}</p>
       )}
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Contacts &amp; Supports (Part I)</CardTitle>
+            {canManage && (
+              <Button variant="outline" size="sm" onClick={openContactsDialog}>
+                <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <p className="text-xs text-muted-foreground">
+            Pulled directly into the {formLabel} — no need to retype it on the form itself.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1">
+            <p><span className="text-muted-foreground">Date of Birth:</span> {resident.date_of_birth ? new Date(resident.date_of_birth).toLocaleDateString() : "—"}</p>
+            <p><span className="text-muted-foreground">Physician:</span> {resident.primary_physician_name || "—"}{resident.primary_physician_phone ? ` (${resident.primary_physician_phone})` : ""}</p>
+            <p><span className="text-muted-foreground">Dentist:</span> {resident.dentist_name || "—"}{resident.dentist_phone ? ` (${resident.dentist_phone})` : ""}</p>
+            <p><span className="text-muted-foreground">Case Manager:</span> {resident.case_manager_name || "—"}{resident.case_manager_phone ? ` (${resident.case_manager_phone})` : ""}</p>
+            {facility?.facility_type === "ALR" && (
+              <p><span className="text-muted-foreground">Designated Person:</span> {resident.designated_person_name || "—"}</p>
+            )}
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1">Informal Supports</p>
+            {informalSupportsLoading ? (
+              <Skeleton className="h-6" />
+            ) : !informalSupports?.length ? (
+              <p className="text-sm text-muted-foreground">None on file.</p>
+            ) : (
+              <div className="space-y-1">
+                {informalSupports.map((s) => (
+                  <p key={s.id}>{s.name}{s.relationship ? ` — ${s.relationship}` : ""}{s.phone ? ` (${s.phone})` : ""}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={showContactsDialog} onOpenChange={setShowContactsDialog}>
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Contacts &amp; Supports</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1 col-span-2">
+                <Label className="text-xs">Date of Birth</Label>
+                <Input type="date" value={contactsForm.date_of_birth} onChange={(e) => setContactsForm({ ...contactsForm, date_of_birth: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Physician Name</Label>
+                <Input value={contactsForm.primary_physician_name} onChange={(e) => setContactsForm({ ...contactsForm, primary_physician_name: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Physician Phone</Label>
+                <Input value={contactsForm.primary_physician_phone} onChange={(e) => setContactsForm({ ...contactsForm, primary_physician_phone: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Dentist Name</Label>
+                <Input value={contactsForm.dentist_name} onChange={(e) => setContactsForm({ ...contactsForm, dentist_name: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Dentist Phone</Label>
+                <Input value={contactsForm.dentist_phone} onChange={(e) => setContactsForm({ ...contactsForm, dentist_phone: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Case Manager Name</Label>
+                <Input value={contactsForm.case_manager_name} onChange={(e) => setContactsForm({ ...contactsForm, case_manager_name: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Case Manager Phone</Label>
+                <Input value={contactsForm.case_manager_phone} onChange={(e) => setContactsForm({ ...contactsForm, case_manager_phone: e.target.value })} />
+              </div>
+              {facility?.facility_type === "ALR" && (
+                <div className="space-y-1 col-span-2">
+                  <Label className="text-xs">Designated Person</Label>
+                  <Input value={contactsForm.designated_person_name} onChange={(e) => setContactsForm({ ...contactsForm, designated_person_name: e.target.value })} />
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Informal Supports (up to 5)</Label>
+                {supportRows.length < 5 && (
+                  <Button variant="outline" size="sm" onClick={() => setSupportRows([...supportRows, emptySupportRow()])}>
+                    <Plus className="mr-1 h-3.5 w-3.5" /> Add
+                  </Button>
+                )}
+              </div>
+              {supportRows.map((row, i) => (
+                <div key={row.id ?? `new-${i}`} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Name</Label>
+                    <Input className="h-8 text-xs" value={row.name} onChange={(e) => setSupportRows(supportRows.map((r, j) => j === i ? { ...r, name: e.target.value } : r))} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Relationship</Label>
+                    <Input className="h-8 text-xs" value={row.relationship} onChange={(e) => setSupportRows(supportRows.map((r, j) => j === i ? { ...r, relationship: e.target.value } : r))} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Phone</Label>
+                    <Input className="h-8 text-xs" value={row.phone} onChange={(e) => setSupportRows(supportRows.map((r, j) => j === i ? { ...r, phone: e.target.value } : r))} />
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSupportRows(supportRows.filter((_, j) => j !== i))}>
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowContactsDialog(false)}>Cancel</Button>
+            <Button onClick={handleSaveContacts} disabled={isSavingContacts || isSavingResident}>
+              {isSavingContacts ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>
