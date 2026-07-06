@@ -30,10 +30,6 @@ insert into public.platform_settings (key, value) values
 
 -- Read-only helper for service-role edge functions to fetch one setting's value without RLS
 -- friction (service role already bypasses RLS, but this keeps the call sites terse/typed).
--- NOTE: dropped in 20260706043940_cleanup_trigger_fn_grants_and_drop_unused_setting_helper.sql --
--- service_role already bypasses RLS and every edge function in this codebase queries tables
--- directly via the service-role client rather than through a wrapper RPC; this only added an
--- extra authenticated/anon-exposed surface with no real caller.
 create or replace function public.get_platform_setting(p_key text) returns jsonb
 language sql stable security definer set search_path = public as $$
   select value from public.platform_settings where key = p_key;

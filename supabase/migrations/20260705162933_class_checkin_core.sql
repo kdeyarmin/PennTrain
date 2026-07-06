@@ -22,7 +22,6 @@ alter table public.training_class_attendees
   add column checked_out_at timestamptz,
   add column checkin_method text check (checkin_method in ('qr','kiosk_pin','manual'));
 
--- A hashed PIN for kiosk-mode self check-in on a shared facility tablet -- bcrypt via pgcrypto's
--- crypt()/gen_salt('bf') (already enabled), not a reversible credential; null until an admin
--- sets one for this employee.
+-- A hashed PIN for kiosk-mode self check-in on a shared facility tablet -- sha256 (via pgcrypto,
+-- already enabled), not a reversible credential; null until an admin sets one for this employee.
 alter table public.employees add column checkin_pin_hash text;
