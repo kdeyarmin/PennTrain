@@ -1,6 +1,3 @@
--- Wires incident_notifications and corrective_actions into the compliance alert engine, and
--- adds a notification fan-out for newly reported incidents.
-
 alter table public.alerts add column incident_notification_id uuid references public.incident_notifications(id);
 alter table public.alerts add column corrective_action_id uuid references public.corrective_actions(id);
 create index alerts_incident_notification_idx on public.alerts(incident_notification_id);
@@ -21,11 +18,6 @@ alter table public.notifications add constraint notifications_notification_type_
     'practicum_due_soon', 'practicum_expired', 'credential_expiring', 'incident_reported'
   ));
 
--- Reportable-incident notification deadlines (PA DHS: 24 hours; CMS F609 abuse/neglect with
--- injury: 2 hours) are too tight for the once-nightly recalculate_all_compliance() batch --
--- a 2-hour deadline could sit silently unflagged for most of a day. This phase is factored into
--- its own function so it can be scheduled hourly on its own (below) AND still run as part of the
--- nightly full recalculation, without duplicating the SQL in two places.
 create or replace function public.recalculate_incident_notifications()
 returns void
 language plpgsql
@@ -66,8 +58,6 @@ select cron.schedule(
   $$ select public.recalculate_incident_notifications(); $$
 );
 
--- Full rewrite of recalculate_all_compliance() -- everything above the two new blocks at the
--- bottom is unchanged from 20260705020413_credentials_alerts_and_compliance.sql.
 create or replace function public.recalculate_all_compliance()
 returns void
 language plpgsql
@@ -206,14 +196,8 @@ begin
       where a.employee_credential_id = c.id and a.status = 'open'
     );
 
-  -- Incident-notification overdue alerts also get a dedicated hourly schedule (above) since
-  -- reportable-incident deadlines can be as short as 2 hours -- calling the same function here
-  -- too just means the nightly run doesn't miss anything if the hourly job were ever paused.
   perform public.recalculate_incident_notifications();
 
-  -- Corrective actions (shared by incidents now and facility inspections from Phase 3 on) --
-  -- written generically against status/due_date so it needs no changes when Phase 3 adds
-  -- inspection-linked rows to this same table.
   update public.corrective_actions ca
   set status = 'overdue'
   where ca.status in ('open','in_progress')
@@ -235,16 +219,6 @@ begin
 end;
 $$;
 
--- notify_training_alert() needs no changes: incident_notification_overdue/corrective_action_overdue
--- alerts have employee_id null (no natural owner), and the function's existing
--- "if new.employee_id is null ... return new" guard already keeps them out of anyone's personal
--- notification feed, exactly like inspection_due will in Phase 3.
-
--- New: fan out to every org_admin in the org plus every facility_manager assigned to the
--- incident's facility on every new incident, regardless of severity (per product decision --
--- revisit if incident volume ever makes this noisy for a given customer). This is the first
--- multi-recipient notification trigger in this codebase; every other notify_* function notifies
--- exactly one profile (the affected employee).
 create or replace function public.notify_incident_reported()
 returns trigger language plpgsql security definer set search_path to 'public' as $function$
 declare v_profile_id uuid;

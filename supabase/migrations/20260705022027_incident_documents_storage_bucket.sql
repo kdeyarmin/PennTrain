@@ -1,7 +1,3 @@
--- Same reasoning as credential-documents: trainer must be excluded from read, which the plain
--- foldername-only pattern can't express since is_assigned_to_facility() doesn't distinguish
--- facility_manager from trainer. No self-service branch needed here (unlike credentials) --
--- incident documents have no employee owner to grant read access to.
 insert into storage.buckets (id, name, public) values ('incident-documents', 'incident-documents', false)
 on conflict (id) do nothing;
 

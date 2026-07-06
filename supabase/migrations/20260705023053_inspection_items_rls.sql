@@ -1,8 +1,3 @@
--- Least sensitive of the three new modules -- practicums-shape including trainer, but 3-tier
--- not 4: there's no employee "owner" of an inspection record (staff appear only as
--- performed_by/performed_by_profile_id, not as the record's subject), so there's no self-service
--- branch to grant or withhold, not a sensitivity decision.
-
 alter table public.inspection_items enable row level security;
 
 create policy inspection_items_select on public.inspection_items for select to authenticated using (

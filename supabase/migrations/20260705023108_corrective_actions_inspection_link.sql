@@ -1,11 +1,3 @@
--- Widens corrective_actions (created in 20260705030000_incidents_core.sql for incident findings)
--- to also serve facility-inspection findings, per the plan to keep this table polymorphic rather
--- than duplicating it. This is a genuinely more complex RLS policy than any single-parent one in
--- the app: the incident-linked branch excludes trainer (matching incidents' sensitivity), while
--- the inspection-linked branch includes trainer (matching inspections' lower sensitivity) --
--- worth an extra review pass since a mistake here would either leak incident-linked corrective
--- actions to trainer or hide inspection-linked ones from trainer.
-
 alter table public.corrective_actions add column inspection_event_id uuid references public.inspection_events(id) on delete cascade;
 create index corrective_actions_inspection_event_idx on public.corrective_actions(inspection_event_id);
 
@@ -36,9 +28,6 @@ begin
 end;
 $function$;
 
--- org_admin/auditor keep org-wide access to every corrective action regardless of parent.
--- facility_manager keeps assigned-facility access to every corrective action regardless of
--- parent. trainer is added, but ONLY for inspection-linked rows -- never incident-linked ones.
 alter policy corrective_actions_select on public.corrective_actions using (
   public.is_platform_admin()
   or (organization_id = (select public.current_org_id())
@@ -76,5 +65,3 @@ alter policy corrective_actions_update on public.corrective_actions using (
         or ((select public.current_role()) = 'trainer' and inspection_event_id is not null)
       ))
 );
-
--- corrective_actions_delete is unaffected -- org_admin/platform_admin only, regardless of parent.

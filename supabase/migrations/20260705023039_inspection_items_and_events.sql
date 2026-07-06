@@ -1,16 +1,3 @@
--- Facility inspections & equipment: fire drills, generator/extinguisher/sprinkler checks,
--- emergency-preparedness plan reviews. Physical-plant compliance is graded on the same clock as
--- staff training (a missed drill or a stale generator test is just as citable in a survey), so
--- this reuses the exact renewal-interval-and-alert shape training_types/employee_training_records
--- already has, just pointed at a facility-scoped subject instead of an employee.
---
--- `inspection_items` is a single registry covering both physical equipment (generator, fire
--- extinguisher, alarm/sprinkler) AND recurring procedural requirements (fire-drill program,
--- emergency-prep-plan review) as rows distinguished by item_kind -- every inspection_events row
--- references exactly one inspection_items row, so the alert/dedup grouping key is always "one
--- alert per open inspection_item_id," never per-employee, without a second registry table or
--- special-cased alert logic.
-
 create table public.inspection_items (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
