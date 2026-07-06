@@ -100,8 +100,13 @@ export default function ResidentDetail() {
 
   const handleCompleteInCareMetric = (item: NonNullable<typeof items>[number]) => {
     if (!resident) return;
+    // A support_plan_30day item spawned by the annual/significant-change cross-trigger should be
+    // labeled with ITS parent's reason (annual/significant_change), not "initial" -- deriveAssessmentReason
+    // only looks at the clicked item's own item_type, so resolve the triggering item first when set.
+    const triggeringItem = item.triggered_by_item_id ? itemById.get(item.triggered_by_item_id) : undefined;
+    const reason = deriveAssessmentReason(triggeringItem?.item_type ?? item.item_type);
     startAssessmentForm.mutate(
-      { residentId: resident.id, reason: deriveAssessmentReason(item.item_type), complianceItemId: item.id },
+      { residentId: resident.id, reason, complianceItemId: item.id },
       {
         onSuccess: (newForm) => navigate(`/app/residents/${resident.id}/assessment-forms/${newForm.id}`),
         onError: (e: Error) => toast({ title: "Failed to start assessment form", description: e.message, variant: "destructive" }),

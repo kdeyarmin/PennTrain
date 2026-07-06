@@ -381,6 +381,27 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Not authorized to generate this document" }, 403);
   }
 
+  // Finalizing locks the form's own content, but Part-I fields (resident DOB, physician/dentist/
+  // case-manager contact info, informal supports) are pulled live from residents/
+  // resident_informal_supports at generation time, not snapshotted. Without this check, retrying
+  // generation after that live data later changes would silently produce a different PDF for an
+  // already-finalized, supposedly-locked document -- so once a document has been generated for this
+  // form once, refuse to regenerate it rather than let it drift. This intentionally only covers the
+  // "finalize succeeded, PDF generation then failed" retry case this endpoint exists for.
+  const documentLabel = `resident_assessment_form:${form.id}`;
+  const { data: existingDocument, error: existingDocumentError } = await callerClient
+    .from("resident_documents")
+    .select("id")
+    .eq("resident_id", form.resident_id)
+    .eq("document_label", documentLabel)
+    .maybeSingle();
+  if (existingDocumentError) return json({ error: existingDocumentError.message }, 500);
+  if (existingDocument) {
+    return json({
+      error: "A document has already been generated for this finalized form. Contact an administrator if it needs to be replaced.",
+    }, 409);
+  }
+
   const facility = form.facilities as unknown as {
     name: string; license_number: string | null; address: string | null; city: string | null; state: string | null; zip: string | null;
   } | null;
@@ -441,11 +462,8 @@ Deno.serve(async (req: Request) => {
   });
   if (uploadError) return json({ error: uploadError.message }, 500);
 
-  // One resident_documents row per assessment-form version -- delete-then-insert keyed on this
-  // form's id (via document_label) so re-generating (e.g. after a draft edit before finalize)
-  // doesn't accumulate duplicates, mirroring generate-poc-document's delete-then-insert convention.
-  const documentLabel = `resident_assessment_form:${form.id}`;
-  await adminClient.from("resident_documents").delete().eq("resident_id", form.resident_id).eq("document_label", documentLabel);
+  // One resident_documents row per assessment-form version -- the existence check above already
+  // guarantees no row with this document_label exists yet, so this is always a fresh insert.
   const { error: docError } = await adminClient.from("resident_documents").insert({
     organization_id: form.organization_id,
     facility_id: form.facility_id,
