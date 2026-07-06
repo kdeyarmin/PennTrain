@@ -1,16 +1,3 @@
--- Fixes for PR #36 (Tier 3.6) review findings from the Codex and Copilot GitHub review bots.
--- Each finding was independently re-verified against the actual code before being addressed here;
--- see the plan doc's "Post-review fix pass" section for the full trace. The 5 migrations this PR
--- already shipped are applied to a live Supabase preview branch (tracked by filename+checksum), so
--- every fix here is a new migration rather than an edit to those files, mirroring this repo's own
--- precedent (e.g. 20260705163816_fix_checkin_token_url_safety.sql followed
--- 20260705162933_class_checkin_core.sql as a separate file).
-
--- Finding 1 (Codex, P2): the ALR rule-pack seed only inserted an annual_reassessment row for the
--- 'standard' admission track. instantiate_resident_compliance_items() requires an exact
--- admission_track match, so every 'expedited'-track ALR resident got zero annual-reassessment
--- tracking -- no due date, no alerts, ever. The annual cycle itself doesn't differ by admission
--- track (only the initial admission-window timing does), so this mirrors the standard-track row.
 insert into public.resident_compliance_rule_packs
   (facility_type, item_type, admission_track, offset_basis, offset_days, renewal_interval_days, grace_period_days, warning_days, citation_ref, notes)
 values
@@ -19,12 +6,6 @@ values
    'initial assessment/support-plan timing does. Grace period unconfirmed, same caveat as the '
    'standard-track row.');
 
--- Finding 2 (Codex P1 + Copilot): the update policy never checked status, so an org_admin/
--- facility_manager could update a finalized form's content directly via the API, bypassing the
--- editor UI's isReadOnly guard (a frontend convention, not a security boundary) and silently
--- diverging the stored "legal" record from its already-generated PDF.
--- finalize_resident_assessment_form() and its cloned_from_id/superseded_by_id update both run
--- security definer, so they bypass RLS entirely and are unaffected by this tightening.
 alter policy resident_assessment_forms_update on public.resident_assessment_forms using (
   public.is_platform_admin()
   or (organization_id = (select public.current_org_id())
@@ -39,12 +20,6 @@ alter policy resident_assessment_forms_update on public.resident_assessment_form
       and status = 'draft')
 );
 
--- Finding 3 (Codex P2 + Copilot): complete_resident_compliance_item() wasn't idempotent -- calling
--- it on an already-completed item re-set completed_date and, for recurring item types, inserted
--- another next-cycle row every time. Two real paths hit this: a double-click on ResidentDetail's
--- manual "complete" checkmark, and retrying finalize_resident_assessment_form() after a
--- PDF-generation failure (finding 4) re-running the completion call on an item that's already
--- compliant. This early-return guard is the root-cause fix and covers both paths.
 create or replace function public.complete_resident_compliance_item(p_item_id uuid)
 returns public.resident_compliance_items
 language plpgsql security definer set search_path to 'public' as $$
@@ -99,9 +74,6 @@ $$;
 revoke all on function public.complete_resident_compliance_item(uuid) from public, anon;
 grant execute on function public.complete_resident_compliance_item(uuid) to authenticated;
 
--- Finding 4 (Copilot): even with finding 3 fixed, calling finalize twice still overwrote
--- finalized_at with a new timestamp and re-ran the cloned_from_id supersession update, which is
--- wrong for what's supposed to be an immutable legal timestamp.
 create or replace function public.finalize_resident_assessment_form(p_form_id uuid)
 returns public.resident_assessment_forms
 language plpgsql security definer set search_path to 'public' as $$
@@ -146,12 +118,6 @@ $$;
 revoke all on function public.finalize_resident_assessment_form(uuid) from public, anon;
 grant execute on function public.finalize_resident_assessment_form(uuid) to authenticated;
 
--- Finding 5 (Copilot): version_number was computed from the latest *finalized* form only. If an
--- unfinalized draft already existed at version N (e.g. a double-clicked "Complete in CareMetric"
--- button, or two different compliance items each triggering a start), a second call still saw the
--- latest finalized version as the baseline and could assign a colliding version_number to a second
--- draft row. Fixed to compute the next version from the max across all statuses, while still
--- cloning content from the latest finalized row specifically (unchanged).
 create or replace function public.start_resident_assessment_form(
   p_resident_id uuid, p_reason text, p_compliance_item_id uuid default null
 )
