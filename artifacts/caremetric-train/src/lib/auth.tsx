@@ -53,6 +53,19 @@ function isKnownRecoverySession(session: Session | null): boolean {
   return !!session && window.localStorage.getItem(RECOVERY_SESSION_KEY) === session.user.id;
 }
 
+// An invite link lands here with `#access_token=...&type=invite` in the URL hash -- the same
+// implicit-grant flow as password recovery (`type=recovery`), just a different `type`. GoTrue
+// only fires the explicit PASSWORD_RECOVERY event for `type=recovery`; every other implicit-grant
+// type, including `invite` (the only other one this app's invite-user Edge Function/`resetTo`
+// actually produces), fires a plain SIGNED_IN. GoTrue parses this hash itself and doesn't clear it
+// until its own /user round trip resolves -- well after this module evaluates -- so snapshotting
+// it here, once, at first import (before that round trip has a chance to finish), lets the
+// SIGNED_IN handler below recognize the one SIGNED_IN event that actually corresponds to an
+// invite redirect, even though by the time the event fires the hash itself is already gone.
+let pendingImplicitGrantType: string | null = new URLSearchParams(
+  window.location.hash.replace(/^#/, ""),
+).get("type");
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -72,13 +85,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSessionLoading(false);
     });
 
-    // SIGNED_IN fires only on an explicit sign-in action (Login/Signup/Demo all funnel through
-    // supabase.auth.signInWithPassword) -- never on session-restore-from-storage (that's
-    // INITIAL_SESSION) -- so clearing here can't wipe an already-authenticated tab on refresh,
-    // but does stop a second user's sign-in on a shared device from reusing the previous
-    // tenant's cached query data.
+    // SIGNED_IN fires on an explicit sign-in action (Login/Signup/Demo all funnel through
+    // supabase.auth.signInWithPassword) and never on session-restore-from-storage (that's
+    // INITIAL_SESSION) -- but it also fires for an invite link's session establishment (see
+    // pendingImplicitGrantType above), so that case is checked first and given the same
+    // not-really-signed-in treatment as PASSWORD_RECOVERY. Every other SIGNED_IN is a real sign-in,
+    // so clearing here can't wipe an already-authenticated tab on refresh, but does stop a second
+    // user's sign-in on a shared device from reusing the previous tenant's cached query data.
     const { data: subscription } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      if (event === "PASSWORD_RECOVERY") {
+      const isInviteRedirect = event === "SIGNED_IN" && pendingImplicitGrantType === "invite";
+      pendingImplicitGrantType = null;
+
+      if (event === "PASSWORD_RECOVERY" || isInviteRedirect) {
         if (nextSession) {
           window.localStorage.setItem(RECOVERY_SESSION_KEY, nextSession.user.id);
         }
