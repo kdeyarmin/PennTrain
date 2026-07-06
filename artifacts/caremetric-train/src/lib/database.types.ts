@@ -163,6 +163,7 @@ export type Database = {
           message: string
           organization_id: string
           practicum_id: string | null
+          resident_compliance_item_id: string | null
           resolved_at: string | null
           severity: string
           status: string
@@ -188,6 +189,7 @@ export type Database = {
           message: string
           organization_id: string
           practicum_id?: string | null
+          resident_compliance_item_id?: string | null
           resolved_at?: string | null
           severity?: string
           status?: string
@@ -213,6 +215,7 @@ export type Database = {
           message?: string
           organization_id?: string
           practicum_id?: string | null
+          resident_compliance_item_id?: string | null
           resolved_at?: string | null
           severity?: string
           status?: string
@@ -288,6 +291,13 @@ export type Database = {
             columns: ["practicum_id"]
             isOneToOne: false
             referencedRelation: "practicums"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_resident_compliance_item_id_fkey"
+            columns: ["resident_compliance_item_id"]
+            isOneToOne: false
+            referencedRelation: "resident_compliance_items"
             referencedColumns: ["id"]
           },
           {
@@ -4329,6 +4339,125 @@ export type Database = {
           },
         ]
       }
+      resident_assessment_forms: {
+        Row: {
+          cloned_from_id: string | null
+          compliance_item_id: string | null
+          content: Json
+          created_at: string
+          facility_id: string
+          finalized_at: string | null
+          form_type: string
+          id: string
+          organization_id: string
+          prepared_by_name: string | null
+          prepared_by_profile_id: string | null
+          prepared_by_title: string | null
+          prepared_date: string | null
+          reason: string
+          resident_id: string
+          schema_version: number
+          status: string
+          superseded_by_id: string | null
+          updated_at: string
+          version_number: number
+        }
+        Insert: {
+          cloned_from_id?: string | null
+          compliance_item_id?: string | null
+          content?: Json
+          created_at?: string
+          facility_id: string
+          finalized_at?: string | null
+          form_type: string
+          id?: string
+          organization_id: string
+          prepared_by_name?: string | null
+          prepared_by_profile_id?: string | null
+          prepared_by_title?: string | null
+          prepared_date?: string | null
+          reason: string
+          resident_id: string
+          schema_version?: number
+          status?: string
+          superseded_by_id?: string | null
+          updated_at?: string
+          version_number?: number
+        }
+        Update: {
+          cloned_from_id?: string | null
+          compliance_item_id?: string | null
+          content?: Json
+          created_at?: string
+          facility_id?: string
+          finalized_at?: string | null
+          form_type?: string
+          id?: string
+          organization_id?: string
+          prepared_by_name?: string | null
+          prepared_by_profile_id?: string | null
+          prepared_by_title?: string | null
+          prepared_date?: string | null
+          reason?: string
+          resident_id?: string
+          schema_version?: number
+          status?: string
+          superseded_by_id?: string | null
+          updated_at?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_assessment_forms_cloned_from_id_fkey"
+            columns: ["cloned_from_id"]
+            isOneToOne: false
+            referencedRelation: "resident_assessment_forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_forms_compliance_item_id_fkey"
+            columns: ["compliance_item_id"]
+            isOneToOne: false
+            referencedRelation: "resident_compliance_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_forms_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_forms_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_forms_prepared_by_profile_id_fkey"
+            columns: ["prepared_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_forms_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_forms_superseded_by_id_fkey"
+            columns: ["superseded_by_id"]
+            isOneToOne: false
+            referencedRelation: "resident_assessment_forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resident_compliance_items: {
         Row: {
           citation_topic_id: string | null
@@ -4336,6 +4465,7 @@ export type Database = {
           created_at: string
           due_date: string | null
           facility_id: string
+          grace_period_days: number
           id: string
           item_type: string
           notes: string | null
@@ -4343,6 +4473,7 @@ export type Database = {
           renewal_interval_days: number | null
           resident_id: string
           status: string
+          triggered_by_item_id: string | null
           updated_at: string
           warning_days: number
         }
@@ -4352,6 +4483,7 @@ export type Database = {
           created_at?: string
           due_date?: string | null
           facility_id: string
+          grace_period_days?: number
           id?: string
           item_type: string
           notes?: string | null
@@ -4359,6 +4491,7 @@ export type Database = {
           renewal_interval_days?: number | null
           resident_id: string
           status?: string
+          triggered_by_item_id?: string | null
           updated_at?: string
           warning_days?: number
         }
@@ -4368,6 +4501,7 @@ export type Database = {
           created_at?: string
           due_date?: string | null
           facility_id?: string
+          grace_period_days?: number
           id?: string
           item_type?: string
           notes?: string | null
@@ -4375,6 +4509,7 @@ export type Database = {
           renewal_interval_days?: number | null
           resident_id?: string
           status?: string
+          triggered_by_item_id?: string | null
           updated_at?: string
           warning_days?: number
         }
@@ -4405,6 +4540,75 @@ export type Database = {
             columns: ["resident_id"]
             isOneToOne: false
             referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_compliance_items_triggered_by_item_id_fkey"
+            columns: ["triggered_by_item_id"]
+            isOneToOne: false
+            referencedRelation: "resident_compliance_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_compliance_rule_packs: {
+        Row: {
+          admission_track: string
+          citation_ref: string | null
+          created_at: string
+          facility_type: string
+          grace_period_days: number
+          id: string
+          is_active: boolean
+          item_type: string
+          notes: string | null
+          offset_basis: string
+          offset_days: number
+          organization_id: string | null
+          renewal_interval_days: number | null
+          state: string
+          warning_days: number
+        }
+        Insert: {
+          admission_track?: string
+          citation_ref?: string | null
+          created_at?: string
+          facility_type: string
+          grace_period_days?: number
+          id?: string
+          is_active?: boolean
+          item_type: string
+          notes?: string | null
+          offset_basis: string
+          offset_days: number
+          organization_id?: string | null
+          renewal_interval_days?: number | null
+          state?: string
+          warning_days?: number
+        }
+        Update: {
+          admission_track?: string
+          citation_ref?: string | null
+          created_at?: string
+          facility_type?: string
+          grace_period_days?: number
+          id?: string
+          is_active?: boolean
+          item_type?: string
+          notes?: string | null
+          offset_basis?: string
+          offset_days?: number
+          organization_id?: string | null
+          renewal_interval_days?: number | null
+          state?: string
+          warning_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_compliance_rule_packs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -4493,10 +4697,78 @@ export type Database = {
           },
         ]
       }
+      resident_informal_supports: {
+        Row: {
+          created_at: string
+          facility_id: string
+          id: string
+          name: string
+          organization_id: string
+          phone: string | null
+          relationship: string | null
+          resident_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          facility_id: string
+          id?: string
+          name: string
+          organization_id: string
+          phone?: string | null
+          relationship?: string | null
+          resident_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          facility_id?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          phone?: string | null
+          relationship?: string | null
+          resident_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_informal_supports_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_informal_supports_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_informal_supports_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       residents: {
         Row: {
           admission_date: string
+          admission_track: string
+          case_manager_name: string | null
+          case_manager_phone: string | null
           created_at: string
+          date_of_birth: string | null
+          dentist_name: string | null
+          dentist_phone: string | null
+          designated_person_name: string | null
           discharge_date: string | null
           facility_id: string
           first_name: string
@@ -4504,6 +4776,8 @@ export type Database = {
           id: string
           last_name: string
           organization_id: string
+          primary_physician_name: string | null
+          primary_physician_phone: string | null
           room: string | null
           sdcu: boolean
           status: string
@@ -4511,7 +4785,14 @@ export type Database = {
         }
         Insert: {
           admission_date: string
+          admission_track?: string
+          case_manager_name?: string | null
+          case_manager_phone?: string | null
           created_at?: string
+          date_of_birth?: string | null
+          dentist_name?: string | null
+          dentist_phone?: string | null
+          designated_person_name?: string | null
           discharge_date?: string | null
           facility_id: string
           first_name: string
@@ -4519,6 +4800,8 @@ export type Database = {
           id?: string
           last_name: string
           organization_id: string
+          primary_physician_name?: string | null
+          primary_physician_phone?: string | null
           room?: string | null
           sdcu?: boolean
           status?: string
@@ -4526,7 +4809,14 @@ export type Database = {
         }
         Update: {
           admission_date?: string
+          admission_track?: string
+          case_manager_name?: string | null
+          case_manager_phone?: string | null
           created_at?: string
+          date_of_birth?: string | null
+          dentist_name?: string | null
+          dentist_phone?: string | null
+          designated_person_name?: string | null
           discharge_date?: string | null
           facility_id?: string
           first_name?: string
@@ -4534,6 +4824,8 @@ export type Database = {
           id?: string
           last_name?: string
           organization_id?: string
+          primary_physician_name?: string | null
+          primary_physician_phone?: string | null
           room?: string | null
           sdcu?: boolean
           status?: string
@@ -5322,6 +5614,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      assert_resident_assessment_compliance_item_valid: {
+        Args: { p_compliance_item_id: string; p_resident_id: string }
+        Returns: undefined
+      }
       checkin_via_kiosk_pin: {
         Args: { p_class_id: string; p_employee_id: string; p_pin: string }
         Returns: {
@@ -5370,6 +5666,33 @@ export type Database = {
         Args: { p_assignment_id: string }
         Returns: undefined
       }
+      complete_resident_compliance_item: {
+        Args: { p_item_id: string }
+        Returns: {
+          citation_topic_id: string | null
+          completed_date: string | null
+          created_at: string
+          due_date: string | null
+          facility_id: string
+          grace_period_days: number
+          id: string
+          item_type: string
+          notes: string | null
+          organization_id: string
+          renewal_interval_days: number | null
+          resident_id: string
+          status: string
+          triggered_by_item_id: string | null
+          updated_at: string
+          warning_days: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "resident_compliance_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       complete_training_class: {
         Args: { p_class_id: string }
         Returns: undefined
@@ -5392,6 +5715,37 @@ export type Database = {
         Returns: undefined
       }
       escalate_unactioned_alerts: { Args: never; Returns: undefined }
+      finalize_resident_assessment_form: {
+        Args: { p_form_id: string }
+        Returns: {
+          cloned_from_id: string | null
+          compliance_item_id: string | null
+          content: Json
+          created_at: string
+          facility_id: string
+          finalized_at: string | null
+          form_type: string
+          id: string
+          organization_id: string
+          prepared_by_name: string | null
+          prepared_by_profile_id: string | null
+          prepared_by_title: string | null
+          prepared_date: string | null
+          reason: string
+          resident_id: string
+          schema_version: number
+          status: string
+          superseded_by_id: string | null
+          updated_at: string
+          version_number: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "resident_assessment_forms"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       generate_class_checkin_token: {
         Args: { p_class_id: string; p_long_lived?: boolean }
         Returns: string
@@ -5472,6 +5826,33 @@ export type Database = {
         Args: { p_document_id: string; p_document_table: string }
         Returns: undefined
       }
+      log_resident_change_of_condition: {
+        Args: { p_notes?: string; p_resident_id: string }
+        Returns: {
+          citation_topic_id: string | null
+          completed_date: string | null
+          created_at: string
+          due_date: string | null
+          facility_id: string
+          grace_period_days: number
+          id: string
+          item_type: string
+          notes: string | null
+          organization_id: string
+          renewal_interval_days: number | null
+          resident_id: string
+          status: string
+          triggered_by_item_id: string | null
+          updated_at: string
+          warning_days: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "resident_compliance_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       mark_all_notifications_read: { Args: never; Returns: undefined }
       mark_notification_read: { Args: { p_id: string }; Returns: undefined }
       match_exclusion_list_against_roster_core: {
@@ -5544,6 +5925,41 @@ export type Database = {
       start_course_assignment: {
         Args: { p_assignment_id: string }
         Returns: undefined
+      }
+      start_resident_assessment_form: {
+        Args: {
+          p_compliance_item_id?: string
+          p_reason: string
+          p_resident_id: string
+        }
+        Returns: {
+          cloned_from_id: string | null
+          compliance_item_id: string | null
+          content: Json
+          created_at: string
+          facility_id: string
+          finalized_at: string | null
+          form_type: string
+          id: string
+          organization_id: string
+          prepared_by_name: string | null
+          prepared_by_profile_id: string | null
+          prepared_by_title: string | null
+          prepared_date: string | null
+          reason: string
+          resident_id: string
+          schema_version: number
+          status: string
+          superseded_by_id: string | null
+          updated_at: string
+          version_number: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "resident_assessment_forms"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       unpublish_schedule: {
         Args: { p_schedule_id: string }
