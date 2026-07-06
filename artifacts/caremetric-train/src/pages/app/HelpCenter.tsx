@@ -219,7 +219,18 @@ function SupportTab({ base }: { base: string }) {
   const tickets = ticketsData ?? [];
 
   const handleSubmit = () => {
-    if (!user?.organizationId || !subject.trim() || !message.trim()) return;
+    if (!subject.trim() || !message.trim()) return;
+    // organizationId can transiently be null (e.g. mid-provisioning) even for a non-admin profile
+    // that has otherwise reached this page -- surface that clearly instead of a silent no-op, since
+    // the button itself stays enabled (subject/message are the only things it disables on).
+    if (!user?.organizationId) {
+      toast({
+        title: "Can't submit ticket yet",
+        description: "Your account isn't fully linked to an organization yet. Please try again shortly.",
+        variant: "destructive",
+      });
+      return;
+    }
     createTicket(
       {
         organizationId: user.organizationId,

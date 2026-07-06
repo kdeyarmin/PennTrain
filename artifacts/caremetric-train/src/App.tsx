@@ -168,6 +168,15 @@ function ProtectedRoute({
 
 const PLATFORM_ADMIN: UserRole[] = ["platform_admin"];
 const ORG_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor"];
+// support_tickets_select RLS gates on created_by = auth.uid() (or platform_admin), not on role,
+// and a ticket's stored notification link is baked in from the creator's role *at notify time* --
+// so if that role changes later (promotion/demotion), a route guard scoped to just ORG_ROLES or
+// just employee would bounce a still-authorized viewer away from their own ticket at the other
+// prefix. Every non-platform_admin role can reach either /app/help/tickets/:id or
+// /me/help/tickets/:id; SupportTicketDetail.tsx itself derives its "back to Help Center" link from
+// the current URL, not from allowedRoles, so it's safe to widen this one without also widening
+// the HelpCenter.tsx list/FAQ/submit routes.
+const SUPPORT_TICKET_DETAIL_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor", "employee"];
 const ORG_MANAGE_ROLES: UserRole[] = ["org_admin", "facility_manager"];
 const ORG_ADMIN_ONLY: UserRole[] = ["org_admin"];
 // Read-only compliance views auditor needs alongside the org admin roles -- auditor never
@@ -447,7 +456,7 @@ function Router() {
         {() => <ProtectedRoute component={HelpCenter} allowedRoles={ORG_ROLES} />}
       </Route>
       <Route path="/app/help/tickets/:id">
-        {() => <ProtectedRoute component={SupportTicketDetail} allowedRoles={ORG_ROLES} />}
+        {() => <ProtectedRoute component={SupportTicketDetail} allowedRoles={SUPPORT_TICKET_DETAIL_ROLES} />}
       </Route>
       <Route path="/app/schedule">
         {() => <ProtectedRoute component={Schedule} allowedRoles={SCHEDULE_MANAGE_ROLES} />}
@@ -520,7 +529,7 @@ function Router() {
         {() => <ProtectedRoute component={HelpCenter} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/help/tickets/:id">
-        {() => <ProtectedRoute component={SupportTicketDetail} allowedRoles={["employee"]} />}
+        {() => <ProtectedRoute component={SupportTicketDetail} allowedRoles={SUPPORT_TICKET_DETAIL_ROLES} />}
       </Route>
 
       <Route component={NotFound} />
