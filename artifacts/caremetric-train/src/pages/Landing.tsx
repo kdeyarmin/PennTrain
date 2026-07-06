@@ -273,7 +273,7 @@ export default function Landing() {
             {PLATFORM_STATS.map((stat) => (
               <div key={stat.label}>
                 <div className="font-mono text-2xl font-bold tabular-nums text-white">{stat.value}</div>
-                <div className="mt-1 text-xs leading-5 text-white/60">{stat.label}</div>
+                <div className="mt-1 text-xs leading-5 text-white/70">{stat.label}</div>
               </div>
             ))}
           </Reveal>

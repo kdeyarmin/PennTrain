@@ -10,10 +10,25 @@ import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { PageHero, Reveal } from "@/components/marketing/primitives";
 import { DEMO_MAILTO, FAQS } from "@/components/marketing/content";
-import { usePageMeta } from "@/lib/usePageMeta";
+import { usePageMeta, useJsonLd } from "@/lib/usePageMeta";
 
 const FEATURED_QUESTIONS = FAQS.slice(0, 3);
 const REMAINING_QUESTIONS = FAQS.slice(3);
+
+// Built directly from FAQS -- the same data rendered on the page -- so the
+// structured data can never drift from what visitors actually see.
+const FAQ_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: FAQS.map((faq) => ({
+    "@type": "Question",
+    name: faq.question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: faq.answer,
+    },
+  })),
+};
 
 export default function Faq() {
   usePageMeta({
@@ -22,6 +37,7 @@ export default function Faq() {
       "Answers to common questions about CareMetric Train: regulations covered, in-service hours by facility type, resident assessments, AI course generation, and more.",
     path: "/faq",
   });
+  useJsonLd("faq-jsonld", FAQ_JSON_LD);
   return (
     <MarketingLayout>
       <PageHero

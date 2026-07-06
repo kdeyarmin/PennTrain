@@ -33,3 +33,22 @@ export function usePageMeta({
     setMetaContent('meta[property="og:url"]', "content", canonicalUrl);
   }, [title, description, path]);
 }
+
+/**
+ * Injects a page-scoped JSON-LD structured-data block, removed on unmount.
+ * Pass a stable (module-scoped or memoized) `data` reference -- it's an
+ * effect dependency, so a fresh object literal on every render would
+ * needlessly tear down and recreate the script tag each render.
+ */
+export function useJsonLd(id: string, data: unknown) {
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.type = "application/ld+json";
+    script.id = id;
+    script.textContent = JSON.stringify(data);
+    document.head.appendChild(script);
+    return () => {
+      script.remove();
+    };
+  }, [id, data]);
+}
