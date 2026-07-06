@@ -84,6 +84,7 @@ function SuspendedScreen() {
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading, isAuthenticated } = useAuth();
+  const { isImpersonating } = useImpersonationStatus();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   // A suspended org's current_org_id() resolves to null (see
@@ -115,7 +116,12 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (checkSuspension && orgAccessible === false) {
+  // Never show the blocking suspended-org screen while impersonating -- it would render before
+  // Sidebar/ImpersonationBanner ever mount, trapping the admin as the target user with no visible
+  // way back to their own session (see the P2 review finding this comment documents). Falling
+  // through to the normal layout instead keeps "Return to Admin" reachable; the impersonated
+  // user's pages will simply show no data, same as any other suspended-org browsing session.
+  if (checkSuspension && orgAccessible === false && !isImpersonating) {
     return <SuspendedScreen />;
   }
 

@@ -9,6 +9,15 @@ export interface GlobalSearchResults {
 
 const EMPTY_RESULTS: GlobalSearchResults = { organizations: [], profiles: [], employees: [] };
 
+// PostgREST's or()/and() mini-language treats ',', '.', ':', '(', ')' as structural delimiters --
+// left unescaped, a search term containing any of them (e.g. "Smith, Jane" or "Acme (East)") can
+// split into extra conditions or otherwise change the filter's logical structure instead of
+// erroring. Wrapping the value in double quotes and escaping embedded backslashes/quotes is
+// PostgREST's own documented escape hatch for values inside or()/and().
+function escapeOrValue(value: string): string {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
 // platform_admin-only, cross-tenant search -- RLS already grants platform_admin unrestricted
 // SELECT on all three tables, so no org scoping is needed here the way it would be for any other
 // role. Each category is capped at 5 results; this is a quick-jump tool; not a full search page.
@@ -18,10 +27,11 @@ export function useGlobalSearch(query: string) {
     queryKey: ["global-search", trimmed],
     queryFn: async (): Promise<GlobalSearchResults> => {
       const like = `%${trimmed}%`;
+      const likeOr = escapeOrValue(like);
       const [orgsRes, profilesRes, employeesRes] = await Promise.all([
         supabase.from("organizations").select("id, name").ilike("name", like).limit(5),
-        supabase.from("profiles").select("id, first_name, last_name, email").or(`first_name.ilike.${like},last_name.ilike.${like},email.ilike.${like}`).limit(5),
-        supabase.from("employees").select("id, first_name, last_name, organization_id").or(`first_name.ilike.${like},last_name.ilike.${like}`).limit(5),
+        supabase.from("profiles").select("id, first_name, last_name, email").or(`first_name.ilike.${likeOr},last_name.ilike.${likeOr},email.ilike.${likeOr}`).limit(5),
+        supabase.from("employees").select("id, first_name, last_name, organization_id").or(`first_name.ilike.${likeOr},last_name.ilike.${likeOr}`).limit(5),
       ]);
       if (orgsRes.error) throw orgsRes.error;
       if (profilesRes.error) throw profilesRes.error;

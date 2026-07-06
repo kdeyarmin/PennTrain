@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useListPlatformSettings, useUpdatePlatformSetting } from "@/hooks/usePlatformSettings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -56,6 +57,22 @@ export default function PlatformSettings() {
   const { data: settings, isLoading } = useListPlatformSettings();
   const { mutate: updateSetting, isPending } = useUpdatePlatformSetting();
 
+  // Controlled per-key draft state for number inputs, so a failed update visibly reverts to the
+  // real server value instead of leaving the input showing an unsaved edit as if it had been
+  // committed. Only adopts the server value for keys not already tracked, so mid-edit typing
+  // survives an unrelated settings refetch.
+  const [numberDrafts, setNumberDrafts] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!settings) return;
+    setNumberDrafts(prev => {
+      const next = { ...prev };
+      for (const s of settings) {
+        if (typeof s.value === "number" && !(s.key in next)) next[s.key] = String(s.value);
+      }
+      return next;
+    });
+  }, [settings]);
+
   const handleBooleanChange = (key: string, label: string, checked: boolean) => {
     updateSetting(
       { key, value: checked },
@@ -66,13 +83,25 @@ export default function PlatformSettings() {
     );
   };
 
-  const handleNumberChange = (key: string, label: string, value: number) => {
-    if (Number.isNaN(value)) return;
+  const handleNumberBlur = (key: string, label: string, raw: string) => {
+    const value = parseInt(raw, 10);
+    const serverValue = settings?.find(s => s.key === key)?.value;
+    const serverValueStr = typeof serverValue === "number" ? String(serverValue) : "0";
+    if (Number.isNaN(value)) {
+      setNumberDrafts(prev => ({ ...prev, [key]: serverValueStr }));
+      return;
+    }
     updateSetting(
       { key, value },
       {
-        onSuccess: () => toast({ title: `${label} updated` }),
-        onError: (e: Error) => toast({ title: `Failed to update ${label}`, description: e.message, variant: "destructive" }),
+        onSuccess: () => {
+          toast({ title: `${label} updated` });
+          setNumberDrafts(prev => ({ ...prev, [key]: String(value) }));
+        },
+        onError: (e: Error) => {
+          toast({ title: `Failed to update ${label}`, description: e.message, variant: "destructive" });
+          setNumberDrafts(prev => ({ ...prev, [key]: serverValueStr }));
+        },
       },
     );
   };
@@ -118,10 +147,11 @@ export default function PlatformSettings() {
                         <Input
                           type="number"
                           min="0"
-                          defaultValue={typeof setting.value === "number" ? setting.value : 0}
+                          value={numberDrafts[setting.key] ?? (typeof setting.value === "number" ? String(setting.value) : "0")}
                           disabled={isPending}
                           className="h-9 w-24"
-                          onBlur={e => handleNumberChange(setting.key, config.label, parseInt(e.target.value, 10))}
+                          onChange={e => setNumberDrafts(prev => ({ ...prev, [setting.key]: e.target.value }))}
+                          onBlur={e => handleNumberBlur(setting.key, config.label, e.target.value)}
                         />
                       )}
                     </div>

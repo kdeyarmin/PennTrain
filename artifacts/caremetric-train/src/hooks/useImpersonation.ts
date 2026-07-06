@@ -3,8 +3,12 @@ import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 
-const STORAGE_KEY = "cmtrain.impersonation";
-const CHANGE_EVENT = "cmtrain:impersonation-change";
+// Exported so useSignOut() (auth.tsx) can clear a stale record on every sign-out -- otherwise a
+// regular "Log out" during impersonation leaves the admin's origin tokens sitting in
+// sessionStorage, reusable by whoever uses that browser tab next (see the P1 fix this comment
+// documents: sign-out must always clear this, impersonating or not).
+export const STORAGE_KEY = "cmtrain.impersonation";
+export const CHANGE_EVENT = "cmtrain:impersonation-change";
 
 export interface ImpersonationTarget {
   id: string;
@@ -73,7 +77,11 @@ export function useStartImpersonation() {
       if (otpError) throw otpError;
 
       window.dispatchEvent(new Event(CHANGE_EVENT));
-      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      // Full clear, not just ["profile"] -- queries with keys unscoped by user/org (e.g.
+      // useListOrganizations()'s ["organizations"], used on /app/reports) would otherwise keep
+      // showing platform_admin-visible cached data after swapping into a lower-privileged
+      // session.
+      queryClient.clear();
       return data.target as ImpersonationTarget;
     },
   });
@@ -100,7 +108,8 @@ export function useStopImpersonation() {
 
       sessionStorage.removeItem(STORAGE_KEY);
       window.dispatchEvent(new Event(CHANGE_EVENT));
-      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      // Full clear, not just ["profile"] -- same cross-role cache-bleed risk as useStartImpersonation.
+      queryClient.clear();
       return target;
     },
   });

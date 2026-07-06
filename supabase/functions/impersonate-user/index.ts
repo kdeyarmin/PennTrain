@@ -89,7 +89,11 @@ Deno.serve(async (req: Request) => {
     const tokenHash = linkData.properties?.hashed_token;
     if (!tokenHash) return json({ error: "failed to generate session token" }, 400);
 
-    await adminClient.from("audit_logs").insert({
+    // The mandatory-reason audit trail is this feature's entire safety net -- if the insert
+    // fails, abort instead of handing back a working session token for an unaudited
+    // impersonation. The token is never returned to the caller in that case, so it can't be
+    // used to complete the session swap client-side.
+    const { error: auditInsertError } = await adminClient.from("audit_logs").insert({
       organization_id: targetProfile.organization_id,
       actor_profile_id: callerUser.id,
       entity_type: "impersonation",
@@ -97,6 +101,9 @@ Deno.serve(async (req: Request) => {
       action: "impersonation_start",
       new_values: { reason, target_email: targetProfile.email },
     });
+    if (auditInsertError) {
+      return json({ error: "Failed to record the required audit log entry; impersonation aborted." }, 500);
+    }
 
     return json({
       success: true,
@@ -115,14 +122,27 @@ Deno.serve(async (req: Request) => {
   if (action === "end") {
     if (!target_user_id) return json({ error: "target_user_id is required" }, 400);
 
-    await adminClient.from("audit_logs").insert({
-      organization_id: null,
+    // Stamp the target's organization_id (rather than null) so end events don't disappear from
+    // organization-filtered audit views -- the caller's own session has already been restored to
+    // the admin by this point, so this lookup must go through the service-role client, not
+    // callerClient (whose JWT no longer belongs to the target's org).
+    const { data: targetProfile } = await adminClient
+      .from("profiles")
+      .select("organization_id")
+      .eq("id", target_user_id)
+      .maybeSingle();
+
+    const { error: auditInsertError } = await adminClient.from("audit_logs").insert({
+      organization_id: targetProfile?.organization_id ?? null,
       actor_profile_id: callerUser.id,
       entity_type: "impersonation",
       entity_id: target_user_id,
       action: "impersonation_end",
       new_values: { reason: reason ?? null },
     });
+    if (auditInsertError) {
+      return json({ error: "Failed to record the impersonation-end audit log entry." }, 500);
+    }
 
     return json({ success: true });
   }
