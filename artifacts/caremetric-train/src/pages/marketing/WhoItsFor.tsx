@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, FilePenLine } from "lucide-react";
 import { Link } from "wouter";
 import {
   Card,
@@ -10,6 +10,13 @@ import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { PageHero, Reveal } from "@/components/marketing/primitives";
 import { SETTINGS } from "@/components/marketing/content";
+import { usePageMeta } from "@/lib/usePageMeta";
+
+const RESIDENT_CARE_POINTS = [
+  "Preadmission screening, 15-day initial assessment, annual reassessment, and significant-change reassessment, each on its own due date.",
+  "A digital replica of the actual DHS assessment form, with autosave, finalize-and-lock, and one-click PDF generation.",
+  "Automatic support-plan follow-ups whenever a reassessment is completed.",
+];
 
 const OPERATING_MODES = [
   "Single facility teams that need one clean training record per employee.",
@@ -18,6 +25,12 @@ const OPERATING_MODES = [
 ];
 
 export default function WhoItsFor() {
+  usePageMeta({
+    title: "Who It's For — CareMetric Train for PCH, ALF, Group Homes & More",
+    description:
+      "CareMetric Train adapts to personal care homes, assisted living facilities, group homes, nursing homes, home health, and hospice agencies -- each with rules matched to their setting.",
+    path: "/who-its-for",
+  });
   return (
     <MarketingLayout>
       <PageHero
@@ -64,7 +77,41 @@ export default function WhoItsFor() {
         </div>
       </section>
 
-      <section className="border-y border-border/60 bg-background">
+      <section className="border-b border-border/60 bg-background">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8">
+          <Reveal>
+            <div className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs font-semibold text-primary shadow-sm">
+              <FilePenLine className="h-3.5 w-3.5" />
+              PCH &amp; ALF only
+            </div>
+            <h2 className="mt-4 text-2xl font-extrabold tracking-tight">
+              Personal care homes and assisted living facilities also get resident-level compliance
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              Beyond staff training, CareMetric Train tracks the resident-side regulatory
+              deadlines Chapter 2600 and Chapter 2800 require -- RASP and ASP assessments --
+              as their own compliance domain, not employee records mislabeled as resident data.
+            </p>
+            <Link
+              href="/features#resident-care"
+              className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            >
+              See resident care compliance features
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Reveal>
+          <Reveal delay={0.1} className="grid gap-3">
+            {RESIDENT_CARE_POINTS.map((point) => (
+              <div key={point} className="flex items-start gap-3 rounded-xl border bg-card p-4 shadow-sm">
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                <span className="text-sm text-foreground/85">{point}</span>
+              </div>
+            ))}
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="border-b border-border/60 bg-muted/30">
         <div className="mx-auto max-w-5xl px-4 py-16 text-center sm:px-6 lg:px-8">
           <Reveal>
             <h2 className="text-2xl font-extrabold tracking-tight">One product, separate views for each audience</h2>
