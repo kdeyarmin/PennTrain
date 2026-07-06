@@ -27,6 +27,9 @@ verify_jwt = true
 [functions.generate-poc-document]
 verify_jwt = true
 
+[functions.generate-resident-assessment-pdf]
+verify_jwt = true
+
 [functions.generate-course-video]
 verify_jwt = true
 

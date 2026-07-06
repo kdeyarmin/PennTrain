@@ -5,6 +5,7 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useListAllIncidentNotifications } from "@/hooks/useIncidents";
 import { useListCorrectiveActions } from "@/hooks/useCorrectiveActions";
 import { useListAllInspectionEvents } from "@/hooks/useInspectionEvents";
+import { useListAllResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,11 +58,16 @@ export default function Alerts() {
   const { data: incidentNotifications } = useListAllIncidentNotifications();
   const { data: correctiveActions } = useListCorrectiveActions();
   const { data: inspectionEvents } = useListAllInspectionEvents();
+  // Residents only have a single /app/residents/:id route (no /admin mirror -- RESIDENT_ROLES
+  // excludes platform_admin), so there's no base-path switch to make the way employee/incident/
+  // inspection links above have -- resolveAlertLink() below omits the link entirely for that role.
+  const { data: residentComplianceItems } = useListAllResidentComplianceItems();
   const { toast } = useToast();
 
   const notificationIncidentId = new Map((incidentNotifications ?? []).map((n) => [n.id, n.incident_id]));
   const correctiveActionById = new Map((correctiveActions ?? []).map((ca) => [ca.id, ca]));
   const inspectionEventItemId = new Map((inspectionEvents ?? []).map((e) => [e.id, e.inspection_item_id]));
+  const complianceItemResidentId = new Map((residentComplianceItems ?? []).map((i) => [i.id, i.resident_id]));
 
   function resolveAlertLink(alert: Alert): { href: string; label: string } | null {
     if (alert.employee_id) return { href: `${employeeDetailBase}/${alert.employee_id}`, label: "View Employee" };
@@ -77,6 +83,13 @@ export default function Alerts() {
         const itemId = inspectionEventItemId.get(ca.inspection_event_id);
         if (itemId) return { href: `${inspectionDetailBase}/${itemId}`, label: "View Inspection Item" };
       }
+    }
+    if (alert.resident_compliance_item_id && user?.role !== "platform_admin") {
+      // Unlike employee/incident/inspection links above, residents have no /admin mirror route
+      // (RESIDENT_ROLES in App.tsx deliberately excludes platform_admin) -- omit the link entirely
+      // for that viewer rather than offering one that redirects them away.
+      const residentId = complianceItemResidentId.get(alert.resident_compliance_item_id);
+      if (residentId) return { href: `/app/residents/${residentId}`, label: "View Resident" };
     }
     return null;
   }
