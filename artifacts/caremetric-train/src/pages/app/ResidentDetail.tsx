@@ -378,9 +378,16 @@ export default function ResidentDetail() {
                     <Label className="text-[11px]">Phone</Label>
                     <Input className="h-8 text-xs" value={row.phone} onChange={(e) => setSupportRows(supportRows.map((r, j) => j === i ? { ...r, phone: e.target.value } : r))} />
                   </div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSupportRows(supportRows.filter((_, j) => j !== i))}>
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                  </Button>
+                  {/* resident_informal_supports_delete restricts deletes to org_admin/platform_admin (same
+                      tier as resident_documents_delete) -- a facility_manager can still drop a row they
+                      just added locally (no delete call involved), but removing an already-persisted row
+                      would otherwise fail with an RLS error on Save after the resident update already went
+                      through. */}
+                  {(canDelete || !row.id) && (
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSupportRows(supportRows.filter((_, j) => j !== i))}>
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
