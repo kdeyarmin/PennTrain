@@ -69,6 +69,9 @@ import PolicyDocuments from "@/pages/app/PolicyDocuments";
 import PolicyDocumentDetail from "@/pages/app/PolicyDocumentDetail";
 import TemplateDocuments from "@/pages/app/TemplateDocuments";
 import TemplateDocumentDetail from "@/pages/app/TemplateDocumentDetail";
+import Schedule from "@/pages/app/Schedule";
+import ScheduleDetail from "@/pages/app/ScheduleDetail";
+import ScheduleSetup from "@/pages/app/ScheduleSetup";
 
 import TrainerDashboard from "@/pages/trainer/TrainerDashboard";
 import TrainerClasses from "@/pages/trainer/TrainerClasses";
@@ -77,6 +80,7 @@ import ClassKiosk from "@/pages/trainer/ClassKiosk";
 import RetrainingMonitor from "@/pages/trainer/RetrainingMonitor";
 import EmployeeDashboard from "@/pages/employee/EmployeeDashboard";
 import MyTrainings from "@/pages/employee/MyTrainings";
+import MySchedule from "@/pages/employee/MySchedule";
 import MyCourses from "@/pages/employee/MyCourses";
 import MyCertificates from "@/pages/employee/MyCertificates";
 import MyCredentials from "@/pages/employee/MyCredentials";
@@ -191,6 +195,9 @@ const TEMPLATE_DOCUMENT_ROLES: UserRole[] = ["org_admin", "facility_manager", "a
 // any class in their org (not just trainer-owned ones) at the DB layer; this just gives them a
 // route to reach the same trainer-facing pages instead of needing a separate trainer account.
 const CLASS_SCHEDULING_ROLES: UserRole[] = ["trainer", "org_admin", "facility_manager"];
+// Matches schedules_write / facility_units_write / shift_definitions_write / employee_schedule_preferences_write
+// RLS -- shift scheduling is org_admin/facility_manager only (no trainer, no auditor write).
+const SCHEDULE_MANAGE_ROLES: UserRole[] = ["org_admin", "facility_manager"];
 
 function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -409,6 +416,18 @@ function Router() {
       <Route path="/app/audit">
         {() => <ProtectedRoute component={AuditLog} allowedRoles={AUDIT_LOG_ROLES} />}
       </Route>
+      <Route path="/app/schedule">
+        {() => <ProtectedRoute component={Schedule} allowedRoles={SCHEDULE_MANAGE_ROLES} />}
+      </Route>
+      {/* Must be registered before "/app/schedule/:id" -- wouter matches routes in declaration
+          order, so "setup" would otherwise be swallowed as the :id param (same gotcha as
+          "/admin/courses/new-ai" above). */}
+      <Route path="/app/schedule/setup">
+        {() => <ProtectedRoute component={ScheduleSetup} allowedRoles={SCHEDULE_MANAGE_ROLES} />}
+      </Route>
+      <Route path="/app/schedule/:id">
+        {() => <ProtectedRoute component={ScheduleDetail} allowedRoles={SCHEDULE_MANAGE_ROLES} />}
+      </Route>
 
       {/* Trainer routes */}
       <Route path="/trainer">
@@ -439,6 +458,9 @@ function Router() {
       </Route>
       <Route path="/me/trainings">
         {() => <ProtectedRoute component={MyTrainings} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/schedule">
+        {() => <ProtectedRoute component={MySchedule} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/certificates">
         {() => <ProtectedRoute component={MyCertificates} allowedRoles={["employee"]} />}
