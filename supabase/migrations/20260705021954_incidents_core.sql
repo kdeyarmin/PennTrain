@@ -1,16 +1,3 @@
--- Incident & complaint tracking. Every facility type CareMetric Train serves (PCH/ALR/NH/HHA/HOS/GH)
--- carries a mandatory incident-reporting duty with a hard external-notification deadline (PA
--- DHS reportable incidents, CMS F609 abuse/neglect self-reporting, ODP Enterprise Incident
--- Management) -- none of which lived in the app before now.
---
--- CareMetric Train has no resident/EHR data model at all (it's a staff-training app, not a clinical
--- records system) -- resident_identifier below is deliberately a free-text field, never a FK to
--- a resident entity that doesn't and shouldn't exist here.
---
--- organization_id/facility_id on `incidents` are client-supplied and RLS-validated directly
--- (like training_classes/alerts) rather than stamped from a parent row -- there's no single
--- employee or other record an incident is "owned by" to derive scope from.
-
 create table public.incidents (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -45,9 +32,6 @@ create trigger set_updated_at before update on public.incidents
 create trigger audit_log after insert or update or delete on public.incidents
   for each row execute function public.audit_log_trigger();
 
--- Staff involved/witnesses. A pure detail/join table (like training_class_attendees), so no
--- audit_log trigger of its own -- the parent incident's audit trail covers the incident's
--- lifecycle, and this table's own inserts/deletes aren't independently audit-worthy.
 create table public.incident_staff_involved (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -62,8 +46,6 @@ create index incident_staff_involved_org_idx on public.incident_staff_involved(o
 create index incident_staff_involved_incident_idx on public.incident_staff_involved(incident_id);
 create index incident_staff_involved_employee_idx on public.incident_staff_involved(employee_id);
 
--- Required external notifications (state hotline, family/guardian, law enforcement, licensing
--- agency) with a due-by timer and completion tracking.
 create table public.incident_notifications (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -87,8 +69,6 @@ create index incident_notifications_incident_idx on public.incident_notification
 create trigger audit_log after insert or update or delete on public.incident_notifications
   for each row execute function public.audit_log_trigger();
 
--- Evidence documents (photos, witness statements, investigation reports). No employee_id --
--- unlike credential documents, an incident document has no single-person owner.
 create table public.incident_documents (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -110,8 +90,6 @@ create index incident_documents_incident_idx on public.incident_documents(incide
 create trigger audit_log after insert or update or delete on public.incident_documents
   for each row execute function public.audit_log_trigger();
 
--- Corrective actions -- polymorphic from the start (Phase 3 adds an inspection_event_id branch
--- for facility-inspection findings, reusing this same table rather than duplicating it).
 create table public.corrective_actions (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -137,8 +115,6 @@ create trigger set_updated_at before update on public.corrective_actions
 create trigger audit_log after insert or update or delete on public.corrective_actions
   for each row execute function public.audit_log_trigger();
 
--- Scope-stamping triggers, same rationale as stamp_scope_from_employee (a client-controlled
--- facility_id on these child tables could otherwise defeat is_assigned_to_facility() RLS).
 create or replace function public.stamp_scope_from_incident()
 returns trigger language plpgsql set search_path to 'public' as $function$
 declare v_org uuid; v_fac uuid;
@@ -160,8 +136,6 @@ create trigger stamp_scope before insert or update on public.incident_notificati
 create trigger stamp_scope before insert on public.incident_documents
   for each row execute function public.stamp_scope_from_incident();
 
--- Only an incident_id branch exists so far -- Phase 3 will `create or replace` this to add an
--- inspection_event_id branch once inspection_events exists.
 create or replace function public.stamp_scope_from_corrective_action_parent()
 returns trigger language plpgsql set search_path to 'public' as $function$
 declare v_org uuid; v_fac uuid;

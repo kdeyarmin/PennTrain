@@ -1,6 +1,3 @@
--- Wires employee_credentials into the same compliance-alert engine that already tracks
--- training records, practicums, missing documents, and expiring certificates.
-
 alter table public.alerts add column employee_credential_id uuid references public.employee_credentials(id);
 create index alerts_employee_credential_idx on public.alerts(employee_credential_id);
 
@@ -18,9 +15,6 @@ alter table public.notifications add constraint notifications_notification_type_
     'practicum_due_soon', 'practicum_expired', 'credential_expiring'
   ));
 
--- Full rewrite (this function has always been maintained as one complete body, never
--- incrementally altered) -- every phase above this comment is unchanged from the live
--- version; only the employee_credentials phase at the bottom is new.
 create or replace function public.recalculate_all_compliance()
 returns void
 language plpgsql
@@ -132,10 +126,6 @@ begin
       where a.certificate_id = c.id and a.status = 'open'
     );
 
-  -- Employee credential compliance. Renewal windows vary too widely by credential type (a
-  -- 60-month child-abuse clearance vs. an annual TB screen) for the graduated due_90..due_7
-  -- buckets training records use -- a single 'credential_expiring' alert_type instead, same
-  -- shape as certificate_expiring, with severity carrying the urgency.
   update public.employee_credentials c
   set status = case
     when c.status = 'not_applicable' then c.status
@@ -165,9 +155,6 @@ begin
 end;
 $$;
 
--- Full rewrite of notify_training_alert() too, gated on which FK is present (the same fix
--- 20260704240000_fix_review_findings.sql applied for practicum vs. training-record alerts,
--- extended with one more branch for employee_credential_id).
 create or replace function public.notify_training_alert()
 returns trigger language plpgsql security definer set search_path to 'public' as $function$
 declare v_profile_id uuid; v_notification_type text;

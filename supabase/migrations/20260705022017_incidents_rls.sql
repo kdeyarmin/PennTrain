@@ -1,9 +1,3 @@
--- Incidents are org_admin/facility_manager/platform_admin/auditor only -- no trainer, no
--- self-service, on every incident-related table. Unlike credentials (which excludes trainer
--- because the *data* is sensitive but still lets the affected employee read their own row),
--- incidents exclude self-service entirely: the sensitivity is about the incident and everyone
--- named in it, not about any one employee's own record.
-
 alter table public.incidents enable row level security;
 
 create policy incidents_select on public.incidents for select to authenticated using (
@@ -109,9 +103,6 @@ create policy incident_documents_delete on public.incident_documents for delete 
   public.is_platform_admin() or (organization_id = (select public.current_org_id()) and (select public.current_role()) = 'org_admin')
 );
 
--- corrective_actions: Phase 2 only has an incident_id parent, so this is a single (no-trainer)
--- branch for now. Phase 3 will `alter policy` to add an inspection-linked branch that, unlike
--- this one, includes trainer -- flagged as a genuinely more complex policy worth its own review.
 alter table public.corrective_actions enable row level security;
 
 create policy corrective_actions_select on public.corrective_actions for select to authenticated using (

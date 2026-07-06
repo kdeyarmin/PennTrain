@@ -38,21 +38,12 @@ create index employee_credentials_employee_idx on public.employee_credentials(em
 create trigger set_updated_at before update on public.employee_credentials
   for each row execute function public.set_updated_at();
 
--- Same rationale as employee_training_records/practicums (20260704180646, 20260704182232):
--- re-derive organization_id/facility_id from the real employee row on both insert and update so
--- a facility_manager assigned only to Facility A can't write a credential row for an employee in
--- Facility B while lying about facility_id=A.
 create trigger stamp_scope before insert or update on public.employee_credentials
   for each row execute function public.stamp_scope_from_employee();
 
 create trigger audit_log after insert or update or delete on public.employee_credentials
   for each row execute function public.audit_log_trigger();
 
--- Evidence documents (clearance letters, license scans, TB test results) for a credential.
--- organization_id/facility_id/employee_id are all denormalized here (not just org/facility) so
--- RLS can call owns_employee(employee_id) directly without an extra join, matching the
--- alerts/training_documents flat-column style. Immutable once uploaded, same as
--- training_documents -- no update trigger/policy.
 create table public.employee_credential_documents (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
