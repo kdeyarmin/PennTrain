@@ -140,10 +140,29 @@ logged to the `course_ai_generations` audit table.
   `supabase/migrations/<version>_<name>.sql` using the version number Supabase actually assigned (from
   `mcp__Supabase__list_migrations`), so the Supabase GitHub integration's preview-branch deploys stay in sync.
 
+## Scheduling
+
+Basic shift scheduling (not qualification-gated -- see ROADMAP.md's deferred-ideas table). `employee_facility_assignments`
+is an additive join table recording every facility an employee can be scheduled at, mirroring the existing
+profile-level `facility_assignments`; `employees.facility_id` remains the employee's home/primary facility and is
+kept in sync via a trigger, so every pre-existing compliance feature is unaffected. On top of that:
+`facility_units` (wings), `shift_definitions` (typical shift time templates), `employee_schedule_preferences` (each
+employee's typical recurring shift/unit pattern by day-of-week), `schedules` (a draft/published period for one
+facility), and `shift_assignments` (one employee's shift on one date). `generate_schedule_assignments` is the
+auto-fill RPC -- it populates a draft schedule from every employee's typical pattern, skipping any date an
+employee already has a shift (manual entries always win); `clear_auto_filled_assignments` is the matching undo
+(only removes untouched auto-generated rows). `publish_schedule`/`unpublish_schedule` flip a schedule's visibility
+to employees -- `shift_assignments_select`'s employee-owned branch requires the parent schedule to be
+`published`. `org_admin`/`facility_manager` manage scheduling at `/app/schedule` (`/app/schedule/setup` for
+units/shifts/patterns); employees see their own published shifts (read-only) at `/me/schedule`. One deliberate v1
+limitation: `shift_assignments` has a `unique (employee_id, shift_date)` constraint, so an employee is capped at
+one shift per calendar date across every facility -- no double shifts, no same-day float between two facilities.
+
 ## Database Schema (selected tables)
 
 Tenancy/identity: `organizations`, `organization_settings`, `facilities`, `profiles`, `facility_assignments`,
-`employees`, `packages`. Compliance core: `training_types`, `employee_training_records`,
+`employees`, `employee_facility_assignments`, `packages`. Scheduling: `facility_units`, `shift_definitions`,
+`employee_schedule_preferences`, `schedules`, `shift_assignments`. Compliance core: `training_types`, `employee_training_records`,
 `employee_training_hour_buckets`, `practicums`, `training_documents`, `alerts`, `audit_logs`, `training_classes`,
 `training_class_attendees`. LMS: `courses`, `course_versions`, `course_blocks`, `quizzes`, `quiz_questions`,
 `quiz_answers`, `course_assignments`, `course_progress`, `quiz_attempts`, `quiz_attempt_answers`,

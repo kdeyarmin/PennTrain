@@ -42,7 +42,8 @@ import {
   Gavel,
   BookOpen,
   BedDouble,
-  FileStack
+  FileStack,
+  CalendarDays
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -87,6 +88,7 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
         items: [
           { href: "/app/facilities", label: "Facilities", icon: Building2 },
           { href: "/app/employees", label: "Employees", icon: Users },
+          { href: "/app/schedule", label: "Schedule", icon: CalendarDays },
           { href: "/app/training-matrix", label: "Training Matrix", icon: Grid },
           { href: "/app/courses", label: "Courses", icon: GraduationCap },
           { href: "/app/course-assignments", label: "Course Assignments", icon: FileCheck },
@@ -206,6 +208,7 @@ function getNavSections(role: AuthUser["role"]): NavSection[] {
       {
         items: [
           { href: "/me", label: "My Training", icon: LayoutDashboard },
+          { href: "/me/schedule", label: "My Schedule", icon: CalendarDays },
           { href: "/me/courses", label: "My Courses", icon: BookOpen },
           { href: "/me/trainings", label: "Training Records", icon: GraduationCap },
           { href: "/me/certificates", label: "My Certificates", icon: FileCheck },

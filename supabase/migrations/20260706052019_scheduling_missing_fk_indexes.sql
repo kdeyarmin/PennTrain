@@ -1,0 +1,10 @@
+-- Advisor "unindexed_foreign_keys" fix for the new scheduling tables.
+create index facility_units_organization_id_idx on public.facility_units(organization_id);
+create index shift_definitions_organization_id_idx on public.shift_definitions(organization_id);
+create index employee_schedule_preferences_organization_id_idx on public.employee_schedule_preferences(organization_id);
+create index employee_schedule_preferences_shift_definition_id_idx on public.employee_schedule_preferences(shift_definition_id);
+create index employee_schedule_preferences_unit_id_idx on public.employee_schedule_preferences(unit_id);
+create index schedules_created_by_idx on public.schedules(created_by);
+create index shift_assignments_organization_id_idx on public.shift_assignments(organization_id);
+create index shift_assignments_shift_definition_id_idx on public.shift_assignments(shift_definition_id);
+create index shift_assignments_unit_id_idx on public.shift_assignments(unit_id);
