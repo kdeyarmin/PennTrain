@@ -163,6 +163,16 @@ Deno.serve(async (req: Request) => {
     return json({ error: "not authorized to regenerate course content with AI" }, 403);
   }
 
+  const { data: aiGenerationSetting } = await callerClient
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "ai_course_generation_enabled")
+    .maybeSingle();
+  const aiCourseGenerationEnabled = aiGenerationSetting?.value !== false;
+  if (!aiCourseGenerationEnabled) {
+    return json({ error: "AI course generation is currently disabled by the platform administrator." }, 403);
+  }
+
   // Checked only after auth/role so an unconfigured secret never leaks ahead of a 401/403 to a
   // caller who wasn't going to be allowed to use this endpoint anyway.
   const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");

@@ -60,6 +60,23 @@ export function useCreateOrganization() {
   });
 }
 
+// Detects a suspended organization from the *inside*: current_org_id() (and therefore every RLS
+// policy shaped organization_id = current_org_id()) returns null for a suspended org's members,
+// so their own organizations row becomes unreadable -- that absence IS the suspension signal.
+// platform_admin never needs this (is_platform_admin() bypasses org scoping entirely), so callers
+// should only enable this for non-platform_admin roles.
+export function useMyOrganizationAccessible(organizationId: string | null | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["organizations", "self-check", organizationId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("organizations").select("id").eq("id", organizationId!).maybeSingle();
+      if (error) throw error;
+      return !!data;
+    },
+    enabled: enabled && !!organizationId,
+  });
+}
+
 export function useUpdateOrganization() {
   const queryClient = useQueryClient();
   return useMutation({

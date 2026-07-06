@@ -45,6 +45,10 @@ import {
   BookOpen,
   BedDouble,
   FileStack,
+  Sparkles,
+  Send,
+  Sliders,
+  Eye,
   CalendarDays
 } from "lucide-react";
 
@@ -60,21 +64,41 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         ]
       },
       {
-        title: "Management",
+        title: "Tenants",
         items: [
           { href: "/admin/organizations", label: "Organizations", icon: Building2 },
-          { href: "/admin/facilities", label: "Facilities", icon: Grid },
-          { href: "/admin/employees", label: "Employees", icon: Users },
-          { href: "/admin/users", label: "Users", icon: Users },
-          { href: "/admin/courses", label: "Courses", icon: GraduationCap },
           { href: "/admin/packages", label: "Packages", icon: Package },
         ]
       },
       {
-        title: "Monitoring",
+        title: "Directory",
+        items: [
+          { href: "/admin/facilities", label: "Facilities", icon: Grid },
+          { href: "/admin/employees", label: "Employees", icon: Users },
+          { href: "/admin/users", label: "Users", icon: Users },
+        ]
+      },
+      {
+        title: "Content Studio",
+        items: [
+          { href: "/admin/courses", label: "Courses", icon: GraduationCap },
+          { href: "/admin/courses/new-ai", label: "New AI Course", icon: Sparkles },
+          { href: "/admin/ai-generations", label: "AI Generation Log", icon: BarChart3 },
+        ]
+      },
+      {
+        title: "Oversight",
         items: [
           { href: "/admin/alerts", label: "Alerts", icon: Bell },
           { href: "/admin/audit", label: "Audit Log", icon: ShieldAlert },
+          { href: "/admin/notifications", label: "Notification Delivery", icon: Send },
+          { href: "/admin/security", label: "Security & Governance", icon: Eye },
+        ]
+      },
+      {
+        title: "Platform",
+        items: [
+          { href: "/admin/settings", label: "Settings", icon: Sliders },
         ]
       }
     ];

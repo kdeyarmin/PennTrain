@@ -70,7 +70,7 @@ export function useLogResidentChangeOfCondition() {
     mutationFn: async ({ residentId, notes }: { residentId: string; notes?: string }) => {
       const { data, error } = await supabase.rpc("log_resident_change_of_condition", {
         p_resident_id: residentId,
-        p_notes: notes ?? null,
+        p_notes: notes,
       });
       if (error) throw error;
       return data;

@@ -80,3 +80,16 @@ verify_jwt = false
 # the comment at the top of the function itself for the full reasoning.
 [functions.signup-organization]
 verify_jwt = false
+
+# Real session impersonation ("log in as user") for platform_admin support use. Authorization is
+# enforced inside the function itself (caller JWT must resolve to an active platform_admin
+# profile), not via verify_jwt -- verify_jwt only confirms the request carries *a* valid JWT, not
+# that its holder is platform_admin, so the function-level check is the real boundary either way.
+[functions.impersonate-user]
+verify_jwt = true
+
+# Public, unauthenticated platform-status check (maintenance banner, /signup gating) -- exposes
+# only two curated booleans, never the full platform_settings table, so there is no caller-session
+# needed and nothing sensitive to protect with verify_jwt.
+[functions.get-platform-status]
+verify_jwt = false

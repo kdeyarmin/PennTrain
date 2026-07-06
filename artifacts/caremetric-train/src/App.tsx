@@ -25,6 +25,10 @@ import Organizations from "@/pages/admin/Organizations";
 import OrganizationDetail from "@/pages/admin/OrganizationDetail";
 import Packages from "@/pages/admin/Packages";
 import AiCourseWizard from "@/pages/admin/AiCourseWizard";
+import AiGenerationLog from "@/pages/admin/AiGenerationLog";
+import NotificationDeliveries from "@/pages/admin/NotificationDeliveries";
+import PlatformSettings from "@/pages/admin/PlatformSettings";
+import SecurityGovernance from "@/pages/admin/SecurityGovernance";
 
 import OrgDashboard from "@/pages/app/Dashboard";
 import Facilities from "@/pages/app/Facilities";
@@ -91,6 +95,7 @@ import VerifyCertificate from "@/pages/VerifyCertificate";
 import CheckIn from "@/pages/CheckIn";
 
 import { MainLayout } from "@/components/layout/MainLayout";
+import MaintenanceBanner from "@/components/layout/MaintenanceBanner";
 import { useAuth } from "@/lib/auth";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { PCH_ALR_ONLY_FACILITY_TYPES, hasAnyFacilityType } from "@/lib/facilityTypes";
@@ -287,6 +292,18 @@ function Router() {
       </Route>
       <Route path="/admin/quizzes/:quizId">
         {() => <ProtectedRoute component={QuizBuilder} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/ai-generations">
+        {() => <ProtectedRoute component={AiGenerationLog} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/notifications">
+        {() => <ProtectedRoute component={NotificationDeliveries} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/settings">
+        {() => <ProtectedRoute component={PlatformSettings} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/security">
+        {() => <ProtectedRoute component={SecurityGovernance} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
 
       {/* Org/Facility routes */}
@@ -492,6 +509,7 @@ function Router() {
 function AppInner() {
   return (
     <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+      <MaintenanceBanner />
       <AuthProvider>
         <ViewingOrgProvider>
           <Router />
