@@ -36,48 +36,28 @@ alter table public.quiz_question_explanations enable row level security;
 create policy quiz_question_explanations_select on public.quiz_question_explanations for select to authenticated using (
   (select is_platform_admin())
   or (organization_id = (select current_org_id())
-      and (select "current_role"()) in ('org_admin', 'trainer', 'auditor')
-      and exists (
-        select 1 from public.quiz_questions qq
-        where qq.id = question_id and qq.organization_id = (select current_org_id())
-      ))
+      and (select "current_role"()) in ('org_admin', 'trainer', 'auditor'))
 );
 create policy quiz_question_explanations_insert on public.quiz_question_explanations for insert to authenticated with check (
   (select is_platform_admin())
   or (organization_id = (select current_org_id())
-      and (select "current_role"()) in ('org_admin', 'trainer')
-      and exists (
-        select 1 from public.quiz_questions qq
-        where qq.id = question_id and qq.organization_id = (select current_org_id())
-      ))
+      and (select "current_role"()) in ('org_admin', 'trainer'))
 );
 create policy quiz_question_explanations_update on public.quiz_question_explanations for update to authenticated
 using (
   (select is_platform_admin())
   or (organization_id = (select current_org_id())
-      and (select "current_role"()) in ('org_admin', 'trainer')
-      and exists (
-        select 1 from public.quiz_questions qq
-        where qq.id = question_id and qq.organization_id = (select current_org_id())
-      ))
+      and (select "current_role"()) in ('org_admin', 'trainer'))
 )
 with check (
   (select is_platform_admin())
   or (organization_id = (select current_org_id())
-      and (select "current_role"()) in ('org_admin', 'trainer')
-      and exists (
-        select 1 from public.quiz_questions qq
-        where qq.id = question_id and qq.organization_id = (select current_org_id())
-      ))
+      and (select "current_role"()) in ('org_admin', 'trainer'))
 );
 create policy quiz_question_explanations_delete on public.quiz_question_explanations for delete to authenticated using (
   (select is_platform_admin())
   or (organization_id = (select current_org_id())
-      and (select "current_role"()) in ('org_admin', 'trainer')
-      and exists (
-        select 1 from public.quiz_questions qq
-        where qq.id = question_id and qq.organization_id = (select current_org_id())
-      ))
+      and (select "current_role"()) in ('org_admin', 'trainer'))
 );
 
 -- Same immutable-once-published governance as quiz_questions/quiz_answers.
