@@ -10,7 +10,7 @@ export interface ListFacilitiesFilters {
   organizationId?: string;
 }
 
-export function useListFacilities(filters: ListFacilitiesFilters = {}) {
+export function useListFacilities(filters: ListFacilitiesFilters = {}, enabled = true) {
   return useQuery({
     queryKey: ["facilities", filters],
     queryFn: async () => {
@@ -20,6 +20,7 @@ export function useListFacilities(filters: ListFacilitiesFilters = {}) {
       if (error) throw error;
       return data;
     },
+    enabled,
   });
 }
 
