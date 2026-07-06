@@ -1,14 +1,13 @@
--- Fixes a bug surfaced by automated PR review (kdeyarmin/PennTrain#34): move_pg_trgm_out_of_public.sql
--- relocated pg_trgm's functions (including similarity()) out of public into the extensions schema.
--- match_exclusion_list_against_roster_core() is SECURITY DEFINER with `set search_path to 'public'`
--- and called similarity() unqualified, so unqualified calls no longer resolve at runtime (verified
--- directly against this project: `set search_path to 'public'; select similarity('foo','foo')`
--- errors with "function similarity(unknown, unknown) does not exist"). This function is called by
--- the screen-exclusions Edge Function (cron + post-CSV-import) and by rescan_org_exclusion_matches()
--- (org_admin/facility_manager's manual "Re-scan roster now" button), so exclusion screening was
--- broken until this fix. Qualify both similarity() calls instead of widening search_path, matching
--- the fully-qualified public.foo() style already used throughout this function and the rest of the
--- codebase's security definer functions.
+-- move_pg_trgm_out_of_public.sql relocated pg_trgm's functions (including similarity()) out of
+-- public into the extensions schema. match_exclusion_list_against_roster_core() is SECURITY
+-- DEFINER with `set search_path to 'public'` and called similarity() unqualified, so unqualified
+-- calls now fail to resolve at runtime (verified: `set search_path to 'public'; select
+-- similarity('foo','foo')` errors with "function similarity(unknown, unknown) does not exist").
+-- This function is called by the screen-exclusions Edge Function (cron + post-CSV-import) and by
+-- rescan_org_exclusion_matches() (org_admin/facility_manager's manual "Re-scan roster now"
+-- button), so exclusion screening was broken until this fix. Qualify both similarity() calls
+-- instead of widening search_path, matching the fully-qualified public.foo() style already used
+-- throughout this function and the rest of the codebase's security definer functions.
 create or replace function public.match_exclusion_list_against_roster_core(p_source text, p_organization_id uuid default null)
 returns void language plpgsql security definer set search_path to 'public' as $$
 begin
