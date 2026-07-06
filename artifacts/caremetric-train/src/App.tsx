@@ -30,6 +30,9 @@ const AiGenerationLog = lazy(() => import("@/pages/admin/AiGenerationLog"));
 const NotificationDeliveries = lazy(() => import("@/pages/admin/NotificationDeliveries"));
 const PlatformSettings = lazy(() => import("@/pages/admin/PlatformSettings"));
 const SecurityGovernance = lazy(() => import("@/pages/admin/SecurityGovernance"));
+const AdminSupportTickets = lazy(() => import("@/pages/admin/SupportTickets"));
+const AdminSupportTicketDetail = lazy(() => import("@/pages/admin/SupportTicketDetail"));
+const AdminHelpContent = lazy(() => import("@/pages/admin/HelpContent"));
 
 const OrgDashboard = lazy(() => import("@/pages/app/Dashboard"));
 const Facilities = lazy(() => import("@/pages/app/Facilities"));
@@ -77,6 +80,8 @@ const TemplateDocumentDetail = lazy(() => import("@/pages/app/TemplateDocumentDe
 const Schedule = lazy(() => import("@/pages/app/Schedule"));
 const ScheduleDetail = lazy(() => import("@/pages/app/ScheduleDetail"));
 const ScheduleSetup = lazy(() => import("@/pages/app/ScheduleSetup"));
+const HelpCenter = lazy(() => import("@/pages/app/HelpCenter"));
+const SupportTicketDetail = lazy(() => import("@/pages/app/SupportTicketDetail"));
 
 const TrainerDashboard = lazy(() => import("@/pages/trainer/TrainerDashboard"));
 const TrainerClasses = lazy(() => import("@/pages/trainer/TrainerClasses"));
@@ -165,6 +170,15 @@ function ProtectedRoute({
 
 const PLATFORM_ADMIN: UserRole[] = ["platform_admin"];
 const ORG_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor"];
+// support_tickets_select RLS gates on created_by = auth.uid() (or platform_admin), not on role,
+// and a ticket's stored notification link is baked in from the creator's role *at notify time* --
+// so if that role changes later (promotion/demotion), a route guard scoped to just ORG_ROLES or
+// just employee would bounce a still-authorized viewer away from their own ticket at the other
+// prefix. Every non-platform_admin role can reach either /app/help/tickets/:id or
+// /me/help/tickets/:id; SupportTicketDetail.tsx itself derives its "back to Help Center" link from
+// the current URL, not from allowedRoles, so it's safe to widen this one without also widening
+// the HelpCenter.tsx list/FAQ/submit routes.
+const SUPPORT_TICKET_DETAIL_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor", "employee"];
 const ORG_MANAGE_ROLES: UserRole[] = ["org_admin", "facility_manager"];
 const ORG_ADMIN_ONLY: UserRole[] = ["org_admin"];
 // Read-only compliance views auditor needs alongside the org admin roles -- auditor never
@@ -313,6 +327,15 @@ function Router() {
       <Route path="/admin/security">
         {() => <ProtectedRoute component={SecurityGovernance} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
+      <Route path="/admin/support-tickets">
+        {() => <ProtectedRoute component={AdminSupportTickets} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/support-tickets/:id">
+        {() => <ProtectedRoute component={AdminSupportTicketDetail} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/help-content">
+        {() => <ProtectedRoute component={AdminHelpContent} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
 
       {/* Org/Facility routes */}
       <Route path="/app">
@@ -441,6 +464,12 @@ function Router() {
       <Route path="/app/audit">
         {() => <ProtectedRoute component={AuditLog} allowedRoles={AUDIT_LOG_ROLES} />}
       </Route>
+      <Route path="/app/help">
+        {() => <ProtectedRoute component={HelpCenter} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/help/tickets/:id">
+        {() => <ProtectedRoute component={SupportTicketDetail} allowedRoles={SUPPORT_TICKET_DETAIL_ROLES} />}
+      </Route>
       <Route path="/app/schedule">
         {() => <ProtectedRoute component={Schedule} allowedRoles={SCHEDULE_MANAGE_ROLES} />}
       </Route>
@@ -507,6 +536,12 @@ function Router() {
       </Route>
       <Route path="/me/attestations">
         {() => <ProtectedRoute component={MyAttestations} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/help">
+        {() => <ProtectedRoute component={HelpCenter} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/help/tickets/:id">
+        {() => <ProtectedRoute component={SupportTicketDetail} allowedRoles={SUPPORT_TICKET_DETAIL_ROLES} />}
       </Route>
 
       <Route component={NotFound} />
