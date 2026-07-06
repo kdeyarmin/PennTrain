@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -14,85 +15,85 @@ import Security from "@/pages/marketing/Security";
 import HowItWorks from "@/pages/marketing/HowItWorks";
 import Faq from "@/pages/marketing/Faq";
 
-import Login from "@/pages/auth/Login";
-import Demo from "@/pages/auth/Demo";
-import Signup from "@/pages/auth/Signup";
-import ForgotPassword from "@/pages/auth/ForgotPassword";
-import ResetPassword from "@/pages/auth/ResetPassword";
+const Login = lazy(() => import("@/pages/auth/Login"));
+const Demo = lazy(() => import("@/pages/auth/Demo"));
+const Signup = lazy(() => import("@/pages/auth/Signup"));
+const ForgotPassword = lazy(() => import("@/pages/auth/ForgotPassword"));
+const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 
-import AdminDashboard from "@/pages/admin/AdminDashboard";
-import Organizations from "@/pages/admin/Organizations";
-import OrganizationDetail from "@/pages/admin/OrganizationDetail";
-import Packages from "@/pages/admin/Packages";
-import AiCourseWizard from "@/pages/admin/AiCourseWizard";
-import AiGenerationLog from "@/pages/admin/AiGenerationLog";
-import NotificationDeliveries from "@/pages/admin/NotificationDeliveries";
-import PlatformSettings from "@/pages/admin/PlatformSettings";
-import SecurityGovernance from "@/pages/admin/SecurityGovernance";
+const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
+const Organizations = lazy(() => import("@/pages/admin/Organizations"));
+const OrganizationDetail = lazy(() => import("@/pages/admin/OrganizationDetail"));
+const Packages = lazy(() => import("@/pages/admin/Packages"));
+const AiCourseWizard = lazy(() => import("@/pages/admin/AiCourseWizard"));
+const AiGenerationLog = lazy(() => import("@/pages/admin/AiGenerationLog"));
+const NotificationDeliveries = lazy(() => import("@/pages/admin/NotificationDeliveries"));
+const PlatformSettings = lazy(() => import("@/pages/admin/PlatformSettings"));
+const SecurityGovernance = lazy(() => import("@/pages/admin/SecurityGovernance"));
 
-import OrgDashboard from "@/pages/app/Dashboard";
-import Facilities from "@/pages/app/Facilities";
-import FacilityDetail from "@/pages/app/FacilityDetail";
-import Employees from "@/pages/app/Employees";
-import EmployeeDetail from "@/pages/app/EmployeeDetail";
-import TrainingMatrix from "@/pages/app/TrainingMatrix";
-import TrainingTypes from "@/pages/app/TrainingTypes";
-import Courses from "@/pages/app/Courses";
-import CourseDetail from "@/pages/app/CourseDetail";
-import QuizBuilder from "@/pages/app/QuizBuilder";
-import CourseAssignments from "@/pages/app/CourseAssignments";
-import TrainingPlans from "@/pages/app/TrainingPlans";
-import CompetencyTemplates from "@/pages/app/CompetencyTemplates";
-import CompetencyRecords from "@/pages/app/CompetencyRecords";
-import Practicums from "@/pages/app/Practicums";
-import MedAdminRoster from "@/pages/app/MedAdminRoster";
-import EmployeeCredentials from "@/pages/app/EmployeeCredentials";
-import BackgroundChecks from "@/pages/app/BackgroundChecks";
-import ExclusionScreening from "@/pages/app/ExclusionScreening";
-import AdministratorQualification from "@/pages/app/AdministratorQualification";
-import Incidents from "@/pages/app/Incidents";
-import Violations from "@/pages/app/Violations";
-import ViolationDetail from "@/pages/app/ViolationDetail";
-import Residents from "@/pages/app/Residents";
-import ResidentDetail from "@/pages/app/ResidentDetail";
-import ResidentComplianceReport from "@/pages/app/ResidentComplianceReport";
-import ResidentAssessmentFormEditor from "@/pages/app/ResidentAssessmentFormEditor";
-import IncidentDetail from "@/pages/app/IncidentDetail";
-import InspectionItems from "@/pages/app/InspectionItems";
-import InspectionItemDetail from "@/pages/app/InspectionItemDetail";
-import Alerts from "@/pages/app/Alerts";
-import Reports from "@/pages/app/Reports";
-import AuditLog from "@/pages/app/AuditLog";
-import Users from "@/pages/app/Users";
-import Documents from "@/pages/app/Documents";
-import PendingApprovals from "@/pages/app/PendingApprovals";
-import Settings from "@/pages/app/Settings";
-import ComplianceBinder from "@/pages/app/ComplianceBinder";
-import InspectionReadiness from "@/pages/app/InspectionReadiness";
-import PolicyDocuments from "@/pages/app/PolicyDocuments";
-import PolicyDocumentDetail from "@/pages/app/PolicyDocumentDetail";
-import TemplateDocuments from "@/pages/app/TemplateDocuments";
-import TemplateDocumentDetail from "@/pages/app/TemplateDocumentDetail";
-import Schedule from "@/pages/app/Schedule";
-import ScheduleDetail from "@/pages/app/ScheduleDetail";
-import ScheduleSetup from "@/pages/app/ScheduleSetup";
+const OrgDashboard = lazy(() => import("@/pages/app/Dashboard"));
+const Facilities = lazy(() => import("@/pages/app/Facilities"));
+const FacilityDetail = lazy(() => import("@/pages/app/FacilityDetail"));
+const Employees = lazy(() => import("@/pages/app/Employees"));
+const EmployeeDetail = lazy(() => import("@/pages/app/EmployeeDetail"));
+const TrainingMatrix = lazy(() => import("@/pages/app/TrainingMatrix"));
+const TrainingTypes = lazy(() => import("@/pages/app/TrainingTypes"));
+const Courses = lazy(() => import("@/pages/app/Courses"));
+const CourseDetail = lazy(() => import("@/pages/app/CourseDetail"));
+const QuizBuilder = lazy(() => import("@/pages/app/QuizBuilder"));
+const CourseAssignments = lazy(() => import("@/pages/app/CourseAssignments"));
+const TrainingPlans = lazy(() => import("@/pages/app/TrainingPlans"));
+const CompetencyTemplates = lazy(() => import("@/pages/app/CompetencyTemplates"));
+const CompetencyRecords = lazy(() => import("@/pages/app/CompetencyRecords"));
+const Practicums = lazy(() => import("@/pages/app/Practicums"));
+const MedAdminRoster = lazy(() => import("@/pages/app/MedAdminRoster"));
+const EmployeeCredentials = lazy(() => import("@/pages/app/EmployeeCredentials"));
+const BackgroundChecks = lazy(() => import("@/pages/app/BackgroundChecks"));
+const ExclusionScreening = lazy(() => import("@/pages/app/ExclusionScreening"));
+const AdministratorQualification = lazy(() => import("@/pages/app/AdministratorQualification"));
+const Incidents = lazy(() => import("@/pages/app/Incidents"));
+const Violations = lazy(() => import("@/pages/app/Violations"));
+const ViolationDetail = lazy(() => import("@/pages/app/ViolationDetail"));
+const Residents = lazy(() => import("@/pages/app/Residents"));
+const ResidentDetail = lazy(() => import("@/pages/app/ResidentDetail"));
+const ResidentComplianceReport = lazy(() => import("@/pages/app/ResidentComplianceReport"));
+const ResidentAssessmentFormEditor = lazy(() => import("@/pages/app/ResidentAssessmentFormEditor"));
+const IncidentDetail = lazy(() => import("@/pages/app/IncidentDetail"));
+const InspectionItems = lazy(() => import("@/pages/app/InspectionItems"));
+const InspectionItemDetail = lazy(() => import("@/pages/app/InspectionItemDetail"));
+const Alerts = lazy(() => import("@/pages/app/Alerts"));
+const Reports = lazy(() => import("@/pages/app/Reports"));
+const AuditLog = lazy(() => import("@/pages/app/AuditLog"));
+const Users = lazy(() => import("@/pages/app/Users"));
+const Documents = lazy(() => import("@/pages/app/Documents"));
+const PendingApprovals = lazy(() => import("@/pages/app/PendingApprovals"));
+const Settings = lazy(() => import("@/pages/app/Settings"));
+const ComplianceBinder = lazy(() => import("@/pages/app/ComplianceBinder"));
+const InspectionReadiness = lazy(() => import("@/pages/app/InspectionReadiness"));
+const PolicyDocuments = lazy(() => import("@/pages/app/PolicyDocuments"));
+const PolicyDocumentDetail = lazy(() => import("@/pages/app/PolicyDocumentDetail"));
+const TemplateDocuments = lazy(() => import("@/pages/app/TemplateDocuments"));
+const TemplateDocumentDetail = lazy(() => import("@/pages/app/TemplateDocumentDetail"));
+const Schedule = lazy(() => import("@/pages/app/Schedule"));
+const ScheduleDetail = lazy(() => import("@/pages/app/ScheduleDetail"));
+const ScheduleSetup = lazy(() => import("@/pages/app/ScheduleSetup"));
 
-import TrainerDashboard from "@/pages/trainer/TrainerDashboard";
-import TrainerClasses from "@/pages/trainer/TrainerClasses";
-import ClassDetail from "@/pages/trainer/ClassDetail";
-import ClassKiosk from "@/pages/trainer/ClassKiosk";
-import RetrainingMonitor from "@/pages/trainer/RetrainingMonitor";
-import EmployeeDashboard from "@/pages/employee/EmployeeDashboard";
-import MyTrainings from "@/pages/employee/MyTrainings";
-import MySchedule from "@/pages/employee/MySchedule";
-import MyCourses from "@/pages/employee/MyCourses";
-import MyCertificates from "@/pages/employee/MyCertificates";
-import MyCredentials from "@/pages/employee/MyCredentials";
-import TakeCourse from "@/pages/employee/TakeCourse";
-import TakeQuiz from "@/pages/employee/TakeQuiz";
-import MyAttestations from "@/pages/employee/MyAttestations";
-import VerifyCertificate from "@/pages/VerifyCertificate";
-import CheckIn from "@/pages/CheckIn";
+const TrainerDashboard = lazy(() => import("@/pages/trainer/TrainerDashboard"));
+const TrainerClasses = lazy(() => import("@/pages/trainer/TrainerClasses"));
+const ClassDetail = lazy(() => import("@/pages/trainer/ClassDetail"));
+const ClassKiosk = lazy(() => import("@/pages/trainer/ClassKiosk"));
+const RetrainingMonitor = lazy(() => import("@/pages/trainer/RetrainingMonitor"));
+const EmployeeDashboard = lazy(() => import("@/pages/employee/EmployeeDashboard"));
+const MyTrainings = lazy(() => import("@/pages/employee/MyTrainings"));
+const MySchedule = lazy(() => import("@/pages/employee/MySchedule"));
+const MyCourses = lazy(() => import("@/pages/employee/MyCourses"));
+const MyCertificates = lazy(() => import("@/pages/employee/MyCertificates"));
+const MyCredentials = lazy(() => import("@/pages/employee/MyCredentials"));
+const TakeCourse = lazy(() => import("@/pages/employee/TakeCourse"));
+const TakeQuiz = lazy(() => import("@/pages/employee/TakeQuiz"));
+const MyAttestations = lazy(() => import("@/pages/employee/MyAttestations"));
+const VerifyCertificate = lazy(() => import("@/pages/VerifyCertificate"));
+const CheckIn = lazy(() => import("@/pages/CheckIn"));
 
 import { MainLayout } from "@/components/layout/MainLayout";
 import MaintenanceBanner from "@/components/layout/MaintenanceBanner";
@@ -208,6 +209,13 @@ function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
 
   return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen w-full flex items-center justify-center bg-background">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      }
+    >
     <Switch>
       <Route path="/">
         {() => {
@@ -503,6 +511,7 @@ function Router() {
 
       <Route component={NotFound} />
     </Switch>
+    </Suspense>
   );
 }
 
