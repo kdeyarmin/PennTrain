@@ -125,37 +125,4 @@ begin
       where a.certificate_id = c.id and a.status = 'open'
     );
 end;
-$$;
-
-alter table public.notifications drop constraint notifications_notification_type_check;
-alter table public.notifications add constraint notifications_notification_type_check
-  check (notification_type in (
-    'course_assigned', 'quiz_graded', 'certificate_issued', 'training_due_soon', 'training_expired',
-    'competency_recorded', 'missing_document', 'certificate_expiring'
-  ));
-
-create or replace function public.notify_training_alert()
-returns trigger language plpgsql security definer set search_path to 'public' as $function$
-declare v_profile_id uuid; v_notification_type text;
-begin
-  v_notification_type := case new.alert_type
-    when 'overdue' then 'training_expired'
-    when 'due_90' then 'training_due_soon'
-    when 'due_60' then 'training_due_soon'
-    when 'due_30' then 'training_due_soon'
-    when 'due_14' then 'training_due_soon'
-    when 'due_7' then 'training_due_soon'
-    when 'missing_document' then 'missing_document'
-    when 'certificate_expiring' then 'certificate_expiring'
-    else null
-  end;
-  if new.employee_id is null or v_notification_type is null then
-    return new;
-  end if;
-  select profile_id into v_profile_id from public.employees where id = new.employee_id;
-  if v_profile_id is null then return new; end if;
-  insert into public.notifications (organization_id, profile_id, notification_type, title, body, link)
-  values (new.organization_id, v_profile_id, v_notification_type, new.title, new.message, '/me');
-  return new;
-end;
-$function$;
+$$
