@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
 import { useLocation } from "wouter";
@@ -46,11 +46,45 @@ export function hasRole(user: AuthUser | null, ...roles: Role[]): boolean {
 // would see the still-valid recovery session via getSession() with no idea it's a recovery
 // session, and land the visitor straight in the target account's dashboard. Mirroring the marker
 // into localStorage, keyed to the recovery session's user id, makes it visible everywhere the
-// underlying session is visible.
-const RECOVERY_SESSION_KEY = "cmt-recovery-user-id";
+// underlying session is visible -- including a DIFFERENT tab that receives the very same SIGNED_IN
+// event via supabase-js's own cross-tab BroadcastChannel relay (that tab's own module-level
+// `pendingImplicitGrantType` below reflects THAT tab's own URL, not the tab that actually opened
+// the recovery/invite link, so it can't be relied on there -- the shared marker is what makes that
+// tab recognize the session correctly too). A JSON *array* of user ids, not a single value: two
+// different accounts' recovery/invite links opened concurrently in two tabs must not clobber each
+// other's marker.
+const RECOVERY_SESSION_KEY = "cmt-recovery-user-ids";
+
+function getRecoveryUserIds(): string[] {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(RECOVERY_SESSION_KEY) ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 function isKnownRecoverySession(session: Session | null): boolean {
-  return !!session && window.localStorage.getItem(RECOVERY_SESSION_KEY) === session.user.id;
+  return !!session && getRecoveryUserIds().includes(session.user.id);
+}
+
+function markRecoverySession(userId: string) {
+  const ids = getRecoveryUserIds();
+  if (!ids.includes(userId)) {
+    window.localStorage.setItem(RECOVERY_SESSION_KEY, JSON.stringify([...ids, userId]));
+  }
+}
+
+// Removes only this one user id, so signing out of (or abandoning) one recovery/invite session
+// doesn't clear a *different* one still pending in another tab.
+function clearRecoverySession(userId: string | undefined) {
+  if (!userId) return;
+  const ids = getRecoveryUserIds().filter((id) => id !== userId);
+  if (ids.length > 0) {
+    window.localStorage.setItem(RECOVERY_SESSION_KEY, JSON.stringify(ids));
+  } else {
+    window.localStorage.removeItem(RECOVERY_SESSION_KEY);
+  }
 }
 
 // An invite link lands here with `#access_token=...&type=invite` in the URL hash -- the same
@@ -59,12 +93,37 @@ function isKnownRecoverySession(session: Session | null): boolean {
 // type, including `invite` (the only other one this app's invite-user Edge Function/`resetTo`
 // actually produces), fires a plain SIGNED_IN. GoTrue parses this hash itself and doesn't clear it
 // until its own /user round trip resolves -- well after this module evaluates -- so snapshotting
-// it here, once, at first import (before that round trip has a chance to finish), lets the
-// SIGNED_IN handler below recognize the one SIGNED_IN event that actually corresponds to an
-// invite redirect, even though by the time the event fires the hash itself is already gone.
+// it here, once, at first import (before that round trip has a chance to finish), lets
+// resolveIsRecoverySession below recognize the session that actually corresponds to an invite
+// redirect, even though by the time any event fires the hash itself is already gone.
+//
+// Consumed on the FIRST session-bearing check this tab makes, not tied to a specific event name.
+// GoTrue always fires an INITIAL_SESSION event -- already carrying the freshly-established session
+// -- strictly before the "real" SIGNED_IN/PASSWORD_RECOVERY notification it schedules a tick later
+// for a URL-hash grant. Gating the read/clear on `event === "SIGNED_IN"` specifically would leave
+// `session` (set unconditionally at the end of every branch below) pointing at the real invite
+// session while `isRecoverySession` still defaults to its prior value during that earlier
+// INITIAL_SESSION pass -- a real, if brief, window where isAuthenticated could read true before the
+// deferred SIGNED_IN event arrives a tick later to correct it. Resolving through this single
+// function on every event (see resolveIsRecoverySession) closes that window: isRecoverySession is
+// derived atomically alongside `session` for every event, including the first one.
 let pendingImplicitGrantType: string | null = new URLSearchParams(
   window.location.hash.replace(/^#/, ""),
 ).get("type");
+
+// Single source of truth for "is this session a not-yet-confirmed recovery/invite session."
+// Called for every session this tab observes (the initial getSession() read, and every
+// onAuthStateChange event except SIGNED_OUT) so it's reached regardless of which specific event
+// first carries the session, and regardless of whether that event was raised by an implicit-grant
+// URL this tab itself loaded or relayed from another tab via supabase-js's cross-tab broadcast.
+function resolveIsRecoverySession(session: Session | null): boolean {
+  if (session && (pendingImplicitGrantType === "invite" || pendingImplicitGrantType === "recovery")) {
+    pendingImplicitGrantType = null;
+    markRecoverySession(session.user.id);
+    return true;
+  }
+  return isKnownRecoverySession(session);
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
@@ -77,36 +136,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // that flow, it must not count as "signed in" anywhere else, or opening someone else's reset
   // link would land the visitor straight in that person's dashboard.
   const [isRecoverySession, setIsRecoverySession] = useState(false);
+  // Mirrors `session` so SIGNED_OUT (whose own nextSession is always null) can still identify and
+  // clear precisely the one recovery/invite user id that belonged to the session that just ended,
+  // without touching a *different* account's recovery marker some other tab may have pending.
+  const lastSessionRef = useRef<Session | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
+      lastSessionRef.current = data.session;
       setSession(data.session);
-      setIsRecoverySession(isKnownRecoverySession(data.session));
+      setIsRecoverySession(resolveIsRecoverySession(data.session));
       setSessionLoading(false);
     });
 
-    // SIGNED_IN fires on an explicit sign-in action (Login/Signup/Demo all funnel through
-    // supabase.auth.signInWithPassword) and never on session-restore-from-storage (that's
-    // INITIAL_SESSION) -- but it also fires for an invite link's session establishment (see
-    // pendingImplicitGrantType above), so that case is checked first and given the same
-    // not-really-signed-in treatment as PASSWORD_RECOVERY. Every other SIGNED_IN is a real sign-in,
-    // so clearing here can't wipe an already-authenticated tab on refresh, but does stop a second
-    // user's sign-in on a shared device from reusing the previous tenant's cached query data.
+    // Every event except SIGNED_OUT resolves isRecoverySession the same way, through
+    // resolveIsRecoverySession -- which also handles PASSWORD_RECOVERY (the `recovery` implicit-
+    // grant type resolves through the same pendingImplicitGrantType snapshot as `invite` does) and
+    // a relayed SIGNED_IN from another tab (its fallback to the shared, cross-tab
+    // RECOVERY_SESSION_KEY marker catches that automatically). An ordinary interactive login
+    // (Login/Signup/Demo, all via supabase.auth.signInWithPassword) resolves false here without
+    // needing its own special case, since isKnownRecoverySession can never match a session that
+    // was never marked. SIGNED_OUT is the only event that should ever clear an established marker.
     const { data: subscription } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      const isInviteRedirect = event === "SIGNED_IN" && pendingImplicitGrantType === "invite";
-      pendingImplicitGrantType = null;
-
-      if (event === "PASSWORD_RECOVERY" || isInviteRedirect) {
-        if (nextSession) {
-          window.localStorage.setItem(RECOVERY_SESSION_KEY, nextSession.user.id);
-        }
-        setIsRecoverySession(true);
-      } else if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
-        window.localStorage.removeItem(RECOVERY_SESSION_KEY);
+      if (event === "SIGNED_OUT") {
+        clearRecoverySession(lastSessionRef.current?.user.id);
         setIsRecoverySession(false);
       } else {
-        setIsRecoverySession(isKnownRecoverySession(nextSession));
+        setIsRecoverySession(resolveIsRecoverySession(nextSession));
       }
+      lastSessionRef.current = nextSession;
       setSession(nextSession);
       if (event === "SIGNED_IN") {
         queryClient.clear();
