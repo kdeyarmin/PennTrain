@@ -4,7 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Building, Building2, ShieldCheck, FileArchive, Download, Loader2 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ArrowLeft, Building, Building2, ShieldCheck, ShieldOff, FileArchive, Download, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGetOrganization, useGetOrganizationStats, useUpdateOrganization } from "@/hooks/useOrganizations";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -28,6 +32,7 @@ export default function OrganizationDetail() {
   const { mutate: updateOrganization, isPending: updatingPackage } = useUpdateOrganization();
   const { mutate: generateBinder, isPending: generatingBinder } = useGenerateComplianceBinder();
   const [binderResult, setBinderResult] = useState<{ url: string; expiresIn: number } | null>(null);
+  const [confirmSuspend, setConfirmSuspend] = useState(false);
 
   const isLoading = orgLoading || statsLoading;
 
@@ -61,6 +66,33 @@ export default function OrganizationDetail() {
     if (status === "active") return "default";
     if (status === "trial") return "secondary";
     return "destructive";
+  };
+
+  const isSuspended = org?.subscription_status === "suspended";
+
+  const handleReactivate = () => {
+    if (!id) return;
+    updateOrganization(
+      { id, subscription_status: "active" },
+      {
+        onSuccess: () => toast({ title: "Organization reactivated", description: "Access has been restored for every user in this organization." }),
+        onError: (e: Error) => toast({ title: "Failed to reactivate organization", description: e.message, variant: "destructive" }),
+      },
+    );
+  };
+
+  const handleConfirmSuspend = () => {
+    if (!id) return;
+    updateOrganization(
+      { id, subscription_status: "suspended" },
+      {
+        onSuccess: () => {
+          toast({ title: "Organization suspended", description: "Every non-platform_admin user in this organization is now locked out." });
+          setConfirmSuspend(false);
+        },
+        onError: (e: Error) => toast({ title: "Failed to suspend organization", description: e.message, variant: "destructive" }),
+      },
+    );
   };
 
   if (!id) {
@@ -200,13 +232,19 @@ export default function OrganizationDetail() {
               <span className="text-muted-foreground">Max Users</span>
               <span className="font-medium">{org.max_users ?? "Unlimited"}</span>
             </div>
+            {org.trial_ends_at && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Trial Ends</span>
+                <span className="font-medium">{new Date(org.trial_ends_at).toLocaleDateString()}</span>
+              </div>
+            )}
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">Package</span>
               <span className="font-medium">{currentPackage?.name ?? "None assigned"}</span>
             </div>
             <div className="pt-2 space-y-1.5">
               <span className="text-xs text-muted-foreground">Change package</span>
-              <Select value={org.package_id ?? "none"} onValueChange={handlePackageChange} disabled={updatingPackage}>
+              <Select value={org.package_id ?? "none"} onValueChange={handlePackageChange} disabled={updatingPackage || isSuspended}>
                 <SelectTrigger className="h-9"><SelectValue placeholder="No package" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No package</SelectItem>
@@ -217,6 +255,22 @@ export default function OrganizationDetail() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="pt-3 border-t">
+              {isSuspended ? (
+                <Button variant="outline" className="w-full gap-1.5" onClick={handleReactivate} disabled={updatingPackage}>
+                  <ShieldCheck className="h-4 w-4" /> Reactivate Organization
+                </Button>
+              ) : (
+                <Button variant="destructive" className="w-full gap-1.5" onClick={() => setConfirmSuspend(true)} disabled={updatingPackage}>
+                  <ShieldOff className="h-4 w-4" /> Suspend Organization
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground mt-1.5">
+                {isSuspended
+                  ? "This organization's users can sign in but see no data anywhere in the app until reactivated."
+                  : "Immediately locks every non-platform_admin user in this organization out of all data, everywhere in the app (they can still sign in, but see nothing)."}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -286,6 +340,29 @@ export default function OrganizationDetail() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={confirmSuspend} onOpenChange={setConfirmSuspend}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Suspend {org.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Every user in this organization will immediately lose access to all of their data -- they can still
+              sign in, but every page will show no facilities, employees, or records anywhere in the app. This
+              takes effect instantly and reverses instantly with "Reactivate Organization".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleConfirmSuspend}
+              disabled={updatingPackage}
+            >
+              Suspend Organization
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

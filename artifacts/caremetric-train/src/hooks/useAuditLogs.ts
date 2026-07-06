@@ -7,6 +7,7 @@ export type AuditLog = Tables<"audit_logs">;
 export interface ListAuditLogsFilters {
   entityType?: string;
   entityId?: string;
+  organizationId?: string;
   limit?: number;
 }
 
@@ -17,6 +18,7 @@ export function useListAuditLogs(filters: ListAuditLogsFilters = {}) {
       let query = supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(filters.limit ?? 200);
       if (filters.entityType) query = query.eq("entity_type", filters.entityType);
       if (filters.entityId) query = query.eq("entity_id", filters.entityId);
+      if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
       const { data, error } = await query;
       if (error) throw error;
       return data;

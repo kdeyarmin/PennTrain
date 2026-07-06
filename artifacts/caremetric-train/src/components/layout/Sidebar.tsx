@@ -45,7 +45,13 @@ import {
   BookOpen,
   BedDouble,
   FileStack,
-  CalendarDays
+  Sparkles,
+  Send,
+  Sliders,
+  Eye,
+  CalendarDays,
+  LifeBuoy,
+  HelpCircle
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -60,21 +66,43 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         ]
       },
       {
-        title: "Management",
+        title: "Tenants",
         items: [
           { href: "/admin/organizations", label: "Organizations", icon: Building2 },
-          { href: "/admin/facilities", label: "Facilities", icon: Grid },
-          { href: "/admin/employees", label: "Employees", icon: Users },
-          { href: "/admin/users", label: "Users", icon: Users },
-          { href: "/admin/courses", label: "Courses", icon: GraduationCap },
           { href: "/admin/packages", label: "Packages", icon: Package },
         ]
       },
       {
-        title: "Monitoring",
+        title: "Directory",
+        items: [
+          { href: "/admin/facilities", label: "Facilities", icon: Grid },
+          { href: "/admin/employees", label: "Employees", icon: Users },
+          { href: "/admin/users", label: "Users", icon: Users },
+        ]
+      },
+      {
+        title: "Content Studio",
+        items: [
+          { href: "/admin/courses", label: "Courses", icon: GraduationCap },
+          { href: "/admin/courses/new-ai", label: "New AI Course", icon: Sparkles },
+          { href: "/admin/ai-generations", label: "AI Generation Log", icon: BarChart3 },
+          { href: "/admin/help-content", label: "Help Center Content", icon: HelpCircle },
+        ]
+      },
+      {
+        title: "Oversight",
         items: [
           { href: "/admin/alerts", label: "Alerts", icon: Bell },
           { href: "/admin/audit", label: "Audit Log", icon: ShieldAlert },
+          { href: "/admin/notifications", label: "Notification Delivery", icon: Send },
+          { href: "/admin/security", label: "Security & Governance", icon: Eye },
+          { href: "/admin/support-tickets", label: "Support Tickets", icon: LifeBuoy },
+        ]
+      },
+      {
+        title: "Platform",
+        items: [
+          { href: "/admin/settings", label: "Settings", icon: Sliders },
         ]
       }
     ];
@@ -135,6 +163,12 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           // way every other facility_manager grant in this schema is.
           ...(role === "org_admin" ? [{ href: "/app/audit", label: "Audit Log", icon: ShieldAlert }] : []),
         ]
+      },
+      {
+        title: "Help",
+        items: [
+          { href: "/app/help", label: "Help Center", icon: HelpCircle },
+        ]
       }
     ];
   } else if (role === "auditor") {
@@ -177,6 +211,12 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/documents", label: "Documents", icon: Files },
           { href: "/app/audit", label: "Audit Log", icon: ShieldAlert },
         ]
+      },
+      {
+        title: "Help",
+        items: [
+          { href: "/app/help", label: "Help Center", icon: HelpCircle },
+        ]
       }
     ];
   } else if (role === "trainer") {
@@ -203,6 +243,12 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           // INSPECTION_ROLES already includes trainer.
           ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & Equipment", icon: Flame }] : []),
         ]
+      },
+      {
+        title: "Help",
+        items: [
+          { href: "/app/help", label: "Help Center", icon: HelpCircle },
+        ]
       }
     ];
   } else if (role === "employee") {
@@ -217,6 +263,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/me/documents", label: "My Documents", icon: Files },
           { href: "/me/credentials", label: "My Credentials", icon: ShieldCheck },
           { href: "/me/attestations", label: "My Attestations", icon: FileSignature },
+          { href: "/me/help", label: "Help Center", icon: HelpCircle },
         ]
       }
     ];

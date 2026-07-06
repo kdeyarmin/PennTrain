@@ -1,13 +1,17 @@
 import { useListOrganizations } from "@/hooks/useOrganizations";
+import { useGetPlatformHealth } from "@/hooks/usePlatformHealth";
+import { useListSupportTickets } from "@/hooks/useSupportTickets";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Building2, Users, AlertCircle, CheckCircle, TrendingUp, ChevronRight } from "lucide-react";
+import { Building2, Users, AlertCircle, CheckCircle, TrendingUp, ChevronRight, Send, Sparkles, Video, Ban, LifeBuoy } from "lucide-react";
 import { Link } from "wouter";
 
 export default function AdminDashboard() {
   const { data: orgs, isLoading } = useListOrganizations();
+  const { data: health, isLoading: healthLoading } = useGetPlatformHealth();
+  const { data: openTickets } = useListSupportTickets({ status: "open" });
 
   const totalOrgs = orgs?.length ?? 0;
   const activeOrgs = orgs?.filter(o => o.subscription_status === "active").length ?? 0;
@@ -74,6 +78,85 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>System Health</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {healthLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {[...Array(6)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-md" />)}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <Link href="/admin/notifications" className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                <div className="h-9 w-9 rounded-md bg-red-100 flex items-center justify-center shrink-0">
+                  <Send className="h-4 w-4 text-red-600" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold leading-tight">{health?.notificationDeliveriesFailed ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">Failed Deliveries</p>
+                </div>
+              </Link>
+              <div className="flex items-center gap-3 p-3 rounded-lg border">
+                <div className="h-9 w-9 rounded-md bg-amber-100 flex items-center justify-center shrink-0">
+                  <Send className="h-4 w-4 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold leading-tight">{health?.notificationDeliveriesPending ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">Pending Deliveries</p>
+                </div>
+              </div>
+              <Link href="/admin/ai-generations" className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                <div className="h-9 w-9 rounded-md bg-red-100 flex items-center justify-center shrink-0">
+                  <Sparkles className="h-4 w-4 text-red-600" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold leading-tight">{health?.aiGenerationsFailed ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">Failed AI Generations (30d)</p>
+                </div>
+              </Link>
+              <div className="flex items-center gap-3 p-3 rounded-lg border">
+                <div className="h-9 w-9 rounded-md bg-blue-100 flex items-center justify-center shrink-0">
+                  <Video className="h-4 w-4 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold leading-tight">{health?.heygenJobsInProgress ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">HeyGen Jobs In Progress</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 rounded-lg border">
+                <div className="h-9 w-9 rounded-md bg-orange-100 flex items-center justify-center shrink-0">
+                  <Ban className="h-4 w-4 text-orange-600" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold leading-tight">{health?.orgsByStatus?.suspended ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">Suspended Orgs</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 rounded-lg border">
+                <div className="h-9 w-9 rounded-md bg-green-100 flex items-center justify-center shrink-0">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold leading-tight">{health?.totalEmployees ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">Total Employees</p>
+                </div>
+              </div>
+              <Link href="/admin/support-tickets" className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                <div className="h-9 w-9 rounded-md bg-amber-100 flex items-center justify-center shrink-0">
+                  <LifeBuoy className="h-4 w-4 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold leading-tight">{openTickets?.length ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">Open Support Tickets</p>
+                </div>
+              </Link>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

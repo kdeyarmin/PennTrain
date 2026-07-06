@@ -50,6 +50,16 @@ Deno.serve(async (req: Request) => {
     return json({ error: "not authorized to generate course videos" }, 403);
   }
 
+  const { data: aiVideoSetting } = await callerClient
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "ai_video_generation_enabled")
+    .maybeSingle();
+  const aiVideoGenerationEnabled = aiVideoSetting?.value !== false;
+  if (!aiVideoGenerationEnabled) {
+    return json({ error: "AI video generation is currently disabled by the platform administrator." }, 403);
+  }
+
   let body: { course_block_id?: string; avatar_id?: string; voice_id?: string; script?: string; title?: string };
   try {
     body = await req.json();

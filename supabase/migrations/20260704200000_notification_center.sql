@@ -27,7 +27,9 @@ create table public.notifications (
   read_at           timestamptz,
   created_at        timestamptz not null default now()
 );
+
 create index notifications_profile_created_idx on public.notifications(profile_id, created_at desc);
+
 create index notifications_profile_unread_idx on public.notifications(profile_id) where read_at is null;
 
 alter table public.notifications enable row level security;
@@ -43,7 +45,9 @@ begin
   where id = p_id and profile_id = auth.uid() and read_at is null;
 end;
 $function$;
+
 revoke all on function public.mark_notification_read(uuid) from public;
+
 grant execute on function public.mark_notification_read(uuid) to authenticated;
 
 create or replace function public.mark_all_notifications_read()
@@ -53,7 +57,9 @@ begin
   where profile_id = auth.uid() and read_at is null;
 end;
 $function$;
+
 revoke all on function public.mark_all_notifications_read() from public;
+
 grant execute on function public.mark_all_notifications_read() to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -80,6 +86,7 @@ begin
   return new;
 end;
 $function$;
+
 create trigger notify_course_assigned after insert on public.course_assignments
   for each row execute function public.notify_course_assigned();
 
@@ -100,6 +107,7 @@ begin
   return new;
 end;
 $function$;
+
 create trigger notify_quiz_graded after update on public.quiz_attempts
   for each row
   when (old.submitted_at is null and new.submitted_at is not null)
@@ -122,6 +130,7 @@ begin
   return new;
 end;
 $function$;
+
 create trigger notify_certificate_issued after insert on public.certificates
   for each row execute function public.notify_certificate_issued();
 
@@ -142,6 +151,7 @@ begin
   return new;
 end;
 $function$;
+
 create trigger notify_competency_recorded after insert on public.competency_records
   for each row execute function public.notify_competency_recorded();
 
@@ -167,5 +177,6 @@ begin
   return new;
 end;
 $function$;
+
 create trigger notify_training_alert after insert on public.alerts
   for each row execute function public.notify_training_alert();

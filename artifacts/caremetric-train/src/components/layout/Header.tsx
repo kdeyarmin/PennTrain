@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { GlobalSearch } from "./GlobalSearch";
 import { useLocation } from "wouter";
 
 function ViewingOrgSelector() {
@@ -179,6 +180,7 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+        {user?.role === "platform_admin" && <GlobalSearch />}
         {user?.role === "platform_admin" && <ViewingOrgSelector />}
         <NotificationsMenu />
 

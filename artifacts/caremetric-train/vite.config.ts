@@ -67,6 +67,18 @@ export default defineConfig(({ command, mode }) => {
           ],
         },
         workbox: {
+          // App.tsx route-splits ~80 per-route chunks (admin/app/trainer/employee pages) behind
+          // React.lazy so an anonymous marketing visitor's initial load doesn't fetch them. The SW
+          // registers for every visitor (registerType: autoUpdate, default injectRegister), so
+          // without this the default generateSW glob would precache ALL of those chunks anyway --
+          // right after the landing page loads -- silently re-downloading the whole app in the
+          // background and defeating the point of the split. Scope precache to just the shared
+          // shell every route needs; per-route chunks are cached opportunistically as actually
+          // visited via the runtimeCaching rule below instead of forced upfront for every visitor.
+          // manifest.webmanifest is deliberately omitted -- vite-plugin-pwa always injects it into
+          // the precache manifest itself regardless of globPatterns, so listing it here just
+          // produces a duplicate (harmless, but noisy in the generated sw.js).
+          globPatterns: ["index.html", "**/index-*.js", "**/query-*.js", "**/radix-*.js", "**/*.css"],
           runtimeCaching: [
             {
               urlPattern: ({ url }) =>
@@ -77,6 +89,19 @@ export default defineConfig(({ command, mode }) => {
                 cacheName: "supabase-runtime",
                 networkTimeoutSeconds: 8,
                 expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 },
+              },
+            },
+            {
+              // Per-route chunks aren't precached (see globPatterns above) -- cache them as a
+              // user actually visits each page, so repeat visits and brief signal drops on
+              // mobile still get a fast/resilient load without eagerly downloading every role's
+              // pages for every visitor.
+              urlPattern: ({ request, sameOrigin }) =>
+                sameOrigin && (request.destination === "script" || request.destination === "style"),
+              handler: "StaleWhileRevalidate",
+              options: {
+                cacheName: "app-chunks",
+                expiration: { maxEntries: 120, maxAgeSeconds: 60 * 60 * 24 * 7 },
               },
             },
           ],

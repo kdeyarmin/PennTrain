@@ -43,7 +43,7 @@ export function useStartResidentAssessmentForm() {
       const { data, error } = await supabase.rpc("start_resident_assessment_form", {
         p_resident_id: residentId,
         p_reason: reason,
-        p_compliance_item_id: complianceItemId ?? null,
+        p_compliance_item_id: complianceItemId,
       });
       if (error) throw error;
       return data as unknown as ResidentAssessmentForm;

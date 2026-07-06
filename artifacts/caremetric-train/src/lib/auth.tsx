@@ -6,6 +6,7 @@ import { supabase, clearSupabaseRuntimeCache } from "./supabase";
 import { queryClient } from "./queryClient";
 import { isPublicPath } from "./publicPaths";
 import { useToast } from "@/hooks/use-toast";
+import { STORAGE_KEY as IMPERSONATION_STORAGE_KEY, CHANGE_EVENT as IMPERSONATION_CHANGE_EVENT } from "@/hooks/useImpersonation";
 
 export type Role = "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee" | "auditor";
 
@@ -292,6 +293,11 @@ export function useSignOut() {
     if (error) {
       toast({ variant: "destructive", title: "Sign out failed", description: error.message });
     }
+    // Always clear, impersonating or not -- otherwise a plain sign-out during impersonation
+    // leaves the admin's origin access/refresh tokens in sessionStorage, reusable by the next
+    // person to use this browser tab to silently restore that platform_admin session.
+    sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY);
+    window.dispatchEvent(new Event(IMPERSONATION_CHANGE_EVENT));
     queryClient.clear();
     await clearSupabaseRuntimeCache();
     setLocation("/login");
