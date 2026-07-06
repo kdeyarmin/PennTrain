@@ -911,10 +911,6 @@ export function getTemplateByCode(code: string): DocumentTemplate | undefined {
   return DOCUMENT_TEMPLATES.find((t) => t.code === code);
 }
 
-export function getTemplatesByCategory(category: string): DocumentTemplate[] {
-  return DOCUMENT_TEMPLATES.filter((t) => t.category === category);
-}
-
 export function searchTemplates(query: string): DocumentTemplate[] {
   const q = query.trim().toLowerCase();
   if (!q) return DOCUMENT_TEMPLATES;

@@ -53,17 +53,6 @@ export function useUpdateTrainingRecord() {
   });
 }
 
-export function useDeleteTrainingRecord() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("employee_training_records").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["training_records"] }),
-  });
-}
-
 // recalculate_all_compliance() is cron-only now (no client grant at all -- see
 // 20260705141141_annual_hours_recalc_engine_and_hardening.sql); org_admin/facility_manager
 // get this org-scoped, authorization-checked RPC instead for an on-demand refresh so a newly

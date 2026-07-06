@@ -133,6 +133,10 @@ const ORG_ADMIN_ONLY: UserRole[] = ["org_admin"];
 // Read-only compliance views auditor needs alongside the org admin roles -- auditor never
 // gets ORG_MANAGE_ROLES (Users/Settings are true admin config, not audit-relevant).
 const REPORTS_VIEW_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
+// facility_manager is deliberately excluded: audit_logs has no facility_id column, so unlike every
+// other facility_manager grant in this schema (scoped via is_assigned_to_facility(facility_id)),
+// granting this role here would expose every other facility's audit trail in the org -- see
+// 20260706002752_revert_facility_manager_audit_logs_select_pending_facility_scope.sql.
 const AUDIT_LOG_ROLES: UserRole[] = ["org_admin", "auditor"];
 // Matches employee_credentials_select RLS -- trainer is excluded, unlike ORG_ROLES, because
 // clearance/license data is more sensitive than training records.

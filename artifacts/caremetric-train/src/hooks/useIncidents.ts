@@ -99,17 +99,6 @@ export function useUpdateIncident() {
   });
 }
 
-export function useDeleteIncident() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("incidents").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["incidents"] }),
-  });
-}
-
 export function useListIncidentStaffInvolved(incidentId: string | undefined) {
   return useQuery({
     queryKey: ["incident_staff_involved", incidentId],
@@ -194,18 +183,6 @@ export function useAddIncidentNotification() {
       return data;
     },
     onSuccess: (_data, variables) => queryClient.invalidateQueries({ queryKey: ["incident_notifications", variables.incident_id] }),
-  });
-}
-
-export function useUpdateIncidentNotification() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, incidentId, ...payload }: IncidentNotificationUpdate & { id: string; incidentId: string }) => {
-      const { data, error } = await supabase.from("incident_notifications").update(payload).eq("id", id).select().single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (_data, variables) => queryClient.invalidateQueries({ queryKey: ["incident_notifications", variables.incidentId] }),
   });
 }
 
