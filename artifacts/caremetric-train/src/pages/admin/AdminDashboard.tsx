@@ -1,15 +1,17 @@
 import { useListOrganizations } from "@/hooks/useOrganizations";
 import { useGetPlatformHealth } from "@/hooks/usePlatformHealth";
+import { useListSupportTickets } from "@/hooks/useSupportTickets";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Building2, Users, AlertCircle, CheckCircle, TrendingUp, ChevronRight, Send, Sparkles, Video, Ban } from "lucide-react";
+import { Building2, Users, AlertCircle, CheckCircle, TrendingUp, ChevronRight, Send, Sparkles, Video, Ban, LifeBuoy } from "lucide-react";
 import { Link } from "wouter";
 
 export default function AdminDashboard() {
   const { data: orgs, isLoading } = useListOrganizations();
   const { data: health, isLoading: healthLoading } = useGetPlatformHealth();
+  const { data: openTickets } = useListSupportTickets({ status: "open" });
 
   const totalOrgs = orgs?.length ?? 0;
   const activeOrgs = orgs?.filter(o => o.subscription_status === "active").length ?? 0;
@@ -142,6 +144,15 @@ export default function AdminDashboard() {
                   <p className="text-xs text-muted-foreground">Total Employees</p>
                 </div>
               </div>
+              <Link href="/admin/support-tickets" className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                <div className="h-9 w-9 rounded-md bg-amber-100 flex items-center justify-center shrink-0">
+                  <LifeBuoy className="h-4 w-4 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold leading-tight">{openTickets?.length ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">Open Support Tickets</p>
+                </div>
+              </Link>
             </div>
           )}
         </CardContent>

@@ -29,6 +29,8 @@ import AiGenerationLog from "@/pages/admin/AiGenerationLog";
 import NotificationDeliveries from "@/pages/admin/NotificationDeliveries";
 import PlatformSettings from "@/pages/admin/PlatformSettings";
 import SecurityGovernance from "@/pages/admin/SecurityGovernance";
+import AdminSupportTickets from "@/pages/admin/SupportTickets";
+import AdminSupportTicketDetail from "@/pages/admin/SupportTicketDetail";
 
 import OrgDashboard from "@/pages/app/Dashboard";
 import Facilities from "@/pages/app/Facilities";
@@ -76,6 +78,8 @@ import TemplateDocumentDetail from "@/pages/app/TemplateDocumentDetail";
 import Schedule from "@/pages/app/Schedule";
 import ScheduleDetail from "@/pages/app/ScheduleDetail";
 import ScheduleSetup from "@/pages/app/ScheduleSetup";
+import HelpCenter from "@/pages/app/HelpCenter";
+import SupportTicketDetail from "@/pages/app/SupportTicketDetail";
 
 import TrainerDashboard from "@/pages/trainer/TrainerDashboard";
 import TrainerClasses from "@/pages/trainer/TrainerClasses";
@@ -305,6 +309,12 @@ function Router() {
       <Route path="/admin/security">
         {() => <ProtectedRoute component={SecurityGovernance} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
+      <Route path="/admin/support-tickets">
+        {() => <ProtectedRoute component={AdminSupportTickets} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/support-tickets/:id">
+        {() => <ProtectedRoute component={AdminSupportTicketDetail} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
 
       {/* Org/Facility routes */}
       <Route path="/app">
@@ -433,6 +443,12 @@ function Router() {
       <Route path="/app/audit">
         {() => <ProtectedRoute component={AuditLog} allowedRoles={AUDIT_LOG_ROLES} />}
       </Route>
+      <Route path="/app/help">
+        {() => <ProtectedRoute component={HelpCenter} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/help/tickets/:id">
+        {() => <ProtectedRoute component={SupportTicketDetail} allowedRoles={ORG_ROLES} />}
+      </Route>
       <Route path="/app/schedule">
         {() => <ProtectedRoute component={Schedule} allowedRoles={SCHEDULE_MANAGE_ROLES} />}
       </Route>
@@ -499,6 +515,12 @@ function Router() {
       </Route>
       <Route path="/me/attestations">
         {() => <ProtectedRoute component={MyAttestations} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/help">
+        {() => <ProtectedRoute component={HelpCenter} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/help/tickets/:id">
+        {() => <ProtectedRoute component={SupportTicketDetail} allowedRoles={["employee"]} />}
       </Route>
 
       <Route component={NotFound} />
