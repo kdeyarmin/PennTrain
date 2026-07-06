@@ -90,7 +90,10 @@ export function useFinalizeResidentAssessmentForm() {
       }
       return pdfData;
     },
-    onSuccess: (_data, formId) => {
+    // onSettled, not onSuccess: if the DB finalize RPC succeeds but the PDF-generation call then
+    // fails, the mutation still errors overall -- but the row is already finalized server-side, so
+    // the UI must refetch it regardless of which step failed, or it keeps showing stale draft state.
+    onSettled: (_data, _error, formId) => {
       queryClient.invalidateQueries({ queryKey: ["resident_assessment_forms"] });
       queryClient.invalidateQueries({ queryKey: ["resident_assessment_forms", "detail", formId] });
       queryClient.invalidateQueries({ queryKey: ["resident_compliance_items"] });

@@ -286,6 +286,60 @@ export function deriveAssessmentReason(itemType: string): AssessmentReason {
   return "initial";
 }
 
+function mergeItemMap<T>(defaults: Record<string, T>, saved: Record<string, T> | undefined): Record<string, T> {
+  const result = {} as Record<string, T>;
+  for (const key of Object.keys(defaults)) {
+    const savedAnswer = saved?.[key];
+    result[key] = savedAnswer ? { ...defaults[key], ...savedAnswer } : defaults[key];
+  }
+  return result;
+}
+
+// A saved form's content may predate a later schema_version bump (e.g. a new ADL/behavioral item
+// added to the item lists after the form was started) -- a shallow top-level spread only backfills
+// missing top-level keys, not keys nested inside section1.items/section2.sensory/section3.items/
+// section4.items, so a genuinely new item key would be `undefined` and crash the editor/PDF walk.
+// This merges each item map key-by-key against the full default shape, and merges the fixed-shape
+// sub-objects (supervision/mobility/medications, summary, participation, etc.) shallowly since
+// those don't grow new keys the same way the item maps do.
+export function mergeContentWithDefaults(
+  defaults: ResidentAssessmentFormContent,
+  saved: Partial<ResidentAssessmentFormContent> | null | undefined,
+): ResidentAssessmentFormContent {
+  if (!saved) return defaults;
+  return {
+    ...defaults,
+    ...saved,
+    residentInfo: { ...defaults.residentInfo, ...saved.residentInfo },
+    assessmentInfo: { ...defaults.assessmentInfo, ...saved.assessmentInfo },
+    section1: {
+      ...defaults.section1,
+      ...saved.section1,
+      items: mergeItemMap(defaults.section1.items, saved.section1?.items),
+      supervision: { ...defaults.section1.supervision, ...saved.section1?.supervision },
+      mobility: { ...defaults.section1.mobility, ...saved.section1?.mobility },
+      medications: { ...defaults.section1.medications, ...saved.section1?.medications },
+    },
+    section2: {
+      ...defaults.section2,
+      ...saved.section2,
+      sensory: mergeItemMap(defaults.section2.sensory, saved.section2?.sensory),
+    },
+    section3: {
+      ...defaults.section3,
+      ...saved.section3,
+      items: mergeItemMap(defaults.section3.items, saved.section3?.items),
+    },
+    section4: {
+      ...defaults.section4,
+      ...saved.section4,
+      items: mergeItemMap(defaults.section4.items, saved.section4?.items),
+    },
+    summary: { ...defaults.summary, ...saved.summary },
+    participation: { ...defaults.participation, ...saved.participation },
+  };
+}
+
 export function createEmptyContent(formType: FormType): ResidentAssessmentFormContent {
   return {
     residentInfo: { comments: "" },

@@ -6,7 +6,8 @@ import {
   useGetResidentAssessmentForm, useSaveResidentAssessmentFormDraft, useFinalizeResidentAssessmentForm,
 } from "@/hooks/useResidentAssessmentForms";
 import {
-  ADL_ITEMS, SENSORY_ITEMS, SOCIAL_ITEMS, behavioralItems, responsiblePartyOptions, createEmptyContent,
+  ADL_ITEMS, SENSORY_ITEMS, SOCIAL_ITEMS, behavioralItems, responsiblePartyOptions,
+  createEmptyContent, mergeContentWithDefaults,
   CARE_DEGREE_OPTIONS, BEHAVIORAL_DEGREE_OPTIONS, FREQUENCY_OPTIONS, REASON_OPTIONS,
   emptyDiagnosisRow, emptyParticipantRow,
   type ResidentAssessmentFormContent, type DegreeItemAnswer, type SimpleNeedAnswer, type DiagnosisRow, type ParticipantRow,
@@ -250,10 +251,11 @@ export default function ResidentAssessmentFormEditor() {
   useEffect(() => {
     if (!form) return;
     // A brand-new form's content is a bare {} (see start_resident_assessment_form()'s
-    // coalesce(v_prior.content, '{}'::jsonb)) -- shallow-merge onto the full default shape so every
-    // section has its expected keys. A revised form's content already carries the full shape
-    // forward from the prior version, so the merge is a no-op for those.
-    setContent({ ...createEmptyContent(form.form_type as FormType), ...form.content });
+    // coalesce(v_prior.content, '{}'::jsonb)) -- deep-merge onto the full default shape so every
+    // section, including item maps that may have grown new keys since this form's schema_version,
+    // has its expected keys. A revised form's content already carries the full shape forward from
+    // the prior version under the same schema_version, so the merge is a no-op for those.
+    setContent(mergeContentWithDefaults(createEmptyContent(form.form_type as FormType), form.content));
   }, [form?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = (next: ResidentAssessmentFormContent) => {
@@ -269,8 +271,21 @@ export default function ResidentAssessmentFormEditor() {
 
   const behavioralList = useMemo(() => behavioralItems((form?.form_type as FormType) ?? "RASP"), [form?.form_type]);
 
-  const handleFinalize = () => {
-    if (!formId) return;
+  const handleFinalize = async () => {
+    if (!formId || !content) return;
+    // finalize_resident_assessment_form() doesn't take content as an argument -- it finalizes
+    // whatever's already persisted. If the user clicks Finalize within the debounce window, flush
+    // the pending autosave first so the locked version matches what's on screen, not a stale one.
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+      try {
+        await saveDraft.mutateAsync({ id: formId, content });
+      } catch (e) {
+        toast({ title: "Failed to save latest changes before finalizing", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+        return;
+      }
+    }
     finalize.mutate(formId, {
       onSuccess: () => toast({ title: `${formLabel} finalized and saved as a PDF` }),
       onError: (e: Error) => toast({ title: "Failed to finalize", description: e.message, variant: "destructive" }),
@@ -308,8 +323,8 @@ export default function ResidentAssessmentFormEditor() {
           </div>
         </div>
         {!isReadOnly && (
-          <Button onClick={handleFinalize} disabled={finalize.isPending}>
-            {finalize.isPending ? "Finalizing..." : `Finalize ${formLabel}`}
+          <Button onClick={handleFinalize} disabled={finalize.isPending || saveDraft.isPending}>
+            {finalize.isPending || saveDraft.isPending ? "Finalizing..." : `Finalize ${formLabel}`}
           </Button>
         )}
       </div>

@@ -59,8 +59,8 @@ export default function Alerts() {
   const { data: correctiveActions } = useListCorrectiveActions();
   const { data: inspectionEvents } = useListAllInspectionEvents();
   // Residents only have a single /app/residents/:id route (no /admin mirror -- RESIDENT_ROLES
-  // excludes platform_admin), so no base-path switch is needed the way employee/incident/
-  // inspection links above need one.
+  // excludes platform_admin), so there's no base-path switch to make the way employee/incident/
+  // inspection links above have -- resolveAlertLink() below omits the link entirely for that role.
   const { data: residentComplianceItems } = useListAllResidentComplianceItems();
   const { toast } = useToast();
 
@@ -84,7 +84,10 @@ export default function Alerts() {
         if (itemId) return { href: `${inspectionDetailBase}/${itemId}`, label: "View Inspection Item" };
       }
     }
-    if (alert.resident_compliance_item_id) {
+    if (alert.resident_compliance_item_id && user?.role !== "platform_admin") {
+      // Unlike employee/incident/inspection links above, residents have no /admin mirror route
+      // (RESIDENT_ROLES in App.tsx deliberately excludes platform_admin) -- omit the link entirely
+      // for that viewer rather than offering one that redirects them away.
       const residentId = complianceItemResidentId.get(alert.resident_compliance_item_id);
       if (residentId) return { href: `/app/residents/${residentId}`, label: "View Resident" };
     }
