@@ -40,6 +40,19 @@ export function hasRole(user: AuthUser | null, ...roles: Role[]): boolean {
   return !!user && roles.includes(user.role);
 }
 
+// The Supabase session itself lives in localStorage, shared by every tab/window of the browser,
+// so a PASSWORD_RECOVERY marker kept only as in-memory React state would be invisible to a second
+// tab (or the same tab after a hard refresh, once the URL hash has already been consumed) -- both
+// would see the still-valid recovery session via getSession() with no idea it's a recovery
+// session, and land the visitor straight in the target account's dashboard. Mirroring the marker
+// into localStorage, keyed to the recovery session's user id, makes it visible everywhere the
+// underlying session is visible.
+const RECOVERY_SESSION_KEY = "cmt-recovery-user-id";
+
+function isKnownRecoverySession(session: Session | null): boolean {
+  return !!session && window.localStorage.getItem(RECOVERY_SESSION_KEY) === session.user.id;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -55,6 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
+      setIsRecoverySession(isKnownRecoverySession(data.session));
       setSessionLoading(false);
     });
 
@@ -65,9 +79,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // tenant's cached query data.
     const { data: subscription } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (event === "PASSWORD_RECOVERY") {
+        if (nextSession) {
+          window.localStorage.setItem(RECOVERY_SESSION_KEY, nextSession.user.id);
+        }
         setIsRecoverySession(true);
       } else if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
+        window.localStorage.removeItem(RECOVERY_SESSION_KEY);
         setIsRecoverySession(false);
+      } else {
+        setIsRecoverySession(isKnownRecoverySession(nextSession));
       }
       setSession(nextSession);
       if (event === "SIGNED_IN") {

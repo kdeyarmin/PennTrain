@@ -13,16 +13,12 @@ import { useGetOrganizationSettings, useUpsertOrganizationSettings } from "@/hoo
 import { useListNotificationDeliveries } from "@/hooks/useNotifications";
 import { useRecalculateOrgCompliance } from "@/hooks/useTrainingRecords";
 
-const DEFAULT_PRIMARY_COLOR = "#2563eb";
-const DEFAULT_ACCENT_COLOR = "#7c3aed";
 const DEFAULT_WARNING_DAYS = 90;
 const DEFAULT_OAPSA_DAYS_RESIDENT = 30;
 const DEFAULT_OAPSA_DAYS_NONRESIDENT = 90;
 const LOGO_BUCKET = "org-branding";
 
 interface SettingsFormData {
-  primaryColor: string;
-  accentColor: string;
   emailNotificationsEnabled: boolean;
   smsNotificationsEnabled: boolean;
   defaultWarningDays: string;
@@ -31,8 +27,6 @@ interface SettingsFormData {
 }
 
 const EMPTY_FORM: SettingsFormData = {
-  primaryColor: DEFAULT_PRIMARY_COLOR,
-  accentColor: DEFAULT_ACCENT_COLOR,
   emailNotificationsEnabled: true,
   smsNotificationsEnabled: false,
   defaultWarningDays: String(DEFAULT_WARNING_DAYS),
@@ -67,8 +61,6 @@ export default function Settings() {
   useEffect(() => {
     if (settings) {
       setForm({
-        primaryColor: settings.branding_primary_color ?? DEFAULT_PRIMARY_COLOR,
-        accentColor: settings.branding_accent_color ?? DEFAULT_ACCENT_COLOR,
         emailNotificationsEnabled: settings.email_notifications_enabled,
         smsNotificationsEnabled: settings.sms_notifications_enabled,
         defaultWarningDays: String(parseDefaultWarningDays(settings.default_warning_days)),
@@ -151,8 +143,6 @@ export default function Settings() {
     upsertSettings(
       {
         organization_id: user.organizationId,
-        branding_primary_color: form.primaryColor || null,
-        branding_accent_color: form.accentColor || null,
         email_notifications_enabled: form.emailNotificationsEnabled,
         sms_notifications_enabled: form.smsNotificationsEnabled,
         default_warning_days: { default: Number.isFinite(parsedDays) ? parsedDays : DEFAULT_WARNING_DAYS },
@@ -194,50 +184,9 @@ export default function Settings() {
                 <Palette className="h-5 w-5" />
                 Branding
               </CardTitle>
-              <CardDescription>Customize the colors and logo shown to your organization's users.</CardDescription>
+              <CardDescription>Customize the logo shown to your organization's users.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-[13px]">Primary Color</Label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={form.primaryColor}
-                      onChange={e => field("primaryColor", e.target.value)}
-                      disabled={!canManage}
-                      className="h-9 w-9 rounded-md border border-border cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                    <Input
-                      value={form.primaryColor}
-                      onChange={e => field("primaryColor", e.target.value)}
-                      disabled={!canManage}
-                      placeholder="#2563eb"
-                      className="h-9 font-mono text-sm"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[13px]">Accent Color</Label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={form.accentColor}
-                      onChange={e => field("accentColor", e.target.value)}
-                      disabled={!canManage}
-                      className="h-9 w-9 rounded-md border border-border cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                    <Input
-                      value={form.accentColor}
-                      onChange={e => field("accentColor", e.target.value)}
-                      disabled={!canManage}
-                      placeholder="#7c3aed"
-                      className="h-9 font-mono text-sm"
-                    />
-                  </div>
-                </div>
-              </div>
-
               <div className="space-y-1.5">
                 <Label className="text-[13px]">Organization Logo</Label>
                 <div className="flex items-center gap-4">

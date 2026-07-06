@@ -125,7 +125,10 @@ export default function ScheduleDetail() {
         onError: (e: Error) =>
           toast({
             title: "Couldn't add shift",
-            description: e.message.includes("duplicate") ? "This employee already has a shift that day." : e.message,
+            description:
+              e.message.includes("duplicate") || e.message.includes("overlapping shift")
+                ? "This employee already has a conflicting shift for that day."
+                : e.message,
             variant: "destructive",
           }),
       }
@@ -153,7 +156,15 @@ export default function ScheduleDetail() {
           toast({ title: "Shift updated" });
           setEditTarget(null);
         },
-        onError: (e: Error) => toast({ title: "Couldn't update shift", description: e.message, variant: "destructive" }),
+        onError: (e: Error) =>
+          toast({
+            title: "Couldn't update shift",
+            description:
+              e.message.includes("duplicate") || e.message.includes("overlapping shift")
+                ? "This employee already has a conflicting shift for that day."
+                : e.message,
+            variant: "destructive",
+          }),
       }
     );
   }
@@ -172,7 +183,7 @@ export default function ScheduleDetail() {
     if (!schedule) return;
     generate.mutate(schedule.id, {
       onSuccess: (result) => {
-        toast({ title: "Auto-fill complete", description: `${result.inserted} shift(s) added, ${result.skipped} skipped (already had a shift that day).` });
+        toast({ title: "Auto-fill complete", description: `${result.inserted} shift(s) added, ${result.skipped} skipped (already scheduled or would create an overlapping shift).` });
       },
       onError: (e: Error) => toast({ title: "Auto-fill failed", description: e.message, variant: "destructive" }),
     });
