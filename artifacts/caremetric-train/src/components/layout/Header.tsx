@@ -182,7 +182,10 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-        {user?.role === "platform_admin" && <GlobalSearch />}
+        {/* Every role but employee has at least one searchable entity type it can reach (see
+            tablesForRole in useGlobalSearch.ts); /me/* is a small personal area with nothing
+            org-wide to search, so the box would only ever say "no matches" there. */}
+        {!!user && user.role !== "employee" && <GlobalSearch />}
         {user?.role === "platform_admin" && <ViewingOrgSelector />}
         <NotificationsMenu />
 

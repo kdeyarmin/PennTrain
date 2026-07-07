@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useListEmployees, useCreateEmployee, useUpdateEmployee, useDeleteEmployee,
+  useListEmployeesPaginated, useCreateEmployee, useUpdateEmployee, useDeleteEmployee,
   type Employee,
 } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -70,6 +70,7 @@ interface BulkImportResponse {
 
 export default function Employees() {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [facilityId, setFacilityId] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField>("lastName");
@@ -97,10 +98,22 @@ export default function Employees() {
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
 
-  const { data: employees, isLoading } = useListEmployees({
+  // Debounce the free-text box before it drives a server request, so typing doesn't fire a
+  // query per keystroke; the page-reset on change below still happens immediately.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const { data: employeesPage, isLoading } = useListEmployeesPaginated({
     facilityId: facilityId !== "all" ? facilityId : undefined,
     status: status !== "all" ? status : undefined,
     organizationId: viewingOrgId ?? undefined,
+    search: debouncedSearch,
+    sortField,
+    sortDir,
+    page,
+    pageSize: PAGE_SIZE,
   });
   const { data: facilities } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
 
@@ -108,35 +121,9 @@ export default function Employees() {
   const { mutate: updateEmployee, isPending: updating } = useUpdateEmployee();
   const { mutate: deleteEmployee, isPending: deleting } = useDeleteEmployee();
 
-  const allEmployees = employees ?? [];
-
-  const filtered = allEmployees.filter(e => {
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return (
-      e.first_name.toLowerCase().includes(s) ||
-      e.last_name.toLowerCase().includes(s) ||
-      (e.job_title ?? "").toLowerCase().includes(s) ||
-      (e.department ?? "").toLowerCase().includes(s)
-    );
-  });
-
-  const sorted = [...filtered].sort((a, b) => {
-    let cmp = 0;
-    if (sortField === "lastName") {
-      cmp = `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`);
-    } else if (sortField === "status") {
-      cmp = a.status.localeCompare(b.status);
-    } else if (sortField === "jobTitle") {
-      cmp = (a.job_title ?? "").localeCompare(b.job_title ?? "");
-    } else if (sortField === "hireDate") {
-      cmp = (a.hire_date ?? "").localeCompare(b.hire_date ?? "");
-    }
-    return sortDir === "asc" ? cmp : -cmp;
-  });
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const rows = employeesPage?.rows ?? [];
+  const totalCount = employeesPage?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   function toggleSort(field: SortField) {
     if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -345,7 +332,7 @@ export default function Employees() {
           <div className="p-6 space-y-3">
             {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>
-        ) : paginated.length === 0 ? (
+        ) : rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
             <Users className="h-10 w-10 text-muted-foreground/30 mb-3" />
             <p className="text-sm font-medium text-muted-foreground">No employees found</p>
@@ -374,7 +361,7 @@ export default function Employees() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginated.map(emp => (
+                  {rows.map(emp => (
                     <tr key={emp.id}>
                       <td>
                         <Link href={`${basePath}/${emp.id}`}>
@@ -448,7 +435,7 @@ export default function Employees() {
             </div>
             <div className="flex items-center justify-between px-5 py-4 border-t border-border/60">
               <p className="text-[13px] text-muted-foreground">
-                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)}</span> of {sorted.length}
+                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)}</span> of {totalCount}
               </p>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" className="h-8" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
@@ -466,7 +453,7 @@ export default function Employees() {
 
       <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
         <Users className="h-4 w-4" />
-        <span>{filtered.length} employee{filtered.length !== 1 ? "s" : ""} total</span>
+        <span>{totalCount} employee{totalCount !== 1 ? "s" : ""} total</span>
       </div>
 
       <Dialog open={showForm} onOpenChange={o => { if (!o) { setShowForm(false); setEditEmp(null); } }}>
