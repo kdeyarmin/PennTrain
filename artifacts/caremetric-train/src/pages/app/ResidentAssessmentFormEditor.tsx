@@ -9,11 +9,11 @@ import {
 import { useListResidentDocuments } from "@/hooks/useResidentDocuments";
 import {
   ADL_ITEMS, SENSORY_ITEMS, SOCIAL_ITEMS, behavioralItems, responsiblePartyOptions,
-  createEmptyContent, mergeContentWithDefaults,
+  createEmptyContent, mergeContentWithDefaults, getIncompleteSections, SECTION_LABELS,
   CARE_DEGREE_OPTIONS, BEHAVIORAL_DEGREE_OPTIONS, FREQUENCY_OPTIONS, REASON_OPTIONS,
   emptyDiagnosisRow, emptyParticipantRow,
   type ResidentAssessmentFormContent, type DegreeItemAnswer, type SimpleNeedAnswer, type DiagnosisRow, type ParticipantRow,
-  type FormType, type SectionItem,
+  type FormType, type SectionItem, type FormSectionKey,
 } from "@/lib/residentAssessmentFormSchema";
 import { getComplianceFormLabel } from "@/lib/residentCompliance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,14 +23,18 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Plus, Trash2, Lock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Trash2, Lock, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
 const AUTOSAVE_DEBOUNCE_MS = 1500;
+
+const TAB_SEQUENCE: FormSectionKey[] = ["info", "section1", "section2", "section3", "section4", "summary"];
+type TabValue = FormSectionKey;
 
 function DegreeSelect({ formType, value, allOtherValue, onChange, onAllOtherChange, scale }: {
   formType: FormType; value: string; allOtherValue: string;
@@ -253,6 +257,35 @@ export default function ResidentAssessmentFormEditor() {
   const pendingSave = useRef<{ id: string; content: ResidentAssessmentFormContent } | null>(null);
   const isReadOnly = !canManage || form?.status === "finalized";
 
+  const [activeTab, setActiveTab] = useState<TabValue>("info");
+  const tabsTopRef = useRef<HTMLDivElement>(null);
+  const goToTab = (value: TabValue) => {
+    setActiveTab(value);
+    tabsTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const nextButton = (to: TabValue) => (
+    <div className="flex justify-end">
+      <Button variant="outline" onClick={() => goToTab(to)}>
+        Next: {SECTION_LABELS[to]} <ArrowRight className="ml-2 h-4 w-4" />
+      </Button>
+    </div>
+  );
+
+  // Leaving this page (e.g. to check something on the resident's profile) and coming back used to
+  // always drop the user back on the "info" tab, forcing them to re-navigate to wherever they'd
+  // gotten to. Restore whichever tab they were last on for this specific form -- keyed by formId
+  // so switching to a different resident's form doesn't inherit the wrong tab.
+  useEffect(() => {
+    if (!formId) return;
+    const stored = window.sessionStorage.getItem(`resident-assessment-form-tab:${formId}`);
+    setActiveTab(stored && (TAB_SEQUENCE as readonly string[]).includes(stored) ? (stored as TabValue) : "info");
+  }, [formId]);
+
+  useEffect(() => {
+    if (!formId) return;
+    window.sessionStorage.setItem(`resident-assessment-form-tab:${formId}`, activeTab);
+  }, [activeTab, formId]);
+
   useEffect(() => {
     if (!form) return;
     // A brand-new form's content is a bare {} (see start_resident_assessment_form()'s
@@ -334,6 +367,11 @@ export default function ResidentAssessmentFormEditor() {
   // retry, not a true regenerate. Only offer the button while that row is still missing, otherwise
   // it's guaranteed to fail.
   const hasGeneratedPdf = (residentDocuments ?? []).some((d) => d.document_label === `resident_assessment_form:${form.id}`);
+  // Advisory only -- see getIncompleteSections' comment. Recomputed on every render off `content`
+  // instead of memoized: the item-list walk is small (well under 100 items) and content already
+  // changes on every keystroke via `update`, so a useMemo here would just add bookkeeping for no
+  // real savings.
+  const incompleteSections = getIncompleteSections(content, formType);
 
   return (
     <div className="space-y-6">
@@ -372,14 +410,28 @@ export default function ResidentAssessmentFormEditor() {
         )}
       </div>
 
-      <Tabs defaultValue="info">
+      {incompleteSections.length > 0 && (
+        <Alert className="border-warning/50 bg-warning/10 [&>svg]:text-warning">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>
+            {incompleteSections.length} of {TAB_SEQUENCE.length} sections have unanswered items
+          </AlertTitle>
+          <AlertDescription>
+            {incompleteSections.map((key) => SECTION_LABELS[key]).join(", ")}. You can still save,
+            finalize, and print this {formLabel} as-is -- these sections stay flagged for follow-up.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div ref={tabsTopRef} />
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)}>
         <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="info">Resident &amp; Assessment Info</TabsTrigger>
-          <TabsTrigger value="section1">Personal Care, Supervision, Mobility, Meds</TabsTrigger>
-          <TabsTrigger value="section2">Medical, Dental, Dietary, Sensory</TabsTrigger>
-          <TabsTrigger value="section3">Mental / Behavioral / Cognitive</TabsTrigger>
-          <TabsTrigger value="section4">Social &amp; Recreational</TabsTrigger>
-          <TabsTrigger value="summary">Summary &amp; Participation</TabsTrigger>
+          {TAB_SEQUENCE.map((key) => (
+            <TabsTrigger key={key} value={key} className="gap-1.5">
+              {SECTION_LABELS[key]}
+              {incompleteSections.includes(key) && <AlertTriangle className="h-3 w-3 text-warning" />}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         <TabsContent value="info" className="space-y-4">
@@ -436,6 +488,7 @@ export default function ResidentAssessmentFormEditor() {
               </fieldset>
             </CardContent>
           </Card>
+          {nextButton("section1")}
         </TabsContent>
 
         <TabsContent value="section1" className="space-y-4">
@@ -475,6 +528,7 @@ export default function ResidentAssessmentFormEditor() {
               ))}
             </CardContent>
           </Card>
+          {nextButton("section2")}
         </TabsContent>
 
         <TabsContent value="section2" className="space-y-4">
@@ -513,6 +567,7 @@ export default function ResidentAssessmentFormEditor() {
               ))}
             </CardContent>
           </Card>
+          {nextButton("section3")}
         </TabsContent>
 
         <TabsContent value="section3" className="space-y-4">
@@ -539,6 +594,7 @@ export default function ResidentAssessmentFormEditor() {
               ))}
             </CardContent>
           </Card>
+          {nextButton("section4")}
         </TabsContent>
 
         <TabsContent value="section4" className="space-y-4">
@@ -554,6 +610,7 @@ export default function ResidentAssessmentFormEditor() {
               ))}
             </CardContent>
           </Card>
+          {nextButton("summary")}
         </TabsContent>
 
         <TabsContent value="summary" className="space-y-4">

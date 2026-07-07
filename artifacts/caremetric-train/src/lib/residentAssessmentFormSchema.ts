@@ -365,3 +365,72 @@ export function createEmptyContent(formType: FormType): ResidentAssessmentFormCo
     participation: { assessorName: "", assessorTitle: "", assessorSignedDate: "", participants: [] },
   };
 }
+
+// Which of the editor's 6 tabs a piece of content belongs to -- used to flag unanswered sections
+// without blocking save/finalize/PDF export. A facility can still have a legitimate reason to
+// finalize with gaps (e.g. a resident refuses part of the assessment), so this is advisory only:
+// surfaced as a badge/banner in the editor and a notice on the generated PDF, never a hard stop.
+export type FormSectionKey = "info" | "section1" | "section2" | "section3" | "section4" | "summary";
+export const SECTION_LABELS: Record<FormSectionKey, string> = {
+  info: "Resident & Assessment Info",
+  section1: "Personal Care, Supervision, Mobility, Meds",
+  section2: "Medical, Dental, Dietary, Sensory",
+  section3: "Mental / Behavioral / Cognitive",
+  section4: "Social & Recreational",
+  summary: "Summary & Participation",
+};
+
+function degreeItemAnswered(item: DegreeItemAnswer, formType: FormType): boolean {
+  const degreeAnswered = formType === "ASP" ? !!item.degreePreliminary && !!item.degreeAllOther : !!item.degree;
+  const needAnswered = item.serviceNeedNotApplicable || !!item.serviceNeedDescription.trim();
+  const planAnswered = item.planNotApplicable || !!item.planDescription.trim();
+  return degreeAnswered && needAnswered && planAnswered;
+}
+
+function simpleNeedAnswered(item: SimpleNeedAnswer): boolean {
+  return !item.applicable || !!item.description.trim();
+}
+
+function diagnosisRowsAnswered(rows: DiagnosisRow[], none: boolean): boolean {
+  return none || rows.every((r) => !!r.description.trim());
+}
+
+// Deliberately mirrors what a preparer would reasonably need to have typed before signing off --
+// not a check against every optional field (e.g. participants/comments are opt-in, so their
+// absence doesn't flag the summary tab).
+export function getIncompleteSections(content: ResidentAssessmentFormContent, formType: FormType): FormSectionKey[] {
+  const incomplete: FormSectionKey[] = [];
+
+  if (!content.assessmentInfo.assessmentReason || !content.assessmentInfo.supportPlanReason) {
+    incomplete.push("info");
+  }
+
+  const section1Answered =
+    (["supervision", "mobility", "medications"] as const).every((key) => !!content.section1[key].needsDescription.trim())
+    && ADL_ITEMS.every((item) => degreeItemAnswered(content.section1.items[item.key], formType));
+  if (!section1Answered) incomplete.push("section1");
+
+  const section2Answered =
+    diagnosisRowsAnswered(content.section2.physicalDiagnoses, content.section2.noPhysicalDiagnoses)
+    && diagnosisRowsAnswered(content.section2.dental, content.section2.noDental)
+    && diagnosisRowsAnswered(content.section2.dietary, content.section2.noDietary)
+    && SENSORY_ITEMS.every((item) => simpleNeedAnswered(content.section2.sensory[item.key]));
+  if (!section2Answered) incomplete.push("section2");
+
+  const section3Answered =
+    diagnosisRowsAnswered(content.section3.psychologicalDiagnoses, content.section3.noPsychologicalDiagnoses)
+    && behavioralItems(formType).every((item) => degreeItemAnswered(content.section3.items[item.key], formType));
+  if (!section3Answered) incomplete.push("section3");
+
+  const section4Answered = SOCIAL_ITEMS.every((item) => simpleNeedAnswered(content.section4.items[item.key]));
+  if (!section4Answered) incomplete.push("section4");
+
+  const summaryAnswered =
+    !!content.summary.overallWellness.trim()
+    && !!content.participation.assessorName.trim()
+    && !!content.participation.assessorTitle.trim()
+    && !!content.participation.assessorSignedDate.trim();
+  if (!summaryAnswered) incomplete.push("summary");
+
+  return incomplete;
+}
