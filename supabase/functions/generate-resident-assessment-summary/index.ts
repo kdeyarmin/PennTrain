@@ -326,14 +326,14 @@ Deno.serve(async (req: Request) => {
     }
     const message = e instanceof Error ? e.message : String(e);
     await markFailed(message);
-    return json({ error: message, generation_id: generationId }, 502);
+    return json({ error: "AI wellness summary generation failed", generation_id: generationId }, 502);
   }
   clearTimeout(timeoutId);
 
   if (!result.ok) {
     const message = anthropicErrorMessage(result);
     await markFailed(message);
-    return json({ error: message, generation_id: generationId }, 502);
+    return json({ error: "AI wellness summary generation failed", generation_id: generationId }, 502);
   }
 
   const toolInput = extractToolInput(result.body);
