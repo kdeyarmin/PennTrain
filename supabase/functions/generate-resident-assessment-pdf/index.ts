@@ -67,6 +67,74 @@ const SOCIAL_ITEMS = [
 // deno-lint-ignore no-explicit-any
 type AnyRecord = Record<string, any>;
 
+// Mirrors artifacts/caremetric-train/src/lib/residentAssessmentFormSchema.ts's getIncompleteSections
+// -- advisory only, never blocks finalize/PDF export (see that function's comment for why). Printed
+// on the PDF itself so a gap left at finalization stays visible on the document DHS/an auditor sees,
+// not just in the CareMetric editor.
+const SECTION_LABELS: Record<string, string> = {
+  info: "Resident & Assessment Info",
+  section1: "Personal Care, Supervision, Mobility, Meds",
+  section2: "Medical, Dental, Dietary, Sensory",
+  section3: "Mental / Behavioral / Cognitive",
+  section4: "Social & Recreational",
+  summary: "Summary & Participation",
+};
+
+function degreeItemAnswered(formType: string, item: AnyRecord): boolean {
+  const degreeAnswered = formType === "ASP" ? !!item.degreePreliminary && !!item.degreeAllOther : !!item.degree;
+  const needAnswered = !!item.serviceNeedNotApplicable || !!(item.serviceNeedDescription ?? "").trim();
+  const planAnswered = !!item.planNotApplicable || !!(item.planDescription ?? "").trim();
+  return degreeAnswered && needAnswered && planAnswered;
+}
+
+function simpleNeedAnswered(item: AnyRecord): boolean {
+  return item.applicable === false || !!(item.description ?? "").trim();
+}
+
+function diagnosisRowsAnswered(rows: AnyRecord[] | undefined, none: boolean | undefined): boolean {
+  const list = rows ?? [];
+  return !!none || (list.length > 0 && list.every((r) => !!(r.description ?? "").trim()));
+}
+
+function getIncompleteSections(formType: string, content: AnyRecord): string[] {
+  const incomplete: string[] = [];
+
+  if (!content.assessmentInfo?.assessmentReason || !content.assessmentInfo?.supportPlanReason) {
+    incomplete.push("info");
+  }
+
+  const section1Answered =
+    (["supervision", "mobility", "medications"] as const).every((k) =>
+      !!(content.section1?.[k]?.needsDescription ?? "").trim() && !!(content.section1?.[k]?.planDescription ?? "").trim())
+    && ADL_ITEMS.every(([key]) => degreeItemAnswered(formType, content.section1?.items?.[key] ?? {}));
+  if (!section1Answered) incomplete.push("section1");
+
+  const section2Answered =
+    diagnosisRowsAnswered(content.section2?.physicalDiagnoses, content.section2?.noPhysicalDiagnoses)
+    && diagnosisRowsAnswered(content.section2?.dental, content.section2?.noDental)
+    && diagnosisRowsAnswered(content.section2?.dietary, content.section2?.noDietary)
+    && SENSORY_ITEMS.every(([key]) => simpleNeedAnswered(content.section2?.sensory?.[key] ?? {}));
+  if (!section2Answered) incomplete.push("section2");
+
+  const behavioralList = formType === "ASP" ? BEHAVIORAL_ITEMS_ASP : BEHAVIORAL_ITEMS_RASP;
+  const section3Answered =
+    diagnosisRowsAnswered(content.section3?.psychologicalDiagnoses, content.section3?.noPsychologicalDiagnoses)
+    && behavioralList.every(([key]) => degreeItemAnswered(formType, content.section3?.items?.[key] ?? {}));
+  if (!section3Answered) incomplete.push("section3");
+
+  const section4Answered = SOCIAL_ITEMS.every(([key]) => simpleNeedAnswered(content.section4?.items?.[key] ?? {}));
+  if (!section4Answered) incomplete.push("section4");
+
+  const summaryAnswered =
+    !!(content.summary?.overallWellness ?? "").trim()
+    && !!(content.participation?.assessorName ?? "").trim()
+    && !!(content.participation?.assessorTitle ?? "").trim()
+    && !!(content.participation?.assessorSignedDate ?? "").trim();
+  if (!summaryAnswered) incomplete.push("summary");
+
+  return incomplete;
+}
+
 class PdfWriter {
   doc!: PDFDocument;
   font!: PDFFont;
@@ -218,6 +286,12 @@ async function buildAssessmentPdf(input: {
   w.y -= 20;
   w.page.drawText(`Version ${input.versionNumber} — ${humanize(input.status)}`, { x: MARGIN, y: w.y, size: 10, font: w.font, color: rgb(0.35, 0.35, 0.35) });
   w.y -= 20;
+
+  const incompleteSections = getIncompleteSections(input.formType, content);
+  if (incompleteSections.length > 0) {
+    w.row(`INCOMPLETE AT FINALIZATION -- sections with unanswered items: ${incompleteSections.map((k) => SECTION_LABELS[k]).join(", ")}.`);
+    w.y -= 6;
+  }
 
   w.heading("Facility & Preparer");
   w.field("Facility", input.facilityName);
