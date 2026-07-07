@@ -67,6 +67,45 @@ export function responsiblePartyOptions(formType: FormType) {
   return formType === "ASP" ? RESPONSIBLE_PARTY_OPTIONS_ASP : RESPONSIBLE_PARTY_OPTIONS_RASP;
 }
 
+// Part V participation record-keeping -- whether a copy of the finished assessment/support plan was
+// requested and provided, and (when no signature was collected) why.
+export const COPY_PROVIDED_OPTIONS: { value: "yes" | "no" | "na"; label: string }[] = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+  { value: "na", label: "N/A" },
+];
+export const NO_SIGNATURE_REASON_OPTIONS = [
+  { value: "declined", label: "Resident/Representative Declined" },
+  { value: "unable", label: "Unable to Sign (Medical/Cognitive)" },
+  { value: "unavailable", label: "Not Available to Sign" },
+  { value: "other", label: "Other" },
+];
+
+// Quick-fill choices for free-text fields with an obvious common vocabulary -- these set the field's
+// value directly rather than constraining it, so a value outside this list (typed by hand, or from
+// data entered before this list existed) still displays and edits normally.
+export const RELATIONSHIP_OPTIONS = [
+  { value: "Spouse", label: "Spouse" },
+  { value: "Adult Child", label: "Adult Child" },
+  { value: "Parent", label: "Parent" },
+  { value: "Sibling", label: "Sibling" },
+  { value: "Other Family Member", label: "Other Family Member" },
+  { value: "Friend", label: "Friend" },
+  { value: "Legal Guardian", label: "Legal Guardian" },
+  { value: "Power of Attorney", label: "Power of Attorney" },
+  { value: "Case Manager", label: "Case Manager" },
+];
+export const ASSESSOR_TITLE_OPTIONS = [
+  { value: "Administrator", label: "Administrator" },
+  { value: "Assistant Administrator", label: "Assistant Administrator" },
+  { value: "Director of Nursing", label: "Director of Nursing" },
+  { value: "Registered Nurse (RN)", label: "Registered Nurse (RN)" },
+  { value: "Licensed Practical Nurse (LPN)", label: "Licensed Practical Nurse (LPN)" },
+  { value: "Case Manager", label: "Case Manager" },
+  { value: "Social Worker", label: "Social Worker" },
+  { value: "Program Director", label: "Program Director" },
+];
+
 export interface SectionItem {
   key: string;
   label: string;
@@ -216,9 +255,13 @@ export interface ParticipantRow {
   copyRequested: boolean;
   copyProvided: "yes" | "no" | "na";
   noSignatureReason: string;
+  noSignatureReasonOther: string;
 }
 export function emptyParticipantRow(): ParticipantRow {
-  return { name: "", relationshipToResident: "", signedDate: "", copyRequested: false, copyProvided: "na", noSignatureReason: "" };
+  return {
+    name: "", relationshipToResident: "", signedDate: "",
+    copyRequested: false, copyProvided: "na", noSignatureReason: "", noSignatureReasonOther: "",
+  };
 }
 
 export interface ResidentAssessmentFormContent {

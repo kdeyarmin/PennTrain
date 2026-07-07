@@ -258,8 +258,9 @@ async function buildAssessmentPdf(input: {
   for (const key of ["supervision", "mobility", "medications"] as const) {
     const s = content.section1?.[key] ?? {};
     w.subheading(humanize(key));
+    w.row(`Degree: ${s.level || "—"}`);
     w.row(`${s.needsDescription || "—"}`);
-    w.row(`Plan: ${s.planDescription || "—"}`);
+    w.row(`Plan: ${s.planDescription || "—"}${s.planResponsibleParty ? ` — Responsible: ${s.planResponsibleParty}${s.planResponsiblePartyOther ? ` (${s.planResponsiblePartyOther})` : ""}` : ""}`);
   }
   for (const [key, label] of ADL_ITEMS) {
     writeDegreeItem(w, input.formType, label, content.section1?.items?.[key] ?? {});
@@ -297,7 +298,11 @@ async function buildAssessmentPdf(input: {
     w.row("No participants recorded.");
   } else {
     for (const p of participants) {
-      w.row(`${p.name || "—"} (${p.relationshipToResident || "—"}) — signed ${p.signedDate || "—"}`);
+      const copyPart = p.copyProvided ? ` — Copy Provided: ${p.copyProvided === "na" ? "N/A" : humanize(p.copyProvided)}${p.copyRequested ? " (Requested)" : ""}` : "";
+      const reasonPart = !p.signedDate && p.noSignatureReason
+        ? ` — Reason Not Signed: ${humanize(p.noSignatureReason)}${p.noSignatureReasonOther ? ` (${p.noSignatureReasonOther})` : ""}`
+        : "";
+      w.row(`${p.name || "—"} (${p.relationshipToResident || "—"}) — signed ${p.signedDate || "—"}${copyPart}${reasonPart}`);
     }
   }
 

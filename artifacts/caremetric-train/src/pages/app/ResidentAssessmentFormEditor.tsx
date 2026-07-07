@@ -11,6 +11,7 @@ import {
   ADL_ITEMS, SENSORY_ITEMS, SOCIAL_ITEMS, behavioralItems, responsiblePartyOptions,
   createEmptyContent, mergeContentWithDefaults,
   CARE_DEGREE_OPTIONS, BEHAVIORAL_DEGREE_OPTIONS, FREQUENCY_OPTIONS, REASON_OPTIONS,
+  COPY_PROVIDED_OPTIONS, NO_SIGNATURE_REASON_OPTIONS, RELATIONSHIP_OPTIONS, ASSESSOR_TITLE_OPTIONS,
   emptyDiagnosisRow, emptyParticipantRow,
   type ResidentAssessmentFormContent, type DegreeItemAnswer, type SimpleNeedAnswer, type DiagnosisRow, type ParticipantRow,
   type FormType, type SectionItem,
@@ -61,6 +62,20 @@ function DegreeSelect({ formType, value, allOtherValue, onChange, onAllOtherChan
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger className="h-8 text-xs w-40"><SelectValue placeholder="Degree" /></SelectTrigger>
       <SelectContent>{scale.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+    </Select>
+  );
+}
+
+// A Select that always resets to its placeholder after a pick -- it exists to drop a common value
+// into a plain-text field the user can still hand-edit afterward, not to represent that field's
+// current state (unlike every other Select in this file, which is bound to the field it controls).
+function QuickFillSelect({ options, onPick, placeholder, className, disabled }: {
+  options: { value: string; label: string }[]; onPick: (v: string) => void; placeholder: string; className?: string; disabled?: boolean;
+}) {
+  return (
+    <Select value="" onValueChange={onPick} disabled={disabled}>
+      <SelectTrigger className={className}><SelectValue placeholder={placeholder} /></SelectTrigger>
+      <SelectContent>{options.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
     </Select>
   );
 }
@@ -119,14 +134,26 @@ function DegreeItemEditor({ item, formType, answer, onChange, scale, readOnly }:
                 onChange={(e) => onChange({ ...answer, planDescription: e.target.value })}
               />
               <div className="grid grid-cols-2 gap-2">
-                <Select value={answer.planFrequency} onValueChange={(v) => onChange({ ...answer, planFrequency: v })}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Frequency" /></SelectTrigger>
-                  <SelectContent>{FREQUENCY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-                </Select>
-                <Select value={answer.planResponsibleParty} onValueChange={(v) => onChange({ ...answer, planResponsibleParty: v })}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Responsible party" /></SelectTrigger>
-                  <SelectContent>{partyOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-                </Select>
+                <div className="space-y-1">
+                  <Select value={answer.planFrequency} onValueChange={(v) => onChange({ ...answer, planFrequency: v })}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Frequency" /></SelectTrigger>
+                    <SelectContent>{FREQUENCY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                  {answer.planFrequency === "other" && (
+                    <Input placeholder="Specify frequency" className="h-8 text-xs" value={answer.planFrequencyOther}
+                      onChange={(e) => onChange({ ...answer, planFrequencyOther: e.target.value })} />
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Select value={answer.planResponsibleParty} onValueChange={(v) => onChange({ ...answer, planResponsibleParty: v })}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Responsible party" /></SelectTrigger>
+                    <SelectContent>{partyOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                  {answer.planResponsibleParty === "O" && (
+                    <Input placeholder="Specify responsible party" className="h-8 text-xs" value={answer.planResponsiblePartyOther}
+                      onChange={(e) => onChange({ ...answer, planResponsiblePartyOther: e.target.value })} />
+                  )}
+                </div>
               </div>
             </>
           )}
@@ -164,14 +191,26 @@ function SimpleNeedEditor({ item, formType, answer, onChange, readOnly }: {
             onChange={(e) => onChange({ ...answer, planDescription: e.target.value })}
           />
           <div className="grid grid-cols-2 gap-2">
-            <Select value={answer.planFrequency} onValueChange={(v) => onChange({ ...answer, planFrequency: v })}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Frequency" /></SelectTrigger>
-              <SelectContent>{FREQUENCY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-            </Select>
-            <Select value={answer.planResponsibleParty} onValueChange={(v) => onChange({ ...answer, planResponsibleParty: v })}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Responsible party" /></SelectTrigger>
-              <SelectContent>{partyOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-            </Select>
+            <div className="space-y-1">
+              <Select value={answer.planFrequency} onValueChange={(v) => onChange({ ...answer, planFrequency: v })}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Frequency" /></SelectTrigger>
+                <SelectContent>{FREQUENCY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+              </Select>
+              {answer.planFrequency === "other" && (
+                <Input placeholder="Specify frequency" className="h-8 text-xs" value={answer.planFrequencyOther}
+                  onChange={(e) => onChange({ ...answer, planFrequencyOther: e.target.value })} />
+              )}
+            </div>
+            <div className="space-y-1">
+              <Select value={answer.planResponsibleParty} onValueChange={(v) => onChange({ ...answer, planResponsibleParty: v })}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Responsible party" /></SelectTrigger>
+                <SelectContent>{partyOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+              </Select>
+              {answer.planResponsibleParty === "O" && (
+                <Input placeholder="Specify responsible party" className="h-8 text-xs" value={answer.planResponsiblePartyOther}
+                  onChange={(e) => onChange({ ...answer, planResponsiblePartyOther: e.target.value })} />
+              )}
+            </div>
           </div>
         </fieldset>
       )}
@@ -179,10 +218,11 @@ function SimpleNeedEditor({ item, formType, answer, onChange, readOnly }: {
   );
 }
 
-function DiagnosisRowsEditor({ title, rows, noneChecked, onRowsChange, onNoneChange, readOnly, maxRows }: {
+function DiagnosisRowsEditor({ title, rows, noneChecked, onRowsChange, onNoneChange, readOnly, maxRows, formType }: {
   title: string; rows: DiagnosisRow[]; noneChecked: boolean;
-  onRowsChange: (rows: DiagnosisRow[]) => void; onNoneChange: (v: boolean) => void; readOnly: boolean; maxRows: number;
+  onRowsChange: (rows: DiagnosisRow[]) => void; onNoneChange: (v: boolean) => void; readOnly: boolean; maxRows: number; formType: FormType;
 }) {
+  const partyOptions = responsiblePartyOptions(formType);
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -194,7 +234,9 @@ function DiagnosisRowsEditor({ title, rows, noneChecked, onRowsChange, onNoneCha
       </div>
       {!noneChecked && (
         <div className="space-y-2">
-          {rows.map((row, i) => (
+          {rows.map((row, i) => {
+            const updateRow = (patch: Partial<DiagnosisRow>) => onRowsChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+            return (
             <div key={i} className="border rounded-lg p-2 space-y-1.5">
               <div className="flex items-center gap-2">
                 <Input
@@ -202,7 +244,7 @@ function DiagnosisRowsEditor({ title, rows, noneChecked, onRowsChange, onNoneCha
                   className="h-8 text-xs"
                   value={row.description}
                   disabled={readOnly}
-                  onChange={(e) => onRowsChange(rows.map((r, j) => (j === i ? { ...r, description: e.target.value } : r)))}
+                  onChange={(e) => updateRow({ description: e.target.value })}
                 />
                 {!readOnly && (
                   <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => onRowsChange(rows.filter((_, j) => j !== i))}>
@@ -215,10 +257,33 @@ function DiagnosisRowsEditor({ title, rows, noneChecked, onRowsChange, onNoneCha
                 className="h-8 text-xs"
                 value={row.planDescription}
                 disabled={readOnly}
-                onChange={(e) => onRowsChange(rows.map((r, j) => (j === i ? { ...r, planDescription: e.target.value } : r)))}
+                onChange={(e) => updateRow({ planDescription: e.target.value })}
               />
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Select value={row.planFrequency} onValueChange={(v) => updateRow({ planFrequency: v })} disabled={readOnly}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Frequency" /></SelectTrigger>
+                    <SelectContent>{FREQUENCY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                  {row.planFrequency === "other" && (
+                    <Input placeholder="Specify frequency" className="h-8 text-xs" value={row.planFrequencyOther} disabled={readOnly}
+                      onChange={(e) => updateRow({ planFrequencyOther: e.target.value })} />
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Select value={row.planResponsibleParty} onValueChange={(v) => updateRow({ planResponsibleParty: v })} disabled={readOnly}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Responsible party" /></SelectTrigger>
+                    <SelectContent>{partyOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                  {row.planResponsibleParty === "O" && (
+                    <Input placeholder="Specify responsible party" className="h-8 text-xs" value={row.planResponsiblePartyOther} disabled={readOnly}
+                      onChange={(e) => updateRow({ planResponsiblePartyOther: e.target.value })} />
+                  )}
+                </div>
+              </div>
             </div>
-          ))}
+            );
+          })}
           {!readOnly && rows.length < maxRows && (
             <Button variant="outline" size="sm" onClick={() => onRowsChange([...rows, emptyDiagnosisRow()])}>
               <Plus className="mr-1 h-3.5 w-3.5" /> Add Row
@@ -443,23 +508,39 @@ export default function ResidentAssessmentFormEditor() {
             <CardHeader><CardTitle className="text-base">Supervision, Mobility, Medications</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <fieldset disabled={isReadOnly} className="grid sm:grid-cols-3 gap-4">
-                {(["supervision", "mobility", "medications"] as const).map((key) => (
+                {(["supervision", "mobility", "medications"] as const).map((key) => {
+                  const s = content.section1[key];
+                  const updateField = (patch: Partial<typeof s>) => update({ ...content, section1: { ...content.section1, [key]: { ...s, ...patch } } });
+                  return (
                   <div key={key} className="space-y-1.5">
                     <Label className="text-xs capitalize">{key}</Label>
+                    <Select value={s.level} onValueChange={(v) => updateField({ level: v })}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Degree" /></SelectTrigger>
+                      <SelectContent>{CARE_DEGREE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                    </Select>
                     <Textarea
-                      placeholder="Level / description"
+                      placeholder="Description of need"
                       className="min-h-20 text-xs"
-                      value={content.section1[key].needsDescription}
-                      onChange={(e) => update({ ...content, section1: { ...content.section1, [key]: { ...content.section1[key], needsDescription: e.target.value } } })}
+                      value={s.needsDescription}
+                      onChange={(e) => updateField({ needsDescription: e.target.value })}
                     />
                     <Textarea
                       placeholder="Plan to meet the need"
                       className="min-h-20 text-xs"
-                      value={content.section1[key].planDescription}
-                      onChange={(e) => update({ ...content, section1: { ...content.section1, [key]: { ...content.section1[key], planDescription: e.target.value } } })}
+                      value={s.planDescription}
+                      onChange={(e) => updateField({ planDescription: e.target.value })}
                     />
+                    <Select value={s.planResponsibleParty} onValueChange={(v) => updateField({ planResponsibleParty: v })}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Responsible party" /></SelectTrigger>
+                      <SelectContent>{responsiblePartyOptions(formType).map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                    {s.planResponsibleParty === "O" && (
+                      <Input placeholder="Specify responsible party" className="h-8 text-xs" value={s.planResponsiblePartyOther}
+                        onChange={(e) => updateField({ planResponsiblePartyOther: e.target.value })} />
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </fieldset>
             </CardContent>
           </Card>
@@ -482,19 +563,19 @@ export default function ResidentAssessmentFormEditor() {
             <CardHeader><CardTitle className="text-base">Medical &amp; Dental &amp; Dietary Diagnoses</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <DiagnosisRowsEditor
-                title="Physical Medical Diagnoses" maxRows={8} readOnly={isReadOnly}
+                title="Physical Medical Diagnoses" maxRows={8} readOnly={isReadOnly} formType={formType}
                 rows={content.section2.physicalDiagnoses} noneChecked={content.section2.noPhysicalDiagnoses}
                 onRowsChange={(rows) => update({ ...content, section2: { ...content.section2, physicalDiagnoses: rows } })}
                 onNoneChange={(v) => update({ ...content, section2: { ...content.section2, noPhysicalDiagnoses: v } })}
               />
               <DiagnosisRowsEditor
-                title="Dental Needs" maxRows={2} readOnly={isReadOnly}
+                title="Dental Needs" maxRows={2} readOnly={isReadOnly} formType={formType}
                 rows={content.section2.dental} noneChecked={content.section2.noDental}
                 onRowsChange={(rows) => update({ ...content, section2: { ...content.section2, dental: rows } })}
                 onNoneChange={(v) => update({ ...content, section2: { ...content.section2, noDental: v } })}
               />
               <DiagnosisRowsEditor
-                title="Dietary Needs" maxRows={2} readOnly={isReadOnly}
+                title="Dietary Needs" maxRows={2} readOnly={isReadOnly} formType={formType}
                 rows={content.section2.dietary} noneChecked={content.section2.noDietary}
                 onRowsChange={(rows) => update({ ...content, section2: { ...content.section2, dietary: rows } })}
                 onNoneChange={(v) => update({ ...content, section2: { ...content.section2, noDietary: v } })}
@@ -520,7 +601,7 @@ export default function ResidentAssessmentFormEditor() {
             <CardHeader><CardTitle className="text-base">Psychological Diagnoses</CardTitle></CardHeader>
             <CardContent>
               <DiagnosisRowsEditor
-                title="Psychological Medical Diagnoses" maxRows={8} readOnly={isReadOnly}
+                title="Psychological Medical Diagnoses" maxRows={8} readOnly={isReadOnly} formType={formType}
                 rows={content.section3.psychologicalDiagnoses} noneChecked={content.section3.noPsychologicalDiagnoses}
                 onRowsChange={(rows) => update({ ...content, section3: { ...content.section3, psychologicalDiagnoses: rows } })}
                 onNoneChange={(v) => update({ ...content, section3: { ...content.section3, noPsychologicalDiagnoses: v } })}
@@ -581,7 +662,11 @@ export default function ResidentAssessmentFormEditor() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Assessor's Title</Label>
-                  <Input className="h-9" value={content.participation.assessorTitle}
+                  <QuickFillSelect
+                    className="h-9" placeholder="Quick fill…" options={ASSESSOR_TITLE_OPTIONS}
+                    onPick={(v) => update({ ...content, participation: { ...content.participation, assessorTitle: v } })}
+                  />
+                  <Input className="h-9" placeholder="Title" value={content.participation.assessorTitle}
                     onChange={(e) => update({ ...content, participation: { ...content.participation, assessorTitle: e.target.value } })} />
                 </div>
                 <div className="space-y-1.5">
@@ -592,30 +677,73 @@ export default function ResidentAssessmentFormEditor() {
               </fieldset>
               <div className="space-y-2">
                 <p className="text-sm font-medium">Participants (resident, family, etc.)</p>
-                {content.participation.participants.map((p, i) => (
-                  <div key={i} className="border rounded-lg p-2 grid sm:grid-cols-4 gap-2 items-end">
-                    <div className="space-y-1">
-                      <Label className="text-[11px]">Name</Label>
-                      <Input className="h-8 text-xs" value={p.name} disabled={isReadOnly}
-                        onChange={(e) => update({ ...content, participation: { ...content.participation, participants: content.participation.participants.map((r, j) => j === i ? { ...r, name: e.target.value } : r) } })} />
+                {content.participation.participants.map((p, i) => {
+                  const updateParticipant = (patch: Partial<ParticipantRow>) => update({
+                    ...content,
+                    participation: {
+                      ...content.participation,
+                      participants: content.participation.participants.map((r, j) => (j === i ? { ...r, ...patch } : r)),
+                    },
+                  });
+                  return (
+                  <div key={i} className="border rounded-lg p-2 space-y-2">
+                    <div className="grid sm:grid-cols-4 gap-2 items-start">
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Name</Label>
+                        <Input className="h-8 text-xs" value={p.name} disabled={isReadOnly}
+                          onChange={(e) => updateParticipant({ name: e.target.value })} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Relationship</Label>
+                        <QuickFillSelect
+                          className="h-8 text-xs" placeholder="Quick fill…" options={RELATIONSHIP_OPTIONS} disabled={isReadOnly}
+                          onPick={(v) => updateParticipant({ relationshipToResident: v })}
+                        />
+                        <Input className="h-8 text-xs" placeholder="Relationship" value={p.relationshipToResident} disabled={isReadOnly}
+                          onChange={(e) => updateParticipant({ relationshipToResident: e.target.value })} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Date Signed</Label>
+                        <Input type="date" className="h-8 text-xs" value={p.signedDate} disabled={isReadOnly}
+                          onChange={(e) => updateParticipant({ signedDate: e.target.value })} />
+                      </div>
+                      {!isReadOnly && (
+                        <div className="flex justify-end">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => update({ ...content, participation: { ...content.participation, participants: content.participation.participants.filter((_, j) => j !== i) } })}>
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-[11px]">Relationship</Label>
-                      <Input className="h-8 text-xs" value={p.relationshipToResident} disabled={isReadOnly}
-                        onChange={(e) => update({ ...content, participation: { ...content.participation, participants: content.participation.participants.map((r, j) => j === i ? { ...r, relationshipToResident: e.target.value } : r) } })} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[11px]">Date Signed</Label>
-                      <Input type="date" className="h-8 text-xs" value={p.signedDate} disabled={isReadOnly}
-                        onChange={(e) => update({ ...content, participation: { ...content.participation, participants: content.participation.participants.map((r, j) => j === i ? { ...r, signedDate: e.target.value } : r) } })} />
-                    </div>
-                    {!isReadOnly && (
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => update({ ...content, participation: { ...content.participation, participants: content.participation.participants.filter((_, j) => j !== i) } })}>
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
-                    )}
+                    <fieldset disabled={isReadOnly} className="grid sm:grid-cols-3 gap-2 items-end">
+                      <div className="flex items-center gap-1.5">
+                        <Checkbox checked={!!p.copyRequested} onCheckedChange={(c) => updateParticipant({ copyRequested: !!c })} />
+                        <Label className="text-[11px]">Copy Requested</Label>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Copy Provided</Label>
+                        <Select value={p.copyProvided || "na"} onValueChange={(v) => updateParticipant({ copyProvided: v as ParticipantRow["copyProvided"] })}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Copy provided?" /></SelectTrigger>
+                          <SelectContent>{COPY_PROVIDED_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      {!p.signedDate && (
+                        <div className="space-y-1">
+                          <Label className="text-[11px]">Reason Not Signed</Label>
+                          <Select value={p.noSignatureReason || ""} onValueChange={(v) => updateParticipant({ noSignatureReason: v })}>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Reason" /></SelectTrigger>
+                            <SelectContent>{NO_SIGNATURE_REASON_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                          </Select>
+                          {p.noSignatureReason === "other" && (
+                            <Input className="h-8 text-xs" placeholder="Specify" value={p.noSignatureReasonOther || ""}
+                              onChange={(e) => updateParticipant({ noSignatureReasonOther: e.target.value })} />
+                          )}
+                        </div>
+                      )}
+                    </fieldset>
                   </div>
-                ))}
+                  );
+                })}
                 {!isReadOnly && (
                   <Button variant="outline" size="sm" onClick={() => update({ ...content, participation: { ...content.participation, participants: [...content.participation.participants, emptyParticipantRow()] } })}>
                     <Plus className="mr-1 h-3.5 w-3.5" /> Add Participant
