@@ -11,7 +11,9 @@
     "typecheck": "pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
     "doctor": "pnpm --filter @workspace/scripts run doctor",
     "doctor:network": "pnpm --filter @workspace/scripts run doctor:network",
-    "db:migrate": "npx --yes supabase db push"
+    "db:migrate": "npx --yes supabase db push",
+    "check:edge-functions": "./scripts/check-edge-functions.sh",
+    "check:all": "pnpm run typecheck && pnpm run test && pnpm run check:edge-functions && pnpm --filter @workspace/caremetric-train run build"
   },
   "private": true,
   "devDependencies": {

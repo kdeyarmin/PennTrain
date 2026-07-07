@@ -1,0 +1,58 @@
+{
+  "name": "PennTrain full-stack dev/test",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "remoteUser": "node",
+  "workspaceFolder": "/workspace/PennTrain",
+  "postCreateCommand": "pnpm install --frozen-lockfile && pnpm run doctor",
+  "forwardPorts": [
+    5173,
+    8080,
+    54321,
+    54322,
+    54323,
+    54324
+  ],
+  "portsAttributes": {
+    "5173": {
+      "label": "Vite dev server"
+    },
+    "8080": {
+      "label": "Production preview server"
+    },
+    "54321": {
+      "label": "Supabase API"
+    },
+    "54322": {
+      "label": "Supabase Postgres"
+    },
+    "54323": {
+      "label": "Supabase Studio"
+    },
+    "54324": {
+      "label": "Supabase Inbucket"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "denoland.vscode-deno",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ],
+      "settings": {
+        "deno.enablePaths": [
+          "supabase/functions"
+        ],
+        "typescript.tsdk": "node_modules/typescript/lib"
+      }
+    }
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "version": "latest"
+    }
+  }
+}

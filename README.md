@@ -36,6 +36,11 @@ React frontend talks to Supabase directly via `supabase-js`.
 > Requires a linux-x64-glibc environment (dev container, WSL2, CI): the workspace deliberately strips all other
 > platforms' native binaries (see the note in `DEPLOYMENT.md` section 3).
 
+The preferred local environment is the checked-in dev container, which pins Node 24.15.x, pnpm 10.28.x, Deno 2.x,
+the Supabase CLI, and OS packages used by the app/test workflow. Open the repo in VS Code or GitHub Codespaces and
+choose **Reopen in Container**; the container runs `pnpm install --frozen-lockfile` and `pnpm run doctor` after it is
+created.
+
 ```bash
 pnpm install
 pnpm --filter @workspace/caremetric-train dev
@@ -43,6 +48,15 @@ pnpm --filter @workspace/caremetric-train dev
 
 Copy `artifacts/caremetric-train/.env.example` to `.env` and fill in your Supabase project URL and publishable
 (anon) key.
+
+Useful validation commands inside the dev container:
+
+```bash
+pnpm run typecheck
+pnpm run test
+pnpm run check:edge-functions
+pnpm run check:all
+```
 
 For production deployment (Railway + Supabase), see `DEPLOYMENT.md`.
 

@@ -33,6 +33,11 @@ const SETTINGS_CONFIG: Record<string, SettingConfig> = {
     description: "Platform_admin AI curriculum drafting via Claude -- disable to stop new Anthropic API spend.",
     type: "boolean",
   },
+  ai_wellness_summary_generation_enabled: {
+    label: "AI Wellness Summary Generation",
+    description: "Resident assessment summary drafting via Claude. Keep disabled until the PHI/BAA review is complete.",
+    type: "boolean",
+  },
   ai_video_generation_enabled: {
     label: "AI Avatar Video Generation",
     description: "HeyGen avatar-video generation for course blocks -- disable to stop new HeyGen API spend.",
