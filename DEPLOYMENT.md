@@ -367,6 +367,14 @@ policy at all, so it was never exploitable there, but the trigger was extended f
   Supabase and Railway, and that both platforms' HIPAA-eligible service tiers are enabled -- neither
   is HIPAA-eligible by default on their base plans. Do not upload real PHI to any storage bucket
   until that's confirmed.
+- **AI + resident data**: `resident_assessment_forms.content` is the one place in the app that
+  stores real clinical/functional-assessment content (see `residentAssessmentFormSchema.ts`). The
+  `generate-resident-assessment-summary` edge function can draft its "Overall Wellness Summary" via
+  Anthropic Claude, but this is gated off by the `ai_wellness_summary_generation_enabled`
+  `platform_settings` row, which defaults to `false`. Every other AI integration in this codebase
+  (course drafting) is scoped to training content and never touches resident data -- do not flip
+  this setting to `true` until a BAA with the AI vendor has been confirmed to cover resident data,
+  same as the Supabase/Railway BAA requirement above.
 
 ## 8. Verifying the deployment
 
