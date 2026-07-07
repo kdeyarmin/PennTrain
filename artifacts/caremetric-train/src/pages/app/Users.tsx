@@ -13,6 +13,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -111,6 +115,14 @@ export default function Users() {
   const [impersonateProfile, setImpersonateProfile] = useState<Profile | null>(null);
   const [impersonateReason, setImpersonateReason] = useState("");
   const { mutate: startImpersonation, isPending: startingImpersonation } = useStartImpersonation();
+
+  // Pending confirmation for the two highest-blast-radius identity changes -- role changes between
+  // any two non-platform_admin roles and reactivating a deactivated user both still apply the
+  // instant they're touched (see requestRoleChange/requestActiveToggle below); only escalating TO
+  // platform_admin and deactivating route through here first, matching OrganizationDetail.tsx's
+  // suspend-confirms/reactivate-is-instant asymmetry.
+  const [confirmRoleChange, setConfirmRoleChange] = useState<{ profile: Profile; role: string } | null>(null);
+  const [confirmDeactivate, setConfirmDeactivate] = useState<Profile | null>(null);
 
   const { data: profiles, isLoading } = useListProfiles(
     isPlatformAdmin ? {} : { organizationId: user?.organizationId ?? undefined },
@@ -290,20 +302,48 @@ export default function Users() {
     adminUpdateUser(
       { userId: p.id, role },
       {
-        onSuccess: () => toast({ title: `${p.first_name} ${p.last_name}'s role updated to ${ROLE_LABELS[role] ?? role}` }),
+        onSuccess: () => toast({ title: `${p.first_name} ${p.last_name}'s role updated to ${ROLE_LABELS[role] ?? role}`, variant: "success" }),
         onError: (e: Error) => toast({ title: "Failed to update role", description: e.message, variant: "destructive" }),
       },
     );
+  };
+
+  // Escalating a user TO platform_admin is the one role change with unrestricted-platform blast
+  // radius, so it routes through a confirm dialog first; every other role change (including
+  // between two non-platform_admin roles, or moving someone OFF platform_admin) still applies the
+  // instant the Select changes, unchanged from before.
+  const requestRoleChange = (p: Profile, role: string) => {
+    if (role === "platform_admin" && p.role !== "platform_admin") setConfirmRoleChange({ profile: p, role });
+    else handleRoleChange(p, role);
+  };
+
+  const handleConfirmRoleChange = () => {
+    if (!confirmRoleChange) return;
+    handleRoleChange(confirmRoleChange.profile, confirmRoleChange.role);
+    setConfirmRoleChange(null);
   };
 
   const handleActiveToggle = (p: Profile, isActive: boolean) => {
     adminUpdateUser(
       { userId: p.id, isActive },
       {
-        onSuccess: () => toast({ title: isActive ? "User activated" : "User deactivated" }),
+        onSuccess: () => toast({ title: isActive ? "User activated" : "User deactivated", variant: "success" }),
         onError: (e: Error) => toast({ title: "Failed to update status", description: e.message, variant: "destructive" }),
       },
     );
+  };
+
+  // Only the active -> inactive direction confirms; reactivating (inactive -> active) applies
+  // instantly, same asymmetry as OrganizationDetail.tsx's suspend/reactivate.
+  const requestActiveToggle = (p: Profile, isActive: boolean) => {
+    if (!isActive) setConfirmDeactivate(p);
+    else handleActiveToggle(p, isActive);
+  };
+
+  const handleConfirmDeactivate = () => {
+    if (!confirmDeactivate) return;
+    handleActiveToggle(confirmDeactivate, false);
+    setConfirmDeactivate(null);
   };
 
   const canImpersonate = (p: Profile) =>
@@ -433,7 +473,7 @@ export default function Users() {
                         </td>
                         <td>
                           {editable ? (
-                            <Select value={p.role} onValueChange={v => handleRoleChange(p, v)} disabled={adminUpdating}>
+                            <Select value={p.role} onValueChange={v => requestRoleChange(p, v)} disabled={adminUpdating}>
                               <SelectTrigger className="h-8 w-40 text-xs bg-card">
                                 <SelectValue />
                               </SelectTrigger>
@@ -459,7 +499,7 @@ export default function Users() {
                           <div className="flex items-center gap-2">
                             <Switch
                               checked={p.is_active}
-                              onCheckedChange={v => handleActiveToggle(p, v)}
+                              onCheckedChange={v => requestActiveToggle(p, v)}
                               disabled={!editable || adminUpdating}
                               aria-label={p.is_active ? `Deactivate ${p.first_name} ${p.last_name}` : `Activate ${p.first_name} ${p.last_name}`}
                             />
@@ -672,6 +712,50 @@ export default function Users() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!confirmRoleChange} onOpenChange={o => { if (!o) setConfirmRoleChange(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Grant {confirmRoleChange?.profile.first_name} {confirmRoleChange?.profile.last_name} Platform Admin access?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Platform Admin is unrestricted -- {confirmRoleChange?.profile.first_name} will be able to view and
+              manage every organization on the platform, not just their own, including billing, every user, and
+              every customer's compliance data. Only grant this to a trusted member of your own internal team.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmRoleChange} disabled={adminUpdating}>
+              Grant Platform Admin
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!confirmDeactivate} onOpenChange={o => { if (!o) setConfirmDeactivate(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deactivate {confirmDeactivate?.first_name} {confirmDeactivate?.last_name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Any session they're currently signed into stays valid, but they immediately lose access everywhere --
+              every page will show no facilities, employees, or records for them until reactivated. This reverses
+              instantly by switching this back on.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleConfirmDeactivate}
+              disabled={adminUpdating}
+            >
+              Deactivate User
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

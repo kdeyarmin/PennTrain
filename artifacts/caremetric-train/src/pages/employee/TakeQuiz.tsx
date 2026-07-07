@@ -172,7 +172,7 @@ export default function TakeQuiz() {
       <div className="space-y-4">
         <p className="text-muted-foreground text-sm">Assignment not found.</p>
         <Button asChild variant="outline" size="sm">
-          <Link href="/me"><ArrowLeft className="mr-2 h-4 w-4" /> Back to dashboard</Link>
+          <Link href="/me/courses"><ArrowLeft className="mr-2 h-4 w-4" /> Back to My Courses</Link>
         </Button>
       </div>
     );
@@ -183,7 +183,7 @@ export default function TakeQuiz() {
       <div className="space-y-4">
         <p className="text-muted-foreground text-sm">This assignment does not belong to you.</p>
         <Button asChild variant="outline" size="sm">
-          <Link href="/me"><ArrowLeft className="mr-2 h-4 w-4" /> Back to dashboard</Link>
+          <Link href="/me/courses"><ArrowLeft className="mr-2 h-4 w-4" /> Back to My Courses</Link>
         </Button>
       </div>
     );

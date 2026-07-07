@@ -24,12 +24,20 @@ export interface UploadResidentDocumentInput {
   residentId: string;
   complianceItemId?: string;
   documentLabel?: string;
+  /**
+   * True only when `file` IS the actual DHS-prescribed form (RASP/ASP, DME, Preadmission
+   * Screening, etc.) as completed by facility staff -- never set for CareMetric-generated
+   * reference PDFs. complete_resident_compliance_item() requires a linked document with this
+   * flag set; defaults to false so every other upload path (the generic Documents uploader,
+   * generate-resident-assessment-pdf) stays inert by default.
+   */
+  isStateForm?: boolean;
 }
 
 export function useUploadResidentDocument() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ file, organizationId, facilityId, residentId, complianceItemId, documentLabel }: UploadResidentDocumentInput) => {
+    mutationFn: async ({ file, organizationId, facilityId, residentId, complianceItemId, documentLabel, isStateForm }: UploadResidentDocumentInput) => {
       const path = `${organizationId}/${facilityId}/${crypto.randomUUID()}-${file.name}`;
       const { error: uploadError } = await supabase.storage.from("resident-documents").upload(path, file);
       if (uploadError) throw uploadError;
@@ -48,6 +56,7 @@ export function useUploadResidentDocument() {
           file_type: file.type,
           file_size: file.size,
           document_label: documentLabel ?? null,
+          is_state_form: isStateForm ?? false,
         })
         .select()
         .single();

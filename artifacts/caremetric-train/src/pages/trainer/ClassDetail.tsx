@@ -230,6 +230,7 @@ export default function ClassDetail() {
   const [selectedEmps, setSelectedEmps] = useState<string[]>([]);
   const [addingAttendees, setAddingAttendees] = useState(false);
   const [uploadingRoster, setUploadingRoster] = useState(false);
+  const [bulkAttendanceUpdating, setBulkAttendanceUpdating] = useState(false);
 
   const facilitiesById = useMemo(
     () => new Map((facilities ?? []).map((f) => [f.id, f])),
@@ -263,6 +264,50 @@ export default function ClassDetail() {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   }, []);
+
+  const allFilteredEmpsSelected =
+    filteredEmployees.length > 0 && filteredEmployees.every((e) => selectedEmps.includes(e.id));
+  const someFilteredEmpsSelected = filteredEmployees.some((e) => selectedEmps.includes(e.id));
+
+  function toggleSelectAllFilteredEmployees() {
+    setSelectedEmps((prev) => {
+      const filteredIds = filteredEmployees.map((e) => e.id);
+      if (filteredIds.length > 0 && filteredIds.every((id) => prev.includes(id))) {
+        const toRemove = new Set(filteredIds);
+        return prev.filter((id) => !toRemove.has(id));
+      }
+      return [...new Set([...prev, ...filteredIds])];
+    });
+  }
+
+  const allAttendeesChecked = allAttendees.length > 0 && allAttendees.every((a) => a.attended);
+  const someAttendeesChecked = allAttendees.some((a) => a.attended);
+
+  // Bulk-toggles every currently-listed attendee's Attended checkbox in one action (mirrors the
+  // Promise.allSettled + one-summary-toast bulk pattern used elsewhere in this app) instead of
+  // requiring one click per row.
+  async function handleToggleAllAttended(checked: boolean) {
+    if (!classId) return;
+    const targets = allAttendees.filter((a) => a.attended !== checked);
+    if (targets.length === 0) return;
+    setBulkAttendanceUpdating(true);
+    const results = await Promise.allSettled(
+      targets.map((a) => updateAttendee.mutateAsync({ id: a.id, classId, attended: checked }))
+    );
+    setBulkAttendanceUpdating(false);
+
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.length - succeeded;
+    if (failed > 0) {
+      toast({
+        title: succeeded === 0 ? "Failed to update attendance" : "Attendance partially updated",
+        description: `${succeeded} of ${results.length} updated successfully. ${failed} failed.`,
+        variant: succeeded === 0 ? "destructive" : undefined,
+      });
+    } else {
+      toast({ title: checked ? "All attendees marked present" : "All attendees marked absent", variant: "success" });
+    }
+  }
 
   async function handleAddAttendees() {
     if (!classId || selectedEmps.length === 0) return;
@@ -589,7 +634,21 @@ export default function ClassDetail() {
                   <tr>
                     <th className="text-left p-3">Employee</th>
                     <th className="text-left p-3">Facility</th>
-                    <th className="text-left p-3">Attended</th>
+                    <th className="text-left p-3">
+                      {isDraft ? (
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <Checkbox
+                            checked={allAttendeesChecked ? true : someAttendeesChecked ? "indeterminate" : false}
+                            onCheckedChange={(checked) => handleToggleAllAttended(!!checked)}
+                            disabled={bulkAttendanceUpdating}
+                            aria-label="Select all attendees"
+                          />
+                          Attended
+                        </label>
+                      ) : (
+                        "Attended"
+                      )}
+                    </th>
                     <th className="text-left p-3">Check-In / Out</th>
                     <th className="text-left p-3">Record</th>
                   </tr>
@@ -731,6 +790,16 @@ export default function ClassDetail() {
               </p>
             ) : (
               <div className="divide-y">
+                <label className="flex items-center gap-3 px-4 py-2 bg-muted/40 cursor-pointer">
+                  <Checkbox
+                    checked={allFilteredEmpsSelected ? true : someFilteredEmpsSelected ? "indeterminate" : false}
+                    onCheckedChange={toggleSelectAllFilteredEmployees}
+                    aria-label="Select all visible employees"
+                  />
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Select all visible ({filteredEmployees.length})
+                  </span>
+                </label>
                 {filteredEmployees.map((emp) => (
                   <label
                     key={emp.id}

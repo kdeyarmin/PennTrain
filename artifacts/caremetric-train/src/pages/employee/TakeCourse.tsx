@@ -84,6 +84,14 @@ export default function TakeCourse() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
+  // Every role can reach this page now (App.tsx's ANY_ROLE), but /me/trainings and
+  // /me/certificates stay employee-only routes -- routing anyone else there would just bounce
+  // them straight back out via ProtectedRoute. /me/courses is the one "/me/*" destination every
+  // role can actually land on.
+  const isEmployeeRole = user?.role === "employee";
+  const backHref = isEmployeeRole ? "/me/trainings" : "/me/courses";
+  const backLabel = isEmployeeRole ? "Back to My Trainings" : "Back to My Courses";
+
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
   const { data: assignment, isLoading: assignmentLoading } = useGetCourseAssignment(assignmentId);
   const { data: course } = useGetCourse(assignment?.course_id);
@@ -101,12 +109,25 @@ export default function TakeCourse() {
   const [stepIndex, setStepIndex] = useState(0);
   const [resumed, setResumed] = useState(false);
 
+  // Tracks the furthest lesson the learner has ever reached, so the lesson-stepper pills below can
+  // allow jumping back to any already-visited lesson while still blocking a jump ahead of it. Starts
+  // at 0 and only grows -- moving stepIndex backward (Previous, or a pill click) never lowers it, so
+  // "visited" stays visited even after navigating away from it. Also picks up the resumed starting
+  // step once progress loads (the effect below re-fires whenever stepIndex changes, including that
+  // one-time jump), so a learner resuming mid-course sees every prior lesson already unlocked.
+  const [furthestIndex, setFurthestIndex] = useState(0);
+  useEffect(() => {
+    setFurthestIndex(f => Math.max(f, stepIndex));
+  }, [stepIndex]);
+
   // Post-completion rating prompt state. postCompleteDestination tracks where
   // to navigate once the learner submits or skips the rating -- certificates
   // if issuance succeeded, trainings if it didn't (mirrors the two onSuccess/
   // onError destinations handleComplete used to navigate to directly).
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
-  const [postCompleteDestination, setPostCompleteDestination] = useState<"/me/certificates" | "/me/trainings">("/me/certificates");
+  const [postCompleteDestination, setPostCompleteDestination] = useState<"/me/certificates" | "/me/trainings" | "/me/courses">(
+    isEmployeeRole ? "/me/certificates" : "/me/courses",
+  );
   const [ratingValue, setRatingValue] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
 
@@ -220,7 +241,7 @@ export default function TakeCourse() {
           {
             onSuccess: () => {
               toast({ title: "Course completed", description: "Certificate issued -- nice work!" });
-              setPostCompleteDestination("/me/certificates");
+              setPostCompleteDestination(isEmployeeRole ? "/me/certificates" : "/me/courses");
               setShowRatingPrompt(true);
             },
             onError: (e: Error) => {
@@ -229,7 +250,7 @@ export default function TakeCourse() {
               // forward rather than blocking on this secondary step.
               toast({ title: "Course completed", description: "Nice work -- this course is now marked complete." });
               console.error("issue_certificate failed after course completion:", e.message);
-              setPostCompleteDestination("/me/trainings");
+              setPostCompleteDestination(isEmployeeRole ? "/me/trainings" : "/me/courses");
               setShowRatingPrompt(true);
             },
           }
@@ -286,7 +307,7 @@ export default function TakeCourse() {
       <div className="text-center py-12">
         <p className="text-muted-foreground">Course assignment not found.</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href="/me/trainings"><ArrowLeft className="mr-2 h-4 w-4" /> Back to My Trainings</Link>
+          <Link href={backHref}><ArrowLeft className="mr-2 h-4 w-4" /> {backLabel}</Link>
         </Button>
       </div>
     );
@@ -298,7 +319,7 @@ export default function TakeCourse() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-          <Link href="/me/trainings"><ArrowLeft className="mr-2 h-4 w-4" /> Back to My Trainings</Link>
+          <Link href={backHref}><ArrowLeft className="mr-2 h-4 w-4" /> {backLabel}</Link>
         </Button>
       </div>
 
@@ -339,6 +360,40 @@ export default function TakeCourse() {
             </div>
             <Progress value={((stepIndex + 1) / blocks.length) * 100} />
           </div>
+
+          {blocks.length > 1 && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">Jump to a lesson you've already visited</p>
+              <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Lesson navigation">
+                {blocks.map((b, i) => {
+                  const isCurrent = i === stepIndex;
+                  const isVisited = i <= furthestIndex;
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={isCurrent}
+                      aria-current={isCurrent ? "step" : undefined}
+                      aria-label={`Lesson ${i + 1}${b.title ? `: ${b.title}` : ""}${isCurrent ? " (current)" : !isVisited ? " (not yet visited)" : ""}`}
+                      title={b.title ?? `Lesson ${i + 1}`}
+                      disabled={!isVisited}
+                      onClick={() => setStepIndex(i)}
+                      className={`h-7 min-w-7 px-1.5 rounded-full text-[11px] font-medium border transition-colors ${
+                        isCurrent
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : isVisited
+                            ? "bg-secondary text-secondary-foreground border-transparent hover:bg-secondary/70 cursor-pointer"
+                            : "bg-muted text-muted-foreground/50 border-transparent cursor-not-allowed"
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <Card>
             <CardHeader>

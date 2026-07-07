@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useListFacilities, useCreateFacility, useUpdateFacility, useDeleteFacility, type Facility } from "@/hooks/useFacilities";
+import { useUrlState } from "@/hooks/useUrlState";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -10,7 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from "@/components/ui/alert-dialog";
-import { Building2, ChevronRight, MapPin, Phone, Plus, Pencil, Trash2 } from "lucide-react";
+import { Building2, ChevronRight, MapPin, Phone, Plus, Pencil, Trash2, Search } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
@@ -37,6 +38,8 @@ const EMPTY_FORM: FacilityFormData = {
   isActive: true,
 };
 
+const FACILITIES_URL_DEFAULTS = { search: "" };
+
 export default function Facilities() {
   const { user } = useAuth();
   const { viewingOrgId } = useViewingOrg();
@@ -54,6 +57,36 @@ export default function Facilities() {
   const { mutate: deleteFacility, isPending: deleting } = useDeleteFacility();
 
   const canManage = ["platform_admin", "org_admin"].includes(user?.role ?? "");
+
+  const [urlState, setUrlState] = useUrlState(FACILITIES_URL_DEFAULTS);
+  const [search, setSearch] = useState(urlState.search);
+
+  // Debounce the free-text box before it commits to the URL (and re-filters the grid below), so
+  // typing doesn't replace the URL's query string on every keystroke. The commit runs through a
+  // ref (refreshed every render) rather than closing over `urlState`/`setUrlState` directly --
+  // setUrlState's snapshot of the URL is only as fresh as the render that created it, so a plain
+  // `[search]`-keyed effect could fire 300ms later still holding a stale pre-update URL and wipe
+  // out any other filter change made in the meantime.
+  const commitSearchRef = useRef(() => {});
+  commitSearchRef.current = () => {
+    if (search !== urlState.search) setUrlState({ search });
+  };
+  useEffect(() => {
+    const t = setTimeout(() => commitSearchRef.current(), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+  // Resyncs the input's local mirror when urlState.search changes for a reason other than the
+  // commit above (browser Back/Forward, a bookmarked/deep link) -- otherwise the box shows a
+  // stale value that the debounce would then commit right back over the state just navigated to.
+  useEffect(() => {
+    setSearch(urlState.search);
+  }, [urlState.search]);
+
+  const filteredFacilities = useMemo(() => {
+    const q = urlState.search.trim().toLowerCase();
+    if (!q) return facilities ?? [];
+    return (facilities ?? []).filter((f) => f.name.toLowerCase().includes(q));
+  }, [facilities, urlState.search]);
 
   const openCreate = () => {
     setEditId(null);
@@ -137,13 +170,27 @@ export default function Facilities() {
         )}
       </div>
 
+      <div className="premium-card">
+        <div className="filter-bar">
+          <div className="relative flex-1 min-w-48">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search facilities..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-9 h-9 bg-card"
+            />
+          </div>
+        </div>
+      </div>
+
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {[...Array(6)].map((_, i) => <div key={i} className="h-44 bg-muted animate-pulse rounded-xl" />)}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {facilities?.map(facility => (
+          {filteredFacilities.map(facility => (
             <Link key={facility.id} href={`${basePath}/${facility.id}`}>
               <div className="premium-card p-5 cursor-pointer transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 group">
                 <div className="flex items-start justify-between mb-4">
@@ -208,11 +255,13 @@ export default function Facilities() {
               </div>
             </Link>
           ))}
-          {(!facilities || facilities.length === 0) && (
+          {filteredFacilities.length === 0 && (
             <div className="col-span-full flex flex-col items-center justify-center py-16">
               <Building2 className="h-10 w-10 text-muted-foreground/30 mb-3" />
               <p className="text-sm font-medium text-muted-foreground">No facilities found</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Add a facility to get started</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">
+                {facilities && facilities.length > 0 ? "Try adjusting your search." : "Add a facility to get started."}
+              </p>
             </div>
           )}
         </div>

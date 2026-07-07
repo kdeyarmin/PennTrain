@@ -1323,6 +1323,7 @@ export type Database = {
           poc_due_date: string | null
           poc_submitted_at: string | null
           severity: string
+          source_inspection_event_id: string | null
           status: string
           surveyor_name: string | null
           updated_at: string
@@ -1341,6 +1342,7 @@ export type Database = {
           poc_due_date?: string | null
           poc_submitted_at?: string | null
           severity?: string
+          source_inspection_event_id?: string | null
           status?: string
           surveyor_name?: string | null
           updated_at?: string
@@ -1359,6 +1361,7 @@ export type Database = {
           poc_due_date?: string | null
           poc_submitted_at?: string | null
           severity?: string
+          source_inspection_event_id?: string | null
           status?: string
           surveyor_name?: string | null
           updated_at?: string
@@ -1385,6 +1388,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dhs_violations_source_inspection_event_id_fkey"
+            columns: ["source_inspection_event_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_events"
             referencedColumns: ["id"]
           },
           {
@@ -4747,6 +4757,7 @@ export type Database = {
           file_size: number | null
           file_type: string
           id: string
+          is_state_form: boolean
           organization_id: string
           resident_id: string
           storage_bucket: string
@@ -4762,6 +4773,7 @@ export type Database = {
           file_size?: number | null
           file_type: string
           id?: string
+          is_state_form?: boolean
           organization_id: string
           resident_id: string
           storage_bucket?: string
@@ -4777,6 +4789,7 @@ export type Database = {
           file_size?: number | null
           file_type?: string
           id?: string
+          is_state_form?: boolean
           organization_id?: string
           resident_id?: string
           storage_bucket?: string
@@ -5929,7 +5942,7 @@ export type Database = {
         Returns: undefined
       }
       complete_resident_compliance_item: {
-        Args: { p_item_id: string }
+        Args: { p_document_id: string; p_item_id: string }
         Returns: {
           citation_topic_id: string | null
           completed_date: string | null
@@ -5969,6 +5982,34 @@ export type Database = {
           course_id: string
           course_version_id: string
         }[]
+      }
+      create_violation_retraining_action: {
+        Args: {
+          p_course_id: string
+          p_course_version_id: string
+          p_description: string
+          p_due_date: string
+          p_employee_id: string
+          p_violation_id: string
+        }
+        Returns: {
+          completed_date: string | null
+          course_assignment_id: string | null
+          created_at: string
+          description: string
+          due_date: string
+          facility_id: string
+          id: string
+          incident_id: string | null
+          inspection_event_id: string | null
+          organization_id: string
+          owner_name: string | null
+          owner_profile_id: string | null
+          status: string
+          updated_at: string
+          verification_notes: string | null
+          violation_id: string | null
+        }
       }
       current_org_id: { Args: never; Returns: string }
       current_role: { Args: never; Returns: string }
@@ -6157,6 +6198,10 @@ export type Database = {
       retry_notification_delivery: {
         Args: { p_delivery_id: string }
         Returns: undefined
+      }
+      self_enroll_course: {
+        Args: { p_course_id: string }
+        Returns: string
       }
       send_monday_digest: { Args: never; Returns: undefined }
       send_policy_attestation_reminders: { Args: never; Returns: undefined }

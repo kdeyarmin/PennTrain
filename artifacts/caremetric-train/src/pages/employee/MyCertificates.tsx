@@ -15,7 +15,12 @@ export default function MyCertificates() {
   const { toast } = useToast();
 
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
-  const { data: certificates, isLoading: certificatesLoading } = useListCertificates({ employeeId: employee?.id });
+  // Gate on a resolved employee id -- see useListCertificates' own comment on why `enabled`, not
+  // just the filter, is required to avoid an unscoped fetch-then-refetch on every page load.
+  const { data: certificates, isLoading: certificatesLoading } = useListCertificates(
+    { employeeId: employee?.id },
+    { enabled: !!employee?.id },
+  );
   const { data: courses } = useListCourses();
   const { mutateAsync: generatePdf } = useGenerateCertificatePdf();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -92,8 +97,6 @@ export default function MyCertificates() {
                       </Badge>
                       <Button
                         variant="outline"
-                        size="sm"
-                        className="h-8 text-xs"
                         disabled={downloadingId === cert.id}
                         onClick={() => handleDownload(cert.id)}
                       >

@@ -14,8 +14,12 @@ function json(body: unknown, status = 200) {
 }
 
 // job_title has no default in the employees table -- required. hire_date/email/etc are nullable
-// with defaults, so left optional.
-const REQUIRED_COLUMNS = ["first_name", "last_name", "job_title", "facility_id"];
+// with defaults, so left optional. A facility column is also required, but it may arrive as either
+// facility_name (the documented, primary path -- resolved case-insensitively against this org's
+// facilities below, since a raw facility_id UUID is never shown anywhere else in the UI) or
+// facility_id (a raw UUID, still accepted for already-integrated callers) -- checked separately
+// below rather than listed here, since exactly one of the two is required, not both.
+const REQUIRED_COLUMNS = ["first_name", "last_name", "job_title"];
 
 interface ImportRowResult {
   row: number;
@@ -85,6 +89,22 @@ Deno.serve(async (req: Request) => {
   if (missingCols.length > 0) {
     return json({ error: `CSV is missing required columns: ${missingCols.join(", ")}` }, 400);
   }
+  if (!("facility_name" in rows[0]) && !("facility_id" in rows[0])) {
+    return json({ error: "CSV is missing required columns: facility_name (or facility_id)" }, 400);
+  }
+
+  // Resolved once up front rather than per-row. Queried as the caller (not a service-role client),
+  // same as the rest of this function -- facilities_select RLS already allows any authenticated
+  // member of an org (plus platform_admin, for any org) to read that org's own facilities, so this
+  // is exactly as safe as the employees insert below and needs no elevation. Scoping to
+  // effectiveOrgId server-side (rather than trusting a client-supplied id/name map) means a
+  // resolved facility_id can never point outside the org this import is writing into.
+  const { data: orgFacilities, error: facilitiesError } = await callerClient
+    .from("facilities")
+    .select("id, name")
+    .eq("organization_id", effectiveOrgId);
+  if (facilitiesError) return json({ error: `Failed to load facilities: ${facilitiesError.message}` }, 500);
+  const facilityIdByName = new Map((orgFacilities ?? []).map((f) => [f.name.trim().toLowerCase(), f.id as string]));
 
   const results: ImportRowResult[] = [];
 
@@ -94,11 +114,27 @@ Deno.serve(async (req: Request) => {
     const first_name = row.first_name?.trim();
     const last_name = row.last_name?.trim();
     const job_title = row.job_title?.trim();
-    const facility_id = row.facility_id?.trim();
+    const rawFacilityId = row.facility_id?.trim();
+    const rawFacilityName = row.facility_name?.trim();
 
-    if (!first_name || !last_name || !job_title || !facility_id) {
-      results.push({ row: rowNumber, success: false, error: "missing required field(s): first_name, last_name, job_title, facility_id" });
+    if (!first_name || !last_name || !job_title || (!rawFacilityId && !rawFacilityName)) {
+      results.push({ row: rowNumber, success: false, error: "missing required field(s): first_name, last_name, job_title, and one of facility_name/facility_id" });
       continue;
+    }
+
+    // A raw facility_id, when given, is trusted as-is (backwards compatibility for
+    // already-integrated callers) -- the employees_insert RLS with-check below still verifies it
+    // belongs to a facility the caller may actually assign to, same as any other insert path.
+    let facility_id: string;
+    if (rawFacilityId) {
+      facility_id = rawFacilityId;
+    } else {
+      const resolved = facilityIdByName.get(rawFacilityName!.toLowerCase());
+      if (!resolved) {
+        results.push({ row: rowNumber, success: false, error: `Unknown facility: ${rawFacilityName}` });
+        continue;
+      }
+      facility_id = resolved;
     }
 
     const { data, error } = await callerClient
