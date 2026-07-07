@@ -389,8 +389,12 @@ export function mergeContentWithDefaults(
   };
 }
 
+// Only spreads patch keys whose value is actually set -- a naive `{ ...v, ...patch }` would
+// overwrite existing data with `undefined` for any key the caller included but left unset (e.g. a
+// bulk-fill bar that always builds its patch object with all fields present, some `undefined`).
 export function applyPatchToAll<T>(items: Record<string, T>, patch: Partial<T>): Record<string, T> {
-  return Object.fromEntries(Object.entries(items).map(([k, v]) => [k, { ...v, ...patch }]));
+  const definedPatch = Object.fromEntries(Object.entries(patch as object).filter(([, v]) => v !== undefined)) as Partial<T>;
+  return Object.fromEntries(Object.entries(items).map(([k, v]) => [k, { ...v, ...definedPatch }]));
 }
 
 // A facility's usual plan responsible party/frequency (facilities.default_care_responsible_party/

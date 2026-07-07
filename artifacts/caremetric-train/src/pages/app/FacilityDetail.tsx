@@ -23,8 +23,9 @@ import { useListInspectionItems } from "@/hooks/useInspectionItems";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { FACILITY_TYPES, facilityTypeBadgeClass, type FacilityType } from "@/lib/facilityTypes";
-import { FREQUENCY_OPTIONS, responsiblePartyOptions, type FormType } from "@/lib/residentAssessmentFormSchema";
+import { FACILITY_TYPES, PCH_ALR_ONLY_FACILITY_TYPES, facilityTypeBadgeClass, type FacilityType } from "@/lib/facilityTypes";
+import { FREQUENCY_OPTIONS, responsiblePartyOptions } from "@/lib/residentAssessmentFormSchema";
+import { getComplianceFormLabel } from "@/lib/residentCompliance";
 
 interface FacilityFormData {
   name: string;
@@ -485,7 +486,12 @@ export default function FacilityDetail() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-[13px]">Type *</Label>
-              <Select value={form.facilityType} onValueChange={v => field("facilityType", v as FacilityType)}>
+              <Select
+                value={form.facilityType}
+                // Resets defaultCareResponsibleParty -- its option list is type-specific (e.g. ASP-only
+                // "SHCP"), so a value picked under the old type could be invalid for the new one.
+                onValueChange={v => setForm(f => ({ ...f, facilityType: v as FacilityType, defaultCareResponsibleParty: "" }))}
+              >
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {FACILITY_TYPES.map(t => (
@@ -536,29 +542,43 @@ export default function FacilityDetail() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Default Care Responsible Party</Label>
-              <Select value={form.defaultCareResponsibleParty} onValueChange={v => field("defaultCareResponsibleParty", v)}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="None" /></SelectTrigger>
-                <SelectContent>
-                  {responsiblePartyOptions(form.facilityType === "ALR" ? "ASP" : "RASP" as FormType).map(o => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-muted-foreground">Pre-fills every item on new RASP/ASP forms for this facility.</p>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Default Care Frequency</Label>
-              <Select value={form.defaultCareFrequency} onValueChange={v => field("defaultCareFrequency", v)}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="None" /></SelectTrigger>
-                <SelectContent>
-                  {FREQUENCY_OPTIONS.map(o => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {PCH_ALR_ONLY_FACILITY_TYPES.includes(form.facilityType) && (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]">Default Care Responsible Party</Label>
+                  {/* "none" is a sentinel -- Radix SelectItem values can't be "", so a real "clear
+                      this default" choice has to use a stand-in value and translate it back. */}
+                  <Select
+                    value={form.defaultCareResponsibleParty || "none"}
+                    onValueChange={v => field("defaultCareResponsibleParty", v === "none" ? "" : v)}
+                  >
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {responsiblePartyOptions(getComplianceFormLabel(form.facilityType) === "ASP" ? "ASP" : "RASP").map(o => (
+                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">Pre-fills every item on new RASP/ASP forms for this facility.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]">Default Care Frequency</Label>
+                  <Select
+                    value={form.defaultCareFrequency || "none"}
+                    onValueChange={v => field("defaultCareFrequency", v === "none" ? "" : v)}
+                  >
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {FREQUENCY_OPTIONS.map(o => (
+                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEdit(false)}>Cancel</Button>

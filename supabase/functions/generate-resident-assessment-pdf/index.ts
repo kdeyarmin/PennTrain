@@ -63,6 +63,17 @@ const SOCIAL_ITEMS = [
   ["groupActivities", "Enjoyable Group Activities"], ["religiousAffiliation", "Religious Affiliation"],
   ["nonParticipationReason", "Reason for Non-Participation"],
 ] as const;
+// Mirrors residentAssessmentFormSchema.ts's COPY_PROVIDED_OPTIONS/NO_SIGNATURE_REASON_OPTIONS
+// labels -- a generic humanize() of the raw code would show different wording than what the
+// assessor actually saw in the editor's dropdown (e.g. "unable" -> "Unable" instead of "Unable to
+// Sign (Medical/Cognitive)").
+const COPY_PROVIDED_LABELS: Record<string, string> = { yes: "Yes", no: "No", na: "N/A" };
+const NO_SIGNATURE_REASON_LABELS: Record<string, string> = {
+  declined: "Resident/Representative Declined",
+  unable: "Unable to Sign (Medical/Cognitive)",
+  unavailable: "Not Available to Sign",
+  other: "Other",
+};
 
 // deno-lint-ignore no-explicit-any
 type AnyRecord = Record<string, any>;
@@ -260,7 +271,7 @@ async function buildAssessmentPdf(input: {
     w.subheading(humanize(key));
     w.row(`Degree: ${s.level || "—"}`);
     w.row(`${s.needsDescription || "—"}`);
-    w.row(`Plan: ${s.planDescription || "—"}${s.planResponsibleParty ? ` — Responsible: ${s.planResponsibleParty}${s.planResponsiblePartyOther ? ` (${s.planResponsiblePartyOther})` : ""}` : ""}`);
+    w.row(`Plan: ${planSummary(s)}`);
   }
   for (const [key, label] of ADL_ITEMS) {
     writeDegreeItem(w, input.formType, label, content.section1?.items?.[key] ?? {});
@@ -298,9 +309,11 @@ async function buildAssessmentPdf(input: {
     w.row("No participants recorded.");
   } else {
     for (const p of participants) {
-      const copyPart = p.copyProvided ? ` — Copy Provided: ${p.copyProvided === "na" ? "N/A" : humanize(p.copyProvided)}${p.copyRequested ? " (Requested)" : ""}` : "";
+      const copyPart = p.copyProvided
+        ? ` — Copy Provided: ${COPY_PROVIDED_LABELS[p.copyProvided] ?? humanize(p.copyProvided)}${p.copyRequested ? " (Requested)" : ""}`
+        : "";
       const reasonPart = !p.signedDate && p.noSignatureReason
-        ? ` — Reason Not Signed: ${humanize(p.noSignatureReason)}${p.noSignatureReasonOther ? ` (${p.noSignatureReasonOther})` : ""}`
+        ? ` — Reason Not Signed: ${NO_SIGNATURE_REASON_LABELS[p.noSignatureReason] ?? humanize(p.noSignatureReason)}${p.noSignatureReasonOther ? ` (${p.noSignatureReasonOther})` : ""}`
         : "";
       w.row(`${p.name || "—"} (${p.relationshipToResident || "—"}) — signed ${p.signedDate || "—"}${copyPart}${reasonPart}`);
     }

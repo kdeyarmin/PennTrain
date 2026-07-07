@@ -6030,7 +6030,6 @@ export type Database = {
         }[]
       }
       get_platform_health: { Args: never; Returns: Json }
-      get_platform_setting: { Args: { p_key: string }; Returns: Json }
       get_quiz_answer_choices: {
         Args: { p_quiz_id: string }
         Returns: {

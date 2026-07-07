@@ -95,22 +95,7 @@ function BulkDegreeBar({ formType, scale, onApply }: {
   return (
     <div className="flex flex-wrap items-end gap-2 rounded-lg border border-dashed p-2 bg-muted/40">
       <p className="text-xs text-muted-foreground w-full sm:w-auto sm:mr-1">Set degree for all, then adjust exceptions:</p>
-      <div className="space-y-1">
-        {formType === "ASP" && <Label className="text-[11px] text-muted-foreground">Preliminary</Label>}
-        <Select value={value} onValueChange={setValue}>
-          <SelectTrigger className="h-8 text-xs w-40"><SelectValue placeholder="Degree" /></SelectTrigger>
-          <SelectContent>{scale.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-        </Select>
-      </div>
-      {formType === "ASP" && (
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">All Other</Label>
-          <Select value={allOtherValue} onValueChange={setAllOtherValue}>
-            <SelectTrigger className="h-8 text-xs w-40"><SelectValue placeholder="Degree" /></SelectTrigger>
-            <SelectContent>{scale.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-      )}
+      <DegreeSelect formType={formType} value={value} allOtherValue={allOtherValue} onChange={setValue} onAllOtherChange={setAllOtherValue} scale={scale} />
       <Button
         type="button" variant="secondary" size="sm" disabled={!value && !allOtherValue}
         onClick={() => {
@@ -120,6 +105,48 @@ function BulkDegreeBar({ formType, scale, onApply }: {
       >
         Apply to All
       </Button>
+    </div>
+  );
+}
+
+// The Frequency/Responsible-Party pair with their "Other" reveals -- identical across every plan
+// (ADL items, sensory/social items, diagnosis rows, and the bulk-fill bar), just with different
+// value/onChange wiring. One shared component instead of four hand-rolled copies means a future
+// change (a new responsible-party code, different "Other" wording) only needs one edit.
+function FrequencyPartyFields({
+  formType, frequency, frequencyOther, responsibleParty, responsiblePartyOther,
+  onFrequencyChange, onFrequencyOtherChange, onPartyChange, onPartyOtherChange, disabled, fieldClassName,
+}: {
+  formType: FormType;
+  frequency: string; frequencyOther: string; responsibleParty: string; responsiblePartyOther: string;
+  onFrequencyChange: (v: string) => void; onFrequencyOtherChange: (v: string) => void;
+  onPartyChange: (v: string) => void; onPartyOtherChange: (v: string) => void;
+  disabled?: boolean; fieldClassName?: string;
+}) {
+  const partyOptions = responsiblePartyOptions(formType);
+  const triggerClassName = `h-8 text-xs ${fieldClassName ?? ""}`;
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <div className="space-y-1">
+        <Select value={frequency} onValueChange={onFrequencyChange} disabled={disabled}>
+          <SelectTrigger className={triggerClassName}><SelectValue placeholder="Frequency" /></SelectTrigger>
+          <SelectContent>{FREQUENCY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+        </Select>
+        {frequency === "other" && (
+          <Input placeholder="Specify frequency" className={triggerClassName} value={frequencyOther} disabled={disabled}
+            onChange={(e) => onFrequencyOtherChange(e.target.value)} />
+        )}
+      </div>
+      <div className="space-y-1">
+        <Select value={responsibleParty} onValueChange={onPartyChange} disabled={disabled}>
+          <SelectTrigger className={triggerClassName}><SelectValue placeholder="Responsible party" /></SelectTrigger>
+          <SelectContent>{partyOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+        </Select>
+        {responsibleParty === "O" && (
+          <Input placeholder="Specify responsible party" className={triggerClassName} value={responsiblePartyOther} disabled={disabled}
+            onChange={(e) => onPartyOtherChange(e.target.value)} />
+        )}
+      </div>
     </div>
   );
 }
@@ -135,28 +162,15 @@ function BulkPlanBar({ formType, onApply }: {
   const [frequencyOther, setFrequencyOther] = useState("");
   const [party, setParty] = useState("");
   const [partyOther, setPartyOther] = useState("");
-  const partyOptions = responsiblePartyOptions(formType);
   return (
     <div className="flex flex-wrap items-end gap-2 rounded-lg border border-dashed p-2 bg-muted/40">
       <p className="text-xs text-muted-foreground w-full sm:w-auto sm:mr-1">Set plan frequency/party for all, then adjust exceptions:</p>
-      <div className="space-y-1">
-        <Select value={frequency} onValueChange={setFrequency}>
-          <SelectTrigger className="h-8 text-xs w-32"><SelectValue placeholder="Frequency" /></SelectTrigger>
-          <SelectContent>{FREQUENCY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-        </Select>
-        {frequency === "other" && (
-          <Input className="h-8 text-xs w-32" placeholder="Specify" value={frequencyOther} onChange={(e) => setFrequencyOther(e.target.value)} />
-        )}
-      </div>
-      <div className="space-y-1">
-        <Select value={party} onValueChange={setParty}>
-          <SelectTrigger className="h-8 text-xs w-44"><SelectValue placeholder="Responsible party" /></SelectTrigger>
-          <SelectContent>{partyOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-        </Select>
-        {party === "O" && (
-          <Input className="h-8 text-xs w-44" placeholder="Specify" value={partyOther} onChange={(e) => setPartyOther(e.target.value)} />
-        )}
-      </div>
+      <FrequencyPartyFields
+        formType={formType}
+        frequency={frequency} frequencyOther={frequencyOther} responsibleParty={party} responsiblePartyOther={partyOther}
+        onFrequencyChange={setFrequency} onFrequencyOtherChange={setFrequencyOther}
+        onPartyChange={setParty} onPartyOtherChange={setPartyOther}
+      />
       <Button
         type="button" variant="secondary" size="sm" disabled={!frequency && !party}
         onClick={() => {
@@ -179,7 +193,6 @@ function DegreeItemEditor({ item, formType, answer, onChange, scale, readOnly }:
   item: SectionItem; formType: FormType; answer: DegreeItemAnswer;
   onChange: (next: DegreeItemAnswer) => void; scale: { value: string; label: string }[]; readOnly: boolean;
 }) {
-  const partyOptions = responsiblePartyOptions(formType);
   return (
     <div className="border rounded-lg p-3 space-y-2">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -228,28 +241,15 @@ function DegreeItemEditor({ item, formType, answer, onChange, scale, readOnly }:
                 value={answer.planDescription}
                 onChange={(e) => onChange({ ...answer, planDescription: e.target.value })}
               />
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Select value={answer.planFrequency} onValueChange={(v) => onChange({ ...answer, planFrequency: v })}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Frequency" /></SelectTrigger>
-                    <SelectContent>{FREQUENCY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                  {answer.planFrequency === "other" && (
-                    <Input placeholder="Specify frequency" className="h-8 text-xs" value={answer.planFrequencyOther}
-                      onChange={(e) => onChange({ ...answer, planFrequencyOther: e.target.value })} />
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <Select value={answer.planResponsibleParty} onValueChange={(v) => onChange({ ...answer, planResponsibleParty: v })}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Responsible party" /></SelectTrigger>
-                    <SelectContent>{partyOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                  {answer.planResponsibleParty === "O" && (
-                    <Input placeholder="Specify responsible party" className="h-8 text-xs" value={answer.planResponsiblePartyOther}
-                      onChange={(e) => onChange({ ...answer, planResponsiblePartyOther: e.target.value })} />
-                  )}
-                </div>
-              </div>
+              <FrequencyPartyFields
+                formType={formType}
+                frequency={answer.planFrequency} frequencyOther={answer.planFrequencyOther}
+                responsibleParty={answer.planResponsibleParty} responsiblePartyOther={answer.planResponsiblePartyOther}
+                onFrequencyChange={(v) => onChange({ ...answer, planFrequency: v })}
+                onFrequencyOtherChange={(v) => onChange({ ...answer, planFrequencyOther: v })}
+                onPartyChange={(v) => onChange({ ...answer, planResponsibleParty: v })}
+                onPartyOtherChange={(v) => onChange({ ...answer, planResponsiblePartyOther: v })}
+              />
             </>
           )}
         </div>
@@ -261,7 +261,6 @@ function DegreeItemEditor({ item, formType, answer, onChange, scale, readOnly }:
 function SimpleNeedEditor({ item, formType, answer, onChange, readOnly }: {
   item: SectionItem; formType: FormType; answer: SimpleNeedAnswer; onChange: (next: SimpleNeedAnswer) => void; readOnly: boolean;
 }) {
-  const partyOptions = responsiblePartyOptions(formType);
   return (
     <div className="border rounded-lg p-3 space-y-2">
       <div className="flex items-center justify-between gap-3">
@@ -285,28 +284,15 @@ function SimpleNeedEditor({ item, formType, answer, onChange, readOnly }: {
             value={answer.planDescription}
             onChange={(e) => onChange({ ...answer, planDescription: e.target.value })}
           />
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Select value={answer.planFrequency} onValueChange={(v) => onChange({ ...answer, planFrequency: v })}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Frequency" /></SelectTrigger>
-                <SelectContent>{FREQUENCY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-              </Select>
-              {answer.planFrequency === "other" && (
-                <Input placeholder="Specify frequency" className="h-8 text-xs" value={answer.planFrequencyOther}
-                  onChange={(e) => onChange({ ...answer, planFrequencyOther: e.target.value })} />
-              )}
-            </div>
-            <div className="space-y-1">
-              <Select value={answer.planResponsibleParty} onValueChange={(v) => onChange({ ...answer, planResponsibleParty: v })}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Responsible party" /></SelectTrigger>
-                <SelectContent>{partyOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-              </Select>
-              {answer.planResponsibleParty === "O" && (
-                <Input placeholder="Specify responsible party" className="h-8 text-xs" value={answer.planResponsiblePartyOther}
-                  onChange={(e) => onChange({ ...answer, planResponsiblePartyOther: e.target.value })} />
-              )}
-            </div>
-          </div>
+          <FrequencyPartyFields
+            formType={formType}
+            frequency={answer.planFrequency} frequencyOther={answer.planFrequencyOther}
+            responsibleParty={answer.planResponsibleParty} responsiblePartyOther={answer.planResponsiblePartyOther}
+            onFrequencyChange={(v) => onChange({ ...answer, planFrequency: v })}
+            onFrequencyOtherChange={(v) => onChange({ ...answer, planFrequencyOther: v })}
+            onPartyChange={(v) => onChange({ ...answer, planResponsibleParty: v })}
+            onPartyOtherChange={(v) => onChange({ ...answer, planResponsiblePartyOther: v })}
+          />
         </fieldset>
       )}
     </div>
@@ -333,11 +319,11 @@ function ReviewChecklistRow({ item }: { item: ReviewCheckItem }) {
   );
 }
 
-function DiagnosisRowsEditor({ title, rows, noneChecked, onRowsChange, onNoneChange, readOnly, maxRows, formType }: {
+function DiagnosisRowsEditor({ title, rows, noneChecked, onRowsChange, onNoneChange, readOnly, maxRows, formType, planDefaults }: {
   title: string; rows: DiagnosisRow[]; noneChecked: boolean;
   onRowsChange: (rows: DiagnosisRow[]) => void; onNoneChange: (v: boolean) => void; readOnly: boolean; maxRows: number; formType: FormType;
+  planDefaults?: { responsibleParty?: string | null; frequency?: string | null };
 }) {
-  const partyOptions = responsiblePartyOptions(formType);
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -374,33 +360,27 @@ function DiagnosisRowsEditor({ title, rows, noneChecked, onRowsChange, onNoneCha
                 disabled={readOnly}
                 onChange={(e) => updateRow({ planDescription: e.target.value })}
               />
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Select value={row.planFrequency} onValueChange={(v) => updateRow({ planFrequency: v })} disabled={readOnly}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Frequency" /></SelectTrigger>
-                    <SelectContent>{FREQUENCY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                  {row.planFrequency === "other" && (
-                    <Input placeholder="Specify frequency" className="h-8 text-xs" value={row.planFrequencyOther} disabled={readOnly}
-                      onChange={(e) => updateRow({ planFrequencyOther: e.target.value })} />
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <Select value={row.planResponsibleParty} onValueChange={(v) => updateRow({ planResponsibleParty: v })} disabled={readOnly}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Responsible party" /></SelectTrigger>
-                    <SelectContent>{partyOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                  {row.planResponsibleParty === "O" && (
-                    <Input placeholder="Specify responsible party" className="h-8 text-xs" value={row.planResponsiblePartyOther} disabled={readOnly}
-                      onChange={(e) => updateRow({ planResponsiblePartyOther: e.target.value })} />
-                  )}
-                </div>
-              </div>
+              <FrequencyPartyFields
+                formType={formType} disabled={readOnly}
+                frequency={row.planFrequency} frequencyOther={row.planFrequencyOther}
+                responsibleParty={row.planResponsibleParty} responsiblePartyOther={row.planResponsiblePartyOther}
+                onFrequencyChange={(v) => updateRow({ planFrequency: v })}
+                onFrequencyOtherChange={(v) => updateRow({ planFrequencyOther: v })}
+                onPartyChange={(v) => updateRow({ planResponsibleParty: v })}
+                onPartyOtherChange={(v) => updateRow({ planResponsiblePartyOther: v })}
+              />
             </div>
             );
           })}
           {!readOnly && rows.length < maxRows && (
-            <Button variant="outline" size="sm" onClick={() => onRowsChange([...rows, emptyDiagnosisRow()])}>
+            <Button
+              variant="outline" size="sm"
+              onClick={() => onRowsChange([...rows, {
+                ...emptyDiagnosisRow(),
+                ...(planDefaults?.responsibleParty ? { planResponsibleParty: planDefaults.responsibleParty } : {}),
+                ...(planDefaults?.frequency ? { planFrequency: planDefaults.frequency } : {}),
+              }])}
+            >
               <Plus className="mr-1 h-3.5 w-3.5" /> Add Row
             </Button>
           )}
@@ -426,7 +406,6 @@ export default function ResidentAssessmentFormEditor() {
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const facility = facilities?.find((f) => f.id === resident?.facility_id);
-  const facilitiesLoaded = facilities !== undefined;
   const formLabel = getComplianceFormLabel(facility?.facility_type);
 
   const [content, setContent] = useState<ResidentAssessmentFormContent | null>(null);
@@ -435,16 +414,22 @@ export default function ResidentAssessmentFormEditor() {
   const isReadOnly = !canManage || form?.status === "finalized";
 
   useEffect(() => {
-    // Also wait for the facilities list so a brand-new form's items can pick up the facility's
-    // default care team (see createEmptyContent's facilityDefaults param) -- if a matching facility
-    // never turns up (e.g. a data gap), facilitiesLoaded still flips true once the query settles, so
-    // this doesn't hang forever; it just proceeds with no defaults.
-    if (!form || !facilitiesLoaded) return;
+    if (!form) return;
     // A brand-new form's content is a bare {} (see start_resident_assessment_form()'s
     // coalesce(v_prior.content, '{}'::jsonb)) -- deep-merge onto the full default shape so every
     // section, including item maps that may have grown new keys since this form's schema_version,
     // has its expected keys. A revised form's content already carries the full shape forward from
     // the prior version under the same schema_version, so the merge is a no-op for those.
+    //
+    // Deliberately keyed only on form?.id, not on facility -- this must run exactly once per form.
+    // The facility's default care-team fields are read from whatever's already loaded in this
+    // closure at that moment: if the facilities list hasn't resolved yet, the new form simply
+    // starts without defaults (the bulk-fill toolbars are still available as a fallback). Widening
+    // this to also depend on facility fields previously caused the effect to fire a second time
+    // once the facilities/resident queries resolved, silently discarding any edits already made in
+    // that window (it rebuilds from the stale form.content snapshot, not live state) -- and if that
+    // query ever errors instead of resolving, the effect would never fire at all, leaving the whole
+    // editor stuck on the loading skeleton.
     setContent(mergeContentWithDefaults(
       createEmptyContent(form.form_type as FormType, {
         responsibleParty: facility?.default_care_responsible_party,
@@ -452,7 +437,7 @@ export default function ResidentAssessmentFormEditor() {
       }),
       form.content,
     ));
-  }, [form?.id, facilitiesLoaded, facility?.default_care_responsible_party, facility?.default_care_frequency]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = (next: ResidentAssessmentFormContent) => {
     setContent(next);
@@ -487,6 +472,21 @@ export default function ResidentAssessmentFormEditor() {
 
   const behavioralList = useMemo(() => behavioralItems((form?.form_type as FormType) ?? "RASP"), [form?.form_type]);
 
+  // Memoized on the specific item maps (not the whole `content` object, which changes on every
+  // keystroke anywhere in the form) so typing in an unrelated field doesn't re-filter these lists;
+  // rated counts (below, after the loading guard) are derived from these unrated lists rather than
+  // re-filtered separately, so the tab badge and the Review tab's named gaps can't drift out of
+  // sync with each other. Guarded on `content` since it's still null before the initial-content
+  // effect runs -- these hooks must stay above the loading-guard's early return either way.
+  const unratedAdlItems = useMemo(
+    () => (content ? ADL_ITEMS.filter((item) => !isDegreeItemRated((form?.form_type as FormType) ?? "RASP", content.section1.items[item.key])) : []),
+    [form?.form_type, content?.section1.items],
+  );
+  const unratedBehavioralItems = useMemo(
+    () => (content ? behavioralList.filter((item) => !isDegreeItemRated((form?.form_type as FormType) ?? "RASP", content.section3.items[item.key])) : []),
+    [form?.form_type, behavioralList, content?.section3.items],
+  );
+
   const handleFinalize = async () => {
     if (!formId || !content) return;
     // finalize_resident_assessment_form() doesn't take content as an argument -- it finalizes
@@ -520,37 +520,62 @@ export default function ResidentAssessmentFormEditor() {
 
   const formType = form.form_type as FormType;
   const degreeScale = CARE_DEGREE_OPTIONS;
+  // Same facility defaults createEmptyContent uses for brand-new forms, reused so a diagnosis row
+  // added later via "Add Row" isn't the one place in the form that comes up without them.
+  const facilityPlanDefaults = { responsibleParty: facility?.default_care_responsible_party, frequency: facility?.default_care_frequency };
   // generate-resident-assessment-pdf/index.ts refuses (409) once a resident_documents row with this
   // form's document_label exists -- it's a one-shot "finalize succeeded but PDF generation failed"
   // retry, not a true regenerate. Only offer the button while that row is still missing, otherwise
   // it's guaranteed to fail.
   const hasGeneratedPdf = (residentDocuments ?? []).some((d) => d.document_label === `resident_assessment_form:${form.id}`);
-
-  const adlRatedCount = ADL_ITEMS.filter((item) => isDegreeItemRated(formType, content.section1.items[item.key])).length;
-  const behavioralRatedCount = behavioralList.filter((item) => isDegreeItemRated(formType, content.section3.items[item.key])).length;
-  const unratedAdlItems = ADL_ITEMS.filter((item) => !isDegreeItemRated(formType, content.section1.items[item.key]));
-  const unratedBehavioralItems = behavioralList.filter((item) => !isDegreeItemRated(formType, content.section3.items[item.key]));
+  const adlRatedCount = ADL_ITEMS.length - unratedAdlItems.length;
+  const behavioralRatedCount = behavioralList.length - unratedBehavioralItems.length;
 
   // A condensed pre-finalize checklist -- named gaps (not just counts), so catching a missed item
   // doesn't require tab-hopping through all six tabs. Deliberately checks presence/completeness
   // signals only (not content quality), since this can't judge whether an answer is *correct*.
+  const unratedCareLevels = (["supervision", "mobility", "medications"] as const).filter((key) => !content.section1[key].level);
+  const unaddressedSensoryItems = SENSORY_ITEMS.filter((item) => {
+    const answer = content.section2.sensory[item.key];
+    return answer.applicable && !answer.description.trim();
+  });
+  const unaddressedSocialItems = SOCIAL_ITEMS.filter((item) => {
+    const answer = content.section4.items[item.key];
+    return answer.applicable && !answer.description.trim();
+  });
+
   const reviewChecklist: ReviewCheckItem[] = [
     { label: "Reason for Assessment selected", ok: !!content.assessmentInfo.assessmentReason },
     { label: "Reason for Support Plan selected", ok: !!content.assessmentInfo.supportPlanReason },
+    {
+      label: "Supervision, Mobility, and Medications degrees rated",
+      ok: unratedCareLevels.length === 0,
+      detail: unratedCareLevels.length ? `Still needs a degree: ${unratedCareLevels.map((k) => k[0].toUpperCase() + k.slice(1)).join(", ")}` : undefined,
+    },
     {
       label: `All ${ADL_ITEMS.length} Personal Care Needs items rated`,
       ok: unratedAdlItems.length === 0,
       detail: unratedAdlItems.length ? `Still needs a degree: ${unratedAdlItems.map((i) => i.label).join(", ")}` : undefined,
     },
+    { label: "Physical medical diagnoses addressed (rows added, or \"None\" checked)", ok: content.section2.noPhysicalDiagnoses || content.section2.physicalDiagnoses.length > 0 },
+    { label: "Dental needs addressed", ok: content.section2.noDental || content.section2.dental.length > 0 },
+    { label: "Dietary needs addressed", ok: content.section2.noDietary || content.section2.dietary.length > 0 },
+    {
+      label: `All ${SENSORY_ITEMS.length} Sensory Needs items addressed`,
+      ok: unaddressedSensoryItems.length === 0,
+      detail: unaddressedSensoryItems.length ? `Still needs a description or "not applicable": ${unaddressedSensoryItems.map((i) => i.label).join(", ")}` : undefined,
+    },
+    { label: "Psychological diagnoses addressed", ok: content.section3.noPsychologicalDiagnoses || content.section3.psychologicalDiagnoses.length > 0 },
     {
       label: `All ${behavioralList.length} Behavioral/Cognitive items rated`,
       ok: unratedBehavioralItems.length === 0,
       detail: unratedBehavioralItems.length ? `Still needs a degree: ${unratedBehavioralItems.map((i) => i.label).join(", ")}` : undefined,
     },
-    { label: "Physical medical diagnoses addressed (rows added, or \"None\" checked)", ok: content.section2.noPhysicalDiagnoses || content.section2.physicalDiagnoses.length > 0 },
-    { label: "Dental needs addressed", ok: content.section2.noDental || content.section2.dental.length > 0 },
-    { label: "Dietary needs addressed", ok: content.section2.noDietary || content.section2.dietary.length > 0 },
-    { label: "Psychological diagnoses addressed", ok: content.section3.noPsychologicalDiagnoses || content.section3.psychologicalDiagnoses.length > 0 },
+    {
+      label: `All ${SOCIAL_ITEMS.length} Social and Recreational items addressed`,
+      ok: unaddressedSocialItems.length === 0,
+      detail: unaddressedSocialItems.length ? `Still needs a description or "not applicable": ${unaddressedSocialItems.map((i) => i.label).join(", ")}` : undefined,
+    },
     { label: "Overall Wellness Summary written", ok: !!content.summary.overallWellness.trim() },
     {
       label: "Assessor name, title, and signed date recorded",
@@ -754,19 +779,19 @@ export default function ResidentAssessmentFormEditor() {
             <CardHeader><CardTitle className="text-base">Medical &amp; Dental &amp; Dietary Diagnoses</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <DiagnosisRowsEditor
-                title="Physical Medical Diagnoses" maxRows={8} readOnly={isReadOnly} formType={formType}
+                title="Physical Medical Diagnoses" maxRows={8} readOnly={isReadOnly} formType={formType} planDefaults={facilityPlanDefaults}
                 rows={content.section2.physicalDiagnoses} noneChecked={content.section2.noPhysicalDiagnoses}
                 onRowsChange={(rows) => update({ ...content, section2: { ...content.section2, physicalDiagnoses: rows } })}
                 onNoneChange={(v) => update({ ...content, section2: { ...content.section2, noPhysicalDiagnoses: v } })}
               />
               <DiagnosisRowsEditor
-                title="Dental Needs" maxRows={2} readOnly={isReadOnly} formType={formType}
+                title="Dental Needs" maxRows={2} readOnly={isReadOnly} formType={formType} planDefaults={facilityPlanDefaults}
                 rows={content.section2.dental} noneChecked={content.section2.noDental}
                 onRowsChange={(rows) => update({ ...content, section2: { ...content.section2, dental: rows } })}
                 onNoneChange={(v) => update({ ...content, section2: { ...content.section2, noDental: v } })}
               />
               <DiagnosisRowsEditor
-                title="Dietary Needs" maxRows={2} readOnly={isReadOnly} formType={formType}
+                title="Dietary Needs" maxRows={2} readOnly={isReadOnly} formType={formType} planDefaults={facilityPlanDefaults}
                 rows={content.section2.dietary} noneChecked={content.section2.noDietary}
                 onRowsChange={(rows) => update({ ...content, section2: { ...content.section2, dietary: rows } })}
                 onNoneChange={(v) => update({ ...content, section2: { ...content.section2, noDietary: v } })}
@@ -798,7 +823,7 @@ export default function ResidentAssessmentFormEditor() {
             <CardHeader><CardTitle className="text-base">Psychological Diagnoses</CardTitle></CardHeader>
             <CardContent>
               <DiagnosisRowsEditor
-                title="Psychological Medical Diagnoses" maxRows={8} readOnly={isReadOnly} formType={formType}
+                title="Psychological Medical Diagnoses" maxRows={8} readOnly={isReadOnly} formType={formType} planDefaults={facilityPlanDefaults}
                 rows={content.section3.psychologicalDiagnoses} noneChecked={content.section3.noPsychologicalDiagnoses}
                 onRowsChange={(rows) => update({ ...content, section3: { ...content.section3, psychologicalDiagnoses: rows } })}
                 onNoneChange={(v) => update({ ...content, section3: { ...content.section3, noPsychologicalDiagnoses: v } })}
