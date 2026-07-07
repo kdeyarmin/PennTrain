@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { useGetInspectionItem, useUpdateInspectionItem } from "@/hooks/useInspectionItems";
 import { useListInspectionEvents, useCreateInspectionEvent } from "@/hooks/useInspectionEvents";
 import { useListCorrectiveActions, useCreateCorrectiveAction, useUpdateCorrectiveAction } from "@/hooks/useCorrectiveActions";
 import type { InspectionEvent } from "@/hooks/useInspectionEvents";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useListViolationsBySourceInspectionEvents } from "@/hooks/useViolations";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Flame, ClipboardList, Plus, Check, Printer, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Flame, ClipboardList, Plus, Check, Printer, AlertTriangle, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -95,17 +96,29 @@ export default function InspectionItemDetail() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
 
   // Mounted at both /app/inspections/:id (org roles) and /admin/inspections/:id
   // (platform_admin, reached via Alerts deep links); basePath keeps back-navigation correct.
   const basePath = user?.role === "platform_admin" ? "/admin/inspections" : "/app/inspections";
   const canManage = ["platform_admin", "org_admin", "facility_manager", "trainer"].includes(user?.role ?? "");
+  // Narrower than canManage above: dhs_violations_insert RLS and Violations.tsx's own "Record
+  // Violation" gate exclude trainer and platform_admin, so a "Create Violation" action shown to
+  // either role here would be a dead end (RLS rejection, or a route redirect for platform_admin).
+  const canCreateViolation = ["org_admin", "facility_manager"].includes(user?.role ?? "");
+  // Mirrors App.tsx's VIOLATION_ROLES -- /app/violations/:id redirects anyone outside this set
+  // (notably trainer and platform_admin, both of whom can reach this page), so a "View Violation"
+  // link shown to either would be a dead end too.
+  const canViewViolation = ["org_admin", "facility_manager", "auditor"].includes(user?.role ?? "");
 
   const { data: item, isLoading } = useGetInspectionItem(id);
   const { data: facilities } = useListFacilities();
   const { data: events, isLoading: eventsLoading } = useListInspectionEvents(id);
   const { mutate: updateItem } = useUpdateInspectionItem();
   const { mutate: createEvent, isPending: creatingEvent } = useCreateInspectionEvent();
+  const nonPassEventIds = (events ?? []).filter((e) => e.result !== "pass").map((e) => e.id);
+  const { data: sourcedViolations } = useListViolationsBySourceInspectionEvents(nonPassEventIds);
+  const violationByEventId = new Map((sourcedViolations ?? []).map((v) => [v.source_inspection_event_id, v]));
 
   const [showEventForm, setShowEventForm] = useState(false);
   const [performedDate, setPerformedDate] = useState(new Date().toISOString().slice(0, 10));
@@ -300,7 +313,42 @@ export default function InspectionItemDetail() {
                     </div>
                     <ResultBadge result={e.result} />
                   </div>
-                  {e.result !== "pass" && <EventCorrectiveActions event={e} canManage={canManage} />}
+                  {e.result !== "pass" && (
+                    <>
+                      <EventCorrectiveActions event={e} canManage={canManage} />
+                      <div className="mt-2 pl-4">
+                        {violationByEventId.has(e.id) ? (
+                          canViewViolation ? (
+                            <Link href={`/app/violations/${violationByEventId.get(e.id)!.id}`} className="text-xs text-primary hover:underline flex items-center gap-1">
+                              <ShieldAlert className="h-3 w-3" /> View Violation
+                            </Link>
+                          ) : (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <ShieldAlert className="h-3 w-3" /> Violation recorded
+                            </span>
+                          )
+                        ) : canCreateViolation && (
+                          <button
+                            type="button"
+                            className="text-xs text-primary hover:underline flex items-center gap-1"
+                            onClick={() => {
+                              const params = new URLSearchParams({
+                                action: "add",
+                                facilityId: item.facility_id,
+                                inspectionDate: e.performed_date,
+                                description: `${item.label} — ${humanize(e.result)}${e.deficiency_notes ? `: ${e.deficiency_notes}` : ""}`,
+                                sourceEventId: e.id,
+                              });
+                              if (item.citation_topic_id) params.set("citationTopicId", item.citation_topic_id);
+                              navigate(`/app/violations?${params.toString()}`);
+                            }}
+                          >
+                            <ShieldAlert className="h-3 w-3" /> Create Violation from this Finding
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>

@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link } from "wouter";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearch } from "wouter";
 import { useListViolations, useCreateViolation, type ViolationInsert } from "@/hooks/useViolations";
 import { useListCitationTopics } from "@/hooks/useCitationTopics";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -28,7 +28,7 @@ function SeverityBadge({ severity }: { severity: string }) {
   return <Badge className={className} variant="outline">{humanize(severity)}</Badge>;
 }
 
-function StatusPill({ status }: { status: string }) {
+export function StatusPill({ status }: { status: string }) {
   const className =
     status === "verified" ? "bg-success text-success-foreground hover:bg-success/80"
     : status === "corrected" ? "bg-info text-info-foreground hover:bg-info/80"
@@ -64,6 +64,9 @@ export default function Violations() {
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<ViolationFormData>(EMPTY_FORM);
+  const [sourceInspectionEventId, setSourceInspectionEventId] = useState<string | null>(null);
+
+  const locationSearch = useSearch();
 
   // Mirrors dhs_violations_insert/update RLS -- trainer and self-service are both excluded,
   // matching incidents' sensitivity model since a cited violation is an org-compliance matter.
@@ -87,8 +90,39 @@ export default function Violations() {
 
   const openCreate = () => {
     setForm(EMPTY_FORM);
+    setSourceInspectionEventId(null);
     setShowForm(true);
   };
+
+  // InspectionItemDetail.tsx's "Create Violation from this Finding" links here with
+  // ?action=add&facilityId=&inspectionDate=&description=&sourceEventId=&citationTopicId=, expecting
+  // this dialog to open pre-filled. Runs once on mount only, mirroring Employees.tsx's ?action=add.
+  useEffect(() => {
+    const params = new URLSearchParams(locationSearch);
+    if (params.get("action") === "add") {
+      setForm({
+        ...EMPTY_FORM,
+        facilityId: params.get("facilityId") ?? "",
+        inspectionDate: params.get("inspectionDate") ?? EMPTY_FORM.inspectionDate,
+        description: params.get("description") ?? "",
+        citationTopicId: params.get("citationTopicId") ?? "",
+      });
+      setSourceInspectionEventId(params.get("sourceEventId"));
+      setShowForm(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Covers the deep-link prefill above (citationTopicId can arrive pre-set before citationTopics has
+  // even loaded) as well as any other path that sets citationTopicId without going through the
+  // Citation Topic Select's own onValueChange autofill.
+  useEffect(() => {
+    if (!form.citationTopicId || form.citationRef.trim() || !citationTopics) return;
+    const topic = citationTopics.find((t) => t.id === form.citationTopicId);
+    if (topic?.citation_ref) {
+      setForm((f) => (f.citationTopicId === topic.id && !f.citationRef.trim() ? { ...f, citationRef: topic.citation_ref! } : f));
+    }
+  }, [form.citationTopicId, form.citationRef, citationTopics]);
 
   const handleSubmit = () => {
     if (!form.facilityId || !form.description.trim() || !form.inspectionDate) {
@@ -108,6 +142,7 @@ export default function Violations() {
       description: form.description.trim(),
       severity: form.severity,
       poc_due_date: form.pocDueDate || null,
+      source_inspection_event_id: sourceInspectionEventId,
     };
 
     createViolation(payload, {
@@ -217,7 +252,16 @@ export default function Violations() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-[13px]">Facility *</Label>
-                <Select value={form.facilityId} onValueChange={(v) => setForm((f) => ({ ...f, facilityId: v }))}>
+                <Select
+                  value={form.facilityId}
+                  onValueChange={(v) => {
+                    setForm((f) => ({ ...f, facilityId: v }));
+                    // A source event links a violation back to a specific facility's inspection --
+                    // changing Facility after a "Create Violation from this Finding" deep-link would
+                    // otherwise let the new violation carry a source event from a different facility.
+                    setSourceInspectionEventId(null);
+                  }}
+                >
                   <SelectTrigger className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
                   <SelectContent>
                     {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
@@ -230,7 +274,17 @@ export default function Violations() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[13px]">Citation Topic</Label>
-                <Select value={form.citationTopicId} onValueChange={(v) => setForm((f) => ({ ...f, citationTopicId: v }))}>
+                <Select
+                  value={form.citationTopicId}
+                  onValueChange={(v) => {
+                    const topic = citationTopics?.find((t) => t.id === v);
+                    setForm((f) => ({
+                      ...f,
+                      citationTopicId: v,
+                      citationRef: f.citationRef.trim() ? f.citationRef : (topic?.citation_ref ?? f.citationRef),
+                    }));
+                  }}
+                >
                   <SelectTrigger className="h-9"><SelectValue placeholder="Select topic (optional)" /></SelectTrigger>
                   <SelectContent>
                     {citationTopics?.map((t) => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}
@@ -246,7 +300,7 @@ export default function Violations() {
                 <Input value={form.surveyorName} onChange={(e) => setForm((f) => ({ ...f, surveyorName: e.target.value }))} className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Severity *</Label>
+                <Label className="text-[13px]">Severity</Label>
                 <Select value={form.severity} onValueChange={(v) => setForm((f) => ({ ...f, severity: v as ViolationFormData["severity"] }))}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
