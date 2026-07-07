@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { useParams, Link } from "wouter";
 import { useGetViolation, useUpdateViolation, useGeneratePocDocument } from "@/hooks/useViolations";
 import {
-  useListCorrectiveActions, useCreateCorrectiveAction, useUpdateCorrectiveAction,
+  useListCorrectiveActions, useUpdateCorrectiveAction,
   useDeleteCorrectiveAction, useCreateViolationRetrainingAction, type CorrectiveAction,
 } from "@/hooks/useCorrectiveActions";
 import {
@@ -14,6 +14,7 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useListCitationTopics } from "@/hooks/useCitationTopics";
 import { useListCourses } from "@/hooks/useCourses";
 import { StatusPill } from "./Violations";
+import { CorrectiveActionForm, CorrectiveActionStatusBadge } from "@/components/CorrectiveActionForm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,10 +31,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-
-function humanize(value: string): string {
-  return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-}
+import { humanize } from "@/lib/utils";
 
 function SeverityBadge({ severity }: { severity: string }) {
   const className =
@@ -41,15 +39,6 @@ function SeverityBadge({ severity }: { severity: string }) {
     : severity === "moderate" ? "bg-warning text-warning-foreground hover:bg-warning/80"
     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"; // low
   return <Badge className={className} variant="outline">{humanize(severity)}</Badge>;
-}
-
-function CorrectiveActionStatusBadge({ status }: { status: string }) {
-  const className =
-    status === "completed" ? "bg-success text-success-foreground hover:bg-success/80"
-    : status === "overdue" ? "bg-destructive text-destructive-foreground hover:bg-destructive/80"
-    : status === "cancelled" ? "bg-muted text-muted-foreground"
-    : "bg-info text-info-foreground hover:bg-info/80"; // open/in_progress
-  return <Badge className={className} variant="outline">{humanize(status)}</Badge>;
 }
 
 export default function ViolationDetail() {
@@ -69,7 +58,6 @@ export default function ViolationDetail() {
   const { data: documents, isLoading: documentsLoading } = useListViolationDocuments(id);
 
   const { mutate: updateViolation, isPending: updatingViolation } = useUpdateViolation();
-  const { mutate: createCorrectiveAction } = useCreateCorrectiveAction();
   const { mutate: updateCorrectiveAction } = useUpdateCorrectiveAction();
   const deleteCorrectiveAction = useDeleteCorrectiveAction();
   const createRetrainingAction = useCreateViolationRetrainingAction();
@@ -78,16 +66,12 @@ export default function ViolationDetail() {
   const deleteDocument = useDeleteViolationDocument();
   const generatePocDocument = useGeneratePocDocument();
 
-  const [newActionDescription, setNewActionDescription] = useState("");
   const [newActionDueDate, setNewActionDueDate] = useState("");
-  const [assignedEmployeeId, setAssignedEmployeeId] = useState("");
   const [assignRetraining, setAssignRetraining] = useState(false);
   const [retrainEmployeeId, setRetrainEmployeeId] = useState("");
   const [retrainCourseId, setRetrainCourseId] = useState("");
   const [creatingAction, setCreatingAction] = useState(false);
   const [editingActionId, setEditingActionId] = useState<string | null>(null);
-  const [editDescription, setEditDescription] = useState("");
-  const [editDueDate, setEditDueDate] = useState("");
   const [actionPendingDelete, setActionPendingDelete] = useState<CorrectiveAction | null>(null);
   const [docPendingDelete, setDocPendingDelete] = useState<ViolationDocument | null>(null);
   const [uploadLabel, setUploadLabel] = useState("");
@@ -222,26 +206,12 @@ export default function ViolationDetail() {
                 return (
                   <div key={ca.id} className="p-2 rounded-lg border text-sm">
                     {editingActionId === ca.id ? (
-                      <div className="flex items-center gap-2">
-                        <Input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="h-9 flex-1" />
-                        <Input type="date" value={editDueDate} onChange={(e) => setEditDueDate(e.target.value)} className="h-9 w-40" />
-                        <Button
-                          size="sm"
-                          disabled={!editDescription.trim() || !editDueDate}
-                          onClick={() => {
-                            updateCorrectiveAction(
-                              { id: ca.id, description: editDescription.trim(), due_date: editDueDate },
-                              {
-                                onSuccess: () => setEditingActionId(null),
-                                onError: (err: Error) => toast({ title: "Failed to update corrective action", description: err.message, variant: "destructive" }),
-                              },
-                            );
-                          }}
-                        >
-                          Save
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setEditingActionId(null)}>Cancel</Button>
-                      </div>
+                      <CorrectiveActionForm
+                        parent={{ organizationId: violation.organization_id, facilityId: violation.facility_id, violationId: violation.id }}
+                        editing={ca}
+                        onDone={() => setEditingActionId(null)}
+                        onCancelEdit={() => setEditingActionId(null)}
+                      />
                     ) : (
                       <div className="flex items-center justify-between">
                         <div>
@@ -260,7 +230,7 @@ export default function ViolationDetail() {
                           {canEdit && (
                             <Button
                               variant="ghost" size="icon" className="h-7 w-7"
-                              onClick={() => { setEditingActionId(ca.id); setEditDescription(ca.description); setEditDueDate(ca.due_date); }}
+                              onClick={() => setEditingActionId(ca.id)}
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
@@ -296,7 +266,7 @@ export default function ViolationDetail() {
               <label className="flex items-center gap-2 text-xs cursor-pointer">
                 <input
                   type="checkbox" checked={assignRetraining}
-                  onChange={(e) => { setAssignRetraining(e.target.checked); setNewActionDescription(""); }}
+                  onChange={(e) => setAssignRetraining(e.target.checked)}
                 />
                 Assign retraining to a staff member instead of a plain description
               </label>
@@ -346,43 +316,9 @@ export default function ViolationDetail() {
                   </Button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
-                  <Input value={newActionDescription} onChange={(e) => setNewActionDescription(e.target.value)} placeholder="Corrective task description" className="h-9 flex-1" />
-                  <Select value={assignedEmployeeId} onValueChange={setAssignedEmployeeId}>
-                    <SelectTrigger className="h-9 w-44"><SelectValue placeholder="Assigned to (optional)" /></SelectTrigger>
-                    <SelectContent>
-                      {facilityEmployees.map((e) => (
-                        <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input type="date" value={newActionDueDate} onChange={(e) => setNewActionDueDate(e.target.value)} className="h-9 w-40" />
-                  <Button
-                    size="sm"
-                    disabled={!newActionDescription.trim() || !newActionDueDate}
-                    onClick={() => {
-                      const employee = employeeById.get(assignedEmployeeId);
-                      createCorrectiveAction(
-                        {
-                          violation_id: violation.id, description: newActionDescription.trim(), due_date: newActionDueDate,
-                          owner_profile_id: employee?.profile_id ?? null,
-                          owner_name: employee ? `${employee.last_name}, ${employee.first_name}` : null,
-                          organization_id: violation.organization_id, facility_id: violation.facility_id,
-                        },
-                        {
-                          onSuccess: () => {
-                            setNewActionDescription("");
-                            setNewActionDueDate("");
-                            setAssignedEmployeeId("");
-                          },
-                          onError: (err: Error) => toast({ title: "Failed to add corrective action", description: err.message, variant: "destructive" }),
-                        },
-                      );
-                    }}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
+                <CorrectiveActionForm
+                  parent={{ organizationId: violation.organization_id, facilityId: violation.facility_id, violationId: violation.id }}
+                />
               )}
             </div>
           )}

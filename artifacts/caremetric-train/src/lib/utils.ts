@@ -19,3 +19,10 @@ export function rangeFor(page: number, pageSize: number): [number, number] {
   const from = (Math.max(1, page) - 1) * pageSize
   return [from, from + pageSize - 1]
 }
+
+// "some_status" -> "Some Status" -- shared formatter for the many snake_case enum/status values
+// (incident types, corrective-action statuses, etc.) rendered as plain-language labels throughout
+// the app. Canonical copy of what used to be duplicated verbatim across several page components.
+export function humanize(value: string): string {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+}

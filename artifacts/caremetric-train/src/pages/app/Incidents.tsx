@@ -5,6 +5,7 @@ import {
 } from "@/hooks/useIncidents";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useListResidents } from "@/hooks/useResidents";
 import { useUrlState } from "@/hooks/useUrlState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,11 +55,19 @@ function StatusPill({ status }: { status: string }) {
   return <Badge className={className} variant="outline">{humanize(status)}</Badge>;
 }
 
+// Sentinel for the "Other / not listed" option in the resident Select below -- Radix SelectItem
+// values can't be "", and this also has to be distinguishable from a real resident uuid.
+const RESIDENT_OTHER = "__other__";
+
 interface IncidentFormData {
   facilityId: string;
   incidentType: (typeof INCIDENT_TYPE_OPTIONS)[number];
   occurredAt: string;
-  residentIdentifier: string;
+  // "" (none picked yet), a real residents.id, or RESIDENT_OTHER (free-text fallback below applies).
+  residentId: string;
+  // Free text, only meaningful when residentId === RESIDENT_OTHER -- covers facilities that
+  // haven't onboarded resident records yet, or a resident who genuinely isn't in the system.
+  residentIdentifierOther: string;
   locationDetail: string;
   narrative: string;
   severity: "minor" | "moderate" | "major" | "critical";
@@ -71,7 +80,7 @@ interface IncidentFormData {
 function emptyForm(): IncidentFormData {
   return {
     facilityId: "", incidentType: "other", occurredAt: toLocalDatetimeInputValue(new Date()),
-    residentIdentifier: "", locationDetail: "", narrative: "", severity: "moderate",
+    residentId: "", residentIdentifierOther: "", locationDetail: "", narrative: "", severity: "moderate",
   };
 }
 
@@ -98,6 +107,9 @@ export default function Incidents() {
 
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees();
+  // Scoped to whichever facility is currently selected in the create form (not the page's own
+  // facility filter above) -- powers the Resident picker on that form only.
+  const { data: formFacilityResidents } = useListResidents(form.facilityId ? { facilityId: form.facilityId } : {});
   const { data: incidents, isLoading } = useListIncidents({
     facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
     severity: urlState.severity !== "all" ? urlState.severity : undefined,
@@ -158,12 +170,19 @@ export default function Incidents() {
     const facility = facilityById.get(form.facilityId);
     if (!facility) return;
 
+    // resident_identifier is a plain text column (no resident_id FK) -- storing the resident's
+    // actual id when one was picked still lets IncidentDetail.tsx resolve it back to a name, while
+    // staying compatible with the free-text fallback for facilities with no resident records yet.
+    const residentIdentifier =
+      form.residentId === RESIDENT_OTHER ? (form.residentIdentifierOther.trim() || null)
+      : form.residentId || null;
+
     const payload: IncidentInsert = {
       organization_id: facility.organization_id,
       facility_id: facility.id,
       incident_type: form.incidentType,
       occurred_at: new Date(form.occurredAt).toISOString(),
-      resident_identifier: form.residentIdentifier || null,
+      resident_identifier: residentIdentifier,
       location_detail: form.locationDetail || null,
       narrative: form.narrative.trim(),
       severity: form.severity,
@@ -301,7 +320,13 @@ export default function Incidents() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-[13px]">Facility *</Label>
-                <Select value={form.facilityId} onValueChange={(v) => setForm((f) => ({ ...f, facilityId: v }))}>
+                <Select
+                  value={form.facilityId}
+                  // Resets the resident picker -- a resident id chosen under the old facility
+                  // wouldn't belong to the new one, and formFacilityResidents itself re-scopes as
+                  // soon as facilityId changes.
+                  onValueChange={(v) => setForm((f) => ({ ...f, facilityId: v, residentId: "", residentIdentifierOther: "" }))}
+                >
                   <SelectTrigger className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
                   <SelectContent>
                     {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
@@ -331,8 +356,43 @@ export default function Incidents() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Resident Identifier</Label>
-                <Input value={form.residentIdentifier} onChange={(e) => setForm((f) => ({ ...f, residentIdentifier: e.target.value }))} placeholder="Name or room number" className="h-9" />
+                <Label className="text-[13px]">Resident</Label>
+                {form.residentId === RESIDENT_OTHER ? (
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      value={form.residentIdentifierOther}
+                      onChange={(e) => setForm((f) => ({ ...f, residentIdentifierOther: e.target.value }))}
+                      placeholder="Name or room number"
+                      className="h-9"
+                      autoFocus
+                    />
+                    <Button
+                      type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0"
+                      title="Choose from resident list instead"
+                      onClick={() => setForm((f) => ({ ...f, residentId: "", residentIdentifierOther: "" }))}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Select
+                    value={form.residentId}
+                    onValueChange={(v) => setForm((f) => ({ ...f, residentId: v, residentIdentifierOther: "" }))}
+                    disabled={!form.facilityId}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder={form.facilityId ? "Select resident (optional)" : "Select a facility first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {formFacilityResidents?.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>{r.last_name}, {r.first_name}{r.room ? ` — Room ${r.room}` : ""}</SelectItem>
+                      ))}
+                      {/* Graceful fallback for a facility with no resident records onboarded yet, or a
+                          resident who genuinely isn't in the system -- reveals the old free-text field. */}
+                      <SelectItem value={RESIDENT_OTHER}>Other / not listed…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[13px]">Location</Label>

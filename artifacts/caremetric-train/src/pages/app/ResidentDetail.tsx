@@ -21,10 +21,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, BedDouble, ClipboardList, FileText, Upload, Download, Trash2, Check, TriangleAlert, FilePenLine, Lock, Users, Plus, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { humanize } from "@/lib/utils";
 import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, getComplianceFormLabel, getRequiredStateFormLabel, formatDateOnly } from "@/lib/residentCompliance";
 import { isDigitalFormEligible, deriveAssessmentReason } from "@/lib/residentAssessmentFormSchema";
 import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
@@ -32,10 +37,6 @@ import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 type SupportRow = Partial<Pick<ResidentInformalSupport, "id">> & { name: string; relationship: string; phone: string };
 
 const emptySupportRow = (): SupportRow => ({ name: "", relationship: "", phone: "" });
-
-function humanize(value: string): string {
-  return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-}
 
 function ComplianceStatusBadge({ status }: { status: string }) {
   return <Badge className={complianceStatusBadgeClassName(status)} variant="outline">{humanize(status)}</Badge>;
@@ -73,6 +74,7 @@ export default function ResidentDetail() {
   const [changeNotes, setChangeNotes] = useState("");
   const [completingItem, setCompletingItem] = useState<NonNullable<typeof items>[number] | null>(null);
   const [completeFile, setCompleteFile] = useState<File | null>(null);
+  const [docPendingDelete, setDocPendingDelete] = useState<NonNullable<typeof documents>[number] | null>(null);
   const [showContactsDialog, setShowContactsDialog] = useState(false);
   const [contactsForm, setContactsForm] = useState({
     date_of_birth: "",
@@ -263,6 +265,18 @@ export default function ResidentDetail() {
       window.open(signedUrl, "_blank", "noopener,noreferrer");
     } catch (err) {
       toast({ title: "Download failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+    }
+  };
+
+  const confirmDeleteDocument = async () => {
+    if (!docPendingDelete) return;
+    try {
+      await deleteDocument.mutateAsync(docPendingDelete);
+      toast({ title: "Document deleted" });
+    } catch (err) {
+      toast({ title: "Delete failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+    } finally {
+      setDocPendingDelete(null);
     }
   };
 
@@ -660,7 +674,7 @@ export default function ResidentDetail() {
                       <Download className="h-3.5 w-3.5" />
                     </Button>
                     {canDelete && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteDocument.mutate(doc)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDocPendingDelete(doc)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
@@ -671,6 +685,23 @@ export default function ResidentDetail() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!docPendingDelete} onOpenChange={(open) => !open && setDocPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Document</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes "{docPendingDelete?.file_name}" and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteDocument} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

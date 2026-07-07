@@ -2,10 +2,11 @@ import { useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { useGetInspectionItem, useUpdateInspectionItem } from "@/hooks/useInspectionItems";
 import { useListInspectionEvents, useCreateInspectionEvent } from "@/hooks/useInspectionEvents";
-import { useListCorrectiveActions, useCreateCorrectiveAction, useUpdateCorrectiveAction } from "@/hooks/useCorrectiveActions";
+import { useListCorrectiveActions, useUpdateCorrectiveAction } from "@/hooks/useCorrectiveActions";
 import type { InspectionEvent } from "@/hooks/useInspectionEvents";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListViolationsBySourceInspectionEvents } from "@/hooks/useViolations";
+import { CorrectiveActionForm, CorrectiveActionStatusBadge } from "@/components/CorrectiveActionForm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,10 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Flame, ClipboardList, Plus, Check, Printer, AlertTriangle, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-
-function humanize(value: string): string {
-  return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-}
+import { cn, humanize } from "@/lib/utils";
 
 const SHIFT_OPTIONS = ["day", "evening", "overnight"] as const;
 
@@ -41,13 +39,19 @@ function ResultBadge({ result }: { result: string }) {
   return <Badge className={className} variant="outline">{humanize(result)}</Badge>;
 }
 
+// Small inline error shown under a required field once a submit attempt has flagged it empty --
+// replaces a single generic toast that gave no indication of which of the fire-drill dialog's 6+
+// required fields was the problem.
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="text-xs text-destructive mt-1">{message}</p>;
+}
+
+const errorFieldClass = (hasError: string | undefined) => cn(hasError && "border-destructive focus-visible:ring-destructive");
+
 function EventCorrectiveActions({ event, canManage }: { event: InspectionEvent; canManage: boolean }) {
-  const { user } = useAuth();
   const { data: actions } = useListCorrectiveActions({ inspectionEventId: event.id });
-  const { mutate: createAction } = useCreateCorrectiveAction();
   const { mutate: updateAction } = useUpdateCorrectiveAction();
-  const [description, setDescription] = useState("");
-  const [dueDate, setDueDate] = useState("");
 
   return (
     <div className="mt-2 pl-4 border-l-2 space-y-2">
@@ -55,9 +59,7 @@ function EventCorrectiveActions({ event, canManage }: { event: InspectionEvent; 
         <div key={ca.id} className="flex items-center justify-between text-xs">
           <span>{ca.description} — due {ca.due_date}</span>
           <div className="flex items-center gap-1.5">
-            <Badge variant="outline" className={ca.status === "completed" ? "bg-success text-success-foreground" : ca.status === "overdue" ? "bg-destructive text-destructive-foreground" : "bg-info text-info-foreground"}>
-              {humanize(ca.status)}
-            </Badge>
+            <CorrectiveActionStatusBadge status={ca.status} />
             {canManage && ca.status !== "completed" && (
               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => updateAction({ id: ca.id, status: "completed", completed_date: new Date().toISOString().slice(0, 10) })}>
                 <Check className="h-3 w-3" />
@@ -67,26 +69,10 @@ function EventCorrectiveActions({ event, canManage }: { event: InspectionEvent; 
         </div>
       ))}
       {canManage && (
-        <div className="flex items-center gap-1.5">
-          <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Corrective action" className="h-7 text-xs flex-1" />
-          <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="h-7 text-xs w-32" />
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 px-2"
-            disabled={!description.trim() || !dueDate}
-            onClick={() => {
-              createAction({
-                inspection_event_id: event.id, description: description.trim(), due_date: dueDate,
-                owner_profile_id: user?.id ?? null, organization_id: event.organization_id, facility_id: event.facility_id,
-              });
-              setDescription("");
-              setDueDate("");
-            }}
-          >
-            <Plus className="h-3 w-3" />
-          </Button>
-        </div>
+        <CorrectiveActionForm
+          parent={{ organizationId: event.organization_id, facilityId: event.facility_id, inspectionEventId: event.id }}
+          size="sm"
+        />
       )}
     </div>
   );
@@ -138,28 +124,39 @@ export default function InspectionItemDetail() {
   const [problemsEncountered, setProblemsEncountered] = useState("");
   const [shift, setShift] = useState<(typeof SHIFT_OPTIONS)[number]>("day");
   const [isSleepingHoursDrill, setIsSleepingHoursDrill] = useState(false);
+  // Only shown once a submit attempt has actually failed -- an untouched, freshly-opened dialog
+  // shouldn't greet the user with a wall of red borders.
+  const [showValidation, setShowValidation] = useState(false);
 
   const facilityName = facilities?.find((f) => f.id === item?.facility_id)?.name;
   const isFireDrill = item?.item_type === "fire_drill_program";
+
+  // Recomputed from current field values on every render (cheap -- a handful of string checks)
+  // rather than tracked as its own state, so an error can never go stale relative to what's
+  // actually typed in the field it describes.
+  const fieldErrors = {
+    performedBy: !performedBy.trim() ? "Required" : undefined,
+    drillTime: isFireDrill && !drillTime ? "Required" : undefined,
+    exitRouteUsed: isFireDrill && !exitRouteUsed.trim() ? "Required" : undefined,
+    residentsPresent: isFireDrill && !residentsPresent.trim() ? "Required" : undefined,
+    residentsEvacuated: isFireDrill && !residentsEvacuated.trim() ? "Required" : undefined,
+    staffParticipating: isFireDrill && !staffParticipating.trim() ? "Required" : undefined,
+    problemsEncountered: isFireDrill && !problemsEncountered.trim() ? "Required" : undefined,
+  };
 
   const resetEventForm = () => {
     setPerformedBy(""); setDeficiencyNotes(""); setResult("pass");
     setDrillTime(""); setDurationMinutes(""); setDurationSeconds(""); setExitRouteUsed("");
     setResidentsPresent(""); setResidentsEvacuated(""); setStaffParticipating("");
     setAlarmOperative("yes"); setProblemsEncountered(""); setShift("day"); setIsSleepingHoursDrill(false);
+    setShowValidation(false);
   };
 
   const handleLogEvent = () => {
-    if (!item || !performedBy.trim()) {
-      toast({ title: "Performed by is required", variant: "destructive" });
-      return;
-    }
-    if (
-      isFireDrill &&
-      (!drillTime || !shift || !exitRouteUsed.trim() || !residentsPresent.trim() ||
-        !residentsEvacuated.trim() || !staffParticipating.trim() || !problemsEncountered.trim())
-    ) {
-      toast({ title: "All DHS fire drill fields are required", variant: "destructive" });
+    if (!item) return;
+    if (Object.values(fieldErrors).some(Boolean)) {
+      setShowValidation(true);
+      toast({ title: "Please fill in the highlighted fields", variant: "destructive" });
       return;
     }
     const totalSeconds = durationMinutes.trim() || durationSeconds.trim()
@@ -388,7 +385,7 @@ export default function InspectionItemDetail() {
         </div>
       )}
 
-      <Dialog open={showEventForm} onOpenChange={(o) => { if (!o) setShowEventForm(false); }}>
+      <Dialog open={showEventForm} onOpenChange={(o) => { if (!o) { setShowEventForm(false); setShowValidation(false); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Log Inspection</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
@@ -398,7 +395,11 @@ export default function InspectionItemDetail() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-[13px]">Performed By *</Label>
-              <Input value={performedBy} onChange={(e) => setPerformedBy(e.target.value)} placeholder="Staff name or vendor" className="h-9" />
+              <Input
+                value={performedBy} onChange={(e) => setPerformedBy(e.target.value)} placeholder="Staff name or vendor"
+                className={cn("h-9", showValidation && errorFieldClass(fieldErrors.performedBy))}
+              />
+              {showValidation && <FieldError message={fieldErrors.performedBy} />}
             </div>
             <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Result *</Label>
@@ -423,7 +424,11 @@ export default function InspectionItemDetail() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[13px]">Time</Label>
-                  <Input type="time" value={drillTime} onChange={(e) => setDrillTime(e.target.value)} className="h-9" />
+                  <Input
+                    type="time" value={drillTime} onChange={(e) => setDrillTime(e.target.value)}
+                    className={cn("h-9", showValidation && errorFieldClass(fieldErrors.drillTime))}
+                  />
+                  {showValidation && <FieldError message={fieldErrors.drillTime} />}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[13px]">Shift</Label>
@@ -444,19 +449,35 @@ export default function InspectionItemDetail() {
                 </div>
                 <div className="col-span-2 space-y-1.5">
                   <Label className="text-[13px]">Exit Route Used</Label>
-                  <Input value={exitRouteUsed} onChange={(e) => setExitRouteUsed(e.target.value)} placeholder="e.g. East stairwell to rear parking lot" className="h-9" />
+                  <Input
+                    value={exitRouteUsed} onChange={(e) => setExitRouteUsed(e.target.value)} placeholder="e.g. East stairwell to rear parking lot"
+                    className={cn("h-9", showValidation && errorFieldClass(fieldErrors.exitRouteUsed))}
+                  />
+                  {showValidation && <FieldError message={fieldErrors.exitRouteUsed} />}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[13px]">Residents Present</Label>
-                  <Input type="number" min={0} value={residentsPresent} onChange={(e) => setResidentsPresent(e.target.value)} className="h-9" />
+                  <Input
+                    type="number" min={0} value={residentsPresent} onChange={(e) => setResidentsPresent(e.target.value)}
+                    className={cn("h-9", showValidation && errorFieldClass(fieldErrors.residentsPresent))}
+                  />
+                  {showValidation && <FieldError message={fieldErrors.residentsPresent} />}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[13px]">Residents Evacuated</Label>
-                  <Input type="number" min={0} value={residentsEvacuated} onChange={(e) => setResidentsEvacuated(e.target.value)} className="h-9" />
+                  <Input
+                    type="number" min={0} value={residentsEvacuated} onChange={(e) => setResidentsEvacuated(e.target.value)}
+                    className={cn("h-9", showValidation && errorFieldClass(fieldErrors.residentsEvacuated))}
+                  />
+                  {showValidation && <FieldError message={fieldErrors.residentsEvacuated} />}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[13px]">Staff Participating</Label>
-                  <Input type="number" min={0} value={staffParticipating} onChange={(e) => setStaffParticipating(e.target.value)} className="h-9" />
+                  <Input
+                    type="number" min={0} value={staffParticipating} onChange={(e) => setStaffParticipating(e.target.value)}
+                    className={cn("h-9", showValidation && errorFieldClass(fieldErrors.staffParticipating))}
+                  />
+                  {showValidation && <FieldError message={fieldErrors.staffParticipating} />}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[13px]">Alarm/Detector Operative</Label>
@@ -482,13 +503,15 @@ export default function InspectionItemDetail() {
                   <Textarea
                     value={problemsEncountered} onChange={(e) => setProblemsEncountered(e.target.value)}
                     placeholder="Required field on the DHS form -- enter &quot;None&quot; if the drill went smoothly"
+                    className={showValidation ? errorFieldClass(fieldErrors.problemsEncountered) : undefined}
                   />
+                  {showValidation && <FieldError message={fieldErrors.problemsEncountered} />}
                 </div>
               </>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEventForm(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setShowEventForm(false); setShowValidation(false); }}>Cancel</Button>
             <Button onClick={handleLogEvent} disabled={creatingEvent} className="shadow-sm">
               {creatingEvent ? "Saving..." : "Log Inspection"}
             </Button>
