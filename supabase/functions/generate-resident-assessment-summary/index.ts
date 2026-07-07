@@ -61,10 +61,28 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const callerClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } });
+
   const { data: { user }, error: authError } = await callerClient.auth.getUser();
   if (authError || !user) return json({ error: "Invalid or expired session" }, 401);
-  const { data: setting } = await callerClient.from("platform_settings").select("value").eq("key", "ai_wellness_summary_generation_enabled").maybeSingle();
-  if (setting?.value !== true) return json({ error: "AI wellness summary generation is currently disabled by the platform administrator." }, 403);
+
+  const { data: callerProfile, error: callerProfileError } = await callerClient
+    .from("profiles")
+    .select("role, is_active")
+    .eq("id", user.id)
+    .single();
+  if (callerProfileError || !callerProfile || !callerProfile.is_active) {
+    return json({ error: "Caller profile not found or inactive" }, 403);
+  }
+  if (!["platform_admin", "org_admin", "facility_manager"].includes(String(callerProfile.role))) {
+    return json({ error: "not authorized to generate AI wellness summaries" }, 403);
+  }
+
+  const { data: settingValue, error: settingError } = await callerClient
+    .rpc("get_platform_setting", { p_key: "ai_wellness_summary_generation_enabled" });
+  if (settingError) return json({ error: settingError.message }, 500);
+  if (settingValue !== true) {
+    return json({ error: "AI wellness summary generation is currently disabled by the platform administrator." }, 403);
+  }
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) return json({ error: "ANTHROPIC_API_KEY is not configured" }, 500);
   let body: { formId?: string };
