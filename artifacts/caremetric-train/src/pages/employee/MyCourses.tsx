@@ -37,12 +37,19 @@ export default function MyCourses() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [statusFilter, setStatusFilter] = useState("all");
-  const [enrollingCourseId, setEnrollingCourseId] = useState<string | null>(null);
 
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
-  const { data: assignments, isLoading: assignmentsLoading } = useListCourseAssignments({ employeeId: employee?.id });
+  // Gate on a resolved employee id, not just pass it through as a filter -- for a role that's
+  // never self-enrolled before (org_admin/auditor/platform_admin pre-ensure_employee_record),
+  // there is no employees row yet, and an undefined employeeId would otherwise fetch every
+  // assignment RLS allows (org-wide, or platform-wide for platform_admin) instead of none. See
+  // useListCourseAssignments' own comment on why `enabled` -- not just the filter -- is required.
+  const { data: assignments, isLoading: assignmentsLoading } = useListCourseAssignments(
+    { employeeId: employee?.id },
+    { enabled: !!employee?.id },
+  );
   const { data: courses } = useListCourses();
-  const { mutate: selfEnroll, isPending: enrolling } = useSelfEnrollCourse();
+  const { mutate: selfEnroll, isPending: enrolling, variables: enrollingCourseId } = useSelfEnrollCourse();
 
   const isLoading = employeeLoading || assignmentsLoading;
   const courseById = new Map((courses ?? []).map(c => [c.id, c]));
@@ -57,12 +64,10 @@ export default function MyCourses() {
   const availableCourses = (courses ?? []).filter(c => c.status === "published" && !assignedCourseIds.has(c.id));
 
   const handleStart = (courseId: string) => {
-    setEnrollingCourseId(courseId);
     selfEnroll(courseId, {
       onSuccess: (assignmentId) => navigate(`/me/courses/${assignmentId}`),
       onError: (e: Error) => {
         toast({ title: "Couldn't start course", description: e.message, variant: "destructive" });
-        setEnrollingCourseId(null);
       },
     });
   };

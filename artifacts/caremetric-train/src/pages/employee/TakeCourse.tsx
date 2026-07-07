@@ -84,6 +84,14 @@ export default function TakeCourse() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
+  // Every role can reach this page now (App.tsx's ANY_ROLE), but /me/trainings and
+  // /me/certificates stay employee-only routes -- routing anyone else there would just bounce
+  // them straight back out via ProtectedRoute. /me/courses is the one "/me/*" destination every
+  // role can actually land on.
+  const isEmployeeRole = user?.role === "employee";
+  const backHref = isEmployeeRole ? "/me/trainings" : "/me/courses";
+  const backLabel = isEmployeeRole ? "Back to My Trainings" : "Back to My Courses";
+
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
   const { data: assignment, isLoading: assignmentLoading } = useGetCourseAssignment(assignmentId);
   const { data: course } = useGetCourse(assignment?.course_id);
@@ -106,7 +114,9 @@ export default function TakeCourse() {
   // if issuance succeeded, trainings if it didn't (mirrors the two onSuccess/
   // onError destinations handleComplete used to navigate to directly).
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
-  const [postCompleteDestination, setPostCompleteDestination] = useState<"/me/certificates" | "/me/trainings">("/me/certificates");
+  const [postCompleteDestination, setPostCompleteDestination] = useState<"/me/certificates" | "/me/trainings" | "/me/courses">(
+    isEmployeeRole ? "/me/certificates" : "/me/courses",
+  );
   const [ratingValue, setRatingValue] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
 
@@ -220,7 +230,7 @@ export default function TakeCourse() {
           {
             onSuccess: () => {
               toast({ title: "Course completed", description: "Certificate issued -- nice work!" });
-              setPostCompleteDestination("/me/certificates");
+              setPostCompleteDestination(isEmployeeRole ? "/me/certificates" : "/me/courses");
               setShowRatingPrompt(true);
             },
             onError: (e: Error) => {
@@ -229,7 +239,7 @@ export default function TakeCourse() {
               // forward rather than blocking on this secondary step.
               toast({ title: "Course completed", description: "Nice work -- this course is now marked complete." });
               console.error("issue_certificate failed after course completion:", e.message);
-              setPostCompleteDestination("/me/trainings");
+              setPostCompleteDestination(isEmployeeRole ? "/me/trainings" : "/me/courses");
               setShowRatingPrompt(true);
             },
           }
@@ -286,7 +296,7 @@ export default function TakeCourse() {
       <div className="text-center py-12">
         <p className="text-muted-foreground">Course assignment not found.</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href="/me/trainings"><ArrowLeft className="mr-2 h-4 w-4" /> Back to My Trainings</Link>
+          <Link href={backHref}><ArrowLeft className="mr-2 h-4 w-4" /> {backLabel}</Link>
         </Button>
       </div>
     );
@@ -298,7 +308,7 @@ export default function TakeCourse() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-          <Link href="/me/trainings"><ArrowLeft className="mr-2 h-4 w-4" /> Back to My Trainings</Link>
+          <Link href={backHref}><ArrowLeft className="mr-2 h-4 w-4" /> {backLabel}</Link>
         </Button>
       </div>
 

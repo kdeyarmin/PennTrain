@@ -18,7 +18,14 @@ export interface ListCourseAssignmentsFilters {
   trainingPlanId?: string;
 }
 
-export function useListCourseAssignments(filters: ListCourseAssignmentsFilters = {}) {
+// `enabled` matters for callers that intend to scope by employeeId but don't have one yet (e.g.
+// MyCourses.tsx before an account's employees row exists) -- every filter field here is applied
+// only `if` truthy, so an absent employeeId doesn't scope to "nothing," it scopes to "no filter at
+// all," silently returning every assignment RLS permits. Passing `enabled: false` in that case
+// (rather than `employeeId: undefined`) is the only way to get "no results yet" instead of "every
+// org-wide (or platform-wide, for platform_admin) assignment," since RLS alone doesn't stand in
+// for a missing employee_id filter.
+export function useListCourseAssignments(filters: ListCourseAssignmentsFilters = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["course_assignments", filters],
     queryFn: async () => {
@@ -32,6 +39,7 @@ export function useListCourseAssignments(filters: ListCourseAssignmentsFilters =
       if (error) throw error;
       return data;
     },
+    enabled: options.enabled,
   });
 }
 

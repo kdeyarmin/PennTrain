@@ -77,20 +77,36 @@ begin
     return;
   end if;
 
+  -- Matches ROLE_LABELS in src/pages/app/Users.tsx exactly -- this is the one place outside the
+  -- frontend that renders a role as a human label, and a wording mismatch (e.g. "Facility
+  -- Administrator" here vs. "Facility Manager" there) would show two different titles for the
+  -- same account depending which page you look at.
   v_job_title := case v_profile.role
-    when 'platform_admin' then 'Platform Administrator'
-    when 'org_admin' then 'Organization Administrator'
-    when 'facility_manager' then 'Facility Administrator'
+    when 'platform_admin' then 'Platform Admin'
+    when 'org_admin' then 'Org Admin'
+    when 'facility_manager' then 'Facility Manager'
     when 'trainer' then 'Trainer'
     when 'auditor' then 'Auditor'
-    else 'Staff'
+    else 'Employee'
   end;
 
+  -- status is deliberately 'inactive', not 'active': trigger_instantiate_requirements_on_employee_change()
+  -- (pa_rulepack_requirement_auto_assignment_engine.sql) fires on every employees insert and calls
+  -- instantiate_missing_requirements(), which only actually does anything `if v_emp.status = 'active'`.
+  -- A self-provisioned administrative account (org_admin/auditor/platform_admin just trying a course,
+  -- not a real hire) letting that engine run would create real "missing" employee_training_records
+  -- and employee_credentials rows (Act 34 criminal history, TB screening) that count against the
+  -- facility's actual regulatory compliance percentage and Survey Readiness reports -- exactly the
+  -- numbers this app exists to report accurately for a real PA-licensed facility. 'inactive' skips
+  -- that engine entirely; it does not block this account from taking its own course, since every RLS
+  -- policy on course_assignments/course_progress/quiz_attempts gates on owns_employee() (which checks
+  -- profiles.is_active, not employees.status), and enforce_employee_limit() still (correctly) counts
+  -- this row against the org's plan seat limit regardless of status, same as a real hire would.
   insert into public.employees (
     organization_id, facility_id, profile_id, first_name, last_name, email, job_title, hire_date, status
   ) values (
     v_org_id, v_facility_id, p_profile_id, v_profile.first_name, v_profile.last_name, v_profile.email,
-    v_job_title, v_profile.created_at::date, 'active'
+    v_job_title, v_profile.created_at::date, 'inactive'
   )
   on conflict (profile_id) do nothing;
 end;
@@ -107,13 +123,21 @@ returns uuid language plpgsql security definer set search_path to 'public' as $$
 declare
   v_employee public.employees;
   v_course   public.courses;
+  v_version_status text;
+  v_version_ai_generated boolean;
+  v_version_ai_reviewed_at timestamptz;
   v_assignment_id uuid;
 begin
-  perform public.ensure_employee_record(auth.uid());
-
+  -- Only call ensure_employee_record on an actual miss -- avoids a redundant profiles/employees
+  -- round trip on every self-enroll for the common case (employee/facility_manager/trainer
+  -- accounts, which already have a row from onboarding).
   select * into v_employee from public.employees where profile_id = auth.uid();
   if not found then
-    raise exception 'no employee record for current user' using errcode = 'insufficient_privilege';
+    perform public.ensure_employee_record(auth.uid());
+    select * into v_employee from public.employees where profile_id = auth.uid();
+    if not found then
+      raise exception 'no employee record for current user' using errcode = 'insufficient_privilege';
+    end if;
   end if;
 
   select * into v_course from public.courses where id = p_course_id;
@@ -121,9 +145,40 @@ begin
     raise exception 'course is not available to enroll in' using errcode = 'invalid_parameter_value';
   end if;
 
+  -- This function is security definer and bypasses courses_select RLS entirely -- without this
+  -- check, a caller could pass the id of a course belonging to a *different* organization (one
+  -- they could never see via the normal SELECT policy) and self-enroll in it anyway. Mirrors
+  -- courses_select's own "organization_id is null or organization_id = current org" condition.
+  if v_course.organization_id is not null and v_course.organization_id <> v_employee.organization_id then
+    raise exception 'course is not available to enroll in' using errcode = 'invalid_parameter_value';
+  end if;
+
+  -- Mirrors validate_course_assignment_version()'s own insert-time check (published, and if
+  -- AI-generated, review-complete) so a caller who reaches this via a course whose catalog entry
+  -- is published but whose current version is still an unreviewed AI draft gets this same,
+  -- expected error up front, instead of a raw trigger exception surfacing straight to the UI toast.
+  select status, ai_generated, ai_reviewed_at
+    into v_version_status, v_version_ai_generated, v_version_ai_reviewed_at
+    from public.course_versions where id = v_course.current_version_id;
+  if v_version_status is distinct from 'published' or (v_version_ai_generated and v_version_ai_reviewed_at is null) then
+    raise exception 'course is not available to enroll in' using errcode = 'invalid_parameter_value';
+  end if;
+
+  -- Serializes concurrent self-enroll attempts for the same (employee, course) pair.
+  -- course_assignments has no unique constraint on (employee_id, course_id) -- by design, an
+  -- admin can legitimately re-assign the same course for a later retraining cycle -- so without
+  -- this lock, two concurrent calls (double-click, a retried request, two open tabs) could both
+  -- pass the "already enrolled?" check below and both insert.
+  perform pg_advisory_xact_lock(hashtextextended(v_employee.id::text || ':' || p_course_id::text, 0));
+
+  -- ORDER BY + LIMIT: if an admin-assigned row for this pair already exists (e.g. from a prior
+  -- retraining cycle), this deterministically reuses the most recent one rather than an
+  -- arbitrary row.
   select id into v_assignment_id
   from public.course_assignments
-  where employee_id = v_employee.id and course_id = p_course_id;
+  where employee_id = v_employee.id and course_id = p_course_id
+  order by assigned_at desc
+  limit 1;
 
   if v_assignment_id is not null then
     return v_assignment_id;
