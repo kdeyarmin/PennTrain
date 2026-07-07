@@ -88,11 +88,12 @@ function degreeItemAnswered(formType: string, item: AnyRecord): boolean {
 }
 
 function simpleNeedAnswered(item: AnyRecord): boolean {
-  return !item.applicable || !!(item.description ?? "").trim();
+  return item.applicable === false || !!(item.description ?? "").trim();
 }
 
 function diagnosisRowsAnswered(rows: AnyRecord[] | undefined, none: boolean | undefined): boolean {
-  return !!none || (rows ?? []).every((r) => !!(r.description ?? "").trim());
+  const list = rows ?? [];
+  return !!none || (list.length > 0 && list.every((r) => !!(r.description ?? "").trim()));
 }
 
 function getIncompleteSections(formType: string, content: AnyRecord): string[] {
@@ -103,7 +104,8 @@ function getIncompleteSections(formType: string, content: AnyRecord): string[] {
   }
 
   const section1Answered =
-    (["supervision", "mobility", "medications"] as const).every((k) => !!(content.section1?.[k]?.needsDescription ?? "").trim())
+    (["supervision", "mobility", "medications"] as const).every((k) =>
+      !!(content.section1?.[k]?.needsDescription ?? "").trim() && !!(content.section1?.[k]?.planDescription ?? "").trim())
     && ADL_ITEMS.every(([key]) => degreeItemAnswered(formType, content.section1?.items?.[key] ?? {}));
   if (!section1Answered) incomplete.push("section1");
 

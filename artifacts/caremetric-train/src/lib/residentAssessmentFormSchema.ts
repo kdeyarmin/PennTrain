@@ -388,11 +388,11 @@ function degreeItemAnswered(item: DegreeItemAnswer, formType: FormType): boolean
 }
 
 function simpleNeedAnswered(item: SimpleNeedAnswer): boolean {
-  return !item.applicable || !!item.description.trim();
+  return item.applicable === false || !!item.description.trim();
 }
 
 function diagnosisRowsAnswered(rows: DiagnosisRow[], none: boolean): boolean {
-  return none || rows.every((r) => !!r.description.trim());
+  return none || (rows.length > 0 && rows.every((r) => !!r.description.trim()));
 }
 
 // Deliberately mirrors what a preparer would reasonably need to have typed before signing off --
@@ -406,7 +406,8 @@ export function getIncompleteSections(content: ResidentAssessmentFormContent, fo
   }
 
   const section1Answered =
-    (["supervision", "mobility", "medications"] as const).every((key) => !!content.section1[key].needsDescription.trim())
+    (["supervision", "mobility", "medications"] as const).every((key) =>
+      !!content.section1[key].needsDescription.trim() && !!content.section1[key].planDescription.trim())
     && ADL_ITEMS.every((item) => degreeItemAnswered(content.section1.items[item.key], formType));
   if (!section1Answered) incomplete.push("section1");
 

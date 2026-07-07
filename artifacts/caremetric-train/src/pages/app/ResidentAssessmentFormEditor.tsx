@@ -257,7 +257,21 @@ export default function ResidentAssessmentFormEditor() {
   const pendingSave = useRef<{ id: string; content: ResidentAssessmentFormContent } | null>(null);
   const isReadOnly = !canManage || form?.status === "finalized";
 
-  const [activeTab, setActiveTab] = useState<TabValue>("info");
+  const tabStorageKey = (id: string) => `resident-assessment-form-tab:${id}`;
+  const readStoredTab = (id: string): TabValue => {
+    const stored = window.sessionStorage.getItem(tabStorageKey(id));
+    return stored && (TAB_SEQUENCE as readonly string[]).includes(stored) ? (stored as TabValue) : "info";
+  };
+
+  // Leaving this page (e.g. to check something on the resident's profile) and coming back used to
+  // always drop the user back on the "info" tab, forcing them to re-navigate to wherever they'd
+  // gotten to. Restore whichever tab they were last on for this specific form -- keyed by formId so
+  // switching to a different resident's form doesn't inherit the wrong tab. Read synchronously via
+  // the lazy initializer (rather than an effect that calls setActiveTab after mount) so there's no
+  // render where activeTab is still "info" before the persist effect below can fire and clobber the
+  // just-restored value back to "info".
+  const [activeTab, setActiveTab] = useState<TabValue>(() => (formId ? readStoredTab(formId) : "info"));
+  const lastRestoredFormId = useRef(formId);
   const tabsTopRef = useRef<HTMLDivElement>(null);
   const goToTab = (value: TabValue) => {
     setActiveTab(value);
@@ -271,19 +285,17 @@ export default function ResidentAssessmentFormEditor() {
     </div>
   );
 
-  // Leaving this page (e.g. to check something on the resident's profile) and coming back used to
-  // always drop the user back on the "info" tab, forcing them to re-navigate to wherever they'd
-  // gotten to. Restore whichever tab they were last on for this specific form -- keyed by formId
-  // so switching to a different resident's form doesn't inherit the wrong tab.
+  // Handles switching to a *different* form's URL without a full remount (the lazy initializer
+  // above only covers first mount) -- guarded so it doesn't re-run on every render.
   useEffect(() => {
-    if (!formId) return;
-    const stored = window.sessionStorage.getItem(`resident-assessment-form-tab:${formId}`);
-    setActiveTab(stored && (TAB_SEQUENCE as readonly string[]).includes(stored) ? (stored as TabValue) : "info");
+    if (!formId || formId === lastRestoredFormId.current) return;
+    lastRestoredFormId.current = formId;
+    setActiveTab(readStoredTab(formId));
   }, [formId]);
 
   useEffect(() => {
     if (!formId) return;
-    window.sessionStorage.setItem(`resident-assessment-form-tab:${formId}`, activeTab);
+    window.sessionStorage.setItem(tabStorageKey(formId), activeTab);
   }, [activeTab, formId]);
 
   useEffect(() => {
