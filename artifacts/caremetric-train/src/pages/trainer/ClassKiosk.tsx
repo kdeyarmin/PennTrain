@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useRoute, Link } from "wouter";
 import { useGetTrainingClass, useListClassAttendees, useCheckinViaKioskPin } from "@/hooks/useTrainingClasses";
 import { useListEmployees } from "@/hooks/useEmployees";
+import { useListFacilities } from "@/hooks/useFacilities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,12 @@ export default function ClassKiosk() {
 
   const { data: cls } = useGetTrainingClass(classId);
   const { data: attendees } = useListClassAttendees(classId);
-  const { data: employees } = useListEmployees({ status: "active" });
+  // Scoped to the class's facility when it has one -- an org-wide search would otherwise let a
+  // same-named employee from a different site get checked in by mistake at a live kiosk with
+  // people waiting. Cross-facility classes (facility_id null) fall back to an org-wide search,
+  // which is why facility name is still surfaced per row below.
+  const { data: employees } = useListEmployees({ status: "active", facilityId: cls?.facility_id ?? undefined });
+  const { data: facilities } = useListFacilities();
   const { mutateAsync: checkinKiosk, isPending } = useCheckinViaKioskPin();
 
   const [search, setSearch] = useState("");
@@ -24,6 +30,7 @@ export default function ClassKiosk() {
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
 
   const attendeeByEmployeeId = useMemo(() => new Map((attendees ?? []).map((a) => [a.employee_id, a])), [attendees]);
+  const facilitiesById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
 
   const filteredEmployees = (employees ?? [])
     .filter((e) => !search || `${e.first_name} ${e.last_name}`.toLowerCase().includes(search.toLowerCase()))
@@ -89,19 +96,27 @@ export default function ClassKiosk() {
               {search && (
                 <div className="divide-y border rounded-lg max-h-64 overflow-y-auto">
                   {filteredEmployees.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">No matching employee.</p>
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No matching employee{cls?.facility_id ? ` at ${facilitiesById.get(cls.facility_id)?.name ?? "this facility"}` : ""}.
+                    </p>
                   ) : (
                     filteredEmployees.map((emp) => {
                       const attendee = attendeeByEmployeeId.get(emp.id);
                       const status = attendee?.checked_out_at ? "Checked out" : attendee?.checked_in_at ? "Checked in" : "Not checked in";
+                      const facilityName = facilitiesById.get(emp.facility_id)?.name;
                       return (
                         <button
                           key={emp.id}
-                          className="w-full text-left px-4 py-3 hover:bg-muted/50 flex items-center justify-between"
+                          className="w-full text-left px-4 py-3 hover:bg-muted/50 flex items-center justify-between gap-3"
                           onClick={() => setSelectedEmployeeId(emp.id)}
                         >
-                          <span className="font-medium">{emp.first_name} {emp.last_name}</span>
-                          <span className="text-xs text-muted-foreground">{status}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="font-medium block truncate">{emp.first_name} {emp.last_name}</span>
+                            <span className="text-xs text-muted-foreground block truncate">
+                              {[facilityName, emp.job_title].filter(Boolean).join(" · ") || "—"}
+                            </span>
+                          </span>
+                          <span className="text-xs text-muted-foreground shrink-0">{status}</span>
                         </button>
                       );
                     })
