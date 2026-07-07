@@ -179,6 +179,10 @@ const ORG_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "audi
 // the current URL, not from allowedRoles, so it's safe to widen this one without also widening
 // the HelpCenter.tsx list/FAQ/submit routes.
 const SUPPORT_TICKET_DETAIL_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor", "employee"];
+// self_enroll_course() lets any role take a course now, not just employee -- these three routes
+// are the only "/me/*" self-service pages every role can reach; the rest of that prefix
+// (dashboard, schedule, credentials, etc.) stays employee-only real HR/scheduling data.
+const ANY_ROLE: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"];
 const ORG_MANAGE_ROLES: UserRole[] = ["org_admin", "facility_manager"];
 const ORG_ADMIN_ONLY: UserRole[] = ["org_admin"];
 // Read-only compliance views auditor needs alongside the org admin roles -- auditor never
@@ -520,13 +524,13 @@ function Router() {
         {() => <ProtectedRoute component={MyCertificates} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/courses">
-        {() => <ProtectedRoute component={MyCourses} allowedRoles={["employee"]} />}
+        {() => <ProtectedRoute component={MyCourses} allowedRoles={ANY_ROLE} />}
       </Route>
       <Route path="/me/courses/:assignmentId">
-        {() => <ProtectedRoute component={TakeCourse} allowedRoles={["employee"]} />}
+        {() => <ProtectedRoute component={TakeCourse} allowedRoles={ANY_ROLE} />}
       </Route>
       <Route path="/me/courses/:assignmentId/quiz/:quizId">
-        {() => <ProtectedRoute component={TakeQuiz} allowedRoles={["employee"]} />}
+        {() => <ProtectedRoute component={TakeQuiz} allowedRoles={ANY_ROLE} />}
       </Route>
       <Route path="/me/documents">
         {() => <ProtectedRoute component={Documents} allowedRoles={["employee"]} />}

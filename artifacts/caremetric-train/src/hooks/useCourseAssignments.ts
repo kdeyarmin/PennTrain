@@ -73,6 +73,21 @@ export function useStartCourseAssignment() {
   });
 }
 
+// Any role can self-enroll in a published course -- the RPC (security definer) finds or
+// lazily provisions the caller's own employees row, then creates (or reuses) their
+// course_assignments row. Returns the assignment id so the caller can navigate straight in.
+export function useSelfEnrollCourse() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (courseId: string) => {
+      const { data, error } = await supabase.rpc("self_enroll_course", { p_course_id: courseId });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["course_assignments"] }),
+  });
+}
+
 export function useCompleteCourseAssignment() {
   const queryClient = useQueryClient();
   return useMutation({

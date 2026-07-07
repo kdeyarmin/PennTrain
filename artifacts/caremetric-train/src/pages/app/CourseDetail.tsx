@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,8 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft, BookOpen, Pencil, Plus, Rocket, FileText, Video, File as FileIcon,
-  ListChecks, Trash2, Lock, Layers, Sparkles, RefreshCw, Star, Wand2, type LucideIcon,
+  ListChecks, Trash2, Lock, Layers, Sparkles, RefreshCw, Star, Wand2, Play, Loader2,
+  type LucideIcon,
 } from "lucide-react";
 import {
   useGetCourse, useUpdateCourse,
@@ -26,6 +27,7 @@ import {
   useListCourseBlocks, useCreateCourseBlock, useDeleteCourseBlock,
   type CourseVersion, type CourseBlock, type CourseBlockInsert,
 } from "@/hooks/useCourses";
+import { useSelfEnrollCourse } from "@/hooks/useCourseAssignments";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useGetQuizByBlockId, useCreateQuiz } from "@/hooks/useQuizzes";
 import { useListCourseFeedback, summarizeCourseFeedback } from "@/hooks/useCourseFeedback";
@@ -151,10 +153,21 @@ export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
 
   const canManage = user?.role === "platform_admin";
 
   const { data: course, isLoading: courseLoading } = useGetCourse(id);
+
+  const { mutate: selfEnroll, isPending: enrolling } = useSelfEnrollCourse();
+  const handleTakeCourse = () => {
+    if (!course) return;
+    selfEnroll(course.id, {
+      onSuccess: assignmentId => navigate(`/me/courses/${assignmentId}`),
+      onError: (e: Error) => toast({ title: "Couldn't start course", description: e.message, variant: "destructive" }),
+    });
+  };
+
   const { data: courseFeedback } = useListCourseFeedback({ courseId: id });
   const feedbackSummary = summarizeCourseFeedback(courseFeedback);
   const { data: versions, isLoading: versionsLoading } = useListCourseVersions(id);
@@ -629,11 +642,19 @@ export default function CourseDetail() {
             </div>
           </div>
         </div>
-        {canManage && (
-          <Button variant="outline" size="sm" onClick={openEditCourse}>
-            <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
-          </Button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {course.status === "published" && (
+            <Button variant="outline" size="sm" onClick={handleTakeCourse} disabled={enrolling}>
+              {enrolling ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-2 h-3.5 w-3.5" />}
+              Take This Course
+            </Button>
+          )}
+          {canManage && (
+            <Button variant="outline" size="sm" onClick={openEditCourse}>
+              <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+            </Button>
+          )}
+        </div>
       </div>
 
       <Card>
