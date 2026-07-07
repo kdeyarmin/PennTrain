@@ -223,6 +223,7 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
@@ -241,6 +242,8 @@ Deno.serve(async (req: Request) => {
   if (!ALLOWED_ROLES.includes(callerProfile.role as string)) {
     return json({ error: "not authorized to generate resident assessment wellness summaries" }, 403);
   }
+  if (!serviceRoleKey) return json({ error: "SUPABASE_SERVICE_ROLE_KEY is not configured" }, 500);
+  const privilegedClient = createClient(supabaseUrl, serviceRoleKey);
 
   const { data: aiGenerationSetting, error: aiGenerationSettingError } = await callerClient
     .rpc("get_platform_setting", { p_key: "ai_wellness_summary_generation_enabled" });
@@ -280,7 +283,7 @@ Deno.serve(async (req: Request) => {
     reason: form.reason,
     content_chars: JSON.stringify(form.content ?? {}).length,
   };
-  const { data: generationRow, error: generationInsertError } = await callerClient
+  const { data: generationRow, error: generationInsertError } = await privilegedClient
     .from("resident_assessment_ai_generations")
     .insert({
       organization_id: form.organization_id,
@@ -299,7 +302,7 @@ Deno.serve(async (req: Request) => {
   const generationId = generationRow.id as string;
 
   async function markFailed(errorMessage: string) {
-    await callerClient
+    await privilegedClient
       .from("resident_assessment_ai_generations")
       .update({ status: "failed", error_message: errorMessage })
       .eq("id", generationId);
@@ -343,7 +346,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: "AI response could not verify that the summary was fully grounded in the assessment", generation_id: generationId }, 502);
   }
 
-  await callerClient
+  await privilegedClient
     .from("resident_assessment_ai_generations")
     .update({
       status: "completed",
