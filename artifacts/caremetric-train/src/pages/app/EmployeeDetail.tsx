@@ -91,6 +91,7 @@ export default function EmployeeDetail() {
 
   const [showEditEmp, setShowEditEmp] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [removeFacilityAssignmentTarget, setRemoveFacilityAssignmentTarget] = useState<{ id: string; facilityName: string } | null>(null);
   const [showRecordTraining, setShowRecordTraining] = useState(false);
   const [showSetPin, setShowSetPin] = useState(false);
   const [pinValue, setPinValue] = useState("");
@@ -405,8 +406,9 @@ export default function EmployeeDetail() {
                         {!fa.is_primary && (
                           <Button
                             variant="ghost" size="icon"
-                            onClick={() => removeFacilityAssignment.mutate(fa.id, {
-                              onError: (e: Error) => toast({ title: "Failed to remove facility assignment", description: e.message, variant: "destructive" }),
+                            onClick={() => setRemoveFacilityAssignmentTarget({
+                              id: fa.id,
+                              facilityName: facilities?.find(f => f.id === fa.facility_id)?.name ?? "this facility",
                             })}
                           >
                             <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -894,6 +896,34 @@ export default function EmployeeDetail() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!removeFacilityAssignmentTarget} onOpenChange={(o) => { if (!o) setRemoveFacilityAssignmentTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Facility Assignment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove {employee.first_name} {employee.last_name}'s assignment to {removeFacilityAssignmentTarget?.facilityName}?
+              They will no longer be schedulable at that facility. You can re-add the assignment later if needed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!removeFacilityAssignmentTarget) return;
+                removeFacilityAssignment.mutate(removeFacilityAssignmentTarget.id, {
+                  onError: (e: Error) => toast({ title: "Failed to remove facility assignment", description: e.message, variant: "destructive" }),
+                });
+                setRemoveFacilityAssignmentTarget(null);
+              }}
+              disabled={removeFacilityAssignment.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {removeFacilityAssignment.isPending ? "Removing..." : "Remove"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

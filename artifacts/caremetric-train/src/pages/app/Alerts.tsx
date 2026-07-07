@@ -52,7 +52,7 @@ export default function Alerts() {
   const { status, severity, facilityId, search } = filters;
   const sortField = filters.sortField as SortField;
   const sortDir = filters.sortDir as "asc" | "desc";
-  const page = Number(filters.page) || 1;
+  const page = Math.max(1, Number(filters.page) || 1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pendingId, setPendingId] = useState<string | null>(null);
 

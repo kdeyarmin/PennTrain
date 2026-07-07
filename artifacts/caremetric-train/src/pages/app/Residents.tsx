@@ -44,11 +44,13 @@ const EMPTY_FORM: ResidentFormData = {
   admissionDate: new Date().toISOString().slice(0, 10), sdcu: false, hospice: false, admissionTrack: "standard",
 };
 
+const RESIDENTS_URL_DEFAULTS = { search: "", facility: "all", status: "active", page: "1" };
+
 export default function Residents() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [urlState, setUrlState] = useUrlState({ search: "", facility: "all", status: "active", page: "1" });
+  const [urlState, setUrlState] = useUrlState(RESIDENTS_URL_DEFAULTS);
   const [search, setSearch] = useState(urlState.search);
   const page = Math.max(1, Number(urlState.page) || 1);
 

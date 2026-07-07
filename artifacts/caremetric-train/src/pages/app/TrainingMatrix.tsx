@@ -1,4 +1,5 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { useUrlState } from "@/hooks/useUrlState";
 import { useListEmployees } from "@/hooks/useEmployees";
 import type { Employee } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -460,26 +461,29 @@ function RecordForMultipleDialog({
     setSubmitting(true);
 
     // Evidence is optional and shared across the whole batch (one sign-in sheet/roster covering
-    // every selected employee), so it's uploaded once up front rather than per employee. The
-    // upload needs a single organization_id/facility_id; there's no one "correct" facility when
-    // the selected employees span more than one (possible when the page's own facility filter is
-    // "All Facilities"), so this uses the first selected employee's scope -- training_documents
-    // intentionally allows a null employee_id for exactly this facility-wide/roster case (see
-    // stamp_scope_from_employee_if_present() in the migrations), and is_assigned_to_facility()
-    // is guaranteed to already hold for that facility since the acting user could only have
-    // selected an employee whose facility they're authorized to see.
-    let evidenceDocumentId: string | null = null;
+    // every selected employee). training_documents.facility_id is NOT NULL and RLS ties
+    // facility_manager/trainer visibility to that exact facility (is_assigned_to_facility(facility_id)) --
+    // uploading a single copy scoped to just one employee's facility would make it unreadable to
+    // facility_manager/trainer staff at any other facility represented in this batch (a real,
+    // silent read-access gap for a "All Facilities" multi-select), so this uploads one copy per
+    // distinct facility among the selected employees instead, and links each employee's record to
+    // their own facility's copy.
+    const distinctFacilities = new Map(targets.map(e => [e.facility_id, e] as const));
+    const documentIdByFacility = new Map<string, string>();
     if (evidenceFile) {
-      const first = targets[0];
       try {
-        const uploaded = await uploadDocument.mutateAsync({
-          file: evidenceFile,
-          bucket: "signin-sheets",
-          organizationId: first.organization_id,
-          facilityId: first.facility_id,
-          documentType: "roster",
-        });
-        evidenceDocumentId = uploaded.id;
+        await Promise.all(
+          Array.from(distinctFacilities.values()).map(async (representative) => {
+            const uploaded = await uploadDocument.mutateAsync({
+              file: evidenceFile,
+              bucket: "signin-sheets",
+              organizationId: representative.organization_id,
+              facilityId: representative.facility_id,
+              documentType: "roster",
+            });
+            documentIdByFacility.set(representative.facility_id, uploaded.id);
+          }),
+        );
       } catch (err) {
         setSubmitting(false);
         toast({
@@ -497,20 +501,23 @@ function RecordForMultipleDialog({
     const trainerName = resolveTrainerName(trainerSelection, customTrainerName, qualifiedTrainers);
 
     const settled = await Promise.allSettled(
-      targets.map(employee => createRecord.mutateAsync({
-        organization_id: employee.organization_id,
-        facility_id: employee.facility_id,
-        employee_id: employee.id,
-        training_type_id: selectedTrainingType.id,
-        completion_date: completionDate,
-        due_date: dueDate,
-        status,
-        hours: hoursValue,
-        trainer_name: trainerName,
-        completion_method: "manual_entry",
-        external_certificate_document_id: evidenceDocumentId,
-        document_required: !!evidenceDocumentId,
-      })),
+      targets.map(employee => {
+        const evidenceDocumentId = documentIdByFacility.get(employee.facility_id) ?? null;
+        return createRecord.mutateAsync({
+          organization_id: employee.organization_id,
+          facility_id: employee.facility_id,
+          employee_id: employee.id,
+          training_type_id: selectedTrainingType.id,
+          completion_date: completionDate,
+          due_date: dueDate,
+          status,
+          hours: hoursValue,
+          trainer_name: trainerName,
+          completion_method: "manual_entry",
+          external_certificate_document_id: evidenceDocumentId,
+          document_required: !!evidenceDocumentId,
+        });
+      }),
     );
     setSubmitting(false);
 
@@ -639,16 +646,38 @@ function RecordForMultipleDialog({
   );
 }
 
+const MATRIX_URL_DEFAULTS = {
+  facilityId: "all", search: "", statusFilter: "all", trainerOnly: "false",
+  medsOnly: "false", dueWindow: "all", sortField: "lastName", sortDir: "asc", page: "1",
+};
+
 export default function TrainingMatrix() {
-  const [facilityId, setFacilityId] = useState<string>("all");
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [trainerOnly, setTrainerOnly] = useState(false);
-  const [medsOnly, setMedsOnly] = useState(false);
-  const [dueWindow, setDueWindow] = useState<string>("all");
-  const [sortField, setSortField] = useState<string>("lastName");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
-  const [page, setPage] = useState(1);
+  const [urlState, setUrlState] = useUrlState(MATRIX_URL_DEFAULTS);
+  const facilityId = urlState.facilityId;
+  const statusFilter = urlState.statusFilter;
+  const trainerOnly = urlState.trainerOnly === "true";
+  const medsOnly = urlState.medsOnly === "true";
+  const dueWindow = urlState.dueWindow;
+  const sortField = urlState.sortField;
+  const sortDir = urlState.sortDir as SortDir;
+  const page = Number(urlState.page) || 1;
+  const setPage = (updater: number | ((p: number) => number)) => {
+    const next = typeof updater === "function" ? updater(page) : updater;
+    setUrlState({ page: String(next) });
+  };
+
+  // Mirrors the free-text box's current (undebounced) value so typing stays snappy; committed to
+  // the URL 300ms after the user stops, same pattern as Employees.tsx/Incidents.tsx.
+  const [search, setSearchInput] = useState(urlState.search);
+  const commitSearchRef = useRef(() => {});
+  commitSearchRef.current = () => {
+    if (search !== urlState.search) setUrlState({ search, page: "1" });
+  };
+  useEffect(() => {
+    const t = setTimeout(() => commitSearchRef.current(), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const [selectedCell, setSelectedCell] = useState<{ entry: MatrixCell; trainingType: TrainingType; employee: Employee } | null>(null);
   const [showBatchDialog, setShowBatchDialog] = useState(false);
   const { user } = useAuth();
@@ -737,22 +766,18 @@ export default function TrainingMatrix() {
 
   const handleSort = (field: string) => {
     if (sortField === field) {
-      setSortDir(d => d === "asc" ? "desc" : "asc");
+      setUrlState({ sortDir: sortDir === "asc" ? "desc" : "asc", page: "1" });
     } else {
-      setSortField(field);
-      setSortDir("asc");
+      setUrlState({ sortField: field, sortDir: "asc", page: "1" });
     }
-    setPage(1);
   };
 
   const clearFilters = () => {
-    setFacilityId("all");
-    setSearch("");
-    setStatusFilter("all");
-    setTrainerOnly(false);
-    setMedsOnly(false);
-    setDueWindow("all");
-    setPage(1);
+    setSearchInput("");
+    setUrlState({
+      facilityId: "all", search: "", statusFilter: "all",
+      trainerOnly: "false", medsOnly: "false", dueWindow: "all", page: "1",
+    });
   };
 
   const filteredRows = useMemo(() => {
@@ -839,7 +864,7 @@ export default function TrainingMatrix() {
       </div>
 
       <div className="flex flex-wrap gap-3 items-center">
-        <Select value={facilityId} onValueChange={v => { setFacilityId(v); setPage(1); }}>
+        <Select value={facilityId} onValueChange={v => setUrlState({ facilityId: v, page: "1" })}>
           <SelectTrigger className="w-48">
             <SelectValue placeholder="All Facilities" />
           </SelectTrigger>
@@ -851,7 +876,7 @@ export default function TrainingMatrix() {
           </SelectContent>
         </Select>
 
-        <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setPage(1); }}>
+        <Select value={statusFilter} onValueChange={v => setUrlState({ statusFilter: v, page: "1" })}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="All Statuses" />
           </SelectTrigger>
@@ -864,7 +889,7 @@ export default function TrainingMatrix() {
           </SelectContent>
         </Select>
 
-        <Select value={dueWindow} onValueChange={v => { setDueWindow(v); setPage(1); }}>
+        <Select value={dueWindow} onValueChange={v => setUrlState({ dueWindow: v, page: "1" })}>
           <SelectTrigger className="w-44">
             <SelectValue placeholder="Due Within" />
           </SelectTrigger>
@@ -879,7 +904,7 @@ export default function TrainingMatrix() {
         <Input
           placeholder="Search by name or job title..."
           value={search}
-          onChange={e => { setSearch(e.target.value); setPage(1); }}
+          onChange={e => { setSearchInput(e.target.value); setUrlState({ page: "1" }); }}
           className="w-64"
         />
 
@@ -887,14 +912,14 @@ export default function TrainingMatrix() {
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <Checkbox
               checked={trainerOnly}
-              onCheckedChange={(checked) => { setTrainerOnly(!!checked); setPage(1); }}
+              onCheckedChange={(checked) => setUrlState({ trainerOnly: checked ? "true" : "false", page: "1" })}
             />
             Trainer Only
           </label>
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <Checkbox
               checked={medsOnly}
-              onCheckedChange={(checked) => { setMedsOnly(!!checked); setPage(1); }}
+              onCheckedChange={(checked) => setUrlState({ medsOnly: checked ? "true" : "false", page: "1" })}
             />
             Administers Meds
           </label>

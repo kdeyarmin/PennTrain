@@ -20,7 +20,12 @@ export default function ClassKiosk() {
   // same-named employee from a different site get checked in by mistake at a live kiosk with
   // people waiting. Cross-facility classes (facility_id null) fall back to an org-wide search,
   // which is why facility name is still surfaced per row below.
-  const { data: employees } = useListEmployees({ status: "active", facilityId: cls?.facility_id ?? undefined });
+  const { data: facilityEmployees } = useListEmployees({ status: "active", facilityId: cls?.facility_id ?? undefined });
+  // ClassDetail's Add Attendees dialog isn't facility-restricted, so a class can legitimately have
+  // an attendee whose home facility differs from the class's own -- without this, that person could
+  // never be found by the facility-scoped search above and could never check in. Merged in below,
+  // scoped to just the actual attendee roster rather than opening the whole search back up org-wide.
+  const { data: allActiveEmployees } = useListEmployees({ status: "active" });
   const { data: facilities } = useListFacilities();
   const { mutateAsync: checkinKiosk, isPending } = useCheckinViaKioskPin();
 
@@ -32,11 +37,20 @@ export default function ClassKiosk() {
   const attendeeByEmployeeId = useMemo(() => new Map((attendees ?? []).map((a) => [a.employee_id, a])), [attendees]);
   const facilitiesById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
 
-  const filteredEmployees = (employees ?? [])
+  const employees = useMemo(() => {
+    if (!cls?.facility_id) return allActiveEmployees ?? [];
+    const facilityEmployeeIds = new Set((facilityEmployees ?? []).map((e) => e.id));
+    const outOfFacilityAttendees = (allActiveEmployees ?? []).filter(
+      (e) => attendeeByEmployeeId.has(e.id) && !facilityEmployeeIds.has(e.id)
+    );
+    return [...(facilityEmployees ?? []), ...outOfFacilityAttendees];
+  }, [cls?.facility_id, facilityEmployees, allActiveEmployees, attendeeByEmployeeId]);
+
+  const filteredEmployees = employees
     .filter((e) => !search || `${e.first_name} ${e.last_name}`.toLowerCase().includes(search.toLowerCase()))
     .slice(0, 8);
 
-  const selectedEmployee = (employees ?? []).find((e) => e.id === selectedEmployeeId);
+  const selectedEmployee = employees.find((e) => e.id === selectedEmployeeId);
 
   const resetToSearch = () => {
     setSelectedEmployeeId(null);

@@ -80,7 +80,7 @@ export default function AuditLog() {
 
   const [filters, setFilters] = useUrlState(AUDIT_LOG_FILTER_DEFAULTS);
   const { entityType: entityTypeFilter, org: orgFilter, dateFrom, dateTo } = filters;
-  const page = Number(filters.page) || 1;
+  const page = Math.max(1, Number(filters.page) || 1);
   const hasActiveFilters = entityTypeFilter !== ENTITY_TYPE_ALL || orgFilter !== ORG_ALL || !!dateFrom || !!dateTo;
 
   const { data: logsPage, isLoading } = useListAuditLogsPaginated({

@@ -38,6 +38,8 @@ const EMPTY_FORM: FacilityFormData = {
   isActive: true,
 };
 
+const FACILITIES_URL_DEFAULTS = { search: "" };
+
 export default function Facilities() {
   const { user } = useAuth();
   const { viewingOrgId } = useViewingOrg();
@@ -56,7 +58,7 @@ export default function Facilities() {
 
   const canManage = ["platform_admin", "org_admin"].includes(user?.role ?? "");
 
-  const [urlState, setUrlState] = useUrlState({ search: "" });
+  const [urlState, setUrlState] = useUrlState(FACILITIES_URL_DEFAULTS);
   const [search, setSearch] = useState(urlState.search);
 
   // Debounce the free-text box before it commits to the URL (and re-filters the grid below), so

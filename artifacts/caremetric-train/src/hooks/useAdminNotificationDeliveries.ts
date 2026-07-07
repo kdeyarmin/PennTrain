@@ -31,6 +31,10 @@ export function useListNotificationDeliveries(filters: ListNotificationDeliverie
       if (error) throw error;
       return data;
     },
+    // Delivery status is time-sensitive (e.g. a retry just succeeded in another tab) -- opt out
+    // of the app-wide 60s staleTime/refetchOnWindowFocus:false default in queryClient.ts.
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 }
 

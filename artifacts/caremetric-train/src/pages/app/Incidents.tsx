@@ -87,11 +87,13 @@ function emptyForm(): IncidentFormData {
 interface StaffRow { employeeId: string; involvementType: "involved_party" | "witness" | "first_responder" | "reporter" }
 interface NotificationRow { notificationType: (typeof NOTIFICATION_TYPE_OPTIONS)[number]; dueInHours: string }
 
+const INCIDENTS_URL_DEFAULTS = { search: "", facility: "all", severity: "all", status: "all", page: "1" };
+
 export default function Incidents() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [urlState, setUrlState] = useUrlState({ search: "", facility: "all", severity: "all", status: "all", page: "1" });
+  const [urlState, setUrlState] = useUrlState(INCIDENTS_URL_DEFAULTS);
   const [search, setSearch] = useState(urlState.search);
   const page = Math.max(1, Number(urlState.page) || 1);
 
@@ -110,6 +112,10 @@ export default function Incidents() {
   // Scoped to whichever facility is currently selected in the create form (not the page's own
   // facility filter above) -- powers the Resident picker on that form only.
   const { data: formFacilityResidents } = useListResidents(form.facilityId ? { facilityId: form.facilityId } : {});
+  // Unfiltered (RLS already scopes to the caller's org) -- resolves resident_identifier values
+  // that are actually a resident's id (picked via the dropdown above) back to a name for search,
+  // since that column can hold either a real resident id or legacy/"Other" free text.
+  const { data: allResidents } = useListResidents();
   const { data: incidents, isLoading } = useListIncidents({
     facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
     severity: urlState.severity !== "all" ? urlState.severity : undefined,
@@ -135,14 +141,24 @@ export default function Incidents() {
 
   const facilityById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
+  const residentById = useMemo(() => new Map((allResidents ?? []).map((r) => [r.id, r])), [allResidents]);
+
+  // resident_identifier holds either a real residents.id (picked via the dropdown) or legacy/
+  // "Other" free text -- resolve the former to a searchable name so picker-created incidents don't
+  // silently drop out of a name search just because the stored value is a UUID.
+  const residentSearchText = (identifier: string | null) => {
+    if (!identifier) return "";
+    const resident = residentById.get(identifier);
+    return resident ? `${resident.last_name} ${resident.first_name}`.toLowerCase() : identifier.toLowerCase();
+  };
 
   const searched = useMemo(() => {
     const q = urlState.search.trim().toLowerCase();
     if (!q) return incidents ?? [];
     return (incidents ?? []).filter((i) =>
-      i.narrative.toLowerCase().includes(q) || (i.resident_identifier ?? "").toLowerCase().includes(q)
+      i.narrative.toLowerCase().includes(q) || residentSearchText(i.resident_identifier).includes(q)
     );
-  }, [incidents, urlState.search]);
+  }, [incidents, urlState.search, residentById]);
 
   const totalPages = Math.max(1, Math.ceil(searched.length / PAGE_SIZE));
   const paginated = searched.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);

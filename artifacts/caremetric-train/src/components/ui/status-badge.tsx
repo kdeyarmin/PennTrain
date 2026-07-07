@@ -36,13 +36,13 @@ const EXACT_STATUS_BUCKET: Record<string, Bucket> = {
   assigned: 'info', draft: 'info', in_progress: 'info', review: 'info', invited: 'info',
   new: 'info', queued: 'info', processing: 'info',
 
-  due_soon: 'warning', on_leave: 'warning', no_show: 'warning', expiring: 'warning',
+  due_soon: 'warning', on_leave: 'warning', expiring: 'warning', past_due: 'warning',
   pending: 'warning', waiting: 'warning', partial: 'warning', not_started: 'warning',
 
   expired: 'danger', overdue: 'danger', terminated: 'danger', critical: 'danger',
   open: 'danger', failed: 'danger', rejected: 'danger', denied: 'danger',
-  canceled: 'danger', cancelled: 'danger', past_due: 'danger', suspended: 'danger',
-  escalated: 'danger', unmet: 'danger', excused: 'danger', declined: 'danger',
+  canceled: 'danger', cancelled: 'danger', suspended: 'danger', no_show: 'danger',
+  called_off: 'danger', escalated: 'danger', unmet: 'danger', excused: 'danger', declined: 'danger',
 
   missing: 'missing',
 
@@ -54,8 +54,8 @@ const EXACT_STATUS_BUCKET: Record<string, Bucket> = {
 // this component hasn't been updated for yet. Order matters: more specific/dangerous patterns
 // are checked first so e.g. "past_due" (danger) isn't caught by a looser "due" pattern first.
 const FALLBACK_PATTERNS: [RegExp, Bucket][] = [
-  [/expired|overdue|terminat|cancel|reject|denied|fail|critical|suspend|escalat/, 'danger'],
-  [/pending|progress|wait|due_soon|no_show|partial|not_started/, 'warning'],
+  [/expired|overdue|terminat|cancel|reject|denied|fail|critical|suspend|escalat|no_show|call.*off/, 'danger'],
+  [/pending|progress|wait|due_soon|partial|not_started/, 'warning'],
   [/trial|review|draft|schedul|assign|upcoming|queue|process/, 'info'],
   [/complian|active|resolv|complet|pass|current|publish|confirm|deliver|sent|approv|clear|verif|met\b/, 'success'],
   [/inactive|dismiss|closed|archiv|not_applicable|^na$/, 'neutral'],

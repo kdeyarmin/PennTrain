@@ -71,11 +71,13 @@ const DEFAULT_INTERVAL_DAYS: Partial<Record<InspectionItem["item_type"], number>
   emergency_supply_check: 365,
 };
 
+const INSPECTION_ITEMS_URL_DEFAULTS = { search: "", facility: "all", kind: "all", status: "all", page: "1" };
+
 export default function InspectionItems() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [urlState, setUrlState] = useUrlState({ search: "", facility: "all", kind: "all", status: "all", page: "1" });
+  const [urlState, setUrlState] = useUrlState(INSPECTION_ITEMS_URL_DEFAULTS);
   const [search, setSearch] = useState(urlState.search);
   const page = Math.max(1, Number(urlState.page) || 1);
 

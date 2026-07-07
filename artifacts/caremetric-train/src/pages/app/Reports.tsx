@@ -1251,9 +1251,15 @@ export default function Reports() {
     enabled: reportNeeds(selectedReportId, "practicums"),
   });
   const documentsQuery = useQuery({
+    // Same queryKey useListDocuments({}) uses (see useDocuments.ts) -- kept select-shape-identical
+    // to it ("*, employees(...)") on purpose, since two queries sharing a cache slot with
+    // different shapes means whichever runs second serves its shape to both consumers.
     queryKey: ["documents", {}],
     queryFn: async () => {
-      const { data, error } = await supabase.from("training_documents").select("*").order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("training_documents")
+        .select("*, employees(id, first_name, last_name)")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },

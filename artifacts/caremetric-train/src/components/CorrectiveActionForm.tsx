@@ -7,6 +7,7 @@ import { Plus } from "lucide-react";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useCreateCorrectiveAction, useUpdateCorrectiveAction, type CorrectiveAction } from "@/hooks/useCorrectiveActions";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
 import { humanize } from "@/lib/utils";
 
 // Full set of values the `corrective_actions.status` check constraint allows.
@@ -61,6 +62,7 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
   // Scoped to this action's facility -- an org can have far more employees than makes sense in one
   // dropdown, and every field involving a corrective action (violation, incident, inspection event)
   // already carries a single facility_id.
+  const { user } = useAuth();
   const { data: employees } = useListEmployees({ facilityId: parent.facilityId });
   const { mutate: createAction, isPending: creating } = useCreateCorrectiveAction();
   const { mutate: updateAction, isPending: savingEdit } = useUpdateCorrectiveAction();
@@ -78,6 +80,15 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
     const match = employees.find((e) => e.profile_id === editing.owner_profile_id);
     if (match) setAssigneeEmployeeId(match.id);
   }, [editing?.owner_profile_id, employees]);
+
+  // Create mode only: default the assignee to whoever's filing this, matching the pre-unification
+  // behavior on IncidentDetail.tsx/InspectionItemDetail.tsx (owner_profile_id: user?.id ?? null on
+  // create) -- the reporter can still clear it to "Unassigned" or hand it to someone else.
+  useEffect(() => {
+    if (editing || !user || !employees || assigneeEmployeeId) return;
+    const self = employees.find((e) => e.profile_id === user.id);
+    if (self) setAssigneeEmployeeId(self.id);
+  }, [editing, user, employees, assigneeEmployeeId]);
 
   const isEdit = !!editing;
   const submitting = creating || savingEdit;

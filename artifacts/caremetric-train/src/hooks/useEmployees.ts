@@ -64,7 +64,12 @@ export function useListEmployeesPaginated(filters: ListEmployeesPaginatedFilters
         const like = escapeOrValue(`%${search}%`);
         query = query.or(`first_name.ilike.${like},last_name.ilike.${like},job_title.ilike.${like},department.ilike.${like}`);
       }
-      const column = SORT_COLUMNS[filters.sortField ?? "lastName"];
+      // filters.sortField ultimately comes from a URL query param on Employees.tsx (via
+      // useUrlState), so it isn't guaranteed to be a real EmployeeSortField -- a hand-edited or
+      // bookmarked ?sortField=foo would otherwise look up SORT_COLUMNS['foo'] (undefined) and send
+      // .order(undefined, ...) to PostgREST, which 400s with no surfaced error. Fall back to the
+      // default column for anything unrecognized instead of trusting the caller's value.
+      const column = SORT_COLUMNS[filters.sortField ?? "lastName"] ?? SORT_COLUMNS.lastName;
       query = query.order(column, { ascending: (filters.sortDir ?? "asc") === "asc" });
       // Secondary tiebreaker so equal-value rows (e.g. many employees with the same status) don't
       // reorder between pages as the underlying table changes between requests.

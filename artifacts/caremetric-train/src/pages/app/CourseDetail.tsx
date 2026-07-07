@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import {
   useGetCourse, useUpdateCourse,
-  useListCourseVersions, useCloneCourseVersion, useUpdateCourseVersion,
+  useListCourseVersions, useCreateCourseVersion, useCloneCourseVersion, useUpdateCourseVersion,
   useListCourseBlocks, useCreateCourseBlock, useUpdateCourseBlock, useDeleteCourseBlock,
   canEnrollInCourse,
   type CourseVersion, type CourseBlock, type CourseBlockInsert,
@@ -246,7 +246,9 @@ export default function CourseDetail() {
   // --- New version ---
   const [showNewVersion, setShowNewVersion] = useState(false);
   const [newVersionTitle, setNewVersionTitle] = useState("");
-  const { mutate: cloneVersion, isPending: creatingVersion } = useCloneCourseVersion();
+  const { mutate: cloneVersion, isPending: cloningVersion } = useCloneCourseVersion();
+  const { mutate: createBlankVersion, isPending: creatingBlankVersion } = useCreateCourseVersion();
+  const creatingVersion = cloningVersion || creatingBlankVersion;
 
   const nextVersionNumber = (versions?.reduce((max, v) => Math.max(max, v.version_number), 0) ?? 0) + 1;
 
@@ -258,16 +260,34 @@ export default function CourseDetail() {
 
   // Clones whichever version is currently selected (defaults to the course's published version,
   // see the selectedVersionId effect above) rather than starting blank -- fixing one typo no
-  // longer means manually rebuilding every block/quiz/question/answer from zero.
+  // longer means manually rebuilding every block/quiz/question/answer from zero. A brand-new
+  // course has no version to clone from (selectedVersion never resolves -- see that effect's own
+  // "no versions" branch), so this falls back to the original blank-insert path for exactly that
+  // case; every other course always has at least one version by the time this dialog is reachable.
   const handleCreateVersion = () => {
-    if (!course || !selectedVersion) return;
+    if (!course) return;
+    const title = newVersionTitle.trim() || `Version ${nextVersionNumber}`;
+    if (!selectedVersion) {
+      createBlankVersion(
+        { course_id: course.id, organization_id: course.organization_id, version_number: nextVersionNumber, title },
+        {
+          onSuccess: (data) => {
+            toast({ title: "Draft version created", variant: "success" });
+            setShowNewVersion(false);
+            setSelectedVersionId(data.id);
+          },
+          onError: (e: Error) => toast({ title: "Failed to create version", description: e.message, variant: "destructive" }),
+        },
+      );
+      return;
+    }
     cloneVersion(
       {
         sourceVersionId: selectedVersion.id,
         courseId: course.id,
         organizationId: course.organization_id,
         versionNumber: nextVersionNumber,
-        title: newVersionTitle.trim() || `Version ${nextVersionNumber}`,
+        title,
       },
       {
         onSuccess: (data) => {
@@ -1099,9 +1119,9 @@ export default function CourseDetail() {
           <DialogHeader><DialogTitle>New Draft Version</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              This creates version {nextVersionNumber} as a new draft, copying every block, quiz, question, and
-              answer from {selectedVersion ? `v${selectedVersion.version_number}` : "the selected version"} as a
-              starting point. Existing published versions stay untouched and immutable.
+              {selectedVersion
+                ? `This creates version ${nextVersionNumber} as a new draft, copying every block, quiz, question, and answer from v${selectedVersion.version_number} as a starting point. Existing published versions stay untouched and immutable.`
+                : `This creates version ${nextVersionNumber} as a new, empty draft -- this course has no existing version to copy from yet.`}
             </p>
             <div className="space-y-1">
               <Label>Title</Label>
@@ -1110,7 +1130,7 @@ export default function CourseDetail() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowNewVersion(false)}>Cancel</Button>
-            <Button onClick={handleCreateVersion} disabled={creatingVersion || !selectedVersion}>{creatingVersion ? "Copying..." : "Create Draft"}</Button>
+            <Button onClick={handleCreateVersion} disabled={creatingVersion}>{creatingVersion ? (selectedVersion ? "Copying..." : "Creating...") : "Create Draft"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

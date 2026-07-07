@@ -55,11 +55,13 @@ const EMPTY_FORM: ViolationFormData = {
   description: "", severity: "moderate", pocDueDate: "",
 };
 
+const VIOLATIONS_URL_DEFAULTS = { search: "", facility: "all", status: "all", page: "1" };
+
 export default function Violations() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [urlState, setUrlState] = useUrlState({ search: "", facility: "all", status: "all", page: "1" });
+  const [urlState, setUrlState] = useUrlState(VIOLATIONS_URL_DEFAULTS);
   const [search, setSearch] = useState(urlState.search);
   const page = Math.max(1, Number(urlState.page) || 1);
 
