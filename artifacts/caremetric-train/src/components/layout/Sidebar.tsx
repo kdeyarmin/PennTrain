@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAuth, useSignOut } from "@/lib/auth";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
@@ -373,6 +373,10 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const [filter, setFilter] = useState("");
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => (user ? loadCollapsedSections(user.id) : new Set()));
 
+  useEffect(() => {
+    if (user) saveCollapsedSections(user.id, collapsedSections);
+  }, [user, collapsedSections]);
+
   if (!user) return null;
 
   // Fail open (show) while the facility-type data is still loading or failed to load, rather
@@ -386,7 +390,6 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
     setCollapsedSections((prev) => {
       const next = new Set(prev);
       if (next.has(title)) next.delete(title); else next.add(title);
-      saveCollapsedSections(user.id, next);
       return next;
     });
   };
@@ -438,8 +441,9 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
         {visibleSections.map((section, si) => {
           const containsActiveItem = section.items.some((item) => isNavItemActive(item, location));
           const isOpen = isFiltering || !section.title || containsActiveItem || !collapsedSections.has(section.title);
+          const sectionKey = section.title ?? section.items[0]?.href ?? "dashboard";
           return (
-            <div key={si} className={cn(si > 0 && "mt-3")}>
+            <div key={sectionKey} className={cn(si > 0 && "mt-3")}>
               {section.title && (
                 <button
                   type="button"
