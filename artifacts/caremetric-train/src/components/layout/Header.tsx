@@ -137,12 +137,14 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
     "/me": "My Training",
   };
 
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
   const getPageTitle = () => {
     if (rootTitles[location]) return rootTitles[location];
     const segments = location.split("/").filter(Boolean);
     if (segments.length === 0) return "Dashboard";
     const last = segments[segments.length - 1];
-    if (!isNaN(Number(last)) && segments.length > 1) {
+    if ((UUID_RE.test(last) || !isNaN(Number(last))) && segments.length > 1) {
       return segments[segments.length - 2].replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
     }
     return last.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
