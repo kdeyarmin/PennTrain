@@ -8,4 +8,9 @@
 alter table public.dhs_violations
   add column source_inspection_event_id uuid references public.inspection_events(id) on delete set null;
 
-create index dhs_violations_source_event_idx on public.dhs_violations(source_inspection_event_id);
+-- Unique (not just indexed) so two managers racing the same finding, or a direct API caller, can't
+-- both insert a violation for it -- the client's "already has a violation" check happens before
+-- insert and is otherwise raceable. Partial (where not null) since most violations have no source
+-- event at all and null source_inspection_event_id must remain unconstrained.
+create unique index dhs_violations_source_event_idx on public.dhs_violations(source_inspection_event_id)
+  where source_inspection_event_id is not null;

@@ -113,6 +113,17 @@ export default function Violations() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Covers the deep-link prefill above (citationTopicId can arrive pre-set before citationTopics has
+  // even loaded) as well as any other path that sets citationTopicId without going through the
+  // Citation Topic Select's own onValueChange autofill.
+  useEffect(() => {
+    if (!form.citationTopicId || form.citationRef.trim() || !citationTopics) return;
+    const topic = citationTopics.find((t) => t.id === form.citationTopicId);
+    if (topic?.citation_ref) {
+      setForm((f) => (f.citationTopicId === topic.id && !f.citationRef.trim() ? { ...f, citationRef: topic.citation_ref! } : f));
+    }
+  }, [form.citationTopicId, form.citationRef, citationTopics]);
+
   const handleSubmit = () => {
     if (!form.facilityId || !form.description.trim() || !form.inspectionDate) {
       toast({ title: "Facility, inspection date, and description are required", variant: "destructive" });
@@ -241,7 +252,16 @@ export default function Violations() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-[13px]">Facility *</Label>
-                <Select value={form.facilityId} onValueChange={(v) => setForm((f) => ({ ...f, facilityId: v }))}>
+                <Select
+                  value={form.facilityId}
+                  onValueChange={(v) => {
+                    setForm((f) => ({ ...f, facilityId: v }));
+                    // A source event links a violation back to a specific facility's inspection --
+                    // changing Facility after a "Create Violation from this Finding" deep-link would
+                    // otherwise let the new violation carry a source event from a different facility.
+                    setSourceInspectionEventId(null);
+                  }}
+                >
                   <SelectTrigger className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
                   <SelectContent>
                     {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}

@@ -10,6 +10,13 @@
 -- Also fixes the responsible-party bug: the client previously stamped owner_profile_id with the
 -- current manager's own id instead of the assigned employee's, and never set owner_name at all
 -- (silently blank on the generated POC PDF). This function derives both from the employee row.
+--
+-- The employee is looked up (and scoped to the violation's own org/facility) before either insert
+-- runs, not after: an org_admin can manage more than one facility, so without this check the caller
+-- could point retraining at an employee from a different facility than the violation, and a plain
+-- `insert ... select ... from employees where id = ...` that matches zero rows would silently insert
+-- zero corrective_actions rows (leaving the just-created course_assignments row orphaned) instead of
+-- failing loudly.
 create or replace function public.create_violation_retraining_action(
   p_violation_id uuid,
   p_employee_id uuid,
@@ -24,6 +31,8 @@ as $$
 declare
   v_org uuid;
   v_fac uuid;
+  v_employee_profile_id uuid;
+  v_employee_name text;
   v_assignment_id uuid;
   v_action public.corrective_actions;
 begin
@@ -31,6 +40,14 @@ begin
     from public.dhs_violations where id = p_violation_id;
   if v_org is null then
     raise exception 'violation % not found', p_violation_id using errcode = 'foreign_key_violation';
+  end if;
+
+  select profile_id, last_name || ', ' || first_name into v_employee_profile_id, v_employee_name
+    from public.employees
+    where id = p_employee_id and organization_id = v_org and facility_id = v_fac;
+  if not found then
+    raise exception 'employee % not found in violation %''s facility', p_employee_id, p_violation_id
+      using errcode = 'foreign_key_violation';
   end if;
 
   insert into public.course_assignments (
@@ -43,9 +60,7 @@ begin
     violation_id, description, due_date, course_assignment_id, owner_profile_id, owner_name,
     organization_id, facility_id
   )
-  select p_violation_id, p_description, p_due_date, v_assignment_id, e.profile_id,
-         e.last_name || ', ' || e.first_name, v_org, v_fac
-  from public.employees e where e.id = p_employee_id
+  values (p_violation_id, p_description, p_due_date, v_assignment_id, v_employee_profile_id, v_employee_name, v_org, v_fac)
   returning * into v_action;
 
   return v_action;

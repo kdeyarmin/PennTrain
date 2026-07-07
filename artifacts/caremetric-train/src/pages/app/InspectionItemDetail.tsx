@@ -106,6 +106,10 @@ export default function InspectionItemDetail() {
   // Violation" gate exclude trainer and platform_admin, so a "Create Violation" action shown to
   // either role here would be a dead end (RLS rejection, or a route redirect for platform_admin).
   const canCreateViolation = ["org_admin", "facility_manager"].includes(user?.role ?? "");
+  // Mirrors App.tsx's VIOLATION_ROLES -- /app/violations/:id redirects anyone outside this set
+  // (notably trainer and platform_admin, both of whom can reach this page), so a "View Violation"
+  // link shown to either would be a dead end too.
+  const canViewViolation = ["org_admin", "facility_manager", "auditor"].includes(user?.role ?? "");
 
   const { data: item, isLoading } = useGetInspectionItem(id);
   const { data: facilities } = useListFacilities();
@@ -314,9 +318,15 @@ export default function InspectionItemDetail() {
                       <EventCorrectiveActions event={e} canManage={canManage} />
                       <div className="mt-2 pl-4">
                         {violationByEventId.has(e.id) ? (
-                          <Link href={`/app/violations/${violationByEventId.get(e.id)!.id}`} className="text-xs text-primary hover:underline flex items-center gap-1">
-                            <ShieldAlert className="h-3 w-3" /> View Violation
-                          </Link>
+                          canViewViolation ? (
+                            <Link href={`/app/violations/${violationByEventId.get(e.id)!.id}`} className="text-xs text-primary hover:underline flex items-center gap-1">
+                              <ShieldAlert className="h-3 w-3" /> View Violation
+                            </Link>
+                          ) : (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <ShieldAlert className="h-3 w-3" /> Violation recorded
+                            </span>
+                          )
                         ) : canCreateViolation && (
                           <button
                             type="button"

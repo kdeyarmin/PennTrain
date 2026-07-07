@@ -229,8 +229,13 @@ export default function ViolationDetail() {
                           size="sm"
                           disabled={!editDescription.trim() || !editDueDate}
                           onClick={() => {
-                            updateCorrectiveAction({ id: ca.id, description: editDescription.trim(), due_date: editDueDate });
-                            setEditingActionId(null);
+                            updateCorrectiveAction(
+                              { id: ca.id, description: editDescription.trim(), due_date: editDueDate },
+                              {
+                                onSuccess: () => setEditingActionId(null),
+                                onError: (err: Error) => toast({ title: "Failed to update corrective action", description: err.message, variant: "destructive" }),
+                              },
+                            );
                           }}
                         >
                           Save
@@ -265,8 +270,16 @@ export default function ViolationDetail() {
                               <Check className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          {canDelete && (
+                          {canDelete && !ca.course_assignment_id && (
                             <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setActionPendingDelete(ca)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {canDelete && ca.course_assignment_id && (
+                            <Button
+                              variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/40 cursor-not-allowed" disabled
+                              title="Retraining-backed tasks can't be deleted -- the course assignment would remain active with no linked corrective action. Mark it completed or cancelled instead."
+                            >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           )}
@@ -349,15 +362,22 @@ export default function ViolationDetail() {
                     disabled={!newActionDescription.trim() || !newActionDueDate}
                     onClick={() => {
                       const employee = employeeById.get(assignedEmployeeId);
-                      createCorrectiveAction({
-                        violation_id: violation.id, description: newActionDescription.trim(), due_date: newActionDueDate,
-                        owner_profile_id: employee?.profile_id ?? null,
-                        owner_name: employee ? `${employee.last_name}, ${employee.first_name}` : null,
-                        organization_id: violation.organization_id, facility_id: violation.facility_id,
-                      });
-                      setNewActionDescription("");
-                      setNewActionDueDate("");
-                      setAssignedEmployeeId("");
+                      createCorrectiveAction(
+                        {
+                          violation_id: violation.id, description: newActionDescription.trim(), due_date: newActionDueDate,
+                          owner_profile_id: employee?.profile_id ?? null,
+                          owner_name: employee ? `${employee.last_name}, ${employee.first_name}` : null,
+                          organization_id: violation.organization_id, facility_id: violation.facility_id,
+                        },
+                        {
+                          onSuccess: () => {
+                            setNewActionDescription("");
+                            setNewActionDueDate("");
+                            setAssignedEmployeeId("");
+                          },
+                          onError: (err: Error) => toast({ title: "Failed to add corrective action", description: err.message, variant: "destructive" }),
+                        },
+                      );
                     }}
                   >
                     <Plus className="h-4 w-4" />
