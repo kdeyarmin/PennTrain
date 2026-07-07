@@ -1,13 +1,23 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
-import { useListCourseAssignments } from "@/hooks/useCourseAssignments";
-import { useListCourses } from "@/hooks/useCourses";
+import { useListCourseAssignments, useSelfEnrollCourse } from "@/hooks/useCourseAssignments";
+import { useListCourses, canEnrollInCourse } from "@/hooks/useCourses";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { GraduationCap, ChevronRight } from "lucide-react";
+import { GraduationCap, ChevronRight, BookOpen, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+
+// assigned -> "Start" (nothing begun yet); in_progress/overdue -> "Continue" (progress already
+// exists, or the due date passed either way); completed -> "Review" (re-open a finished course).
+function actionLabel(status: string) {
+  if (status === "completed") return "Review";
+  if (status === "assigned") return "Start";
+  return "Continue";
+}
 
 // Every course assignment, regardless of due date -- before this page existed, the only place a
 // learner's assignments surfaced at all was the dashboard's "Upcoming Deadlines" widget, which
@@ -24,11 +34,22 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function MyCourses() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [statusFilter, setStatusFilter] = useState("all");
 
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
-  const { data: assignments, isLoading: assignmentsLoading } = useListCourseAssignments({ employeeId: employee?.id });
-  const { data: courses } = useListCourses();
+  // Gate on a resolved employee id, not just pass it through as a filter -- for a role that's
+  // never self-enrolled before (org_admin/auditor/platform_admin pre-ensure_employee_record),
+  // there is no employees row yet, and an undefined employeeId would otherwise fetch every
+  // assignment RLS allows (org-wide, or platform-wide for platform_admin) instead of none. See
+  // useListCourseAssignments' own comment on why `enabled` -- not just the filter -- is required.
+  const { data: assignments, isLoading: assignmentsLoading } = useListCourseAssignments(
+    { employeeId: employee?.id },
+    { enabled: !!employee?.id },
+  );
+  const { data: courses, isLoading: coursesLoading } = useListCourses();
+  const { mutate: selfEnroll, isPending: enrolling, variables: enrollingCourseId } = useSelfEnrollCourse();
 
   const isLoading = employeeLoading || assignmentsLoading;
   const courseById = new Map((courses ?? []).map(c => [c.id, c]));
@@ -36,8 +57,29 @@ export default function MyCourses() {
   const allAssignments = assignments ?? [];
   const filtered = statusFilter === "all" ? allAssignments : allAssignments.filter(a => a.status === statusFilter);
 
-  // Not-yet-started/in-progress first, then overdue, then completed last -- surfaces active work
-  // ahead of what's already done, with due date as the tiebreak within each bucket.
+  // Published courses this account hasn't already been assigned and could actually self-enroll
+  // in -- the self-service entry point for any role (not just employee) to start a course on
+  // their own, without waiting for an admin/trainer to assign it via the "Assign Course" dialog.
+  // canEnrollInCourse matters for platform_admin specifically: RLS lets that role see every
+  // organization's courses, but self_enroll_course only ever accepts system-catalog courses or
+  // the caller's own (for platform_admin, always the internal) org's.
+  const assignedCourseIds = new Set(allAssignments.map(a => a.course_id));
+  const availableCourses = (courses ?? []).filter(
+    c => c.status === "published" && !assignedCourseIds.has(c.id) && canEnrollInCourse(c, employee?.organization_id),
+  );
+
+  const handleStart = (courseId: string) => {
+    selfEnroll(courseId, {
+      onSuccess: (assignmentId) => navigate(`/me/courses/${assignmentId}`),
+      onError: (e: Error) => {
+        toast({ title: "Couldn't start course", description: e.message, variant: "destructive" });
+      },
+    });
+  };
+
+  // Overdue first (most urgent), then in_progress, then not-yet-started, then completed last --
+  // surfaces active work ahead of what's already done, with due date as the tiebreak within each
+  // bucket.
   const statusOrder: Record<string, number> = { overdue: 0, in_progress: 1, assigned: 2, completed: 3 };
   const sorted = [...filtered].sort((a, b) => {
     const byStatus = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9);
@@ -51,14 +93,14 @@ export default function MyCourses() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">My Courses</h1>
-        <p className="text-muted-foreground">Every course assigned to you, whether or not it has a due date.</p>
+        <p className="text-muted-foreground">Every course assigned to you, plus anything else you can start on your own.</p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <GraduationCap className="h-5 w-5" />
-            Courses ({filtered.length})
+            Courses {!isLoading && `(${filtered.length})`}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -86,23 +128,66 @@ export default function MyCourses() {
               {sorted.map(a => {
                 const course = courseById.get(a.course_id);
                 return (
-                  <Link key={a.id} href={`/me/courses/${a.id}`}>
-                    <div className="flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors">
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{course?.title ?? "Course"}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {a.due_date ? `Due ${new Date(a.due_date).toLocaleDateString()}` : "No due date"}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <StatusBadge status={a.status} />
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      </div>
+                  <div key={a.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{course?.title ?? "Course"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {a.due_date ? `Due ${new Date(a.due_date).toLocaleDateString()}` : "No due date"}
+                      </p>
                     </div>
-                  </Link>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <StatusBadge status={a.status} />
+                      <Button asChild size="sm">
+                        <Link href={`/me/courses/${a.id}`}>
+                          {actionLabel(a.status)}
+                          <ChevronRight className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
                 );
               })}
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BookOpen className="h-5 w-5" />
+            Available Courses {!coursesLoading && `(${availableCourses.length})`}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {coursesLoading ? (
+            <div className="space-y-2">
+              {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)}
+            </div>
+          ) : availableCourses.length === 0 ? (
+            <p className="text-muted-foreground text-sm text-center py-8">
+              No other published courses to start right now.
+            </p>
+          ) : (
+            availableCourses.map(course => (
+              <div key={course.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">
+                <div className="min-w-0">
+                  <p className="font-medium truncate">{course.title}</p>
+                  <p className="text-xs text-muted-foreground">{course.category ?? "Uncategorized"}</p>
+                </div>
+                <Button
+                  size="sm"
+                  disabled={enrolling && enrollingCourseId === course.id}
+                  onClick={() => handleStart(course.id)}
+                >
+                  {enrolling && enrollingCourseId === course.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>Start <ChevronRight className="h-4 w-4" /></>
+                  )}
+                </Button>
+              </div>
+            ))
           )}
         </CardContent>
       </Card>

@@ -92,6 +92,12 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         ]
       },
       {
+        title: "My Learning",
+        items: [
+          { href: "/me/courses", label: "My Courses", icon: BookOpen },
+        ]
+      },
+      {
         title: "Oversight",
         items: [
           { href: "/admin/alerts", label: "Alerts", icon: Bell },
@@ -132,6 +138,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/course-assignments", label: "Course Assignments", icon: FileCheck },
           { href: "/trainer/classes", label: "In-Service Classes", icon: GraduationCap },
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
+          { href: "/me/courses", label: "My Courses", icon: BookOpen },
         ]
       },
       {
@@ -221,6 +228,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
           { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
           ...(showPchAlrModules ? [{ href: "/app/practicums", label: "Practicums", icon: FileCheck }] : []),
+          { href: "/me/courses", label: "My Courses", icon: BookOpen },
         ]
       },
       {
@@ -278,6 +286,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/trainer/classes", label: "My Classes", icon: GraduationCap },
           { href: "/trainer/retraining", label: "Retraining Monitor", icon: ShieldAlert },
+          { href: "/me/courses", label: "My Courses", icon: BookOpen },
         ]
       },
       {

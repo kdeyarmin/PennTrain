@@ -43,7 +43,12 @@ export function useGetEmployeeByProfileId(profileId: string | undefined) {
   return useQuery({
     queryKey: ["employees", "by-profile", profileId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("employees").select("*").eq("profile_id", profileId!).single();
+      // maybeSingle(), not single(): now that every role (not just employee) can reach pages that
+      // use this hook, "no employees row yet" (org_admin/auditor/platform_admin pre-self-enroll)
+      // is a normal, expected result, not an error condition -- single() would instead throw on
+      // zero rows, and react-query's default retry: 3 would retry that "error" with backoff for
+      // several seconds before finally giving up and settling `data` to undefined anyway.
+      const { data, error } = await supabase.from("employees").select("*").eq("profile_id", profileId!).maybeSingle();
       if (error) throw error;
       return data;
     },
