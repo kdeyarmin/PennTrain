@@ -9,12 +9,13 @@ import {
 import { useListResidentDocuments } from "@/hooks/useResidentDocuments";
 import {
   ADL_ITEMS, SENSORY_ITEMS, SOCIAL_ITEMS, behavioralItems, responsiblePartyOptions,
-  createEmptyContent, mergeContentWithDefaults, isDegreeItemRated, isSimpleNeedAddressed, applyPatchToAll,
+  createEmptyContent, mergeContentWithDefaults, applyPatchToAll,
+  getIncompleteSections, SECTION_LABELS, degreeItemAnswered, simpleNeedAnswered, diagnosisRowsAnswered,
   CARE_DEGREE_OPTIONS, BEHAVIORAL_DEGREE_OPTIONS, FREQUENCY_OPTIONS, REASON_OPTIONS,
   COPY_PROVIDED_OPTIONS, NO_SIGNATURE_REASON_OPTIONS, RELATIONSHIP_OPTIONS, ASSESSOR_TITLE_OPTIONS,
   emptyDiagnosisRow, emptyParticipantRow,
   type ResidentAssessmentFormContent, type DegreeItemAnswer, type SimpleNeedAnswer, type DiagnosisRow, type ParticipantRow,
-  type FormType, type SectionItem, type FacilityCareDefaults,
+  type FormType, type SectionItem, type FacilityCareDefaults, type FormSectionKey,
 } from "@/lib/residentAssessmentFormSchema";
 import { getComplianceFormLabel } from "@/lib/residentCompliance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,14 +25,23 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Plus, Trash2, Lock, CheckCircle2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Trash2, Lock, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
 const AUTOSAVE_DEBOUNCE_MS = 1500;
+
+const TAB_SEQUENCE: FormSectionKey[] = ["info", "section1", "section2", "section3", "section4", "summary"];
+// "review" is a 7th tab that isn't one of the 6 FormSectionKeys getIncompleteSections()/the PDF
+// track -- it's a UI-only drill-down, not a form-content section, so it stays out of TAB_SEQUENCE
+// and SECTION_LABELS (which the "N of 6 sections" banner text and the PDF's incomplete-notice both
+// rely on staying exactly the 6 canonical sections).
+type TabValue = FormSectionKey | "review";
+const ALL_TAB_VALUES: readonly string[] = [...TAB_SEQUENCE, "review"];
 
 function DegreeSelect({ formType, value, allOtherValue, onChange, onAllOtherChange, scale }: {
   formType: FormType; value: string; allOtherValue: string;
@@ -412,6 +422,47 @@ export default function ResidentAssessmentFormEditor() {
   const pendingSave = useRef<{ id: string; content: ResidentAssessmentFormContent } | null>(null);
   const isReadOnly = !canManage || form?.status === "finalized";
 
+  const tabStorageKey = (id: string) => `resident-assessment-form-tab:${id}`;
+  const readStoredTab = (id: string): TabValue => {
+    const stored = window.sessionStorage.getItem(tabStorageKey(id));
+    return stored && ALL_TAB_VALUES.includes(stored) ? (stored as TabValue) : "info";
+  };
+
+  // Leaving this page (e.g. to check something on the resident's profile) and coming back used to
+  // always drop the user back on the "info" tab, forcing them to re-navigate to wherever they'd
+  // gotten to. Restore whichever tab they were last on for this specific form -- keyed by formId so
+  // switching to a different resident's form doesn't inherit the wrong tab. Read synchronously via
+  // the lazy initializer (rather than an effect that calls setActiveTab after mount) so there's no
+  // render where activeTab is still "info" before the persist effect below can fire and clobber the
+  // just-restored value back to "info".
+  const [activeTab, setActiveTab] = useState<TabValue>(() => (formId ? readStoredTab(formId) : "info"));
+  const lastRestoredFormId = useRef(formId);
+  const tabsTopRef = useRef<HTMLDivElement>(null);
+  const goToTab = (value: TabValue) => {
+    setActiveTab(value);
+    tabsTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const nextButton = (to: TabValue) => (
+    <div className="flex justify-end">
+      <Button variant="outline" onClick={() => goToTab(to)}>
+        Next: {to === "review" ? "Review" : SECTION_LABELS[to]} <ArrowRight className="ml-2 h-4 w-4" />
+      </Button>
+    </div>
+  );
+
+  // Handles switching to a *different* form's URL without a full remount (the lazy initializer
+  // above only covers first mount) -- guarded so it doesn't re-run on every render.
+  useEffect(() => {
+    if (!formId || formId === lastRestoredFormId.current) return;
+    lastRestoredFormId.current = formId;
+    setActiveTab(readStoredTab(formId));
+  }, [formId]);
+
+  useEffect(() => {
+    if (!formId) return;
+    window.sessionStorage.setItem(tabStorageKey(formId), activeTab);
+  }, [activeTab, formId]);
+
   useEffect(() => {
     if (!form) return;
     // A brand-new form's content is a bare {} (see start_resident_assessment_form()'s
@@ -478,23 +529,25 @@ export default function ResidentAssessmentFormEditor() {
   // sync with each other. Guarded on `content` since it's still null before the initial-content
   // effect runs -- these hooks must stay above the loading-guard's early return either way.
   const unratedAdlItems = useMemo(
-    () => (content ? ADL_ITEMS.filter((item) => !isDegreeItemRated((form?.form_type as FormType) ?? "RASP", content.section1.items[item.key])) : []),
+    () => (content ? ADL_ITEMS.filter((item) => !degreeItemAnswered(content.section1.items[item.key], (form?.form_type as FormType) ?? "RASP")) : []),
     [form?.form_type, content?.section1.items],
   );
   const unratedBehavioralItems = useMemo(
-    () => (content ? behavioralList.filter((item) => !isDegreeItemRated((form?.form_type as FormType) ?? "RASP", content.section3.items[item.key])) : []),
+    () => (content ? behavioralList.filter((item) => !degreeItemAnswered(content.section3.items[item.key], (form?.form_type as FormType) ?? "RASP")) : []),
     [form?.form_type, behavioralList, content?.section3.items],
   );
-  const unratedCareLevels = useMemo(
-    () => (content ? (["supervision", "mobility", "medications"] as const).filter((key) => !content.section1[key].level) : []),
+  // Mirrors getIncompleteSections' section1 check exactly (needs/plan description, not the degree
+  // `level` field) so this list and the "N of 6 sections" banner can't disagree about section1.
+  const unansweredCareLevels = useMemo(
+    () => (content ? (["supervision", "mobility", "medications"] as const).filter((key) => !content.section1[key].needsDescription.trim() || !content.section1[key].planDescription.trim()) : []),
     [content?.section1],
   );
   const unaddressedSensoryItems = useMemo(
-    () => (content ? SENSORY_ITEMS.filter((item) => !isSimpleNeedAddressed(content.section2.sensory[item.key])) : []),
+    () => (content ? SENSORY_ITEMS.filter((item) => !simpleNeedAnswered(content.section2.sensory[item.key])) : []),
     [content?.section2.sensory],
   );
   const unaddressedSocialItems = useMemo(
-    () => (content ? SOCIAL_ITEMS.filter((item) => !isSimpleNeedAddressed(content.section4.items[item.key])) : []),
+    () => (content ? SOCIAL_ITEMS.filter((item) => !simpleNeedAnswered(content.section4.items[item.key])) : []),
     [content?.section4.items],
   );
 
@@ -539,52 +592,59 @@ export default function ResidentAssessmentFormEditor() {
   // retry, not a true regenerate. Only offer the button while that row is still missing, otherwise
   // it's guaranteed to fail.
   const hasGeneratedPdf = (residentDocuments ?? []).some((d) => d.document_label === `resident_assessment_form:${form.id}`);
-  const adlRatedCount = ADL_ITEMS.length - unratedAdlItems.length;
-  const behavioralRatedCount = behavioralList.length - unratedBehavioralItems.length;
+  // Advisory only -- see getIncompleteSections' comment. Recomputed on every render off `content`
+  // instead of memoized: the item-list walk is small (well under 100 items) and content already
+  // changes on every keystroke via `update`, so a useMemo here would just add bookkeeping for no
+  // real savings.
+  const incompleteSections = getIncompleteSections(content, formType);
 
-  // A condensed pre-finalize checklist -- named gaps (not just counts), so catching a missed item
-  // doesn't require tab-hopping through all six tabs. Deliberately checks presence/completeness
-  // signals only (not content quality), since this can't judge whether an answer is *correct*.
-  const reviewChecklist: ReviewCheckItem[] = [
-    { label: "Reason for Assessment selected", ok: !!content.assessmentInfo.assessmentReason },
-    { label: "Reason for Support Plan selected", ok: !!content.assessmentInfo.supportPlanReason },
-    {
-      label: "Supervision, Mobility, and Medications degrees rated",
-      ok: unratedCareLevels.length === 0,
-      detail: unratedCareLevels.length ? `Still needs a degree: ${unratedCareLevels.map((k) => k[0].toUpperCase() + k.slice(1)).join(", ")}` : undefined,
-    },
-    {
-      label: `All ${ADL_ITEMS.length} Personal Care Needs items rated`,
-      ok: unratedAdlItems.length === 0,
-      detail: unratedAdlItems.length ? `Still needs a degree: ${unratedAdlItems.map((i) => i.label).join(", ")}` : undefined,
-    },
-    { label: "Physical medical diagnoses addressed (rows added, or \"None\" checked)", ok: content.section2.noPhysicalDiagnoses || content.section2.physicalDiagnoses.length > 0 },
-    { label: "Dental needs addressed", ok: content.section2.noDental || content.section2.dental.length > 0 },
-    { label: "Dietary needs addressed", ok: content.section2.noDietary || content.section2.dietary.length > 0 },
-    {
-      label: `All ${SENSORY_ITEMS.length} Sensory Needs items addressed`,
-      ok: unaddressedSensoryItems.length === 0,
-      detail: unaddressedSensoryItems.length ? `Still needs a description or "not applicable": ${unaddressedSensoryItems.map((i) => i.label).join(", ")}` : undefined,
-    },
-    { label: "Psychological diagnoses addressed", ok: content.section3.noPsychologicalDiagnoses || content.section3.psychologicalDiagnoses.length > 0 },
-    {
-      label: `All ${behavioralList.length} Behavioral/Cognitive items rated`,
-      ok: unratedBehavioralItems.length === 0,
-      detail: unratedBehavioralItems.length ? `Still needs a degree: ${unratedBehavioralItems.map((i) => i.label).join(", ")}` : undefined,
-    },
-    {
-      label: `All ${SOCIAL_ITEMS.length} Social and Recreational items addressed`,
-      ok: unaddressedSocialItems.length === 0,
-      detail: unaddressedSocialItems.length ? `Still needs a description or "not applicable": ${unaddressedSocialItems.map((i) => i.label).join(", ")}` : undefined,
-    },
-    { label: "Overall Wellness Summary written", ok: !!content.summary.overallWellness.trim() },
-    {
-      label: "Assessor name, title, and signed date recorded",
-      ok: !!content.participation.assessorName.trim() && !!content.participation.assessorTitle.trim() && !!content.participation.assessorSignedDate,
-    },
-    { label: "At least one participant recorded", ok: content.participation.participants.length > 0 },
-  ];
-  const reviewIncompleteCount = reviewChecklist.filter((c) => !c.ok).length;
+  // A condensed pre-finalize checklist -- one row per tab, built directly on top of
+  // getIncompleteSections so this list and the "N of 6 sections" banner above can never disagree
+  // about which sections are incomplete. Deliberately checks presence/completeness signals only
+  // (not content quality), since this can't judge whether an answer is *correct*.
+  const reviewChecklist: ReviewCheckItem[] = TAB_SEQUENCE.map((key) => {
+    const ok = !incompleteSections.includes(key);
+    let detail: string | undefined;
+    switch (key) {
+      case "section1": {
+        const missing = [
+          ...unansweredCareLevels.map((k) => k[0].toUpperCase() + k.slice(1)),
+          ...unratedAdlItems.map((i) => i.label),
+        ];
+        detail = missing.length ? `Still needs: ${missing.join(", ")}` : undefined;
+        break;
+      }
+      case "section2": {
+        const missing = [
+          !diagnosisRowsAnswered(content.section2.physicalDiagnoses, content.section2.noPhysicalDiagnoses) && "Physical medical diagnoses",
+          !diagnosisRowsAnswered(content.section2.dental, content.section2.noDental) && "Dental needs",
+          !diagnosisRowsAnswered(content.section2.dietary, content.section2.noDietary) && "Dietary needs",
+          ...unaddressedSensoryItems.map((i) => i.label),
+        ].filter((v): v is string => !!v);
+        detail = missing.length ? `Still needs: ${missing.join(", ")}` : undefined;
+        break;
+      }
+      case "section3": {
+        const missing = [
+          !diagnosisRowsAnswered(content.section3.psychologicalDiagnoses, content.section3.noPsychologicalDiagnoses) && "Psychological diagnoses",
+          ...unratedBehavioralItems.map((i) => i.label),
+        ].filter((v): v is string => !!v);
+        detail = missing.length ? `Still needs: ${missing.join(", ")}` : undefined;
+        break;
+      }
+      case "section4":
+        detail = unaddressedSocialItems.length ? `Still needs a description or "not applicable": ${unaddressedSocialItems.map((i) => i.label).join(", ")}` : undefined;
+        break;
+      case "info":
+        detail = !ok ? "Needs: Reason for Assessment, Reason for Support Plan" : undefined;
+        break;
+      case "summary":
+        detail = !ok ? "Needs: Overall Wellness Summary, and assessor name/title/signed date" : undefined;
+        break;
+    }
+    return { label: SECTION_LABELS[key], ok, detail };
+  });
+  const reviewIncompleteCount = incompleteSections.length;
 
   return (
     <div className="space-y-6">
@@ -623,21 +683,29 @@ export default function ResidentAssessmentFormEditor() {
         )}
       </div>
 
-      <Tabs defaultValue="info">
+      {incompleteSections.length > 0 && (
+        <Alert className="border-warning/50 bg-warning/10 [&>svg]:text-warning">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>
+            {incompleteSections.length} of {TAB_SEQUENCE.length} sections have unanswered items
+          </AlertTitle>
+          <AlertDescription>
+            {incompleteSections.map((key) => SECTION_LABELS[key]).join(", ")}. You can still save,
+            finalize, and print this {formLabel} as-is -- these sections stay flagged for follow-up.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div ref={tabsTopRef} />
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)}>
         <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="info">Resident &amp; Assessment Info</TabsTrigger>
-          <TabsTrigger value="section1">
-            Personal Care, Supervision, Mobility, Meds
-            {adlRatedCount < ADL_ITEMS.length && <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">{adlRatedCount}/{ADL_ITEMS.length}</Badge>}
-          </TabsTrigger>
-          <TabsTrigger value="section2">Medical, Dental, Dietary, Sensory</TabsTrigger>
-          <TabsTrigger value="section3">
-            Mental / Behavioral / Cognitive
-            {behavioralRatedCount < behavioralList.length && <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">{behavioralRatedCount}/{behavioralList.length}</Badge>}
-          </TabsTrigger>
-          <TabsTrigger value="section4">Social &amp; Recreational</TabsTrigger>
-          <TabsTrigger value="summary">Summary &amp; Participation</TabsTrigger>
-          <TabsTrigger value="review">
+          {TAB_SEQUENCE.map((key) => (
+            <TabsTrigger key={key} value={key} className="gap-1.5">
+              {SECTION_LABELS[key]}
+              {incompleteSections.includes(key) && <AlertTriangle className="h-3 w-3 text-warning" />}
+            </TabsTrigger>
+          ))}
+          <TabsTrigger value="review" className="gap-1.5">
             Review
             {reviewIncompleteCount > 0 && <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">{reviewIncompleteCount}</Badge>}
           </TabsTrigger>
@@ -697,6 +765,7 @@ export default function ResidentAssessmentFormEditor() {
               </fieldset>
             </CardContent>
           </Card>
+          {nextButton("section1")}
         </TabsContent>
 
         <TabsContent value="section1" className="space-y-4">
@@ -773,6 +842,7 @@ export default function ResidentAssessmentFormEditor() {
               ))}
             </CardContent>
           </Card>
+          {nextButton("section2")}
         </TabsContent>
 
         <TabsContent value="section2" className="space-y-4">
@@ -817,6 +887,7 @@ export default function ResidentAssessmentFormEditor() {
               ))}
             </CardContent>
           </Card>
+          {nextButton("section3")}
         </TabsContent>
 
         <TabsContent value="section3" className="space-y-4">
@@ -864,6 +935,7 @@ export default function ResidentAssessmentFormEditor() {
               ))}
             </CardContent>
           </Card>
+          {nextButton("section4")}
         </TabsContent>
 
         <TabsContent value="section4" className="space-y-4">
@@ -885,6 +957,7 @@ export default function ResidentAssessmentFormEditor() {
               ))}
             </CardContent>
           </Card>
+          {nextButton("summary")}
         </TabsContent>
 
         <TabsContent value="summary" className="space-y-4">
@@ -1012,6 +1085,7 @@ export default function ResidentAssessmentFormEditor() {
               </div>
             </CardContent>
           </Card>
+          {nextButton("review")}
         </TabsContent>
 
         <TabsContent value="review" className="space-y-4">
