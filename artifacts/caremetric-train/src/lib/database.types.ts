@@ -2458,6 +2458,8 @@ export type Database = {
           administrator_name: string | null
           city: string | null
           created_at: string
+          default_care_frequency: string | null
+          default_care_responsible_party: string | null
           facility_type: string
           id: string
           is_active: boolean
@@ -2475,6 +2477,8 @@ export type Database = {
           administrator_name?: string | null
           city?: string | null
           created_at?: string
+          default_care_frequency?: string | null
+          default_care_responsible_party?: string | null
           facility_type: string
           id?: string
           is_active?: boolean
@@ -2492,6 +2496,8 @@ export type Database = {
           administrator_name?: string | null
           city?: string | null
           created_at?: string
+          default_care_frequency?: string | null
+          default_care_responsible_party?: string | null
           facility_type?: string
           id?: string
           is_active?: boolean
@@ -4499,6 +4505,77 @@ export type Database = {
           {
             foreignKeyName: "resident_assessment_forms_superseded_by_id_fkey"
             columns: ["superseded_by_id"]
+            isOneToOne: false
+            referencedRelation: "resident_assessment_forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_assessment_ai_generations: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          facility_id: string
+          id: string
+          model: string
+          organization_id: string
+          request_params: Json
+          requested_by: string
+          resident_assessment_form_id: string
+          response_summary: Json | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          facility_id: string
+          id?: string
+          model: string
+          organization_id: string
+          request_params: Json
+          requested_by: string
+          resident_assessment_form_id: string
+          response_summary?: Json | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          facility_id?: string
+          id?: string
+          model?: string
+          organization_id?: string
+          request_params?: Json
+          requested_by?: string
+          resident_assessment_form_id?: string
+          response_summary?: Json | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_assessment_ai_generations_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_ai_generations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_ai_generations_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_ai_generations_form_fkey"
+            columns: ["resident_assessment_form_id"]
             isOneToOne: false
             referencedRelation: "resident_assessment_forms"
             referencedColumns: ["id"]
