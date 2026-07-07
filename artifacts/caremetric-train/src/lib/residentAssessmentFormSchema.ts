@@ -199,6 +199,12 @@ export interface DegreeItemAnswer {
   planResponsibleParty: string;
   planResponsiblePartyOther: string;
 }
+// A degree item counts as "rated" once the assessor has actually picked a value -- both degree
+// scales include an explicit "Not Applicable" option, so an unrated item is a genuine gap in the
+// assessment, not a legitimate answer left blank on purpose.
+export function isDegreeItemRated(formType: FormType, answer: DegreeItemAnswer): boolean {
+  return formType === "ASP" ? !!answer.degreePreliminary && !!answer.degreeAllOther : !!answer.degree;
+}
 export function emptyDegreeItemAnswer(): DegreeItemAnswer {
   return {
     degree: "", degreePreliminary: "", degreeAllOther: "",

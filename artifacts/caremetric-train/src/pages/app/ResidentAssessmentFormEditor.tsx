@@ -9,7 +9,7 @@ import {
 import { useListResidentDocuments } from "@/hooks/useResidentDocuments";
 import {
   ADL_ITEMS, SENSORY_ITEMS, SOCIAL_ITEMS, behavioralItems, responsiblePartyOptions,
-  createEmptyContent, mergeContentWithDefaults,
+  createEmptyContent, mergeContentWithDefaults, isDegreeItemRated,
   CARE_DEGREE_OPTIONS, BEHAVIORAL_DEGREE_OPTIONS, FREQUENCY_OPTIONS, REASON_OPTIONS,
   COPY_PROVIDED_OPTIONS, NO_SIGNATURE_REASON_OPTIONS, RELATIONSHIP_OPTIONS, ASSESSOR_TITLE_OPTIONS,
   emptyDiagnosisRow, emptyParticipantRow,
@@ -77,6 +77,105 @@ function QuickFillSelect({ options, onPick, placeholder, className, disabled }: 
       <SelectTrigger className={className}><SelectValue placeholder={placeholder} /></SelectTrigger>
       <SelectContent>{options.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
     </Select>
+  );
+}
+
+function applyPatchToAll<T>(items: Record<string, T>, patch: Partial<T>): Record<string, T> {
+  return Object.fromEntries(Object.entries(items).map(([k, v]) => [k, { ...v, ...patch }]));
+}
+
+// Most residents share the same degree rating or the same plan frequency/responsible party across
+// nearly every item in a 22-item (or 11/12-item) list -- filling each one by hand is the single
+// biggest source of repetitive clicking in this form. These bars set a value once and apply it to
+// every item in the list below them; the assessor then only needs to touch the exceptions. They
+// always reset after applying (like QuickFillSelect) since they're a one-shot action, not a control
+// bound to any single item's state.
+function BulkDegreeBar({ formType, scale, onApply }: {
+  formType: FormType; scale: { value: string; label: string }[];
+  onApply: (patch: { degree?: string; degreeAllOther?: string }) => void;
+}) {
+  const [value, setValue] = useState("");
+  const [allOtherValue, setAllOtherValue] = useState("");
+  return (
+    <div className="flex flex-wrap items-end gap-2 rounded-lg border border-dashed p-2 bg-muted/40">
+      <p className="text-xs text-muted-foreground w-full sm:w-auto sm:mr-1">Set degree for all, then adjust exceptions:</p>
+      <div className="space-y-1">
+        {formType === "ASP" && <Label className="text-[11px] text-muted-foreground">Preliminary</Label>}
+        <Select value={value} onValueChange={setValue}>
+          <SelectTrigger className="h-8 text-xs w-40"><SelectValue placeholder="Degree" /></SelectTrigger>
+          <SelectContent>{scale.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+      {formType === "ASP" && (
+        <div className="space-y-1">
+          <Label className="text-[11px] text-muted-foreground">All Other</Label>
+          <Select value={allOtherValue} onValueChange={setAllOtherValue}>
+            <SelectTrigger className="h-8 text-xs w-40"><SelectValue placeholder="Degree" /></SelectTrigger>
+            <SelectContent>{scale.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      )}
+      <Button
+        type="button" variant="secondary" size="sm" disabled={!value && !allOtherValue}
+        onClick={() => {
+          onApply({ degree: value || undefined, degreeAllOther: allOtherValue || undefined });
+          setValue(""); setAllOtherValue("");
+        }}
+      >
+        Apply to All
+      </Button>
+    </div>
+  );
+}
+
+function BulkPlanBar({ formType, onApply }: {
+  formType: FormType;
+  onApply: (patch: {
+    planFrequency?: string; planFrequencyOther?: string;
+    planResponsibleParty?: string; planResponsiblePartyOther?: string;
+  }) => void;
+}) {
+  const [frequency, setFrequency] = useState("");
+  const [frequencyOther, setFrequencyOther] = useState("");
+  const [party, setParty] = useState("");
+  const [partyOther, setPartyOther] = useState("");
+  const partyOptions = responsiblePartyOptions(formType);
+  return (
+    <div className="flex flex-wrap items-end gap-2 rounded-lg border border-dashed p-2 bg-muted/40">
+      <p className="text-xs text-muted-foreground w-full sm:w-auto sm:mr-1">Set plan frequency/party for all, then adjust exceptions:</p>
+      <div className="space-y-1">
+        <Select value={frequency} onValueChange={setFrequency}>
+          <SelectTrigger className="h-8 text-xs w-32"><SelectValue placeholder="Frequency" /></SelectTrigger>
+          <SelectContent>{FREQUENCY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+        </Select>
+        {frequency === "other" && (
+          <Input className="h-8 text-xs w-32" placeholder="Specify" value={frequencyOther} onChange={(e) => setFrequencyOther(e.target.value)} />
+        )}
+      </div>
+      <div className="space-y-1">
+        <Select value={party} onValueChange={setParty}>
+          <SelectTrigger className="h-8 text-xs w-44"><SelectValue placeholder="Responsible party" /></SelectTrigger>
+          <SelectContent>{partyOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+        </Select>
+        {party === "O" && (
+          <Input className="h-8 text-xs w-44" placeholder="Specify" value={partyOther} onChange={(e) => setPartyOther(e.target.value)} />
+        )}
+      </div>
+      <Button
+        type="button" variant="secondary" size="sm" disabled={!frequency && !party}
+        onClick={() => {
+          onApply({
+            planFrequency: frequency || undefined,
+            planFrequencyOther: frequency === "other" ? frequencyOther : undefined,
+            planResponsibleParty: party || undefined,
+            planResponsiblePartyOther: party === "O" ? partyOther : undefined,
+          });
+          setFrequency(""); setFrequencyOther(""); setParty(""); setPartyOther("");
+        }}
+      >
+        Apply to All
+      </Button>
+    </div>
   );
 }
 
@@ -400,6 +499,9 @@ export default function ResidentAssessmentFormEditor() {
   // it's guaranteed to fail.
   const hasGeneratedPdf = (residentDocuments ?? []).some((d) => d.document_label === `resident_assessment_form:${form.id}`);
 
+  const adlRatedCount = ADL_ITEMS.filter((item) => isDegreeItemRated(formType, content.section1.items[item.key])).length;
+  const behavioralRatedCount = behavioralList.filter((item) => isDegreeItemRated(formType, content.section3.items[item.key])).length;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -440,9 +542,15 @@ export default function ResidentAssessmentFormEditor() {
       <Tabs defaultValue="info">
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="info">Resident &amp; Assessment Info</TabsTrigger>
-          <TabsTrigger value="section1">Personal Care, Supervision, Mobility, Meds</TabsTrigger>
+          <TabsTrigger value="section1">
+            Personal Care, Supervision, Mobility, Meds
+            {adlRatedCount < ADL_ITEMS.length && <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">{adlRatedCount}/{ADL_ITEMS.length}</Badge>}
+          </TabsTrigger>
           <TabsTrigger value="section2">Medical, Dental, Dietary, Sensory</TabsTrigger>
-          <TabsTrigger value="section3">Mental / Behavioral / Cognitive</TabsTrigger>
+          <TabsTrigger value="section3">
+            Mental / Behavioral / Cognitive
+            {behavioralRatedCount < behavioralList.length && <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">{behavioralRatedCount}/{behavioralList.length}</Badge>}
+          </TabsTrigger>
           <TabsTrigger value="section4">Social &amp; Recreational</TabsTrigger>
           <TabsTrigger value="summary">Summary &amp; Participation</TabsTrigger>
         </TabsList>
@@ -547,6 +655,27 @@ export default function ResidentAssessmentFormEditor() {
           <Card>
             <CardHeader><CardTitle className="text-base">Personal Care Needs (22 items)</CardTitle></CardHeader>
             <CardContent className="space-y-3">
+              {!isReadOnly && (
+                <>
+                  <BulkDegreeBar
+                    formType={formType} scale={degreeScale}
+                    onApply={(patch) => update({
+                      ...content,
+                      section1: {
+                        ...content.section1,
+                        items: applyPatchToAll(content.section1.items, {
+                          ...(patch.degree !== undefined ? { degree: patch.degree, degreePreliminary: patch.degree } : {}),
+                          ...(patch.degreeAllOther !== undefined ? { degreeAllOther: patch.degreeAllOther } : {}),
+                        }),
+                      },
+                    })}
+                  />
+                  <BulkPlanBar
+                    formType={formType}
+                    onApply={(patch) => update({ ...content, section1: { ...content.section1, items: applyPatchToAll(content.section1.items, patch) } })}
+                  />
+                </>
+              )}
               {ADL_ITEMS.map((item) => (
                 <DegreeItemEditor
                   key={item.key} item={item} formType={formType} scale={degreeScale} readOnly={isReadOnly}
@@ -585,6 +714,12 @@ export default function ResidentAssessmentFormEditor() {
           <Card>
             <CardHeader><CardTitle className="text-base">Sensory Needs</CardTitle></CardHeader>
             <CardContent className="space-y-3">
+              {!isReadOnly && (
+                <BulkPlanBar
+                  formType={formType}
+                  onApply={(patch) => update({ ...content, section2: { ...content.section2, sensory: applyPatchToAll(content.section2.sensory, patch) } })}
+                />
+              )}
               {SENSORY_ITEMS.map((item) => (
                 <SimpleNeedEditor
                   key={item.key} item={item} formType={formType} readOnly={isReadOnly}
@@ -611,6 +746,27 @@ export default function ResidentAssessmentFormEditor() {
           <Card>
             <CardHeader><CardTitle className="text-base">Mental Health, Behavioral Health, Cognitive Functioning</CardTitle></CardHeader>
             <CardContent className="space-y-3">
+              {!isReadOnly && (
+                <>
+                  <BulkDegreeBar
+                    formType={formType} scale={BEHAVIORAL_DEGREE_OPTIONS}
+                    onApply={(patch) => update({
+                      ...content,
+                      section3: {
+                        ...content.section3,
+                        items: applyPatchToAll(content.section3.items, {
+                          ...(patch.degree !== undefined ? { degree: patch.degree, degreePreliminary: patch.degree } : {}),
+                          ...(patch.degreeAllOther !== undefined ? { degreeAllOther: patch.degreeAllOther } : {}),
+                        }),
+                      },
+                    })}
+                  />
+                  <BulkPlanBar
+                    formType={formType}
+                    onApply={(patch) => update({ ...content, section3: { ...content.section3, items: applyPatchToAll(content.section3.items, patch) } })}
+                  />
+                </>
+              )}
               {behavioralList.map((item) => (
                 <DegreeItemEditor
                   key={item.key} item={item} formType={formType} scale={BEHAVIORAL_DEGREE_OPTIONS} readOnly={isReadOnly}
@@ -626,6 +782,12 @@ export default function ResidentAssessmentFormEditor() {
           <Card>
             <CardHeader><CardTitle className="text-base">Social and Recreational Needs</CardTitle></CardHeader>
             <CardContent className="space-y-3">
+              {!isReadOnly && (
+                <BulkPlanBar
+                  formType={formType}
+                  onApply={(patch) => update({ ...content, section4: { ...content.section4, items: applyPatchToAll(content.section4.items, patch) } })}
+                />
+              )}
               {SOCIAL_ITEMS.map((item) => (
                 <SimpleNeedEditor
                   key={item.key} item={item} formType={formType} readOnly={isReadOnly}
@@ -656,7 +818,17 @@ export default function ResidentAssessmentFormEditor() {
             <CardContent className="space-y-4">
               <fieldset disabled={isReadOnly} className="grid sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Assessor's Printed Name</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="text-xs">Assessor's Printed Name</Label>
+                    {!isReadOnly && user && (
+                      <Button
+                        type="button" variant="link" size="sm" className="h-auto p-0 text-[11px]"
+                        onClick={() => update({ ...content, participation: { ...content.participation, assessorName: `${user.firstName} ${user.lastName}`.trim() } })}
+                      >
+                        Use my name
+                      </Button>
+                    )}
+                  </div>
                   <Input className="h-9" value={content.participation.assessorName}
                     onChange={(e) => update({ ...content, participation: { ...content.participation, assessorName: e.target.value } })} />
                 </div>
