@@ -75,6 +75,12 @@ export default function Facilities() {
     const t = setTimeout(() => commitSearchRef.current(), 300);
     return () => clearTimeout(t);
   }, [search]);
+  // Resyncs the input's local mirror when urlState.search changes for a reason other than the
+  // commit above (browser Back/Forward, a bookmarked/deep link) -- otherwise the box shows a
+  // stale value that the debounce would then commit right back over the state just navigated to.
+  useEffect(() => {
+    setSearch(urlState.search);
+  }, [urlState.search]);
 
   const filteredFacilities = useMemo(() => {
     const q = urlState.search.trim().toLowerCase();

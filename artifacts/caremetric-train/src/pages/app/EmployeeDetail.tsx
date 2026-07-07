@@ -111,7 +111,10 @@ export default function EmployeeDetail() {
   // Scoped to this employee's own org (unlike Practicums.tsx's equivalent qualifiedObservers list,
   // which is left unfiltered) so a platform_admin viewing one org's employee doesn't get another
   // org's trainers mixed into the picker below.
-  const { data: employeesAll } = useListEmployees({ organizationId: employee?.organization_id });
+  const { data: employeesAll } = useListEmployees(
+    { organizationId: employee?.organization_id },
+    { enabled: !!employee?.organization_id },
+  );
 
   const { mutate: updateEmployee, isPending: updating } = useUpdateEmployee();
   const { mutate: deleteEmployee, isPending: deleting } = useDeleteEmployee();

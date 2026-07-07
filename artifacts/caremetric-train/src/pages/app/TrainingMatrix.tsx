@@ -677,6 +677,13 @@ export default function TrainingMatrix() {
     const t = setTimeout(() => commitSearchRef.current(), 300);
     return () => clearTimeout(t);
   }, [search]);
+  // Resyncs the local mirror when urlState.search changes for a reason other than the commit
+  // above (browser Back/Forward, a bookmarked/deep link) -- the matrix filters off this local
+  // value directly (see filteredRows below), so without this both the input AND the filtered
+  // rows would keep showing/matching a stale search term after navigating.
+  useEffect(() => {
+    setSearchInput(urlState.search);
+  }, [urlState.search]);
 
   const [selectedCell, setSelectedCell] = useState<{ entry: MatrixCell; trainingType: TrainingType; employee: Employee } | null>(null);
   const [showBatchDialog, setShowBatchDialog] = useState(false);

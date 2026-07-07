@@ -16,7 +16,17 @@ export interface ListEmployeesFilters {
 // Unbounded by design -- used for dropdowns/rosters/matrices elsewhere in the app that need the
 // complete filtered set, not a page of it. For the paginated roster table, see
 // useListEmployeesPaginated below.
-export function useListEmployees(filters: ListEmployeesFilters = {}) {
+//
+// `options.enabled` matters for callers that intend to scope by organizationId but don't have one
+// yet (e.g. EmployeeDetail.tsx's trainer picker, scoped to the viewed employee's org, before that
+// employee record has resolved) -- every filter field here is applied only `if` truthy, so an
+// absent organizationId doesn't scope to "nothing," it scopes to "no filter at all," firing an
+// unscoped all-tenant fetch first and a correctly-scoped one right behind it. Passing
+// `enabled: false` until the real value is known avoids that wasted (and, for platform_admin,
+// cross-org) first fetch. Mirrors usePolicyAttestations.ts's useListPolicyAttestations. Defaults
+// to `undefined`, which react-query treats as "always enabled," so every existing caller that
+// doesn't pass `options` is unaffected.
+export function useListEmployees(filters: ListEmployeesFilters = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["employees", filters],
     queryFn: async () => {
@@ -28,6 +38,7 @@ export function useListEmployees(filters: ListEmployeesFilters = {}) {
       if (error) throw error;
       return data;
     },
+    enabled: options.enabled,
   });
 }
 

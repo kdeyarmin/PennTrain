@@ -196,7 +196,7 @@ export default function EmployeeCredentials() {
 
   const [filters, setFilters] = useUrlState(CREDENTIALS_FILTER_DEFAULTS);
   const { facilityFilter, employeeFilter, statusFilter } = filters;
-  const page = Number(filters.page) || 1;
+  const page = Math.max(1, Number(filters.page) || 1);
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<EmployeeCredential | null>(null);
