@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesUpdate } from "@/lib/database.types";
+import { escapeOrValue } from "@/lib/utils";
 
 export type SupportTicket = Tables<"support_tickets">;
 export type SupportTicketUpdate = TablesUpdate<"support_tickets">;
@@ -21,11 +22,18 @@ export const SUPPORT_TICKET_STATUSES = ["open", "in_progress", "resolved", "clos
 export interface ListSupportTicketsFilters {
   status?: string;
   organizationId?: string;
+  search?: string;
 }
 
 // RLS (support_tickets_select) already scopes this to "my own tickets" for every
 // non-platform_admin caller and to every organization's tickets for platform_admin -- callers
 // never need to filter by created_by themselves, only by the admin queue's own UI filters.
+//
+// Unlike notification_deliveries' list (capped at 200 rows, safe to search client-side), this
+// query has no .limit()/.range() at all -- for platform_admin it's every ticket ever filed across
+// every organization, unbounded and only growing -- so `search` is applied server-side instead of
+// fetching the whole table into the browser to filter locally. Matches subject and category, the
+// free-text/near-free-text columns that live directly on the ticket row itself.
 export function useListSupportTickets(filters: ListSupportTicketsFilters = {}) {
   return useQuery({
     queryKey: ["support_tickets", filters],
@@ -33,6 +41,11 @@ export function useListSupportTickets(filters: ListSupportTicketsFilters = {}) {
       let query = supabase.from("support_tickets").select("*").order("last_message_at", { ascending: false });
       if (filters.status) query = query.eq("status", filters.status);
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
+      const search = filters.search?.trim();
+      if (search) {
+        const like = escapeOrValue(`%${search}%`);
+        query = query.or(`subject.ilike.${like},category.ilike.${like}`);
+      }
       const { data, error } = await query;
       if (error) throw error;
       return data;

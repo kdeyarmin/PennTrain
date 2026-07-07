@@ -45,6 +45,28 @@ export function useRetryNotificationDelivery() {
   });
 }
 
+// retry_notification_delivery only ever takes one id at a time -- it's not a plain column update
+// like useBulkUpdateAlerts' bulk status change, so there's no single batchable SQL statement to
+// call instead. "Retry Selected Failed" loops the same per-row RPC client-side via
+// Promise.allSettled so one delivery that fails to re-queue (e.g. it moved out of "failed" state
+// between selection and click) doesn't abort the rest of the batch. Returns the raw settle results
+// so the caller can build one summary toast from the counts.
+export function useBulkRetryNotificationDeliveries() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (deliveryIds: string[]) => {
+      const results = await Promise.allSettled(
+        deliveryIds.map(async (deliveryId) => {
+          const { error } = await supabase.rpc("retry_notification_delivery", { p_delivery_id: deliveryId });
+          if (error) throw error;
+        }),
+      );
+      return results;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notification_deliveries"] }),
+  });
+}
+
 // Simple id -> name lookup so the oversight page can show organization names
 // instead of raw UUIDs (see ROADMAP: raw-UUID reports called out as a defect
 // to avoid repeating).
