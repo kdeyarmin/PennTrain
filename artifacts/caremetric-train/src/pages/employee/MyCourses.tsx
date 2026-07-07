@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListCourseAssignments, useSelfEnrollCourse } from "@/hooks/useCourseAssignments";
-import { useListCourses } from "@/hooks/useCourses";
+import { useListCourses, canEnrollInCourse } from "@/hooks/useCourses";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,7 @@ export default function MyCourses() {
     { employeeId: employee?.id },
     { enabled: !!employee?.id },
   );
-  const { data: courses } = useListCourses();
+  const { data: courses, isLoading: coursesLoading } = useListCourses();
   const { mutate: selfEnroll, isPending: enrolling, variables: enrollingCourseId } = useSelfEnrollCourse();
 
   const isLoading = employeeLoading || assignmentsLoading;
@@ -57,11 +57,16 @@ export default function MyCourses() {
   const allAssignments = assignments ?? [];
   const filtered = statusFilter === "all" ? allAssignments : allAssignments.filter(a => a.status === statusFilter);
 
-  // Published courses this account hasn't already been assigned -- the self-service entry point
-  // for any role (not just employee) to start a course on their own, without waiting for an
-  // admin/trainer to assign it via the "Assign Course" dialog.
+  // Published courses this account hasn't already been assigned and could actually self-enroll
+  // in -- the self-service entry point for any role (not just employee) to start a course on
+  // their own, without waiting for an admin/trainer to assign it via the "Assign Course" dialog.
+  // canEnrollInCourse matters for platform_admin specifically: RLS lets that role see every
+  // organization's courses, but self_enroll_course only ever accepts system-catalog courses or
+  // the caller's own (for platform_admin, always the internal) org's.
   const assignedCourseIds = new Set(allAssignments.map(a => a.course_id));
-  const availableCourses = (courses ?? []).filter(c => c.status === "published" && !assignedCourseIds.has(c.id));
+  const availableCourses = (courses ?? []).filter(
+    c => c.status === "published" && !assignedCourseIds.has(c.id) && canEnrollInCourse(c, employee?.organization_id),
+  );
 
   const handleStart = (courseId: string) => {
     selfEnroll(courseId, {
@@ -72,8 +77,9 @@ export default function MyCourses() {
     });
   };
 
-  // Not-yet-started/in-progress first, then overdue, then completed last -- surfaces active work
-  // ahead of what's already done, with due date as the tiebreak within each bucket.
+  // Overdue first (most urgent), then in_progress, then not-yet-started, then completed last --
+  // surfaces active work ahead of what's already done, with due date as the tiebreak within each
+  // bucket.
   const statusOrder: Record<string, number> = { overdue: 0, in_progress: 1, assigned: 2, completed: 3 };
   const sorted = [...filtered].sort((a, b) => {
     const byStatus = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9);
@@ -94,7 +100,7 @@ export default function MyCourses() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <GraduationCap className="h-5 w-5" />
-            Courses ({filtered.length})
+            Courses {!isLoading && `(${filtered.length})`}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -150,11 +156,15 @@ export default function MyCourses() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BookOpen className="h-5 w-5" />
-            Available Courses ({availableCourses.length})
+            Available Courses {!coursesLoading && `(${availableCourses.length})`}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {availableCourses.length === 0 ? (
+          {coursesLoading ? (
+            <div className="space-y-2">
+              {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)}
+            </div>
+          ) : availableCourses.length === 0 ? (
             <p className="text-muted-foreground text-sm text-center py-8">
               No other published courses to start right now.
             </p>

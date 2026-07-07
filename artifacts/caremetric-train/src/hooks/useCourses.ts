@@ -21,6 +21,17 @@ export interface ListCoursesFilters {
   systemOnly?: boolean;
 }
 
+// Mirrors self_enroll_course()'s own organization-scope check. courses_select RLS lets
+// platform_admin see every organization's courses (its RLS grant bypasses the org filter
+// entirely -- see ListCoursesFilters.systemOnly above), but self_enroll_course rejects enrolling
+// in a course whose organization_id doesn't match the caller's own employee record (a
+// platform_admin's is always the dedicated internal org, never a real tenant's). Without this,
+// a platform_admin's "Available Courses"/"Take This Course" would offer every tenant's courses,
+// each guaranteed to fail with a destructive error toast the moment they're clicked.
+export function canEnrollInCourse(course: Pick<Course, "organization_id">, employeeOrganizationId: string | undefined): boolean {
+  return course.organization_id === null || course.organization_id === employeeOrganizationId;
+}
+
 // Courses can be org-owned or system-catalog (organization_id null); RLS already
 // scopes which rows a given user can see (their org's courses + the system
 // catalog), so we only apply an organization_id filter when the caller explicitly

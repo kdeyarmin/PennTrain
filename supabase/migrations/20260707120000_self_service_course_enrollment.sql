@@ -42,6 +42,13 @@ begin
     -- platform_admin accounts aren't scoped to any customer organization -- anchor their
     -- own training record to a dedicated internal org/facility instead of a real tenant's,
     -- so it never surfaces in a customer's facility compliance reporting.
+    --
+    -- Serializes concurrent bootstrap of that shared org/facility -- without this, two
+    -- concurrent platform_admin self-enrolls could both miss the "does it exist" checks below
+    -- and then both attempt the organizations insert, with the losing transaction aborting on
+    -- organizations_slug_key's unique constraint instead of just reusing the winner's row.
+    perform pg_advisory_xact_lock(hashtext('ensure_employee_record:internal-org-bootstrap'));
+
     select id into v_org_id from public.organizations where slug = 'caremetric-train-internal';
     if v_org_id is null then
       insert into public.organizations (name, slug, subscription_status)
