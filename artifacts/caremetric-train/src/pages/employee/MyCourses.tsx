@@ -5,7 +5,7 @@ import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListCourseAssignments, useSelfEnrollCourse } from "@/hooks/useCourseAssignments";
 import { useListCourses, canEnrollInCourse } from "@/hooks/useCourses";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GraduationCap, ChevronRight, BookOpen, Loader2 } from "lucide-react";
@@ -23,15 +23,6 @@ function actionLabel(status: string) {
 // learner's assignments surfaced at all was the dashboard's "Upcoming Deadlines" widget, which
 // explicitly drops any assignment with a null due_date, making it unreachable in the app
 // (ROADMAP.md Tier 3.4: "assignments without due dates are unreachable today").
-function StatusBadge({ status }: { status: string }) {
-  const className =
-    status === "completed" ? "bg-success text-success-foreground hover:bg-success/80"
-    : status === "overdue" ? "bg-destructive text-destructive-foreground hover:bg-destructive/80"
-    : status === "in_progress" ? "bg-info text-info-foreground hover:bg-info/80"
-    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"; // assigned
-  return <Badge className={className} variant="outline">{status.replace(/_/g, " ")}</Badge>;
-}
-
 export default function MyCourses() {
   const { user } = useAuth();
   const { toast } = useToast();
