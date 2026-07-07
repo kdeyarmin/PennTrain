@@ -122,6 +122,18 @@ export default function ResidentDetail() {
   // so completion always goes through this single path: upload the actual DHS form flagged
   // is_state_form, linked to this specific item, then complete_resident_compliance_item() validates
   // that exact document server-side. There is no "mark complete" shortcut that skips the upload.
+  //
+  // Single reset used by every way this dialog can close (Cancel, backdrop/Escape via
+  // onOpenChange, and a successful submit) so a file picked for one item can never carry over
+  // into the next item's dialog -- a stale completeFile would leave "Upload & Mark Complete"
+  // enabled and could attach the wrong item's document, which a facility_manager (no delete
+  // access on resident documents) has no way to undo themselves.
+  const closeCompleteDialog = () => {
+    setCompletingItem(null);
+    setCompleteFile(null);
+    if (completeFileInputRef.current) completeFileInputRef.current.value = "";
+  };
+
   const handleMarkComplete = async () => {
     if (!resident || !completingItem || !completeFile) return;
     try {
@@ -135,9 +147,7 @@ export default function ResidentDetail() {
       });
       await completeItem.mutateAsync({ item: completingItem, documentId: uploadedDocument.id });
       toast({ title: "Marked complete" });
-      setCompletingItem(null);
-      setCompleteFile(null);
-      if (completeFileInputRef.current) completeFileInputRef.current.value = "";
+      closeCompleteDialog();
     } catch (err) {
       toast({ title: "Failed to mark complete", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     }
@@ -519,10 +529,7 @@ export default function ResidentDetail() {
         </CardContent>
       </Card>
 
-      <Dialog
-        open={!!completingItem}
-        onOpenChange={(o) => { if (!o) { setCompletingItem(null); setCompleteFile(null); if (completeFileInputRef.current) completeFileInputRef.current.value = ""; } }}
-      >
+      <Dialog open={!!completingItem} onOpenChange={(o) => { if (!o) closeCompleteDialog(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -548,7 +555,7 @@ export default function ResidentDetail() {
             {completeFile && <p className="text-xs text-muted-foreground">{completeFile.name}</p>}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCompletingItem(null)}>Cancel</Button>
+            <Button variant="outline" onClick={closeCompleteDialog}>Cancel</Button>
             <Button onClick={handleMarkComplete} disabled={!completeFile || uploadDocument.isPending || completeItem.isPending}>
               {uploadDocument.isPending || completeItem.isPending ? "Saving..." : "Upload & Mark Complete"}
             </Button>
