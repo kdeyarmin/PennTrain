@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListEmployeesPaginated, useCreateEmployee, useUpdateEmployee, useDeleteEmployee,
-  type Employee,
+  type Employee, type EmployeeSortField,
 } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useUrlState } from "@/hooks/useUrlState";
+import { EmployeeFormFields, EMPTY_EMPLOYEE_FORM, employeeToFormData, type EmpFormData } from "@/components/employees/EmployeeFormFields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,32 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 
-interface EmpFormData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  jobTitle: string;
-  department: string;
-  employeeNumber: string;
-  facilityId: string;
-  hireDate: string;
-  status: "active" | "inactive" | "terminated" | "on_leave";
-  administersMedications: boolean;
-  trainerStatus: boolean;
-  scheduledHoursPerWeek: string;
-  workerType: "regular" | "agency" | "substitute" | "volunteer";
-}
-
-const EMPTY_EMP: EmpFormData = {
-  firstName: "", lastName: "", email: "", phone: "", jobTitle: "",
-  department: "", employeeNumber: "", facilityId: "none", hireDate: "",
-  status: "active", administersMedications: false, trainerStatus: false,
-  scheduledHoursPerWeek: "", workerType: "regular",
-};
-
 const PAGE_SIZE = 15;
-type SortField = "lastName" | "status" | "hireDate" | "jobTitle";
 
 // Mirrors the per-row result shape returned by supabase/functions/bulk-import-employees.
 interface BulkImportRowResult {
@@ -68,18 +45,34 @@ interface BulkImportResponse {
   results: BulkImportRowResult[];
 }
 
+// Defaults for useUrlState -- every value must be a string, so page/sortField/sortDir round-trip
+// as text and get parsed/cast back where they're used below. A value matching its default here is
+// omitted from the URL entirely (see useUrlState's own doc comment), so the plain /employees link
+// stays clean.
+const EMPLOYEES_URL_DEFAULTS = {
+  search: "",
+  facilityId: "all",
+  status: "all",
+  sortField: "lastName",
+  sortDir: "asc",
+  page: "1",
+};
+
 export default function Employees() {
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [facilityId, setFacilityId] = useState<string>("all");
-  const [status, setStatus] = useState<string>("all");
-  const [sortField, setSortField] = useState<SortField>("lastName");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [page, setPage] = useState(1);
+  const [urlState, setUrlState] = useUrlState(EMPLOYEES_URL_DEFAULTS);
+  const facilityId = urlState.facilityId;
+  const status = urlState.status;
+  const sortField = urlState.sortField as EmployeeSortField;
+  const sortDir = urlState.sortDir as "asc" | "desc";
+  const page = Number(urlState.page) || 1;
+
+  // Mirrors the free-text search box's current (undebounced) value so the input stays snappy;
+  // the debounced copy below is what actually drives the server query.
+  const [debouncedSearch, setDebouncedSearch] = useState(urlState.search);
   const [showForm, setShowForm] = useState(false);
   const [editEmp, setEditEmp] = useState<Employee | null>(null);
   const [deleteEmp, setDeleteEmp] = useState<Employee | null>(null);
-  const [form, setForm] = useState<EmpFormData>(EMPTY_EMP);
+  const [form, setForm] = useState<EmpFormData>(EMPTY_EMPLOYEE_FORM);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [bulkFile, setBulkFile] = useState<File | null>(null);
   const [bulkImporting, setBulkImporting] = useState(false);
@@ -98,12 +91,13 @@ export default function Employees() {
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
 
-  // Debounce the free-text box before it drives a server request, so typing doesn't fire a
-  // query per keystroke; the page-reset on change below still happens immediately.
+  // Debounce the free-text box before it drives a server request, so typing doesn't fire a query
+  // per keystroke; the page-reset on change below still happens immediately. The box's raw value
+  // itself lives in the URL (urlState.search) so Back/Forward and reopening the page preserve it.
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    const t = setTimeout(() => setDebouncedSearch(urlState.search), 300);
     return () => clearTimeout(t);
-  }, [search]);
+  }, [urlState.search]);
 
   const { data: employeesPage, isLoading } = useListEmployeesPaginated({
     facilityId: facilityId !== "all" ? facilityId : undefined,
@@ -125,18 +119,20 @@ export default function Employees() {
   const totalCount = employeesPage?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-  function toggleSort(field: SortField) {
-    if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
-    else { setSortField(field); setSortDir("asc"); }
-    setPage(1);
+  function toggleSort(field: EmployeeSortField) {
+    if (sortField === field) setUrlState({ sortDir: sortDir === "asc" ? "desc" : "asc", page: "1" });
+    else setUrlState({ sortField: field, sortDir: "asc", page: "1" });
   }
 
-  const sortIndicator = (field: SortField) =>
+  const sortIndicator = (field: EmployeeSortField) =>
     sortField === field ? (sortDir === "asc" ? " ↑" : " ↓") : "";
 
+  // Defaults the new-employee form's facility to whichever Facility filter is currently active
+  // (when one is selected), instead of always resetting to none -- an admin who has filtered the
+  // roster down to one facility is almost always about to add someone at that same facility.
   const openCreate = () => {
     setEditEmp(null);
-    setForm(EMPTY_EMP);
+    setForm({ ...EMPTY_EMPLOYEE_FORM, facilityId: facilityId !== "all" ? facilityId : "none" });
     setShowForm(true);
   };
 
@@ -156,22 +152,7 @@ export default function Employees() {
     e.preventDefault();
     e.stopPropagation();
     setEditEmp(emp);
-    setForm({
-      firstName: emp.first_name,
-      lastName: emp.last_name,
-      email: emp.email ?? "",
-      phone: emp.phone ?? "",
-      jobTitle: emp.job_title ?? "",
-      department: emp.department ?? "",
-      employeeNumber: emp.employee_number ?? "",
-      facilityId: emp.facility_id ?? "none",
-      hireDate: emp.hire_date ?? "",
-      status: emp.status as EmpFormData["status"],
-      administersMedications: emp.administers_medications ?? false,
-      trainerStatus: emp.trainer_status ?? false,
-      scheduledHoursPerWeek: emp.scheduled_hours_per_week != null ? String(emp.scheduled_hours_per_week) : "",
-      workerType: (emp.worker_type ?? "regular") as EmpFormData["workerType"],
-    });
+    setForm(employeeToFormData(emp));
     setShowForm(true);
   };
 
@@ -196,6 +177,7 @@ export default function Employees() {
       status: form.status,
       administers_medications: form.administersMedications,
       trainer_status: form.trainerStatus,
+      notes: form.notes || null,
       scheduled_hours_per_week: form.scheduledHoursPerWeek.trim() ? Number(form.scheduledHoursPerWeek) : null,
       worker_type: form.workerType,
     };
@@ -211,7 +193,7 @@ export default function Employees() {
       createEmployee(
         { ...payload, facility_id: form.facilityId, organization_id: user.organizationId },
         {
-          onSuccess: () => { toast({ title: "Employee created" }); setShowForm(false); setForm(EMPTY_EMP); },
+          onSuccess: () => { toast({ title: "Employee created" }); setShowForm(false); setForm(EMPTY_EMPLOYEE_FORM); },
           onError: (e: Error) => toast({ title: "Failed to create employee", description: e.message, variant: "destructive" }),
         },
       );
@@ -298,12 +280,12 @@ export default function Employees() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search employees..."
-              value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              value={urlState.search}
+              onChange={e => setUrlState({ search: e.target.value, page: "1" })}
               className="pl-9 h-9 bg-card"
             />
           </div>
-          <Select value={facilityId} onValueChange={v => { setFacilityId(v); setPage(1); }}>
+          <Select value={facilityId} onValueChange={v => setUrlState({ facilityId: v, page: "1" })}>
             <SelectTrigger className="w-48 h-9 bg-card">
               <SelectValue placeholder="All Facilities" />
             </SelectTrigger>
@@ -314,7 +296,7 @@ export default function Employees() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={status} onValueChange={v => { setStatus(v); setPage(1); }}>
+          <Select value={status} onValueChange={v => setUrlState({ status: v, page: "1" })}>
             <SelectTrigger className="w-40 h-9 bg-card">
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
@@ -438,11 +420,11 @@ export default function Employees() {
                 Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)}</span> of {totalCount}
               </p>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="text-[13px] text-muted-foreground px-2">Page {page} of {totalPages}</span>
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.min(totalPages, page + 1)) })} disabled={page === totalPages}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
@@ -461,104 +443,12 @@ export default function Employees() {
           <DialogHeader>
             <DialogTitle>{editEmp ? "Edit Employee" : "Add Employee"}</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">First Name *</Label>
-              <Input value={form.firstName} onChange={e => field("firstName", e.target.value)} placeholder="Jane" className="h-9" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Last Name *</Label>
-              <Input value={form.lastName} onChange={e => field("lastName", e.target.value)} placeholder="Smith" className="h-9" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Email</Label>
-              <Input type="email" value={form.email} onChange={e => field("email", e.target.value)} placeholder="jane@example.com" className="h-9" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Phone</Label>
-              <Input value={form.phone} onChange={e => field("phone", e.target.value)} placeholder="(215) 555-0100" className="h-9" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Job Title</Label>
-              <Input value={form.jobTitle} onChange={e => field("jobTitle", e.target.value)} placeholder="Medication Aide" className="h-9" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Department</Label>
-              <Input value={form.department} onChange={e => field("department", e.target.value)} placeholder="Nursing" className="h-9" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Employee Number</Label>
-              <Input value={form.employeeNumber} onChange={e => field("employeeNumber", e.target.value)} placeholder="EMP-001" className="h-9" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Facility{!editEmp && " *"}</Label>
-              <Select value={form.facilityId} onValueChange={v => field("facilityId", v)}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
-                <SelectContent>
-                  {editEmp && <SelectItem value="none">Keep current</SelectItem>}
-                  {facilities?.map(f => (
-                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Hire Date</Label>
-              <Input type="date" value={form.hireDate} onChange={e => field("hireDate", e.target.value)} className="h-9" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Scheduled Hours / Week</Label>
-              <Input
-                type="number" min="1" step="0.5" value={form.scheduledHoursPerWeek}
-                onChange={e => field("scheduledHoursPerWeek", e.target.value)}
-                placeholder="e.g. 32" className="h-9"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Worker Type</Label>
-              <Select value={form.workerType} onValueChange={v => field("workerType", v as EmpFormData["workerType"])}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="regular">Regular</SelectItem>
-                  <SelectItem value="agency">Agency</SelectItem>
-                  <SelectItem value="substitute">Substitute</SelectItem>
-                  <SelectItem value="volunteer">Volunteer</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Status</Label>
-              <Select value={form.status} onValueChange={v => field("status", v as EmpFormData["status"])}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                  <SelectItem value="terminated">Terminated</SelectItem>
-                  <SelectItem value="on_leave">On Leave</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="col-span-full flex gap-6 pt-1">
-              <label className="flex items-center gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.administersMedications}
-                  onChange={e => field("administersMedications", e.target.checked)}
-                  className="h-4 w-4 rounded border-border"
-                />
-                <span className="text-[13px]">Administers Medications</span>
-              </label>
-              <label className="flex items-center gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.trainerStatus}
-                  onChange={e => field("trainerStatus", e.target.checked)}
-                  className="h-4 w-4 rounded border-border"
-                />
-                <span className="text-[13px]">Designated Trainer</span>
-              </label>
-            </div>
-          </div>
+          <EmployeeFormFields
+            form={form}
+            onChange={field}
+            facilities={facilities}
+            facilityFieldMode={editEmp ? "edit-keep-current" : "create"}
+          />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowForm(false); setEditEmp(null); }}>Cancel</Button>
             <Button onClick={handleSubmit} disabled={creating || updating} className="shadow-sm">
@@ -576,9 +466,11 @@ export default function Employees() {
           <div className="space-y-4 py-2">
             <p className="text-[13px] text-muted-foreground leading-relaxed">
               Upload a CSV file with a header row. Required columns:{" "}
-              <span className="font-medium text-foreground">first_name, last_name, job_title, facility_id</span>.
-              Optional columns: email, phone, employee_number, department, hire_date, status, administers_medications, trainer_status.
-              Up to 1,000 rows per file.
+              <span className="font-medium text-foreground">first_name, last_name, job_title, facility_name</span>.
+              Facility names are matched case-insensitively against your organization's facilities (e.g. "Sunrise Manor").
+              A raw <span className="font-medium text-foreground">facility_id</span> column is also still accepted in place of
+              facility_name, for already-integrated callers. Optional columns: email, phone, employee_number, department,
+              hire_date, status, administers_medications, trainer_status. Up to 1,000 rows per file.
             </p>
             <div className="space-y-1.5">
               <Label className="text-[13px]">CSV File</Label>
