@@ -12,7 +12,7 @@
 -- due_date/status formula. Extend with the same pattern for other tables as they matter.
 
 begin;
-select plan(13);
+select plan(23);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures: two orgs, one facility each, one profile per role we need.
@@ -196,6 +196,104 @@ select results_eq(
   $$ select status from public.employee_training_records where employee_id = '00000000-0000-0000-0000-0000000000a6' and training_type_id = '00000000-0000-0000-0000-0000000000a7' $$,
   ARRAY['due_soon'],
   'a record due within the warning window (but not yet past due) is marked due_soon'
+);
+
+-- ---------------------------------------------------------------------------
+-- Resident compliance: documents like the RASP/ASP and DME have to be on the state-approved
+-- form, no exception. complete_resident_compliance_item() must reject a missing document, a
+-- document that isn't flagged is_state_form, and a state-form document linked to a *different*
+-- item -- and only succeed once the linked document is both is_state_form and tied to this exact
+-- item via compliance_item_id.
+-- ---------------------------------------------------------------------------
+select pg_temp.act_as('00000000-0000-0000-0000-0000000000a3'); -- org_admin, org A
+
+select lives_ok(
+  $$ insert into public.residents (id, organization_id, facility_id, first_name, last_name, admission_date)
+     values ('00000000-0000-0000-0000-0000000000a8', '00000000-0000-0000-0000-0000000000a1',
+             '00000000-0000-0000-0000-0000000000a2', 'Test', 'Resident', current_date) $$,
+  'org_admin can insert a resident in their own org'
+);
+
+select results_eq(
+  $$ select count(*)::int from public.resident_compliance_items where resident_id = '00000000-0000-0000-0000-0000000000a8' $$,
+  ARRAY[5],
+  'inserting a PCH resident auto-instantiates all 5 compliance items'
+);
+
+select throws_ok(
+  $$ select public.complete_resident_compliance_item(
+       (select id from public.resident_compliance_items
+        where resident_id = '00000000-0000-0000-0000-0000000000a8' and item_type = 'preadmission_screening'),
+       '00000000-0000-0000-0000-000000000000'
+     ) $$,
+  null, null,
+  'completing fails with no matching document at all'
+);
+
+select lives_ok(
+  $$ insert into public.resident_documents
+       (id, resident_id, compliance_item_id, storage_path, file_name, file_type, is_state_form)
+     values ('00000000-0000-0000-0000-0000000000a9', '00000000-0000-0000-0000-0000000000a8',
+             (select id from public.resident_compliance_items
+              where resident_id = '00000000-0000-0000-0000-0000000000a8' and item_type = 'preadmission_screening'),
+             'test/draft.pdf', 'draft.pdf', 'application/pdf', false) $$,
+  'org_admin can upload a resident document linked to a compliance item'
+);
+
+select throws_ok(
+  $$ select public.complete_resident_compliance_item(
+       (select id from public.resident_compliance_items
+        where resident_id = '00000000-0000-0000-0000-0000000000a8' and item_type = 'preadmission_screening'),
+       '00000000-0000-0000-0000-0000000000a9'
+     ) $$,
+  null, null,
+  'completing fails when the linked document is not flagged is_state_form (e.g. a CareMetric-generated draft)'
+);
+
+select lives_ok(
+  $$ insert into public.resident_documents
+       (id, resident_id, compliance_item_id, storage_path, file_name, file_type, is_state_form)
+     values ('00000000-0000-0000-0000-0000000000aa', '00000000-0000-0000-0000-0000000000a8',
+             (select id from public.resident_compliance_items
+              where resident_id = '00000000-0000-0000-0000-0000000000a8' and item_type = 'initial_assessment_15day'),
+             'test/other-item.pdf', 'other-item.pdf', 'application/pdf', true) $$,
+  'org_admin can upload a state-form document linked to a different compliance item'
+);
+
+select throws_ok(
+  $$ select public.complete_resident_compliance_item(
+       (select id from public.resident_compliance_items
+        where resident_id = '00000000-0000-0000-0000-0000000000a8' and item_type = 'preadmission_screening'),
+       '00000000-0000-0000-0000-0000000000aa'
+     ) $$,
+  null, null,
+  'completing fails when the state-form document is linked to a different item'
+);
+
+select lives_ok(
+  $$ insert into public.resident_documents
+       (id, resident_id, compliance_item_id, storage_path, file_name, file_type, is_state_form)
+     values ('00000000-0000-0000-0000-0000000000ab', '00000000-0000-0000-0000-0000000000a8',
+             (select id from public.resident_compliance_items
+              where resident_id = '00000000-0000-0000-0000-0000000000a8' and item_type = 'preadmission_screening'),
+             'test/preadmission.pdf', 'preadmission.pdf', 'application/pdf', true) $$,
+  'org_admin can upload the correctly-flagged, correctly-linked state-form document'
+);
+
+select lives_ok(
+  $$ select public.complete_resident_compliance_item(
+       (select id from public.resident_compliance_items
+        where resident_id = '00000000-0000-0000-0000-0000000000a8' and item_type = 'preadmission_screening'),
+       '00000000-0000-0000-0000-0000000000ab'
+     ) $$,
+  'completing succeeds once the linked document is the flagged state-approved form'
+);
+
+select results_eq(
+  $$ select status from public.resident_compliance_items
+     where resident_id = '00000000-0000-0000-0000-0000000000a8' and item_type = 'preadmission_screening' $$,
+  ARRAY['compliant'],
+  'the item is marked compliant only after the document-gated completion succeeds'
 );
 
 select * from finish();

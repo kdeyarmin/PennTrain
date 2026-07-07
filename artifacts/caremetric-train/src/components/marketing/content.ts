@@ -229,9 +229,9 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
     items: [
       {
         icon: FilePenLine,
-        title: "Digital RASP/ASP Assessment Forms",
+        title: "Digital RASP/ASP Assessment Prep",
         description:
-          "Fill out the actual DHS resident assessment on-screen -- every ADL, sensory, and behavioral item -- with autosaving drafts. Finalizing locks the record and generates a survey-ready PDF, satisfying 55 Pa. Code Section 2600.225/.227 and the parallel Chapter 2800 clause.",
+          "Draft the resident assessment on-screen -- every ADL, sensory, and behavioral item, mirroring the DHS RASP/ASP structure -- with autosaving drafts and a reference PDF on finalize. The signed, DHS-prescribed RASP/ASP form is still what satisfies 55 Pa. Code Section 2600.225/.227 and the parallel Chapter 2800 clause -- attach it on the resident's record to close out the requirement.",
       },
       {
         icon: GitBranch,
@@ -553,7 +553,7 @@ export const FAQS = [
   {
     question: "Does CareMetric Train track resident-level compliance, not just staff training?",
     answer:
-      "Yes, for personal care homes and assisted living facilities. CareMetric Train tracks each resident's RASP/ASP preadmission screening, 15-day initial assessment, annual reassessment, significant-change reassessment, and support-plan updates -- each with its own due date -- alongside a digital version of the actual DHS assessment form.",
+      "Yes, for personal care homes and assisted living facilities. CareMetric Train tracks each resident's RASP/ASP preadmission screening, 15-day initial assessment, annual reassessment, significant-change reassessment, and support-plan updates -- each with its own due date -- alongside a digital drafting tool mirroring the DHS assessment structure. Every item still requires the signed, DHS-prescribed form on file to be marked complete; there's no substitute.",
   },
   {
     question: "Do you screen employees against background-check and exclusion requirements?",
