@@ -389,27 +389,47 @@ export function mergeContentWithDefaults(
   };
 }
 
-export function createEmptyContent(formType: FormType): ResidentAssessmentFormContent {
+export function applyPatchToAll<T>(items: Record<string, T>, patch: Partial<T>): Record<string, T> {
+  return Object.fromEntries(Object.entries(items).map(([k, v]) => [k, { ...v, ...patch }]));
+}
+
+// A facility's usual plan responsible party/frequency (facilities.default_care_responsible_party/
+// default_care_frequency), passed through so createEmptyContent can pre-fill every item with it.
+export interface FacilityCareDefaults {
+  responsibleParty?: string | null;
+  frequency?: string | null;
+}
+
+export function createEmptyContent(formType: FormType, facilityDefaults?: FacilityCareDefaults): ResidentAssessmentFormContent {
+  const responsibleParty = facilityDefaults?.responsibleParty || "";
+  const frequency = facilityDefaults?.frequency || "";
+  const degreeItemPatch: Partial<DegreeItemAnswer> = {
+    ...(responsibleParty ? { planResponsibleParty: responsibleParty } : {}),
+    ...(frequency ? { planFrequency: frequency } : {}),
+  };
+  const simpleNeedPatch: Partial<SimpleNeedAnswer> = degreeItemPatch;
+  const levelDefaults = responsibleParty ? { planResponsibleParty: responsibleParty } : {};
+
   return {
     residentInfo: { comments: "" },
     assessmentInfo: { lastAssessmentDate: "", lastSupportPlanDate: "", assessmentReason: "", supportPlanReason: "", changeDescription: "" },
     section1: {
-      items: itemsFor(ADL_ITEMS),
-      supervision: { level: "", needsDescription: "", planDescription: "", planResponsibleParty: "", planResponsiblePartyOther: "" },
-      mobility: { level: "", needsDescription: "", planDescription: "", planResponsibleParty: "", planResponsiblePartyOther: "" },
-      medications: { level: "", needsDescription: "", planDescription: "", planResponsibleParty: "", planResponsiblePartyOther: "" },
+      items: applyPatchToAll(itemsFor(ADL_ITEMS), degreeItemPatch),
+      supervision: { level: "", needsDescription: "", planDescription: "", planResponsibleParty: "", planResponsiblePartyOther: "", ...levelDefaults },
+      mobility: { level: "", needsDescription: "", planDescription: "", planResponsibleParty: "", planResponsiblePartyOther: "", ...levelDefaults },
+      medications: { level: "", needsDescription: "", planDescription: "", planResponsibleParty: "", planResponsiblePartyOther: "", ...levelDefaults },
     },
     section2: {
       physicalDiagnoses: [], noPhysicalDiagnoses: false,
       dental: [], noDental: false,
       dietary: [], noDietary: false,
-      sensory: simpleItemsFor(SENSORY_ITEMS),
+      sensory: applyPatchToAll(simpleItemsFor(SENSORY_ITEMS), simpleNeedPatch),
     },
     section3: {
       psychologicalDiagnoses: [], noPsychologicalDiagnoses: false,
-      items: itemsFor(behavioralItems(formType)),
+      items: applyPatchToAll(itemsFor(behavioralItems(formType)), degreeItemPatch),
     },
-    section4: { items: simpleItemsFor(SOCIAL_ITEMS) },
+    section4: { items: applyPatchToAll(simpleItemsFor(SOCIAL_ITEMS), simpleNeedPatch) },
     summary: { overallWellness: "" },
     participation: { assessorName: "", assessorTitle: "", assessorSignedDate: "", participants: [] },
   };

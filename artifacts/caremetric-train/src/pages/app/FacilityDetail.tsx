@@ -24,6 +24,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { FACILITY_TYPES, facilityTypeBadgeClass, type FacilityType } from "@/lib/facilityTypes";
+import { FREQUENCY_OPTIONS, responsiblePartyOptions, type FormType } from "@/lib/residentAssessmentFormSchema";
 
 interface FacilityFormData {
   name: string;
@@ -37,12 +38,14 @@ interface FacilityFormData {
   administratorName: string;
   administratorEmail: string;
   isActive: boolean;
+  defaultCareResponsibleParty: string;
+  defaultCareFrequency: string;
 }
 
 const EMPTY_FORM: FacilityFormData = {
   name: "", facilityType: "PCH", licenseNumber: "", address: "", city: "",
   state: "PA", zip: "", phone: "", administratorName: "", administratorEmail: "",
-  isActive: true,
+  isActive: true, defaultCareResponsibleParty: "", defaultCareFrequency: "",
 };
 
 const RELEVANT_STATUSES = new Set(["compliant", "due_soon", "expired", "missing"]);
@@ -100,6 +103,8 @@ export default function FacilityDetail() {
       administratorName: facility.administrator_name ?? "",
       administratorEmail: facility.administrator_email ?? "",
       isActive: facility.is_active,
+      defaultCareResponsibleParty: facility.default_care_responsible_party ?? "",
+      defaultCareFrequency: facility.default_care_frequency ?? "",
     });
     setShowEdit(true);
   };
@@ -127,6 +132,8 @@ export default function FacilityDetail() {
         administrator_name: form.administratorName || null,
         administrator_email: form.administratorEmail || null,
         is_active: form.isActive,
+        default_care_responsible_party: form.defaultCareResponsibleParty || null,
+        default_care_frequency: form.defaultCareFrequency || null,
       },
       {
         onSuccess: () => { toast({ title: "Facility updated" }); setShowEdit(false); },
@@ -526,6 +533,29 @@ export default function FacilityDetail() {
                 <SelectContent>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Default Care Responsible Party</Label>
+              <Select value={form.defaultCareResponsibleParty} onValueChange={v => field("defaultCareResponsibleParty", v)}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent>
+                  {responsiblePartyOptions(form.facilityType === "ALR" ? "ASP" : "RASP" as FormType).map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">Pre-fills every item on new RASP/ASP forms for this facility.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Default Care Frequency</Label>
+              <Select value={form.defaultCareFrequency} onValueChange={v => field("defaultCareFrequency", v)}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent>
+                  {FREQUENCY_OPTIONS.map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

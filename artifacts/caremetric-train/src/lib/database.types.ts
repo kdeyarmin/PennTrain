@@ -2458,6 +2458,8 @@ export type Database = {
           administrator_name: string | null
           city: string | null
           created_at: string
+          default_care_frequency: string | null
+          default_care_responsible_party: string | null
           facility_type: string
           id: string
           is_active: boolean
@@ -2475,6 +2477,8 @@ export type Database = {
           administrator_name?: string | null
           city?: string | null
           created_at?: string
+          default_care_frequency?: string | null
+          default_care_responsible_party?: string | null
           facility_type: string
           id?: string
           is_active?: boolean
@@ -2492,6 +2496,8 @@ export type Database = {
           administrator_name?: string | null
           city?: string | null
           created_at?: string
+          default_care_frequency?: string | null
+          default_care_responsible_party?: string | null
           facility_type?: string
           id?: string
           is_active?: boolean

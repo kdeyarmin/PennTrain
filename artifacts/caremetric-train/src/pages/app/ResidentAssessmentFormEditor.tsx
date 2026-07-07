@@ -9,7 +9,7 @@ import {
 import { useListResidentDocuments } from "@/hooks/useResidentDocuments";
 import {
   ADL_ITEMS, SENSORY_ITEMS, SOCIAL_ITEMS, behavioralItems, responsiblePartyOptions,
-  createEmptyContent, mergeContentWithDefaults, isDegreeItemRated,
+  createEmptyContent, mergeContentWithDefaults, isDegreeItemRated, applyPatchToAll,
   CARE_DEGREE_OPTIONS, BEHAVIORAL_DEGREE_OPTIONS, FREQUENCY_OPTIONS, REASON_OPTIONS,
   COPY_PROVIDED_OPTIONS, NO_SIGNATURE_REASON_OPTIONS, RELATIONSHIP_OPTIONS, ASSESSOR_TITLE_OPTIONS,
   emptyDiagnosisRow, emptyParticipantRow,
@@ -27,7 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Plus, Trash2, Lock } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Lock, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -78,10 +78,6 @@ function QuickFillSelect({ options, onPick, placeholder, className, disabled }: 
       <SelectContent>{options.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
     </Select>
   );
-}
-
-function applyPatchToAll<T>(items: Record<string, T>, patch: Partial<T>): Record<string, T> {
-  return Object.fromEntries(Object.entries(items).map(([k, v]) => [k, { ...v, ...patch }]));
 }
 
 // Most residents share the same degree rating or the same plan frequency/responsible party across
@@ -317,6 +313,26 @@ function SimpleNeedEditor({ item, formType, answer, onChange, readOnly }: {
   );
 }
 
+interface ReviewCheckItem {
+  label: string;
+  ok: boolean;
+  detail?: string;
+}
+
+function ReviewChecklistRow({ item }: { item: ReviewCheckItem }) {
+  return (
+    <div className="flex items-start gap-2 py-2">
+      {item.ok
+        ? <CheckCircle2 className="h-4 w-4 text-success shrink-0 mt-0.5" />
+        : <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />}
+      <div>
+        <p className="text-sm">{item.label}</p>
+        {!item.ok && item.detail && <p className="text-xs text-muted-foreground">{item.detail}</p>}
+      </div>
+    </div>
+  );
+}
+
 function DiagnosisRowsEditor({ title, rows, noneChecked, onRowsChange, onNoneChange, readOnly, maxRows, formType }: {
   title: string; rows: DiagnosisRow[]; noneChecked: boolean;
   onRowsChange: (rows: DiagnosisRow[]) => void; onNoneChange: (v: boolean) => void; readOnly: boolean; maxRows: number; formType: FormType;
@@ -410,6 +426,7 @@ export default function ResidentAssessmentFormEditor() {
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const facility = facilities?.find((f) => f.id === resident?.facility_id);
+  const facilitiesLoaded = facilities !== undefined;
   const formLabel = getComplianceFormLabel(facility?.facility_type);
 
   const [content, setContent] = useState<ResidentAssessmentFormContent | null>(null);
@@ -418,14 +435,24 @@ export default function ResidentAssessmentFormEditor() {
   const isReadOnly = !canManage || form?.status === "finalized";
 
   useEffect(() => {
-    if (!form) return;
+    // Also wait for the facilities list so a brand-new form's items can pick up the facility's
+    // default care team (see createEmptyContent's facilityDefaults param) -- if a matching facility
+    // never turns up (e.g. a data gap), facilitiesLoaded still flips true once the query settles, so
+    // this doesn't hang forever; it just proceeds with no defaults.
+    if (!form || !facilitiesLoaded) return;
     // A brand-new form's content is a bare {} (see start_resident_assessment_form()'s
     // coalesce(v_prior.content, '{}'::jsonb)) -- deep-merge onto the full default shape so every
     // section, including item maps that may have grown new keys since this form's schema_version,
     // has its expected keys. A revised form's content already carries the full shape forward from
     // the prior version under the same schema_version, so the merge is a no-op for those.
-    setContent(mergeContentWithDefaults(createEmptyContent(form.form_type as FormType), form.content));
-  }, [form?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    setContent(mergeContentWithDefaults(
+      createEmptyContent(form.form_type as FormType, {
+        responsibleParty: facility?.default_care_responsible_party,
+        frequency: facility?.default_care_frequency,
+      }),
+      form.content,
+    ));
+  }, [form?.id, facilitiesLoaded, facility?.default_care_responsible_party, facility?.default_care_frequency]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = (next: ResidentAssessmentFormContent) => {
     setContent(next);
@@ -501,6 +528,37 @@ export default function ResidentAssessmentFormEditor() {
 
   const adlRatedCount = ADL_ITEMS.filter((item) => isDegreeItemRated(formType, content.section1.items[item.key])).length;
   const behavioralRatedCount = behavioralList.filter((item) => isDegreeItemRated(formType, content.section3.items[item.key])).length;
+  const unratedAdlItems = ADL_ITEMS.filter((item) => !isDegreeItemRated(formType, content.section1.items[item.key]));
+  const unratedBehavioralItems = behavioralList.filter((item) => !isDegreeItemRated(formType, content.section3.items[item.key]));
+
+  // A condensed pre-finalize checklist -- named gaps (not just counts), so catching a missed item
+  // doesn't require tab-hopping through all six tabs. Deliberately checks presence/completeness
+  // signals only (not content quality), since this can't judge whether an answer is *correct*.
+  const reviewChecklist: ReviewCheckItem[] = [
+    { label: "Reason for Assessment selected", ok: !!content.assessmentInfo.assessmentReason },
+    { label: "Reason for Support Plan selected", ok: !!content.assessmentInfo.supportPlanReason },
+    {
+      label: `All ${ADL_ITEMS.length} Personal Care Needs items rated`,
+      ok: unratedAdlItems.length === 0,
+      detail: unratedAdlItems.length ? `Still needs a degree: ${unratedAdlItems.map((i) => i.label).join(", ")}` : undefined,
+    },
+    {
+      label: `All ${behavioralList.length} Behavioral/Cognitive items rated`,
+      ok: unratedBehavioralItems.length === 0,
+      detail: unratedBehavioralItems.length ? `Still needs a degree: ${unratedBehavioralItems.map((i) => i.label).join(", ")}` : undefined,
+    },
+    { label: "Physical medical diagnoses addressed (rows added, or \"None\" checked)", ok: content.section2.noPhysicalDiagnoses || content.section2.physicalDiagnoses.length > 0 },
+    { label: "Dental needs addressed", ok: content.section2.noDental || content.section2.dental.length > 0 },
+    { label: "Dietary needs addressed", ok: content.section2.noDietary || content.section2.dietary.length > 0 },
+    { label: "Psychological diagnoses addressed", ok: content.section3.noPsychologicalDiagnoses || content.section3.psychologicalDiagnoses.length > 0 },
+    { label: "Overall Wellness Summary written", ok: !!content.summary.overallWellness.trim() },
+    {
+      label: "Assessor name, title, and signed date recorded",
+      ok: !!content.participation.assessorName.trim() && !!content.participation.assessorTitle.trim() && !!content.participation.assessorSignedDate,
+    },
+    { label: "At least one participant recorded", ok: content.participation.participants.length > 0 },
+  ];
+  const reviewIncompleteCount = reviewChecklist.filter((c) => !c.ok).length;
 
   return (
     <div className="space-y-6">
@@ -553,6 +611,10 @@ export default function ResidentAssessmentFormEditor() {
           </TabsTrigger>
           <TabsTrigger value="section4">Social &amp; Recreational</TabsTrigger>
           <TabsTrigger value="summary">Summary &amp; Participation</TabsTrigger>
+          <TabsTrigger value="review">
+            Review
+            {reviewIncompleteCount > 0 && <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">{reviewIncompleteCount}</Badge>}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="info" className="space-y-4">
@@ -922,6 +984,22 @@ export default function ResidentAssessmentFormEditor() {
                   </Button>
                 )}
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="review" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center justify-between gap-2 flex-wrap">
+                <span>Pre-Finalize Review</span>
+                {reviewIncompleteCount === 0
+                  ? <Badge className="bg-success text-success-foreground hover:bg-success/80">All checks passed</Badge>
+                  : <Badge variant="secondary">{reviewIncompleteCount} item{reviewIncompleteCount === 1 ? "" : "s"} to check</Badge>}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="divide-y">
+              {reviewChecklist.map((item, i) => <ReviewChecklistRow key={i} item={item} />)}
             </CardContent>
           </Card>
         </TabsContent>
