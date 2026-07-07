@@ -1,17 +1,49 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useGlobalSearch } from "@/hooks/useGlobalSearch";
+import { useAuth } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
-import { Search, Building2, User, Users } from "lucide-react";
+import { Search, Building2, User, Users, UserRound } from "lucide-react";
+
+const DEBOUNCE_MS = 250;
 
 export function GlobalSearch() {
   const [, navigate] = useLocation();
+  const { user } = useAuth();
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [open, setOpen] = useState(false);
   const blurTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const { data: results, isFetching } = useGlobalSearch(query);
-  const hasResults = !!results && (results.organizations.length || results.profiles.length || results.employees.length);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  // "/" or Cmd/Ctrl+K jumps focus here from anywhere in the app, unless the user is already
+  // typing in another field -- mirrors the shortcut convention users expect from GitHub/Slack/etc.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const isShortcut = (e.key === "/" && !e.metaKey && !e.ctrlKey) || (e.key === "k" && (e.metaKey || e.ctrlKey));
+      if (!isShortcut) return;
+      const target = e.target as HTMLElement | null;
+      const isTyping = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+      if (isTyping) return;
+      e.preventDefault();
+      inputRef.current?.focus();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const { data: results, isFetching } = useGlobalSearch(debouncedQuery, user?.role);
+  const hasResults = !!results && (
+    results.organizations.length || results.profiles.length || results.employees.length || results.residents.length
+  );
+
+  const employeesBasePath = user?.role === "platform_admin" ? "/admin/employees" : "/app/employees";
+  const usersBasePath = user?.role === "platform_admin" ? "/admin/users" : "/app/users";
 
   const go = (path: string) => {
     setQuery("");
@@ -23,14 +55,15 @@ export function GlobalSearch() {
     <div className="relative w-40 sm:w-56">
       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
       <Input
+        ref={inputRef}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => setOpen(true)}
         onBlur={() => { blurTimeout.current = setTimeout(() => setOpen(false), 150); }}
         onKeyDown={(e) => { if (e.key === "Escape") { setQuery(""); setOpen(false); } }}
-        placeholder="Search everything..."
+        placeholder="Search everything... (/)"
         className="h-8 pl-8 text-xs bg-muted/50 border-none focus-visible:ring-1"
-        aria-label="Search organizations, users, and employees"
+        aria-label="Search organizations, users, employees, and residents"
       />
       {open && query.trim().length >= 2 && (
         <div
@@ -64,7 +97,7 @@ export function GlobalSearch() {
                     <button
                       key={p.id}
                       className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted text-left"
-                      onClick={() => go("/admin/users")}
+                      onClick={() => go(usersBasePath)}
                     >
                       <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                       <span className="truncate">{p.first_name} {p.last_name} <span className="text-muted-foreground">({p.email})</span></span>
@@ -79,9 +112,23 @@ export function GlobalSearch() {
                     <button
                       key={e.id}
                       className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted text-left"
-                      onClick={() => go(`/admin/employees/${e.id}`)}
+                      onClick={() => go(`${employeesBasePath}/${e.id}`)}
                     >
                       <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> {e.first_name} {e.last_name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {!!results?.residents.length && (
+                <div>
+                  <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Residents</p>
+                  {results.residents.map((r) => (
+                    <button
+                      key={r.id}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted text-left"
+                      onClick={() => go(`/app/residents/${r.id}`)}
+                    >
+                      <UserRound className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> {r.first_name} {r.last_name}
                     </button>
                   ))}
                 </div>

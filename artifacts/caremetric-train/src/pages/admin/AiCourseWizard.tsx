@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Sparkles, Loader2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2, AlertCircle, ListChecks } from "lucide-react";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useGenerateCourseCurriculum } from "@/hooks/useAiCourseGeneration";
 import { useAuth } from "@/lib/auth";
@@ -123,6 +123,15 @@ export default function AiCourseWizard() {
               Claude is drafting modules, lesson content, and knowledge-check quizzes. You'll land straight in the
               course editor to review everything once it's ready.
             </p>
+            <p className="text-sm text-muted-foreground max-w-md">
+              This runs on our servers, not in your browser tab -- you don't have to sit and wait. Feel free to
+              navigate away and check back later.
+            </p>
+            <Button asChild variant="outline" size="sm" className="mt-1">
+              <Link href="/admin/ai-generations">
+                <ListChecks className="mr-2 h-3.5 w-3.5" /> View Generation Log
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       ) : (

@@ -34,7 +34,12 @@ export default function MyAttestations() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
-  const { data: attestations, isLoading: attestationsLoading } = useListPolicyAttestations({ employeeId: employee?.id });
+  // Gate on a resolved employee id -- see useListPolicyAttestations' own comment on why `enabled`,
+  // not just the filter, is required to avoid an unscoped fetch-then-refetch on every page load.
+  const { data: attestations, isLoading: attestationsLoading } = useListPolicyAttestations(
+    { employeeId: employee?.id },
+    { enabled: !!employee?.id },
+  );
   const { data: campaigns } = useListPolicyAttestationCampaigns({ organizationId: user?.organizationId ?? undefined });
   const { data: documents } = useListPolicyDocuments({ organizationId: user?.organizationId ?? undefined });
   const { data: versions } = useListPolicyDocumentVersionsForOrg(user?.organizationId ?? undefined);
@@ -121,7 +126,7 @@ export default function MyAttestations() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <AttestationBadge attestation={a} />
-                    <Button size="sm" variant={a.status === "pending" ? "default" : "outline"} onClick={() => openReview(a)}>
+                    <Button variant={a.status === "pending" ? "default" : "outline"} onClick={() => openReview(a)}>
                       {a.status === "pending" ? "Review & Attest" : "View"}
                     </Button>
                   </div>

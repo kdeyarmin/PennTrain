@@ -109,6 +109,17 @@ export default function TakeCourse() {
   const [stepIndex, setStepIndex] = useState(0);
   const [resumed, setResumed] = useState(false);
 
+  // Tracks the furthest lesson the learner has ever reached, so the lesson-stepper pills below can
+  // allow jumping back to any already-visited lesson while still blocking a jump ahead of it. Starts
+  // at 0 and only grows -- moving stepIndex backward (Previous, or a pill click) never lowers it, so
+  // "visited" stays visited even after navigating away from it. Also picks up the resumed starting
+  // step once progress loads (the effect below re-fires whenever stepIndex changes, including that
+  // one-time jump), so a learner resuming mid-course sees every prior lesson already unlocked.
+  const [furthestIndex, setFurthestIndex] = useState(0);
+  useEffect(() => {
+    setFurthestIndex(f => Math.max(f, stepIndex));
+  }, [stepIndex]);
+
   // Post-completion rating prompt state. postCompleteDestination tracks where
   // to navigate once the learner submits or skips the rating -- certificates
   // if issuance succeeded, trainings if it didn't (mirrors the two onSuccess/
@@ -349,6 +360,40 @@ export default function TakeCourse() {
             </div>
             <Progress value={((stepIndex + 1) / blocks.length) * 100} />
           </div>
+
+          {blocks.length > 1 && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">Jump to a lesson you've already visited</p>
+              <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Lesson navigation">
+                {blocks.map((b, i) => {
+                  const isCurrent = i === stepIndex;
+                  const isVisited = i <= furthestIndex;
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={isCurrent}
+                      aria-current={isCurrent ? "step" : undefined}
+                      aria-label={`Lesson ${i + 1}${b.title ? `: ${b.title}` : ""}${isCurrent ? " (current)" : !isVisited ? " (not yet visited)" : ""}`}
+                      title={b.title ?? `Lesson ${i + 1}`}
+                      disabled={!isVisited}
+                      onClick={() => setStepIndex(i)}
+                      className={`h-7 min-w-7 px-1.5 rounded-full text-[11px] font-medium border transition-colors ${
+                        isCurrent
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : isVisited
+                            ? "bg-secondary text-secondary-foreground border-transparent hover:bg-secondary/70 cursor-pointer"
+                            : "bg-muted text-muted-foreground/50 border-transparent cursor-not-allowed"
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <Card>
             <CardHeader>

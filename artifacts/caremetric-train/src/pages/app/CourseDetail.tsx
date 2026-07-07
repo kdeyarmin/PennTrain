@@ -17,14 +17,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  ArrowLeft, BookOpen, Pencil, Plus, Rocket, FileText, Video, File as FileIcon,
+  ArrowLeft, ArrowUp, ArrowDown, BookOpen, Pencil, Plus, Rocket, FileText, Video, File as FileIcon,
   ListChecks, Trash2, Lock, Layers, Sparkles, RefreshCw, Star, Wand2, Play, Loader2,
   type LucideIcon,
 } from "lucide-react";
 import {
   useGetCourse, useUpdateCourse,
-  useListCourseVersions, useCreateCourseVersion, useUpdateCourseVersion,
-  useListCourseBlocks, useCreateCourseBlock, useDeleteCourseBlock,
+  useListCourseVersions, useCreateCourseVersion, useCloneCourseVersion, useUpdateCourseVersion,
+  useListCourseBlocks, useCreateCourseBlock, useUpdateCourseBlock, useDeleteCourseBlock,
   canEnrollInCourse,
   type CourseVersion, type CourseBlock, type CourseBlockInsert,
 } from "@/hooks/useCourses";
@@ -246,7 +246,9 @@ export default function CourseDetail() {
   // --- New version ---
   const [showNewVersion, setShowNewVersion] = useState(false);
   const [newVersionTitle, setNewVersionTitle] = useState("");
-  const { mutate: createVersion, isPending: creatingVersion } = useCreateCourseVersion();
+  const { mutate: cloneVersion, isPending: cloningVersion } = useCloneCourseVersion();
+  const { mutate: createBlankVersion, isPending: creatingBlankVersion } = useCreateCourseVersion();
+  const creatingVersion = cloningVersion || creatingBlankVersion;
 
   const nextVersionNumber = (versions?.reduce((max, v) => Math.max(max, v.version_number), 0) ?? 0) + 1;
 
@@ -256,18 +258,40 @@ export default function CourseDetail() {
     setShowNewVersion(true);
   };
 
+  // Clones whichever version is currently selected (defaults to the course's published version,
+  // see the selectedVersionId effect above) rather than starting blank -- fixing one typo no
+  // longer means manually rebuilding every block/quiz/question/answer from zero. A brand-new
+  // course has no version to clone from (selectedVersion never resolves -- see that effect's own
+  // "no versions" branch), so this falls back to the original blank-insert path for exactly that
+  // case; every other course always has at least one version by the time this dialog is reachable.
   const handleCreateVersion = () => {
     if (!course) return;
-    createVersion(
+    const title = newVersionTitle.trim() || `Version ${nextVersionNumber}`;
+    if (!selectedVersion) {
+      createBlankVersion(
+        { course_id: course.id, organization_id: course.organization_id, version_number: nextVersionNumber, title },
+        {
+          onSuccess: (data) => {
+            toast({ title: "Draft version created", variant: "success" });
+            setShowNewVersion(false);
+            setSelectedVersionId(data.id);
+          },
+          onError: (e: Error) => toast({ title: "Failed to create version", description: e.message, variant: "destructive" }),
+        },
+      );
+      return;
+    }
+    cloneVersion(
       {
-        course_id: course.id,
-        organization_id: course.organization_id,
-        version_number: nextVersionNumber,
-        title: newVersionTitle.trim() || `Version ${nextVersionNumber}`,
+        sourceVersionId: selectedVersion.id,
+        courseId: course.id,
+        organizationId: course.organization_id,
+        versionNumber: nextVersionNumber,
+        title,
       },
       {
         onSuccess: (data) => {
-          toast({ title: "Draft version created" });
+          toast({ title: "Draft version created", description: `Copied content from v${selectedVersion.version_number}.`, variant: "success" });
           setShowNewVersion(false);
           setSelectedVersionId(data.id);
         },
@@ -320,12 +344,52 @@ export default function CourseDetail() {
   const [showAddBlock, setShowAddBlock] = useState(false);
   const [blockForm, setBlockForm] = useState<BlockFormState>(EMPTY_BLOCK_FORM);
   const { mutate: createBlock, isPending: creatingBlock } = useCreateCourseBlock();
+  const { mutateAsync: updateBlockAsync } = useUpdateCourseBlock();
   const { mutate: deleteBlock, isPending: deletingBlock } = useDeleteCourseBlock();
   const [blockPendingDelete, setBlockPendingDelete] = useState<CourseBlock | null>(null);
+
+  // Reorders a block by swapping its sort_order with the adjacent block -- mirrors
+  // CompetencyTemplates.tsx's ManageItemsDialog.handleMove (two concurrent mutateAsync calls,
+  // with a busy-state guard so a second click can't race an in-flight swap).
+  const [reorderingBlocks, setReorderingBlocks] = useState(false);
+
+  const handleMoveBlock = async (index: number, direction: -1 | 1) => {
+    if (!blocks) return;
+    const target = blocks[index];
+    const neighbor = blocks[index + direction];
+    if (!target || !neighbor) return;
+    setReorderingBlocks(true);
+    try {
+      await Promise.all([
+        updateBlockAsync({ id: target.id, sort_order: neighbor.sort_order }),
+        updateBlockAsync({ id: neighbor.id, sort_order: target.sort_order }),
+      ]);
+    } catch (e) {
+      toast({ title: "Failed to reorder blocks", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setReorderingBlocks(false);
+    }
+  };
+
+  // Guards the Add Block / Generate Video dialogs (both textarea-heavy) against silently losing
+  // typed content on an accidental outside-click or Escape: closing either via Dialog's
+  // onOpenChange (not the explicit Cancel/Save buttons, which bypass this and close directly)
+  // checks whether the form still matches its empty starting state, and if not, opens this shared
+  // "discard changes?" AlertDialog instead of closing immediately. See
+  // handleRequestCloseAddBlock/handleRequestCloseVideoGen and handleConfirmDiscard below.
+  const [discardConfirm, setDiscardConfirm] = useState<null | "block" | "video">(null);
 
   const openAddBlock = () => {
     setBlockForm(EMPTY_BLOCK_FORM);
     setShowAddBlock(true);
+  };
+
+  const handleRequestCloseAddBlock = () => {
+    if (JSON.stringify(blockForm) !== JSON.stringify(EMPTY_BLOCK_FORM)) {
+      setDiscardConfirm("block");
+    } else {
+      setShowAddBlock(false);
+    }
   };
 
   const handleAddBlock = () => {
@@ -407,6 +471,27 @@ export default function CourseDetail() {
   const openVideoGen = (block: CourseBlock) => {
     setVideoGenBlock(block);
     setVideoGenForm({ avatarId: "", voiceId: "", script: "" });
+  };
+
+  const handleRequestCloseVideoGen = () => {
+    if (videoGenForm.avatarId || videoGenForm.voiceId || videoGenForm.script.trim()) {
+      setDiscardConfirm("video");
+    } else {
+      setVideoGenBlock(null);
+    }
+  };
+
+  // Confirms discarding whichever dialog (Add Block or Generate Video) triggered
+  // discardConfirm above, resetting that dialog's form back to empty.
+  const handleConfirmDiscard = () => {
+    if (discardConfirm === "block") {
+      setShowAddBlock(false);
+      setBlockForm(EMPTY_BLOCK_FORM);
+    } else if (discardConfirm === "video") {
+      setVideoGenBlock(null);
+      setVideoGenForm({ avatarId: "", voiceId: "", script: "" });
+    }
+    setDiscardConfirm(null);
   };
 
   const handleGenerateVideo = () => {
@@ -888,6 +973,30 @@ export default function CourseDetail() {
                         </div>
                       )}
                     </div>
+                    {canManage && !isVersionLocked && (
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground"
+                          disabled={idx === 0 || reorderingBlocks}
+                          onClick={() => handleMoveBlock(idx, -1)}
+                          aria-label="Move block up"
+                        >
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground"
+                          disabled={idx === blocks.length - 1 || reorderingBlocks}
+                          onClick={() => handleMoveBlock(idx, 1)}
+                          aria-label="Move block down"
+                        >
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
                     {canManage && !isVersionLocked && b.block_type === "video" && (
                       <>
                         {(() => {
@@ -1010,7 +1119,9 @@ export default function CourseDetail() {
           <DialogHeader><DialogTitle>New Draft Version</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              This creates version {nextVersionNumber} as a new draft. Existing published versions stay untouched and immutable.
+              {selectedVersion
+                ? `This creates version ${nextVersionNumber} as a new draft, copying every block, quiz, question, and answer from v${selectedVersion.version_number} as a starting point. Existing published versions stay untouched and immutable.`
+                : `This creates version ${nextVersionNumber} as a new, empty draft -- this course has no existing version to copy from yet.`}
             </p>
             <div className="space-y-1">
               <Label>Title</Label>
@@ -1019,13 +1130,13 @@ export default function CourseDetail() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowNewVersion(false)}>Cancel</Button>
-            <Button onClick={handleCreateVersion} disabled={creatingVersion}>{creatingVersion ? "Creating..." : "Create Draft"}</Button>
+            <Button onClick={handleCreateVersion} disabled={creatingVersion}>{creatingVersion ? (selectedVersion ? "Copying..." : "Creating...") : "Create Draft"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Add block */}
-      <Dialog open={showAddBlock} onOpenChange={o => { if (!o) setShowAddBlock(false); }}>
+      <Dialog open={showAddBlock} onOpenChange={o => { if (!o) handleRequestCloseAddBlock(); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Add Content Block</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
@@ -1116,7 +1227,7 @@ export default function CourseDetail() {
       </Dialog>
 
       {/* Generate AI avatar video (HeyGen) */}
-      <Dialog open={!!videoGenBlock} onOpenChange={o => { if (!o) setVideoGenBlock(null); }}>
+      <Dialog open={!!videoGenBlock} onOpenChange={o => { if (!o) handleRequestCloseVideoGen(); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Generate AI Avatar Video</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
@@ -1293,6 +1404,29 @@ export default function CourseDetail() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deletingBlock ? "Removing..." : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Discard unsaved changes -- Add Block / Generate Video dialogs (see discardConfirm) */}
+      <AlertDialog open={discardConfirm !== null} onOpenChange={o => { if (!o) setDiscardConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {discardConfirm === "block"
+                ? "This content block hasn't been saved yet. Closing now will discard what you've entered."
+                : "This video script hasn't been saved yet. Closing now will discard what you've entered."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Editing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDiscard}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Discard
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

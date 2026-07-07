@@ -4,6 +4,14 @@ import type { Tables } from "@/lib/database.types";
 
 export type TrainingDocument = Tables<"training_documents">;
 
+// Adds the joined uploader-target employee -- every caller of useListDocuments renders a list of
+// documents and needs to show whose document each one is, so embed it here once rather than making
+// each page resolve employee_id -> name itself. `employees` is null for org/facility-level uploads
+// that were never tied to one employee (employee_id is nullable on training_documents).
+export interface TrainingDocumentWithEmployee extends TrainingDocument {
+  employees: { id: string; first_name: string; last_name: string } | null;
+}
+
 export interface ListDocumentsFilters {
   employeeId?: string;
   facilityId?: string;
@@ -18,14 +26,17 @@ export function useListDocuments(filters: ListDocumentsFilters = {}) {
   return useQuery({
     queryKey: ["documents", filters],
     queryFn: async () => {
-      let query = supabase.from("training_documents").select("*").order("created_at", { ascending: false });
+      let query = supabase
+        .from("training_documents")
+        .select("*, employees(id, first_name, last_name)")
+        .order("created_at", { ascending: false });
       if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
       if (filters.documentTypes?.length) query = query.in("document_type", filters.documentTypes);
       else if (filters.documentType) query = query.eq("document_type", filters.documentType);
       const { data, error } = await query;
       if (error) throw error;
-      return data;
+      return data as unknown as TrainingDocumentWithEmployee[];
     },
   });
 }

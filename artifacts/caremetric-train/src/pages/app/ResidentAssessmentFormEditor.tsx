@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { useGetResident } from "@/hooks/useResidents";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -198,7 +198,14 @@ function BulkPlanBar({ formType, onApply }: {
   );
 }
 
-function DegreeItemEditor({ item, formType, answer, onChange, scale, readOnly }: {
+// Memoized: this editor renders per-item (22 items in section1 alone), and every keystroke
+// anywhere in the form used to re-render all of them because the onChange below was a fresh
+// closure on every parent render. It only actually prevents re-renders because the call sites
+// pass a per-item callback pulled from a handler map that's memoized once (see e.g.
+// section1ItemHandlers below) instead of an inline arrow function -- `answer` is already
+// reference-stable for every item except the one just edited, since `update()`'s immutable
+// spreads never touch the other items' entries.
+const DegreeItemEditor = memo(function DegreeItemEditor({ item, formType, answer, onChange, scale, readOnly }: {
   item: SectionItem; formType: FormType; answer: DegreeItemAnswer;
   onChange: (next: DegreeItemAnswer) => void; scale: { value: string; label: string }[]; readOnly: boolean;
 }) {
@@ -265,9 +272,11 @@ function DegreeItemEditor({ item, formType, answer, onChange, scale, readOnly }:
       </fieldset>
     </div>
   );
-}
+});
 
-function SimpleNeedEditor({ item, formType, answer, onChange, readOnly }: {
+// Memoized for the same reason as DegreeItemEditor above -- callers must pass a stable per-item
+// onChange (see section2SensoryHandlers/section4ItemHandlers) for this to actually take effect.
+const SimpleNeedEditor = memo(function SimpleNeedEditor({ item, formType, answer, onChange, readOnly }: {
   item: SectionItem; formType: FormType; answer: SimpleNeedAnswer; onChange: (next: SimpleNeedAnswer) => void; readOnly: boolean;
 }) {
   return (
@@ -306,7 +315,7 @@ function SimpleNeedEditor({ item, formType, answer, onChange, readOnly }: {
       )}
     </div>
   );
-}
+});
 
 interface ReviewCheckItem {
   label: string;
@@ -520,7 +529,70 @@ export default function ResidentAssessmentFormEditor() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // "Latest value" refs, resynced on every render -- let the per-item handler maps below stay
+  // referentially stable forever (computed once via useMemo(..., []) ) while still always reading
+  // and writing the current content/update, instead of closing over whatever they were on the
+  // render that created them. This is what makes DegreeItemEditor/SimpleNeedEditor's React.memo
+  // actually skip re-rendering untouched items: a fresh inline arrow function passed as onChange
+  // on every keystroke would defeat memo() no matter how stable `answer` itself is.
+  const contentRef = useRef(content);
+  contentRef.current = content;
+  const updateRef = useRef(update);
+  updateRef.current = update;
+
   const behavioralList = useMemo(() => behavioralItems((form?.form_type as FormType) ?? "RASP"), [form?.form_type]);
+
+  // One stable onChange per item key, keyed on the item lists themselves (ADL_ITEMS/SOCIAL_ITEMS/
+  // SENSORY_ITEMS are module-level constants; behavioralList is its own stable useMemo above) --
+  // computed once and never again, so DegreeItemEditor/SimpleNeedEditor see the same function
+  // reference across every render no matter what else in the form changed.
+  const section1ItemHandlers = useMemo(() => {
+    const map = new Map<string, (next: DegreeItemAnswer) => void>();
+    for (const item of ADL_ITEMS) {
+      map.set(item.key, (next) => {
+        const prev = contentRef.current;
+        if (!prev) return;
+        updateRef.current({ ...prev, section1: { ...prev.section1, items: { ...prev.section1.items, [item.key]: next } } });
+      });
+    }
+    return map;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const section3ItemHandlers = useMemo(() => {
+    const map = new Map<string, (next: DegreeItemAnswer) => void>();
+    for (const item of behavioralList) {
+      map.set(item.key, (next) => {
+        const prev = contentRef.current;
+        if (!prev) return;
+        updateRef.current({ ...prev, section3: { ...prev.section3, items: { ...prev.section3.items, [item.key]: next } } });
+      });
+    }
+    return map;
+  }, [behavioralList]);
+
+  const section2SensoryHandlers = useMemo(() => {
+    const map = new Map<string, (next: SimpleNeedAnswer) => void>();
+    for (const item of SENSORY_ITEMS) {
+      map.set(item.key, (next) => {
+        const prev = contentRef.current;
+        if (!prev) return;
+        updateRef.current({ ...prev, section2: { ...prev.section2, sensory: { ...prev.section2.sensory, [item.key]: next } } });
+      });
+    }
+    return map;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const section4ItemHandlers = useMemo(() => {
+    const map = new Map<string, (next: SimpleNeedAnswer) => void>();
+    for (const item of SOCIAL_ITEMS) {
+      map.set(item.key, (next) => {
+        const prev = contentRef.current;
+        if (!prev) return;
+        updateRef.current({ ...prev, section4: { ...prev.section4, items: { ...prev.section4.items, [item.key]: next } } });
+      });
+    }
+    return map;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Memoized on the specific item maps (not the whole `content` object, which changes on every
   // keystroke anywhere in the form) so typing in an unrelated field doesn't re-filter these lists;
@@ -846,7 +918,7 @@ export default function ResidentAssessmentFormEditor() {
                 <DegreeItemEditor
                   key={item.key} item={item} formType={formType} scale={degreeScale} readOnly={isReadOnly}
                   answer={content.section1.items[item.key]}
-                  onChange={(next) => update({ ...content, section1: { ...content.section1, items: { ...content.section1.items, [item.key]: next } } })}
+                  onChange={section1ItemHandlers.get(item.key)!}
                 />
               ))}
             </CardContent>
@@ -891,7 +963,7 @@ export default function ResidentAssessmentFormEditor() {
                 <SimpleNeedEditor
                   key={item.key} item={item} formType={formType} readOnly={isReadOnly}
                   answer={content.section2.sensory[item.key]}
-                  onChange={(next) => update({ ...content, section2: { ...content.section2, sensory: { ...content.section2.sensory, [item.key]: next } } })}
+                  onChange={section2SensoryHandlers.get(item.key)!}
                 />
               ))}
             </CardContent>
@@ -939,7 +1011,7 @@ export default function ResidentAssessmentFormEditor() {
                 <DegreeItemEditor
                   key={item.key} item={item} formType={formType} scale={BEHAVIORAL_DEGREE_OPTIONS} readOnly={isReadOnly}
                   answer={content.section3.items[item.key]}
-                  onChange={(next) => update({ ...content, section3: { ...content.section3, items: { ...content.section3.items, [item.key]: next } } })}
+                  onChange={section3ItemHandlers.get(item.key)!}
                 />
               ))}
             </CardContent>
@@ -961,7 +1033,7 @@ export default function ResidentAssessmentFormEditor() {
                 <SimpleNeedEditor
                   key={item.key} item={item} formType={formType} readOnly={isReadOnly}
                   answer={content.section4.items[item.key]}
-                  onChange={(next) => update({ ...content, section4: { ...content.section4, items: { ...content.section4.items, [item.key]: next } } })}
+                  onChange={section4ItemHandlers.get(item.key)!}
                 />
               ))}
             </CardContent>
