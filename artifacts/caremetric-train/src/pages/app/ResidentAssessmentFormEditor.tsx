@@ -568,7 +568,10 @@ export default function ResidentAssessmentFormEditor() {
       }
     }
     finalize.mutate(formId, {
-      onSuccess: () => toast({ title: `${formLabel} finalized and saved as a PDF` }),
+      onSuccess: () => toast({
+        title: `${formLabel} finalized and saved as a PDF`,
+        description: "This is a reference copy. Attach the signed, DHS-prescribed form on the resident's page to complete the compliance record.",
+      }),
       onError: (e: Error) => toast({ title: "Failed to finalize", description: e.message, variant: "destructive" }),
     });
   };
@@ -682,6 +685,12 @@ export default function ResidentAssessmentFormEditor() {
           </Button>
         )}
       </div>
+
+      <p className="text-xs text-muted-foreground">
+        Drafting/reference tool only — finalizing does not by itself satisfy the resident's compliance
+        requirement. Documents like the {formLabel} have to be on the state-approved form, no exception:
+        attach the signed DHS-prescribed form on the resident's page to mark the item complete.
+      </p>
 
       {incompleteSections.length > 0 && (
         <Alert className="border-warning/50 bg-warning/10 [&>svg]:text-warning">

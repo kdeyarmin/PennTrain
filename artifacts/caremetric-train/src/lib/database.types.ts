@@ -4747,6 +4747,7 @@ export type Database = {
           file_size: number | null
           file_type: string
           id: string
+          is_state_form: boolean
           organization_id: string
           resident_id: string
           storage_bucket: string
@@ -4762,6 +4763,7 @@ export type Database = {
           file_size?: number | null
           file_type: string
           id?: string
+          is_state_form?: boolean
           organization_id: string
           resident_id: string
           storage_bucket?: string
@@ -4777,6 +4779,7 @@ export type Database = {
           file_size?: number | null
           file_type?: string
           id?: string
+          is_state_form?: boolean
           organization_id?: string
           resident_id?: string
           storage_bucket?: string
@@ -5929,7 +5932,7 @@ export type Database = {
         Returns: undefined
       }
       complete_resident_compliance_item: {
-        Args: { p_item_id: string }
+        Args: { p_document_id: string; p_item_id: string }
         Returns: {
           citation_topic_id: string | null
           completed_date: string | null

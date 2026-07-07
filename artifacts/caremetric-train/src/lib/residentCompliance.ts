@@ -23,6 +23,17 @@ export function getComplianceFormLabel(facilityType: string | undefined): string
   return "Resident Compliance";
 }
 
+// Names the specific DHS-prescribed form each item type requires as evidence -- every item type
+// maps to a real state form (see documentTemplates.ts's FE-03 "Official DHS Forms Index"), so this
+// covers all six, not just the four the digital RASP/ASP editor drafts. Used by the "attach the
+// state form" completion dialog so the prompt names the actual document staff need in hand instead
+// of a generic "upload a file."
+export function getRequiredStateFormLabel(itemType: string, facilityType: string | undefined): string {
+  if (itemType === "medical_evaluation") return "DME (Documentation of Medical Evaluation)";
+  if (itemType === "preadmission_screening") return "Preadmission Screening";
+  return getComplianceFormLabel(facilityType);
+}
+
 // Lower rank = worse. Used to roll many items (one resident, or a whole facility) up into a
 // single "worst status" badge.
 const STATUS_RANK: Record<string, number> = {

@@ -14,7 +14,7 @@ import { usePageMeta } from "@/lib/usePageMeta";
 
 const RESIDENT_CARE_POINTS = [
   "Preadmission screening, 15-day initial assessment, annual reassessment, and significant-change reassessment, each on its own due date.",
-  "A digital replica of the actual DHS assessment form, with autosave, finalize-and-lock, and one-click PDF generation.",
+  "A digital drafting tool mirroring the DHS assessment structure, with autosave, finalize-and-lock, and one-click reference PDF generation -- the signed DHS-prescribed form is still what's required on file.",
   "Automatic support-plan follow-ups whenever a reassessment is completed.",
 ];
 
