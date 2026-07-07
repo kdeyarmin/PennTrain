@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useListEmployees } from "@/hooks/useEmployees";
 import type { Employee } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -7,15 +7,18 @@ import {
   useListTrainingRecords, useCreateTrainingRecord, useUpdateTrainingRecord,
   type TrainingRecord, type TrainingRecordInsert,
 } from "@/hooks/useTrainingRecords";
+import { useUploadDocument } from "@/hooks/useDocuments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { ChevronUp, ChevronDown, ChevronsUpDown, Download, Users, ExternalLink, Pencil } from "lucide-react";
+import {
+  ChevronUp, ChevronDown, ChevronsUpDown, Download, Users, ExternalLink, Pencil, Search, Upload, X,
+} from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -142,6 +145,59 @@ function SortButton({ field, sortField, sortDir, onSort }: {
   );
 }
 
+// employee_training_records.trainer_name is a plain text column (no FK -- see
+// database.types.ts), so free typing lets one trainer's history silently split across
+// misspellings. These sentinels back a Select of employees flagged trainer_status (mirroring
+// Practicums.tsx's qualifiedObservers pattern) while still keeping a free-text escape hatch for a
+// trainer who legitimately isn't in the system (e.g. a contracted instructor).
+const TRAINER_NONE = "__none__";
+const TRAINER_CUSTOM = "__custom__";
+
+function resolveTrainerName(selection: string, customName: string, trainers: Employee[]): string | null {
+  if (selection === TRAINER_CUSTOM) return customName.trim() || null;
+  if (!selection || selection === TRAINER_NONE) return null;
+  const trainer = trainers.find(t => t.id === selection);
+  return trainer ? `${trainer.first_name} ${trainer.last_name}` : null;
+}
+
+// Best-effort reverse mapping for editing an existing record: if the stored free-text name
+// exactly matches a currently-qualified trainer, preselect them; otherwise treat it as a
+// custom/external name rather than silently discarding it.
+function trainerSelectionFromName(name: string | null, trainers: Employee[]): { selection: string; customName: string } {
+  if (!name) return { selection: TRAINER_NONE, customName: "" };
+  const match = trainers.find(t => `${t.first_name} ${t.last_name}` === name);
+  return match ? { selection: match.id, customName: "" } : { selection: TRAINER_CUSTOM, customName: name };
+}
+
+function TrainerSelectField({
+  trainers, selection, customName, onSelectionChange, onCustomNameChange,
+}: {
+  trainers: Employee[];
+  selection: string;
+  customName: string;
+  onSelectionChange: (v: string) => void;
+  onCustomNameChange: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Select value={selection || TRAINER_NONE} onValueChange={onSelectionChange}>
+        <SelectTrigger className="h-9"><SelectValue placeholder="Select trainer" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value={TRAINER_NONE}>—</SelectItem>
+          {trainers.map(t => <SelectItem key={t.id} value={t.id}>{t.first_name} {t.last_name}</SelectItem>)}
+          <SelectItem value={TRAINER_CUSTOM}>Other (not in system)…</SelectItem>
+        </SelectContent>
+      </Select>
+      {selection === TRAINER_CUSTOM && (
+        <Input
+          className="h-9" placeholder="Trainer name"
+          value={customName} onChange={e => onCustomNameChange(e.target.value)}
+        />
+      )}
+    </div>
+  );
+}
+
 function CellDetailDialog({
   open,
   onClose,
@@ -149,6 +205,7 @@ function CellDetailDialog({
   trainingType,
   employee,
   canManage,
+  qualifiedTrainers,
 }: {
   open: boolean;
   onClose: () => void;
@@ -156,13 +213,15 @@ function CellDetailDialog({
   trainingType: TrainingType | null;
   employee: Employee | null;
   canManage: boolean;
+  qualifiedTrainers: Employee[];
 }) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
   const [completionDate, setCompletionDate] = useState(todayISO());
   const [hours, setHours] = useState("");
-  const [trainerName, setTrainerName] = useState("");
+  const [trainerSelection, setTrainerSelection] = useState(TRAINER_NONE);
+  const [customTrainerName, setCustomTrainerName] = useState("");
   const createRecord = useCreateTrainingRecord();
   const updateRecord = useUpdateTrainingRecord();
 
@@ -173,7 +232,9 @@ function CellDetailDialog({
   const openEdit = () => {
     setCompletionDate(entry.completionDate ?? todayISO());
     setHours(entry.hours != null ? String(entry.hours) : "");
-    setTrainerName(entry.trainerName ?? "");
+    const resolved = trainerSelectionFromName(entry.trainerName, qualifiedTrainers);
+    setTrainerSelection(resolved.selection);
+    setCustomTrainerName(resolved.customName);
     setEditing(true);
   };
 
@@ -193,7 +254,7 @@ function CellDetailDialog({
       due_date: dueDate,
       status,
       hours: hours.trim() ? Number(hours) : (trainingType.required_hours ?? null),
-      trainer_name: trainerName.trim() || null,
+      trainer_name: resolveTrainerName(trainerSelection, customTrainerName, qualifiedTrainers),
       completion_method: "manual_entry",
     };
     const onDone = {
@@ -227,8 +288,14 @@ function CellDetailDialog({
                 />
               </div>
               <div className="col-span-2 space-y-1.5">
-                <Label className="text-[13px]">Trainer Name</Label>
-                <Input className="h-9" placeholder="Optional" value={trainerName} onChange={e => setTrainerName(e.target.value)} />
+                <Label className="text-[13px]">Trainer</Label>
+                <TrainerSelectField
+                  trainers={qualifiedTrainers}
+                  selection={trainerSelection}
+                  customName={customTrainerName}
+                  onSelectionChange={setTrainerSelection}
+                  onCustomNameChange={setCustomTrainerName}
+                />
               </div>
             </div>
             <DialogFooter>
@@ -296,6 +363,282 @@ function CellDetailDialog({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Batch/cohort entry -- records ONE training event (type, date, hours, trainer, optional shared
+// evidence document) against MULTIPLE employees at once, e.g. a 15-person in-service that would
+// otherwise be 15 separate CellDetailDialog round-trips. Same fan-out-over-mutateAsync +
+// Promise.allSettled + one settled-summary toast shape as PolicyDocumentDetail.tsx's
+// AssignCampaignDialog.
+// ---------------------------------------------------------------------------
+
+function RecordForMultipleDialog({
+  open, onClose, employees, trainingTypes, qualifiedTrainers,
+}: {
+  open: boolean;
+  onClose: () => void;
+  employees: Employee[];
+  trainingTypes: TrainingType[];
+  qualifiedTrainers: Employee[];
+}) {
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const createRecord = useCreateTrainingRecord();
+  const uploadDocument = useUploadDocument();
+
+  const [search, setSearch] = useState("");
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set());
+  const [trainingTypeId, setTrainingTypeId] = useState("");
+  const [completionDate, setCompletionDate] = useState(todayISO());
+  const [hours, setHours] = useState("");
+  const [trainerSelection, setTrainerSelection] = useState(TRAINER_NONE);
+  const [customTrainerName, setCustomTrainerName] = useState("");
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const employeeById = useMemo(() => new Map(employees.map(e => [e.id, e])), [employees]);
+  const sortedEmployees = useMemo(
+    () => [...employees].sort((a, b) => `${a.last_name}${a.first_name}`.localeCompare(`${b.last_name}${b.first_name}`)),
+    [employees],
+  );
+  const filteredEmployees = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return sortedEmployees;
+    return sortedEmployees.filter(e => `${e.first_name} ${e.last_name}`.toLowerCase().includes(q));
+  }, [sortedEmployees, search]);
+  const sortedTrainingTypes = useMemo(
+    () => [...trainingTypes].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)),
+    [trainingTypes],
+  );
+  const selectedTrainingType = sortedTrainingTypes.find(t => t.id === trainingTypeId) ?? null;
+
+  const toggleEmployee = (id: string) => setSelectedEmployeeIds(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  const allVisibleSelected = filteredEmployees.length > 0 && filteredEmployees.every(e => selectedEmployeeIds.has(e.id));
+  const toggleSelectAllVisible = () => {
+    setSelectedEmployeeIds(prev => {
+      const next = new Set(prev);
+      if (allVisibleSelected) filteredEmployees.forEach(e => next.delete(e.id));
+      else filteredEmployees.forEach(e => next.add(e.id));
+      return next;
+    });
+  };
+
+  const handleClose = () => {
+    setSearch("");
+    setSelectedEmployeeIds(new Set());
+    setTrainingTypeId("");
+    setCompletionDate(todayISO());
+    setHours("");
+    setTrainerSelection(TRAINER_NONE);
+    setCustomTrainerName("");
+    setEvidenceFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    onClose();
+  };
+
+  const handleSubmit = async () => {
+    const targets = Array.from(selectedEmployeeIds)
+      .map(id => employeeById.get(id))
+      .filter((e): e is Employee => !!e);
+    if (targets.length === 0) {
+      toast({ title: "Select at least one employee", variant: "destructive" });
+      return;
+    }
+    if (!selectedTrainingType) {
+      toast({ title: "Training type is required", variant: "destructive" });
+      return;
+    }
+    if (!completionDate) {
+      toast({ title: "Completion date is required", variant: "destructive" });
+      return;
+    }
+
+    setSubmitting(true);
+
+    // Evidence is optional and shared across the whole batch (one sign-in sheet/roster covering
+    // every selected employee), so it's uploaded once up front rather than per employee. The
+    // upload needs a single organization_id/facility_id; there's no one "correct" facility when
+    // the selected employees span more than one (possible when the page's own facility filter is
+    // "All Facilities"), so this uses the first selected employee's scope -- training_documents
+    // intentionally allows a null employee_id for exactly this facility-wide/roster case (see
+    // stamp_scope_from_employee_if_present() in the migrations), and is_assigned_to_facility()
+    // is guaranteed to already hold for that facility since the acting user could only have
+    // selected an employee whose facility they're authorized to see.
+    let evidenceDocumentId: string | null = null;
+    if (evidenceFile) {
+      const first = targets[0];
+      try {
+        const uploaded = await uploadDocument.mutateAsync({
+          file: evidenceFile,
+          bucket: "signin-sheets",
+          organizationId: first.organization_id,
+          facilityId: first.facility_id,
+          documentType: "roster",
+        });
+        evidenceDocumentId = uploaded.id;
+      } catch (err) {
+        setSubmitting(false);
+        toast({
+          title: "Failed to upload evidence document",
+          description: err instanceof Error ? err.message : String(err),
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    const dueDate = computeDueDate(completionDate, selectedTrainingType.renewal_interval_days);
+    const status = computeStatus(completionDate, dueDate, selectedTrainingType.warning_days_default);
+    const hoursValue = hours.trim() ? Number(hours) : (selectedTrainingType.required_hours ?? null);
+    const trainerName = resolveTrainerName(trainerSelection, customTrainerName, qualifiedTrainers);
+
+    const settled = await Promise.allSettled(
+      targets.map(employee => createRecord.mutateAsync({
+        organization_id: employee.organization_id,
+        facility_id: employee.facility_id,
+        employee_id: employee.id,
+        training_type_id: selectedTrainingType.id,
+        completion_date: completionDate,
+        due_date: dueDate,
+        status,
+        hours: hoursValue,
+        trainer_name: trainerName,
+        completion_method: "manual_entry",
+        external_certificate_document_id: evidenceDocumentId,
+        document_required: !!evidenceDocumentId,
+      })),
+    );
+    setSubmitting(false);
+
+    const succeeded = settled.filter(r => r.status === "fulfilled").length;
+    const failed = settled.length - succeeded;
+
+    toast({
+      title: `Recorded training for ${succeeded} employee${succeeded === 1 ? "" : "s"}`,
+      description: failed > 0 ? `${failed} failed` : undefined,
+      variant: failed > 0 ? "destructive" : "success",
+    });
+    handleClose();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={o => { if (!o) handleClose(); }}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Record Training for Multiple Employees</DialogTitle>
+          <DialogDescription>Records the same training event for every employee selected below.</DialogDescription>
+        </DialogHeader>
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Employees *</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search employees..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
+            </div>
+            <label className="flex items-center gap-2 px-1 pt-1 cursor-pointer">
+              <Checkbox checked={allVisibleSelected} onCheckedChange={toggleSelectAllVisible} />
+              <span className="text-xs text-muted-foreground">
+                Select all visible{filteredEmployees.length ? ` (${filteredEmployees.length})` : ""}
+              </span>
+            </label>
+            <div className="border rounded-md max-h-[220px] overflow-y-auto">
+              {filteredEmployees.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">No employees found.</p>
+              ) : (
+                <div className="divide-y">
+                  {filteredEmployees.map(e => (
+                    <label key={e.id} className="flex items-center gap-3 px-3 py-2 hover:bg-muted/50 cursor-pointer">
+                      <Checkbox checked={selectedEmployeeIds.has(e.id)} onCheckedChange={() => toggleEmployee(e.id)} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{e.first_name} {e.last_name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{e.job_title ?? "—"}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">{selectedEmployeeIds.size} selected</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-[13px]">Training Type *</Label>
+              <Select value={trainingTypeId} onValueChange={setTrainingTypeId}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Select training type" /></SelectTrigger>
+                <SelectContent>
+                  {sortedTrainingTypes.map(tt => <SelectItem key={tt.id} value={tt.id}>{tt.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Completion Date *</Label>
+              <Input type="date" className="h-9" value={completionDate} onChange={e => setCompletionDate(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Hours</Label>
+              <Input
+                type="number" step="0.25" min="0" className="h-9"
+                placeholder={selectedTrainingType?.required_hours != null ? String(selectedTrainingType.required_hours) : "0"}
+                value={hours} onChange={e => setHours(e.target.value)}
+              />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-[13px]">Trainer</Label>
+              <TrainerSelectField
+                trainers={qualifiedTrainers}
+                selection={trainerSelection}
+                customName={customTrainerName}
+                onSelectionChange={setTrainerSelection}
+                onCustomNameChange={setCustomTrainerName}
+              />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-[13px]">Evidence Document</Label>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                  <Upload className="h-3.5 w-3.5 mr-2" /> {evidenceFile ? "Change File" : "Choose File"}
+                </Button>
+                {evidenceFile && (
+                  <>
+                    <span className="text-xs text-muted-foreground truncate max-w-[160px]">{evidenceFile.name}</span>
+                    <Button
+                      type="button" variant="ghost" size="icon" className="h-7 w-7"
+                      onClick={() => { setEvidenceFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                      aria-label="Remove file"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </>
+                )}
+              </div>
+              <input
+                ref={fileInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png"
+                onChange={e => setEvidenceFile(e.target.files?.[0] ?? null)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Optional shared roster/sign-in sheet, attached as evidence to every selected employee's record.
+              </p>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose}>Cancel</Button>
+          <Button onClick={handleSubmit} disabled={submitting || selectedEmployeeIds.size === 0}>
+            {submitting
+              ? "Recording..."
+              : `Record for ${selectedEmployeeIds.size} Employee${selectedEmployeeIds.size === 1 ? "" : "s"}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function TrainingMatrix() {
   const [facilityId, setFacilityId] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -307,6 +650,7 @@ export default function TrainingMatrix() {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
   const [selectedCell, setSelectedCell] = useState<{ entry: MatrixCell; trainingType: TrainingType; employee: Employee } | null>(null);
+  const [showBatchDialog, setShowBatchDialog] = useState(false);
   const { user } = useAuth();
   const canManage = !!user && TRAINING_RECORD_MANAGE_ROLES.includes(user.role);
 
@@ -323,6 +667,19 @@ export default function TrainingMatrix() {
   const matrixTrainingTypes: MatrixTrainingType[] = useMemo(
     () => [...(trainingTypes ?? [])].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)),
     [trainingTypes],
+  );
+
+  // "Who can plausibly serve as trainer" for the Trainer Select on both the single-cell and
+  // batch record dialogs -- scoped to this page's own active/facility-filtered roster (like the
+  // matrix itself) and narrowed to employees flagged trainer_status, mirroring how
+  // Practicums.tsx builds its qualifiedObservers list. A trainer outside this list (external
+  // contractor, or simply out of the current facility filter) still has the dialogs' free-text
+  // fallback.
+  const qualifiedTrainers = useMemo(
+    () => (employees ?? [])
+      .filter(e => e.trainer_status)
+      .sort((a, b) => `${a.last_name}${a.first_name}`.localeCompare(`${b.last_name}${b.first_name}`)),
+    [employees],
   );
 
   const facilityTypeById = useMemo(
@@ -543,7 +900,13 @@ export default function TrainingMatrix() {
           </label>
         </div>
 
-        <Button variant="outline" size="sm" onClick={handleExportCSV} className="ml-auto">
+        {canManage && (
+          <Button size="sm" onClick={() => setShowBatchDialog(true)} className="ml-auto">
+            <Users className="w-4 h-4 mr-2" />
+            Record for Multiple
+          </Button>
+        )}
+        <Button variant="outline" size="sm" onClick={handleExportCSV} className={canManage ? "" : "ml-auto"}>
           <Download className="w-4 h-4 mr-2" />
           Export CSV
         </Button>
@@ -673,6 +1036,15 @@ export default function TrainingMatrix() {
         trainingType={selectedCell?.trainingType ?? null}
         employee={selectedCell?.employee ?? null}
         canManage={canManage}
+        qualifiedTrainers={qualifiedTrainers}
+      />
+
+      <RecordForMultipleDialog
+        open={showBatchDialog}
+        onClose={() => setShowBatchDialog(false)}
+        employees={employees ?? []}
+        trainingTypes={trainingTypes ?? []}
+        qualifiedTrainers={qualifiedTrainers}
       />
     </div>
   );

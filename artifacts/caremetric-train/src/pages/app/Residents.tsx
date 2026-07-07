@@ -1,15 +1,16 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useListResidents, useCreateResident, type ResidentInsert } from "@/hooks/useResidents";
 import { useListAllResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useUrlState } from "@/hooks/useUrlState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { BedDouble, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { BedDouble, ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { worstComplianceStatus, complianceStatusBadgeClassName, getComplianceFormLabel, formatDateOnly } from "@/lib/residentCompliance";
@@ -47,9 +48,9 @@ export default function Residents() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [facilityFilter, setFacilityFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("active");
-  const [page, setPage] = useState(1);
+  const [urlState, setUrlState] = useUrlState({ search: "", facility: "all", status: "active", page: "1" });
+  const [search, setSearch] = useState(urlState.search);
+  const page = Math.max(1, Number(urlState.page) || 1);
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<ResidentFormData>(EMPTY_FORM);
@@ -60,14 +61,29 @@ export default function Residents() {
 
   const { data: facilities } = useListFacilities();
   const { data: residents, isLoading } = useListResidents({
-    facilityId: facilityFilter !== "all" ? facilityFilter : undefined,
-    status: statusFilter !== "all" ? statusFilter : undefined,
+    facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
+    status: urlState.status !== "all" ? urlState.status : undefined,
   });
   // One query for every resident's compliance items, not one per row -- avoids the N+1 pattern a
   // facility manager previously had to work around by clicking into each resident individually.
   const { data: complianceItems } = useListAllResidentComplianceItems();
 
   const { mutate: createResident, isPending: creating } = useCreateResident();
+
+  // Debounce the free-text box before it commits to the URL (and re-filters/re-paginates below),
+  // so typing doesn't replace the URL's query string on every keystroke. The commit runs through a
+  // ref (refreshed every render) rather than closing over `urlState`/`setUrlState` directly --
+  // setUrlState's snapshot of the URL is only as fresh as the render that created it, so a plain
+  // `[search]`-keyed effect could fire 300ms later still holding a stale pre-update URL and wipe
+  // out any other filter change made in the meantime.
+  const commitSearchRef = useRef(() => {});
+  commitSearchRef.current = () => {
+    if (search !== urlState.search) setUrlState({ search, page: "1" });
+  };
+  useEffect(() => {
+    const t = setTimeout(() => commitSearchRef.current(), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const facilityById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
   const complianceByResident = useMemo(() => {
@@ -81,9 +97,22 @@ export default function Residents() {
     return map;
   }, [complianceItems]);
 
-  const allResidents = residents ?? [];
-  const totalPages = Math.max(1, Math.ceil(allResidents.length / PAGE_SIZE));
-  const paginated = allResidents.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const searched = useMemo(() => {
+    const q = urlState.search.trim().toLowerCase();
+    if (!q) return residents ?? [];
+    return (residents ?? []).filter((r) => `${r.first_name} ${r.last_name}`.toLowerCase().includes(q));
+  }, [residents, urlState.search]);
+
+  const totalPages = Math.max(1, Math.ceil(searched.length / PAGE_SIZE));
+  const paginated = searched.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Auto-fill the create dialog's Facility field when the user is scoped to exactly one facility
+  // (e.g. a facility_manager) -- saves a needless click every time; a no-op for multi-facility orgs.
+  useEffect(() => {
+    if (!showForm || facilities?.length !== 1) return;
+    const soleId = facilities[0].id;
+    setForm((f) => (f.facilityId ? f : { ...f, facilityId: soleId }));
+  }, [showForm, facilities]);
 
   const openCreate = () => {
     setForm(EMPTY_FORM);
@@ -135,14 +164,23 @@ export default function Residents() {
 
       <div className="premium-card">
         <div className="filter-bar">
-          <Select value={facilityFilter} onValueChange={(v) => { setFacilityFilter(v); setPage(1); }}>
+          <div className="relative flex-1 min-w-48">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search residents..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 h-9 bg-card"
+            />
+          </div>
+          <Select value={urlState.facility} onValueChange={(v) => setUrlState({ facility: v, page: "1" })}>
             <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Facilities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
               {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+          <Select value={urlState.status} onValueChange={(v) => setUrlState({ status: v, page: "1" })}>
             <SelectTrigger className="w-44 h-9 bg-card"><SelectValue placeholder="All Statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
@@ -220,14 +258,14 @@ export default function Residents() {
             </div>
             <div className="flex items-center justify-between px-5 py-4 border-t border-border/60">
               <p className="text-[13px] text-muted-foreground">
-                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, allResidents.length)}</span> of {allResidents.length}
+                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, searched.length)}</span> of {searched.length}
               </p>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="text-[13px] text-muted-foreground px-2">Page {page} of {totalPages}</span>
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.min(totalPages, page + 1)) })} disabled={page === totalPages}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
