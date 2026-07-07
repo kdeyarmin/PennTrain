@@ -313,6 +313,18 @@ async function buildAssessmentPdf(input: {
   w.page.drawText(`Version ${input.versionNumber} — ${humanize(input.status)}`, { x: MARGIN, y: w.y, size: 10, font: w.font, color: rgb(0.35, 0.35, 0.35) });
   w.y -= 20;
 
+  // Documents like the RASP/ASP and DME have to be on the state-approved form, no exception -- this
+  // CareMetric-rendered PDF is a drafting/reference copy only. complete_resident_compliance_item()
+  // enforces the real requirement server-side (a resident_documents row flagged is_state_form=true),
+  // but the disclaimer belongs on the artifact itself too, since this PDF can be printed, emailed, or
+  // otherwise separated from the app before anyone sees that enforcement.
+  w.row(
+    `This is a CareMetric-prepared working record for staff and survey reference. It is NOT a `
+    + `substitute for the signed, DHS-prescribed ${input.formType} form -- that form is what satisfies `
+    + `the resident's compliance requirement and must be retained/uploaded on file.`
+  );
+  w.y -= 6;
+
   const incompleteSections = getIncompleteSections(input.formType, content);
   if (incompleteSections.length > 0) {
     w.row(`INCOMPLETE AT FINALIZATION -- sections with unanswered items: ${incompleteSections.map((k) => SECTION_LABELS[k]).join(", ")}.`);
@@ -571,6 +583,9 @@ Deno.serve(async (req: Request) => {
 
   // One resident_documents row per assessment-form version -- the existence check above already
   // guarantees no row with this document_label exists yet, so this is always a fresh insert.
+  // is_state_form is explicitly false (matches the column default, but stated here so it can never
+  // be mistaken for an oversight): this is CareMetric's own rendered PDF, not the DHS-prescribed
+  // form, and complete_resident_compliance_item() must never treat it as satisfying that requirement.
   const { error: docError } = await adminClient.from("resident_documents").insert({
     organization_id: form.organization_id,
     facility_id: form.facility_id,
@@ -582,6 +597,7 @@ Deno.serve(async (req: Request) => {
     file_type: "application/pdf",
     document_label: documentLabel,
     uploaded_by_profile_id: callerUser.id,
+    is_state_form: false,
   });
   if (docError) return json({ error: docError.message }, 500);
 

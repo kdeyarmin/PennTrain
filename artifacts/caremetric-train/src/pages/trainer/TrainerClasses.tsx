@@ -3,6 +3,7 @@ import {
   useListTrainingClasses,
   useCreateTrainingClass,
   useClassAttendeeCounts,
+  type TrainingClass,
 } from "@/hooks/useTrainingClasses";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -39,6 +40,7 @@ import {
   Clock,
   Users,
   ChevronRight,
+  Copy,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -49,9 +51,17 @@ export default function TrainerClasses() {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [facilityFilter, setFacilityFilter] = useState("all");
   const [showCreate, setShowCreate] = useState(false);
+  // Set when "Duplicate" pre-fills the create form from an existing class, so the dialog can hint
+  // at that instead of implying every field is blank.
+  const [duplicateSourceName, setDuplicateSourceName] = useState<string | null>(null);
 
-  const { data: classes, isLoading } = useListTrainingClasses({});
+  // Facility filtering happens server-side (useListTrainingClasses already supports facilityId) --
+  // search/status stay client-side filters over that already-narrowed result set below.
+  const { data: classes, isLoading } = useListTrainingClasses({
+    facilityId: facilityFilter !== "all" ? facilityFilter : undefined,
+  });
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
   const { data: facilities } = useListFacilities();
   const { data: attendeeCounts } = useClassAttendeeCounts();
@@ -113,6 +123,26 @@ export default function TrainerClasses() {
       notes: "",
       instructorProfileId: "",
     });
+    setDuplicateSourceName(null);
+  }
+
+  // Pre-fills the create dialog from an existing class's name/type/duration/location (and
+  // facility, its natural companion field) so a recurring monthly class doesn't mean retyping
+  // everything from scratch. Date/notes/instructor reset to defaults -- those are the fields most
+  // likely to need to change for the new session anyway.
+  function openDuplicate(cls: TrainingClass) {
+    setForm({
+      className: cls.class_name,
+      trainingTypeId: cls.training_type_id,
+      classDate: new Date().toISOString().slice(0, 10),
+      facilityId: cls.facility_id ?? "none",
+      location: cls.location ?? "",
+      durationHours: String(cls.duration_hours),
+      notes: "",
+      instructorProfileId: "",
+    });
+    setDuplicateSourceName(cls.class_name);
+    setShowCreate(true);
   }
 
   function handleCreate() {
@@ -166,7 +196,7 @@ export default function TrainerClasses() {
         </div>
         <Dialog open={showCreate} onOpenChange={setShowCreate}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={resetForm}>
               <Plus className="h-4 w-4 mr-2" />
               New Class
             </Button>
@@ -175,7 +205,9 @@ export default function TrainerClasses() {
             <DialogHeader>
               <DialogTitle>Create Training Class</DialogTitle>
               <DialogDescription>
-                Set up a new training session. You can add attendees after creating.
+                {duplicateSourceName
+                  ? `Pre-filled from "${duplicateSourceName}". Review the date and details, then create.`
+                  : "Set up a new training session. You can add attendees after creating."}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-2">
@@ -343,6 +375,20 @@ export default function TrainerClasses() {
             <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>
+        <Select
+          value={facilityFilter}
+          onValueChange={(v) => setFacilityFilter(v)}
+        >
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Facility" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Facilities</SelectItem>
+            {(facilities ?? []).map((f) => (
+              <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {isLoading ? (
@@ -359,7 +405,7 @@ export default function TrainerClasses() {
             <p className="text-muted-foreground text-sm mb-4">
               Create your first training class to get started.
             </p>
-            <Button onClick={() => setShowCreate(true)}>
+            <Button onClick={() => { resetForm(); setShowCreate(true); }}>
               <Plus className="h-4 w-4 mr-2" />
               New Class
             </Button>
@@ -374,13 +420,28 @@ export default function TrainerClasses() {
               onClick={() => navigate(`/trainer/classes/${cls.id}`)}
             >
               <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-2">
                   <CardTitle className="text-base leading-snug pr-2">
                     {cls.class_name}
                   </CardTitle>
-                  <Badge variant={statusColor(cls.status)}>
-                    {cls.status}
-                  </Badge>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                      title="Duplicate class"
+                      aria-label="Duplicate class"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openDuplicate(cls);
+                      }}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                    <Badge variant={statusColor(cls.status)}>
+                      {cls.status}
+                    </Badge>
+                  </div>
                 </div>
                 <p className="text-sm text-muted-foreground">
                   {trainingTypesById.get(cls.training_type_id)?.name ?? "—"}

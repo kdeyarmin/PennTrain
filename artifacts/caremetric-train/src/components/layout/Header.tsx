@@ -1,6 +1,8 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth, useSignOut } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useListOrganizations } from "@/hooks/useOrganizations";
+import { isHelpRoute, LAST_VISITED_ROUTE_KEY } from "@/hooks/useHelpArticles";
 import {
   useListNotifications,
   useUnreadNotificationCount,
@@ -10,7 +12,8 @@ import {
 } from "@/hooks/useNotifications";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Bell, Building2, CheckCheck, Menu } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { LogOut, Bell, Building2, CheckCheck, Menu, HelpCircle, ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,32 +22,112 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
 import { GlobalSearch } from "./GlobalSearch";
 import { useLocation } from "wouter";
 
+/**
+ * Platform_admin's "viewing as" org picker. A plain native `<Select>` doesn't scale past ~50-100
+ * orgs (no way to jump to one by typing, per EFFICIENCY_REVIEW.md), and this app has no
+ * combobox/command-palette library installed -- so this is a small hand-rolled searchable
+ * dropdown, the same interaction shape as GlobalSearch's input-plus-results-panel and Sidebar's
+ * "Find a page..." filter: reveal an autofocused text filter with matching rows listed below it.
+ */
 function ViewingOrgSelector() {
   const { viewingOrgId, setViewingOrgId } = useViewingOrg();
   const { data: organizations } = useListOrganizations();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Close on any click outside the trigger+panel. The trigger here is a separate element from the
+  // filter input (unlike GlobalSearch, where the input IS the trigger), so a blur-timeout isn't
+  // the natural fit the way it is there -- a standard outside-click listener is simpler.
+  useEffect(() => {
+    if (!open) return;
+    function onMouseDown(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [open]);
+
+  const selectedOrgName = viewingOrgId ? organizations?.find((o) => o.id === viewingOrgId)?.name : undefined;
+
+  const filteredOrgs = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const all = organizations ?? [];
+    return q ? all.filter((o) => o.name.toLowerCase().includes(q)) : all;
+  }, [organizations, query]);
+
+  const select = (orgId: string | null) => {
+    setViewingOrgId(orgId);
+    setQuery("");
+    setOpen(false);
+  };
 
   return (
-    <div className="flex items-center gap-2 pr-2 border-r border-border/60 mr-1">
-      <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-      <Select
-        value={viewingOrgId ?? "all"}
-        onValueChange={(v) => setViewingOrgId(v === "all" ? null : v)}
+    <div ref={containerRef} className="relative flex items-center pr-2 border-r border-border/60 mr-1">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label="Viewing as organization"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="flex items-center gap-1.5 h-8 max-w-[140px] sm:max-w-[200px] px-2 rounded-md bg-muted/50 hover:bg-muted text-xs text-foreground"
       >
-        <SelectTrigger className="h-8 w-[140px] sm:w-[200px] text-xs border-none bg-muted/50 focus:ring-0" aria-label="Viewing as organization">
-          <SelectValue placeholder="All Organizations" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Organizations</SelectItem>
-          {organizations?.map((org) => (
-            <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+        <span className="truncate">{selectedOrgName ?? "All Organizations"}</span>
+        <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute top-full mt-1 left-0 w-64 max-h-80 flex flex-col overflow-hidden rounded-lg border bg-popover shadow-lg z-50">
+          <div className="p-2 border-b shrink-0">
+            <Input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setOpen(false);
+                else if (e.key === "Enter" && filteredOrgs.length > 0) select(filteredOrgs[0].id);
+              }}
+              placeholder="Search organizations..."
+              className="h-8 text-xs"
+              aria-label="Search organizations"
+            />
+          </div>
+          <div className="overflow-y-auto py-1">
+            <button
+              type="button"
+              onClick={() => select(null)}
+              className={cn(
+                "w-full flex items-center px-3 py-1.5 text-sm text-left hover:bg-muted",
+                !viewingOrgId && "font-semibold text-primary"
+              )}
+            >
+              All Organizations
+            </button>
+            {filteredOrgs.length === 0 ? (
+              <p className="px-3 py-4 text-xs text-muted-foreground text-center">No organizations match "{query.trim()}"</p>
+            ) : (
+              filteredOrgs.map((org) => (
+                <button
+                  key={org.id}
+                  type="button"
+                  onClick={() => select(org.id)}
+                  className={cn(
+                    "w-full flex items-center px-3 py-1.5 text-sm text-left hover:bg-muted truncate",
+                    viewingOrgId === org.id && "font-semibold text-primary"
+                  )}
+                >
+                  {org.name}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -125,8 +208,22 @@ function NotificationsMenu() {
 
 export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   const { user } = useAuth();
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const handleLogout = useSignOut();
+
+  // Stash the route on every navigation (skipping Help's own pages) so HelpCenter can contextually
+  // pin whichever job aide's relatedRoute matches wherever the user came from -- see
+  // LAST_VISITED_ROUTE_KEY. Living here rather than in the help button's click handler below means
+  // it works no matter how the user reaches Help (this button, the sidebar's Help link, a deep
+  // link, browser back/forward), since Header is mounted on every authenticated route.
+  useEffect(() => {
+    if (isHelpRoute(location)) return;
+    try {
+      window.sessionStorage.setItem(LAST_VISITED_ROUTE_KEY, location);
+    } catch {
+      // sessionStorage unavailable (private browsing, quota) -- contextual pin just won't show
+    }
+  }, [location]);
 
   const initials = (user?.firstName?.[0] ?? "") + (user?.lastName?.[0] ?? "");
 
@@ -182,8 +279,25 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-        {user?.role === "platform_admin" && <GlobalSearch />}
+        {/* Every role but employee has at least one searchable entity type it can reach (see
+            tablesForRole in useGlobalSearch.ts); /me/* is a small personal area with nothing
+            org-wide to search, so the box would only ever say "no matches" there. */}
+        {!!user && user.role !== "employee" && <GlobalSearch />}
         {user?.role === "platform_admin" && <ViewingOrgSelector />}
+        {/* platform_admin has no HelpCenter route -- it's gated to ORG_ROLES + employee in
+            App.tsx, and platform_admin's equivalent is the separate /admin/help-content authoring
+            tool -- so this stays scoped to roles that can actually land on /app/help or /me/help. */}
+        {!!user && user.role !== "platform_admin" && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground"
+            aria-label="Help"
+            onClick={() => navigate(user.role === "employee" ? "/me/help" : "/app/help")}
+          >
+            <HelpCircle className="h-[18px] w-[18px]" />
+          </Button>
+        )}
         <NotificationsMenu />
 
         <DropdownMenu>

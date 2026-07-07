@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LifeBuoy } from "lucide-react";
+import { LifeBuoy, Search } from "lucide-react";
 import { useListSupportTickets, SUPPORT_TICKET_CATEGORIES } from "@/hooks/useSupportTickets";
 import { useOrganizationNameMap } from "@/hooks/useAdminNotificationDeliveries";
 import { useProfileNameMap } from "@/hooks/useSecurityAuditLog";
+import { useUrlState } from "@/hooks/useUrlState";
 
 type StatusFilter = "all" | "open" | "in_progress" | "resolved" | "closed";
 
@@ -25,14 +27,33 @@ const PRIORITY_BADGE: Record<string, string> = {
   urgent: "bg-red-100 text-red-800",
 };
 
+// Synced into the URL via useUrlState so a deep link like AdminDashboard's "Open Support Tickets"
+// tile (?status=open) pre-selects the matching filter on load, and Back/Forward between two
+// filtered views of this page works instead of resetting to "all" every time.
+const SUPPORT_TICKETS_URL_DEFAULTS = {
+  status: "all",
+  search: "",
+};
+
 export default function SupportTickets() {
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [urlState, setUrlState] = useUrlState(SUPPORT_TICKETS_URL_DEFAULTS);
+  const statusFilter = urlState.status as StatusFilter;
+
+  // useListSupportTickets' search runs server-side (see that hook's own comment for why), so
+  // debounce before it drives a request -- the box itself stays bound to the undebounced
+  // urlState.search for a snappy feel, matching Employees.tsx's identical convention.
+  const [debouncedSearch, setDebouncedSearch] = useState(urlState.search);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(urlState.search), 300);
+    return () => clearTimeout(t);
+  }, [urlState.search]);
 
   const { data: ticketsData, isLoading } = useListSupportTickets({
     status: statusFilter !== "all" ? statusFilter : undefined,
+    search: debouncedSearch || undefined,
   });
-  // Independent of statusFilter -- deriving this from the (possibly filtered) list above would
-  // read as 0 whenever a non-"open" filter is selected.
+  // Independent of statusFilter/search -- deriving this from the (possibly filtered) list above
+  // would read as 0 whenever a non-"open" filter or search term is active.
   const { data: openTicketsData } = useListSupportTickets({ status: "open" });
   const { data: orgNameMap } = useOrganizationNameMap();
   const { data: profileNameMap } = useProfileNameMap();
@@ -52,16 +73,27 @@ export default function SupportTickets() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-3">
           <CardTitle>All Tickets</CardTitle>
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-            <SelectTrigger className="w-40 h-9"><SelectValue placeholder="All Statuses" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="open">Open</SelectItem>
-              <SelectItem value="in_progress">In Progress</SelectItem>
-              <SelectItem value="resolved">Resolved</SelectItem>
-              <SelectItem value="closed">Closed</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search tickets..."
+                value={urlState.search}
+                onChange={(e) => setUrlState({ search: e.target.value })}
+                className="pl-9 h-9 w-56"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={(v) => setUrlState({ status: v })}>
+              <SelectTrigger className="w-40 h-9"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="open">Open</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="resolved">Resolved</SelectItem>
+                <SelectItem value="closed">Closed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -74,7 +106,7 @@ export default function SupportTickets() {
                 <LifeBuoy className="h-6 w-6 text-muted-foreground" />
               </div>
               <p className="font-medium text-muted-foreground">No support tickets found</p>
-              <p className="text-sm text-muted-foreground/60 mt-1">Try adjusting your filter, or check back after the next submission.</p>
+              <p className="text-sm text-muted-foreground/60 mt-1">Try adjusting your search or filters, or check back after the next submission.</p>
             </div>
           ) : (
             <Table>

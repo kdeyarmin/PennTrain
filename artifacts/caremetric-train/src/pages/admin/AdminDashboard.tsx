@@ -90,7 +90,7 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <Link href="/admin/notifications" className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+              <Link href="/admin/notifications?status=failed" className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
                 <div className="h-9 w-9 rounded-md bg-red-100 flex items-center justify-center shrink-0">
                   <Send className="h-4 w-4 text-red-600" />
                 </div>
@@ -144,7 +144,7 @@ export default function AdminDashboard() {
                   <p className="text-xs text-muted-foreground">Total Employees</p>
                 </div>
               </div>
-              <Link href="/admin/support-tickets" className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+              <Link href="/admin/support-tickets?status=open" className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
                 <div className="h-9 w-9 rounded-md bg-amber-100 flex items-center justify-center shrink-0">
                   <LifeBuoy className="h-4 w-4 text-amber-600" />
                 </div>

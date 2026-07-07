@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
-import { useListPlatformSettings, useUpdatePlatformSetting } from "@/hooks/usePlatformSettings";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useListPlatformSettings, useUpdatePlatformSetting, type PlatformSetting } from "@/hooks/usePlatformSettings";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Globe, Clock, Sparkles, Settings as SettingsIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface SettingConfig {
@@ -57,6 +62,67 @@ function configFor(key: string): SettingConfig {
   );
 }
 
+interface SettingsGroup {
+  title: string;
+  description: string;
+  icon: typeof Globe;
+  keys: string[];
+}
+
+// Mirrors Settings.tsx's card-per-concern grouping pattern (icon + title + description, rows of
+// controls inside) instead of one flat undifferentiated list. Any settings key not listed in any
+// group here still renders, in a final "Other Settings" card below -- see leftoverSettings -- so a
+// newly-added key never silently disappears the way configFor's own fallback already promises.
+const SETTINGS_GROUPS: SettingsGroup[] = [
+  {
+    title: "Platform Access",
+    description: "Controls that take effect instantly, platform-wide, for every organization.",
+    icon: Globe,
+    keys: ["signup_enabled", "maintenance_mode"],
+  },
+  {
+    title: "Trial Configuration",
+    description: "Defaults applied automatically to a newly signed-up organization.",
+    icon: Clock,
+    keys: ["default_trial_days"],
+  },
+  {
+    title: "AI Features",
+    description: "Platform-wide switches for AI-powered course authoring, gated here to control API spend.",
+    icon: Sparkles,
+    keys: ["ai_course_generation_enabled", "ai_video_generation_enabled"],
+  },
+];
+
+const GROUPED_KEYS = new Set(SETTINGS_GROUPS.flatMap((g) => g.keys));
+
+// The two settings whose accidental toggle has the widest blast radius: turning maintenance_mode
+// ON banners every customer immediately, and turning signup_enabled OFF blocks every prospective
+// organization from signing up, platform-wide, until someone notices and flips it back. Mirrors
+// OrganizationDetail.tsx's suspend/reactivate asymmetry -- only the harmful direction of each
+// confirms; the reversal (turning the banner back off, re-opening signups) applies instantly, same
+// as "Reactivate Organization" does there.
+function needsConfirm(key: string, nextValue: boolean): boolean {
+  if (key === "maintenance_mode") return nextValue === true;
+  if (key === "signup_enabled") return nextValue === false;
+  return false;
+}
+
+const CONFIRM_COPY: Record<string, { title: string; description: string; confirmLabel: string }> = {
+  maintenance_mode: {
+    title: "Enable Maintenance Mode?",
+    description:
+      "This immediately shows a maintenance banner to every signed-in user in every organization on the platform. It does not block logins or sign anyone out -- turn it back off the moment maintenance is complete.",
+    confirmLabel: "Enable Maintenance Mode",
+  },
+  signup_enabled: {
+    title: "Disable Self-Service Signup?",
+    description:
+      "No new organization will be able to sign themselves up at /signup, platform-wide, until you turn this back on. Existing organizations and their users are not affected.",
+    confirmLabel: "Disable Signup",
+  },
+};
+
 export default function PlatformSettings() {
   const { toast } = useToast();
   const { data: settings, isLoading } = useListPlatformSettings();
@@ -78,14 +144,31 @@ export default function PlatformSettings() {
     });
   }, [settings]);
 
-  const handleBooleanChange = (key: string, label: string, checked: boolean) => {
+  // Pending confirmation for a high-blast-radius toggle -- set by handleBooleanChange below
+  // instead of applying immediately, and only actually committed (from the AlertDialog's action
+  // button) once the platform_admin explicitly confirms. Lower-risk toggles skip this entirely and
+  // apply the instant they're touched, same as before.
+  const [confirmToggle, setConfirmToggle] = useState<{ key: string; label: string; nextValue: boolean } | null>(null);
+
+  const applyBooleanChange = (key: string, label: string, checked: boolean) => {
     updateSetting(
       { key, value: checked },
       {
-        onSuccess: () => toast({ title: `${label} ${checked ? "enabled" : "disabled"}` }),
+        onSuccess: () => toast({ title: `${label} ${checked ? "enabled" : "disabled"}`, variant: "success" }),
         onError: (e: Error) => toast({ title: `Failed to update ${label}`, description: e.message, variant: "destructive" }),
       },
     );
+  };
+
+  const handleBooleanChange = (key: string, label: string, checked: boolean) => {
+    if (needsConfirm(key, checked)) setConfirmToggle({ key, label, nextValue: checked });
+    else applyBooleanChange(key, label, checked);
+  };
+
+  const handleConfirmToggle = () => {
+    if (!confirmToggle) return;
+    applyBooleanChange(confirmToggle.key, confirmToggle.label, confirmToggle.nextValue);
+    setConfirmToggle(null);
   };
 
   const handleNumberBlur = (key: string, label: string, raw: string) => {
@@ -100,7 +183,7 @@ export default function PlatformSettings() {
       { key, value },
       {
         onSuccess: () => {
-          toast({ title: `${label} updated` });
+          toast({ title: `${label} updated`, variant: "success" });
           setNumberDrafts(prev => ({ ...prev, [key]: String(value) }));
         },
         onError: (e: Error) => {
@@ -111,62 +194,119 @@ export default function PlatformSettings() {
     );
   };
 
+  const settingsByKey = new Map((settings ?? []).map((s) => [s.key, s]));
+  const leftoverSettings = (settings ?? []).filter((s) => !GROUPED_KEYS.has(s.key));
+
+  const renderRow = (setting: PlatformSetting) => {
+    const config = configFor(setting.key);
+    return (
+      <div key={setting.key} className="flex items-center justify-between gap-4 rounded-lg border border-border/60 p-3.5">
+        <div className="min-w-0">
+          <p className="text-sm font-medium">{config.label}</p>
+          {config.description && (
+            <p className="text-xs text-muted-foreground mt-0.5">{config.description}</p>
+          )}
+        </div>
+        <div className="shrink-0">
+          {config.type === "boolean" ? (
+            <Switch
+              checked={Boolean(setting.value)}
+              disabled={isPending}
+              onCheckedChange={checked => handleBooleanChange(setting.key, config.label, checked)}
+            />
+          ) : (
+            <Input
+              type="number"
+              min="0"
+              value={numberDrafts[setting.key] ?? (typeof setting.value === "number" ? String(setting.value) : "0")}
+              disabled={isPending}
+              className="h-9 w-24"
+              onChange={e => setNumberDrafts(prev => ({ ...prev, [setting.key]: e.target.value }))}
+              onBlur={e => handleNumberBlur(setting.key, config.label, e.target.value)}
+            />
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Platform Settings</h1>
-        <p className="text-muted-foreground">Global switches that take effect immediately across every organization.</p>
+        <p className="text-muted-foreground">
+          Global switches for every organization. Maintenance Mode and Self-Service Signup ask for confirmation
+          before applying -- everything else still takes effect the instant it's touched.
+        </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Settings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
-            </div>
-          ) : !settings?.length ? (
+      {isLoading ? (
+        <div className="space-y-6">
+          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-40 w-full" />)}
+        </div>
+      ) : !settings?.length ? (
+        <Card>
+          <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">No settings found.</p>
-          ) : (
-            <div className="divide-y">
-              {settings.map(setting => {
-                const config = configFor(setting.key);
-                return (
-                  <div key={setting.key} className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium">{config.label}</p>
-                      {config.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{config.description}</p>
-                      )}
-                    </div>
-                    <div className="shrink-0">
-                      {config.type === "boolean" ? (
-                        <Switch
-                          checked={Boolean(setting.value)}
-                          disabled={isPending}
-                          onCheckedChange={checked => handleBooleanChange(setting.key, config.label, checked)}
-                        />
-                      ) : (
-                        <Input
-                          type="number"
-                          min="0"
-                          value={numberDrafts[setting.key] ?? (typeof setting.value === "number" ? String(setting.value) : "0")}
-                          disabled={isPending}
-                          className="h-9 w-24"
-                          onChange={e => setNumberDrafts(prev => ({ ...prev, [setting.key]: e.target.value }))}
-                          onBlur={e => handleNumberBlur(setting.key, config.label, e.target.value)}
-                        />
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {SETTINGS_GROUPS.map((group) => {
+            const rows = group.keys.map((key) => settingsByKey.get(key)).filter((s): s is PlatformSetting => !!s);
+            if (!rows.length) return null;
+            const Icon = group.icon;
+            return (
+              <Card key={group.title}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Icon className="h-5 w-5" />
+                    {group.title}
+                  </CardTitle>
+                  <CardDescription>{group.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {rows.map(renderRow)}
+                </CardContent>
+              </Card>
+            );
+          })}
+
+          {leftoverSettings.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <SettingsIcon className="h-5 w-5" />
+                  Other Settings
+                </CardTitle>
+                <CardDescription>Additional settings not yet assigned to a group above.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {leftoverSettings.map(renderRow)}
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+        </>
+      )}
+
+      <AlertDialog open={!!confirmToggle} onOpenChange={(open) => { if (!open) setConfirmToggle(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmToggle ? CONFIRM_COPY[confirmToggle.key]?.title : ""}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmToggle ? CONFIRM_COPY[confirmToggle.key]?.description : ""}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleConfirmToggle}
+              disabled={isPending}
+            >
+              {confirmToggle ? CONFIRM_COPY[confirmToggle.key]?.confirmLabel : "Confirm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

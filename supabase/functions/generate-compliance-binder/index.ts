@@ -136,7 +136,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: "not authorized to generate a compliance binder" }, 403);
   }
 
-  let body: { organization_id?: string } = {};
+  let body: { organization_id?: string; facility_id?: string; facility_ids?: string[] } = {};
   if (req.headers.get("content-length") !== "0") {
     try {
       body = await req.json();
@@ -175,6 +175,35 @@ Deno.serve(async (req: Request) => {
     facilityScope = (assignments ?? []).map((a) => a.facility_id);
     if (facilityScope.length === 0) {
       return json({ error: "no facilities assigned to this account" }, 403);
+    }
+  }
+
+  // org_admin/auditor may optionally narrow the binder to one or more of their own org's
+  // facilities via facility_id/facility_ids -- platform_admin's scope stays governed entirely by
+  // organization_id above (no facility narrowing here), and this block only ever runs for
+  // org_admin/auditor, so it can never widen or otherwise change facility_manager's own
+  // auto-derived scope just above. Requested ids are checked against `orgId`, which is already
+  // locked to the caller's own organization for every non-platform_admin role (see the orgId
+  // computation above) -- the same "never trust the client, verify server-side" rule that block
+  // already follows for facility_manager.
+  if (callerProfile.role === "org_admin" || callerProfile.role === "auditor") {
+    const requested = Array.isArray(body.facility_ids) && body.facility_ids.length > 0
+      ? body.facility_ids
+      : body.facility_id
+        ? [body.facility_id]
+        : null;
+    if (requested) {
+      const { data: matchedFacilities, error: facilityScopeError } = await adminClient
+        .from("facilities")
+        .select("id")
+        .eq("organization_id", orgId)
+        .in("id", requested);
+      if (facilityScopeError) return json({ error: facilityScopeError.message }, 500);
+      const validIds = new Set((matchedFacilities ?? []).map((f) => f.id));
+      if (requested.some((id) => !validIds.has(id))) {
+        return json({ error: "one or more requested facilities are not part of your organization" }, 403);
+      }
+      facilityScope = requested;
     }
   }
 
