@@ -323,10 +323,13 @@ function StatLabel({ label, tooltip }: { label: string; tooltip: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <p className="stat-label inline-flex w-fit cursor-help items-center gap-1">
+        <button
+          type="button"
+          className="stat-label inline-flex w-fit cursor-help items-center gap-1 border-0 bg-transparent p-0 text-left"
+        >
           {label}
-          <Info className="h-3 w-3 text-muted-foreground/50" />
-        </p>
+          <Info className="h-3 w-3 text-muted-foreground/50" aria-hidden="true" />
+        </button>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-64 text-left">
         {tooltip}
