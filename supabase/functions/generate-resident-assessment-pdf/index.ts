@@ -74,6 +74,17 @@ const NO_SIGNATURE_REASON_LABELS: Record<string, string> = {
   unavailable: "Not Available to Sign",
   other: "Other",
 };
+// Mirrors residentAssessmentFormSchema.ts's CARE_DEGREE_OPTIONS/BEHAVIORAL_DEGREE_OPTIONS -- same
+// A-E letters mean different things in each scale, so both maps are kept distinct rather than
+// merged even though their keys overlap.
+const CARE_DEGREE_LABELS: Record<string, string> = {
+  A: "A — Independent", B: "B — Prompting/Cueing", C: "C — Some Physical Assistance",
+  D: "D — Total Physical Assistance", E: "E — Not Applicable",
+};
+const BEHAVIORAL_DEGREE_LABELS: Record<string, string> = {
+  A: "A — No Problem", B: "B — Minimal Problem", C: "C — Moderate Problem",
+  D: "D — Severe Problem", E: "E — Not Applicable",
+};
 
 // deno-lint-ignore no-explicit-any
 type AnyRecord = Record<string, any>;
@@ -154,28 +165,32 @@ class PdfWriter {
   }
 }
 
-function degreeSummary(formType: string, item: AnyRecord): string {
+function degreeLabel(labels: Record<string, string>, code: string): string {
+  return code ? (labels[code] ?? code) : "—";
+}
+
+function degreeSummary(formType: string, item: AnyRecord, labels: Record<string, string>): string {
   // Branch on the authoritative formType, not field truthiness: DegreeItemEditor's onChange always
   // mirrors degree into degreePreliminary (see ResidentAssessmentFormEditor.tsx's DegreeSelect), so a
   // truthy-check on degreePreliminary alone would render RASP items as "Preliminary/All Other" too,
   // when only ASP's doubled Preliminary/All-Other mechanic actually applies.
   if (formType === "ASP") {
-    return `Preliminary: ${item.degreePreliminary || "—"}, All Other: ${item.degreeAllOther || "—"}`;
+    return `Preliminary: ${degreeLabel(labels, item.degreePreliminary)}, All Other: ${degreeLabel(labels, item.degreeAllOther)}`;
   }
-  return item.degree || "—";
+  return degreeLabel(labels, item.degree);
 }
 
 function planSummary(item: AnyRecord): string {
   const parts: string[] = [];
   if (item.planNotApplicable) return "Plan: N/A";
   if (item.planDescription) parts.push(item.planDescription);
-  if (item.planFrequency) parts.push(`Frequency: ${humanize(item.planFrequency)}`);
+  if (item.planFrequency) parts.push(`Frequency: ${humanize(item.planFrequency)}${item.planFrequencyOther ? ` (${item.planFrequencyOther})` : ""}`);
   if (item.planResponsibleParty) parts.push(`Responsible: ${item.planResponsibleParty}${item.planResponsiblePartyOther ? ` (${item.planResponsiblePartyOther})` : ""}`);
   return parts.length ? parts.join(" — ") : "—";
 }
 
-function writeDegreeItem(w: PdfWriter, formType: string, label: string, item: AnyRecord) {
-  w.row(`${label} — Degree: ${degreeSummary(formType, item)}`);
+function writeDegreeItem(w: PdfWriter, formType: string, label: string, item: AnyRecord, labels: Record<string, string>) {
+  w.row(`${label} — Degree: ${degreeSummary(formType, item, labels)}`);
   if (!item.serviceNeedNotApplicable && item.serviceNeedDescription) w.row(`  Need: ${item.serviceNeedDescription}`);
   w.row(`  ${planSummary(item)}`);
 }
@@ -269,12 +284,12 @@ async function buildAssessmentPdf(input: {
   for (const key of ["supervision", "mobility", "medications"] as const) {
     const s = content.section1?.[key] ?? {};
     w.subheading(humanize(key));
-    w.row(`Degree: ${s.level || "—"}`);
+    w.row(`Degree: ${degreeLabel(CARE_DEGREE_LABELS, s.level)}`);
     w.row(`${s.needsDescription || "—"}`);
     w.row(`Plan: ${planSummary(s)}`);
   }
   for (const [key, label] of ADL_ITEMS) {
-    writeDegreeItem(w, input.formType, label, content.section1?.items?.[key] ?? {});
+    writeDegreeItem(w, input.formType, label, content.section1?.items?.[key] ?? {}, CARE_DEGREE_LABELS);
   }
 
   w.heading("Section 2 — Medical, Dental, Dietary, Sensory Needs");
@@ -290,7 +305,7 @@ async function buildAssessmentPdf(input: {
   writeDiagnosisRows(w, "Psychological Diagnoses", content.section3?.psychologicalDiagnoses ?? [], !!content.section3?.noPsychologicalDiagnoses);
   const behavioralList = input.formType === "ASP" ? BEHAVIORAL_ITEMS_ASP : BEHAVIORAL_ITEMS_RASP;
   for (const [key, label] of behavioralList) {
-    writeDegreeItem(w, input.formType, label, content.section3?.items?.[key] ?? {});
+    writeDegreeItem(w, input.formType, label, content.section3?.items?.[key] ?? {}, BEHAVIORAL_DEGREE_LABELS);
   }
 
   w.heading("Section 4 — Social and Recreational Needs");

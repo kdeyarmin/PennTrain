@@ -9,12 +9,12 @@ import {
 import { useListResidentDocuments } from "@/hooks/useResidentDocuments";
 import {
   ADL_ITEMS, SENSORY_ITEMS, SOCIAL_ITEMS, behavioralItems, responsiblePartyOptions,
-  createEmptyContent, mergeContentWithDefaults, isDegreeItemRated, applyPatchToAll,
+  createEmptyContent, mergeContentWithDefaults, isDegreeItemRated, isSimpleNeedAddressed, applyPatchToAll,
   CARE_DEGREE_OPTIONS, BEHAVIORAL_DEGREE_OPTIONS, FREQUENCY_OPTIONS, REASON_OPTIONS,
   COPY_PROVIDED_OPTIONS, NO_SIGNATURE_REASON_OPTIONS, RELATIONSHIP_OPTIONS, ASSESSOR_TITLE_OPTIONS,
   emptyDiagnosisRow, emptyParticipantRow,
   type ResidentAssessmentFormContent, type DegreeItemAnswer, type SimpleNeedAnswer, type DiagnosisRow, type ParticipantRow,
-  type FormType, type SectionItem,
+  type FormType, type SectionItem, type FacilityCareDefaults,
 } from "@/lib/residentAssessmentFormSchema";
 import { getComplianceFormLabel } from "@/lib/residentCompliance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -115,35 +115,34 @@ function BulkDegreeBar({ formType, scale, onApply }: {
 // change (a new responsible-party code, different "Other" wording) only needs one edit.
 function FrequencyPartyFields({
   formType, frequency, frequencyOther, responsibleParty, responsiblePartyOther,
-  onFrequencyChange, onFrequencyOtherChange, onPartyChange, onPartyOtherChange, disabled, fieldClassName,
+  onFrequencyChange, onFrequencyOtherChange, onPartyChange, onPartyOtherChange, disabled,
 }: {
   formType: FormType;
   frequency: string; frequencyOther: string; responsibleParty: string; responsiblePartyOther: string;
   onFrequencyChange: (v: string) => void; onFrequencyOtherChange: (v: string) => void;
   onPartyChange: (v: string) => void; onPartyOtherChange: (v: string) => void;
-  disabled?: boolean; fieldClassName?: string;
+  disabled?: boolean;
 }) {
   const partyOptions = responsiblePartyOptions(formType);
-  const triggerClassName = `h-8 text-xs ${fieldClassName ?? ""}`;
   return (
     <div className="grid grid-cols-2 gap-2">
       <div className="space-y-1">
         <Select value={frequency} onValueChange={onFrequencyChange} disabled={disabled}>
-          <SelectTrigger className={triggerClassName}><SelectValue placeholder="Frequency" /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Frequency" /></SelectTrigger>
           <SelectContent>{FREQUENCY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
         </Select>
         {frequency === "other" && (
-          <Input placeholder="Specify frequency" className={triggerClassName} value={frequencyOther} disabled={disabled}
+          <Input placeholder="Specify frequency" className="h-8 text-xs" value={frequencyOther} disabled={disabled}
             onChange={(e) => onFrequencyOtherChange(e.target.value)} />
         )}
       </div>
       <div className="space-y-1">
         <Select value={responsibleParty} onValueChange={onPartyChange} disabled={disabled}>
-          <SelectTrigger className={triggerClassName}><SelectValue placeholder="Responsible party" /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Responsible party" /></SelectTrigger>
           <SelectContent>{partyOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
         </Select>
         {responsibleParty === "O" && (
-          <Input placeholder="Specify responsible party" className={triggerClassName} value={responsiblePartyOther} disabled={disabled}
+          <Input placeholder="Specify responsible party" className="h-8 text-xs" value={responsiblePartyOther} disabled={disabled}
             onChange={(e) => onPartyOtherChange(e.target.value)} />
         )}
       </div>
@@ -322,7 +321,7 @@ function ReviewChecklistRow({ item }: { item: ReviewCheckItem }) {
 function DiagnosisRowsEditor({ title, rows, noneChecked, onRowsChange, onNoneChange, readOnly, maxRows, formType, planDefaults }: {
   title: string; rows: DiagnosisRow[]; noneChecked: boolean;
   onRowsChange: (rows: DiagnosisRow[]) => void; onNoneChange: (v: boolean) => void; readOnly: boolean; maxRows: number; formType: FormType;
-  planDefaults?: { responsibleParty?: string | null; frequency?: string | null };
+  planDefaults?: FacilityCareDefaults;
 }) {
   return (
     <div className="space-y-2">
@@ -486,6 +485,18 @@ export default function ResidentAssessmentFormEditor() {
     () => (content ? behavioralList.filter((item) => !isDegreeItemRated((form?.form_type as FormType) ?? "RASP", content.section3.items[item.key])) : []),
     [form?.form_type, behavioralList, content?.section3.items],
   );
+  const unratedCareLevels = useMemo(
+    () => (content ? (["supervision", "mobility", "medications"] as const).filter((key) => !content.section1[key].level) : []),
+    [content?.section1],
+  );
+  const unaddressedSensoryItems = useMemo(
+    () => (content ? SENSORY_ITEMS.filter((item) => !isSimpleNeedAddressed(content.section2.sensory[item.key])) : []),
+    [content?.section2.sensory],
+  );
+  const unaddressedSocialItems = useMemo(
+    () => (content ? SOCIAL_ITEMS.filter((item) => !isSimpleNeedAddressed(content.section4.items[item.key])) : []),
+    [content?.section4.items],
+  );
 
   const handleFinalize = async () => {
     if (!formId || !content) return;
@@ -534,16 +545,6 @@ export default function ResidentAssessmentFormEditor() {
   // A condensed pre-finalize checklist -- named gaps (not just counts), so catching a missed item
   // doesn't require tab-hopping through all six tabs. Deliberately checks presence/completeness
   // signals only (not content quality), since this can't judge whether an answer is *correct*.
-  const unratedCareLevels = (["supervision", "mobility", "medications"] as const).filter((key) => !content.section1[key].level);
-  const unaddressedSensoryItems = SENSORY_ITEMS.filter((item) => {
-    const answer = content.section2.sensory[item.key];
-    return answer.applicable && !answer.description.trim();
-  });
-  const unaddressedSocialItems = SOCIAL_ITEMS.filter((item) => {
-    const answer = content.section4.items[item.key];
-    return answer.applicable && !answer.description.trim();
-  });
-
   const reviewChecklist: ReviewCheckItem[] = [
     { label: "Reason for Assessment selected", ok: !!content.assessmentInfo.assessmentReason },
     { label: "Reason for Support Plan selected", ok: !!content.assessmentInfo.supportPlanReason },
@@ -750,10 +751,10 @@ export default function ResidentAssessmentFormEditor() {
                       ...content,
                       section1: {
                         ...content.section1,
-                        items: applyPatchToAll(content.section1.items, {
-                          ...(patch.degree !== undefined ? { degree: patch.degree, degreePreliminary: patch.degree } : {}),
-                          ...(patch.degreeAllOther !== undefined ? { degreeAllOther: patch.degreeAllOther } : {}),
-                        }),
+                        // degree/degreePreliminary mirror each other (see DegreeItemEditor's own
+                        // onChange) -- applyPatchToAll drops whichever key was left unset, so this
+                        // doesn't need its own "only include what changed" guard anymore.
+                        items: applyPatchToAll(content.section1.items, { degree: patch.degree, degreePreliminary: patch.degree, degreeAllOther: patch.degreeAllOther }),
                       },
                     })}
                   />

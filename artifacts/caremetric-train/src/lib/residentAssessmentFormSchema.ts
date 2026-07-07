@@ -233,6 +233,12 @@ export function emptySimpleNeedAnswer(): SimpleNeedAnswer {
     planResponsibleParty: "", planResponsiblePartyOther: "",
   };
 }
+// Companion to isDegreeItemRated() for the sensory/social item shape: addressed once the assessor
+// has either described the need or marked it not applicable -- a blank description on an item still
+// marked applicable (the default) means it hasn't actually been reviewed yet.
+export function isSimpleNeedAddressed(answer: SimpleNeedAnswer): boolean {
+  return !answer.applicable || !!answer.description.trim();
+}
 
 export interface DiagnosisRow {
   description: string;
@@ -385,7 +391,17 @@ export function mergeContentWithDefaults(
       items: mergeItemMap(defaults.section4.items, saved.section4?.items),
     },
     summary: { ...defaults.summary, ...saved.summary },
-    participation: { ...defaults.participation, ...saved.participation },
+    participation: {
+      ...defaults.participation,
+      ...saved.participation,
+      // Backfills fields added to ParticipantRow after a form was saved (copyRequested/
+      // copyProvided/noSignatureReason/noSignatureReasonOther) -- without this, a legacy
+      // participant row loads with those keys simply missing, so a display-only fallback like
+      // `p.copyProvided || "na"` would show "N/A" on screen while the actual stored/finalized
+      // value stays undefined, silently disagreeing with what the assessor sees and reviews.
+      participants: (saved.participation?.participants ?? defaults.participation.participants)
+        .map((p) => ({ ...emptyParticipantRow(), ...p })),
+    },
   };
 }
 

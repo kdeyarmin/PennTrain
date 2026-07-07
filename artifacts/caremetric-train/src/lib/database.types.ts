@@ -4521,7 +4521,7 @@ export type Database = {
           organization_id: string
           request_params: Json
           requested_by: string
-          resident_assessment_form_id: string | null
+          resident_assessment_form_id: string
           response_summary: Json | null
           status: string
         }
@@ -4534,7 +4534,7 @@ export type Database = {
           organization_id: string
           request_params: Json
           requested_by: string
-          resident_assessment_form_id?: string | null
+          resident_assessment_form_id: string
           response_summary?: Json | null
           status?: string
         }
@@ -4547,7 +4547,7 @@ export type Database = {
           organization_id?: string
           request_params?: Json
           requested_by?: string
-          resident_assessment_form_id?: string | null
+          resident_assessment_form_id?: string
           response_summary?: Json | null
           status?: string
         }
@@ -4574,7 +4574,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "resident_assessment_ai_generations_resident_assessment_form_id_fkey"
+            foreignKeyName: "resident_assessment_ai_generations_form_fkey"
             columns: ["resident_assessment_form_id"]
             isOneToOne: false
             referencedRelation: "resident_assessment_forms"
