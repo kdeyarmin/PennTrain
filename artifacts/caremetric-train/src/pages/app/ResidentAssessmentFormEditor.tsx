@@ -433,6 +433,17 @@ export default function ResidentAssessmentFormEditor() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSave = useRef<{ id: string; content: ResidentAssessmentFormContent } | null>(null);
   const isReadOnly = !canManage || form?.status === "finalized";
+  const flushPendingAutosave = () => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    if (pendingSave.current) {
+      const pending = pendingSave.current;
+      pendingSave.current = null;
+      saveDraft.mutate(pending);
+    }
+  };
 
   const tabStorageKey = (id: string) => `resident-assessment-form-tab:${id}`;
   const readStoredTab = (id: string): TabValue => {
@@ -466,6 +477,7 @@ export default function ResidentAssessmentFormEditor() {
   // above only covers first mount) -- guarded so it doesn't re-run on every render.
   useEffect(() => {
     if (!formId || formId === lastRestoredFormId.current) return;
+    flushPendingAutosave();
     lastRestoredFormId.current = formId;
     setActiveTab(readStoredTab(formId));
   }, [formId]);
@@ -477,15 +489,7 @@ export default function ResidentAssessmentFormEditor() {
 
   useEffect(() => {
     if (!form) return;
-    if (saveTimer.current) {
-      clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-      if (pendingSave.current) {
-        const pending = pendingSave.current;
-        pendingSave.current = null;
-        saveDraft.mutate(pending);
-      }
-    }
+    flushPendingAutosave();
     // A brand-new form's content is a bare {} (see start_resident_assessment_form()'s
     // coalesce(v_prior.content, '{}'::jsonb)) -- deep-merge onto the full default shape so every
     // section, including item maps that may have grown new keys since this form's schema_version,
