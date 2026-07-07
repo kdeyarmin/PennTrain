@@ -468,6 +468,15 @@ export default function ResidentAssessmentFormEditor() {
 
   useEffect(() => {
     if (!form) return;
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+      if (pendingSave.current) {
+        const pending = pendingSave.current;
+        pendingSave.current = null;
+        saveDraft.mutate(pending);
+      }
+    }
     // A brand-new form's content is a bare {} (see start_resident_assessment_form()'s
     // coalesce(v_prior.content, '{}'::jsonb)) -- deep-merge onto the full default shape so every
     // section, including item maps that may have grown new keys since this form's schema_version,
