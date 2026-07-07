@@ -4,7 +4,7 @@ import { useGetResident } from "@/hooks/useResidents";
 import { useListFacilities } from "@/hooks/useFacilities";
 import {
   useGetResidentAssessmentForm, useSaveResidentAssessmentFormDraft, useFinalizeResidentAssessmentForm,
-  useGenerateResidentAssessmentFormPdf,
+  useGenerateResidentAssessmentFormPdf, useGenerateResidentAssessmentSummary,
 } from "@/hooks/useResidentAssessmentForms";
 import { useListResidentDocuments } from "@/hooks/useResidentDocuments";
 import {
@@ -29,7 +29,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, ArrowRight, Plus, Trash2, Lock, CheckCircle2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Trash2, Lock, CheckCircle2, AlertTriangle, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -412,12 +412,14 @@ export default function ResidentAssessmentFormEditor() {
   const saveDraft = useSaveResidentAssessmentFormDraft();
   const finalize = useFinalizeResidentAssessmentForm();
   const generatePdf = useGenerateResidentAssessmentFormPdf();
+  const generateSummary = useGenerateResidentAssessmentSummary();
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const facility = facilities?.find((f) => f.id === resident?.facility_id);
   const formLabel = getComplianceFormLabel(facility?.facility_type);
 
   const [content, setContent] = useState<ResidentAssessmentFormContent | null>(null);
+  const contentRef = useRef<ResidentAssessmentFormContent | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSave = useRef<{ id: string; content: ResidentAssessmentFormContent } | null>(null);
   const isReadOnly = !canManage || form?.status === "finalized";
@@ -480,16 +482,19 @@ export default function ResidentAssessmentFormEditor() {
     // that window (it rebuilds from the stale form.content snapshot, not live state) -- and if that
     // query ever errors instead of resolving, the effect would never fire at all, leaving the whole
     // editor stuck on the loading skeleton.
-    setContent(mergeContentWithDefaults(
+    const nextContent = mergeContentWithDefaults(
       createEmptyContent(form.form_type as FormType, {
         responsibleParty: facility?.default_care_responsible_party,
         frequency: facility?.default_care_frequency,
       }),
       form.content,
-    ));
+    );
+    contentRef.current = nextContent;
+    setContent(nextContent);
   }, [form?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = (next: ResidentAssessmentFormContent) => {
+    contentRef.current = next;
     setContent(next);
     if (isReadOnly || !formId) return;
     pendingSave.current = { id: formId, content: next };
@@ -519,6 +524,35 @@ export default function ResidentAssessmentFormEditor() {
       if (pendingSave.current) saveDraft.mutate(pendingSave.current);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleGenerateWellnessSummary = async () => {
+    if (!formId || !content) return;
+    const runGeneration = () => generateSummary.mutate(formId, {
+      onSuccess: (summary) => {
+        const latestContent = contentRef.current;
+        if (!latestContent) return;
+        update({ ...latestContent, summary: { overallWellness: summary } });
+        toast({ title: "AI wellness summary drafted" });
+      },
+      onError: (e: Error) => toast({ title: "Failed to generate wellness summary", description: e.message, variant: "destructive" }),
+    });
+
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    if (pendingSave.current) {
+      const pending = pendingSave.current;
+      pendingSave.current = null;
+      try {
+        await saveDraft.mutateAsync(pending);
+      } catch (e) {
+        toast({ title: "Failed to save latest changes before generating", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+        return;
+      }
+    }
+    runGeneration();
+  };
 
   const behavioralList = useMemo(() => behavioralItems((form?.form_type as FormType) ?? "RASP"), [form?.form_type]);
 
@@ -965,7 +999,21 @@ export default function ResidentAssessmentFormEditor() {
             <CardHeader><CardTitle className="text-base">Part IV — Summary and Determination</CardTitle></CardHeader>
             <CardContent>
               <fieldset disabled={isReadOnly}>
-                <Label className="text-xs">Summary of Resident's Overall Wellness</Label>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <Label className="text-xs">Summary of Resident's Overall Wellness</Label>
+                  {!isReadOnly && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGenerateWellnessSummary}
+                      disabled={generateSummary.isPending || saveDraft.isPending}
+                    >
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      {generateSummary.isPending ? "Drafting…" : "Draft with AI"}
+                    </Button>
+                  )}
+                </div>
                 <Textarea
                   className="min-h-28"
                   value={content.summary.overallWellness}
