@@ -242,12 +242,12 @@ Deno.serve(async (req: Request) => {
     return json({ error: "not authorized to generate resident assessment wellness summaries" }, 403);
   }
 
-  const { data: aiGenerationSetting } = await callerClient
-    .from("platform_settings")
-    .select("value")
-    .eq("key", "ai_wellness_summary_generation_enabled")
-    .maybeSingle();
-  if (aiGenerationSetting?.value !== true) {
+  const { data: aiGenerationSetting, error: aiGenerationSettingError } = await callerClient
+    .rpc("get_platform_setting", { p_key: "ai_wellness_summary_generation_enabled" });
+  if (aiGenerationSettingError) {
+    return json({ error: "Failed to read platform AI settings" }, 500);
+  }
+  if (aiGenerationSetting !== true) {
     return json({ error: "AI wellness summary generation is currently disabled by the platform administrator." }, 403);
   }
 
