@@ -58,12 +58,13 @@ export function getRequiredStateFormLabel(itemType: string, facilityType: string
 // not CareMetric-generated templates, because these completion workflows are only valid when the
 // actual state-approved form is attached.
 export function getRequiredStateFormInfo(itemType: string, facilityType: string | undefined): StateApprovedFormInfo {
+  if (facilityType !== "PCH" && facilityType !== "ALR") {
+    return { label: "PA DHS state-approved resident compliance form", url: DHS_FORMS_INDEX_URL, sourceLabel: "PA DHS PCH/ALR Compliance Forms index" };
+  }
+
   const isAlr = facilityType === "ALR";
   const forms = isAlr ? DHS_ALR_FORMS : DHS_PCH_FORMS;
-  const facilityLabel = isAlr ? "Assisted Living Residence" : "Personal Care Home";
-
-  if (itemType === "medical_evaluation") {
-    return { label: "DME (Documentation of Medical Evaluation)", url: forms.dme, sourceLabel: `PA DHS ${facilityLabel} DME form` };
+  const facilityLabel = isAlr ? "Assisted Living Facility (ALF)" : "Personal Care Home";
   }
   if (itemType === "preadmission_screening") {
     return { label: "Preadmission Screening", url: forms.preadmission, sourceLabel: `PA DHS ${facilityLabel} Preadmission Screening form` };
