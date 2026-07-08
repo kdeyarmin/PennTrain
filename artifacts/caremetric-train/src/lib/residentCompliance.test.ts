@@ -35,11 +35,11 @@ describe("getRequiredStateFormInfo", () => {
     expect(pchDme.url).toContain("personal-care-homes-dme");
     expect(pchDme.sourceLabel).toBe("PA DHS Personal Care Home DME form");
     expect(alrDme.url).toContain("assisted-living-residences-dme");
-    expect(alrDme.sourceLabel).toBe("PA DHS Assisted Living Residence DME form");
+    expect(alrDme.sourceLabel).toBe("PA DHS Assisted Living Facility (ALF) DME form");
     expect(pchPreadmission.url).toContain("Personal_Care_Home-Preadmission-Screening.pdf");
     expect(pchPreadmission.sourceLabel).toBe("PA DHS Personal Care Home Preadmission Screening form");
     expect(alrPreadmission.url).toContain("Assisted_Living-Preadmission_Screening_Form.pdf");
-    expect(alrPreadmission.sourceLabel).toBe("PA DHS Assisted Living Residence Preadmission Screening form");
+    expect(alrPreadmission.sourceLabel).toBe("PA DHS Assisted Living Facility (ALF) Preadmission Screening form");
   });
 
   it("falls back to the PA DHS PCH/ALR compliance forms index when facility type is unsupported", () => {
