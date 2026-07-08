@@ -4760,6 +4760,8 @@ export type Database = {
           is_state_form: boolean
           organization_id: string
           resident_id: string
+          state_form_source_label: string | null
+          state_form_source_url: string | null
           storage_bucket: string
           storage_path: string
           uploaded_by_profile_id: string | null
@@ -4776,6 +4778,8 @@ export type Database = {
           is_state_form?: boolean
           organization_id: string
           resident_id: string
+          state_form_source_label?: string | null
+          state_form_source_url?: string | null
           storage_bucket?: string
           storage_path: string
           uploaded_by_profile_id?: string | null
@@ -4792,6 +4796,8 @@ export type Database = {
           is_state_form?: boolean
           organization_id?: string
           resident_id?: string
+          state_form_source_label?: string | null
+          state_form_source_url?: string | null
           storage_bucket?: string
           storage_path?: string
           uploaded_by_profile_id?: string | null

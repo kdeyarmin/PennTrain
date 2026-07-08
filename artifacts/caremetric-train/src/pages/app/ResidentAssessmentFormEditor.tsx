@@ -693,7 +693,7 @@ export default function ResidentAssessmentFormEditor() {
     finalize.mutate(formId, {
       onSuccess: () => toast({
         title: `${formLabel} finalized and saved as a PDF`,
-        description: "This is a reference copy. Attach the signed, DHS-prescribed form on the resident's page to complete the compliance record.",
+        description: "The generated packet starts with the official PA DHS form and completes the linked checklist item.",
       }),
       onError: (e: Error) => toast({ title: "Failed to finalize", description: e.message, variant: "destructive" }),
     });
@@ -810,9 +810,8 @@ export default function ResidentAssessmentFormEditor() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Drafting/reference tool only — finalizing does not by itself satisfy the resident's compliance
-        requirement. Documents like the {formLabel} have to be on the state-approved form, no exception:
-        attach the signed DHS-prescribed form on the resident's page to mark the item complete.
+        CareMetric saves your entries into a generated packet that starts with the official PA DHS {formLabel} form,
+        followed by a completion addendum. Finalizing creates that state-form packet and completes the linked checklist item.
       </p>
 
       {incompleteSections.length > 0 && (

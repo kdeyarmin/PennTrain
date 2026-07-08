@@ -1,12 +1,11 @@
 // Shape of resident_assessment_forms.content (jsonb) plus the data-driven section/item lists that
 // both the editor UI and PDF generation walk. Field/section structure mirrors the real DHS
 // RASP (PCH) and ASP (ALR) forms so this tool organizes the same information a preparer will put
-// on the state form -- it is a drafting/reference aid, not a substitute for it. Documents like the
-// RASP/ASP and DME have to be on the state-approved form, no exception: only the signed DHS-
-// prescribed form satisfies 55 Pa Code 2600.225(b)/227(b) (RASP) and the parallel Ch. 2800 clause
-// (ASP). complete_resident_compliance_item() enforces this server-side -- it requires a linked
-// resident_documents row flagged is_state_form = true before an item can be marked compliant, so
-// finalizing this digital form alone never completes the resident's compliance record.
+// on the state form. PDF generation starts with the official PA DHS RASP/ASP pages and appends a
+// CareMetric completion addendum from this schema. Documents like the RASP/ASP and DME have to be
+// on state-approved forms, no exception: complete_resident_compliance_item() enforces this
+// server-side by requiring a linked resident_documents row flagged is_state_form = true before an
+// item can be marked compliant.
 //
 // This is the one place in the app that stores real clinical/functional-assessment content -- the
 // no-EHR posture governing every other resident-compliance table does not apply here, by
