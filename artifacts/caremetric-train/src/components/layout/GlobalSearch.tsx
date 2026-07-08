@@ -3,7 +3,8 @@ import { useLocation } from "wouter";
 import { useGlobalSearch } from "@/hooks/useGlobalSearch";
 import { useAuth } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
-import { Search, Building2, User, Users, UserRound } from "lucide-react";
+import { searchPages } from "@/lib/appDomains";
+import { Search, Building2, User, Users, UserRound, Compass } from "lucide-react";
 
 const DEBOUNCE_MS = 250;
 
@@ -38,8 +39,9 @@ export function GlobalSearch() {
   }, []);
 
   const { data: results, isFetching } = useGlobalSearch(debouncedQuery, user?.role);
+  const pageResults = searchPages(debouncedQuery, user?.role);
   const hasResults = !!results && (
-    results.organizations.length || results.profiles.length || results.employees.length || results.residents.length
+    pageResults.length || results.organizations.length || results.profiles.length || results.employees.length || results.residents.length
   );
 
   const employeesBasePath = user?.role === "platform_admin" ? "/admin/employees" : "/app/employees";
@@ -76,6 +78,24 @@ export function GlobalSearch() {
             <p className="px-3 py-4 text-xs text-muted-foreground text-center">No matches for "{query.trim()}"</p>
           ) : (
             <div className="py-1">
+              {!!pageResults.length && (
+                <div>
+                  <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Pages</p>
+                  {pageResults.map((page) => (
+                    <button
+                      key={page.path}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted text-left"
+                      onClick={() => go(page.path)}
+                    >
+                      <Compass className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span className="min-w-0">
+                        <span className="block truncate">{page.label}</span>
+                        <span className="block text-[11px] capitalize text-muted-foreground">{page.domain.replace(/_/g, " ")}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
               {!!results?.organizations.length && (
                 <div>
                   <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Organizations</p>
