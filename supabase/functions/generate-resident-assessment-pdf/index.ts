@@ -650,7 +650,11 @@ Deno.serve(async (req: Request) => {
       p_item_id: form.compliance_item_id,
       p_document_id: insertedDocument.id,
     });
-    if (completeError) return json({ error: completeError.message }, 500);
+    if (completeError) {
+      await adminClient.from("resident_documents").delete().eq("id", insertedDocument.id);
+      await adminClient.storage.from(DOCUMENTS_BUCKET).remove([path]);
+      return json({ error: completeError.message }, 500);
+    }
   }
 
   const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
