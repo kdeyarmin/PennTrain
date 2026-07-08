@@ -10,7 +10,10 @@
 -- resident_documents row, including generate-resident-assessment-pdf's own CareMetric-rendered
 -- output -- that function stamps compliance_item_id too, so without this flag its own reference PDF
 -- would silently satisfy the very requirement it isn't allowed to satisfy.
-alter table public.resident_documents add column is_state_form boolean not null default false;
+-- if not exists: production already ran this migration's content under version 20260707040000
+-- (see 20260707040000_version_placeholder_do_not_delete.sql), so re-applying under this version
+-- must be a safe no-op there while still creating the column on databases that never ran it.
+alter table public.resident_documents add column if not exists is_state_form boolean not null default false;
 comment on column public.resident_documents.is_state_form is
   'True only when this document IS the actual DHS-prescribed form (RASP/ASP, DME, Preadmission '
   'Screening, etc.) as completed and uploaded by facility staff -- never true for a CareMetric-'
