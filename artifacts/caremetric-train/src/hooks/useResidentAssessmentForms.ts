@@ -83,16 +83,26 @@ export function useSaveResidentAssessmentFormDraft() {
   });
 }
 
+export interface GeneratedResidentAssessmentSummary {
+  summary: string;
+  suggested_additions: string[];
+  follow_up_questions: string[];
+}
+
 export function useGenerateResidentAssessmentSummary() {
   return useMutation({
     mutationFn: async (formId: string) => {
-      const { data, error } = await supabase.functions.invoke<{ summary?: string; error?: string }>(
+      const { data, error } = await supabase.functions.invoke<Partial<GeneratedResidentAssessmentSummary> & { error?: string }>(
         "generate-resident-assessment-summary",
         { body: { formId } },
       );
       if (error) throw new Error(await describeFunctionError(error, "Failed to generate wellness summary"));
       if (!data?.summary) throw new Error(data?.error ?? "Failed to generate wellness summary");
-      return data.summary;
+      return {
+        summary: data.summary,
+        suggested_additions: data.suggested_additions ?? [],
+        follow_up_questions: data.follow_up_questions ?? [],
+      };
     },
   });
 }
