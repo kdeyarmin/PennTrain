@@ -28,7 +28,7 @@ const DHS_ASSESSMENT_FORM_TEMPLATES: Record<string, StateAssessmentTemplate> = {
   },
   ASP: {
     url: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Assisted_Living-Assessment_Support_Plan_Form.pdf",
-    sourceLabel: "PA DHS Assisted Living Residence ASP form",
+    sourceLabel: "PA DHS Assisted Living Facility (ALF) ASP form",
   },
 };
 
