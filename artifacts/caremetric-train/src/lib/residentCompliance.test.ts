@@ -19,7 +19,7 @@ describe("getRequiredStateFormInfo", () => {
     for (const itemType of ["initial_assessment_15day", "support_plan_30day", "annual_reassessment", "significant_change_reassessment"]) {
       const info = getRequiredStateFormInfo(itemType, "ALR");
       expect(info.label).toBe("ASP (Assessment-Support Plan)");
-      expect(info.sourceLabel).toBe("PA DHS Assisted Living Residence ASP form");
+      expect(info.sourceLabel).toBe("PA DHS Assisted Living Facility (ALF) ASP form");
       expect(info.url).toContain("Assisted_Living-Assessment_Support_Plan_Form.pdf");
       expect(info.url.startsWith(PA_DHS_URL_PREFIX)).toBe(true);
       expect(getRequiredStateFormLabel(itemType, "ALR")).toBe(info.label);
