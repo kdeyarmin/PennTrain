@@ -73,7 +73,7 @@ export function getRequiredStateFormInfo(itemType: string, facilityType: string 
     return { label: "RASP (Resident Assessment-Support Plan)", url: DHS_PCH_FORMS.rasp, sourceLabel: "PA DHS Personal Care Home RASP form" };
   }
   if (facilityType === "ALR") {
-    return { label: "ASP (Assessment-Support Plan)", url: DHS_ALR_FORMS.asp, sourceLabel: "PA DHS Assisted Living Residence ASP form" };
+    return { label: "ASP (Assessment-Support Plan)", url: DHS_ALR_FORMS.asp, sourceLabel: "PA DHS Assisted Living Facility (ALF) ASP form" };
   }
   return { label: "PA DHS state-approved resident compliance form", url: DHS_FORMS_INDEX_URL, sourceLabel: "PA DHS PCH/ALR Compliance Forms index" };
 }
