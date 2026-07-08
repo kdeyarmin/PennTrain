@@ -30,7 +30,7 @@ import { ArrowLeft, BedDouble, ClipboardList, FileText, Upload, Download, Trash2
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
-import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, getComplianceFormLabel, getRequiredStateFormLabel, formatDateOnly } from "@/lib/residentCompliance";
+import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, getComplianceFormLabel, getRequiredStateFormInfo, formatDateOnly } from "@/lib/residentCompliance";
 import { isDigitalFormEligible, deriveAssessmentReason } from "@/lib/residentAssessmentFormSchema";
 import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 
@@ -146,6 +146,8 @@ export default function ResidentDetail() {
         residentId: resident.id,
         complianceItemId: completingItem.id,
         isStateForm: true,
+        stateFormSourceLabel: completingStateForm?.sourceLabel,
+        stateFormSourceUrl: completingStateForm?.url,
       });
       await completeItem.mutateAsync({ item: completingItem, documentId: uploadedDocument.id });
       toast({ title: "Marked complete" });
@@ -157,6 +159,7 @@ export default function ResidentDetail() {
 
   const facility = facilities?.find((f) => f.id === resident?.facility_id);
   const facilityName = facility?.name;
+  const completingStateForm = completingItem ? getRequiredStateFormInfo(completingItem.item_type, facility?.facility_type) : null;
   const formLabel = getComplianceFormLabel(facility?.facility_type);
   // instantiate_resident_compliance_items() only seeds rule-pack rows for PCH/ALR (Phase 5) --
   // mirror that gate here so an unsupported facility type can't get a significant_change_reassessment
@@ -495,49 +498,55 @@ export default function ResidentDetail() {
             <p className="text-sm text-muted-foreground">No compliance items recorded.</p>
           ) : (
             <div className="space-y-2">
-              {items.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      {ITEM_TYPE_LABELS[item.item_type] ?? humanize(item.item_type)}
-                      {item.renewal_interval_days != null && (
-                        <Badge variant="outline" className="text-[10px]">Recurring</Badge>
+              {items.map((item) => {
+                const requiredForm = getRequiredStateFormInfo(item.item_type, facility?.facility_type);
+                return (
+                  <div key={item.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        {ITEM_TYPE_LABELS[item.item_type] ?? humanize(item.item_type)}
+                        {item.renewal_interval_days != null && (
+                          <Badge variant="outline" className="text-[10px]">Recurring</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Due {item.due_date ?? "—"}{item.completed_date ? ` · Completed ${item.completed_date}` : ""}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Required DHS source: <a href={requiredForm.url} target="_blank" rel="noreferrer" className="hover:underline">{requiredForm.sourceLabel}</a>
+                      </p>
+                      {item.triggered_by_item_id && itemById.get(item.triggered_by_item_id) && (
+                        <p className="text-xs text-muted-foreground italic">
+                          → triggered by {ITEM_TYPE_LABELS[itemById.get(item.triggered_by_item_id)!.item_type]
+                            ?? humanize(itemById.get(item.triggered_by_item_id)!.item_type)} completed{" "}
+                          {itemById.get(item.triggered_by_item_id)!.completed_date}
+                        </p>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Due {item.due_date ?? "—"}{item.completed_date ? ` · Completed ${item.completed_date}` : ""}
-                    </p>
-                    {item.triggered_by_item_id && itemById.get(item.triggered_by_item_id) && (
-                      <p className="text-xs text-muted-foreground italic">
-                        → triggered by {ITEM_TYPE_LABELS[itemById.get(item.triggered_by_item_id)!.item_type]
-                          ?? humanize(itemById.get(item.triggered_by_item_id)!.item_type)} completed{" "}
-                        {itemById.get(item.triggered_by_item_id)!.completed_date}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <ComplianceStatusBadge status={item.status} />
-                    {canManage && item.status !== "compliant" && item.status !== "not_applicable" && (
-                      <>
-                        {isDigitalFormEligible(item.item_type) && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <ComplianceStatusBadge status={item.status} />
+                      {canManage && item.status !== "compliant" && item.status !== "not_applicable" && (
+                        <>
+                          {isDigitalFormEligible(item.item_type) && (
+                            <Button
+                              variant="outline" size="sm" className="h-7 text-xs" disabled={startAssessmentForm.isPending}
+                              onClick={() => handleCompleteInCareMetric(item)}
+                            >
+                              <FilePenLine className="mr-1.5 h-3.5 w-3.5" /> Prepare in CareMetric
+                            </Button>
+                          )}
                           <Button
-                            variant="outline" size="sm" className="h-7 text-xs" disabled={startAssessmentForm.isPending}
-                            onClick={() => handleCompleteInCareMetric(item)}
+                            variant="outline" size="sm" className="h-7 text-xs" title="Attach the state-approved form and mark complete"
+                            onClick={() => setCompletingItem(item)}
                           >
-                            <FilePenLine className="mr-1.5 h-3.5 w-3.5" /> Prepare in CareMetric
+                            <Check className="mr-1.5 h-3.5 w-3.5" /> Mark Complete
                           </Button>
-                        )}
-                        <Button
-                          variant="outline" size="sm" className="h-7 text-xs" title="Attach the state-approved form and mark complete"
-                          onClick={() => setCompletingItem(item)}
-                        >
-                          <Check className="mr-1.5 h-3.5 w-3.5" /> Mark Complete
-                        </Button>
-                      </>
-                    )}
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -552,10 +561,17 @@ export default function ResidentDetail() {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <p className="text-sm text-muted-foreground">
-              Attach the completed <strong>{completingItem && getRequiredStateFormLabel(completingItem.item_type, facility?.facility_type)}</strong> form.
+              Attach the completed <strong>{completingStateForm?.label}</strong> form.
               This must be the official DHS-prescribed form — a CareMetric-prepared draft or any other document
               can't be used to satisfy this requirement, no exception.
             </p>
+            {completingStateForm && (
+              <Button asChild variant="link" size="sm" className="h-auto p-0 text-xs">
+                <a href={completingStateForm.url} target="_blank" rel="noreferrer">
+                  Download official {completingStateForm.sourceLabel}
+                </a>
+              </Button>
+            )}
             <input
               ref={completeFileInputRef}
               type="file"
@@ -610,9 +626,9 @@ export default function ResidentDetail() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Drafting/reference tool only — finalizing creates a PDF for staff and survey reference, but does
-            not by itself satisfy the resident's compliance requirement. Attach the signed DHS-prescribed{" "}
-            {formLabel} form using "Mark Complete" on the checklist above.
+            State-form workflow — finalizing creates a packet that starts with the official PA DHS {formLabel} form,
+            appends the CareMetric completion addendum, and uses that generated DHS packet to complete the
+            linked checklist item.
           </p>
           {assessmentFormsLoading ? (
             <Skeleton className="h-10" />
@@ -668,7 +684,19 @@ export default function ResidentDetail() {
             <div className="space-y-2">
               {documents.map((doc) => (
                 <div key={doc.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
-                  <span className="truncate">{doc.file_name}</span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="truncate">{doc.file_name}</span>
+                      {doc.is_state_form && <Badge variant="outline" className="text-[10px]">State form</Badge>}
+                    </div>
+                    {doc.state_form_source_label && (
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        Source: {doc.state_form_source_url ? (
+                          <a href={doc.state_form_source_url} target="_blank" rel="noreferrer" className="hover:underline">{doc.state_form_source_label}</a>
+                        ) : doc.state_form_source_label}
+                      </p>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownload(doc)}>
                       <Download className="h-3.5 w-3.5" />

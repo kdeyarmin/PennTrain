@@ -108,7 +108,7 @@ export function useGenerateResidentAssessmentSummary() {
 }
 
 async function invokeGenerateAssessmentPdf(formId: string) {
-  const { data: pdfData, error: pdfError } = await supabase.functions.invoke<{ success?: boolean; error?: string; url?: string }>(
+  const { data: pdfData, error: pdfError } = await supabase.functions.invoke<{ success?: boolean; error?: string; url?: string; documentId?: string }>(
     "generate-resident-assessment-pdf",
     { body: { formId } },
   );
@@ -119,10 +119,9 @@ async function invokeGenerateAssessmentPdf(formId: string) {
   return pdfData;
 }
 
-// Locks the form, marks the prior version superseded, and completes the linked
-// resident_compliance_items row (feeding Phase 2's support-plan cross-trigger) -- all server-side
-// in finalize_resident_assessment_form(). Also generates and attaches the PDF, mirroring
-// useComplianceBinder.ts's supabase.functions.invoke pattern.
+// Locks the form/lineage server-side, then generates the official PA DHS form packet. The edge
+// function stores that packet as is_state_form=true and completes the linked resident_compliance_items
+// row with that exact generated document.
 export function useFinalizeResidentAssessmentForm() {
   const queryClient = useQueryClient();
   return useMutation({
