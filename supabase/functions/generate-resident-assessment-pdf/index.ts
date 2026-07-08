@@ -643,7 +643,10 @@ Deno.serve(async (req: Request) => {
   })
     .select("id")
     .single();
-  if (docError) return json({ error: docError.message }, 500);
+  if (docError) {
+    await adminClient.storage.from(DOCUMENTS_BUCKET).remove([path]);
+    return json({ error: docError.message }, 500);
+  }
 
   if (form.compliance_item_id && insertedDocument?.id) {
     const { error: completeError } = await callerClient.rpc("complete_resident_compliance_item", {
