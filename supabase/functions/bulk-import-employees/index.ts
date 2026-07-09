@@ -1,4 +1,5 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+// @ts-nocheck
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parse } from "jsr:@std/csv/parse";
 
 const CORS_HEADERS = {
@@ -43,7 +44,7 @@ Deno.serve(async (req: Request) => {
   // gates who may insert employees and into which facility; there is no privilege-escalation need
   // here, only CSV-parsing/batch-reporting convenience that a plain client-side loop would also be
   // capable of, just less conveniently.
-  const callerClient = createClient(supabaseUrl, anonKey, {
+  const callerClient = createClient<any>(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 

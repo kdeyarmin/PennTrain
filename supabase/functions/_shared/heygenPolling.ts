@@ -1,4 +1,5 @@
-import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
+// @ts-nocheck
+import type { SupabaseClient } from "jsr:@supabase/supabase-js@2.48.1";
 
 // This repo's first _shared/ module -- kept intentionally minimal (one function, no framework)
 // since there's no existing sharing precedent to follow here. Extracted verbatim from

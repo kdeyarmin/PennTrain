@@ -51,23 +51,17 @@ verify_jwt = true
 [functions.invite-user]
 verify_jwt = true
 
-# Internal cron-only endpoint invoked by pg_net from a pg_cron schedule (see
-# supabase/migrations/20260705061816_notification_delivery_engine.sql) -- pg_net has no way to
-# supply a user JWT. The function takes no caller-supplied parameters and always processes the
-# same system-wide pending queue regardless of caller, so this is not a data-exposure risk.
+# Internal cron-only endpoint invoked by pg_net from a pg_cron schedule. pg_net has no user JWT,
+# so verify_jwt stays false, but the function rejects requests without X-CareMetric-Cron-Secret
+# matching the CRON_SHARED_SECRET Edge Function secret.
 [functions.dispatch-notifications]
 verify_jwt = false
 
-# Same reasoning as dispatch-notifications -- monthly pg_cron-invoked ingestion job, no
-# caller-supplied parameters, always re-ingests the same public dataset and re-scans the full
-# roster regardless of caller.
+# Same cron-secret pattern as dispatch-notifications.
 [functions.screen-exclusions]
 verify_jwt = false
 
-# Same reasoning as dispatch-notifications -- pg_cron-invoked HeyGen status-polling job (every 5
-# minutes, see supabase/migrations/20260705211500_schedule_heygen_video_status_polling.sql), no
-# caller-supplied parameters, always re-polls the same system-wide non-terminal video job queue
-# regardless of caller.
+# Same cron-secret pattern as dispatch-notifications.
 [functions.poll-heygen-video-statuses]
 verify_jwt = false
 
@@ -78,9 +72,8 @@ verify_jwt = false
 verify_jwt = false
 
 # Public, unauthenticated self-service signup endpoint by design -- there is no caller session
-# yet at signup time. Always creates a brand-new organization and grants org_admin on it (never
-# an existing organization or a different role), which is what keeps it safe to leave open; see
-# the comment at the top of the function itself for the full reasoning.
+# yet at signup time. The function enforces Turnstile, hashed rate limits, platform signup gates,
+# and invite-email verification before the org_admin can set a password.
 [functions.signup-organization]
 verify_jwt = false
 

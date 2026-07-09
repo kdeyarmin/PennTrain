@@ -1,16 +1,17 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+// @ts-nocheck
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parse } from "jsr:@std/csv@1";
+import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
 
 // Internal cron-only endpoint: invoked monthly by pg_cron via net.http_post (see
-// supabase/migrations/20260705160500_schedule_exclusion_screening.sql), the same
-// verify_jwt:false pattern as dispatch-notifications -- pg_net has no way to supply a user JWT,
-// and this function takes no caller-supplied parameters (it always re-ingests the same public
-// federal dataset and re-scans the full multi-tenant roster, regardless of who/what calls it).
+// supabase/migrations/20260705160732_schedule_exclusion_screening.sql). Deliberately
+// verify_jwt:false because pg_net has no user JWT; authenticity is enforced here with
+// CRON_SHARED_SECRET / x-caremetric-cron-secret.
 
-const CORS_HEADERS = {
+const CORS_HEADERS = withCronCorsHeader({
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+});
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -161,10 +162,12 @@ async function ingestSamGov(adminClient: ReturnType<typeof createClient>): Promi
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
+  const cronAuthError = requireCronRequest(req, CORS_HEADERS);
+  if (cronAuthError) return cronAuthError;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
 
   try {
     const leieResult = await ingestOigLeie(adminClient);

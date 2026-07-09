@@ -33,9 +33,6 @@ React frontend talks to Supabase directly via `supabase-js`.
 
 ## Run locally
 
-> Requires a linux-x64-glibc environment (dev container, WSL2, CI): the workspace deliberately strips all other
-> platforms' native binaries (see the note in `DEPLOYMENT.md` section 3).
-
 The preferred local environment is the checked-in dev container, which pins Node 24.15.x, pnpm 10.28.x, Deno 2.x,
 the Supabase CLI, and OS packages used by the app/test workflow. Open the repo in VS Code or GitHub Codespaces and
 choose **Reopen in Container**; the container runs `pnpm install --frozen-lockfile` and `pnpm run doctor` after it is
@@ -46,8 +43,9 @@ pnpm install
 pnpm --filter @workspace/caremetric-train dev
 ```
 
-Copy `artifacts/caremetric-train/.env.example` to `.env` and fill in your Supabase project URL and publishable
-(anon) key.
+Copy `artifacts/caremetric-train/.env.example` to `.env` and fill in your Supabase project URL, publishable
+(anon) key, and Cloudflare Turnstile site key. The workspace installs native optional dependencies for the current
+developer machine plus linux-x64-glibc CI/deploys via pnpm `supportedArchitectures`.
 
 Useful validation commands inside the dev container:
 
@@ -69,21 +67,14 @@ must be declared in `supabase/config.toml` to auto-deploy via the Supabase GitHu
 1. Create a Supabase project (Postgres 17+).
 2. Apply every migration under `supabase/migrations/` in filename order.
 3. Deploy the Edge Functions under `supabase/functions/`.
-4. Seed demo users via the Supabase Admin API (`auth.admin.createUser`) -- see demo credentials below; the
-   `handle_new_user()` trigger creates the matching `profiles` row automatically.
+4. Create environment-specific admin/demo users through the Supabase Admin API, `invite-user`, or
+   `signup-organization`. Do not seed reusable passwords from SQL.
 5. Run `mcp__Supabase__generate_typescript_types` (or `supabase gen types typescript`) to produce
   `artifacts/caremetric-train/src/lib/database.types.ts`.
 
 ## Demo users
 
-| Role | Email | Password |
-|------|-------|----------|
-| platform_admin | info@caremetrictrain.com | admin123 |
-| org_admin | admin@sunrisehealthcare.com | demo123 |
-| facility_manager | manager@sunrisemanor.com | demo123 |
-| trainer | trainer@sunrisehealthcare.com | demo123 |
-| employee | employee@sunrisehealthcare.com | demo123 |
-| auditor | auditor@sunrisehealthcare.com | demo123 |
-| org_admin | admin@maplegrove.com | demo123 |
+The `/demo` page is disabled unless `VITE_DEMO_ACCOUNTS_JSON` is set for that environment. Never commit demo or
+platform admin passwords; create them per environment and rotate them like any other credential.
 
 See `ARCHITECTURE.md` for the full architecture writeup (RLS model, storage buckets, Edge Functions, route map).

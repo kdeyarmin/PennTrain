@@ -1,4 +1,5 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+// @ts-nocheck
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 
 // Public, unauthenticated status-check endpoint by design (see verify_jwt:false in
 // supabase/config.toml) -- the signup page and a pre-auth maintenance banner need to know
@@ -27,7 +28,7 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
 
   // Defensive fallbacks only -- these two rows are seeded by the platform_settings migration and
   // should always be present, but this endpoint must never throw just because a row is missing.

@@ -112,13 +112,13 @@ export default function ResetPassword() {
 
         <Card className="border-border/50 shadow-xl shadow-black/[0.04] backdrop-blur-sm">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg">Set a new password</CardTitle>
+            <CardTitle className="text-lg">Set your password</CardTitle>
             <CardDescription>
               {linkState === "invalid"
-                ? "This reset link is invalid or has expired."
+                ? "This link is invalid or has expired."
                 : done
                 ? "Your password has been updated."
-                : "Choose a new password for your account."}
+                : "Choose a password for your account."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -129,7 +129,7 @@ export default function ResetPassword() {
             ) : linkState === "invalid" ? (
               <div className="text-center py-4 space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Request a new password reset link and try again.
+                  Request a new link and try again.
                 </p>
                 <Link href="/forgot-password">
                   <Button className="w-full">Request a new link</Button>
