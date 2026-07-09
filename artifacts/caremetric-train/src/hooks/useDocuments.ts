@@ -35,7 +35,10 @@ export function useListDocuments(filters: ListDocumentsFilters = {}, enabled = t
       if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
       if (filters.storageBucket) query = query.eq("storage_bucket", filters.storageBucket);
-      if (filters.storagePathPrefix) query = query.like("storage_path", `${filters.storagePathPrefix}%`);
+      if (filters.storagePathPrefix) {
+        const escapedPrefix = filters.storagePathPrefix.replace(/[\\%_]/g, "\\$&");
+        query = query.like("storage_path", `${escapedPrefix}%`);
+      }
       if (filters.documentTypes?.length) query = query.in("document_type", filters.documentTypes);
       else if (filters.documentType) query = query.eq("document_type", filters.documentType);
       const { data, error } = await query;
