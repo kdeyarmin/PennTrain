@@ -1,9 +1,14 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListCourseAssignments, useSelfEnrollCourse } from "@/hooks/useCourseAssignments";
-import { useListCourses, canEnrollInCourse } from "@/hooks/useCourses";
+import {
+  useListCourses,
+  useListCourseVersionsByIds,
+  canEnrollInCourse,
+  isCourseVersionLearnerReady,
+} from "@/hooks/useCourses";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
@@ -40,10 +45,17 @@ export default function MyCourses() {
     { enabled: !!employee?.id },
   );
   const { data: courses, isLoading: coursesLoading } = useListCourses();
+  const currentVersionIds = useMemo(
+    () => (courses ?? []).map(c => c.current_version_id).filter((id): id is string => !!id),
+    [courses],
+  );
+  const { data: currentVersions, isLoading: currentVersionsLoading } = useListCourseVersionsByIds(currentVersionIds);
   const { mutate: selfEnroll, isPending: enrolling, variables: enrollingCourseId } = useSelfEnrollCourse();
 
   const isLoading = employeeLoading || assignmentsLoading;
-  const courseById = new Map((courses ?? []).map(c => [c.id, c]));
+  const coursesReadyLoading = coursesLoading || currentVersionsLoading;
+  const courseById = useMemo(() => new Map((courses ?? []).map(c => [c.id, c])), [courses]);
+  const currentVersionById = useMemo(() => new Map((currentVersions ?? []).map(v => [v.id, v])), [currentVersions]);
 
   const allAssignments = assignments ?? [];
   const filtered = statusFilter === "all" ? allAssignments : allAssignments.filter(a => a.status === statusFilter);
@@ -56,7 +68,11 @@ export default function MyCourses() {
   // the caller's own (for platform_admin, always the internal) org's.
   const assignedCourseIds = new Set(allAssignments.map(a => a.course_id));
   const availableCourses = (courses ?? []).filter(
-    c => c.status === "published" && !assignedCourseIds.has(c.id) && canEnrollInCourse(c, employee?.organization_id),
+    c =>
+      c.status === "published"
+      && !assignedCourseIds.has(c.id)
+      && canEnrollInCourse(c, employee?.organization_id)
+      && isCourseVersionLearnerReady(c.current_version_id ? currentVersionById.get(c.current_version_id) : null),
   );
 
   const handleStart = (courseId: string) => {
@@ -147,11 +163,11 @@ export default function MyCourses() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BookOpen className="h-5 w-5" />
-            Available Courses {!coursesLoading && `(${availableCourses.length})`}
+            Available Courses {!coursesReadyLoading && `(${availableCourses.length})`}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {coursesLoading ? (
+          {coursesReadyLoading ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)}
             </div>

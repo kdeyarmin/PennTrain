@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,14 +18,15 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft, ArrowUp, ArrowDown, BookOpen, Pencil, Plus, Rocket, FileText, Video, File as FileIcon,
-  ListChecks, Trash2, Lock, Layers, Sparkles, RefreshCw, Star, Wand2, Play, Loader2,
+  ListChecks, Trash2, Lock, Layers, Sparkles, RefreshCw, Star, Wand2, Play, Loader2, Upload,
+  Eye, CheckCircle2, CircleAlert,
   type LucideIcon,
 } from "lucide-react";
 import {
   useGetCourse, useUpdateCourse,
-  useListCourseVersions, useCreateCourseVersion, useCloneCourseVersion, useUpdateCourseVersion,
+  useListCourseVersions, useCreateCourseVersion, useCloneCourseVersion, usePublishCourseVersion,
   useListCourseBlocks, useCreateCourseBlock, useUpdateCourseBlock, useDeleteCourseBlock,
-  canEnrollInCourse,
+  canEnrollInCourse, getCourseVersionPublishIssues, isCourseVersionLearnerReady, useCourseVersionPublishIssues,
   type CourseVersion, type CourseBlock, type CourseBlockInsert,
 } from "@/hooks/useCourses";
 import { useSelfEnrollCourse } from "@/hooks/useCourseAssignments";
@@ -37,6 +38,8 @@ import {
   useListHeygenOptions, useGenerateCourseVideo, useCheckCourseVideoStatus, useAutoCheckVideoStatuses,
 } from "@/hooks/useCourseVideoGeneration";
 import { useRegenerateCourseBlock, useListCourseAiGenerations, useMarkAiGenerationReviewed } from "@/hooks/useAiCourseGeneration";
+import { useListDocuments, useUploadDocument, type TrainingDocument } from "@/hooks/useDocuments";
+import { useListFacilities } from "@/hooks/useFacilities";
 import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { coursesListPath, quizBuilderPath } from "@/lib/courseRoutes";
@@ -50,12 +53,14 @@ interface CourseFormState {
 }
 
 const NO_TRAINING_TYPE = "none";
+const NO_DOCUMENT = "none";
 
 interface BlockFormState {
   block_type: "text" | "video" | "pdf" | "scorm" | "quiz";
   title: string;
   textContent: string;
   videoUrl: string;
+  videoTranscript: string;
   documentId: string;
 }
 
@@ -64,8 +69,34 @@ const EMPTY_BLOCK_FORM: BlockFormState = {
   title: "",
   textContent: "",
   videoUrl: "",
+  videoTranscript: "",
   documentId: "",
 };
+
+function blockName(block: Pick<CourseBlock, "title" | "sort_order">) {
+  return block.title?.trim() || `Block ${block.sort_order + 1}`;
+}
+
+function textBodyContent(block: Pick<CourseBlock, "body">) {
+  const body = block.body;
+  if (!body || typeof body !== "object" || Array.isArray(body)) return "";
+  const content = (body as { content?: unknown }).content;
+  return typeof content === "string" ? content.trim() : "";
+}
+
+function videoTranscriptContent(block: Pick<CourseBlock, "body">) {
+  const body = block.body;
+  if (!body || typeof body !== "object" || Array.isArray(body)) return "";
+  const { transcript, script } = body as { transcript?: unknown; script?: unknown };
+  if (typeof transcript === "string" && transcript.trim()) return transcript.trim();
+  if (typeof script === "string" && script.trim()) return script.trim();
+  return "";
+}
+
+function documentDisplayName(document: Pick<TrainingDocument, "file_name" | "storage_path"> | undefined) {
+  if (!document) return "";
+  return document.file_name || document.storage_path.split("/").pop() || "Attached document";
+}
 
 interface QuizFormState {
   title: string;
@@ -170,6 +201,14 @@ export default function CourseDetail() {
   const { mutate: selfEnroll, isPending: enrolling } = useSelfEnrollCourse();
   const handleTakeCourse = () => {
     if (!course) return;
+    if (!canTakeCourse) {
+      toast({
+        title: "Course is not ready yet",
+        description: "A published, reviewed course version is required before learners can start.",
+        variant: "destructive",
+      });
+      return;
+    }
     selfEnroll(course.id, {
       onSuccess: assignmentId => navigate(`/me/courses/${assignmentId}`),
       onError: (e: Error) => toast({ title: "Couldn't start course", description: e.message, variant: "destructive" }),
@@ -195,13 +234,95 @@ export default function CourseDetail() {
   }, [course, versions, selectedVersionId]);
 
   const selectedVersion: CourseVersion | undefined = versions?.find(v => v.id === selectedVersionId);
+  const currentVersion = useMemo(
+    () => versions?.find(v => v.id === course?.current_version_id),
+    [versions, course?.current_version_id],
+  );
   const isVersionLocked = selectedVersion?.status === "published";
+  const canTakeCourse =
+    !!course
+    && course.status === "published"
+    && canEnrollInCourse(course, employee?.organization_id)
+    && isCourseVersionLearnerReady(currentVersion);
 
   const { data: blocks, isLoading: blocksLoading } = useListCourseBlocks(selectedVersion?.id);
+  const courseDocumentPrefix = course ? `${course.organization_id ?? "system"}/${course.id}/` : undefined;
+  const { data: courseDocuments, isLoading: courseDocumentsLoading } = useListDocuments(
+    courseDocumentPrefix
+      ? { storageBucket: "course-documents", storagePathPrefix: courseDocumentPrefix }
+      : {},
+    !!courseDocumentPrefix,
+  );
+  const { data: facilities } = useListFacilities(
+    course?.organization_id ? { organizationId: course.organization_id } : {},
+    canManage && !!course,
+  );
+  const uploadCourseDocument = useUploadDocument();
+  const courseDocumentInputRef = useRef<HTMLInputElement | null>(null);
+  const courseDocumentById = useMemo(
+    () => new Map((courseDocuments ?? []).map(document => [document.id, document])),
+    [courseDocuments],
+  );
+  const courseDocumentUploadFacility = useMemo(
+    () => facilities?.find(f => !course?.organization_id || f.organization_id === course.organization_id) ?? facilities?.[0],
+    [facilities, course?.organization_id],
+  );
+  const { data: publishIssues, isLoading: publishIssuesLoading } = useCourseVersionPublishIssues(
+    selectedVersion?.id,
+    !!selectedVersion && canManage,
+  );
 
   // Client-side backstop that keeps in-flight HeyGen video statuses fresh without requiring
   // the manual "check status" button (which stays below as an instant fallback).
   useAutoCheckVideoStatuses(blocks);
+
+  const [showStudentPreview, setShowStudentPreview] = useState(false);
+  const [studentPreviewChecked, setStudentPreviewChecked] = useState(false);
+  useEffect(() => { setStudentPreviewChecked(false); }, [selectedVersionId]);
+
+  const prePublishChecks = useMemo(() => {
+    const versionBlocks = blocks ?? [];
+    const lowerIssues = (publishIssues ?? []).map(issue => issue.toLowerCase());
+    const hasIssue = (needles: string[]) => lowerIssues.some(issue => needles.some(needle => issue.includes(needle)));
+    const textBlocks = versionBlocks.filter(block => block.block_type === "text");
+    const videoBlocks = versionBlocks.filter(block => block.block_type === "video");
+    const documentBlocks = versionBlocks.filter(block => block.block_type === "pdf" || block.block_type === "scorm");
+
+    return [
+      {
+        label: "Course content is present",
+        passed: versionBlocks.length > 0 && !hasIssue(["content block"]),
+        detail: versionBlocks.length > 0 ? `${versionBlocks.length} block${versionBlocks.length === 1 ? "" : "s"} in this version.` : "Add at least one block.",
+      },
+      {
+        label: "Lesson text is readable",
+        passed: textBlocks.length === 0 || textBlocks.every(block => !!textBodyContent(block)),
+        detail: textBlocks.length === 0 ? "No text blocks in this version." : "Text blocks have saved content.",
+      },
+      {
+        label: "Videos are ready with captions or transcript",
+        passed: videoBlocks.length === 0 || (videoBlocks.every(block => !!block.video_url) && videoBlocks.every(block => !!videoTranscriptContent(block))),
+        detail: videoBlocks.length === 0
+          ? "No video blocks in this version."
+          : "Every video should have a finished URL and a script or transcript.",
+      },
+      {
+        label: "PDF and SCORM resources are attached",
+        passed: documentBlocks.length === 0 || documentBlocks.every(block => !!block.document_id),
+        detail: documentBlocks.length === 0 ? "No document blocks in this version." : "Document blocks point to uploaded files.",
+      },
+      {
+        label: "Quiz questions and answers pass validation",
+        passed: !publishIssuesLoading && !hasIssue(["quiz", "question", "answer", "correct", "single-choice"]),
+        detail: publishIssuesLoading ? "Checking quiz setup..." : "Quiz blocks need questions, answer choices, and a valid answer key.",
+      },
+      {
+        label: "Student preview and mobile layout reviewed",
+        passed: studentPreviewChecked,
+        detail: "Open the student preview and confirm the content is easy to take on a learner-sized screen.",
+      },
+    ];
+  }, [blocks, publishIssues, publishIssuesLoading, studentPreviewChecked]);
 
   // --- Course metadata edit ---
   const [showEditCourse, setShowEditCourse] = useState(false);
@@ -300,43 +421,51 @@ export default function CourseDetail() {
     );
   };
 
-  // --- Publish a version (two mutations: version.status + course.current_version_id) ---
-  const { mutateAsync: publishVersionAsync } = useUpdateCourseVersion();
-  const { mutateAsync: setCurrentVersionAsync } = useUpdateCourse();
+  // --- Publish a version (database RPC validates readiness and sets course.current_version_id) ---
+  const { mutateAsync: publishVersionAsync } = usePublishCourseVersion();
   const [publishingVersionId, setPublishingVersionId] = useState<string | null>(null);
 
   const handlePublish = async (version: CourseVersion) => {
     if (!course) return;
+    if (version.id !== selectedVersionId || !studentPreviewChecked) {
+      setSelectedVersionId(version.id);
+      toast({
+        title: "Review the student preview first",
+        description: "Open the preview, check the learner experience, then mark the checklist item before publishing.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const failedChecks = prePublishChecks.filter(check => !check.passed);
+    if (failedChecks.length > 0) {
+      toast({
+        title: "Complete the pre-publish checklist",
+        description: failedChecks.slice(0, 3).map(check => check.label).join(", "),
+        variant: "destructive",
+      });
+      return;
+    }
     setPublishingVersionId(version.id);
-    const [versionResult, courseResult] = await Promise.allSettled([
-      publishVersionAsync({ id: version.id, status: "published", published_at: new Date().toISOString() }),
-      setCurrentVersionAsync({ id: course.id, current_version_id: version.id }),
-    ]);
-    setPublishingVersionId(null);
-
-    const versionFailed = versionResult.status === "rejected";
-    const courseFailed = courseResult.status === "rejected";
-
-    if (versionFailed && courseFailed) {
+    try {
+      const readinessIssues = await getCourseVersionPublishIssues(version.id);
+      if (readinessIssues.length > 0) {
+        toast({
+          title: "Version is not ready to publish",
+          description: readinessIssues.slice(0, 4).join(" "),
+          variant: "destructive",
+        });
+        return;
+      }
+      await publishVersionAsync(version.id);
+      toast({ title: "Version published" });
+    } catch (e) {
       toast({
         title: "Failed to publish version",
-        description: `Both updates failed. Version: ${(versionResult.reason as Error)?.message}. Course: ${(courseResult.reason as Error)?.message}`,
+        description: (e as Error).message,
         variant: "destructive",
       });
-    } else if (versionFailed) {
-      toast({
-        title: "Partially published",
-        description: `The course now points at this version, but marking it "published" failed: ${(versionResult.reason as Error)?.message}. The version is still a draft -- retry or fix and try again.`,
-        variant: "destructive",
-      });
-    } else if (courseFailed) {
-      toast({
-        title: "Partially published",
-        description: `The version was marked "published", but setting it as the course's current version failed: ${(courseResult.reason as Error)?.message}. Retry to finish publishing.`,
-        variant: "destructive",
-      });
-    } else {
-      toast({ title: "Version published" });
+    } finally {
+      setPublishingVersionId(null);
     }
   };
 
@@ -384,6 +513,36 @@ export default function CourseDetail() {
     setShowAddBlock(true);
   };
 
+  const handleCourseDocumentUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !course || !courseDocumentPrefix) return;
+
+    if (!courseDocumentUploadFacility) {
+      toast({
+        title: "No facility available for document ownership",
+        description: "Create or select a facility before uploading a course document.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const document = await uploadCourseDocument.mutateAsync({
+        file,
+        bucket: "course-documents",
+        organizationId: courseDocumentUploadFacility.organization_id,
+        facilityId: courseDocumentUploadFacility.id,
+        documentType: "other",
+        storagePrefix: courseDocumentPrefix,
+      });
+      setBlockForm(f => ({ ...f, documentId: document.id }));
+      toast({ title: "Document uploaded", description: `${document.file_name} is attached to this block.` });
+    } catch (e) {
+      toast({ title: "Failed to upload document", description: (e as Error).message, variant: "destructive" });
+    }
+  };
+
   const handleRequestCloseAddBlock = () => {
     if (JSON.stringify(blockForm) !== JSON.stringify(EMPTY_BLOCK_FORM)) {
       setDiscardConfirm("block");
@@ -401,7 +560,11 @@ export default function CourseDetail() {
       block_type: blockForm.block_type,
       sort_order: nextSort,
       title: blockForm.title || null,
-      body: blockForm.block_type === "text" ? { content: blockForm.textContent } : null,
+      body: blockForm.block_type === "text"
+        ? { content: blockForm.textContent }
+        : blockForm.block_type === "video" && blockForm.videoTranscript.trim()
+          ? { transcript: blockForm.videoTranscript.trim() }
+          : null,
       video_url: blockForm.block_type === "video" ? (blockForm.videoUrl || null) : null,
       document_id: (blockForm.block_type === "pdf" || blockForm.block_type === "scorm") ? (blockForm.documentId || null) : null,
     };
@@ -737,9 +900,9 @@ export default function CourseDetail() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {course.status === "published" && canEnrollInCourse(course, employee?.organization_id) && (
-            <Button variant="outline" size="sm" onClick={handleTakeCourse} disabled={enrolling}>
+            <Button variant="outline" size="sm" onClick={handleTakeCourse} disabled={enrolling || !canTakeCourse}>
               {enrolling ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-2 h-3.5 w-3.5" />}
-              Take This Course
+              {canTakeCourse ? "Take This Course" : "Course Not Ready"}
             </Button>
           )}
           {canManage && (
@@ -890,6 +1053,61 @@ export default function CourseDetail() {
         </Alert>
       )}
 
+      {canManage && selectedVersion && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <CardTitle>Pre-Publish Checklist</CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowStudentPreview(true)}
+                disabled={!blocks || blocks.length === 0}
+              >
+                <Eye className="mr-2 h-3.5 w-3.5" /> Preview as Student
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-2 sm:grid-cols-2">
+              {prePublishChecks.map(check => {
+                const Icon = check.passed ? CheckCircle2 : CircleAlert;
+                return (
+                  <div key={check.label} className="flex items-start gap-2 rounded-md border p-3">
+                    <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${check.passed ? "text-success" : "text-warning"}`} />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{check.label}</p>
+                      <p className="text-xs text-muted-foreground">{check.detail}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {(publishIssues ?? []).length > 0 && (
+              <Alert className="border-warning/40 bg-warning/10">
+                <CircleAlert className="h-4 w-4" />
+                <AlertTitle>Publish blockers</AlertTitle>
+                <AlertDescription>
+                  <ul className="mt-2 list-disc pl-5 text-sm space-y-1">
+                    {(publishIssues ?? []).slice(0, 6).map(issue => <li key={issue}>{issue}</li>)}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="student-preview-reviewed"
+                checked={studentPreviewChecked}
+                onCheckedChange={checked => setStudentPreviewChecked(checked === true)}
+              />
+              <Label htmlFor="student-preview-reviewed" className="text-sm font-normal cursor-pointer">
+                I reviewed the student preview on a learner-sized screen
+              </Label>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {selectedVersion && (
         <Card>
           <CardHeader>
@@ -901,6 +1119,11 @@ export default function CourseDetail() {
                 </span>
               </CardTitle>
               <div className="flex items-center gap-2">
+                {canManage && (
+                  <Button size="sm" variant="outline" onClick={() => setShowStudentPreview(true)} disabled={!blocks || blocks.length === 0}>
+                    <Eye className="mr-2 h-3.5 w-3.5" /> Preview
+                  </Button>
+                )}
                 {canManage && !isVersionLocked && eligibleVideoBlocks.length > 0 && (
                   <Button size="sm" variant="outline" onClick={openBulkVideoGen}>
                     <Video className="mr-2 h-3.5 w-3.5" /> Generate All Videos
@@ -949,6 +1172,11 @@ export default function CourseDetail() {
                       {b.block_type === "video" && (
                         <>
                           <p className="text-xs text-muted-foreground mt-1 truncate">{b.video_url ?? "No video URL set."}</p>
+                          {videoTranscriptContent(b) && (
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                              Transcript: {videoTranscriptContent(b)}
+                            </p>
+                          )}
                           {(() => {
                             const job = (b.body as { heygen?: { status?: string; error?: string } } | null)?.heygen;
                             if (!job || job.status === "completed") return null;
@@ -960,7 +1188,9 @@ export default function CourseDetail() {
                         </>
                       )}
                       {(b.block_type === "pdf" || b.block_type === "scorm") && (
-                        <p className="text-xs text-muted-foreground mt-1">{b.document_id ? `Document: ${b.document_id}` : "No document attached."}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {b.document_id ? `Document: ${documentDisplayName(courseDocumentById.get(b.document_id)) || b.document_id}` : "No document attached."}
+                        </p>
                       )}
                       {b.block_type === "quiz" && (
                         <div className="mt-1">
@@ -1135,6 +1365,93 @@ export default function CourseDetail() {
         </DialogContent>
       </Dialog>
 
+      {/* Student preview */}
+      <Dialog open={showStudentPreview} onOpenChange={setShowStudentPreview}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Student Preview</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="rounded-md border p-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-normal">Course</p>
+              <h2 className="text-xl font-semibold">{course.title}</h2>
+              {course.description && <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap">{course.description}</p>}
+            </div>
+            {!blocks || blocks.length === 0 ? (
+              <div className="rounded-md border p-4 text-center text-sm text-muted-foreground">
+                No content blocks to preview.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {blocks.map((block, index) => (
+                  <div key={block.id} className="rounded-md border p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Lesson {index + 1} of {blocks.length}</p>
+                        <h3 className="text-base font-semibold">{block.title ?? blockName(block)}</h3>
+                      </div>
+                      <BlockTypeBadge blockType={block.block_type} />
+                    </div>
+
+                    {block.block_type === "text" && (
+                      <p className="text-sm leading-6 whitespace-pre-wrap">
+                        {textBodyContent(block) || "No lesson text entered."}
+                      </p>
+                    )}
+
+                    {block.block_type === "video" && (
+                      <div className="space-y-3">
+                        {block.video_url ? (
+                          <div className="overflow-hidden rounded-md border bg-muted">
+                            <video className="aspect-video w-full bg-black" src={block.video_url} controls />
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No video URL set.</p>
+                        )}
+                        {videoTranscriptContent(block) ? (
+                          <div className="rounded-md bg-muted/50 p-3">
+                            <p className="text-xs font-medium text-muted-foreground mb-1">Transcript</p>
+                            <p className="text-sm whitespace-pre-wrap">{videoTranscriptContent(block)}</p>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-warning">Transcript or caption notes are missing.</p>
+                        )}
+                      </div>
+                    )}
+
+                    {(block.block_type === "pdf" || block.block_type === "scorm") && (
+                      <div className="flex items-center gap-3 rounded-md bg-muted/50 p-3">
+                        <FileIcon className="h-5 w-5 text-muted-foreground" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {block.document_id ? documentDisplayName(courseDocumentById.get(block.document_id)) || "Attached document" : "No document attached"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{block.block_type === "pdf" ? "PDF resource" : "SCORM package"}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {block.block_type === "quiz" && (
+                      <div className="rounded-md bg-muted/50 p-3">
+                        <QuizBlockSummary
+                          blockId={block.id}
+                          onConfigure={() => openQuizPrompt(block)}
+                          canManage={false}
+                          role={user?.role}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowStudentPreview(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Add block */}
       <Dialog open={showAddBlock} onOpenChange={o => { if (!o) handleRequestCloseAddBlock(); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -1169,18 +1486,76 @@ export default function CourseDetail() {
               </div>
             )}
             {blockForm.block_type === "video" && (
-              <div className="space-y-1">
-                <Label>Video URL</Label>
-                <Input value={blockForm.videoUrl} onChange={e => setBlockForm(f => ({ ...f, videoUrl: e.target.value }))} placeholder="https://..." />
-                <p className="text-xs text-muted-foreground">
-                  Leave blank if you plan to generate an AI avatar video after creating this block.
-                </p>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label>Video URL</Label>
+                  <Input value={blockForm.videoUrl} onChange={e => setBlockForm(f => ({ ...f, videoUrl: e.target.value }))} placeholder="https://..." />
+                  <p className="text-xs text-muted-foreground">
+                    Leave blank if you plan to generate an AI avatar video after creating this block.
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <Label>Transcript or Caption Notes</Label>
+                  <Textarea
+                    value={blockForm.videoTranscript}
+                    onChange={e => setBlockForm(f => ({ ...f, videoTranscript: e.target.value }))}
+                    placeholder="Paste transcript text or caption notes for learners who cannot use audio"
+                    rows={4}
+                  />
+                </div>
               </div>
             )}
             {(blockForm.block_type === "pdf" || blockForm.block_type === "scorm") && (
-              <div className="space-y-1">
-                <Label>Document ID</Label>
-                <Input value={blockForm.documentId} onChange={e => setBlockForm(f => ({ ...f, documentId: e.target.value }))} placeholder="Optional -- link an uploaded training document" />
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label>Document</Label>
+                  <Select
+                    value={blockForm.documentId || NO_DOCUMENT}
+                    onValueChange={value => setBlockForm(f => ({ ...f, documentId: value === NO_DOCUMENT ? "" : value }))}
+                    disabled={courseDocumentsLoading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={courseDocumentsLoading ? "Loading documents..." : "Select a document"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_DOCUMENT}>No document attached</SelectItem>
+                      {(courseDocuments ?? []).map(document => (
+                        <SelectItem key={document.id} value={document.id}>
+                          {documentDisplayName(document)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    ref={courseDocumentInputRef}
+                    className="hidden"
+                    type="file"
+                    accept={blockForm.block_type === "pdf" ? "application/pdf,.pdf" : ".zip,application/zip,application/x-zip-compressed"}
+                    onChange={handleCourseDocumentUpload}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => courseDocumentInputRef.current?.click()}
+                    disabled={uploadCourseDocument.isPending || !courseDocumentUploadFacility}
+                  >
+                    {uploadCourseDocument.isPending ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-2 h-3.5 w-3.5" />}
+                    Upload File
+                  </Button>
+                  {blockForm.documentId && (
+                    <p className="text-xs text-muted-foreground truncate max-w-[18rem]">
+                      {documentDisplayName(courseDocumentById.get(blockForm.documentId)) || "Selected document"}
+                    </p>
+                  )}
+                </div>
+                {!courseDocumentUploadFacility && (
+                  <p className="text-xs text-muted-foreground">
+                    Uploads need a facility record to own the document metadata.
+                  </p>
+                )}
               </div>
             )}
             {blockForm.block_type === "quiz" && (
