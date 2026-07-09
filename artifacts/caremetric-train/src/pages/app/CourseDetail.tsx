@@ -313,7 +313,7 @@ export default function CourseDetail() {
       },
       {
         label: "Quiz questions and answers pass validation",
-        passed: !publishIssuesLoading && !hasIssue(["quiz", "question", "answer", "correct", "single-choice"]),
+        passed: !publishIssuesLoading && !hasIssue(["configure the quiz", "add at least one question", "add at least two answer choices", "mark at least one correct answer", "single-choice questions can have only one correct answer"]),
         detail: publishIssuesLoading ? "Checking quiz setup..." : "Quiz blocks need questions, answer choices, and a valid answer key.",
       },
       {
