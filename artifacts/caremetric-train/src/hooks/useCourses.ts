@@ -21,6 +21,26 @@ export interface ListCoursesFilters {
   systemOnly?: boolean;
 }
 
+export function isCourseVersionLearnerReady(
+  version: Pick<CourseVersion, "status" | "ai_generated" | "ai_reviewed_at"> | null | undefined,
+): boolean {
+  return !!version && version.status === "published" && (!version.ai_generated || !!version.ai_reviewed_at);
+}
+
+export async function getCourseVersionPublishIssues(versionId: string): Promise<string[]> {
+  const { data, error } = await supabase.rpc("get_course_version_publish_issues", { p_version_id: versionId });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export function useCourseVersionPublishIssues(versionId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ["courses", "versions", versionId, "publish-issues"],
+    queryFn: () => getCourseVersionPublishIssues(versionId!),
+    enabled: enabled && !!versionId,
+  });
+}
+
 // Mirrors self_enroll_course()'s own organization-scope check. courses_select RLS lets
 // platform_admin see every organization's courses (its RLS grant bypasses the org filter
 // entirely -- see ListCoursesFilters.systemOnly above), but self_enroll_course rejects enrolling
@@ -117,6 +137,40 @@ export function useGetCourseVersion(id: string | undefined) {
       return data;
     },
     enabled: !!id,
+  });
+}
+
+export function useListCourseVersionsByIds(ids: string[]) {
+  const normalizedIds = [...new Set(ids)].sort();
+  return useQuery({
+    queryKey: ["courses", "versions", "by-ids", normalizedIds],
+    queryFn: async () => {
+      if (normalizedIds.length === 0) return [] as CourseVersion[];
+      const { data, error } = await supabase
+        .from("course_versions")
+        .select("*")
+        .in("id", normalizedIds)
+        .order("version_number");
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useListCourseVersionsForCourses(courseIds: string[]) {
+  const normalizedCourseIds = [...new Set(courseIds)].sort();
+  return useQuery({
+    queryKey: ["courses", "versions", "by-course-ids", normalizedCourseIds],
+    queryFn: async () => {
+      if (normalizedCourseIds.length === 0) return [] as CourseVersion[];
+      const { data, error } = await supabase
+        .from("course_versions")
+        .select("*")
+        .in("course_id", normalizedCourseIds)
+        .order("version_number");
+      if (error) throw error;
+      return data;
+    },
   });
 }
 
@@ -309,6 +363,21 @@ export function useUpdateCourseVersion() {
   });
 }
 
+export function usePublishCourseVersion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (courseVersionId: string) => {
+      const { data, error } = await supabase.rpc("publish_course_version", { p_course_version_id: courseVersionId });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["courses"] });
+      queryClient.invalidateQueries({ queryKey: ["course_blocks"] });
+    },
+  });
+}
+
 export function useListCourseBlocks(courseVersionId: string | undefined) {
   return useQuery({
     queryKey: ["course_blocks", courseVersionId],
@@ -345,8 +414,10 @@ export function useCreateCourseBlock() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) =>
-      queryClient.invalidateQueries({ queryKey: ["course_blocks", data.course_version_id] }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["course_blocks", data.course_version_id] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions", data.course_version_id, "publish-issues"] });
+    },
   });
 }
 
@@ -358,8 +429,10 @@ export function useUpdateCourseBlock() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) =>
-      queryClient.invalidateQueries({ queryKey: ["course_blocks", data.course_version_id] }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["course_blocks", data.course_version_id] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions", data.course_version_id, "publish-issues"] });
+    },
   });
 }
 
@@ -371,7 +444,9 @@ export function useDeleteCourseBlock() {
       if (error) throw error;
       return { courseVersionId };
     },
-    onSuccess: (data) =>
-      queryClient.invalidateQueries({ queryKey: ["course_blocks", data.courseVersionId] }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["course_blocks", data.courseVersionId] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions", data.courseVersionId, "publish-issues"] });
+    },
   });
 }

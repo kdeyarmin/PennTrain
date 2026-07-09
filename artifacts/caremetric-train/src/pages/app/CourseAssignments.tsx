@@ -7,7 +7,12 @@ import {
   type CourseAssignment,
 } from "@/hooks/useCourseAssignments";
 import { useListEmployees, type Employee } from "@/hooks/useEmployees";
-import { useListCourses, useListCourseVersions } from "@/hooks/useCourses";
+import {
+  useListCourses,
+  useListCourseVersions,
+  useListCourseVersionsForCourses,
+  isCourseVersionLearnerReady,
+} from "@/hooks/useCourses";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useIssueCertificate, useListCertificates, useGenerateCertificatePdf } from "@/hooks/useCertificates";
 import { Button } from "@/components/ui/button";
@@ -131,6 +136,8 @@ export default function CourseAssignments() {
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees();
   const { data: courses } = useListCourses();
+  const courseIds = useMemo(() => (courses ?? []).map(c => c.id), [courses]);
+  const { data: allCourseVersions } = useListCourseVersionsForCourses(courseIds);
   const { data: courseVersions } = useListCourseVersions(assignForm.courseId || undefined);
 
   const { mutateAsync: createAssignmentAsync } = useCreateCourseAssignment();
@@ -160,20 +167,42 @@ export default function CourseAssignments() {
         .sort((a, b) => `${a.last_name}${a.first_name}`.localeCompare(`${b.last_name}${b.first_name}`)),
     [employees],
   );
-  // Only published courses have content worth assigning; course_blocks/quizzes
-  // are locked once a version is published, so a draft course has nothing for
-  // an employee to actually take yet.
-  const publishedCourses = useMemo(() => (courses ?? []).filter(c => c.status === "published"), [courses]);
+  const learnerReadyVersionsByCourseId = useMemo(() => {
+    type CourseVersionRows = NonNullable<typeof allCourseVersions>;
+    const map = new Map<string, CourseVersionRows>();
+    for (const version of allCourseVersions ?? []) {
+      if (!isCourseVersionLearnerReady(version)) continue;
+      const list = map.get(version.course_id) ?? [];
+      list.push(version);
+      map.set(version.course_id, list);
+    }
+    return map;
+  }, [allCourseVersions]);
+
+  // Only courses with at least one published, learner-ready version are worth assigning. This
+  // keeps managers from selecting a catalog-published course whose current version is still a
+  // draft or whose AI-generated content has not completed the required review.
+  const publishedCourses = useMemo(
+    () =>
+      (courses ?? []).filter(
+        c => c.status === "published" && (learnerReadyVersionsByCourseId.get(c.id)?.length ?? 0) > 0,
+      ),
+    [courses, learnerReadyVersionsByCourseId],
+  );
 
   const selectedCourse = assignForm.courseId ? courseById.get(assignForm.courseId) : undefined;
   // Assignments pin to a specific published version. Only offer the picker when
   // more than one published version exists; otherwise silently default to
   // current_version_id in handleAssign.
   const publishedVersions = useMemo(
-    () => (courseVersions ?? []).filter(v => v.status === "published"),
+    () => (courseVersions ?? []).filter(isCourseVersionLearnerReady),
     [courseVersions],
   );
   const showVersionPicker = publishedVersions.length > 1;
+  const defaultVersion = useMemo(
+    () => publishedVersions.find(v => v.id === selectedCourse?.current_version_id) ?? publishedVersions[publishedVersions.length - 1],
+    [publishedVersions, selectedCourse?.current_version_id],
+  );
 
   // course_assignments has no employee-name/course-title columns of its own, so the free-text
   // search box is resolved against the employees/courses lists above (already loaded, and
@@ -266,7 +295,7 @@ export default function CourseAssignments() {
     const assignedBy = user?.id;
     if (!course || !organizationId || !assignedBy) return;
 
-    const versionId = assignForm.courseVersionId || course.current_version_id;
+    const versionId = assignForm.courseVersionId || defaultVersion?.id;
     if (!versionId) {
       toast({ title: "This course has no published version to assign", variant: "destructive" });
       return;
@@ -543,7 +572,9 @@ export default function CourseAssignments() {
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="default">
-                      Current version{selectedCourse?.current_version_id ? "" : " (none set)"} — default
+                      {defaultVersion
+                        ? `Default: v${defaultVersion.version_number} - ${defaultVersion.title}`
+                        : "No published version available"}
                     </SelectItem>
                     {publishedVersions.map(v => (
                       <SelectItem key={v.id} value={v.id}>
@@ -605,7 +636,11 @@ export default function CourseAssignments() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAssignForm(false)}>Cancel</Button>
-            <Button onClick={handleAssign} disabled={assigning || selectedEmployeeIds.size === 0} className="shadow-sm">
+            <Button
+              onClick={handleAssign}
+              disabled={assigning || selectedEmployeeIds.size === 0 || !assignForm.courseId || !defaultVersion}
+              className="shadow-sm"
+            >
               {assigning
                 ? "Assigning..."
                 : selectedEmployeeIds.size > 0

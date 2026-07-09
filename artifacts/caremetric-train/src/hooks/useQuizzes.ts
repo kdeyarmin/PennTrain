@@ -88,6 +88,7 @@ export function useCreateQuiz() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["quizzes", "by-block", data.course_block_id] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
     },
   });
 }
@@ -103,6 +104,7 @@ export function useUpdateQuiz() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["quizzes", data.id] });
       queryClient.invalidateQueries({ queryKey: ["quizzes", "by-block", data.course_block_id] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
     },
   });
 }
@@ -148,7 +150,10 @@ export function useCreateQuizQuestion() {
       }
       return { ...data, explanation: trimmed } as QuizQuestionWithExplanation;
     },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["quiz_questions", data.quiz_id] }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["quiz_questions", data.quiz_id] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
+    },
   });
 }
 
@@ -182,7 +187,10 @@ export function useUpdateQuizQuestion() {
       }
       return { ...data, explanation: finalExplanation } as QuizQuestionWithExplanation;
     },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["quiz_questions", data.quiz_id] }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["quiz_questions", data.quiz_id] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
+    },
   });
 }
 
@@ -196,8 +204,10 @@ export function useDeleteQuizQuestion() {
       const { error } = await supabase.from("quiz_questions").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: (_data, variables) =>
-      queryClient.invalidateQueries({ queryKey: ["quiz_questions", variables.quizId] }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["quiz_questions", variables.quizId] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
+    },
   });
 }
 
@@ -263,7 +273,10 @@ export function useCreateQuizAnswer() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["quiz_answers"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["quiz_answers"] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
+    },
   });
 }
 
@@ -275,7 +288,10 @@ export function useUpdateQuizAnswer() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["quiz_answers"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["quiz_answers"] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
+    },
   });
 }
 
@@ -289,7 +305,10 @@ export function useDeleteQuizAnswer() {
       const { error } = await supabase.from("quiz_answers").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["quiz_answers"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["quiz_answers"] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
+    },
   });
 }
 

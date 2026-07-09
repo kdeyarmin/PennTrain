@@ -5891,8 +5891,23 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      admin_emergency_update_course_block: {
+        Args: {
+          p_body?: Json | null
+          p_course_block_id: string
+          p_document_id?: string | null
+          p_reason: string
+          p_title?: string | null
+          p_video_url?: string | null
+        }
+        Returns: undefined
+      }
       assert_resident_assessment_compliance_item_valid: {
         Args: { p_compliance_item_id: string; p_resident_id: string }
+        Returns: undefined
+      }
+      assert_course_version_publish_ready: {
+        Args: { p_version_id: string }
         Returns: undefined
       }
       checkin_via_kiosk_pin: {
@@ -6077,6 +6092,10 @@ export type Database = {
         }[]
       }
       get_platform_health: { Args: never; Returns: Json }
+      get_course_version_publish_issues: {
+        Args: { p_version_id: string }
+        Returns: string[]
+      }
       get_quiz_answer_choices: {
         Args: { p_quiz_id: string }
         Returns: {
@@ -6169,6 +6188,10 @@ export type Database = {
         Returns: undefined
       }
       owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
+      publish_course_version: {
+        Args: { p_course_version_id: string }
+        Returns: string
+      }
       publish_schedule: { Args: { p_schedule_id: string }; Returns: undefined }
       queue_course_continuation_reminders: { Args: never; Returns: undefined }
       recalculate_all_compliance: { Args: never; Returns: undefined }
