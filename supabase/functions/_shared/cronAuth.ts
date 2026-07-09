@@ -1,4 +1,3 @@
-// @ts-nocheck
 export const CRON_SECRET_HEADER = "x-caremetric-cron-secret";
 
 export function withCronCorsHeader(headers: Record<string, string>): Record<string, string> {
