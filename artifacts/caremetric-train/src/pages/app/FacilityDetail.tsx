@@ -58,11 +58,15 @@ export default function FacilityDetail() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // This page is mounted at both /admin/facilities/:id (platform_admin) and
-  // /app/facilities/:id (org roles) -- every internal link/redirect must match whichever
-  // prefix the viewer is under, mirroring the pattern in EmployeeDetail.tsx.
-  const basePath = user?.role === "platform_admin" ? "/admin/facilities" : "/app/facilities";
-  const employeeBasePath = user?.role === "platform_admin" ? "/admin/employees" : "/app/employees";
+  // This page is mounted under /admin, /app, and /trainer prefixes -- every internal
+  // link/redirect must match whichever role-specific directory surface the viewer is under,
+  // mirroring the pattern in EmployeeDetail.tsx.
+  const basePath = user?.role === "platform_admin" ? "/admin/facilities"
+    : user?.role === "trainer" ? "/trainer/facilities"
+    : "/app/facilities";
+  const employeeBasePath = user?.role === "platform_admin" ? "/admin/employees"
+    : user?.role === "trainer" ? "/trainer/employees"
+    : "/app/employees";
   // Incident *detail* rows do have an /admin/incidents/:id counterpart (Alerts deep links use it --
   // see IncidentDetail.tsx), unlike the list route the "View all" link below points at.
   const incidentsBasePath = user?.role === "platform_admin" ? "/admin/incidents" : "/app/incidents";

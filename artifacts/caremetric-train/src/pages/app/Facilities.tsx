@@ -45,7 +45,9 @@ export default function Facilities() {
   const { viewingOrgId } = useViewingOrg();
   const { data: facilities, isLoading } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
   const { toast } = useToast();
-  const basePath = user?.role === "platform_admin" ? "/admin/facilities" : "/app/facilities";
+  const basePath = user?.role === "platform_admin" ? "/admin/facilities"
+    : user?.role === "trainer" ? "/trainer/facilities"
+    : "/app/facilities";
 
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
