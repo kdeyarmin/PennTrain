@@ -24,10 +24,15 @@ export interface AppPageDefinition {
 
 const PLATFORM_ADMIN: Role[] = ["platform_admin"];
 const ORG_ROLES: Role[] = ["org_admin", "facility_manager", "trainer", "auditor"];
+const ORG_HOME_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
 const ORG_MANAGERS: Role[] = ["org_admin", "facility_manager"];
 const REPORTING_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
 const CREDENTIAL_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
-const SUPPORT_ROLES: Role[] = ["org_admin", "facility_manager", "trainer", "auditor", "employee"];
+const INSPECTION_ROLES: Role[] = ["org_admin", "facility_manager", "trainer", "auditor"];
+const AUDIT_LOG_ROLES: Role[] = ["org_admin", "auditor"];
+const PENDING_APPROVAL_ROLES: Role[] = ["org_admin", "facility_manager", "trainer"];
+const TRAINER_ONLY: Role[] = ["trainer"];
+const EMPLOYEE_ONLY: Role[] = ["employee"];
 const ANY_ROLE: Role[] = ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"];
 
 export const APP_PAGES: AppPageDefinition[] = [
@@ -48,27 +53,32 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/admin/help-content", label: "Help center content", domain: "support", roles: PLATFORM_ADMIN, keywords: ["articles", "knowledge base"] },
   { path: "/admin/settings", label: "Platform settings", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["feature flags", "maintenance", "signup"] },
 
-  { path: "/app", label: "Organization dashboard", domain: "tenant", roles: ORG_ROLES, keywords: ["overview", "compliance"] },
-  { path: "/app/facilities", label: "Facilities", domain: "directory", roles: ORG_ROLES, keywords: ["locations", "sites"] },
-  { path: "/app/employees", label: "Employees", domain: "directory", roles: ORG_ROLES, keywords: ["staff", "workforce"] },
+  { path: "/app", label: "Organization dashboard", domain: "tenant", roles: ORG_HOME_ROLES, keywords: ["overview", "compliance"] },
+  { path: "/app/facilities", label: "Facilities", domain: "directory", roles: ORG_HOME_ROLES, keywords: ["locations", "sites"] },
+  { path: "/app/employees", label: "Employees", domain: "directory", roles: ORG_HOME_ROLES, keywords: ["staff", "workforce"] },
   { path: "/app/training-matrix", label: "Training matrix", domain: "training", roles: ORG_ROLES, keywords: ["compliance", "due soon"] },
+  { path: "/app/training-types", label: "Training types", domain: "training", roles: ORG_MANAGERS, keywords: ["requirements", "categories"] },
   { path: "/app/courses", label: "Courses", domain: "training", roles: ORG_ROLES, keywords: ["catalog", "lessons"] },
   { path: "/app/course-assignments", label: "Course assignments", domain: "training", roles: ORG_ROLES, keywords: ["assign", "learners"] },
   { path: "/app/training-plans", label: "Training plans", domain: "training", roles: ORG_ROLES, keywords: ["paths", "requirements"] },
   { path: "/app/competency-templates", label: "Competency templates", domain: "competency", roles: ORG_ROLES, keywords: ["skills", "evaluations"] },
   { path: "/app/competency-records", label: "Competency records", domain: "competency", roles: ORG_ROLES, keywords: ["evaluations", "skills"] },
+  { path: "/app/practicums", label: "Practicums", domain: "competency", roles: ORG_ROLES, keywords: ["medication", "observations"] },
+  { path: "/app/administrator-qualification", label: "Administrator qualification", domain: "credentialing", roles: ORG_MANAGERS, keywords: ["administrator", "continuing education"] },
+  { path: "/app/med-admin-roster", label: "Who can pass meds", domain: "credentialing", roles: ORG_ROLES, keywords: ["medication", "roster"] },
   { path: "/app/credentials", label: "Credentials & clearances", domain: "credentialing", roles: CREDENTIAL_ROLES, keywords: ["licenses", "expiring"] },
   { path: "/app/background-checks", label: "Background checks", domain: "credentialing", roles: CREDENTIAL_ROLES, keywords: ["screening", "clearance"] },
   { path: "/app/exclusion-screening", label: "Exclusion screening", domain: "credentialing", roles: CREDENTIAL_ROLES, keywords: ["sam", "oig", "screening"] },
   { path: "/app/schedule", label: "Schedule", domain: "scheduling", roles: ORG_MANAGERS, keywords: ["shifts", "coverage"] },
   { path: "/trainer/classes", label: "In-service classes", domain: "training", roles: ["trainer", "org_admin", "facility_manager"], keywords: ["class", "kiosk", "attendance"] },
-  { path: "/trainer/retraining", label: "Retraining monitor", domain: "training", roles: ["trainer", "org_admin", "facility_manager"], keywords: ["med admin", "recertification"] },
+  { path: "/trainer/retraining", label: "Retraining monitor", domain: "training", roles: TRAINER_ONLY, keywords: ["med admin", "recertification"] },
   { path: "/app/residents", label: "Residents", domain: "residents", roles: REPORTING_ROLES, keywords: ["resident records", "assessment"] },
   { path: "/app/resident-compliance", label: "Resident compliance", domain: "residents", roles: REPORTING_ROLES, keywords: ["assessments", "care"] },
+  { path: "/app/inspections", label: "Inspections & equipment", domain: "compliance", roles: INSPECTION_ROLES, keywords: ["fire drill", "equipment", "physical plant"] },
   { path: "/app/incidents", label: "Incidents & complaints", domain: "compliance", roles: REPORTING_ROLES, keywords: ["complaints", "events"] },
   { path: "/app/violations", label: "Violations & POCs", domain: "compliance", roles: REPORTING_ROLES, keywords: ["dhs", "plan of correction"] },
   { path: "/app/alerts", label: "Alerts", domain: "compliance", roles: ORG_ROLES, keywords: ["risk", "overdue"] },
-  { path: "/app/pending-approvals", label: "Pending approvals", domain: "compliance", roles: ORG_MANAGERS, keywords: ["review", "approval"] },
+  { path: "/app/pending-approvals", label: "Pending approvals", domain: "compliance", roles: PENDING_APPROVAL_ROLES, keywords: ["review", "approval", "external certificates"] },
   { path: "/app/reports", label: "Reports", domain: "documents", roles: REPORTING_ROLES, keywords: ["analytics", "exports"] },
   { path: "/app/inspection-readiness", label: "Inspection readiness", domain: "compliance", roles: REPORTING_ROLES, keywords: ["survey", "audit"] },
   { path: "/app/compliance-binder", label: "Compliance binder", domain: "documents", roles: REPORTING_ROLES, keywords: ["evidence", "packet"] },
@@ -77,21 +87,93 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/documents", label: "Documents", domain: "documents", roles: ORG_ROLES, keywords: ["files", "uploads"] },
   { path: "/app/users", label: "Users", domain: "tenant", roles: ORG_MANAGERS, keywords: ["roles", "invites"] },
   { path: "/app/settings", label: "Settings", domain: "tenant", roles: ORG_MANAGERS, keywords: ["configuration", "organization"] },
-  { path: "/app/help", label: "Help center", domain: "support", roles: SUPPORT_ROLES, keywords: ["support", "articles"] },
+  { path: "/app/audit", label: "Audit log", domain: "platform", roles: AUDIT_LOG_ROLES, keywords: ["activity", "history"] },
+  { path: "/app/help", label: "Help center", domain: "support", roles: ORG_ROLES, keywords: ["support", "articles"] },
 
-  { path: "/me", label: "My dashboard", domain: "self_service", roles: ["employee"], keywords: ["home", "tasks"] },
+  { path: "/trainer", label: "Trainer dashboard", domain: "training", roles: TRAINER_ONLY, keywords: ["classes", "training"] },
+  { path: "/trainer/facilities", label: "Trainer facilities", domain: "directory", roles: TRAINER_ONLY, keywords: ["locations", "sites"] },
+  { path: "/trainer/employees", label: "Trainer employees", domain: "directory", roles: TRAINER_ONLY, keywords: ["learners", "roster"] },
+
+  { path: "/me", label: "My dashboard", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["home", "tasks"] },
   { path: "/me/courses", label: "My courses", domain: "self_service", roles: ANY_ROLE, keywords: ["learning", "assignments"] },
-  { path: "/me/trainings", label: "My trainings", domain: "self_service", roles: ["employee"], keywords: ["records", "requirements"] },
-  { path: "/me/schedule", label: "My schedule", domain: "self_service", roles: ["employee"], keywords: ["shifts", "calendar"] },
-  { path: "/me/certificates", label: "My certificates", domain: "self_service", roles: ["employee"], keywords: ["proof", "download"] },
-  { path: "/me/credentials", label: "My credentials", domain: "self_service", roles: ["employee"], keywords: ["clearances", "licenses"] },
-  { path: "/me/attestations", label: "My attestations", domain: "self_service", roles: ["employee"], keywords: ["policies", "sign"] },
-  { path: "/me/help", label: "My help center", domain: "support", roles: SUPPORT_ROLES, keywords: ["support", "tickets"] },
+  { path: "/me/trainings", label: "My trainings", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["records", "requirements"] },
+  { path: "/me/schedule", label: "My schedule", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["shifts", "calendar"] },
+  { path: "/me/certificates", label: "My certificates", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["proof", "download"] },
+  { path: "/me/documents", label: "My documents", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["files", "uploads"] },
+  { path: "/me/credentials", label: "My credentials", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["clearances", "licenses"] },
+  { path: "/me/attestations", label: "My attestations", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["policies", "sign"] },
+  { path: "/me/help", label: "My help center", domain: "support", roles: EMPLOYEE_ONLY, keywords: ["support", "tickets"] },
 ];
+
+const APP_PAGES_BY_PATH = new Map(APP_PAGES.map((page) => [page.path, page]));
+const APP_PAGES_LONGEST_FIRST = [...APP_PAGES].sort((a, b) => b.path.length - a.path.length);
+
+function splitPathSuffix(path: string): [pathname: string, suffix: string] {
+  const match = path.match(/^([^?#]*)(.*)$/);
+  return [match?.[1] || "/", match?.[2] || ""];
+}
 
 export function pagesForRole(role: Role | undefined): AppPageDefinition[] {
   if (!role) return [];
   return APP_PAGES.filter((page) => page.roles.includes(role));
+}
+
+export function canViewPage(path: string, role: Role | undefined): boolean {
+  if (!role) return false;
+  return APP_PAGES_BY_PATH.get(path)?.roles.includes(role) ?? false;
+}
+
+export function helpBasePathForRole(role: Role | undefined): "/app" | "/me" | null {
+  if (!role || role === "platform_admin") return null;
+  return role === "employee" ? "/me" : "/app";
+}
+
+export function homePathForRole(role: Role | undefined): "/admin" | "/app" | "/trainer" | "/me" | null {
+  if (!role) return null;
+  if (role === "platform_admin") return "/admin";
+  if (role === "trainer") return "/trainer";
+  if (role === "employee") return "/me";
+  return "/app";
+}
+
+export function canonicalHelpPathForRole(path: string, role: Role | undefined): string {
+  const helpBase = helpBasePathForRole(role);
+  if (!helpBase) return path;
+  const [pathname, suffix] = splitPathSuffix(path);
+  if (pathname === "/app/help" || pathname.startsWith("/app/help/")) return `${helpBase}${pathname.slice("/app".length)}${suffix}`;
+  if (pathname === "/me/help" || pathname.startsWith("/me/help/")) return `${helpBase}${pathname.slice("/me".length)}${suffix}`;
+  return path;
+}
+
+function canonicalNavigationPathForRole(path: string, role: Role | undefined): string {
+  const helpPath = canonicalHelpPathForRole(path, role);
+  if (role !== "trainer") return helpPath;
+
+  const [pathname, suffix] = splitPathSuffix(helpPath);
+  if (pathname === "/app") return `/trainer${suffix}`;
+  if (pathname === "/app/facilities" || pathname.startsWith("/app/facilities/")) {
+    return `/trainer/facilities${pathname.slice("/app/facilities".length)}${suffix}`;
+  }
+  if (pathname === "/app/employees" || pathname.startsWith("/app/employees/")) {
+    return `/trainer/employees${pathname.slice("/app/employees".length)}${suffix}`;
+  }
+  return helpPath;
+}
+
+export function canViewPath(path: string, role: Role | undefined): boolean {
+  if (!role) return false;
+  const canonicalPath = canonicalHelpPathForRole(path, role);
+  const [pathname] = splitPathSuffix(canonicalPath);
+  const page = APP_PAGES_LONGEST_FIRST.find(
+    (candidate) => pathname === candidate.path || pathname.startsWith(`${candidate.path}/`),
+  );
+  return page?.roles.includes(role) ?? false;
+}
+
+export function safePathForRole(path: string, role: Role | undefined): string | null {
+  if (!role) return null;
+  const canonicalPath = canonicalNavigationPathForRole(path, role);
+  return canViewPath(canonicalPath, role) ? canonicalPath : homePathForRole(role);
 }
 
 export function searchPages(query: string, role: Role | undefined): AppPageDefinition[] {

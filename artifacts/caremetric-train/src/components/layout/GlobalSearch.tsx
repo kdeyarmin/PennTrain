@@ -44,7 +44,9 @@ export function GlobalSearch() {
     pageResults.length || results.organizations.length || results.profiles.length || results.employees.length || results.residents.length
   );
 
-  const employeesBasePath = user?.role === "platform_admin" ? "/admin/employees" : "/app/employees";
+  const employeesBasePath = user?.role === "platform_admin" ? "/admin/employees"
+    : user?.role === "trainer" ? "/trainer/employees"
+    : "/app/employees";
   const usersBasePath = user?.role === "platform_admin" ? "/admin/users" : "/app/users";
 
   const go = (path: string) => {

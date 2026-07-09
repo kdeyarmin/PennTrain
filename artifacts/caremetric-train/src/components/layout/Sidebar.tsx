@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth, useSignOut } from "@/lib/auth";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
+import { canViewPage } from "@/lib/appDomains";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { PCH_ALR_ONLY_FACILITY_TYPES, hasAnyFacilityType } from "@/lib/facilityTypes";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -285,8 +286,22 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Training",
         items: [
           { href: "/trainer/classes", label: "My Classes", icon: GraduationCap },
+          { href: "/app/courses", label: "Courses", icon: GraduationCap },
+          { href: "/app/course-assignments", label: "Course Assignments", icon: FileCheck },
+          { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
           { href: "/trainer/retraining", label: "Retraining Monitor", icon: ShieldAlert },
+          { href: "/app/pending-approvals", label: "Pending Approvals", icon: ClipboardCheck },
           { href: "/me/courses", label: "My Courses", icon: BookOpen },
+        ]
+      },
+      {
+        title: "Competency",
+        items: [
+          { href: "/app/training-matrix", label: "Training Matrix", icon: Grid },
+          { href: "/app/competency-templates", label: "Competency Templates", icon: ClipboardList },
+          { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
+          ...(showPchAlrModules ? [{ href: "/app/practicums", label: "Practicums", icon: FileCheck }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/med-admin-roster", label: "Who Can Pass Meds", icon: Pill }] : []),
         ]
       },
       {
@@ -298,6 +313,13 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           // page -- ProtectedRoute gates by role membership, not URL prefix, and
           // INSPECTION_ROLES already includes trainer.
           ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & Equipment", icon: Flame }] : []),
+        ]
+      },
+      {
+        title: "Records",
+        items: [
+          { href: "/app/documents", label: "Documents", icon: Files },
+          { href: "/app/alerts", label: "Alerts", icon: Bell },
         ]
       },
       {
@@ -393,7 +415,12 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   // section flicker out on every fresh page load, and a query error would permanently hide it.
   const showPchAlrModules = facilityTypesLoading || facilityTypesError
     || hasAnyFacilityType(facilityTypes, PCH_ALR_ONLY_FACILITY_TYPES);
-  const navSections = getNavSections(user.role, showPchAlrModules);
+  const navSections = getNavSections(user.role, showPchAlrModules)
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => canViewPage(item.href, user.role)),
+    }))
+    .filter((section) => section.items.length > 0);
 
   const toggleSection = (title: string) => {
     setCollapsedSections((prev) => {

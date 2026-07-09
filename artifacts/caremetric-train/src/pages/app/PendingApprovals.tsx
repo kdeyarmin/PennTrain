@@ -34,9 +34,8 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 
 type DecisionAction = "pending" | "approved" | "rejected";
 
-// Matches employee_training_records_insert/_update RLS -- auditor can reach this page (it's in
-// ORG_ROLES) but has no write grant, so its Approve/Reject/Save-as-Pending controls must be hidden
-// rather than rendered and left to fail at the database.
+// Matches employee_training_records_insert/_update RLS. Auditors are intentionally not routed to
+// this operational queue; everyone who can reach it can review external training evidence.
 const PENDING_APPROVAL_MANAGE_ROLES = ["platform_admin", "org_admin", "facility_manager", "trainer"];
 
 // Default age cutoff for the "New Submissions" tab -- a document uploaded this long ago without
