@@ -36,7 +36,7 @@ type DecisionAction = "pending" | "approved" | "rejected";
 
 // Matches employee_training_records_insert/_update RLS. Auditors are intentionally not routed to
 // this operational queue; everyone who can reach it can review external training evidence.
-const PENDING_APPROVAL_MANAGE_ROLES = ["platform_admin", "org_admin", "facility_manager", "trainer"];
+const PENDING_APPROVAL_MANAGE_ROLES = ["org_admin", "facility_manager", "trainer"];
 
 // Default age cutoff for the "New Submissions" tab -- a document uploaded this long ago without
 // ever being linked to a training record is presumably already handled some other way (or simply
