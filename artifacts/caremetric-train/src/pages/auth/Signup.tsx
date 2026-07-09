@@ -118,7 +118,7 @@ export default function Signup() {
         lastName: form.lastName.trim(),
         organizationName: form.organizationName.trim(),
         turnstileToken,
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/reset-password`,
       },
       {
         onSuccess: () => {

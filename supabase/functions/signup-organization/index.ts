@@ -300,7 +300,14 @@ Deno.serve(async (req: Request) => {
     const status = error instanceof HttpError ? error.status : 500;
     const code = error instanceof HttpError ? error.code : "unexpected_error";
     const message = error instanceof Error ? error.message : String(error);
-    await recordAttempt(adminClient, emailHash, ipHash, false, code);
+    // Do not record a rate-limit attempt for Turnstile failures: the token was never
+    // verified, so we have no proof the caller controls this email address. Counting
+    // these would let an attacker exhaust the per-email limit without ever solving
+    // Turnstile (e.g. by replaying requests with a victim's address and a bad token).
+    const isTurnstileFailure = code === "turnstile_failed" || code === "turnstile_required" || code === "turnstile_not_configured";
+    if (!isTurnstileFailure) {
+      await recordAttempt(adminClient, emailHash, ipHash, false, code);
+    }
     return json({ success: false, error: message }, status);
   }
 });
