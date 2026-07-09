@@ -62,7 +62,16 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
      ANTHROPIC_API_KEY=... \
      SENDGRID_API_KEY=... \
      NOTIFICATION_FROM_EMAIL='CareMetric Train <notifications@caremetrictrain.com>' \
-     TWILIO_ACCOUNT_SID=... TWILIO_AUTH_TOKEN=... TWILIO_FROM_NUMBER=...
+     TWILIO_ACCOUNT_SID=... TWILIO_AUTH_TOKEN=... TWILIO_FROM_NUMBER=... \
+     CRON_SHARED_SECRET=... \
+     TURNSTILE_SECRET_KEY=... \
+     SIGNUP_RATE_LIMIT_PEPPER=... \
+     SIGNUP_REDIRECT_ORIGINS='https://caremetrictrain.com,https://penntrain-production.up.railway.app' \
+     PUBLIC_APP_URL='https://caremetrictrain.com'
+   ```
+   Store the same `CRON_SHARED_SECRET` in Supabase Vault before the cron-hardening migration runs:
+   ```sql
+   select vault.create_secret('<same random value>', 'cron_shared_secret');
    ```
    `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are injected into Edge
    Functions automatically by Supabase -- you do not set those secrets yourself.
@@ -104,9 +113,9 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
      and Custom SMTP is bypassed entirely (see [Supabase's Send Email Hook
      docs](https://supabase.com/docs/guides/auth/auth-hooks/send-email-hook) for the exact
      precedence rules).
-7. Seed demo/admin users via the Supabase Admin API or the `create-user` Edge Function -- there is no
-   public self-signup route by design (see `ARCHITECTURE.md` "Roles"). The `handle_new_user()` trigger
-   creates the matching `profiles` row automatically.
+7. Create production admin users with `invite-user` or the Supabase Admin API using environment-specific
+   credentials. Do not run SQL that seeds reusable platform_admin or demo passwords. Self-service `/signup`
+   is available for new organizations and requires Turnstile plus invite-email verification.
 8. Generate TypeScript types after any schema change:
    ```bash
    npx supabase gen types typescript --project-id <your-project-ref> \
@@ -141,7 +150,8 @@ can see the whole workspace and lockfile.
      breaks the Vite 7 build. Do not switch this service back to Nixpacks.)
    - Build: `pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-train run typecheck && pnpm --filter @workspace/caremetric-train run build`
      (Railpack also runs its own install beforehand; the explicit one is a harmless belt-and-braces
-     step, and the typecheck is the deploy's only static gate since no linter is configured)
+    step, and the typecheck is the deploy's static gate; GitHub Actions runs the broader
+    `check:all`-style workflow on pushes/PRs)
    - Start: `pnpm --filter @workspace/caremetric-train run start`
    - Healthcheck: `GET /health`
    - Watch paths: only changes under `artifacts/caremetric-train/` and the root toolchain/config files
@@ -186,6 +196,8 @@ can see the whole workspace and lockfile.
 |---|---|---|
 | `VITE_SUPABASE_URL` | yes | Supabase project URL (Project Settings -> API). **Build-time**: baked into the bundle; changes require a redeploy, not just a restart |
 | `VITE_SUPABASE_ANON_KEY` | yes | anon/publishable key -- safe for the browser, RLS is the real gate. **Build-time**, same caveat as above |
+| `VITE_TURNSTILE_SITE_KEY` | yes | Cloudflare Turnstile site key for `/signup`. **Build-time**, same redeploy caveat as other `VITE_` values |
+| `VITE_DEMO_ACCOUNTS_JSON` | no | Optional JSON array for a deliberate demo environment. Leave unset in production unless public demo access is intentionally enabled |
 | `NODE_ENV` | no | Railpack already sets `production`; setting it yourself is harmless |
 | `PORT` | no | Railway injects this automatically; the server reads it |
 | `HOST` | no | the server binds dual-stack `::` by default (Railway's recommendation); override only if you need something else |
@@ -205,11 +217,10 @@ and `TWILIO_*` (see step 4 below) -- none of these are Railway variables.
 
 ## 3. Local development
 
-> **Platform note:** `pnpm-workspace.yaml` deliberately strips every native binary except the
-> linux-x64-glibc variants (esbuild/rollup/lightningcss/@tailwindcss/oxide) to keep the deploy
-> surface minimal, so `pnpm install` + `pnpm run dev` only works on linux-x64-glibc environments
-> (dev containers, WSL2, CI, Railway itself). On macOS/Windows/ARM, develop inside a container,
-> or migrate the override list to pnpm's `supportedArchitectures` if native local dev is needed.
+> **Platform note:** `pnpm-workspace.yaml` uses pnpm `supportedArchitectures` to install native
+> optional dependencies for the current developer machine plus linux-x64-glibc CI/deploys.
+> Windows/macOS local installs are supported for frontend typecheck/unit-test work; Deno is still
+> required for `pnpm run check:edge-functions`.
 
 ```bash
 pnpm install
@@ -298,10 +309,10 @@ inspect, `rollback` -- zero data persisted) before being written up here.
   admin-gated `create-user` Edge Function entirely. Fixed by reading role/organization_id from
   `raw_app_meta_data` instead -- a field only settable via the service-role Admin API, never by the
   public signup endpoint -- and updating `create-user`'s Edge Function to set it there (redeployed
-  as part of this fix, so admin-provisioned account creation is unaffected). **Recommended
-  additional step**: disable public email signup entirely in Authentication -> Providers unless
-  self-service signup is an intended product feature; this fix closes the privilege-escalation path
-  regardless, but signup is not otherwise used by this app's UI (see `ARCHITECTURE.md` "Roles").
+  as part of this fix, so admin-provisioned account creation is unaffected). Production should keep
+  plain Supabase email signup disabled in Authentication -> Providers; the intended self-service
+  path is the hardened `signup-organization` Edge Function, which creates a brand-new organization
+  only after Turnstile, rate-limit, platform-setting, and invite-email checks pass.
 - **High -- unauthenticated cross-tenant RPC**
   (`20260704180605_revoke_public_grant_on_privileged_functions.sql`): a prior migration
   (`tighten_function_grants.sql`) revoked `EXECUTE` on several `SECURITY DEFINER` functions from
@@ -400,12 +411,11 @@ green `/health` would not reveal that.
   `https://caremetrictrain.com/login` and `https://penntrain-production.up.railway.app/login`.
 - Leaked password protection (Authentication -> Policies) is still disabled and must be toggled on
   manually in the dashboard -- it's an Auth config setting, not something a SQL migration can flip.
-- Public email signup is currently enabled on the live project. The privilege-escalation path this
-  allowed is closed (see section 7), but if self-service signup isn't an intended product feature,
-  disable it in Authentication -> Providers as defense in depth.
-- No linter (ESLint/Biome/etc.) is configured in this repo; `pnpm run typecheck` (tsc, no-emit) is
-  the static check currently available, and the Railway buildCommand runs it (for the deployed
-  package) as a deploy gate. Add a linter separately if desired -- out of scope here.
+- Keep plain Supabase email signup disabled in Authentication -> Providers. Self-service signup
+  should go through `signup-organization`, which enforces Turnstile, rate limits, and invite-email
+  verification before the org_admin can set a password.
+- No linter (ESLint/Biome/etc.) is configured in this repo yet; CI now runs install, typecheck,
+  unit tests, Edge Function `deno check`, and production build. Add a linter separately if desired.
 - `pnpm run db:migrate` requires `supabase login` + `supabase link --project-ref <ref>` to have been
   run once first (interactive, not scriptable).
 - `SENDGRID_API_KEY` must be set via `supabase secrets set` (step 1.4) for the training-reminder

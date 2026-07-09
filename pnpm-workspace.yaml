@@ -12,10 +12,12 @@ allowBuilds:
 
 autoInstallPeers: false
 
+# Install native optional dependencies for the current developer machine and linux-x64-glibc
+# CI/deploys. This replaces the older override list that removed every non-Linux native package,
+# which made Windows local installs unable to provide Vite/Vitest/esbuild binaries.
 supportedArchitectures:
   os:
     - current
-    - win32
     - linux
   cpu:
     - current

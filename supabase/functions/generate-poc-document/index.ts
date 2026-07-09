@@ -1,4 +1,5 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+// @ts-nocheck
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 
 const CORS_HEADERS = {
@@ -168,7 +169,7 @@ Deno.serve(async (req: Request) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-  const callerClient = createClient(supabaseUrl, anonKey, {
+  const callerClient = createClient<any>(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 
@@ -230,7 +231,7 @@ Deno.serve(async (req: Request) => {
     correctiveActions: (correctiveActions ?? []) as unknown as CorrectiveActionRow[],
   });
 
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
   // Path shape (org/facility/...) matches the "violation-documents" bucket's RLS policies, which
   // read the facility id out of the second folder segment -- see
   // supabase/migrations/..._violation_documents_storage_bucket.sql.

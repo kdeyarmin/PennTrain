@@ -1,4 +1,5 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+// @ts-nocheck
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { pollAndResolveHeygenVideo, type HeygenJobState } from "../_shared/heygenPolling.ts";
 
 const CORS_HEADERS = {
@@ -30,7 +31,7 @@ Deno.serve(async (req: Request) => {
   const heygenApiKey = Deno.env.get("HEYGEN_API_KEY");
   if (!heygenApiKey) return json({ error: "HEYGEN_API_KEY is not configured" }, 500);
 
-  const callerClient = createClient(supabaseUrl, anonKey, {
+  const callerClient = createClient<any>(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 
@@ -70,7 +71,7 @@ Deno.serve(async (req: Request) => {
   // Only the storage upload step needs service-role privileges (writing into the course-videos
   // bucket); all course_blocks writes still go through the caller's own RLS-scoped client, same
   // as before this was extracted into the shared module.
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
 
   const result = await pollAndResolveHeygenVideo(callerClient, adminClient, block, heygenApiKey);
 

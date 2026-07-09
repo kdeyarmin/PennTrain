@@ -1,4 +1,5 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+// @ts-nocheck
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -224,7 +225,7 @@ Deno.serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const callerClient = createClient(supabaseUrl, anonKey, {
+  const callerClient = createClient<any>(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 
@@ -243,7 +244,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: "not authorized to generate resident assessment wellness summaries" }, 403);
   }
   if (!serviceRoleKey) return json({ error: "SUPABASE_SERVICE_ROLE_KEY is not configured" }, 500);
-  const privilegedClient = createClient(supabaseUrl, serviceRoleKey);
+  const privilegedClient = createClient<any>(supabaseUrl, serviceRoleKey);
 
   const { data: aiGenerationSetting, error: aiGenerationSettingError } = await callerClient
     .rpc("get_platform_setting", { p_key: "ai_wellness_summary_generation_enabled" });

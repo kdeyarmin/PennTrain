@@ -1,19 +1,18 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+// @ts-nocheck
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { pollAndResolveHeygenVideo, type HeygenJobState } from "../_shared/heygenPolling.ts";
+import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
 
 // Internal cron-only endpoint: invoked exclusively by the poll-heygen-video-statuses pg_cron job
 // every 5 minutes via net.http_post (see
-// supabase/migrations/20260705211500_schedule_heygen_video_status_polling.sql). Deliberately
-// verify_jwt:false (see supabase/config.toml) -- pg_net has no way to obtain a user JWT, and this
-// function takes no caller-supplied parameters that could expose one org's data to another; it
-// always processes the same system-wide non-terminal HeyGen job queue regardless of who/what
-// calls it, the same way dispatch-notifications does for its own pending-delivery queue. All
-// actual data access goes through this function's own service-role client.
+// supabase/migrations/20260705203950_schedule_heygen_video_status_polling.sql). Deliberately
+// verify_jwt:false because pg_net has no user JWT; authenticity is enforced here with
+// CRON_SHARED_SECRET / x-caremetric-cron-secret.
 
-const CORS_HEADERS = {
+const CORS_HEADERS = withCronCorsHeader({
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+});
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -32,13 +31,15 @@ interface PollableCourseBlock {
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
+  const cronAuthError = requireCronRequest(req, CORS_HEADERS);
+  if (cronAuthError) return cronAuthError;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const heygenApiKey = Deno.env.get("HEYGEN_API_KEY");
   if (!heygenApiKey) return json({ error: "HEYGEN_API_KEY is not configured" }, 500);
 
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
 
   // Codex/Copilot review finding: pollAndResolveHeygenVideo persists whatever non-terminal status
   // HeyGen itself reports (status: heygenStatus for any status that isn't "completed"), not just

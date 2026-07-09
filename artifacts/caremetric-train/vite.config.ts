@@ -38,10 +38,9 @@ export default defineConfig(({ command, mode }) => {
       tailwindcss(),
       // Installable PWA course player (ROADMAP.md Tier 3.4). generateSW precaches the built app
       // shell (JS/CSS/HTML) with a default cache-first strategy for those static assets --
-      // Supabase API/storage requests are runtime-cached separately below, network-first, so a
-      // learner always gets fresh data when online and the last-seen response when they briefly
-      // drop signal, without the app claiming to work fully offline (it doesn't -- there is no
-      // queued-write/background-sync story here, just resilience against flaky mobile networks).
+      // Public course-video storage requests are runtime-cached separately below, network-first,
+      // so a learner gets resilience for media without caching RLS-protected REST responses by URL.
+      // There is no queued-write/background-sync story here.
       //
       // devOptions.enabled is deliberately NOT set: turning on the dev-mode service worker here
       // reproduced a hard hang on every login in `npm run dev` (auth resolves, but the
@@ -78,15 +77,25 @@ export default defineConfig(({ command, mode }) => {
           // manifest.webmanifest is deliberately omitted -- vite-plugin-pwa always injects it into
           // the precache manifest itself regardless of globPatterns, so listing it here just
           // produces a duplicate (harmless, but noisy in the generated sw.js).
-          globPatterns: ["index.html", "**/index-*.js", "**/query-*.js", "**/radix-*.js", "**/*.css"],
+          globPatterns: [
+            "index.html",
+            "**/index-*.js",
+            "**/router-*.js",
+            "**/query-*.js",
+            "**/radix-*.js",
+            "**/supabase-*.js",
+            "**/motion-*.js",
+            "**/icons-*.js",
+            "**/*.css",
+          ],
           runtimeCaching: [
             {
               urlPattern: ({ url }) =>
                 url.hostname.endsWith(".supabase.co") &&
-                (url.pathname.startsWith("/rest/v1/") || url.pathname.startsWith("/storage/v1/")),
+                url.pathname.startsWith("/storage/v1/object/public/course-videos/"),
               handler: "NetworkFirst",
               options: {
-                cacheName: "supabase-runtime",
+                cacheName: "supabase-public-storage",
                 networkTimeoutSeconds: 8,
                 expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 },
               },
@@ -121,6 +130,7 @@ export default defineConfig(({ command, mode }) => {
       rollupOptions: {
         output: {
           manualChunks: {
+            router: ["wouter"],
             radix: [
               "@radix-ui/react-accordion",
               "@radix-ui/react-alert-dialog",
@@ -135,6 +145,9 @@ export default defineConfig(({ command, mode }) => {
               "@radix-ui/react-tooltip",
             ],
             query: ["@tanstack/react-query"],
+            supabase: ["@supabase/supabase-js"],
+            motion: ["framer-motion"],
+            icons: ["lucide-react"],
           },
         },
       },

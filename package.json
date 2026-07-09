@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
+    "preinstall": "node scripts/enforce-pnpm.cjs",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "start": "pnpm --filter @workspace/caremetric-train run start",
     "dev": "pnpm --filter @workspace/caremetric-train run dev",
@@ -12,7 +12,7 @@
     "doctor": "pnpm --filter @workspace/scripts run doctor",
     "doctor:network": "pnpm --filter @workspace/scripts run doctor:network",
     "db:migrate": "npx --yes supabase db push",
-    "check:edge-functions": "./scripts/check-edge-functions.sh",
+    "check:edge-functions": "node scripts/check-edge-functions.mjs",
     "check:all": "pnpm run typecheck && pnpm run test && pnpm run check:edge-functions && pnpm --filter @workspace/caremetric-train run build"
   },
   "private": true,

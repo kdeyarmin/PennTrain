@@ -7,17 +7,9 @@ import { supabase } from "@/lib/supabase";
 import { markExplicitPasswordSignIn } from "@/lib/auth";
 import { Loader2 } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
+import { parseDemoAccounts, type DemoAccount } from "@/lib/demoAccounts";
 
-// Sunrise Healthcare sandbox org only -- the real platform_admin login is
-// deliberately excluded from this (public, signed-out) page. See 2f521dd,
-// which stripped it out of the old Login-page picker for the same reason.
-const DEMO_ACCOUNTS = [
-  { label: "Org Admin", email: "admin@sunrisehealthcare.com", password: "demo123", color: "bg-blue-500" },
-  { label: "Facility Manager", email: "manager@sunrisemanor.com", password: "demo123", color: "bg-emerald-500" },
-  { label: "Trainer", email: "trainer@sunrisehealthcare.com", password: "demo123", color: "bg-amber-500" },
-  { label: "Auditor", email: "auditor@sunrisehealthcare.com", password: "demo123", color: "bg-slate-500" },
-  { label: "Employee", email: "employee@sunrisehealthcare.com", password: "demo123", color: "bg-teal-500" },
-] as const;
+const DEMO_ACCOUNTS = parseDemoAccounts(import.meta.env.VITE_DEMO_ACCOUNTS_JSON as string | undefined);
 
 export default function Demo() {
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
@@ -50,7 +42,7 @@ export default function Demo() {
     },
   });
 
-  const handleDemoLogin = (account: (typeof DEMO_ACCOUNTS)[number]) => {
+  const handleDemoLogin = (account: DemoAccount) => {
     setPendingEmail(account.email);
     loginMutation.mutate({ email: account.email, password: account.password });
   };
@@ -77,30 +69,36 @@ export default function Demo() {
         <Card className="border-border/50 shadow-xl shadow-black/[0.04] backdrop-blur-sm">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg">Try a demo account</CardTitle>
-            <CardDescription>Pick a role to explore sample data from the Sunrise Healthcare demo organization</CardDescription>
+            <CardDescription>
+              {DEMO_ACCOUNTS.length > 0
+                ? "Pick a role to explore sample data."
+                : "Demo access is not enabled for this deployment."}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-2">
-              {DEMO_ACCOUNTS.map((account) => (
-                <button
-                  key={account.email}
-                  type="button"
-                  disabled={loginMutation.isPending}
-                  onClick={() => handleDemoLogin(account)}
-                  className="flex items-center gap-2.5 p-2.5 rounded-lg border border-border/60 bg-card hover:bg-muted/60 transition-all text-left disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {loginMutation.isPending && pendingEmail === account.email ? (
-                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
-                  ) : (
-                    <div className={`h-2 w-2 rounded-full ${account.color} shrink-0`} />
-                  )}
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-foreground leading-tight">{account.label}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">{account.email}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
+            {DEMO_ACCOUNTS.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2">
+                {DEMO_ACCOUNTS.map((account) => (
+                  <button
+                    key={account.email}
+                    type="button"
+                    disabled={loginMutation.isPending}
+                    onClick={() => handleDemoLogin(account)}
+                    className="flex items-center gap-2.5 p-2.5 rounded-lg border border-border/60 bg-card hover:bg-muted/60 transition-all text-left disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {loginMutation.isPending && pendingEmail === account.email ? (
+                      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+                    ) : (
+                      <div className={`h-2 w-2 rounded-full ${account.color} shrink-0`} />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground leading-tight">{account.label}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{account.email}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <p className="mt-4 text-center text-[13px] text-muted-foreground">
               Have your own account?{" "}
               <Link href="/login" className="font-medium text-primary hover:text-primary/80">
@@ -111,7 +109,7 @@ export default function Demo() {
         </Card>
 
         <p className="text-center text-[11px] text-muted-foreground/60">
-          Demo data only &mdash; changes here don&apos;t affect any real facility.
+          Demo data only. Changes here don&apos;t affect any real facility.
         </p>
       </div>
     </div>
