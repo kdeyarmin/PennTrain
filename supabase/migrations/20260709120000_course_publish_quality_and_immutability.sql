@@ -49,6 +49,11 @@ begin
       v_issues := array_append(v_issues, v_label || ': add a finished video URL before publishing.');
     end if;
 
+    if rec.block_type = 'video'
+       and coalesce(btrim(coalesce(rec.body ->> 'transcript', rec.body ->> 'script')), '') = '' then
+      v_issues := array_append(v_issues, v_label || ': add captions or transcript notes for accessibility.');
+    end if;
+
     if rec.block_type in ('pdf', 'scorm') and rec.document_id is null then
       v_issues := array_append(v_issues, v_label || ': attach a document.');
     end if;
