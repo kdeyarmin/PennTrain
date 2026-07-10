@@ -301,9 +301,9 @@ Deno.serve(async (req: Request) => {
     const code = error instanceof HttpError ? error.code : "unexpected_error";
     // For HttpError, the message is intentionally user-facing. For unexpected errors, return a
     // generic message to avoid leaking internal details or stack traces to the caller.
-    const isHttpError = error instanceof HttpError;
-    const message = isHttpError ? (error as HttpError).message : "An unexpected error occurred. Please try again.";
-    if (!isHttpError) console.error("Unexpected signup error:", error);
+const isHttpError = error instanceof HttpError;
+const message = isHttpError ? (error as HttpError).message : "An unexpected error occurred. Please try again.";
+if (!isHttpError || status >= 500) console.error(isHttpError ? "Signup HttpError:" : "Unexpected signup error:", error);
     // Do not record a rate-limit attempt for Turnstile failures: the token was never
     // verified, so we have no proof the caller controls this email address. Counting
     // these would let an attacker exhaust the per-email limit without ever solving
