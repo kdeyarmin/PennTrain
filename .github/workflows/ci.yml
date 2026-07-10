@@ -9,6 +9,8 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       VITE_SUPABASE_URL: https://example.supabase.co
       VITE_SUPABASE_ANON_KEY: test-anon-key
