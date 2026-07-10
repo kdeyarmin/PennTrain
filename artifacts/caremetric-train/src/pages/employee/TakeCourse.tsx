@@ -617,11 +617,11 @@ useEffect(() => {
                       <Icon className="h-3 w-3 shrink-0" />
                       <span>{i + 1}</span>
                       <span className="hidden sm:inline truncate max-w-28">{b.title ?? getBlockLabel(b.block_type)}</span>
-                      {confidence && (
-                        <span className="hidden md:inline text-[10px] opacity-80">
-                          · {confidence === "ready" ? "ready" : "review"}
-                        </span>
-                      )}
+{confidence && (
+  <span className="hidden md:inline text-[10px] opacity-80">
+    · {CONFIDENCE_LABEL[confidence]}
+  </span>
+)}
                     </button>
                   );
                 })}
