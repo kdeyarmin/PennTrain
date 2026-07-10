@@ -87,7 +87,11 @@ function resolveRedirectTo(candidate: string | undefined): string {
   if (!url.pathname.endsWith("/reset-password")) {
     throw new HttpError(400, "invalid_redirect", "Signup redirects must land on /reset-password");
   }
-  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") return url.toString();
+  const allowLocalhostRedirects = Deno.env.get("ALLOW_LOCALHOST_SIGNUP_REDIRECTS") === "true";
+  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+    if (allowLocalhostRedirects) return url.toString();
+    throw new HttpError(400, "invalid_redirect", "Localhost signup redirects are disabled");
+  }
   if (!allowedRedirectOrigins().has(url.origin)) {
     throw new HttpError(400, "invalid_redirect", "Signup redirect origin is not allowed");
   }

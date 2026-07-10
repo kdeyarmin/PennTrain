@@ -58,10 +58,21 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  const { email, password, first_name, last_name, role, organization_id } = body;
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : undefined;
+  const password = typeof body.password === "string" ? body.password : undefined;
+  const first_name = typeof body.first_name === "string" ? body.first_name.trim() : undefined;
+  const last_name = typeof body.last_name === "string" ? body.last_name.trim() : undefined;
+  const role = typeof body.role === "string" ? body.role : undefined;
+  const organization_id = typeof body.organization_id === "string" ? body.organization_id.trim() : undefined;
 
   if (!email || !password || !first_name || !last_name || !role) {
     return json({ error: "email, password, first_name, last_name, and role are required" }, 400);
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json({ error: "Enter a valid email address" }, 400);
+  }
+  if (first_name.length > 100 || last_name.length > 100) {
+    return json({ error: "first_name and last_name must be 100 characters or fewer" }, 400);
   }
   if (!VALID_ROLES.includes(role)) {
     return json({ error: `role must be one of ${VALID_ROLES.join(", ")}` }, 400);
