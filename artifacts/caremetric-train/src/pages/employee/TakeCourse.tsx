@@ -162,7 +162,13 @@ export default function TakeCourse() {
   const [ratingComment, setRatingComment] = useState("");
   const [lessonNotes, setLessonNotes] = useState<Record<string, string>>({});
   const [lessonConfidence, setLessonConfidence] = useState<Record<string, LessonConfidence>>({});
-  const [lessonToolsLoaded, setLessonToolsLoaded] = useState(false);
+  // Tracks which assignmentId's data is currently loaded in lessonNotes/lessonConfidence.
+  // Using an id string (rather than a boolean) prevents the save effect from writing stale
+  // notes/confidence to a new assignment's storage key: when assignmentId changes, both the
+  // load and save effects run in the same render pass. The save effect's closure captures the
+  // old lessonToolsLoadedForId value, so the guard `lessonToolsLoadedForId !== assignmentId`
+  // blocks the write until the load effect's state updates are committed in the next render.
+  const [lessonToolsLoadedForId, setLessonToolsLoadedForId] = useState<string | null>(null);
   const [learningToolsStorageError, setLearningToolsStorageError] = useState<string | null>(null);
   const [lastStudyToolsSavedAt, setLastStudyToolsSavedAt] = useState<string | null>(null);
   const [readingComfort, setReadingComfort] = useState<ReadingComfort>("comfortable");
@@ -170,7 +176,7 @@ export default function TakeCourse() {
   useEffect(() => {
     const key = lessonStorageKey(assignmentId);
     if (!key) return;
-    setLessonToolsLoaded(false);
+    setLessonToolsLoadedForId(null);
     setLearningToolsStorageError(null);
     try {
       // Local reflection state is a learning aid only; malformed browser storage should not block
@@ -184,14 +190,14 @@ export default function TakeCourse() {
       setLessonNotes({});
       setLessonConfidence({});
     } finally {
-      setLessonToolsLoaded(true);
+      setLessonToolsLoadedForId(assignmentId);
       setLastStudyToolsSavedAt(null);
     }
   }, [assignmentId]);
 
 useEffect(() => {
   const key = lessonStorageKey(assignmentId);
-  if (!key || !lessonToolsLoaded) return;
+  if (!key || lessonToolsLoadedForId !== assignmentId) return;
 
   const timeoutId = window.setTimeout(() => {
     try {
@@ -205,7 +211,7 @@ useEffect(() => {
   }, 300);
 
   return () => window.clearTimeout(timeoutId);
-}, [assignmentId, lessonNotes, lessonConfidence, lessonToolsLoaded]);
+}, [assignmentId, lessonNotes, lessonConfidence, lessonToolsLoadedForId]);
 
   // Resume where the learner left off (course_progress.last_block_id), once,
   // as soon as blocks are loaded. If there's no progress row yet (brand new
