@@ -3,8 +3,8 @@ import { useLocation } from "wouter";
 import { useGlobalSearch } from "@/hooks/useGlobalSearch";
 import { useAuth } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
-import { searchPages } from "@/lib/appDomains";
-import { Search, Building2, User, Users, UserRound, Compass } from "lucide-react";
+import { searchCommandActions, searchPages } from "@/lib/appDomains";
+import { Search, Building2, User, Users, UserRound, Compass, Zap } from "lucide-react";
 
 const DEBOUNCE_MS = 250;
 
@@ -39,9 +39,10 @@ export function GlobalSearch() {
   }, []);
 
   const { data: results, isFetching } = useGlobalSearch(debouncedQuery, user?.role);
+  const actionResults = searchCommandActions(debouncedQuery, user?.role);
   const pageResults = searchPages(debouncedQuery, user?.role);
   const hasResults = !!results && (
-    pageResults.length || results.organizations.length || results.profiles.length || results.employees.length || results.residents.length
+    actionResults.length || pageResults.length || results.organizations.length || results.profiles.length || results.employees.length || results.residents.length
   );
 
   const employeesBasePath = user?.role === "platform_admin" ? "/admin/employees"
@@ -80,6 +81,24 @@ export function GlobalSearch() {
             <p className="px-3 py-4 text-xs text-muted-foreground text-center">No matches for "{query.trim()}"</p>
           ) : (
             <div className="py-1">
+              {!!actionResults.length && (
+                <div>
+                  <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Actions</p>
+                  {actionResults.map((action) => (
+                    <button
+                      key={action.id}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted text-left"
+                      onClick={() => go(action.path)}
+                    >
+                      <Zap className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className="min-w-0">
+                        <span className="block truncate">{action.label}</span>
+                        <span className="block text-[11px] text-muted-foreground">{action.description}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
               {!!pageResults.length && (
                 <div>
                   <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Pages</p>

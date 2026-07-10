@@ -7,6 +7,7 @@ import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListResidents } from "@/hooks/useResidents";
 import { useUrlState } from "@/hooks/useUrlState";
+import { summarizeIncidentAnalytics } from "@/lib/incidentAnalytics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -165,6 +166,16 @@ export default function Incidents() {
       i.narrative.toLowerCase().includes(q) || residentSearchText(i.resident_identifier).includes(q)
     );
   }, [incidents, urlState.search, residentById]);
+  const incidentSummary = useMemo(() => summarizeIncidentAnalytics(
+    (incidents ?? []).map((i) => ({
+      id: i.id,
+      incident_type: i.incident_type,
+      severity: i.severity,
+      status: i.status,
+      occurred_at: i.occurred_at,
+    })),
+    new Date().toISOString().slice(0, 10),
+  ), [incidents]);
 
   const totalPages = Math.max(1, Math.ceil(searched.length / PAGE_SIZE));
   const paginated = searched.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -239,6 +250,33 @@ export default function Incidents() {
             <Plus className="mr-2 h-4 w-4" /> Report Incident
           </Button>
         )}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className="premium-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Open incidents</p>
+          <p className="mt-1 text-2xl font-semibold">{incidentSummary.open}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{incidentSummary.criticalOpen} critical remain open.</p>
+        </div>
+        <button type="button" className="premium-card p-4 text-left hover:border-destructive/40" onClick={() => setUrlState({ severity: "critical", page: "1" })}>
+          <p className="text-xs font-medium text-muted-foreground">Major / critical</p>
+          <p className="mt-1 text-2xl font-semibold text-destructive">{incidentSummary.majorOrCritical}</p>
+          <p className="mt-1 text-xs text-muted-foreground">High-severity events in this view.</p>
+        </button>
+        <div className="premium-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Recent volume</p>
+          <p className="mt-1 text-2xl font-semibold">{incidentSummary.reportedLast7Days}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{incidentSummary.reportedLast30Days} reported in 30 days.</p>
+        </div>
+        <div className="premium-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Most common type</p>
+          <p className="mt-1 text-lg font-semibold">{incidentSummary.topIncidentType ? humanize(incidentSummary.topIncidentType) : "—"}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {incidentSummary.oldestOpenIncidentId ? (
+              <Link href={`/app/incidents/${incidentSummary.oldestOpenIncidentId}`} className="text-primary hover:underline">Review oldest open incident</Link>
+            ) : "No open incidents in this view."}
+          </p>
+        </div>
       </div>
 
       <div className="premium-card">

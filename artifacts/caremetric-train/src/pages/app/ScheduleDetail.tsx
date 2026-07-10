@@ -25,9 +25,10 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, Sparkles, Eraser, Send, Undo2, Plus, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BarChart3, Eraser, Loader2, Plus, Send, Sparkles, Undo2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { enumerateDatesIso, formatDateLabel, formatTimeLabel } from "@/lib/scheduleDates";
+import { summarizeScheduleAnalytics } from "@/lib/scheduleAnalytics";
 
 const UNASSIGNED = "__unassigned__";
 
@@ -95,6 +96,12 @@ export default function ScheduleDetail() {
     }
     return map;
   }, [assignments]);
+
+  const scheduleAnalytics = useMemo(() => summarizeScheduleAnalytics({
+    assignments: assignments ?? [],
+    dates,
+    unitIds: activeUnits.map((u) => u.id),
+  }), [assignments, dates, activeUnits]);
 
   const isDraft = schedule?.status === "draft";
   const hasAutoFill = (assignments ?? []).some((a) => a.source === "auto_fill" && a.status === "scheduled");
@@ -345,6 +352,54 @@ export default function ScheduleDetail() {
           Move it back to draft to auto-fill or bulk-edit.
         </p>
       )}
+
+
+      <Card>
+        <CardContent className="pt-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-primary" />
+            <h2 className="font-semibold">Coverage & Hours Snapshot</h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Shifts</p>
+              <p className="text-xl font-semibold">{scheduleAnalytics.totalShifts}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Scheduled hours</p>
+              <p className="text-xl font-semibold">{scheduleAnalytics.scheduledHours}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Auto / manual</p>
+              <p className="text-xl font-semibold">{scheduleAnalytics.autoFilledShifts} / {scheduleAnalytics.manualShifts}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Exceptions</p>
+              <p className="text-xl font-semibold">{scheduleAnalytics.exceptionShifts}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Unit-day gaps</p>
+              <p className="text-xl font-semibold">{scheduleAnalytics.unitDayCoverageGaps}</p>
+            </div>
+          </div>
+          {(scheduleAnalytics.unitDayCoverageGaps > 0 || scheduleAnalytics.employeesOver40Hours.length > 0) && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <div className="space-y-1">
+                  <p className="font-medium">Review coverage before publishing.</p>
+                  <ul className="list-disc pl-5 text-xs">
+                    {scheduleAnalytics.unitDayCoverageGaps > 0 && <li>{scheduleAnalytics.unitDayCoverageGaps} unit-day coverage gap{scheduleAnalytics.unitDayCoverageGaps === 1 ? "" : "s"} based on active units and schedule dates.</li>}
+                    {scheduleAnalytics.employeesOver40Hours.map((row) => (
+                      <li key={row.employeeId}>{row.name} is scheduled for {row.hours} hours in this period.</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="p-0 overflow-x-auto">
