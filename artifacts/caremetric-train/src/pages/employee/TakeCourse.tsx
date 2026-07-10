@@ -189,9 +189,11 @@ export default function TakeCourse() {
     }
   }, [assignmentId]);
 
-  useEffect(() => {
-    const key = lessonStorageKey(assignmentId);
-    if (!key || !lessonToolsLoaded) return;
+useEffect(() => {
+  const key = lessonStorageKey(assignmentId);
+  if (!key || !lessonToolsLoaded) return;
+
+  const timeoutId = window.setTimeout(() => {
     try {
       window.localStorage.setItem(key, JSON.stringify({ notes: lessonNotes, confidence: lessonConfidence }));
       setLearningToolsStorageError(null);
@@ -200,7 +202,10 @@ export default function TakeCourse() {
       console.warn("Unable to save local course learning tools:", (e as Error).message);
       setLearningToolsStorageError("Your notes could not be saved locally in this browser session.");
     }
-  }, [assignmentId, lessonNotes, lessonConfidence, lessonToolsLoaded]);
+  }, 300);
+
+  return () => window.clearTimeout(timeoutId);
+}, [assignmentId, lessonNotes, lessonConfidence, lessonToolsLoaded]);
 
   // Resume where the learner left off (course_progress.last_block_id), once,
   // as soon as blocks are loaded. If there's no progress row yet (brand new
