@@ -373,24 +373,27 @@ useEffect(() => {
     toast({ title: "Local study tools cleared", description: "Your course progress and quiz attempts were not changed." });
   };
 
-  useEffect(() => {
-    if (!blocks || blocks.length === 0 || showRatingPrompt) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isEditableShortcutTarget(event.target)) return;
-      if (event.key === "ArrowLeft" && stepIndex > 0) {
-        event.preventDefault();
-        setStepIndex(i => Math.max(0, i - 1));
-      } else if (event.key === "ArrowRight" && !isLastBlock && canAdvance) {
-        event.preventDefault();
+useEffect(() => {
+  if (!blocks || blocks.length === 0 || showRatingPrompt) return;
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isEditableShortcutTarget(event.target)) return;
+    if (event.key === "ArrowLeft" && stepIndex > 0) {
+      event.preventDefault();
+      setStepIndex(i => Math.max(0, i - 1));
+    } else if (event.key === "ArrowRight" && !isLastBlock && canAdvance) {
+      event.preventDefault();
+      setStepIndex(i => Math.min(blocks.length - 1, i + 1));
+    } else if (event.key.toLowerCase() === "r" && currentBlock) {
+      event.preventDefault();
+      setLessonConfidence(prev => ({ ...prev, [currentBlock.id]: "ready" }));
+      if (!isLastBlock && canAdvance) {
         setStepIndex(i => Math.min(blocks.length - 1, i + 1));
-      } else if (event.key.toLowerCase() === "r" && currentBlock) {
-        event.preventDefault();
-        handleMarkReadyAndContinue();
       }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [blocks, canAdvance, currentBlock, handleMarkReadyAndContinue, isLastBlock, showRatingPrompt, stepIndex]);
+    }
+  };
+  window.addEventListener("keydown", handleKeyDown);
+  return () => window.removeEventListener("keydown", handleKeyDown);
+}, [blocks, canAdvance, currentBlock, isLastBlock, showRatingPrompt, stepIndex]);
 
   const handleComplete = () => {
     if (!assignment) return;
