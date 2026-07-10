@@ -58,12 +58,12 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  const email = body.email?.trim().toLowerCase();
-  const password = body.password;
-  const first_name = body.first_name?.trim();
-  const last_name = body.last_name?.trim();
-  const role = body.role;
-  const organization_id = body.organization_id?.trim();
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : undefined;
+  const password = typeof body.password === "string" ? body.password : undefined;
+  const first_name = typeof body.first_name === "string" ? body.first_name.trim() : undefined;
+  const last_name = typeof body.last_name === "string" ? body.last_name.trim() : undefined;
+  const role = typeof body.role === "string" ? body.role : undefined;
+  const organization_id = typeof body.organization_id === "string" ? body.organization_id.trim() : undefined;
 
   if (!email || !password || !first_name || !last_name || !role) {
     return json({ error: "email, password, first_name, last_name, and role are required" }, 400);
