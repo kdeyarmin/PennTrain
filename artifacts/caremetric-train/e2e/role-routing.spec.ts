@@ -114,17 +114,48 @@ test.describe("role-aware release journeys", () => {
     await createAccount("auditor", "/app", suffix);
     await createAccount("employee", "/me", suffix);
 
-    const { data: guest, error: guestError } =
-      await admin.auth.admin.createUser({
-        email: guestEmail,
-        password,
-        email_confirm: true,
-        app_metadata: { role: "auditor", organization_id: organizationId },
-        user_metadata: { first_name: "Guest", last_name: "Auditor" },
-      });
-    if (guestError || !guest.user) {
-      throw guestError ?? new Error("Guest user creation returned no user");
+    // The demo account email is part of the built application configuration,
+    // so retries must reuse it instead of generating a new address.
+    const { data: existingUsers, error: listUsersError } =
+      await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    if (listUsersError) throw listUsersError;
+    const existingGuest = existingUsers.users.find(
+      (user) => user.email === guestEmail,
+    );
+    let guestId = existingGuest?.id;
+    if (guestId) {
+      const { error: updateGuestError } =
+        await admin.auth.admin.updateUserById(guestId, {
+          password,
+          email_confirm: true,
+          app_metadata: { role: "auditor", organization_id: organizationId },
+          user_metadata: { first_name: "Guest", last_name: "Auditor" },
+        });
+      if (updateGuestError) throw updateGuestError;
+    } else {
+      const { data: guest, error: guestError } =
+        await admin.auth.admin.createUser({
+          email: guestEmail,
+          password,
+          email_confirm: true,
+          app_metadata: { role: "auditor", organization_id: organizationId },
+          user_metadata: { first_name: "Guest", last_name: "Auditor" },
+        });
+      if (guestError || !guest.user) {
+        throw guestError ?? new Error("Guest user creation returned no user");
+      }
+      guestId = guest.user.id;
     }
+    const { error: guestProfileError } = await admin.rpc(
+      "admin_update_profile",
+      {
+        p_user_id: guestId,
+        p_role: "auditor",
+        p_organization_id: organizationId,
+        p_is_active: true,
+      },
+    );
+    if (guestProfileError) throw guestProfileError;
     for (const role of ["facility_manager", "trainer"] as const) {
       const account = accounts.get(role)!;
       const { error } = await admin.from("facility_assignments").insert({
@@ -135,16 +166,20 @@ test.describe("role-aware release journeys", () => {
     }
 
     const employee = accounts.get("employee")!;
-    const { error: employeeError } = await admin.from("employees").insert({
-      organization_id: organizationId,
-      facility_id: facilityId,
-      profile_id: employee.id,
-      first_name: "Phase",
-      last_name: "Employee",
-      email: employee.email,
-      job_title: "Direct Care Worker",
-      status: "active",
-    });
+    const { data: employeeRecord, error: employeeError } = await admin
+      .from("employees")
+      .insert({
+        organization_id: organizationId,
+        facility_id: facilityId,
+        profile_id: employee.id,
+        first_name: "Phase",
+        last_name: "Employee",
+        email: employee.email,
+        job_title: "Direct Care Worker",
+        status: "active",
+      })
+      .select("id")
+      .single();
     if (employeeError) throw employeeError;
 
     const { data: course, error: courseError } = await admin
@@ -220,7 +255,7 @@ test.describe("role-aware release journeys", () => {
       .insert({
         organization_id: organizationId,
         facility_id: facilityId,
-        employee_id: employee.id,
+        employee_id: employeeRecord.id,
         course_id: course.id,
         course_version_id: version.id,
         assigned_by: platform.id,
