@@ -7,10 +7,30 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -313,38 +333,65 @@ export type Database = {
         Row: {
           action: string
           actor_profile_id: string | null
+          actor_subject_id: string | null
+          correlation_id: string
           created_at: string
           entity_id: string | null
           entity_type: string
+          event_hash: string
+          facility_id: string | null
+          hash_version: number
           id: string
           ip_address: string | null
+          metadata: Json
           new_values: Json | null
           old_values: Json | null
           organization_id: string | null
+          reason: string | null
+          request_id: string
+          source: string
         }
         Insert: {
           action: string
           actor_profile_id?: string | null
+          actor_subject_id?: string | null
+          correlation_id: string
           created_at?: string
           entity_id?: string | null
           entity_type: string
+          event_hash: string
+          facility_id?: string | null
+          hash_version?: number
           id?: string
           ip_address?: string | null
+          metadata?: Json
           new_values?: Json | null
           old_values?: Json | null
           organization_id?: string | null
+          reason?: string | null
+          request_id: string
+          source: string
         }
         Update: {
           action?: string
           actor_profile_id?: string | null
+          actor_subject_id?: string | null
+          correlation_id?: string
           created_at?: string
           entity_id?: string | null
           entity_type?: string
+          event_hash?: string
+          facility_id?: string | null
+          hash_version?: number
           id?: string
           ip_address?: string | null
+          metadata?: Json
           new_values?: Json | null
           old_values?: Json | null
           organization_id?: string | null
+          reason?: string | null
+          request_id?: string
+          source?: string
         }
         Relationships: [
           {
@@ -363,17 +410,173 @@ export type Database = {
           },
         ]
       }
+      certificate_lifecycle_events: {
+        Row: {
+          certificate_id: string
+          correlation_id: string
+          course_assignment_id: string | null
+          created_at: string
+          delivery_attempt_count: number
+          delivery_status: string
+          event_type: string
+          id: string
+          idempotency_key: string
+          last_delivery_attempt_at: string | null
+          last_error: string | null
+          organization_id: string
+          payload: Json
+          published_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          certificate_id: string
+          correlation_id: string
+          course_assignment_id?: string | null
+          created_at?: string
+          delivery_attempt_count?: number
+          delivery_status?: string
+          event_type: string
+          id?: string
+          idempotency_key: string
+          last_delivery_attempt_at?: string | null
+          last_error?: string | null
+          organization_id: string
+          payload?: Json
+          published_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          certificate_id?: string
+          correlation_id?: string
+          course_assignment_id?: string | null
+          created_at?: string
+          delivery_attempt_count?: number
+          delivery_status?: string
+          event_type?: string
+          id?: string
+          idempotency_key?: string
+          last_delivery_attempt_at?: string | null
+          last_error?: string | null
+          organization_id?: string
+          payload?: Json
+          published_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certificate_lifecycle_events_certificate_id_fkey"
+            columns: ["certificate_id"]
+            isOneToOne: false
+            referencedRelation: "certificates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certificate_lifecycle_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      certificate_pdf_jobs: {
+        Row: {
+          attempt_count: number
+          available_at: string
+          certificate_id: string
+          completed_at: string | null
+          correlation_id: string
+          created_at: string
+          current_run_id: string | null
+          id: string
+          job_key: string
+          last_error_code: string | null
+          last_error_message: string | null
+          last_started_at: string | null
+          locked_at: string | null
+          max_attempts: number
+          organization_id: string
+          requested_at: string
+          status: string
+          updated_at: string
+          worker_id: string | null
+        }
+        Insert: {
+          attempt_count?: number
+          available_at?: string
+          certificate_id: string
+          completed_at?: string | null
+          correlation_id: string
+          created_at?: string
+          current_run_id?: string | null
+          id?: string
+          job_key: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_started_at?: string | null
+          locked_at?: string | null
+          max_attempts?: number
+          organization_id: string
+          requested_at?: string
+          status?: string
+          updated_at?: string
+          worker_id?: string | null
+        }
+        Update: {
+          attempt_count?: number
+          available_at?: string
+          certificate_id?: string
+          completed_at?: string | null
+          correlation_id?: string
+          created_at?: string
+          current_run_id?: string | null
+          id?: string
+          job_key?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_started_at?: string | null
+          locked_at?: string | null
+          max_attempts?: number
+          organization_id?: string
+          requested_at?: string
+          status?: string
+          updated_at?: string
+          worker_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certificate_pdf_jobs_certificate_id_fkey"
+            columns: ["certificate_id"]
+            isOneToOne: true
+            referencedRelation: "certificates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certificate_pdf_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       certificates: {
         Row: {
           course_assignment_id: string | null
           course_id: string
           created_at: string
+          credential_number: string
           employee_id: string
           expires_at: string | null
           facility_id: string
           id: string
           issued_at: string
           organization_id: string
+          pdf_attempt_count: number
+          pdf_last_attempt_at: string | null
+          pdf_last_error: string | null
+          pdf_ready_at: string | null
+          pdf_status: string
           pdf_storage_bucket: string | null
           pdf_storage_path: string | null
           slug: string
@@ -383,12 +586,18 @@ export type Database = {
           course_assignment_id?: string | null
           course_id: string
           created_at?: string
+          credential_number?: string
           employee_id: string
           expires_at?: string | null
           facility_id: string
           id?: string
           issued_at?: string
           organization_id: string
+          pdf_attempt_count?: number
+          pdf_last_attempt_at?: string | null
+          pdf_last_error?: string | null
+          pdf_ready_at?: string | null
+          pdf_status?: string
           pdf_storage_bucket?: string | null
           pdf_storage_path?: string | null
           slug?: string
@@ -398,12 +607,18 @@ export type Database = {
           course_assignment_id?: string | null
           course_id?: string
           created_at?: string
+          credential_number?: string
           employee_id?: string
           expires_at?: string | null
           facility_id?: string
           id?: string
           issued_at?: string
           organization_id?: string
+          pdf_attempt_count?: number
+          pdf_last_attempt_at?: string | null
+          pdf_last_error?: string | null
+          pdf_ready_at?: string | null
+          pdf_status?: string
           pdf_storage_bucket?: string | null
           pdf_storage_path?: string | null
           slug?: string
@@ -2286,6 +2501,7 @@ export type Database = {
           data_source: string
           id: string
           is_active: boolean
+          item_types: string[] | null
           organization_id: string | null
           prompt: string
           sort_order: number
@@ -2297,6 +2513,7 @@ export type Database = {
           data_source: string
           id?: string
           is_active?: boolean
+          item_types?: string[] | null
           organization_id?: string | null
           prompt: string
           sort_order?: number
@@ -2308,6 +2525,7 @@ export type Database = {
           data_source?: string
           id?: string
           is_active?: boolean
+          item_types?: string[] | null
           organization_id?: string | null
           prompt?: string
           sort_order?: number
@@ -2337,7 +2555,9 @@ export type Database = {
           npi: string | null
           raw: Json | null
           reinstate_date: string | null
+          snapshot_id: string
           source: string
+          source_record_key: string
           upin: string | null
           waiver_date: string | null
         }
@@ -2354,7 +2574,9 @@ export type Database = {
           npi?: string | null
           raw?: Json | null
           reinstate_date?: string | null
+          snapshot_id: string
           source: string
+          source_record_key: string
           upin?: string | null
           waiver_date?: string | null
         }
@@ -2371,17 +2593,87 @@ export type Database = {
           npi?: string | null
           raw?: Json | null
           reinstate_date?: string | null
+          snapshot_id?: string
           source?: string
+          source_record_key?: string
           upin?: string | null
           waiver_date?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "exclusion_list_entries_snapshot_source_fkey"
+            columns: ["snapshot_id", "source"]
+            isOneToOne: false
+            referencedRelation: "exclusion_source_snapshots"
+            referencedColumns: ["id", "source"]
+          },
+        ]
+      }
+      exclusion_refresh_runs: {
+        Row: {
+          activated_snapshot_id: string | null
+          checksum: string | null
+          completed_at: string | null
+          correlation_id: string
+          error: string | null
+          expected_record_count: number | null
+          id: string
+          snapshot_id: string
+          source: string
+          staged_record_count: number
+          started_at: string
+          status: string
+        }
+        Insert: {
+          activated_snapshot_id?: string | null
+          checksum?: string | null
+          completed_at?: string | null
+          correlation_id: string
+          error?: string | null
+          expected_record_count?: number | null
+          id: string
+          snapshot_id: string
+          source: string
+          staged_record_count?: number
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          activated_snapshot_id?: string | null
+          checksum?: string | null
+          completed_at?: string | null
+          correlation_id?: string
+          error?: string | null
+          expected_record_count?: number | null
+          id?: string
+          snapshot_id?: string
+          source?: string
+          staged_record_count?: number
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exclusion_refresh_runs_activated_snapshot_fkey"
+            columns: ["activated_snapshot_id", "source"]
+            isOneToOne: false
+            referencedRelation: "exclusion_source_snapshots"
+            referencedColumns: ["id", "source"]
+          },
+          {
+            foreignKeyName: "exclusion_refresh_runs_snapshot_fkey"
+            columns: ["snapshot_id", "source"]
+            isOneToOne: false
+            referencedRelation: "exclusion_source_snapshots"
+            referencedColumns: ["id", "source"]
+          },
+        ]
       }
       exclusion_screening_matches: {
         Row: {
           created_at: string
           employee_id: string
-          exclusion_list_entry_id: string
+          exclusion_list_entry_id: string | null
           facility_id: string
           id: string
           match_score: number
@@ -2391,12 +2683,13 @@ export type Database = {
           reviewed_by: string | null
           reviewed_notes: string | null
           source: string
+          source_record_key: string | null
           status: string
         }
         Insert: {
           created_at?: string
           employee_id: string
-          exclusion_list_entry_id: string
+          exclusion_list_entry_id?: string | null
           facility_id: string
           id?: string
           match_score: number
@@ -2406,12 +2699,13 @@ export type Database = {
           reviewed_by?: string | null
           reviewed_notes?: string | null
           source: string
+          source_record_key?: string | null
           status?: string
         }
         Update: {
           created_at?: string
           employee_id?: string
-          exclusion_list_entry_id?: string
+          exclusion_list_entry_id?: string | null
           facility_id?: string
           id?: string
           match_score?: number
@@ -2421,6 +2715,7 @@ export type Database = {
           reviewed_by?: string | null
           reviewed_notes?: string | null
           source?: string
+          source_record_key?: string | null
           status?: string
         }
         Relationships: [
@@ -2458,6 +2753,101 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      exclusion_source_snapshots: {
+        Row: {
+          activated_at: string | null
+          checksum: string | null
+          created_at: string
+          id: string
+          record_count: number | null
+          refresh_run_id: string
+          source: string
+          status: string
+          validated_at: string | null
+        }
+        Insert: {
+          activated_at?: string | null
+          checksum?: string | null
+          created_at?: string
+          id: string
+          record_count?: number | null
+          refresh_run_id: string
+          source: string
+          status?: string
+          validated_at?: string | null
+        }
+        Update: {
+          activated_at?: string | null
+          checksum?: string | null
+          created_at?: string
+          id?: string
+          record_count?: number | null
+          refresh_run_id?: string
+          source?: string
+          status?: string
+          validated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exclusion_source_snapshots_refresh_run_fkey"
+            columns: ["refresh_run_id", "source"]
+            isOneToOne: false
+            referencedRelation: "exclusion_refresh_runs"
+            referencedColumns: ["id", "source"]
+          },
+        ]
+      }
+      exclusion_source_state: {
+        Row: {
+          active_snapshot_id: string | null
+          last_attempt_at: string | null
+          last_error: string | null
+          last_run_id: string | null
+          last_status: string
+          last_success_at: string | null
+          source: string
+          stale_after: string
+          updated_at: string
+        }
+        Insert: {
+          active_snapshot_id?: string | null
+          last_attempt_at?: string | null
+          last_error?: string | null
+          last_run_id?: string | null
+          last_status?: string
+          last_success_at?: string | null
+          source: string
+          stale_after?: string
+          updated_at?: string
+        }
+        Update: {
+          active_snapshot_id?: string | null
+          last_attempt_at?: string | null
+          last_error?: string | null
+          last_run_id?: string | null
+          last_status?: string
+          last_success_at?: string | null
+          source?: string
+          stale_after?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exclusion_source_state_active_snapshot_fkey"
+            columns: ["active_snapshot_id", "source"]
+            isOneToOne: false
+            referencedRelation: "exclusion_source_snapshots"
+            referencedColumns: ["id", "source"]
+          },
+          {
+            foreignKeyName: "exclusion_source_state_last_run_fkey"
+            columns: ["last_run_id", "source"]
+            isOneToOne: false
+            referencedRelation: "exclusion_refresh_runs"
+            referencedColumns: ["id", "source"]
           },
         ]
       }
@@ -3207,48 +3597,211 @@ export type Database = {
           },
         ]
       }
-      notification_deliveries: {
+      notification_channel_policies: {
         Row: {
-          channel: string
           created_at: string
-          delivery_type: string
-          error_message: string | null
-          id: string
-          notification_id: string | null
+          fallback_delay_minutes: number
+          fallback_enabled: boolean
+          max_fallback_depth: number
           organization_id: string
-          profile_id: string
-          provider_message_id: string | null
-          recipient: string
-          sent_at: string | null
-          status: string
+          updated_at: string
+          updated_by: string | null
         }
         Insert: {
-          channel: string
           created_at?: string
-          delivery_type?: string
-          error_message?: string | null
-          id?: string
-          notification_id?: string | null
+          fallback_delay_minutes?: number
+          fallback_enabled?: boolean
+          max_fallback_depth?: number
           organization_id: string
-          profile_id: string
-          provider_message_id?: string | null
-          recipient: string
-          sent_at?: string | null
-          status?: string
+          updated_at?: string
+          updated_by?: string | null
         }
         Update: {
+          created_at?: string
+          fallback_delay_minutes?: number
+          fallback_enabled?: boolean
+          max_fallback_depth?: number
+          organization_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_channel_policies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_channel_policies_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_consent_events: {
+        Row: {
+          action: string
+          attempt_id: string | null
+          channel: string
+          id: string
+          occurred_at: string
+          organization_id: string | null
+          profile_id: string | null
+          provider: string
+          provider_event_id: string
+          received_at: string
+          recipient_fingerprint: string
+          source: string
+        }
+        Insert: {
+          action: string
+          attempt_id?: string | null
+          channel: string
+          id?: string
+          occurred_at: string
+          organization_id?: string | null
+          profile_id?: string | null
+          provider: string
+          provider_event_id: string
+          received_at?: string
+          recipient_fingerprint: string
+          source: string
+        }
+        Update: {
+          action?: string
+          attempt_id?: string | null
+          channel?: string
+          id?: string
+          occurred_at?: string
+          organization_id?: string | null
+          profile_id?: string | null
+          provider?: string
+          provider_event_id?: string
+          received_at?: string
+          recipient_fingerprint?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_consent_events_attempt_id_fkey"
+            columns: ["attempt_id"]
+            isOneToOne: false
+            referencedRelation: "notification_delivery_attempts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_consent_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_consent_events_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_deliveries: {
+        Row: {
+          accepted_at: string | null
+          attempt_count: number
+          channel: string
+          created_at: string
+          delivered_at: string | null
+          delivery_type: string
+          error_code: string | null
+          error_message: string | null
+          escalation_reason: string | null
+          fallback_group_id: string
+          fallback_sequence: number
+          final_outcome: string | null
+          finalized_at: string | null
+          id: string
+          last_provider_status: string | null
+          next_attempt_at: string
+          notification_id: string | null
+          organization_id: string
+          parent_delivery_id: string | null
+          profile_id: string
+          provider: string | null
+          provider_message_id: string | null
+          quiet_hours_deferred_count: number
+          recipient: string
+          sent_at: string | null
+          skip_reason: string | null
+          status: string
+          template_version_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          attempt_count?: number
+          channel: string
+          created_at?: string
+          delivered_at?: string | null
+          delivery_type?: string
+          error_code?: string | null
+          error_message?: string | null
+          escalation_reason?: string | null
+          fallback_group_id?: string
+          fallback_sequence?: number
+          final_outcome?: string | null
+          finalized_at?: string | null
+          id?: string
+          last_provider_status?: string | null
+          next_attempt_at?: string
+          notification_id?: string | null
+          organization_id: string
+          parent_delivery_id?: string | null
+          profile_id: string
+          provider?: string | null
+          provider_message_id?: string | null
+          quiet_hours_deferred_count?: number
+          recipient: string
+          sent_at?: string | null
+          skip_reason?: string | null
+          status?: string
+          template_version_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          attempt_count?: number
           channel?: string
           created_at?: string
+          delivered_at?: string | null
           delivery_type?: string
+          error_code?: string | null
           error_message?: string | null
+          escalation_reason?: string | null
+          fallback_group_id?: string
+          fallback_sequence?: number
+          final_outcome?: string | null
+          finalized_at?: string | null
           id?: string
+          last_provider_status?: string | null
+          next_attempt_at?: string
           notification_id?: string | null
           organization_id?: string
+          parent_delivery_id?: string | null
           profile_id?: string
+          provider?: string | null
           provider_message_id?: string | null
+          quiet_hours_deferred_count?: number
           recipient?: string
           sent_at?: string | null
+          skip_reason?: string | null
           status?: string
+          template_version_id?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
@@ -3266,10 +3819,373 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "notification_deliveries_parent_delivery_id_fkey"
+            columns: ["parent_delivery_id"]
+            isOneToOne: false
+            referencedRelation: "notification_deliveries"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "notification_deliveries_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_deliveries_template_version_id_fkey"
+            columns: ["template_version_id"]
+            isOneToOne: false
+            referencedRelation: "notification_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_delivery_attempts: {
+        Row: {
+          accepted_at: string | null
+          attempt_number: number
+          callback_token: string
+          content_sha256: string | null
+          delivery_id: string
+          error_code: string | null
+          error_detail: string | null
+          estimated_cost_micros: number
+          finalized_at: string | null
+          id: string
+          organization_id: string
+          profile_id: string
+          provider: string
+          provider_message_id: string | null
+          provider_status: string | null
+          response_status: number | null
+          started_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          attempt_number: number
+          callback_token?: string
+          content_sha256?: string | null
+          delivery_id: string
+          error_code?: string | null
+          error_detail?: string | null
+          estimated_cost_micros?: number
+          finalized_at?: string | null
+          id?: string
+          organization_id: string
+          profile_id: string
+          provider: string
+          provider_message_id?: string | null
+          provider_status?: string | null
+          response_status?: number | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          attempt_number?: number
+          callback_token?: string
+          content_sha256?: string | null
+          delivery_id?: string
+          error_code?: string | null
+          error_detail?: string | null
+          estimated_cost_micros?: number
+          finalized_at?: string | null
+          id?: string
+          organization_id?: string
+          profile_id?: string
+          provider?: string
+          provider_message_id?: string | null
+          provider_status?: string | null
+          response_status?: number | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_delivery_attempts_delivery_id_fkey"
+            columns: ["delivery_id"]
+            isOneToOne: false
+            referencedRelation: "notification_deliveries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_delivery_attempts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_delivery_attempts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_provider_events: {
+        Row: {
+          attempt_id: string
+          delivery_id: string
+          error_code: string | null
+          error_detail: string | null
+          event_type: string
+          id: string
+          occurred_at: string
+          organization_id: string
+          outcome: string | null
+          provider: string
+          provider_event_id: string
+          provider_message_id: string | null
+          received_at: string
+          signature_valid: boolean
+        }
+        Insert: {
+          attempt_id: string
+          delivery_id: string
+          error_code?: string | null
+          error_detail?: string | null
+          event_type: string
+          id?: string
+          occurred_at: string
+          organization_id: string
+          outcome?: string | null
+          provider: string
+          provider_event_id: string
+          provider_message_id?: string | null
+          received_at?: string
+          signature_valid?: boolean
+        }
+        Update: {
+          attempt_id?: string
+          delivery_id?: string
+          error_code?: string | null
+          error_detail?: string | null
+          event_type?: string
+          id?: string
+          occurred_at?: string
+          organization_id?: string
+          outcome?: string | null
+          provider?: string
+          provider_event_id?: string
+          provider_message_id?: string | null
+          received_at?: string
+          signature_valid?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_provider_events_attempt_id_fkey"
+            columns: ["attempt_id"]
+            isOneToOne: false
+            referencedRelation: "notification_delivery_attempts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_provider_events_delivery_id_fkey"
+            columns: ["delivery_id"]
+            isOneToOne: false
+            referencedRelation: "notification_deliveries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_provider_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_spend_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          budget_micros: number
+          created_at: string
+          estimated_spend_micros: number
+          id: string
+          organization_id: string
+          period_start: string
+          status: string
+          threshold_percent: number
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          budget_micros: number
+          created_at?: string
+          estimated_spend_micros: number
+          id?: string
+          organization_id: string
+          period_start: string
+          status?: string
+          threshold_percent: number
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          budget_micros?: number
+          created_at?: string
+          estimated_spend_micros?: number
+          id?: string
+          organization_id?: string
+          period_start?: string
+          status?: string
+          threshold_percent?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_spend_alerts_acknowledged_by_fkey"
+            columns: ["acknowledged_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_spend_alerts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_spend_policies: {
+        Row: {
+          created_at: string
+          currency: string
+          email_estimate_micros: number
+          monthly_budget_micros: number | null
+          organization_id: string
+          sms_estimate_micros: number
+          updated_at: string
+          updated_by: string | null
+          warning_percent: number
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          email_estimate_micros?: number
+          monthly_budget_micros?: number | null
+          organization_id: string
+          sms_estimate_micros?: number
+          updated_at?: string
+          updated_by?: string | null
+          warning_percent?: number
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          email_estimate_micros?: number
+          monthly_budget_micros?: number | null
+          organization_id?: string
+          sms_estimate_micros?: number
+          updated_at?: string
+          updated_by?: string | null
+          warning_percent?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_spend_policies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_spend_policies_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_templates: {
+        Row: {
+          activated_at: string | null
+          activated_by: string | null
+          allowed_variables: string[]
+          body_template: string
+          channel: string
+          created_at: string
+          created_by: string | null
+          id: string
+          organization_id: string | null
+          status: string
+          subject_template: string
+          supersedes_id: string | null
+          template_key: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          activated_at?: string | null
+          activated_by?: string | null
+          allowed_variables?: string[]
+          body_template: string
+          channel: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id?: string | null
+          status?: string
+          subject_template: string
+          supersedes_id?: string | null
+          template_key: string
+          updated_at?: string
+          version: number
+        }
+        Update: {
+          activated_at?: string | null
+          activated_by?: string | null
+          allowed_variables?: string[]
+          body_template?: string
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id?: string | null
+          status?: string
+          subject_template?: string
+          supersedes_id?: string | null
+          template_key?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_templates_activated_by_fkey"
+            columns: ["activated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_templates_supersedes_id_fkey"
+            columns: ["supersedes_id"]
+            isOneToOne: false
+            referencedRelation: "notification_templates"
             referencedColumns: ["id"]
           },
         ]
@@ -4053,43 +4969,58 @@ export type Database = {
         Row: {
           created_at: string
           email: string
+          email_opt_out: boolean
+          email_opt_out_at: string | null
           first_name: string
           id: string
           is_active: boolean
           last_name: string
+          notification_timezone: string
           organization_id: string | null
           phone: string | null
+          preferred_notification_channel: string
           role: string
           sms_consent_at: string | null
           sms_opt_in: boolean
+          sms_opt_out_at: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           email: string
+          email_opt_out?: boolean
+          email_opt_out_at?: string | null
           first_name?: string
           id: string
           is_active?: boolean
           last_name?: string
+          notification_timezone?: string
           organization_id?: string | null
           phone?: string | null
+          preferred_notification_channel?: string
           role?: string
           sms_consent_at?: string | null
           sms_opt_in?: boolean
+          sms_opt_out_at?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           email?: string
+          email_opt_out?: boolean
+          email_opt_out_at?: string | null
           first_name?: string
           id?: string
           is_active?: boolean
           last_name?: string
+          notification_timezone?: string
           organization_id?: string | null
           phone?: string | null
+          preferred_notification_channel?: string
           role?: string
           sms_consent_at?: string | null
           sms_opt_in?: boolean
+          sms_opt_out_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -4402,6 +5333,77 @@ export type Database = {
           },
         ]
       }
+      resident_assessment_ai_generations: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          facility_id: string
+          id: string
+          model: string
+          organization_id: string
+          request_params: Json
+          requested_by: string
+          resident_assessment_form_id: string
+          response_summary: Json | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          facility_id: string
+          id?: string
+          model: string
+          organization_id: string
+          request_params: Json
+          requested_by: string
+          resident_assessment_form_id: string
+          response_summary?: Json | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          facility_id?: string
+          id?: string
+          model?: string
+          organization_id?: string
+          request_params?: Json
+          requested_by?: string
+          resident_assessment_form_id?: string
+          response_summary?: Json | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_assessment_ai_generations_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_ai_generations_form_fkey"
+            columns: ["resident_assessment_form_id"]
+            isOneToOne: false
+            referencedRelation: "resident_assessment_forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_ai_generations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_ai_generations_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resident_assessment_forms: {
         Row: {
           cloned_from_id: string | null
@@ -4515,77 +5517,6 @@ export type Database = {
           {
             foreignKeyName: "resident_assessment_forms_superseded_by_id_fkey"
             columns: ["superseded_by_id"]
-            isOneToOne: false
-            referencedRelation: "resident_assessment_forms"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      resident_assessment_ai_generations: {
-        Row: {
-          created_at: string
-          error_message: string | null
-          facility_id: string
-          id: string
-          model: string
-          organization_id: string
-          request_params: Json
-          requested_by: string
-          resident_assessment_form_id: string
-          response_summary: Json | null
-          status: string
-        }
-        Insert: {
-          created_at?: string
-          error_message?: string | null
-          facility_id: string
-          id?: string
-          model: string
-          organization_id: string
-          request_params: Json
-          requested_by: string
-          resident_assessment_form_id: string
-          response_summary?: Json | null
-          status?: string
-        }
-        Update: {
-          created_at?: string
-          error_message?: string | null
-          facility_id?: string
-          id?: string
-          model?: string
-          organization_id?: string
-          request_params?: Json
-          requested_by?: string
-          resident_assessment_form_id?: string
-          response_summary?: Json | null
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "resident_assessment_ai_generations_facility_id_fkey"
-            columns: ["facility_id"]
-            isOneToOne: false
-            referencedRelation: "facilities"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "resident_assessment_ai_generations_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "resident_assessment_ai_generations_requested_by_fkey"
-            columns: ["requested_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "resident_assessment_ai_generations_form_fkey"
-            columns: ["resident_assessment_form_id"]
             isOneToOne: false
             referencedRelation: "resident_assessment_forms"
             referencedColumns: ["id"]
@@ -5208,6 +6139,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      signup_attempts: {
+        Row: {
+          created_at: string
+          email_hash: string
+          error_code: string | null
+          id: string
+          ip_hash: string
+          success: boolean
+        }
+        Insert: {
+          created_at?: string
+          email_hash: string
+          error_code?: string | null
+          id?: string
+          ip_hash: string
+          success?: boolean
+        }
+        Update: {
+          created_at?: string
+          email_hash?: string
+          error_code?: string | null
+          id?: string
+          ip_hash?: string
+          success?: boolean
+        }
+        Relationships: []
       }
       support_ticket_messages: {
         Row: {
@@ -5857,9 +6815,65 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      exclusion_source_health: {
+        Row: {
+          activated_snapshot_id: string | null
+          active_checksum: string | null
+          active_record_count: number | null
+          active_since: string | null
+          active_snapshot_id: string | null
+          completed_at: string | null
+          expected_record_count: number | null
+          health_status: string | null
+          is_stale: boolean | null
+          last_attempt_at: string | null
+          last_error: string | null
+          last_run_checksum: string | null
+          last_run_id: string | null
+          last_status: string | null
+          last_success_at: string | null
+          source: string | null
+          staged_record_count: number | null
+          started_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exclusion_source_state_active_snapshot_fkey"
+            columns: ["active_snapshot_id", "source"]
+            isOneToOne: false
+            referencedRelation: "exclusion_source_snapshots"
+            referencedColumns: ["id", "source"]
+          },
+          {
+            foreignKeyName: "exclusion_source_state_last_run_fkey"
+            columns: ["last_run_id", "source"]
+            isOneToOne: false
+            referencedRelation: "exclusion_refresh_runs"
+            referencedColumns: ["id", "source"]
+          },
+        ]
+      }
     }
     Functions: {
+      acknowledge_notification_spend_alert: {
+        Args: { p_alert_id: string }
+        Returns: undefined
+      }
+      activate_notification_template: {
+        Args: { p_template_id: string }
+        Returns: undefined
+      }
+      admin_emergency_update_course_block: {
+        Args: {
+          p_body?: Json
+          p_course_block_id: string
+          p_document_id?: string
+          p_reason: string
+          p_title?: string
+          p_video_url?: string
+        }
+        Returns: undefined
+      }
       admin_update_profile: {
         Args: {
           p_email?: string
@@ -5873,15 +6887,20 @@ export type Database = {
         Returns: {
           created_at: string
           email: string
+          email_opt_out: boolean
+          email_opt_out_at: string | null
           first_name: string
           id: string
           is_active: boolean
           last_name: string
+          notification_timezone: string
           organization_id: string | null
           phone: string | null
+          preferred_notification_channel: string
           role: string
           sms_consent_at: string | null
           sms_opt_in: boolean
+          sms_opt_out_at: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -5891,24 +6910,60 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      admin_emergency_update_course_block: {
-        Args: {
-          p_body?: Json | null
-          p_course_block_id: string
-          p_document_id?: string | null
-          p_reason: string
-          p_title?: string | null
-          p_video_url?: string | null
-        }
+      assert_course_version_publish_ready: {
+        Args: { p_version_id: string }
         Returns: undefined
       }
       assert_resident_assessment_compliance_item_valid: {
         Args: { p_compliance_item_id: string; p_resident_id: string }
         Returns: undefined
       }
-      assert_course_version_publish_ready: {
-        Args: { p_version_id: string }
-        Returns: undefined
+      begin_exclusion_source_refresh: {
+        Args: { p_correlation_id: string; p_source: string }
+        Returns: Json
+      }
+      begin_notification_delivery_attempt: {
+        Args: {
+          p_content_sha256: string
+          p_delivery_id: string
+          p_provider: string
+        }
+        Returns: {
+          accepted_at: string | null
+          attempt_number: number
+          callback_token: string
+          content_sha256: string | null
+          delivery_id: string
+          error_code: string | null
+          error_detail: string | null
+          estimated_cost_micros: number
+          finalized_at: string | null
+          id: string
+          organization_id: string
+          profile_id: string
+          provider: string
+          provider_message_id: string | null
+          provider_status: string | null
+          response_status: number | null
+          started_at: string
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "notification_delivery_attempts"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      begin_system_job: {
+        Args: {
+          p_correlation_id: string
+          p_job_key: string
+          p_provider_request_id?: string
+          p_trigger_type?: string
+        }
+        Returns: string
       }
       checkin_via_kiosk_pin: {
         Args: { p_class_id: string; p_employee_id: string; p_pin: string }
@@ -5950,6 +7005,73 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      claim_certificate_pdf_jobs: {
+        Args: {
+          p_certificate_id?: string
+          p_limit?: number
+          p_worker_id: string
+        }
+        Returns: {
+          attempt_count: number
+          certificate_id: string
+          correlation_id: string
+          job_id: string
+          run_id: string
+        }[]
+      }
+      claim_pending_notification_deliveries: {
+        Args: { p_batch_size: number; p_stale_after_seconds: number }
+        Returns: {
+          accepted_at: string | null
+          attempt_count: number
+          channel: string
+          created_at: string
+          delivered_at: string | null
+          delivery_type: string
+          error_code: string | null
+          error_message: string | null
+          escalation_reason: string | null
+          fallback_group_id: string
+          fallback_sequence: number
+          final_outcome: string | null
+          finalized_at: string | null
+          id: string
+          last_provider_status: string | null
+          next_attempt_at: string
+          notification_id: string | null
+          organization_id: string
+          parent_delivery_id: string | null
+          profile_id: string
+          provider: string | null
+          provider_message_id: string | null
+          quiet_hours_deferred_count: number
+          recipient: string
+          sent_at: string | null
+          skip_reason: string | null
+          status: string
+          template_version_id: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "notification_deliveries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_system_job_execution: {
+        Args: {
+          p_correlation_id: string
+          p_job_key: string
+          p_provider_request_id?: string
+          p_trigger_type?: string
+        }
+        Returns: {
+          existing_status: string
+          run_id: string
+          should_execute: boolean
+        }[]
+      }
       clear_auto_filled_assignments: {
         Args: { p_schedule_id: string }
         Returns: number
@@ -5960,6 +7082,22 @@ export type Database = {
       }
       complete_course_assignment: {
         Args: { p_assignment_id: string }
+        Returns: undefined
+      }
+      complete_exclusion_source_refresh: {
+        Args: { p_expected_record_count: number; p_run_id: string }
+        Returns: Json
+      }
+      complete_notification_delivery_attempt: {
+        Args: {
+          p_attempt_id: string
+          p_error_code: string
+          p_error_detail: string
+          p_http_status: number
+          p_provider_message_id: string
+          p_provider_status: string
+          p_result: string
+        }
         Returns: undefined
       }
       complete_resident_compliance_item: {
@@ -5997,12 +7135,33 @@ export type Database = {
         Args: { p_version_id: string }
         Returns: boolean
       }
+      create_audit_legal_hold: {
+        Args: {
+          p_ends_at?: string
+          p_facility_id: string
+          p_organization_id: string
+          p_reason: string
+        }
+        Returns: string
+      }
       create_course_from_ai_draft: {
         Args: { p_draft: Json; p_generation_id: string }
         Returns: {
           course_id: string
           course_version_id: string
         }[]
+      }
+      create_notification_template_version: {
+        Args: {
+          p_activate?: boolean
+          p_allowed_variables?: string[]
+          p_body_template: string
+          p_channel: string
+          p_organization_id: string
+          p_subject_template: string
+          p_template_key: string
+        }
+        Returns: string
       }
       create_violation_retraining_action: {
         Args: {
@@ -6031,14 +7190,63 @@ export type Database = {
           verification_notes: string | null
           violation_id: string | null
         }
+        SetofOptions: {
+          from: "*"
+          to: "corrective_actions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       current_org_id: { Args: never; Returns: string }
+      current_profile_active: { Args: never; Returns: boolean }
       current_role: { Args: never; Returns: string }
+      enqueue_preferred_notification_delivery: {
+        Args: {
+          p_delivery_type: string
+          p_notification_id: string
+          p_organization_id: string
+          p_profile_id: string
+        }
+        Returns: string
+      }
+      ensure_employee_record: {
+        Args: { p_profile_id: string }
+        Returns: undefined
+      }
       ensure_training_requirement_record: {
         Args: { p_employee_id: string; p_training_type_id: string }
         Returns: undefined
       }
       escalate_unactioned_alerts: { Args: never; Returns: undefined }
+      exclusion_source_record_key: {
+        Args: {
+          p_business_name: string
+          p_dob: string
+          p_exclusion_date: string
+          p_exclusion_type: string
+          p_first_name: string
+          p_last_name: string
+          p_middle_name: string
+          p_npi: string
+          p_reinstate_date: string
+          p_source: string
+          p_upin: string
+          p_waiver_date: string
+        }
+        Returns: string
+      }
+      execute_registered_sql_job: {
+        Args: {
+          p_correlation_id: string
+          p_job_key: string
+          p_trigger_type?: string
+        }
+        Returns: Json
+      }
+      fail_exclusion_source_refresh: {
+        Args: { p_error: string; p_run_id: string }
+        Returns: Json
+      }
       finalize_resident_assessment_form: {
         Args: { p_form_id: string }
         Returns: {
@@ -6070,6 +7278,30 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      finish_certificate_pdf_job: {
+        Args: {
+          p_bucket?: string
+          p_error_code?: string
+          p_error_message?: string
+          p_job_id: string
+          p_path?: string
+          p_run_id: string
+        }
+        Returns: boolean
+      }
+      finish_system_job: {
+        Args: {
+          p_attempted_count?: number
+          p_error_code?: string
+          p_error_message?: string
+          p_failed_count?: number
+          p_result?: Json
+          p_run_id: string
+          p_status: string
+          p_succeeded_count?: number
+        }
+        Returns: undefined
+      }
       generate_class_checkin_token: {
         Args: { p_class_id: string; p_long_lived?: boolean }
         Returns: string
@@ -6077,6 +7309,25 @@ export type Database = {
       generate_schedule_assignments: {
         Args: { p_schedule_id: string }
         Returns: Json
+      }
+      get_audit_coverage: {
+        Args: never
+        Returns: {
+          audit_mode: string
+          contains_regulated_data: boolean
+          has_required_trigger: boolean
+          rationale: string
+          table_name: string
+        }[]
+      }
+      get_audit_export_manifest: {
+        Args: { p_from: string; p_organization_id?: string; p_to: string }
+        Returns: Json
+      }
+      get_audit_governance_status: { Args: never; Returns: Json }
+      get_course_version_publish_issues: {
+        Args: { p_version_id: string }
+        Returns: string[]
       }
       get_facility_readiness_breakdown: {
         Args: { p_facility_id: string }
@@ -6091,11 +7342,20 @@ export type Database = {
           total_count: number
         }[]
       }
-      get_platform_health: { Args: never; Returns: Json }
-      get_course_version_publish_issues: {
-        Args: { p_version_id: string }
-        Returns: string[]
+      get_notification_delivery_evidence: {
+        Args: { p_delivery_id: string }
+        Returns: Json
       }
+      get_notification_delivery_health: { Args: never; Returns: Json }
+      get_notification_delivery_operations: {
+        Args: { p_hours?: number; p_organization_id?: string }
+        Returns: Json
+      }
+      get_notification_template_library: {
+        Args: { p_organization_id?: string }
+        Returns: Json
+      }
+      get_platform_health: { Args: never; Returns: Json }
       get_quiz_answer_choices: {
         Args: { p_quiz_id: string }
         Returns: {
@@ -6115,7 +7375,60 @@ export type Database = {
           question_id: string
         }[]
       }
+      get_system_job_control_plane: {
+        Args: never
+        Returns: {
+          attempted_count: number
+          description: string
+          display_name: string
+          error_message: string
+          execution_kind: string
+          failed_count: number
+          is_critical: boolean
+          is_stale: boolean
+          job_key: string
+          last_attempt_at: string
+          last_duration_ms: number
+          last_status: string
+          last_success_at: string
+          next_expected_at: string
+          operator_route: string
+          retry_mode: string
+          schedule: string
+          succeeded_count: number
+        }[]
+      }
+      get_system_job_recovery_state: {
+        Args: never
+        Returns: {
+          cancellation_pending: boolean
+          circuit_open_until: string
+          circuit_state: string
+          dead_letter_count: number
+          failure_rate_24h: number
+          job_key: string
+          kill_switch_enabled: boolean
+          kill_switch_reason: string
+          last_known_good_at: string
+          last_known_good_result: Json
+          latest_dead_letter_run_id: string
+          latest_run_id: string
+          provider_latency_ms_24h: number
+          queue_age_ms: number
+          retry_cost_units_24h: number
+        }[]
+      }
       grade_quiz_attempt: { Args: { p_attempt_id: string }; Returns: undefined }
+      heartbeat_system_job: {
+        Args: {
+          p_attempted_count?: number
+          p_cursor?: Json
+          p_failed_count?: number
+          p_run_id: string
+          p_succeeded_count?: number
+        }
+        Returns: undefined
+      }
       instantiate_employee_onboarding_checklist: {
         Args: { p_employee_id: string }
         Returns: undefined
@@ -6141,6 +7454,10 @@ export type Database = {
         Returns: boolean
       }
       is_platform_admin: { Args: never; Returns: boolean }
+      is_system_job_cancellation_requested: {
+        Args: { p_run_id: string }
+        Returns: boolean
+      }
       issue_certificate: {
         Args: {
           p_course_assignment_id?: string
@@ -6187,7 +7504,29 @@ export type Database = {
         Args: { p_organization_id?: string; p_source: string }
         Returns: undefined
       }
+      notification_next_permitted_at: {
+        Args: { p_requested_at: string; p_timezone: string }
+        Returns: string
+      }
+      notification_phone_key: { Args: { p_phone: string }; Returns: string }
       owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
+      plan_audit_archive: {
+        Args: { p_from: string; p_organization_id?: string; p_to: string }
+        Returns: string
+      }
+      preview_notification_template: {
+        Args: { p_template_id: string; p_variables?: Json }
+        Returns: Json
+      }
+      preview_notification_template_draft: {
+        Args: {
+          p_allowed_variables: string[]
+          p_body_template: string
+          p_subject_template: string
+          p_variables?: Json
+        }
+        Returns: Json
+      }
       publish_course_version: {
         Args: { p_course_version_id: string }
         Returns: string
@@ -6212,6 +7551,59 @@ export type Database = {
         Args: never
         Returns: undefined
       }
+      reconcile_audit_integrity: { Args: { p_limit?: number }; Returns: Json }
+      reconcile_course_completion_certificates: {
+        Args: { p_limit?: number; p_organization_id?: string }
+        Returns: Json
+      }
+      record_notification_consent_event: {
+        Args: {
+          p_action: string
+          p_attempt_id?: string
+          p_channel: string
+          p_occurred_at: string
+          p_provider: string
+          p_provider_event_id: string
+          p_recipient?: string
+          p_recipient_fingerprint: string
+          p_source: string
+        }
+        Returns: number
+      }
+      record_notification_consent_events: {
+        Args: { p_events: Json }
+        Returns: number
+      }
+      record_notification_provider_event: {
+        Args: {
+          p_attempt_id: string
+          p_error_code: string
+          p_error_detail: string
+          p_event_type: string
+          p_occurred_at: string
+          p_outcome: string
+          p_provider: string
+          p_provider_event_id: string
+          p_provider_message_id: string
+        }
+        Returns: boolean
+      }
+      record_notification_provider_events: {
+        Args: { p_events: Json }
+        Returns: number
+      }
+      release_audit_legal_hold: {
+        Args: { p_hold_id: string; p_reason: string }
+        Returns: undefined
+      }
+      render_notification_template_text: {
+        Args: {
+          p_allowed_variables: string[]
+          p_template: string
+          p_variables: Json
+        }
+        Returns: string
+      }
       reopen_own_support_ticket: {
         Args: { p_ticket_id: string }
         Returns: undefined
@@ -6219,6 +7611,24 @@ export type Database = {
       replace_quiz_questions: {
         Args: { p_questions: Json; p_quiz_id: string }
         Returns: undefined
+      }
+      replay_system_job_dead_letter: {
+        Args: { p_reason: string; p_run_id: string }
+        Returns: {
+          correlation_id: string
+          run_id: string
+        }[]
+      }
+      request_system_job_cancellation: {
+        Args: { p_reason: string; p_run_id: string }
+        Returns: undefined
+      }
+      request_system_job_rerun: {
+        Args: { p_job_key: string; p_reason: string }
+        Returns: {
+          correlation_id: string
+          run_id: string
+        }[]
       }
       rescan_org_exclusion_matches: {
         Args: { p_organization_id: string }
@@ -6228,10 +7638,8 @@ export type Database = {
         Args: { p_delivery_id: string }
         Returns: undefined
       }
-      self_enroll_course: {
-        Args: { p_course_id: string }
-        Returns: string
-      }
+      run_phase1_synthetic_checks: { Args: never; Returns: Json }
+      self_enroll_course: { Args: { p_course_id: string }; Returns: string }
       send_monday_digest: { Args: never; Returns: undefined }
       send_policy_attestation_reminders: { Args: never; Returns: undefined }
       set_certificate_pdf: {
@@ -6240,12 +7648,18 @@ export type Database = {
           course_assignment_id: string | null
           course_id: string
           created_at: string
+          credential_number: string
           employee_id: string
           expires_at: string | null
           facility_id: string
           id: string
           issued_at: string
           organization_id: string
+          pdf_attempt_count: number
+          pdf_last_attempt_at: string | null
+          pdf_last_error: string | null
+          pdf_ready_at: string | null
+          pdf_status: string
           pdf_storage_bucket: string | null
           pdf_storage_path: string | null
           slug: string
@@ -6260,6 +7674,29 @@ export type Database = {
       }
       set_employee_checkin_pin: {
         Args: { p_employee_id: string; p_pin: string }
+        Returns: undefined
+      }
+      set_notification_channel_policy: {
+        Args: {
+          p_fallback_delay_minutes: number
+          p_fallback_enabled: boolean
+          p_max_fallback_depth: number
+          p_organization_id: string
+        }
+        Returns: undefined
+      }
+      set_notification_spend_policy: {
+        Args: {
+          p_email_estimate_usd: number
+          p_monthly_budget_usd: number
+          p_organization_id: string
+          p_sms_estimate_usd: number
+          p_warning_percent?: number
+        }
+        Returns: undefined
+      }
+      set_system_job_kill_switch: {
+        Args: { p_enabled: boolean; p_job_key: string; p_reason: string }
         Returns: undefined
       }
       start_course_assignment: {
@@ -6305,6 +7742,41 @@ export type Database = {
         Args: { p_schedule_id: string }
         Returns: undefined
       }
+      update_profile_contact_preferences: {
+        Args: {
+          p_first_name: string
+          p_last_name: string
+          p_phone: string
+          p_preferred_notification_channel: string
+          p_profile_id: string
+          p_sms_opt_in: boolean
+        }
+        Returns: {
+          created_at: string
+          email: string
+          email_opt_out: boolean
+          email_opt_out_at: string | null
+          first_name: string
+          id: string
+          is_active: boolean
+          last_name: string
+          notification_timezone: string
+          organization_id: string | null
+          phone: string | null
+          preferred_notification_channel: string
+          role: string
+          sms_consent_at: string | null
+          sms_opt_in: boolean
+          sms_opt_out_at: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       verify_certificate: {
         Args: { p_slug: string }
         Returns: {
@@ -6315,6 +7787,10 @@ export type Database = {
           issued_at: string
           organization_name: string
         }[]
+      }
+      write_course_block_heygen_state: {
+        Args: { p_block_id: string; p_body: Json; p_video_url?: string }
+        Returns: undefined
       }
     }
     Enums: {
@@ -6444,7 +7920,11 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
 } as const
+

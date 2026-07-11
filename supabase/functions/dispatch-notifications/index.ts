@@ -1,16 +1,23 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
+import {
+  classifyNotificationDispatchStatus,
+  isRetryableProviderStatus,
+  normalizeSmsRecipient,
+  parseFromAddress,
+  renderProviderMessage,
+  renderVersionedNotificationTemplate,
+  sanitizeProviderDetail,
+  sha256Hex,
+} from "../_shared/notificationDelivery.ts";
 
-// Internal cron-only endpoint: invoked exclusively by the dispatch-notification-deliveries
-// pg_cron job every 15 minutes via net.http_post (see
-// supabase/migrations/20260705061816_notification_delivery_engine.sql). Deliberately
-// verify_jwt:false (see supabase/config.toml) because pg_net has no user JWT; authenticity is
-// enforced here with CRON_SHARED_SECRET / x-caremetric-cron-secret.
-
+// Internal cron-only endpoint. The database claim RPC is concurrency-safe; each
+// provider request now receives a durable attempt row before network I/O starts.
 const CORS_HEADERS = withCronCorsHeader({
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 });
 
 function json(body: unknown, status = 200) {
@@ -20,90 +27,258 @@ function json(body: unknown, status = 200) {
   });
 }
 
-const BATCH_SIZE = 200;
-// A row claimed (flipped to 'processing') longer ago than this is treated as abandoned -- the
-// Edge Function that claimed it must have timed out, been redeployed mid-batch, or crashed before
-// its per-row finalize update ran -- and becomes eligible to be claimed again. Comfortably shorter
-// than the 15-minute cron interval this function runs on, so a genuinely-stuck row is reclaimed on
-// the very next scheduled run rather than staying stuck indefinitely.
+const BATCH_SIZE = 100;
 const PROCESSING_STALE_MS = 10 * 60 * 1000;
-const NOT_CONFIGURED_EMAIL = "SENDGRID_API_KEY is not set -- email delivery is not configured for this deployment.";
-const NOT_CONFIGURED_SMS = "TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_FROM_NUMBER are not fully set -- SMS delivery is not configured for this deployment.";
+const PROVIDER_TIMEOUT_MS = 15_000;
 
 interface PendingDelivery {
   id: string;
   channel: "email" | "sms";
   recipient: string;
   notification_id: string | null;
-  notifications: { title: string; body: string | null } | null;
+  notifications: {
+    notification_type: string;
+    title: string;
+    body: string | null;
+  } | null;
+  notification_templates: {
+    subject_template: string;
+    body_template: string;
+    allowed_variables: string[];
+    version: number;
+    template_key: string;
+  } | null;
+  organizations: { name: string } | null;
 }
 
-// Accepts either a plain address or a "Display Name <email>" string (the format Resend used to
-// take directly) and splits it into the {email, name} shape SendGrid's v3 API requires.
-function parseFromAddress(raw: string): { email: string; name?: string } {
-  const match = raw.match(/^(.*)<([^<>]+)>\s*$/);
-  if (!match) return { email: raw.trim() };
-  const name = match[1].trim().replace(/^"|"$/g, "");
-  return { email: match[2].trim(), name: name || undefined };
+interface DeliveryAttempt {
+  id: string;
+  callback_token: string;
+  attempt_number: number;
 }
 
-async function sendEmail(to: string, subject: string, body: string): Promise<{ ok: boolean; providerId?: string; error?: string }> {
+interface ProviderResult {
+  ok: boolean;
+  retryable: boolean;
+  ambiguous?: boolean;
+  providerId?: string;
+  providerStatus?: string;
+  httpStatus?: number;
+  errorCode?: string;
+  error?: string;
+}
+
+async function sendEmail(
+  to: string,
+  subject: string,
+  body: string,
+  attemptId: string,
+): Promise<ProviderResult> {
   const apiKey = Deno.env.get("SENDGRID_API_KEY");
-  if (!apiKey) return { ok: false, error: NOT_CONFIGURED_EMAIL };
+  if (!apiKey) {
+    return {
+      ok: false,
+      retryable: false,
+      errorCode: "provider_not_configured",
+      error: "SendGrid delivery is not configured for this deployment",
+    };
+  }
+
   const from = parseFromAddress(
-    Deno.env.get("NOTIFICATION_FROM_EMAIL") || "CareMetric Train <notifications@caremetrictrain.com>",
+    Deno.env.get("NOTIFICATION_FROM_EMAIL") ||
+      "CareMetric Train <notifications@caremetrictrain.com>",
   );
   try {
-    const resp = await fetch("https://api.sendgrid.com/v3/mail/send", {
+    const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
-        personalizations: [{ to: [{ email: to }] }],
+        personalizations: [{
+          to: [{ email: to }],
+          // Opaque database UUID only; never put PII/PHI in SendGrid custom args.
+          custom_args: { cm_attempt_id: attemptId },
+        }],
         from,
         subject,
         content: [{ type: "text/plain", value: body }],
       }),
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
     });
-    // SendGrid returns 202 with an empty body on success and an X-Message-Id header;
-    // errors come back as { errors: [{ message, field, help }] }.
-    if (!resp.ok) {
-      const data = await resp.json().catch(() => ({}));
-      const message = Array.isArray(data?.errors) && typeof data.errors[0]?.message === "string"
-        ? data.errors[0].message
-        : `SendGrid API returned ${resp.status}`;
-      return { ok: false, error: message };
+
+    const providerId = response.headers.get("x-message-id") ?? undefined;
+    if (response.ok) {
+      return {
+        ok: true,
+        retryable: false,
+        providerId,
+        providerStatus: "accepted",
+        httpStatus: response.status,
+      };
     }
-    return { ok: true, providerId: resp.headers.get("x-message-id") ?? undefined };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+
+    const data = await response.json().catch(() => ({}));
+    const detail =
+      Array.isArray(data?.errors) && typeof data.errors[0]?.message === "string"
+        ? data.errors[0].message
+        : `SendGrid API returned ${response.status}`;
+    return {
+      ok: false,
+      retryable: isRetryableProviderStatus(response.status),
+      providerId,
+      providerStatus: "rejected",
+      httpStatus: response.status,
+      errorCode: `http_${response.status}`,
+      error: sanitizeProviderDetail(detail) ??
+        `SendGrid API returned ${response.status}`,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      retryable: false,
+      ambiguous: true,
+      providerStatus: "network_error",
+      errorCode: "network_error",
+      error: sanitizeProviderDetail(
+        error instanceof Error ? error.message : String(error),
+      ) ?? "Provider network error",
+    };
   }
 }
 
-async function sendSms(to: string, body: string): Promise<{ ok: boolean; providerId?: string; error?: string }> {
-  const sid = Deno.env.get("TWILIO_ACCOUNT_SID");
-  const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
-  const fromNumber = Deno.env.get("TWILIO_FROM_NUMBER");
-  if (!sid || !authToken || !fromNumber) return { ok: false, error: NOT_CONFIGURED_SMS };
-  try {
-    const form = new URLSearchParams({ To: to, From: fromNumber, Body: body.slice(0, 1500) });
-    const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${btoa(`${sid}:${authToken}`)}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: form.toString(),
-    });
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) return { ok: false, error: typeof data?.message === "string" ? data.message : `Twilio API returned ${resp.status}` };
-    return { ok: true, providerId: data?.sid };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+async function sendSms(
+  to: string,
+  body: string,
+  statusCallbackUrl: string,
+): Promise<ProviderResult> {
+  const normalizedRecipient = normalizeSmsRecipient(to);
+  if (!normalizedRecipient) {
+    return {
+      ok: false,
+      retryable: false,
+      errorCode: "invalid_recipient",
+      error: "SMS recipient is not a valid E.164 phone number",
+    };
   }
+  const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
+  const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+  const messagingServiceSid = Deno.env.get("TWILIO_MESSAGING_SERVICE_SID");
+  const fromNumber = Deno.env.get("TWILIO_FROM_NUMBER");
+  if (!accountSid || !authToken || (!messagingServiceSid && !fromNumber)) {
+    return {
+      ok: false,
+      retryable: false,
+      errorCode: "provider_not_configured",
+      error: "Twilio delivery is not configured for this deployment",
+    };
+  }
+
+  try {
+    const form = new URLSearchParams({
+      To: normalizedRecipient,
+      Body: body.slice(0, 1500),
+      StatusCallback: statusCallbackUrl,
+    });
+    if (messagingServiceSid) {
+      form.set("MessagingServiceSid", messagingServiceSid);
+    } else form.set("From", fromNumber!);
+
+    const response = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${btoa(`${accountSid}:${authToken}`)}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: form.toString(),
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+      },
+    );
+    const data = await response.json().catch(() => ({}));
+    const providerId = typeof data?.sid === "string" ? data.sid : undefined;
+    const providerStatus = typeof data?.status === "string"
+      ? data.status
+      : undefined;
+    if (response.ok) {
+      return {
+        ok: true,
+        retryable: false,
+        providerId,
+        providerStatus: providerStatus ?? "accepted",
+        httpStatus: response.status,
+      };
+    }
+
+    return {
+      ok: false,
+      retryable: isRetryableProviderStatus(response.status),
+      providerId,
+      providerStatus: providerStatus ?? "rejected",
+      httpStatus: response.status,
+      errorCode: data?.code ? String(data.code) : `http_${response.status}`,
+      error: sanitizeProviderDetail(data?.message) ??
+        `Twilio API returned ${response.status}`,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      retryable: false,
+      ambiguous: true,
+      providerStatus: "network_error",
+      errorCode: "network_error",
+      error: sanitizeProviderDetail(
+        error instanceof Error ? error.message : String(error),
+      ) ?? "Provider network error",
+    };
+  }
+}
+
+function twilioStatusCallbackUrl(
+  supabaseUrl: string,
+  callbackToken: string,
+): string {
+  const configured = Deno.env.get("TWILIO_NOTIFICATION_STATUS_CALLBACK_URL") ||
+    `${supabaseUrl}/functions/v1/twilio-notification-webhook`;
+  const url = new URL(configured);
+  url.searchParams.set("kind", "status");
+  url.searchParams.set("token", callbackToken);
+  return url.toString();
+}
+
+async function finishDispatchJob(
+  adminClient: any,
+  runId: string,
+  status: "succeeded" | "partial" | "failed" | "cancelled",
+  attempted: number,
+  accepted: number,
+  failed: number,
+  result: Record<string, unknown>,
+  errorCode?: string,
+  errorMessage?: string,
+): Promise<boolean> {
+  const { error } = await adminClient.rpc("finish_system_job", {
+    p_run_id: runId,
+    p_status: status,
+    p_attempted_count: attempted,
+    p_succeeded_count: accepted,
+    p_failed_count: failed,
+    p_result: result,
+    p_error_code: errorCode ?? null,
+    p_error_message: errorMessage ?? null,
+  });
+  if (error) {
+    console.error("notification dispatch job finalization failed", { runId });
+  }
+  return !error;
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: CORS_HEADERS });
+  }
   const cronAuthError = requireCronRequest(req, CORS_HEADERS);
   if (cronAuthError) return cronAuthError;
 
@@ -111,61 +286,291 @@ Deno.serve(async (req: Request) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
 
-  // Atomically claim a batch via claim_pending_notification_deliveries() -- a `FOR UPDATE SKIP
-  // LOCKED` RPC (20260706110200_add_updated_at_to_notification_deliveries_for_reclaim.sql), the
-  // standard, unambiguous Postgres pattern for claiming up to N work-queue rows under concurrency.
-  // Deliberately not a plain `.update(...).order(...).limit(...)`: whether PostgREST's limit/order
-  // actually bounds an UPDATE's affected rows (vs. just the rows it returns) isn't something to
-  // leave to chance here. Also reclaims a row stuck in 'processing' past PROCESSING_STALE_MS (an
-  // earlier invocation that timed out, was redeployed mid-batch, or crashed before its per-row
-  // finalize update ran), instead of leaving it claimed forever.
-  const { data: claimed, error: claimError } = await adminClient.rpc("claim_pending_notification_deliveries", {
-    p_batch_size: BATCH_SIZE,
-    p_stale_after_seconds: Math.round(PROCESSING_STALE_MS / 1000),
-  });
+  const correlationId =
+    (req.headers.get("x-correlation-id") || crypto.randomUUID()).slice(0, 200);
+  const providerRequestId = req.headers.get("x-request-id")?.slice(0, 200) ??
+    null;
+  const { data: jobClaims, error: beginJobError } = await adminClient.rpc(
+    "claim_system_job_execution",
+    {
+      p_job_key: "notification-dispatch",
+      p_correlation_id: correlationId,
+      p_trigger_type: "scheduled",
+      p_provider_request_id: providerRequestId,
+    },
+  );
+  const jobClaim = Array.isArray(jobClaims) ? jobClaims[0] : jobClaims;
+  if (beginJobError || !jobClaim?.run_id) {
+    return json({ error: "Notification job tracking failed" }, 500);
+  }
+  if (!jobClaim.should_execute) {
+    return json({
+      success: true,
+      replayed: true,
+      correlationId,
+      runId: jobClaim.run_id,
+    });
+  }
+  const runId = jobClaim.run_id as string;
 
-  if (claimError) return json({ error: claimError.message }, 500);
-  if (!claimed || claimed.length === 0) return json({ processed: 0, sent: 0, skipped: 0, failed: 0 });
-
-  // Second read for the display data (title/body via the notifications embed) -- safe even though
-  // it's a separate round trip from the claim above: these rows are already ours (status =
-  // 'processing'), so no other invocation can also be processing them in the meantime.
-  const { data: pending, error: fetchError } = await adminClient
-    .from("notification_deliveries")
-    .select("id, channel, recipient, notification_id, notifications(title, body)")
-    .in("id", claimed.map((row: { id: string }) => row.id));
-
-  if (fetchError) return json({ error: fetchError.message }, 500);
-  if (!pending || pending.length === 0) return json({ processed: 0, sent: 0, skipped: 0, failed: 0 });
-
-  let sent = 0, skipped = 0, failed = 0;
-
-  for (const rawRow of pending) {
-    const row = rawRow as unknown as PendingDelivery;
-    const title = row.notifications?.title ?? "CareMetric Train notification";
-    const body = row.notifications?.body ?? "";
-    const message = row.channel === "sms" ? `${title}: ${body}` : body || title;
-
-    const result = row.channel === "email"
-      ? await sendEmail(row.recipient, title, message)
-      : await sendSms(row.recipient, message);
-
-    const isNotConfigured = result.error === NOT_CONFIGURED_EMAIL || result.error === NOT_CONFIGURED_SMS;
-    const nextStatus = result.ok ? "sent" : isNotConfigured ? "skipped" : "failed";
-    if (nextStatus === "sent") sent++;
-    else if (nextStatus === "skipped") skipped++;
-    else failed++;
-
-    await adminClient
-      .from("notification_deliveries")
-      .update({
-        status: nextStatus,
-        provider_message_id: result.providerId ?? null,
-        error_message: result.error ?? null,
-        sent_at: result.ok ? new Date().toISOString() : null,
-      })
-      .eq("id", row.id);
+  const { data: claimed, error: claimError } = await adminClient.rpc(
+    "claim_pending_notification_deliveries",
+    {
+      p_batch_size: BATCH_SIZE,
+      p_stale_after_seconds: Math.round(PROCESSING_STALE_MS / 1000),
+    },
+  );
+  if (claimError) {
+    await finishDispatchJob(
+      adminClient,
+      runId,
+      "failed",
+      0,
+      0,
+      1,
+      { correlationId },
+      "claim_failed",
+      "Notification claim failed",
+    );
+    return json({ error: "Notification claim failed", correlationId }, 500);
+  }
+  if (!claimed?.length) {
+    const result = {
+      processed: 0,
+      accepted: 0,
+      retryScheduled: 0,
+      failed: 0,
+      notSent: 0,
+    };
+    const finished = await finishDispatchJob(
+      adminClient,
+      runId,
+      "succeeded",
+      0,
+      0,
+      0,
+      result,
+    );
+    return json({ ...result, correlationId }, finished ? 200 : 500);
   }
 
-  return json({ processed: pending.length, sent, skipped, failed });
+  const { data: rows, error: fetchError } = await adminClient
+    .from("notification_deliveries")
+    .select(
+      "id, channel, recipient, notification_id, notifications(notification_type, title, body), notification_templates(subject_template, body_template, allowed_variables, version, template_key), organizations(name)",
+    )
+    .in("id", claimed.map((row: { id: string }) => row.id));
+  if (fetchError) {
+    await finishDispatchJob(
+      adminClient,
+      runId,
+      "failed",
+      0,
+      0,
+      1,
+      { claimed: claimed.length, correlationId },
+      "fetch_failed",
+      "Notification fetch failed after claim",
+    );
+    return json({ error: "Notification fetch failed", correlationId }, 500);
+  }
+
+  let accepted = 0;
+  let retryScheduled = 0;
+  let failed = 0;
+  let unknown = 0;
+  let notSent = 0;
+  let persistenceErrors = 0;
+  let attemptsStarted = 0;
+  let processed = 0;
+  let cancelled = false;
+
+  for (const rawRow of rows ?? []) {
+    if (processed % 10 === 0) {
+      const { data: cancellationRequested, error: cancellationError } =
+        await adminClient.rpc(
+          "is_system_job_cancellation_requested",
+          { p_run_id: runId },
+        );
+      if (cancellationError) {
+        console.error("notification cancellation check failed", { runId });
+      } else if (cancellationRequested) {
+        cancelled = true;
+        break;
+      }
+    }
+
+    const row = rawRow as unknown as PendingDelivery;
+    const safeFallback = renderProviderMessage(
+      row.notifications?.notification_type ?? null,
+      row.notifications?.title ?? null,
+      row.notifications?.body ?? null,
+    );
+    let rendered = safeFallback;
+    if (row.notification_templates) {
+      try {
+        rendered = renderVersionedNotificationTemplate(
+          row.notification_templates,
+          {
+            title: safeFallback.subject,
+            body: safeFallback.body,
+            organization_name: row.organizations?.name ?? "Your organization",
+            action_url: "/",
+          },
+        );
+      } catch (_error) {
+        // A malformed template must not strand a delivery. Database validation
+        // prevents this for new versions; this fallback also protects workers
+        // during rolling deploys or manual recovery.
+        rendered = safeFallback;
+      }
+    }
+    const provider = row.channel === "email" ? "sendgrid" : "twilio";
+    const outboundBody = row.channel === "sms"
+      ? `${rendered.subject}: ${rendered.body} Reply STOP to opt out.`
+      : rendered.body;
+    const contentSha256 = await sha256Hex(
+      `${row.channel}\n${rendered.subject}\n${outboundBody}`,
+    );
+
+    const { data: attempts, error: attemptError } = await adminClient.rpc(
+      "begin_notification_delivery_attempt",
+      {
+        p_delivery_id: row.id,
+        p_provider: provider,
+        p_content_sha256: contentSha256,
+      },
+    );
+    if (attemptError) {
+      console.error("notification attempt creation failed", {
+        deliveryId: row.id,
+      });
+      persistenceErrors++;
+      continue;
+    }
+    if (!attempts?.length) {
+      // Consent/preferences/quiet hours can safely defer or skip after claim.
+      notSent++;
+      continue;
+    }
+
+    const attempt = attempts[0] as DeliveryAttempt;
+    attemptsStarted++;
+    const result = row.channel === "email"
+      ? await sendEmail(
+        row.recipient,
+        rendered.subject,
+        outboundBody,
+        attempt.id,
+      )
+      : await sendSms(
+        row.recipient,
+        outboundBody,
+        twilioStatusCallbackUrl(supabaseUrl, attempt.callback_token),
+      );
+
+    const completion = result.ok
+      ? "accepted"
+      : result.ambiguous
+      ? "unknown"
+      : result.retryable
+      ? "retryable"
+      : "failed";
+    const { error: completionError } = await adminClient.rpc(
+      "complete_notification_delivery_attempt",
+      {
+        p_attempt_id: attempt.id,
+        p_result: completion,
+        p_provider_message_id: result.providerId ?? null,
+        p_provider_status: result.providerStatus ?? null,
+        p_http_status: result.httpStatus ?? null,
+        p_error_code: result.errorCode ?? null,
+        p_error_detail: result.error ?? null,
+      },
+    );
+    if (completionError) {
+      console.error("notification attempt finalization failed", {
+        deliveryId: row.id,
+        attemptId: attempt.id,
+      });
+      persistenceErrors++;
+      continue;
+    }
+
+    if (completion === "accepted") accepted++;
+    else if (completion === "retryable") retryScheduled++;
+    else {
+      failed++;
+      if (completion === "unknown") unknown++;
+    }
+
+    processed++;
+    if (processed % 25 === 0) {
+      const { error: heartbeatError } = await adminClient.rpc(
+        "heartbeat_system_job",
+        {
+          p_run_id: runId,
+          p_attempted_count: attemptsStarted,
+          p_succeeded_count: accepted,
+          p_failed_count: failed + retryScheduled + persistenceErrors,
+          p_cursor: { processed, lastDeliveryId: row.id },
+        },
+      );
+      if (heartbeatError) {
+        console.error("notification dispatch job heartbeat failed", { runId });
+      }
+    }
+  }
+
+  const result = {
+    processed: rows?.length ?? 0,
+    attempted: attemptsStarted,
+    accepted,
+    // Backward-compatible counter name: this means provider-accepted, not delivered.
+    sent: accepted,
+    retryScheduled,
+    failed,
+    unknown,
+    notSent,
+    persistenceErrors,
+  };
+  const terminalStatus = classifyNotificationDispatchStatus({
+    cancelled,
+    attempted: attemptsStarted,
+    accepted,
+    failed,
+    retryScheduled,
+    persistenceErrors,
+  });
+  const jobFinished = await finishDispatchJob(
+    adminClient,
+    runId,
+    terminalStatus,
+    attemptsStarted,
+    accepted,
+    failed + retryScheduled + persistenceErrors,
+    { ...result, correlationId, cancelled },
+    persistenceErrors > 0
+      ? "persistence_error"
+      : unknown > 0
+      ? "ambiguous_provider_result"
+      : failed > 0
+      ? "provider_failure"
+      : retryScheduled > 0
+      ? "provider_retry_scheduled"
+      : undefined,
+    persistenceErrors > 0
+      ? "One or more notification attempt state updates failed"
+      : unknown > 0
+      ? "One or more provider requests had an ambiguous transport outcome and were not replayed"
+      : failed > 0
+      ? "One or more provider attempts failed permanently"
+      : retryScheduled > 0
+      ? "One or more provider attempts were rate-limited and scheduled for bounded retry"
+      : undefined,
+  );
+  return json(
+    { ...result, correlationId, cancelled },
+    persistenceErrors > 0 || !jobFinished ? 500 : 200,
+  );
 });

@@ -6,6 +6,10 @@ senior-care training and operations software markets, and operator pain-point re
 ranked from three perspectives — a PCH administrator, a compliance consultant/former surveyor, and a staff
 engineer who knows this stack — then merged and stress-tested for completeness.*
 
+> **Historical review:** This file preserves the original findings and
+> recommendation rationale. The canonical forward delivery sequence is the
+> [five-phase implementation plan](IMPLEMENTATION_PLAN.md).
+
 ---
 
 ## Part 1 — Where the app stands today

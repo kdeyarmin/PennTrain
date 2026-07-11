@@ -79,7 +79,9 @@ export default function Login() {
 
         <Card className="border-border/50 shadow-xl shadow-black/[0.04] backdrop-blur-sm">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg">Sign in to your account</CardTitle>
+            <CardTitle className="text-lg">
+              <h2>Sign in to your account</h2>
+            </CardTitle>
             <CardDescription>Enter your credentials to access your dashboard</CardDescription>
           </CardHeader>
           <CardContent>

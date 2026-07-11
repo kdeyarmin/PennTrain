@@ -75,6 +75,7 @@ interface EditFormData {
   lastName: string;
   phone: string;
   smsOptIn: boolean;
+  preferredNotificationChannel: "email" | "sms";
 }
 
 const PAGE_SIZE = 15;
@@ -110,7 +111,10 @@ export default function Users() {
   });
 
   const [editProfile, setEditProfile] = useState<Profile | null>(null);
-  const [editForm, setEditForm] = useState<EditFormData>({ firstName: "", lastName: "", phone: "", smsOptIn: false });
+  const [editForm, setEditForm] = useState<EditFormData>({
+    firstName: "", lastName: "", phone: "", smsOptIn: false,
+    preferredNotificationChannel: "email",
+  });
 
   const [impersonateProfile, setImpersonateProfile] = useState<Profile | null>(null);
   const [impersonateReason, setImpersonateReason] = useState("");
@@ -265,7 +269,13 @@ export default function Users() {
     e.preventDefault();
     e.stopPropagation();
     setEditProfile(p);
-    setEditForm({ firstName: p.first_name, lastName: p.last_name, phone: p.phone ?? "", smsOptIn: p.sms_opt_in });
+    setEditForm({
+      firstName: p.first_name,
+      lastName: p.last_name,
+      phone: p.phone ?? "",
+      smsOptIn: p.sms_opt_in,
+      preferredNotificationChannel: p.preferred_notification_channel === "sms" ? "sms" : "email",
+    });
   };
 
   const handleEditSubmit = () => {
@@ -278,10 +288,10 @@ export default function Users() {
       toast({ title: "A phone number is required to enable SMS reminders", variant: "destructive" });
       return;
     }
-    // sms_consent_at is only ever set (never cleared) here -- it's a timestamped record that
-    // consent was captured at some point, not a live reflection of the current toggle state;
-    // sms_opt_in itself is the switch that actually gates delivery.
-    const wasOptedIn = editProfile.sms_opt_in;
+    if (editForm.preferredNotificationChannel === "sms" && (!editForm.smsOptIn || !editForm.phone.trim())) {
+      toast({ title: "SMS can be preferred only after phone consent is enabled", variant: "destructive" });
+      return;
+    }
     updateProfile(
       {
         id: editProfile.id,
@@ -289,7 +299,7 @@ export default function Users() {
         last_name: editForm.lastName.trim(),
         phone: editForm.phone || null,
         sms_opt_in: editForm.smsOptIn,
-        ...(editForm.smsOptIn && !wasOptedIn ? { sms_consent_at: new Date().toISOString() } : {}),
+        preferred_notification_channel: editForm.preferredNotificationChannel,
       },
       {
         onSuccess: () => { toast({ title: "User updated" }); setEditProfile(null); },
@@ -658,7 +668,11 @@ export default function Users() {
             <div className="col-span-full flex items-start gap-2 rounded-md border p-3">
               <input
                 type="checkbox" id="sms-opt-in" checked={editForm.smsOptIn}
-                onChange={e => setEditForm(f => ({ ...f, smsOptIn: e.target.checked }))}
+                onChange={e => setEditForm(f => ({
+                  ...f,
+                  smsOptIn: e.target.checked,
+                  preferredNotificationChannel: e.target.checked ? f.preferredNotificationChannel : "email",
+                }))}
                 className="h-4 w-4 mt-0.5"
               />
               <label htmlFor="sms-opt-in" className="text-[13px] cursor-pointer">
@@ -668,6 +682,28 @@ export default function Users() {
                   Also requires SMS reminders to be turned on for the organization in Settings.
                 </p>
               </label>
+            </div>
+            <div className="col-span-full space-y-1.5">
+              <Label className="text-[13px]">Preferred notification channel</Label>
+              <Select
+                value={editForm.preferredNotificationChannel}
+                onValueChange={value => setEditForm(f => ({
+                  ...f,
+                  preferredNotificationChannel: value as "email" | "sms",
+                }))}
+              >
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="email">Email first</SelectItem>
+                  <SelectItem value="sms" disabled={!editForm.smsOptIn || !editForm.phone.trim()}>
+                    SMS first
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                SMS becomes available only after a phone number and explicit consent are recorded.
+                A permanent provider failure can use the configured alternate-channel fallback.
+              </p>
             </div>
             <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Email</Label>

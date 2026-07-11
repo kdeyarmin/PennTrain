@@ -90,6 +90,14 @@ export default function MyCertificates() {
                           <> &middot; {expired ? "Expired" : "Expires"} {new Date(cert.expires_at).toLocaleDateString()}</>
                         )}
                       </p>
+                      <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                        {cert.credential_number}
+                      </p>
+                      {cert.pdf_status !== "ready" && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          PDF {cert.pdf_status === "failed" ? "needs another attempt" : "is being prepared"}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <Badge variant={expired ? "destructive" : "default"}>
@@ -105,7 +113,13 @@ export default function MyCertificates() {
                         ) : (
                           <Download className="mr-1.5 h-3.5 w-3.5" />
                         )}
-                        {downloadingId === cert.id ? "Preparing..." : "Download"}
+                        {downloadingId === cert.id
+                          ? "Preparing..."
+                          : cert.pdf_status === "ready"
+                            ? "Download"
+                            : cert.pdf_status === "failed"
+                              ? "Retry PDF"
+                              : "Prepare PDF"}
                       </Button>
                       <Link
                         href={`/verify/${cert.slug}`}

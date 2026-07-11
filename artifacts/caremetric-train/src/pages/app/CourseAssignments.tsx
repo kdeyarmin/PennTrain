@@ -15,7 +15,7 @@ import {
   isCourseVersionLearnerReady,
 } from "@/hooks/useCourses";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { useIssueCertificate, useListCertificates, useGenerateCertificatePdf } from "@/hooks/useCertificates";
+import { useListCertificates, useGenerateCertificatePdf } from "@/hooks/useCertificates";
 import { summarizeCourseAssignmentAnalytics } from "@/lib/courseAssignmentAnalytics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -144,7 +144,6 @@ export default function CourseAssignments() {
 
   const { mutateAsync: createAssignmentAsync } = useCreateCourseAssignment();
   const { mutate: completeAssignment, isPending: completing } = useCompleteCourseAssignment();
-  const { mutate: issueCertificate } = useIssueCertificate();
   // Unfiltered on purpose -- RLS (certificates_select) already scopes this to certificates the
   // current caller is allowed to see (their own, or org/facility staff), the same population this
   // page's own assignments query is implicitly scoped to. Mirrors the "fetch full set, look up
@@ -354,16 +353,9 @@ export default function CourseAssignments() {
     setCompletingId(assignment.id);
     completeAssignment(assignment.id, {
       onSuccess: () => {
-        toast({ title: "Marked complete" });
-        issueCertificate(
-          { employeeId: assignment.employee_id, courseId: assignment.course_id, assignmentId: assignment.id },
-          {
-            onError: (e: Error) =>
-              // Completion already succeeded; a failed issuance (e.g. one already exists for this
-              // assignment) shouldn't read as a failure of the "Mark Complete" action itself.
-              console.error("issue_certificate failed after marking assignment complete:", e.message),
-          }
-        );
+        // The completion RPC now commits the assignment, compliance evidence, certificate,
+        // lifecycle event, and PDF job together. There is deliberately no second issuance call.
+        toast({ title: "Marked complete", description: "Certificate issued and PDF preparation queued." });
       },
       onError: (e: Error) => toast({ title: "Failed to mark complete", description: e.message, variant: "destructive" }),
       onSettled: () => setCompletingId(null),

@@ -162,6 +162,7 @@ export function useCompleteCourseAssignment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["course_assignments"] });
       queryClient.invalidateQueries({ queryKey: ["course_progress"] });
+      queryClient.invalidateQueries({ queryKey: ["certificates"] });
     },
   });
 }
