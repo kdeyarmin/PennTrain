@@ -20,6 +20,10 @@ const EDGE_JOBS: Record<
     functionName: "generate-certificate-pdf",
     body: { batchSize: 50 },
   },
+  "integration-webhook-dispatch": {
+    functionName: "dispatch-integration-webhooks",
+    body: { batchSize: 50 },
+  },
 };
 
 function json(body: unknown, status = 200) {

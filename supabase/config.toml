@@ -106,3 +106,33 @@ verify_jwt = true
 # needed and nothing sensitive to protect with verify_jwt.
 [functions.get-platform-status]
 verify_jwt = false
+
+# Organization/platform administrators create Stripe Checkout or Customer Portal sessions. The
+# gateway verifies the JWT and the function repeats the active-role, tenant, entitlement, redirect
+# origin, and idempotency checks before calling Stripe.
+[functions.create-billing-session]
+verify_jwt = true
+
+# Stripe cannot present a Supabase JWT. This endpoint authenticates the exact raw request body with
+# Stripe-Signature before its idempotent, out-of-order-safe event processor can mutate billing state.
+[functions.stripe-billing-webhook]
+verify_jwt = false
+
+# SCIM and the public integration API use tenant-bound credentials that are hashed at rest and
+# validated inside their handlers. A Supabase JWT would be the wrong authentication mechanism.
+[functions.scim-provision]
+verify_jwt = false
+
+# Active organization/platform administrator JWT plus AAL2 are enforced in the handler. The
+# handler proves control with a DNS TXT lookup, then uses service_role for the otherwise
+# service-only verification transition; interactive callers cannot self-attest domain ownership.
+[functions.verify-identity-domain]
+verify_jwt = true
+
+[functions.integration-api]
+verify_jwt = false
+
+# Internal cron worker. It requires X-CareMetric-Cron-Secret and signs each tenant webhook with the
+# endpoint-specific secret held in Vault; it does not accept a caller session.
+[functions.dispatch-integration-webhooks]
+verify_jwt = false

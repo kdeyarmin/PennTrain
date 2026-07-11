@@ -33,6 +33,7 @@ export interface AppCommandAction {
 }
 
 const PLATFORM_ADMIN: Role[] = ["platform_admin"];
+const ORG_ADMINS: Role[] = ["org_admin"];
 const ORG_ROLES: Role[] = ["org_admin", "facility_manager", "trainer", "auditor"];
 const ORG_HOME_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
 const ORG_MANAGERS: Role[] = ["org_admin", "facility_manager"];
@@ -157,6 +158,7 @@ const APP_COMMAND_ACTIONS: AppCommandAction[] = [
 ];
 
 export const APP_PAGES: AppPageDefinition[] = [
+  { path: "/account/security", label: "Account security", domain: "self_service", roles: ANY_ROLE, keywords: ["mfa", "aal2", "authenticator", "two factor"] },
   { path: "/admin", label: "Platform dashboard", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["super admin", "command center", "health"] },
   { path: "/admin/organizations", label: "Organizations", domain: "tenant", roles: PLATFORM_ADMIN, keywords: ["tenant", "customer", "subscription"] },
   { path: "/admin/packages", label: "Packages", domain: "tenant", roles: PLATFORM_ADMIN, keywords: ["plans", "subscriptions", "billing"] },
@@ -170,6 +172,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/admin/audit", label: "Platform audit log", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["governance", "activity"] },
   { path: "/admin/notifications", label: "Notification delivery", domain: "support", roles: PLATFORM_ADMIN, keywords: ["email", "sms", "failed"] },
   { path: "/admin/system-jobs", label: "System jobs", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["cron", "queue", "health", "freshness", "retry"] },
+  { path: "/admin/enterprise", label: "Enterprise foundation", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["portfolio", "regions", "workforce", "rules", "sso", "scim", "billing", "integrations"] },
   { path: "/admin/exclusion-screening", label: "Exclusion screening", domain: "credentialing", roles: PLATFORM_ADMIN, keywords: ["oig", "sam", "snapshot", "screening"] },
   { path: "/admin/security", label: "Security & governance", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["roles", "audit", "access"] },
   { path: "/admin/support-tickets", label: "Support tickets", domain: "support", roles: PLATFORM_ADMIN, keywords: ["help", "queue"] },
@@ -211,6 +214,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/documents", label: "Documents", domain: "documents", roles: ORG_ROLES, keywords: ["files", "uploads"] },
   { path: "/app/users", label: "Users", domain: "tenant", roles: ORG_MANAGERS, keywords: ["roles", "invites"] },
   { path: "/app/settings", label: "Settings", domain: "tenant", roles: ORG_MANAGERS, keywords: ["configuration", "organization"] },
+  { path: "/app/enterprise", label: "Enterprise foundation", domain: "tenant", roles: ORG_ADMINS, keywords: ["workforce", "compliance profiles", "sso", "scim", "entitlements", "integrations"] },
   { path: "/app/audit", label: "Audit log", domain: "platform", roles: AUDIT_LOG_ROLES, keywords: ["activity", "history"] },
   { path: "/app/help", label: "Help center", domain: "support", roles: ORG_ROLES, keywords: ["support", "articles"] },
 

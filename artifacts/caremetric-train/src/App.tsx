@@ -20,6 +20,7 @@ const Demo = lazy(() => import("@/pages/auth/Demo"));
 const Signup = lazy(() => import("@/pages/auth/Signup"));
 const ForgotPassword = lazy(() => import("@/pages/auth/ForgotPassword"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
+const MfaSettings = lazy(() => import("@/pages/auth/MfaSettings"));
 
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
 const Organizations = lazy(() => import("@/pages/admin/Organizations"));
@@ -29,6 +30,7 @@ const AiCourseWizard = lazy(() => import("@/pages/admin/AiCourseWizard"));
 const AiGenerationLog = lazy(() => import("@/pages/admin/AiGenerationLog"));
 const NotificationDeliveries = lazy(() => import("@/pages/admin/NotificationDeliveries"));
 const SystemJobs = lazy(() => import("@/pages/admin/SystemJobs"));
+const EnterpriseFoundation = lazy(() => import("@/pages/admin/EnterpriseFoundation"));
 const PlatformSettings = lazy(() => import("@/pages/admin/PlatformSettings"));
 const SecurityGovernance = lazy(() => import("@/pages/admin/SecurityGovernance"));
 const AdminSupportTickets = lazy(() => import("@/pages/admin/SupportTickets"));
@@ -269,6 +271,10 @@ function Router() {
           isPublicPath(); intentionally no sidebar for a page reached by scanning a QR code. */}
       <Route path="/checkin/:token" component={CheckIn} />
 
+      <Route path="/account/security">
+        {() => <ProtectedRoute component={MfaSettings} allowedRoles={ANY_ROLE} />}
+      </Route>
+
       {/* Public marketing pages (nav targets from the landing page) */}
       <Route path="/features" component={Features} />
       <Route path="/who-its-for" component={WhoItsFor} />
@@ -338,6 +344,9 @@ function Router() {
       </Route>
       <Route path="/admin/system-jobs">
         {() => <ProtectedRoute component={SystemJobs} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/enterprise">
+        {() => <ProtectedRoute component={EnterpriseFoundation} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
       <Route path="/admin/exclusion-screening">
         {() => <ProtectedRoute component={ExclusionScreening} allowedRoles={PLATFORM_ADMIN} />}
@@ -484,6 +493,9 @@ function Router() {
       </Route>
       <Route path="/app/settings">
         {() => <ProtectedRoute component={Settings} allowedRoles={ORG_MANAGE_ROLES} />}
+      </Route>
+      <Route path="/app/enterprise">
+        {() => <ProtectedRoute component={EnterpriseFoundation} allowedRoles={ORG_ADMIN_ONLY} />}
       </Route>
       <Route path="/app/audit">
         {() => <ProtectedRoute component={AuditLog} allowedRoles={AUDIT_LOG_ROLES} />}

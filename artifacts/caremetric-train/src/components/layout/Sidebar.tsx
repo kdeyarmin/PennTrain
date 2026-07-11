@@ -58,6 +58,7 @@ import {
   Rocket,
   Star,
   Activity,
+  Network,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -108,6 +109,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/admin/audit", label: "Audit Log", icon: ShieldAlert },
           { href: "/admin/notifications", label: "Notification Delivery", icon: Send },
           { href: "/admin/system-jobs", label: "System Jobs", icon: Activity },
+          { href: "/admin/enterprise", label: "Enterprise Foundation", icon: Network },
           { href: "/admin/exclusion-screening", label: "Exclusion Screening", icon: ShieldAlert },
           { href: "/admin/security", label: "Security & Governance", icon: Eye },
           { href: "/admin/support-tickets", label: "Support Tickets", icon: LifeBuoy },
@@ -199,6 +201,9 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/users", label: "Users", icon: Users },
           { href: "/app/training-types", label: "Training Types", icon: ListChecks },
           { href: "/app/settings", label: "Settings", icon: Settings },
+          ...(role === "org_admin"
+            ? [{ href: "/app/enterprise", label: "Enterprise Foundation", icon: Network }]
+            : []),
           // Phase 1 audit evidence carries facility scope, so managers see only their assigned
           // facilities while org administrators retain organization-wide visibility.
           ...(["org_admin", "facility_manager"].includes(role ?? "")
@@ -623,6 +628,13 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
               <span className="text-sm font-medium leading-tight">{user.firstName} {user.lastName}</span>
               <span className="text-xs font-normal text-muted-foreground leading-tight">{user.email}</span>
             </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/account/security" className="cursor-pointer" onClick={onNavigate}>
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                <span>Account security</span>
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive cursor-pointer">
               <LogOut className="mr-2 h-4 w-4" />
