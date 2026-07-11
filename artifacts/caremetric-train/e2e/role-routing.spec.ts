@@ -60,14 +60,14 @@ async function createAccount(
   if (error || !data.user)
     throw error ?? new Error("User creation returned no user");
 
-  const { error: profileError } = await admin
-    .from("profiles")
-    .update({
-      role,
-      organization_id: role === "platform_admin" ? null : organizationId,
-      is_active: true,
-    })
-    .eq("id", data.user.id);
+  const { error: profileError } = await admin.rpc("admin_update_profile", {
+    p_user_id: data.user.id,
+    p_role: role,
+    p_is_active: true,
+    ...(role === "platform_admin"
+      ? {}
+      : { p_organization_id: organizationId }),
+  });
   if (profileError) throw profileError;
 
   accounts.set(role, { id: data.user.id, email, password, expectedPath });

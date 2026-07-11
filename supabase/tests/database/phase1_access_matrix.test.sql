@@ -1,7 +1,7 @@
 -- Focused Phase 1 release-gate matrix: explicit grants, six application roles,
 -- tenant/facility boundaries, and the private certificate Storage path policy.
 begin;
-select plan(25);
+select plan(27);
 
 insert into public.organizations (id, name, slug) values
   ('20000000-0000-4000-8000-000000000001', 'Access Matrix Org A', 'access-matrix-org-a'),
@@ -119,6 +119,61 @@ end;
 $$ language plpgsql;
 
 -- Explicit grants remain a separate gate from RLS.
+select ok(
+  not exists (
+    select 1
+    from pg_catalog.pg_policy p
+    join pg_catalog.pg_class c on c.oid = p.polrelid
+    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+    join pg_catalog.pg_roles authenticated_role
+      on authenticated_role.rolname = 'authenticated'
+    cross join lateral unnest(
+      case p.polcmd
+        when 'r' then array['SELECT']::text[]
+        when 'a' then array['INSERT']::text[]
+        when 'w' then array['UPDATE']::text[]
+        when 'd' then array['DELETE']::text[]
+        else array['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]
+      end
+    ) as required(privilege_name)
+    where n.nspname = 'public'
+      and (
+        0::oid = any (p.polroles)
+        or authenticated_role.oid = any (p.polroles)
+      )
+      and not has_table_privilege(
+        'authenticated',
+        format('%I.%I', n.nspname, c.relname),
+        required.privilege_name
+      )
+  ),
+  'every authenticated public-table RLS command has its matching table grant'
+);
+select ok(
+  not exists (
+    select 1
+    from (values
+      ('organizations', 'SELECT'),
+      ('organizations', 'INSERT'),
+      ('facilities', 'SELECT'),
+      ('facilities', 'INSERT'),
+      ('courses', 'SELECT'),
+      ('courses', 'INSERT'),
+      ('course_versions', 'SELECT'),
+      ('course_versions', 'INSERT'),
+      ('facility_assignments', 'INSERT'),
+      ('employees', 'INSERT'),
+      ('course_blocks', 'INSERT'),
+      ('certificates', 'SELECT')
+    ) as required(table_name, privilege_name)
+    where not has_table_privilege(
+      'service_role',
+      format('public.%I', required.table_name),
+      required.privilege_name
+    )
+  ),
+  'trusted bootstrap workflows have only their required direct table commands'
+);
 select ok(
   has_table_privilege('authenticated', 'public.certificate_pdf_jobs', 'SELECT')
   and not has_table_privilege('authenticated', 'public.certificate_pdf_jobs', 'INSERT')
