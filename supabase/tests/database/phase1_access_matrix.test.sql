@@ -31,6 +31,10 @@ from (values
   ('20000000-0000-4000-8000-000000000106'::uuid, 'matrix-employee@test.local')
 ) as v(id, email);
 
+-- auth.users fires handle_new_user(); finish the trigger-created fixture rows under the
+-- same transaction-local bypass used by trusted profile administration paths.
+select set_config('app.privileged_write', 'on', true);
+
 insert into public.profiles (
   id, organization_id, email, first_name, last_name, role, is_active
 ) values
@@ -39,7 +43,16 @@ insert into public.profiles (
   ('20000000-0000-4000-8000-000000000103', '20000000-0000-4000-8000-000000000001', 'matrix-manager@test.local', 'Matrix', 'Manager', 'facility_manager', true),
   ('20000000-0000-4000-8000-000000000104', '20000000-0000-4000-8000-000000000001', 'matrix-trainer@test.local', 'Matrix', 'Trainer', 'trainer', true),
   ('20000000-0000-4000-8000-000000000105', '20000000-0000-4000-8000-000000000001', 'matrix-auditor@test.local', 'Matrix', 'Auditor', 'auditor', true),
-  ('20000000-0000-4000-8000-000000000106', '20000000-0000-4000-8000-000000000001', 'matrix-employee@test.local', 'Matrix', 'Employee', 'employee', true);
+  ('20000000-0000-4000-8000-000000000106', '20000000-0000-4000-8000-000000000001', 'matrix-employee@test.local', 'Matrix', 'Employee', 'employee', true)
+on conflict (id) do update set
+  organization_id = excluded.organization_id,
+  email = excluded.email,
+  first_name = excluded.first_name,
+  last_name = excluded.last_name,
+  role = excluded.role,
+  is_active = excluded.is_active;
+
+select set_config('app.privileged_write', 'off', true);
 
 insert into public.facility_assignments (profile_id, facility_id) values
   ('20000000-0000-4000-8000-000000000103', '20000000-0000-4000-8000-000000000011'),

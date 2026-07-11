@@ -142,6 +142,10 @@ from (
     )
 ) as v(id, email);
 
+-- auth.users fires handle_new_user(); finish the trigger-created fixture rows under the
+-- same transaction-local bypass used by trusted profile administration paths.
+select set_config('app.privileged_write', 'on', true);
+
 insert into public.profiles (
   id,
   organization_id,
@@ -187,7 +191,16 @@ values
     'B',
     'facility_manager',
     true
-  );
+  )
+on conflict (id) do update set
+  organization_id = excluded.organization_id,
+  email = excluded.email,
+  first_name = excluded.first_name,
+  last_name = excluded.last_name,
+  role = excluded.role,
+  is_active = excluded.is_active;
+
+select set_config('app.privileged_write', 'off', true);
 
 insert into public.facility_assignments (profile_id, facility_id)
 values

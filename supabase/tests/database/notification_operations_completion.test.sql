@@ -50,6 +50,10 @@ from (values
   ('11000000-0000-0000-0000-000000000013'::uuid, 'notification-admin-b@test.local')
 ) as v(id, email);
 
+-- auth.users fires handle_new_user(); finish the trigger-created fixture rows under the
+-- same transaction-local bypass used by trusted profile administration paths.
+select set_config('app.privileged_write', 'on', true);
+
 insert into public.profiles (
   id, organization_id, first_name, last_name, email, phone, role, is_active,
   notification_timezone, sms_opt_in, sms_consent_at, preferred_notification_channel
@@ -65,7 +69,21 @@ insert into public.profiles (
    'America/New_York', true, now(), 'email'),
   ('11000000-0000-0000-0000-000000000013', '11000000-0000-0000-0000-000000000002',
    'Organization', 'Admin B', 'NOTIFICATION-WORKER-A@TEST.LOCAL', null, 'org_admin', true,
-   'America/New_York', false, null, 'email');
+   'America/New_York', false, null, 'email')
+on conflict (id) do update set
+  organization_id = excluded.organization_id,
+  first_name = excluded.first_name,
+  last_name = excluded.last_name,
+  email = excluded.email,
+  phone = excluded.phone,
+  role = excluded.role,
+  is_active = excluded.is_active,
+  notification_timezone = excluded.notification_timezone,
+  sms_opt_in = excluded.sms_opt_in,
+  sms_consent_at = excluded.sms_consent_at,
+  preferred_notification_channel = excluded.preferred_notification_channel;
+
+select set_config('app.privileged_write', 'off', true);
 
 create or replace function pg_temp.act_as(p_profile_id uuid) returns void as $$
 begin

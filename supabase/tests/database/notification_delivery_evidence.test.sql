@@ -49,6 +49,10 @@ from (values
   ('10000000-0000-0000-0000-000000000006'::uuid, 'delivery-manager-b@test.local')
 ) as v(id, email);
 
+-- auth.users fires handle_new_user(); finish the trigger-created fixture rows under the
+-- same transaction-local bypass used by trusted profile administration paths.
+select set_config('app.privileged_write', 'on', true);
+
 insert into public.profiles (
   id, organization_id, email, phone, first_name, last_name, role, is_active,
   notification_timezone, sms_opt_in, sms_consent_at
@@ -67,7 +71,20 @@ insert into public.profiles (
    'America/New_York', false, null),
   ('10000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000001',
    'delivery-manager-b@test.local', null, 'Delivery', 'Manager B', 'facility_manager', true,
-   'America/New_York', false, null);
+   'America/New_York', false, null)
+on conflict (id) do update set
+  organization_id = excluded.organization_id,
+  email = excluded.email,
+  phone = excluded.phone,
+  first_name = excluded.first_name,
+  last_name = excluded.last_name,
+  role = excluded.role,
+  is_active = excluded.is_active,
+  notification_timezone = excluded.notification_timezone,
+  sms_opt_in = excluded.sms_opt_in,
+  sms_consent_at = excluded.sms_consent_at;
+
+select set_config('app.privileged_write', 'off', true);
 
 insert into public.facility_assignments (profile_id, facility_id) values
   ('10000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000020'),

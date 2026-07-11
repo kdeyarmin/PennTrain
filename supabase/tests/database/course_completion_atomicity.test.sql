@@ -25,10 +25,23 @@ from (values
   ('10000000-0000-0000-0000-00000000000b'::uuid, 'atomic-manager@test.local')
 ) as v(id, email);
 
+-- auth.users fires handle_new_user(); finish the trigger-created fixture rows under the
+-- same transaction-local bypass used by trusted profile administration paths.
+select set_config('app.privileged_write', 'on', true);
+
 insert into public.profiles (id, organization_id, email, first_name, last_name, role, is_active) values
   ('10000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 'atomic-admin@test.local', 'Atomic', 'Admin', 'org_admin', true),
   ('10000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 'atomic-learner@test.local', 'Atomic', 'Learner', 'employee', true),
-  ('10000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-000000000001', 'atomic-manager@test.local', 'Atomic', 'Manager', 'facility_manager', true);
+  ('10000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-000000000001', 'atomic-manager@test.local', 'Atomic', 'Manager', 'facility_manager', true)
+on conflict (id) do update set
+  organization_id = excluded.organization_id,
+  email = excluded.email,
+  first_name = excluded.first_name,
+  last_name = excluded.last_name,
+  role = excluded.role,
+  is_active = excluded.is_active;
+
+select set_config('app.privileged_write', 'off', true);
 
 insert into public.employees (
   id, organization_id, facility_id, profile_id, first_name, last_name, job_title, status
