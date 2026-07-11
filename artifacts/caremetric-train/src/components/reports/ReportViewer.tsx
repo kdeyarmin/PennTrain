@@ -216,7 +216,9 @@ function isDateCell(value: string): boolean {
 }
 
 function formatDate(value: string): string {
-  return formatDateForDisplay(value, { month: "short", day: "numeric", year: "numeric" });
+  const formatted = formatDateForDisplay(value, { month: "short", day: "numeric", year: "numeric" });
+  // Fall back to raw value if parsing failed, to avoid hiding potentially useful data.
+  return formatted === "—" ? value : formatted;
 }
 
 function formatCellValue(value: string): string {
