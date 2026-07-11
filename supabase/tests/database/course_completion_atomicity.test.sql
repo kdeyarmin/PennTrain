@@ -174,6 +174,8 @@ select results_eq(
   'one durable PDF job is queued'
 );
 
+reset role;
+select pg_temp.act_as('10000000-0000-0000-0000-000000000004');
 select results_eq(
   $$ select count(*)::int from public.notifications
      where profile_id = '10000000-0000-0000-0000-000000000004'
@@ -182,6 +184,8 @@ select results_eq(
   'one logical learner notification is produced'
 );
 
+reset role;
+select pg_temp.act_as('10000000-0000-0000-0000-000000000003');
 create temporary table first_atomic_outcome on commit drop as
 select ca.completed_at, c.id as certificate_id, c.credential_number
 from public.course_assignments ca
@@ -209,6 +213,8 @@ select results_eq(
   'a replay preserves the certificate and credential number'
 );
 
+reset role;
+select pg_temp.act_as('10000000-0000-0000-0000-000000000004');
 select results_eq(
   $$ select
        (select count(*)::int from public.certificates c where c.course_assignment_id = '10000000-0000-0000-0000-000000000008'),
@@ -219,6 +225,8 @@ select results_eq(
   'replay creates no duplicate certificate, event, job, or notification'
 );
 
+reset role;
+select pg_temp.act_as('10000000-0000-0000-0000-000000000003');
 select results_eq(
   $$ select public.issue_certificate(
        '10000000-0000-0000-0000-000000000005',

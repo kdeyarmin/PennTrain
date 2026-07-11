@@ -3,7 +3,9 @@
 -- that match the existing per-command policies without widening any policy.
 
 grant select, insert, update, delete
-  on table public.course_assignments
+  on table
+    public.employees,
+    public.course_assignments
   to authenticated;
 
 grant select, insert, update, delete
@@ -16,6 +18,12 @@ grant select, insert, update, delete
 
 grant select, insert, update, delete
   on table public.employee_training_records
+  to authenticated;
+
+-- Assignment validation is a SECURITY INVOKER trigger and must be able to
+-- inspect the selected published version under the caller's role.
+grant select
+  on table public.course_versions
   to authenticated;
 
 -- Completion and notification evidence is intentionally client read-only.
