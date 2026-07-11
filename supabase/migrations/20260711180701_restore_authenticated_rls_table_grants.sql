@@ -58,3 +58,16 @@ grant select, insert, update
 grant select, insert
   on table public.support_ticket_messages
   to authenticated;
+
+-- Storage read policies for sign-in sheets, credential evidence, and incident
+-- reports reverse-join these tables. Grant every command already authorized by
+-- each table's RLS policies so the Data API and Storage paths stay consistent.
+grant select, insert, update, delete
+  on table
+    public.training_classes,
+    public.incidents
+  to authenticated;
+
+grant select, insert, delete
+  on table public.employee_credential_documents
+  to authenticated;
