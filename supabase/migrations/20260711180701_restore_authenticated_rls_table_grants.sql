@@ -122,26 +122,3 @@ grant select, update
     public.exclusion_screening_matches,
     public.profiles
   to authenticated;
-
--- Trusted service workflows bootstrap tenants and publishable course fixtures
--- through PostgREST. Grant only their direct commands; privileged profile
--- changes continue through admin_update_profile(), and certificate writes
--- continue through the atomic completion/certificate RPC path.
-grant select, insert
-  on table
-    public.organizations,
-    public.facilities,
-    public.courses,
-    public.course_versions
-  to service_role;
-
-grant insert
-  on table
-    public.facility_assignments,
-    public.employees,
-    public.course_blocks
-  to service_role;
-
-grant select
-  on table public.certificates
-  to service_role;

@@ -1,7 +1,7 @@
 -- Focused Phase 1 release-gate matrix: explicit grants, six application roles,
 -- tenant/facility boundaries, and the private certificate Storage path policy.
 begin;
-select plan(27);
+select plan(28);
 
 insert into public.organizations (id, name, slug) values
   ('20000000-0000-4000-8000-000000000001', 'Access Matrix Org A', 'access-matrix-org-a'),
@@ -155,16 +155,50 @@ select ok(
     from (values
       ('organizations', 'SELECT'),
       ('organizations', 'INSERT'),
+      ('organizations', 'DELETE'),
+      ('resident_documents', 'SELECT'),
+      ('resident_documents', 'INSERT'),
+      ('resident_documents', 'DELETE'),
+      ('violation_documents', 'SELECT'),
+      ('violation_documents', 'INSERT'),
+      ('violation_documents', 'DELETE'),
+      ('resident_assessment_ai_generations', 'SELECT'),
+      ('resident_assessment_ai_generations', 'INSERT'),
+      ('resident_assessment_ai_generations', 'UPDATE'),
+      ('incidents', 'SELECT'),
+      ('incidents', 'UPDATE'),
+      ('policy_attestations', 'SELECT'),
+      ('policy_attestations', 'UPDATE'),
       ('facilities', 'SELECT'),
       ('facilities', 'INSERT'),
+      ('employees', 'SELECT'),
+      ('employees', 'INSERT'),
       ('courses', 'SELECT'),
       ('courses', 'INSERT'),
       ('course_versions', 'SELECT'),
       ('course_versions', 'INSERT'),
-      ('facility_assignments', 'INSERT'),
-      ('employees', 'INSERT'),
+      ('course_blocks', 'SELECT'),
       ('course_blocks', 'INSERT'),
-      ('certificates', 'SELECT')
+      ('facility_assignments', 'INSERT'),
+      ('alerts', 'SELECT'),
+      ('certificates', 'SELECT'),
+      ('corrective_actions', 'SELECT'),
+      ('dhs_citation_topics', 'SELECT'),
+      ('dhs_violations', 'SELECT'),
+      ('employee_credentials', 'SELECT'),
+      ('employee_training_records', 'SELECT'),
+      ('inspection_items', 'SELECT'),
+      ('notification_deliveries', 'SELECT'),
+      ('notifications', 'SELECT'),
+      ('platform_settings', 'SELECT'),
+      ('policy_attestation_campaigns', 'SELECT'),
+      ('policy_documents', 'SELECT'),
+      ('practicums', 'SELECT'),
+      ('profiles', 'SELECT'),
+      ('resident_assessment_forms', 'SELECT'),
+      ('resident_compliance_items', 'SELECT'),
+      ('residents', 'SELECT'),
+      ('training_types', 'SELECT')
     ) as required(table_name, privilege_name)
     where not has_table_privilege(
       'service_role',
@@ -172,7 +206,195 @@ select ok(
       required.privilege_name
     )
   ),
-  'trusted bootstrap workflows have only their required direct table commands'
+  'trusted service workflows have every required direct table command'
+);
+select ok(
+  not exists (
+    with scoped_tables(table_name) as (
+      values
+        ('packages'),
+        ('organizations'),
+        ('organization_settings'),
+        ('facilities'),
+        ('profiles'),
+        ('facility_assignments'),
+        ('employees'),
+        ('training_types'),
+        ('employee_training_records'),
+        ('employee_training_hour_buckets'),
+        ('practicums'),
+        ('training_documents'),
+        ('alerts'),
+        ('training_classes'),
+        ('training_class_attendees'),
+        ('courses'),
+        ('course_versions'),
+        ('course_blocks'),
+        ('quizzes'),
+        ('quiz_questions'),
+        ('quiz_answers'),
+        ('course_assignments'),
+        ('course_progress'),
+        ('quiz_attempts'),
+        ('quiz_attempt_answers'),
+        ('training_plans'),
+        ('training_plan_items'),
+        ('competency_templates'),
+        ('competency_template_items'),
+        ('competency_records'),
+        ('competency_record_items'),
+        ('certificates'),
+        ('notifications'),
+        ('course_feedback'),
+        ('quiz_question_explanations'),
+        ('employee_credentials'),
+        ('employee_credential_documents'),
+        ('incidents'),
+        ('incident_staff_involved'),
+        ('incident_notifications'),
+        ('incident_documents'),
+        ('corrective_actions'),
+        ('inspection_items'),
+        ('inspection_events'),
+        ('notification_deliveries'),
+        ('policy_documents'),
+        ('policy_document_versions'),
+        ('policy_attestation_campaigns'),
+        ('policy_attestations'),
+        ('employee_background_check_profiles'),
+        ('exclusion_screening_matches'),
+        ('administrator_profiles'),
+        ('administrator_ce_entries'),
+        ('class_checkin_tokens'),
+        ('dhs_citation_topics'),
+        ('entrance_conference_items'),
+        ('dhs_violations'),
+        ('violation_documents'),
+        ('onboarding_checklist_templates'),
+        ('employee_onboarding_items'),
+        ('employee_checkin_logs'),
+        ('residents'),
+        ('resident_compliance_items'),
+        ('resident_documents'),
+        ('course_ai_generations'),
+        ('platform_settings'),
+        ('employee_facility_assignments'),
+        ('facility_units'),
+        ('shift_definitions'),
+        ('employee_schedule_preferences'),
+        ('schedules'),
+        ('shift_assignments'),
+        ('resident_compliance_rule_packs'),
+        ('resident_informal_supports'),
+        ('resident_assessment_forms'),
+        ('support_tickets'),
+        ('support_ticket_messages'),
+        ('help_articles'),
+        ('resident_assessment_ai_generations')
+    ),
+    privileges(privilege_name) as (
+      select distinct upper(privilege_type)
+      from pg_catalog.aclexplode(
+        pg_catalog.acldefault(
+          'r',
+          (select oid
+           from pg_catalog.pg_roles
+           where rolname = 'service_role')
+        )
+      )
+    ),
+    allowed(table_name, privilege_name) as (
+      values
+        ('organizations', 'SELECT'),
+        ('organizations', 'INSERT'),
+        ('organizations', 'DELETE'),
+        ('resident_documents', 'SELECT'),
+        ('resident_documents', 'INSERT'),
+        ('resident_documents', 'DELETE'),
+        ('violation_documents', 'SELECT'),
+        ('violation_documents', 'INSERT'),
+        ('violation_documents', 'DELETE'),
+        ('resident_assessment_ai_generations', 'SELECT'),
+        ('resident_assessment_ai_generations', 'INSERT'),
+        ('resident_assessment_ai_generations', 'UPDATE'),
+        ('incidents', 'SELECT'),
+        ('incidents', 'UPDATE'),
+        ('policy_attestations', 'SELECT'),
+        ('policy_attestations', 'UPDATE'),
+        ('facilities', 'SELECT'),
+        ('facilities', 'INSERT'),
+        ('employees', 'SELECT'),
+        ('employees', 'INSERT'),
+        ('courses', 'SELECT'),
+        ('courses', 'INSERT'),
+        ('course_versions', 'SELECT'),
+        ('course_versions', 'INSERT'),
+        ('course_blocks', 'SELECT'),
+        ('course_blocks', 'INSERT'),
+        ('facility_assignments', 'INSERT'),
+        ('alerts', 'SELECT'),
+        ('certificates', 'SELECT'),
+        ('corrective_actions', 'SELECT'),
+        ('dhs_citation_topics', 'SELECT'),
+        ('dhs_violations', 'SELECT'),
+        ('employee_credentials', 'SELECT'),
+        ('employee_training_records', 'SELECT'),
+        ('inspection_items', 'SELECT'),
+        ('notification_deliveries', 'SELECT'),
+        ('notifications', 'SELECT'),
+        ('platform_settings', 'SELECT'),
+        ('policy_attestation_campaigns', 'SELECT'),
+        ('policy_documents', 'SELECT'),
+        ('practicums', 'SELECT'),
+        ('profiles', 'SELECT'),
+        ('resident_assessment_forms', 'SELECT'),
+        ('resident_compliance_items', 'SELECT'),
+        ('residents', 'SELECT'),
+        ('training_types', 'SELECT')
+    )
+    select 1
+    from scoped_tables
+    cross join privileges
+    where (
+      (
+        case
+          when privileges.privilege_name in (
+            'SELECT', 'INSERT', 'UPDATE', 'REFERENCES'
+          ) then has_any_column_privilege(
+            'service_role',
+            format('public.%I', scoped_tables.table_name),
+            privileges.privilege_name
+          )
+          else has_table_privilege(
+            'service_role',
+            format('public.%I', scoped_tables.table_name),
+            privileges.privilege_name
+          )
+        end
+        and not exists (
+          select 1
+          from allowed
+          where allowed.table_name = scoped_tables.table_name
+            and allowed.privilege_name = privileges.privilege_name
+        )
+      )
+      or case
+        when privileges.privilege_name in (
+          'SELECT', 'INSERT', 'UPDATE', 'REFERENCES'
+        ) then has_any_column_privilege(
+          'service_role',
+          format('public.%I', scoped_tables.table_name),
+          privileges.privilege_name || ' WITH GRANT OPTION'
+        )
+        else has_table_privilege(
+          'service_role',
+          format('public.%I', scoped_tables.table_name),
+          privileges.privilege_name || ' WITH GRANT OPTION'
+        )
+      end
+    )
+  ),
+  'trusted service workflows have no unapproved core-table or delegation privileges'
 );
 select ok(
   has_table_privilege('authenticated', 'public.certificate_pdf_jobs', 'SELECT')
