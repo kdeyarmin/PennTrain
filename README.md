@@ -14,6 +14,16 @@ React frontend talks to Supabase directly via `supabase-js`.
 **Production**: https://caremetrictrain.com (Railway-hosted, service domain
 `penntrain-production.up.railway.app`; see `DEPLOYMENT.md`).
 
+## Implementation roadmap
+
+The canonical program plan for the 29 approved improvements is
+[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). It defines five
+dependency-aware phases, delivery gates, migration and rollout rules, and the
+complete recommendation-to-phase crosswalk. Multilingual experience is
+explicitly excluded from that program.
+
+ROADMAP.md remains the historical product review and recommendation rationale.
+
 ## What's included
 
 - Six-role RBAC (`platform_admin`, `org_admin`, `facility_manager`, `trainer`, `employee`, `auditor`) enforced by
@@ -54,9 +64,18 @@ pnpm run typecheck
 pnpm run test
 pnpm run check:edge-functions
 pnpm run check:all
+pnpm run check:release
 ```
 
+`check:release` is the local Phase 1 clean-room gate. It starts the pinned
+Supabase stack, reapplies every migration, runs pgTAP, linting and advisors,
+checks generated type drift, and verifies the application artifact. Docker is
+required. CI additionally runs the disposable role, public-verification,
+guest, and accessibility journeys in Chromium.
+
 For production deployment (Railway + Supabase), see `DEPLOYMENT.md`.
+Phase 1 rollout, recovery, ownership, and pilot procedures are in
+[`PHASE1_OPERATIONS.md`](PHASE1_OPERATIONS.md).
 
 ## Database / backend setup
 
@@ -71,6 +90,14 @@ must be declared in `supabase/config.toml` to auto-deploy via the Supabase GitHu
    `signup-organization`. Do not seed reusable passwords from SQL.
 5. Run `mcp__Supabase__generate_typescript_types` (or `supabase gen types typescript`) to produce
   `artifacts/caremetric-train/src/lib/database.types.ts`.
+
+For proven email/SMS delivery, configure the signed SendGrid Event Webhook and
+the Twilio status/inbound-message callbacks to the two notification webhook
+functions. Set `SENDGRID_EVENT_WEBHOOK_PUBLIC_KEY`,
+`NOTIFICATION_RECIPIENT_HASH_SECRET`, the Twilio credentials, and
+`CRON_SHARED_SECRET` as Supabase Edge Function secrets; never expose them to
+the Vite application. Twilio Advanced Opt-Out should route inbound STOP/START
+events to `twilio-notification-webhook?kind=consent`.
 
 ## Demo users
 

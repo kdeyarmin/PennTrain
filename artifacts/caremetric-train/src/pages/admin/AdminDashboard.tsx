@@ -74,7 +74,13 @@ export default function AdminDashboard() {
   const trialOrgs = orgs?.filter(o => o.subscription_status === "trial").length ?? 0;
   const pastDueOrgs = orgs?.filter(o => o.subscription_status === "past_due").length ?? 0;
   const suspendedOrgs = health?.orgsByStatus?.suspended ?? orgs?.filter(o => o.subscription_status === "suspended").length ?? 0;
-  const urgentWorkItems = (health?.notificationDeliveriesFailed ?? 0) + (health?.aiGenerationsFailed ?? 0) + (openTickets?.length ?? 0) + pastDueOrgs;
+  const urgentWorkItems =
+    (health?.notificationDeliveriesFailed ?? 0)
+    + (health?.aiGenerationsFailed ?? 0)
+    + (health?.systemJobsFailed ?? 0)
+    + (health?.systemJobsStale ?? 0)
+    + (openTickets?.length ?? 0)
+    + pastDueOrgs;
   const atRiskOrganizations = orgs?.filter((org) => ["past_due", "suspended", "trial"].includes(org.subscription_status ?? "")).slice(0, 4) ?? [];
   const missingOrgContacts = orgs?.filter((org) => !org.contact_email || !org.contact_name).length ?? 0;
   const facilitiesMissingLicense = facilities?.filter((facility) => !facility.license_number).length ?? 0;
@@ -800,6 +806,26 @@ export default function AdminDashboard() {
                   <p className="text-xs text-muted-foreground">Pending Deliveries</p>
                 </div>
               </div>
+              <Link href="/admin/system-jobs" className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                <div className="h-9 w-9 rounded-md bg-red-100 flex items-center justify-center shrink-0">
+                  <Activity className="h-4 w-4 text-red-600" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold leading-tight">
+                    {(health?.systemJobsFailed ?? 0) + (health?.systemJobsStale ?? 0)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Failed / Stale Jobs</p>
+                </div>
+              </Link>
+              <Link href="/admin/security" className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                <div className="h-9 w-9 rounded-md bg-violet-100 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="h-4 w-4 text-violet-600" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold leading-tight">{health?.auditCoverageMissing ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">Audit Coverage Gaps</p>
+                </div>
+              </Link>
               <Link href="/admin/ai-generations" className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
                 <div className="h-9 w-9 rounded-md bg-red-100 flex items-center justify-center shrink-0">
                   <Sparkles className="h-4 w-4 text-red-600" />

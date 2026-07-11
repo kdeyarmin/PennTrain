@@ -69,6 +69,14 @@ describe("role-based page visibility", () => {
     expect(canViewPage("/app/pending-approvals", "employee")).toBe(false);
   });
 
+  it("exposes only facility-scoped audit evidence to facility managers", () => {
+    expect(canViewPage("/app/audit", "org_admin")).toBe(true);
+    expect(canViewPage("/app/audit", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/audit", "auditor")).toBe(true);
+    expect(canViewPage("/app/audit", "trainer")).toBe(false);
+    expect(canViewPage("/app/audit", "employee")).toBe(false);
+  });
+
   it("checks nested paths against the owning visible page", () => {
     expect(canViewPath("/me/courses/assignment-1/quiz/quiz-1", "employee")).toBe(true);
     expect(canViewPath("/app/help/tickets/t1", "employee")).toBe(true);

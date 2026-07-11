@@ -57,6 +57,7 @@ import {
   ChevronDown,
   Rocket,
   Star,
+  Activity,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -106,6 +107,8 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/admin/alerts", label: "Alerts", icon: Bell },
           { href: "/admin/audit", label: "Audit Log", icon: ShieldAlert },
           { href: "/admin/notifications", label: "Notification Delivery", icon: Send },
+          { href: "/admin/system-jobs", label: "System Jobs", icon: Activity },
+          { href: "/admin/exclusion-screening", label: "Exclusion Screening", icon: ShieldAlert },
           { href: "/admin/security", label: "Security & Governance", icon: Eye },
           { href: "/admin/support-tickets", label: "Support Tickets", icon: LifeBuoy },
         ]
@@ -196,10 +199,11 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/users", label: "Users", icon: Users },
           { href: "/app/training-types", label: "Training Types", icon: ListChecks },
           { href: "/app/settings", label: "Settings", icon: Settings },
-          // Audit Log is org_admin/auditor-only (see AUDIT_LOG_ROLES in App.tsx) -- audit_logs has
-          // no facility_id column, so it can't be scoped to a facility_manager's own facility the
-          // way every other facility_manager grant in this schema is.
-          ...(role === "org_admin" ? [{ href: "/app/audit", label: "Audit Log", icon: ShieldAlert }] : []),
+          // Phase 1 audit evidence carries facility scope, so managers see only their assigned
+          // facilities while org administrators retain organization-wide visibility.
+          ...(["org_admin", "facility_manager"].includes(role ?? "")
+            ? [{ href: "/app/audit", label: "Audit Log", icon: ShieldAlert }]
+            : []),
         ]
       },
       {

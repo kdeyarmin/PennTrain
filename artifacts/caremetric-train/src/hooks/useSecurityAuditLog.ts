@@ -11,6 +11,51 @@ export interface ListSecurityAuditLogFilters {
   limit?: number;
 }
 
+export interface AuditCoverageEntry {
+  table_name: string;
+  audit_mode: "row_trigger" | "domain_evidence" | "access_log" | "not_required";
+  contains_regulated_data: boolean;
+  has_required_trigger: boolean;
+  rationale: string;
+}
+
+export interface AuditGovernanceStatus {
+  hashVersion: number;
+  openIntegrityIssues: number;
+  activeLegalHolds: number;
+  plannedArchives: number;
+  oldestHotEvidenceAt: string | null;
+  retentionClasses: Array<{
+    retentionDays: number;
+    archiveAfterDays: number;
+    tableCount: number;
+  }>;
+}
+
+export function useAuditCoverage() {
+  return useQuery({
+    queryKey: ["audit-coverage"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_audit_coverage");
+      if (error) throw error;
+      return (data ?? []) as unknown as AuditCoverageEntry[];
+    },
+    refetchInterval: 60000,
+  });
+}
+
+export function useAuditGovernanceStatus() {
+  return useQuery({
+    queryKey: ["audit-governance-status"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_audit_governance_status");
+      if (error) throw error;
+      return data as unknown as AuditGovernanceStatus;
+    },
+    refetchInterval: 60000,
+  });
+}
+
 // Dedicated query for the platform_admin-only Security & Governance page.
 // Deliberately kept separate from useAuditLogs.ts's useListAuditLogs -- that
 // hook is shared by the generic /admin/audit page (and possibly other

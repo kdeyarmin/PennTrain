@@ -61,38 +61,56 @@ export async function pollAndResolveHeygenVideo(
 ): Promise<HeygenPollResult> {
   const job = block.body?.heygen;
   if (!job?.video_id) {
-    return { status: "no_job", error: "no pending video generation for this block" };
+    return {
+      status: "no_job",
+      error: "no pending video generation for this block",
+    };
   }
 
   if (job.status === "completed") {
     return { status: "completed" };
   }
 
-  const writeCourseBlock = (updates: { body: Record<string, unknown>; video_url?: string }) =>
+  const writeCourseBlock = (
+    updates: { body: Record<string, unknown>; video_url?: string },
+  ) =>
     usePrivilegedRpc
       ? writeClient.rpc("write_course_block_heygen_state", {
-          p_block_id: block.id,
-          p_body: updates.body,
-          p_video_url: updates.video_url ?? null,
-        })
+        p_block_id: block.id,
+        p_body: updates.body,
+        p_video_url: updates.video_url ?? null,
+      })
       : writeClient.from("course_blocks").update(updates).eq("id", block.id);
 
-  const statusRes = await fetch(`https://api.heygen.com/v3/videos/${job.video_id}`, {
-    headers: { "x-api-key": heygenApiKey },
-  });
+  const statusRes = await fetch(
+    `https://api.heygen.com/v3/videos/${job.video_id}`,
+    {
+      headers: { "x-api-key": heygenApiKey },
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
   const statusBody = await statusRes.json().catch(() => null);
   if (!statusRes.ok || !statusBody?.data) {
-    return { status: "error", error: statusBody?.message ?? "failed to check HeyGen video status" };
+    return {
+      status: "error",
+      error: statusBody?.message ?? "failed to check HeyGen video status",
+    };
   }
 
   const heygenStatus = statusBody.data.status as string;
 
   if (heygenStatus === "failed") {
-    const failureMessage = statusBody.data.failure_message ?? "video generation failed";
+    const failureMessage = statusBody.data.failure_message ??
+      "video generation failed";
     // Copilot review finding: `body: { heygen: ... }` alone replaces the entire jsonb column,
     // silently dropping body.script (AI narration) and any other sibling key. Spread the
     // existing body first so only the `heygen` key actually changes.
-    const { error: writeError } = await writeCourseBlock({ body: { ...block.body, heygen: { ...job, status: "failed", error: failureMessage } } });
+    const { error: writeError } = await writeCourseBlock({
+      body: {
+        ...block.body,
+        heygen: { ...job, status: "failed", error: failureMessage },
+      },
+    });
     // Copilot review finding: a failed write here was silently ignored, so the DB row could be
     // left unchanged (still showing the prior in-flight status) while this call reports "failed" --
     // the cron poller would then keep re-polling HeyGen for a job that's already known to have
@@ -102,29 +120,46 @@ export async function pollAndResolveHeygenVideo(
   }
 
   if (heygenStatus !== "completed") {
-    const { error: writeError } = await writeCourseBlock({ body: { ...block.body, heygen: { ...job, status: heygenStatus } } });
+    const { error: writeError } = await writeCourseBlock({
+      body: { ...block.body, heygen: { ...job, status: heygenStatus } },
+    });
     if (writeError) return { status: "error", error: writeError.message };
     return { status: heygenStatus };
   }
 
-  const videoRes = await fetch(statusBody.data.video_url);
+  const videoRes = await fetch(statusBody.data.video_url, {
+    signal: AbortSignal.timeout(60_000),
+  });
   if (!videoRes.ok || !videoRes.body) {
-    return { status: "error", error: "failed to download completed video from HeyGen" };
+    return {
+      status: "error",
+      error: "failed to download completed video from HeyGen",
+    };
   }
   const videoBytes = new Uint8Array(await videoRes.arrayBuffer());
 
   const storagePath = `${block.organization_id ?? "system"}/${block.id}.mp4`;
-  const { error: uploadError } = await storageClient.storage.from("course-videos").upload(storagePath, videoBytes, {
+  const { error: uploadError } = await storageClient.storage.from(
+    "course-videos",
+  ).upload(storagePath, videoBytes, {
     contentType: "video/mp4",
     upsert: true,
   });
   if (uploadError) return { status: "error", error: uploadError.message };
 
-  const { data: publicUrlData } = storageClient.storage.from("course-videos").getPublicUrl(storagePath);
+  const { data: publicUrlData } = storageClient.storage.from("course-videos")
+    .getPublicUrl(storagePath);
 
   const { error: updateError } = await writeCourseBlock({
     video_url: publicUrlData.publicUrl,
-    body: { ...block.body, heygen: { ...job, status: "completed", completed_at: new Date().toISOString() } },
+    body: {
+      ...block.body,
+      heygen: {
+        ...job,
+        status: "completed",
+        completed_at: new Date().toISOString(),
+      },
+    },
   });
   if (updateError) return { status: "error", error: updateError.message };
 

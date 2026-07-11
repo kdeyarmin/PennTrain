@@ -10,7 +10,6 @@ import {
   useCompleteCourseAssignment,
   useStartCourseAssignment,
 } from "@/hooks/useCourseAssignments";
-import { useIssueCertificate } from "@/hooks/useCertificates";
 import { useGetCourse, useListCourseBlocks, type CourseBlock } from "@/hooks/useCourses";
 import { useGetQuizByBlockId, useListQuizAttempts } from "@/hooks/useQuizzes";
 import { useGetDocument, useDocumentSignedUrl } from "@/hooks/useDocuments";
@@ -133,7 +132,6 @@ export default function TakeCourse() {
   const upsertProgress = useUpsertCourseProgress();
   const startAssignment = useStartCourseAssignment();
   const completeAssignment = useCompleteCourseAssignment();
-  const issueCertificate = useIssueCertificate();
   const { data: existingFeedback } = useGetCourseFeedbackForAssignment(assignmentId);
   const createFeedback = useCreateCourseFeedback();
 
@@ -151,10 +149,9 @@ export default function TakeCourse() {
     setFurthestIndex(f => Math.max(f, stepIndex));
   }, [stepIndex]);
 
-  // Post-completion rating prompt state. postCompleteDestination tracks where
-  // to navigate once the learner submits or skips the rating -- certificates
-  // if issuance succeeded, trainings if it didn't (mirrors the two onSuccess/
-  // onError destinations handleComplete used to navigate to directly).
+  // Post-completion rating prompt state. A newly completed employee course goes to the
+  // atomically-issued certificate; someone rating an older completion can still return to
+  // training, and non-employee self-learners return to the role-safe course list.
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
   const [postCompleteDestination, setPostCompleteDestination] = useState<"/me/certificates" | "/me/trainings" | "/me/courses">(
     isEmployeeRole ? "/me/certificates" : "/me/courses",
@@ -406,29 +403,11 @@ useEffect(() => {
     if (!assignment) return;
     completeAssignment.mutate(assignment.id, {
       onSuccess: () => {
-        issueCertificate.mutate(
-          {
-            employeeId: assignment.employee_id,
-            courseId: assignment.course_id,
-            assignmentId: assignment.id,
-          },
-          {
-            onSuccess: () => {
-              toast({ title: "Course completed", description: "Certificate issued -- nice work!" });
-              setPostCompleteDestination(isEmployeeRole ? "/me/certificates" : "/me/courses");
-              setShowRatingPrompt(true);
-            },
-            onError: (e: Error) => {
-              // Completion already succeeded and is not undone by a failed certificate issuance
-              // (e.g. one was already issued for this assignment) -- still route the learner
-              // forward rather than blocking on this secondary step.
-              toast({ title: "Course completed", description: "Nice work -- this course is now marked complete." });
-              console.error("issue_certificate failed after course completion:", e.message);
-              setPostCompleteDestination(isEmployeeRole ? "/me/trainings" : "/me/courses");
-              setShowRatingPrompt(true);
-            },
-          }
-        );
+        // Certificate issuance is part of the same database transaction. A successful response
+        // guarantees there is exactly one certificate, even after retries or concurrent clicks.
+        toast({ title: "Course completed", description: "Certificate issued -- nice work!" });
+        setPostCompleteDestination(isEmployeeRole ? "/me/certificates" : "/me/courses");
+        setShowRatingPrompt(true);
       },
       onError: (e: Error) => toast({ title: "Failed to complete course", description: e.message, variant: "destructive" }),
     });

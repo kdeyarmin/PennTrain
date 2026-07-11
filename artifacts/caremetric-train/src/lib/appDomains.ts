@@ -39,7 +39,7 @@ const ORG_MANAGERS: Role[] = ["org_admin", "facility_manager"];
 const REPORTING_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
 const CREDENTIAL_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
 const INSPECTION_ROLES: Role[] = ["org_admin", "facility_manager", "trainer", "auditor"];
-const AUDIT_LOG_ROLES: Role[] = ["org_admin", "auditor"];
+const AUDIT_LOG_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
 const PENDING_APPROVAL_ROLES: Role[] = ["org_admin", "facility_manager", "trainer"];
 const TRAINER_ONLY: Role[] = ["trainer"];
 const EMPLOYEE_ONLY: Role[] = ["employee"];
@@ -169,6 +169,8 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/admin/alerts", label: "Platform alerts", domain: "compliance", roles: PLATFORM_ADMIN, keywords: ["risk", "overdue"] },
   { path: "/admin/audit", label: "Platform audit log", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["governance", "activity"] },
   { path: "/admin/notifications", label: "Notification delivery", domain: "support", roles: PLATFORM_ADMIN, keywords: ["email", "sms", "failed"] },
+  { path: "/admin/system-jobs", label: "System jobs", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["cron", "queue", "health", "freshness", "retry"] },
+  { path: "/admin/exclusion-screening", label: "Exclusion screening", domain: "credentialing", roles: PLATFORM_ADMIN, keywords: ["oig", "sam", "snapshot", "screening"] },
   { path: "/admin/security", label: "Security & governance", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["roles", "audit", "access"] },
   { path: "/admin/support-tickets", label: "Support tickets", domain: "support", roles: PLATFORM_ADMIN, keywords: ["help", "queue"] },
   { path: "/admin/help-content", label: "Help center content", domain: "support", roles: PLATFORM_ADMIN, keywords: ["articles", "knowledge base"] },

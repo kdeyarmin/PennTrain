@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useListAuditLogsPaginated } from "@/hooks/useAuditLogs";
 import { useListOrganizations } from "@/hooks/useOrganizations";
@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ShieldAlert, ChevronLeft, ChevronRight } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { ShieldAlert, ChevronLeft, ChevronRight, Download } from "lucide-react";
 
 // audit_log_trigger() (see supabase/migrations/20260704053624_compliance_rpcs_and_audit_trigger.sql)
 // writes actions as `${tg_table_name}_${created|updated|deleted}`, e.g. "employees_created".
@@ -77,6 +78,9 @@ const AUDIT_LOG_FILTER_DEFAULTS = {
 export default function AuditLog() {
   const { user } = useAuth();
   const isPlatformAdmin = user?.role === "platform_admin";
+  const canExportManifest = ["platform_admin", "org_admin", "auditor"].includes(user?.role ?? "");
+  const [isExporting, setIsExporting] = useState(false);
+  const { toast } = useToast();
 
   const [filters, setFilters] = useUrlState(AUDIT_LOG_FILTER_DEFAULTS);
   const { entityType: entityTypeFilter, org: orgFilter, dateFrom, dateTo } = filters;
@@ -125,6 +129,40 @@ export default function AuditLog() {
   const courseBase = isPlatformAdmin ? "/admin/courses" : "/app/courses";
   const supportTicketBase = isPlatformAdmin ? "/admin/support-tickets" : "/app/help/tickets";
 
+  async function downloadExportManifest() {
+    setIsExporting(true);
+    try {
+      const from = dateFrom
+        ? new Date(`${dateFrom}T00:00:00`).toISOString()
+        : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const toDate = dateTo ? new Date(`${dateTo}T00:00:00`) : new Date();
+      if (dateTo) toDate.setDate(toDate.getDate() + 1);
+      const { data, error } = await supabase.rpc("get_audit_export_manifest", {
+        p_from: from,
+        p_to: toDate.toISOString(),
+        p_organization_id: isPlatformAdmin && orgFilter !== ORG_ALL ? orgFilter : undefined,
+      });
+      if (error) throw error;
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `audit-manifest-${new Date().toISOString().slice(0, 10)}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Audit manifest created", description: "The JSON includes the independently verifiable SHA-256 checksum." });
+    } catch (error) {
+      toast({
+        title: "Audit export failed",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   // Resolves the entity_types with an unambiguous, single-table row id and a name worth showing
   // (audit_log_trigger() targets, per 20260704053624_compliance_rpcs_and_audit_trigger.sql) to a
   // human-readable label; every other entity_type keeps the raw #<uuid> fallback rather than
@@ -166,9 +204,17 @@ export default function AuditLog() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Audit Log</h1>
-        <p className="text-muted-foreground">Complete history of all system actions and changes.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Audit Log</h1>
+          <p className="text-muted-foreground">Complete history of all system actions and changes.</p>
+        </div>
+        {canExportManifest && (
+          <Button variant="outline" onClick={() => void downloadExportManifest()} disabled={isExporting}>
+            <Download className="mr-2 h-4 w-4" />
+            {isExporting ? "Checksumming..." : "Export checksum manifest"}
+          </Button>
+        )}
       </div>
 
       <Card>
