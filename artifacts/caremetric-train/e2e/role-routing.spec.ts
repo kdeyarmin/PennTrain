@@ -189,14 +189,25 @@ test.describe("role-aware release journeys", () => {
     // certificate write. Build this fixture through the same publish,
     // assignment, and atomic-completion commands used by production.
     const platform = accounts.get("platform_admin")!;
-    const platformClient = createClient(supabaseUrl!, anonKey!, {
+    const platformAuthClient = createClient(supabaseUrl!, anonKey!, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    const { error: signInError } = await platformClient.auth.signInWithPassword({
-      email: platform.email,
-      password,
+    const { data: signInData, error: signInError } =
+      await platformAuthClient.auth.signInWithPassword({
+        email: platform.email,
+        password,
+      });
+    if (signInError || !signInData.session) {
+      throw signInError ?? new Error("Platform admin sign-in returned no session");
+    }
+    const platformClient = createClient(supabaseUrl!, anonKey!, {
+      global: {
+        headers: {
+          Authorization: "Bearer " + signInData.session.access_token,
+        },
+      },
+      auth: { autoRefreshToken: false, persistSession: false },
     });
-    if (signInError) throw signInError;
 
     const { error: publishError } = await platformClient.rpc(
       "publish_course_version",
@@ -232,7 +243,7 @@ test.describe("role-aware release journeys", () => {
     if (certificateError) throw certificateError;
     verificationSlug = certificate.slug;
 
-    const { error: signOutError } = await platformClient.auth.signOut();
+    const { error: signOutError } = await platformAuthClient.auth.signOut();
     if (signOutError) throw signOutError;
   });
 
