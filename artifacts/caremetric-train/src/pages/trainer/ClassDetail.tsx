@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useRoute, useLocation, Link } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import QRCode from "qrcode";
@@ -546,7 +547,7 @@ export default function ClassDetail() {
             <div>
               <p className="text-sm text-muted-foreground">Date</p>
               <p className="font-semibold">
-                {new Date(cls.class_date).toLocaleDateString("en-US", {
+                {formatDateForDisplay(cls.class_date, {
                   weekday: "long",
                   month: "long",
                   day: "numeric",

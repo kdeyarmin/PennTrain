@@ -33,6 +33,7 @@ import type { InspectionItem } from "@/hooks/useInspectionItems";
 import type { Organization } from "@/hooks/useOrganizations";
 import type { Profile } from "@/hooks/useProfiles";
 import type { Tables } from "@/lib/database.types";
+import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
@@ -501,7 +502,7 @@ function defaultDateWindow(): { from: string; to: string } {
   from.setMonth(from.getMonth() - 12);
   const to = new Date(now);
   to.setMonth(to.getMonth() + 6);
-  return { from: from.toISOString().split("T")[0], to: to.toISOString().split("T")[0] };
+  return { from: toLocalIsoDate(from), to: toLocalIsoDate(to) };
 }
 
 function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
@@ -1534,7 +1535,7 @@ export default function Reports() {
       const dateWindow = defaultDateWindow();
       effFrom = dateWindow.from;
       effTo = dateWindow.to;
-      const fmt = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      const fmt = (d: string) => formatDateForDisplay(d, { month: "short", day: "numeric", year: "numeric" });
       toast({
         title: "Showing recent data only",
         description: `No date range was set, so ${report.title} is limited to ${fmt(effFrom)} – ${fmt(effTo)}. Set the From/To fields above for a different range, or use CSV export for all-time data.`,

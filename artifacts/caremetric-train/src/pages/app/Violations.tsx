@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { ShieldAlert, ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
 
 const PAGE_SIZE = 15;
 
@@ -51,7 +52,7 @@ interface ViolationFormData {
 
 const EMPTY_FORM: ViolationFormData = {
   facilityId: "", citationTopicId: "", citationRef: "",
-  inspectionDate: new Date().toISOString().slice(0, 10), surveyorName: "",
+  inspectionDate: toLocalIsoDate(), surveyorName: "",
   description: "", severity: "moderate", pocDueDate: "",
 };
 
@@ -262,7 +263,7 @@ export default function Violations() {
                 <tbody>
                   {paginated.map((v) => (
                     <tr key={v.id}>
-                      <td className="text-muted-foreground">{new Date(v.inspection_date).toLocaleDateString()}</td>
+                      <td className="text-muted-foreground">{formatDateForDisplay(v.inspection_date)}</td>
                       <td className="font-medium text-foreground">{facilityById.get(v.facility_id)?.name ?? "—"}</td>
                       <td className="text-muted-foreground">
                         {v.citation_ref ?? topicById.get(v.citation_topic_id ?? "")?.title ?? "—"}

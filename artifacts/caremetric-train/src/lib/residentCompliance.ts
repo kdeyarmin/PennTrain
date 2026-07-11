@@ -1,3 +1,5 @@
+import { formatDateForDisplay } from "./dateUtils";
+
 // Shared across ResidentDetail.tsx, Residents.tsx, and ResidentComplianceReport.tsx so the three
 // don't drift -- item-type labels and status-badge styling for the resident RASP/ASP compliance
 // registry (Tier 3.5/3.6).
@@ -108,7 +110,5 @@ export function complianceStatusBadgeClassName(status: string): string {
 // midnight, so toLocaleDateString() in a timezone west of UTC renders the previous calendar day.
 // Building the Date from local year/month/day components instead avoids the conversion entirely.
 export function formatDateOnly(value: string | null | undefined): string {
-  if (!value) return "—";
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString();
+  return formatDateForDisplay(value);
 }

@@ -33,6 +33,7 @@ import { humanize } from "@/lib/utils";
 import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, getComplianceFormLabel, getRequiredStateFormInfo, formatDateOnly } from "@/lib/residentCompliance";
 import { isDigitalFormEligible, deriveAssessmentReason } from "@/lib/residentAssessmentFormSchema";
 import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
+import { toLocalIsoDate } from "@/lib/dateUtils";
 
 type SupportRow = Partial<Pick<ResidentInformalSupport, "id">> & { name: string; relationship: string; phone: string };
 
@@ -332,7 +333,7 @@ export default function ResidentDetail() {
               onValueChange={(v) => updateResident({
                 id: resident.id,
                 status: v as typeof resident.status,
-                discharge_date: v === "discharged" ? new Date().toISOString().slice(0, 10) : null,
+                discharge_date: v === "discharged" ? toLocalIsoDate() : null,
               })}
             >
               <SelectTrigger className="w-36 h-9"><SelectValue /></SelectTrigger>

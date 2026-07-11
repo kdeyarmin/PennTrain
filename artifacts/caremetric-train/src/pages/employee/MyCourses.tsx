@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
@@ -139,7 +140,7 @@ export default function MyCourses() {
                     <div className="min-w-0">
                       <p className="font-medium truncate">{course?.title ?? "Course"}</p>
                       <p className="text-xs text-muted-foreground">
-                        {a.due_date ? `Due ${new Date(a.due_date).toLocaleDateString()}` : "No due date"}
+                        {a.due_date ? `Due ${formatDateForDisplay(a.due_date)}` : "No due date"}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
