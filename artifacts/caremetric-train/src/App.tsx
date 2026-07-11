@@ -31,6 +31,7 @@ const AiGenerationLog = lazy(() => import("@/pages/admin/AiGenerationLog"));
 const NotificationDeliveries = lazy(() => import("@/pages/admin/NotificationDeliveries"));
 const SystemJobs = lazy(() => import("@/pages/admin/SystemJobs"));
 const EnterpriseFoundation = lazy(() => import("@/pages/admin/EnterpriseFoundation"));
+const QualifiedWorkforce = lazy(() => import("@/pages/admin/QualifiedWorkforce"));
 const PlatformSettings = lazy(() => import("@/pages/admin/PlatformSettings"));
 const SecurityGovernance = lazy(() => import("@/pages/admin/SecurityGovernance"));
 const AdminSupportTickets = lazy(() => import("@/pages/admin/SupportTickets"));
@@ -348,6 +349,9 @@ function Router() {
       <Route path="/admin/enterprise">
         {() => <ProtectedRoute component={EnterpriseFoundation} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
+      <Route path="/admin/qualified-workforce">
+        {() => <ProtectedRoute component={QualifiedWorkforce} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
       <Route path="/admin/exclusion-screening">
         {() => <ProtectedRoute component={ExclusionScreening} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
@@ -496,6 +500,9 @@ function Router() {
       </Route>
       <Route path="/app/enterprise">
         {() => <ProtectedRoute component={EnterpriseFoundation} allowedRoles={ORG_ADMIN_ONLY} />}
+      </Route>
+      <Route path="/app/workforce-operations">
+        {() => <ProtectedRoute component={QualifiedWorkforce} allowedRoles={ORG_MANAGE_ROLES} />}
       </Route>
       <Route path="/app/audit">
         {() => <ProtectedRoute component={AuditLog} allowedRoles={AUDIT_LOG_ROLES} />}

@@ -35,14 +35,15 @@ const phases = [
   {
     name: "Phase 3",
     title: "Qualified-workforce operations",
-    timeline: "Planned",
-    status: "planned",
+    timeline: "Code complete; production pilots pending",
+    status: "implemented",
     icon: Wrench,
     goal: "Connect intake, credentials, qualifications, classes, and schedules into one authoritative workflow.",
     outcomes: [
-      "Validated HRIS/roster ingestion and governed credential-verification workflows.",
-      "Role qualification and safe staffing gates shared by assignments, scheduling, and medication duties.",
-      "Attendance reconciliation, competency observation, and capacity-aware schedule operations.",
+      "Replay-safe HRIS ingestion with resumable batches, explicit duplicate decisions, and exception queues.",
+      "Versioned certification evidence plus human-reviewed, malware-scanned credential renewal extraction.",
+      "Qualified instructors, capacity and waitlists, signed attendance, and exactly-once completion credit.",
+      "One explainable eligibility gate for assignments, open shifts, availability, and governed swaps.",
     ],
   },
   {
@@ -80,6 +81,7 @@ const currentFoundation = [
   "SSO, MFA, and SCIM",
   "Billing and entitlements",
   "Signed integrations",
+  "Qualified workforce operations",
 ];
 
 export default function ImprovementRoadmap() {
@@ -106,8 +108,8 @@ export default function ImprovementRoadmap() {
             {currentFoundation.map((item) => <Badge key={item} variant="outline">{item}</Badge>)}
           </div>
           <p className="mt-3 text-sm text-muted-foreground">
-            Phase 2 is implemented behind trusted database and Edge boundaries. General availability remains blocked on
-            the hierarchy backfill, identity-provider pilots, 30-day rule shadow period, and reconciliation exit gates.
+            Phases 2 and 3 are implemented behind trusted database and Edge boundaries. General availability remains
+            blocked on controlled HRIS, credential-processor, identity-provider, rule-shadow, and reconciliation pilots.
           </p>
         </CardContent>
       </Card>

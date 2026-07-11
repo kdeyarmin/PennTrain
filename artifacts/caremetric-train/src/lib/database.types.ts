@@ -329,6 +329,71 @@ export type Database = {
           },
         ]
       }
+      assessor_qualifications: {
+        Row: {
+          approved_by: string
+          assessor_profile_id: string
+          certification_definition_id: string
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          evidence: Json
+          id: string
+          organization_id: string
+        }
+        Insert: {
+          approved_by: string
+          assessor_profile_id: string
+          certification_definition_id: string
+          created_at?: string
+          effective_from: string
+          effective_to?: string | null
+          evidence?: Json
+          id?: string
+          organization_id: string
+        }
+        Update: {
+          approved_by?: string
+          assessor_profile_id?: string
+          certification_definition_id?: string
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          evidence?: Json
+          id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessor_qualifications_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessor_qualifications_assessor_profile_id_fkey"
+            columns: ["assessor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessor_qualifications_certification_definition_id_fkey"
+            columns: ["certification_definition_id"]
+            isOneToOne: false
+            referencedRelation: "certification_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessor_qualifications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
@@ -919,6 +984,322 @@ export type Database = {
           },
           {
             foreignKeyName: "certificates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      certification_attempt_items: {
+        Row: {
+          certification_attempt_id: string
+          checklist_item_id: string
+          created_at: string
+          evidence: Json
+          evidence_checksum_sha256: string | null
+          id: string
+          notes: string | null
+          result: string
+          signed_at: string | null
+        }
+        Insert: {
+          certification_attempt_id: string
+          checklist_item_id: string
+          created_at?: string
+          evidence?: Json
+          evidence_checksum_sha256?: string | null
+          id?: string
+          notes?: string | null
+          result: string
+          signed_at?: string | null
+        }
+        Update: {
+          certification_attempt_id?: string
+          checklist_item_id?: string
+          created_at?: string
+          evidence?: Json
+          evidence_checksum_sha256?: string | null
+          id?: string
+          notes?: string | null
+          result?: string
+          signed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certification_attempt_items_certification_attempt_id_fkey"
+            columns: ["certification_attempt_id"]
+            isOneToOne: false
+            referencedRelation: "certification_attempts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certification_attempt_items_checklist_item_id_fkey"
+            columns: ["checklist_item_id"]
+            isOneToOne: false
+            referencedRelation: "certification_checklist_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      certification_attempts: {
+        Row: {
+          assessor_profile_id: string
+          assessor_signature_sha256: string | null
+          certification_version_id: string
+          created_at: string
+          created_by: string
+          decided_at: string | null
+          decision_reason: string | null
+          employee_id: string
+          evidence_checksum_sha256: string | null
+          facility_id: string
+          id: string
+          observed_at: string
+          organization_id: string
+          status: string
+          submitted_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          assessor_profile_id: string
+          assessor_signature_sha256?: string | null
+          certification_version_id: string
+          created_at?: string
+          created_by: string
+          decided_at?: string | null
+          decision_reason?: string | null
+          employee_id: string
+          evidence_checksum_sha256?: string | null
+          facility_id: string
+          id?: string
+          observed_at?: string
+          organization_id: string
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assessor_profile_id?: string
+          assessor_signature_sha256?: string | null
+          certification_version_id?: string
+          created_at?: string
+          created_by?: string
+          decided_at?: string | null
+          decision_reason?: string | null
+          employee_id?: string
+          evidence_checksum_sha256?: string | null
+          facility_id?: string
+          id?: string
+          observed_at?: string
+          organization_id?: string
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certification_attempts_assessor_profile_id_fkey"
+            columns: ["assessor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certification_attempts_certification_version_id_fkey"
+            columns: ["certification_version_id"]
+            isOneToOne: false
+            referencedRelation: "certification_definition_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certification_attempts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certification_attempts_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certification_attempts_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certification_attempts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      certification_checklist_items: {
+        Row: {
+          certification_version_id: string
+          evidence_required: boolean
+          id: string
+          item_key: string
+          prompt: string
+          signature_required: boolean
+          sort_order: number
+        }
+        Insert: {
+          certification_version_id: string
+          evidence_required?: boolean
+          id?: string
+          item_key: string
+          prompt: string
+          signature_required?: boolean
+          sort_order?: number
+        }
+        Update: {
+          certification_version_id?: string
+          evidence_required?: boolean
+          id?: string
+          item_key?: string
+          prompt?: string
+          signature_required?: boolean
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certification_checklist_items_certification_version_id_fkey"
+            columns: ["certification_version_id"]
+            isOneToOne: false
+            referencedRelation: "certification_definition_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      certification_definition_versions: {
+        Row: {
+          authored_by: string
+          certification_definition_id: string
+          created_at: string
+          criteria: Json
+          criteria_checksum_sha256: string
+          effective_from: string | null
+          effective_to: string | null
+          id: string
+          lifecycle_state: string
+          published_at: string | null
+          published_by: string | null
+          version_number: number
+        }
+        Insert: {
+          authored_by: string
+          certification_definition_id: string
+          created_at?: string
+          criteria?: Json
+          criteria_checksum_sha256: string
+          effective_from?: string | null
+          effective_to?: string | null
+          id?: string
+          lifecycle_state?: string
+          published_at?: string | null
+          published_by?: string | null
+          version_number: number
+        }
+        Update: {
+          authored_by?: string
+          certification_definition_id?: string
+          created_at?: string
+          criteria?: Json
+          criteria_checksum_sha256?: string
+          effective_from?: string | null
+          effective_to?: string | null
+          id?: string
+          lifecycle_state?: string
+          published_at?: string | null
+          published_by?: string | null
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certification_definition_versi_certification_definition_id_fkey"
+            columns: ["certification_definition_id"]
+            isOneToOne: false
+            referencedRelation: "certification_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certification_definition_versions_authored_by_fkey"
+            columns: ["authored_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certification_definition_versions_published_by_fkey"
+            columns: ["published_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      certification_definitions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          default_validity_days: number | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string | null
+          qualification_key: string
+          renewal_window_days: number
+          separation_of_duties: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          default_validity_days?: number | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id?: string | null
+          qualification_key: string
+          renewal_window_days?: number
+          separation_of_duties?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          default_validity_days?: number | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string | null
+          qualification_key?: string
+          renewal_window_days?: number
+          separation_of_duties?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certification_definitions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certification_definitions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -2018,6 +2399,141 @@ export type Database = {
           },
         ]
       }
+      credential_renewal_submissions: {
+        Row: {
+          approved_credential_id: string | null
+          created_at: string
+          credential_document_id: string
+          credential_id: string | null
+          credential_type: string
+          employee_id: string
+          extracted_fields: Json
+          extraction_confidence: Json
+          extraction_model: string | null
+          extraction_provider: string | null
+          facility_id: string
+          human_confirmed_fields: Json
+          id: string
+          organization_id: string
+          review_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          scan_evidence: Json
+          scan_provider: string | null
+          scan_status: string
+          status: string
+          submitted_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          approved_credential_id?: string | null
+          created_at?: string
+          credential_document_id: string
+          credential_id?: string | null
+          credential_type: string
+          employee_id: string
+          extracted_fields?: Json
+          extraction_confidence?: Json
+          extraction_model?: string | null
+          extraction_provider?: string | null
+          facility_id: string
+          human_confirmed_fields?: Json
+          id?: string
+          organization_id: string
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          scan_evidence?: Json
+          scan_provider?: string | null
+          scan_status?: string
+          status?: string
+          submitted_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approved_credential_id?: string | null
+          created_at?: string
+          credential_document_id?: string
+          credential_id?: string | null
+          credential_type?: string
+          employee_id?: string
+          extracted_fields?: Json
+          extraction_confidence?: Json
+          extraction_model?: string | null
+          extraction_provider?: string | null
+          facility_id?: string
+          human_confirmed_fields?: Json
+          id?: string
+          organization_id?: string
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          scan_evidence?: Json
+          scan_provider?: string | null
+          scan_status?: string
+          status?: string
+          submitted_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credential_renewal_submissions_approved_credential_id_fkey"
+            columns: ["approved_credential_id"]
+            isOneToOne: false
+            referencedRelation: "employee_credentials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credential_renewal_submissions_credential_document_id_fkey"
+            columns: ["credential_document_id"]
+            isOneToOne: false
+            referencedRelation: "employee_credential_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credential_renewal_submissions_credential_id_fkey"
+            columns: ["credential_id"]
+            isOneToOne: false
+            referencedRelation: "employee_credentials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credential_renewal_submissions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credential_renewal_submissions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credential_renewal_submissions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credential_renewal_submissions_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credential_renewal_submissions_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dhs_citation_topics: {
         Row: {
           category: string
@@ -2237,6 +2753,80 @@ export type Database = {
             columns: ["released_by_event_id"]
             isOneToOne: false
             referencedRelation: "employment_lifecycle_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_availability_windows: {
+        Row: {
+          availability_type: string
+          created_at: string
+          created_by: string | null
+          employee_id: string
+          ends_at: string
+          facility_id: string
+          id: string
+          organization_id: string
+          reason: string | null
+          recurrence_rule: string | null
+          starts_at: string
+          updated_at: string
+        }
+        Insert: {
+          availability_type: string
+          created_at?: string
+          created_by?: string | null
+          employee_id: string
+          ends_at: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          reason?: string | null
+          recurrence_rule?: string | null
+          starts_at: string
+          updated_at?: string
+        }
+        Update: {
+          availability_type?: string
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string
+          ends_at?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          reason?: string | null
+          recurrence_rule?: string | null
+          starts_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_availability_windows_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_availability_windows_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_availability_windows_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_availability_windows_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -2816,6 +3406,116 @@ export type Database = {
             columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "onboarding_checklist_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_qualifications: {
+        Row: {
+          approved_by: string
+          certification_definition_id: string
+          certification_version_id: string
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          employee_id: string
+          expires_at: string | null
+          facility_id: string
+          id: string
+          issued_at: string
+          organization_id: string
+          renewal_window_opens_at: string | null
+          source_attempt_id: string | null
+          state: string
+          state_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          approved_by: string
+          certification_definition_id: string
+          certification_version_id: string
+          created_at?: string
+          effective_from: string
+          effective_to?: string | null
+          employee_id: string
+          expires_at?: string | null
+          facility_id: string
+          id?: string
+          issued_at: string
+          organization_id: string
+          renewal_window_opens_at?: string | null
+          source_attempt_id?: string | null
+          state: string
+          state_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approved_by?: string
+          certification_definition_id?: string
+          certification_version_id?: string
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          employee_id?: string
+          expires_at?: string | null
+          facility_id?: string
+          id?: string
+          issued_at?: string
+          organization_id?: string
+          renewal_window_opens_at?: string | null
+          source_attempt_id?: string | null
+          state?: string
+          state_reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_qualifications_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_qualifications_certification_definition_id_fkey"
+            columns: ["certification_definition_id"]
+            isOneToOne: false
+            referencedRelation: "certification_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_qualifications_certification_version_id_fkey"
+            columns: ["certification_version_id"]
+            isOneToOne: false
+            referencedRelation: "certification_definition_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_qualifications_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_qualifications_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_qualifications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_qualifications_source_attempt_id_fkey"
+            columns: ["source_attempt_id"]
+            isOneToOne: false
+            referencedRelation: "certification_attempts"
             referencedColumns: ["id"]
           },
         ]
@@ -4461,6 +5161,454 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hris_identity_links: {
+        Row: {
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          employee_id: string
+          external_employment_id: string
+          external_person_id: string
+          id: string
+          organization_id: string
+          person_id: string
+          source_checksum_sha256: string | null
+          source_system_id: string
+        }
+        Insert: {
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          employee_id: string
+          external_employment_id: string
+          external_person_id: string
+          id?: string
+          organization_id: string
+          person_id: string
+          source_checksum_sha256?: string | null
+          source_system_id: string
+        }
+        Update: {
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          employee_id?: string
+          external_employment_id?: string
+          external_person_id?: string
+          id?: string
+          organization_id?: string
+          person_id?: string
+          source_checksum_sha256?: string | null
+          source_system_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hris_identity_links_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hris_identity_links_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hris_identity_links_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "workforce_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hris_identity_links_source_system_id_fkey"
+            columns: ["source_system_id"]
+            isOneToOne: false
+            referencedRelation: "hris_source_systems"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hris_import_exceptions: {
+        Row: {
+          created_at: string
+          details: Json
+          exception_code: string
+          id: string
+          import_row_id: string | null
+          import_run_id: string
+          organization_id: string
+          resolution: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json
+          exception_code: string
+          id?: string
+          import_row_id?: string | null
+          import_run_id: string
+          organization_id: string
+          resolution?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json
+          exception_code?: string
+          id?: string
+          import_row_id?: string | null
+          import_run_id?: string
+          organization_id?: string
+          resolution?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hris_import_exceptions_import_row_id_fkey"
+            columns: ["import_row_id"]
+            isOneToOne: false
+            referencedRelation: "hris_import_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hris_import_exceptions_import_run_id_fkey"
+            columns: ["import_run_id"]
+            isOneToOne: false
+            referencedRelation: "hris_import_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hris_import_exceptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hris_import_exceptions_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hris_import_rows: {
+        Row: {
+          applied_at: string | null
+          applied_employee_id: string | null
+          applied_lifecycle_event_id: string | null
+          apply_status: string
+          candidate_employee_ids: string[]
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decided_employee_id: string | null
+          decision_reason: string | null
+          error_codes: string[]
+          error_detail: string | null
+          external_employment_id: string | null
+          external_person_id: string | null
+          id: string
+          import_run_id: string
+          match_status: string
+          merge_decision: string | null
+          normalized_payload: Json
+          organization_id: string
+          row_number: number
+          source_payload_sha256: string
+          source_system_id: string
+          updated_at: string
+          validation_status: string
+        }
+        Insert: {
+          applied_at?: string | null
+          applied_employee_id?: string | null
+          applied_lifecycle_event_id?: string | null
+          apply_status?: string
+          candidate_employee_ids?: string[]
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decided_employee_id?: string | null
+          decision_reason?: string | null
+          error_codes?: string[]
+          error_detail?: string | null
+          external_employment_id?: string | null
+          external_person_id?: string | null
+          id?: string
+          import_run_id: string
+          match_status?: string
+          merge_decision?: string | null
+          normalized_payload: Json
+          organization_id: string
+          row_number: number
+          source_payload_sha256: string
+          source_system_id: string
+          updated_at?: string
+          validation_status?: string
+        }
+        Update: {
+          applied_at?: string | null
+          applied_employee_id?: string | null
+          applied_lifecycle_event_id?: string | null
+          apply_status?: string
+          candidate_employee_ids?: string[]
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decided_employee_id?: string | null
+          decision_reason?: string | null
+          error_codes?: string[]
+          error_detail?: string | null
+          external_employment_id?: string | null
+          external_person_id?: string | null
+          id?: string
+          import_run_id?: string
+          match_status?: string
+          merge_decision?: string | null
+          normalized_payload?: Json
+          organization_id?: string
+          row_number?: number
+          source_payload_sha256?: string
+          source_system_id?: string
+          updated_at?: string
+          validation_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hris_import_rows_applied_employee_id_fkey"
+            columns: ["applied_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hris_import_rows_applied_lifecycle_event_id_fkey"
+            columns: ["applied_lifecycle_event_id"]
+            isOneToOne: false
+            referencedRelation: "employment_lifecycle_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hris_import_rows_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hris_import_rows_decided_employee_id_fkey"
+            columns: ["decided_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hris_import_rows_import_run_id_fkey"
+            columns: ["import_run_id"]
+            isOneToOne: false
+            referencedRelation: "hris_import_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hris_import_rows_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hris_import_rows_source_system_id_fkey"
+            columns: ["source_system_id"]
+            isOneToOne: false
+            referencedRelation: "hris_source_systems"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hris_import_runs: {
+        Row: {
+          applied_count: number
+          completed_at: string | null
+          correlation_id: string
+          created_at: string
+          id: string
+          import_mode: string
+          mapping_version: number
+          organization_id: string
+          reconciliation: Json
+          rejected_count: number
+          request_id: string
+          resume_after_row: number
+          review_count: number
+          source_checksum_sha256: string | null
+          source_count: number | null
+          source_cursor: string | null
+          source_system_id: string
+          staged_count: number
+          started_by: string | null
+          status: string
+          updated_at: string
+          validated_at: string | null
+        }
+        Insert: {
+          applied_count?: number
+          completed_at?: string | null
+          correlation_id?: string
+          created_at?: string
+          id?: string
+          import_mode: string
+          mapping_version: number
+          organization_id: string
+          reconciliation?: Json
+          rejected_count?: number
+          request_id: string
+          resume_after_row?: number
+          review_count?: number
+          source_checksum_sha256?: string | null
+          source_count?: number | null
+          source_cursor?: string | null
+          source_system_id: string
+          staged_count?: number
+          started_by?: string | null
+          status?: string
+          updated_at?: string
+          validated_at?: string | null
+        }
+        Update: {
+          applied_count?: number
+          completed_at?: string | null
+          correlation_id?: string
+          created_at?: string
+          id?: string
+          import_mode?: string
+          mapping_version?: number
+          organization_id?: string
+          reconciliation?: Json
+          rejected_count?: number
+          request_id?: string
+          resume_after_row?: number
+          review_count?: number
+          source_checksum_sha256?: string | null
+          source_count?: number | null
+          source_cursor?: string | null
+          source_system_id?: string
+          staged_count?: number
+          started_by?: string | null
+          status?: string
+          updated_at?: string
+          validated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hris_import_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hris_import_runs_source_system_id_fkey"
+            columns: ["source_system_id"]
+            isOneToOne: false
+            referencedRelation: "hris_source_systems"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hris_import_runs_started_by_fkey"
+            columns: ["started_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hris_source_systems: {
+        Row: {
+          adapter_config: Json
+          created_at: string
+          created_by: string | null
+          display_name: string
+          id: string
+          import_mode: string
+          last_cursor: string | null
+          last_reconciled_at: string | null
+          mapping_config: Json
+          mapping_version: number
+          organization_id: string
+          provider_type: string
+          schedule_cron: string | null
+          source_key: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          adapter_config?: Json
+          created_at?: string
+          created_by?: string | null
+          display_name: string
+          id?: string
+          import_mode?: string
+          last_cursor?: string | null
+          last_reconciled_at?: string | null
+          mapping_config?: Json
+          mapping_version?: number
+          organization_id: string
+          provider_type: string
+          schedule_cron?: string | null
+          source_key: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          adapter_config?: Json
+          created_at?: string
+          created_by?: string | null
+          display_name?: string
+          id?: string
+          import_mode?: string
+          last_cursor?: string | null
+          last_reconciled_at?: string | null
+          mapping_config?: Json
+          mapping_version?: number
+          organization_id?: string
+          provider_type?: string
+          schedule_cron?: string | null
+          source_key?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hris_source_systems_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hris_source_systems_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -6462,6 +7610,203 @@ export type Database = {
           },
         ]
       }
+      open_shift_claims: {
+        Row: {
+          claim_status: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_reason: string | null
+          eligibility_decision_id: string
+          employee_id: string
+          id: string
+          opportunity_id: string
+          organization_id: string
+          requested_at: string
+          shift_assignment_id: string | null
+          waitlist_position: number | null
+        }
+        Insert: {
+          claim_status: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_reason?: string | null
+          eligibility_decision_id: string
+          employee_id: string
+          id?: string
+          opportunity_id: string
+          organization_id: string
+          requested_at?: string
+          shift_assignment_id?: string | null
+          waitlist_position?: number | null
+        }
+        Update: {
+          claim_status?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_reason?: string | null
+          eligibility_decision_id?: string
+          employee_id?: string
+          id?: string
+          opportunity_id?: string
+          organization_id?: string
+          requested_at?: string
+          shift_assignment_id?: string | null
+          waitlist_position?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "open_shift_claims_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_shift_claims_eligibility_decision_id_fkey"
+            columns: ["eligibility_decision_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_eligibility_decisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_shift_claims_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_shift_claims_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "open_shift_opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_shift_claims_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_shift_claims_shift_assignment_id_fkey"
+            columns: ["shift_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "shift_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      open_shift_opportunities: {
+        Row: {
+          claim_deadline: string
+          created_at: string
+          created_by: string
+          end_time: string
+          facility_id: string
+          id: string
+          organization_id: string
+          required_credential_types: string[]
+          required_qualification_keys: string[]
+          required_training_type_ids: string[]
+          schedule_id: string
+          shift_date: string
+          shift_definition_id: string | null
+          slots: number
+          start_time: string
+          status: string
+          unit_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          claim_deadline: string
+          created_at?: string
+          created_by: string
+          end_time: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          required_credential_types?: string[]
+          required_qualification_keys?: string[]
+          required_training_type_ids?: string[]
+          schedule_id: string
+          shift_date: string
+          shift_definition_id?: string | null
+          slots?: number
+          start_time: string
+          status?: string
+          unit_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          claim_deadline?: string
+          created_at?: string
+          created_by?: string
+          end_time?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          required_credential_types?: string[]
+          required_qualification_keys?: string[]
+          required_training_type_ids?: string[]
+          schedule_id?: string
+          shift_date?: string
+          shift_definition_id?: string | null
+          slots?: number
+          start_time?: string
+          status?: string
+          unit_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "open_shift_opportunities_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_shift_opportunities_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_shift_opportunities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_shift_opportunities_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_shift_opportunities_shift_definition_id_fkey"
+            columns: ["shift_definition_id"]
+            isOneToOne: false
+            referencedRelation: "shift_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_shift_opportunities_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "facility_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_entitlement_grants: {
         Row: {
           approved_by: string | null
@@ -7636,6 +8981,67 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qualification_lifecycle_events: {
+        Row: {
+          actor_profile_id: string | null
+          employee_qualification_id: string
+          event_type: string
+          evidence: Json
+          id: string
+          occurred_at: string
+          organization_id: string
+          prior_state: string | null
+          reason: string
+          resulting_state: string
+        }
+        Insert: {
+          actor_profile_id?: string | null
+          employee_qualification_id: string
+          event_type: string
+          evidence?: Json
+          id?: string
+          occurred_at?: string
+          organization_id: string
+          prior_state?: string | null
+          reason: string
+          resulting_state: string
+        }
+        Update: {
+          actor_profile_id?: string | null
+          employee_qualification_id?: string
+          event_type?: string
+          evidence?: Json
+          id?: string
+          occurred_at?: string
+          organization_id?: string
+          prior_state?: string | null
+          reason?: string
+          resulting_state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qualification_lifecycle_events_actor_profile_id_fkey"
+            columns: ["actor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qualification_lifecycle_events_employee_qualification_id_fkey"
+            columns: ["employee_qualification_id"]
+            isOneToOne: false
+            referencedRelation: "employee_qualifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qualification_lifecycle_events_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -9174,6 +10580,245 @@ export type Database = {
           },
         ]
       }
+      schedule_eligibility_decisions: {
+        Row: {
+          applied_override_ids: string[]
+          decision_context: string
+          employee_id: string
+          evaluated_at: string
+          evaluated_by: string | null
+          evaluated_for_end: string
+          evaluated_for_start: string
+          facility_id: string
+          hard_blocks: string[]
+          id: string
+          organization_id: string
+          outcome: string
+          source_checksum_sha256: string
+          source_snapshot: Json
+          target_id: string | null
+          target_type: string
+          warnings: string[]
+        }
+        Insert: {
+          applied_override_ids?: string[]
+          decision_context: string
+          employee_id: string
+          evaluated_at?: string
+          evaluated_by?: string | null
+          evaluated_for_end: string
+          evaluated_for_start: string
+          facility_id: string
+          hard_blocks?: string[]
+          id?: string
+          organization_id: string
+          outcome: string
+          source_checksum_sha256: string
+          source_snapshot: Json
+          target_id?: string | null
+          target_type: string
+          warnings?: string[]
+        }
+        Update: {
+          applied_override_ids?: string[]
+          decision_context?: string
+          employee_id?: string
+          evaluated_at?: string
+          evaluated_by?: string | null
+          evaluated_for_end?: string
+          evaluated_for_start?: string
+          facility_id?: string
+          hard_blocks?: string[]
+          id?: string
+          organization_id?: string
+          outcome?: string
+          source_checksum_sha256?: string
+          source_snapshot?: Json
+          target_id?: string | null
+          target_type?: string
+          warnings?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_eligibility_decisions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_eligibility_decisions_evaluated_by_fkey"
+            columns: ["evaluated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_eligibility_decisions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_eligibility_decisions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      schedule_eligibility_overrides: {
+        Row: {
+          authority_reference: string
+          block_code: string
+          created_at: string
+          effective_from: string
+          employee_id: string
+          expires_at: string
+          facility_id: string
+          granted_by: string
+          id: string
+          organization_id: string
+          reason: string
+          revocation_reason: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          scope_id: string | null
+          scope_type: string
+        }
+        Insert: {
+          authority_reference: string
+          block_code: string
+          created_at?: string
+          effective_from?: string
+          employee_id: string
+          expires_at: string
+          facility_id: string
+          granted_by: string
+          id?: string
+          organization_id: string
+          reason: string
+          revocation_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          scope_id?: string | null
+          scope_type: string
+        }
+        Update: {
+          authority_reference?: string
+          block_code?: string
+          created_at?: string
+          effective_from?: string
+          employee_id?: string
+          expires_at?: string
+          facility_id?: string
+          granted_by?: string
+          id?: string
+          organization_id?: string
+          reason?: string
+          revocation_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          scope_id?: string | null
+          scope_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_eligibility_overrides_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_eligibility_overrides_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_eligibility_overrides_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_eligibility_overrides_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_eligibility_overrides_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      schedule_eligibility_policies: {
+        Row: {
+          claim_deadline_hours: number
+          created_at: string
+          manager_approval_required: boolean
+          max_weekly_hours: number
+          minimum_rest_hours: number
+          organization_id: string
+          swap_deadline_hours: number
+          updated_at: string
+          updated_by: string | null
+          waitlist_enabled: boolean
+          warning_weekly_hours: number
+        }
+        Insert: {
+          claim_deadline_hours?: number
+          created_at?: string
+          manager_approval_required?: boolean
+          max_weekly_hours?: number
+          minimum_rest_hours?: number
+          organization_id: string
+          swap_deadline_hours?: number
+          updated_at?: string
+          updated_by?: string | null
+          waitlist_enabled?: boolean
+          warning_weekly_hours?: number
+        }
+        Update: {
+          claim_deadline_hours?: number
+          created_at?: string
+          manager_approval_required?: boolean
+          max_weekly_hours?: number
+          minimum_rest_hours?: number
+          organization_id?: string
+          swap_deadline_hours?: number
+          updated_at?: string
+          updated_by?: string | null
+          waitlist_enabled?: boolean
+          warning_weekly_hours?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_eligibility_policies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_eligibility_policies_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       schedules: {
         Row: {
           created_at: string
@@ -9670,6 +11315,201 @@ export type Database = {
           },
         ]
       }
+      shift_eligibility_requirements: {
+        Row: {
+          created_at: string
+          facility_id: string
+          id: string
+          is_active: boolean
+          organization_id: string
+          required_credential_types: string[]
+          required_qualification_keys: string[]
+          required_training_type_ids: string[]
+          shift_definition_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          facility_id: string
+          id?: string
+          is_active?: boolean
+          organization_id: string
+          required_credential_types?: string[]
+          required_qualification_keys?: string[]
+          required_training_type_ids?: string[]
+          shift_definition_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          facility_id?: string
+          id?: string
+          is_active?: boolean
+          organization_id?: string
+          required_credential_types?: string[]
+          required_qualification_keys?: string[]
+          required_training_type_ids?: string[]
+          shift_definition_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shift_eligibility_requirements_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_eligibility_requirements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_eligibility_requirements_shift_definition_id_fkey"
+            columns: ["shift_definition_id"]
+            isOneToOne: false
+            referencedRelation: "shift_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_eligibility_requirements_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shift_swap_requests: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_reason: string | null
+          expires_at: string
+          facility_id: string
+          id: string
+          organization_id: string
+          reason: string
+          requested_at: string
+          requester_assignment_id: string
+          requester_decision_id: string | null
+          requester_employee_id: string
+          status: string
+          target_assignment_id: string
+          target_decision_id: string | null
+          target_employee_id: string
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_reason?: string | null
+          expires_at: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          reason: string
+          requested_at?: string
+          requester_assignment_id: string
+          requester_decision_id?: string | null
+          requester_employee_id: string
+          status?: string
+          target_assignment_id: string
+          target_decision_id?: string | null
+          target_employee_id: string
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_reason?: string | null
+          expires_at?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          reason?: string
+          requested_at?: string
+          requester_assignment_id?: string
+          requester_decision_id?: string | null
+          requester_employee_id?: string
+          status?: string
+          target_assignment_id?: string
+          target_decision_id?: string | null
+          target_employee_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shift_swap_requests_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_swap_requests_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_swap_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_swap_requests_requester_assignment_id_fkey"
+            columns: ["requester_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "shift_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_swap_requests_requester_decision_id_fkey"
+            columns: ["requester_decision_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_eligibility_decisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_swap_requests_requester_employee_id_fkey"
+            columns: ["requester_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_swap_requests_target_assignment_id_fkey"
+            columns: ["target_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "shift_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_swap_requests_target_decision_id_fkey"
+            columns: ["target_decision_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_eligibility_decisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_swap_requests_target_employee_id_fkey"
+            columns: ["target_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       signup_attempts: {
         Row: {
           created_at: string
@@ -9831,6 +11671,86 @@ export type Database = {
           },
         ]
       }
+      training_attendance_evidence: {
+        Row: {
+          attendance_status: string
+          attendee_signature_sha256: string | null
+          check_in_at: string | null
+          check_out_at: string | null
+          evidence: Json
+          evidence_checksum_sha256: string
+          facility_id: string
+          id: string
+          organization_id: string
+          recorded_at: string
+          recorded_by: string
+          recorder_signature_sha256: string
+          registration_id: string
+          seat_minutes: number | null
+        }
+        Insert: {
+          attendance_status: string
+          attendee_signature_sha256?: string | null
+          check_in_at?: string | null
+          check_out_at?: string | null
+          evidence?: Json
+          evidence_checksum_sha256: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          recorded_at?: string
+          recorded_by: string
+          recorder_signature_sha256: string
+          registration_id: string
+          seat_minutes?: number | null
+        }
+        Update: {
+          attendance_status?: string
+          attendee_signature_sha256?: string | null
+          check_in_at?: string | null
+          check_out_at?: string | null
+          evidence?: Json
+          evidence_checksum_sha256?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          recorded_at?: string
+          recorded_by?: string
+          recorder_signature_sha256?: string
+          registration_id?: string
+          seat_minutes?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_attendance_evidence_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_attendance_evidence_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_attendance_evidence_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_attendance_evidence_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: true
+            referencedRelation: "training_session_registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_class_attendees: {
         Row: {
           attended: boolean
@@ -9910,54 +11830,94 @@ export type Database = {
       }
       training_classes: {
         Row: {
+          cancellation_reason: string | null
+          capacity: number
           class_date: string
           class_name: string
+          completion_approved_at: string | null
+          completion_approved_by: string | null
           created_at: string
           duration_hours: number
+          ends_at: string | null
           facility_id: string | null
           id: string
           location: string | null
+          lock_version: number
+          makeup_of_class_id: string | null
           notes: string | null
           organization_id: string
+          rescheduled_to_class_id: string | null
+          resource_requirements: Json
+          room_name: string | null
           roster_document_id: string | null
+          starts_at: string | null
           status: string
           trainer_profile_id: string
           training_type_id: string
           updated_at: string
         }
         Insert: {
+          cancellation_reason?: string | null
+          capacity?: number
           class_date: string
           class_name: string
+          completion_approved_at?: string | null
+          completion_approved_by?: string | null
           created_at?: string
           duration_hours?: number
+          ends_at?: string | null
           facility_id?: string | null
           id?: string
           location?: string | null
+          lock_version?: number
+          makeup_of_class_id?: string | null
           notes?: string | null
           organization_id: string
+          rescheduled_to_class_id?: string | null
+          resource_requirements?: Json
+          room_name?: string | null
           roster_document_id?: string | null
+          starts_at?: string | null
           status?: string
           trainer_profile_id: string
           training_type_id: string
           updated_at?: string
         }
         Update: {
+          cancellation_reason?: string | null
+          capacity?: number
           class_date?: string
           class_name?: string
+          completion_approved_at?: string | null
+          completion_approved_by?: string | null
           created_at?: string
           duration_hours?: number
+          ends_at?: string | null
           facility_id?: string | null
           id?: string
           location?: string | null
+          lock_version?: number
+          makeup_of_class_id?: string | null
           notes?: string | null
           organization_id?: string
+          rescheduled_to_class_id?: string | null
+          resource_requirements?: Json
+          room_name?: string | null
           roster_document_id?: string | null
+          starts_at?: string | null
           status?: string
           trainer_profile_id?: string
           training_type_id?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "training_classes_completion_approved_by_fkey"
+            columns: ["completion_approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "training_classes_facility_id_fkey"
             columns: ["facility_id"]
@@ -9966,10 +11926,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "training_classes_makeup_of_class_id_fkey"
+            columns: ["makeup_of_class_id"]
+            isOneToOne: false
+            referencedRelation: "training_classes"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "training_classes_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_classes_rescheduled_to_class_id_fkey"
+            columns: ["rescheduled_to_class_id"]
+            isOneToOne: false
+            referencedRelation: "training_classes"
             referencedColumns: ["id"]
           },
           {
@@ -10182,6 +12156,161 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_session_completion_receipts: {
+        Row: {
+          approved_at: string
+          approved_by: string
+          attendee_count: number
+          class_id: string
+          evidence_checksum_sha256: string
+          id: string
+          organization_id: string
+          training_record_count: number
+        }
+        Insert: {
+          approved_at?: string
+          approved_by: string
+          attendee_count: number
+          class_id: string
+          evidence_checksum_sha256: string
+          id?: string
+          organization_id: string
+          training_record_count: number
+        }
+        Update: {
+          approved_at?: string
+          approved_by?: string
+          attendee_count?: number
+          class_id?: string
+          evidence_checksum_sha256?: string
+          id?: string
+          organization_id?: string
+          training_record_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_session_completion_receipts_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_session_completion_receipts_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: true
+            referencedRelation: "training_classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_session_completion_receipts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_session_registrations: {
+        Row: {
+          attendance_recorded_at: string | null
+          canceled_at: string | null
+          cancellation_reason: string | null
+          class_id: string
+          created_at: string
+          employee_id: string
+          facility_id: string
+          id: string
+          organization_id: string
+          registered_at: string
+          registered_by: string | null
+          registration_source: string
+          registration_status: string
+          training_record_id: string | null
+          updated_at: string
+          waitlist_position: number | null
+        }
+        Insert: {
+          attendance_recorded_at?: string | null
+          canceled_at?: string | null
+          cancellation_reason?: string | null
+          class_id: string
+          created_at?: string
+          employee_id: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          registered_at?: string
+          registered_by?: string | null
+          registration_source: string
+          registration_status: string
+          training_record_id?: string | null
+          updated_at?: string
+          waitlist_position?: number | null
+        }
+        Update: {
+          attendance_recorded_at?: string | null
+          canceled_at?: string | null
+          cancellation_reason?: string | null
+          class_id?: string
+          created_at?: string
+          employee_id?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          registered_at?: string
+          registered_by?: string | null
+          registration_source?: string
+          registration_status?: string
+          training_record_id?: string | null
+          updated_at?: string
+          waitlist_position?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_session_registrations_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "training_classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_session_registrations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_session_registrations_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_session_registrations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_session_registrations_registered_by_fkey"
+            columns: ["registered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_session_registrations_training_record_id_fkey"
+            columns: ["training_record_id"]
+            isOneToOne: false
+            referencedRelation: "employee_training_records"
             referencedColumns: ["id"]
           },
         ]
@@ -10700,6 +12829,10 @@ export type Database = {
         }
         Returns: string
       }
+      apply_hris_import_batch: {
+        Args: { p_batch_size?: number; p_import_run_id: string }
+        Returns: Json
+      }
       apply_scim_change: {
         Args: {
           p_connection_id: string
@@ -10710,6 +12843,15 @@ export type Database = {
           p_request_id: string
         }
         Returns: Json
+      }
+      approve_certification_attempt: {
+        Args: {
+          p_assessor_signature_sha256: string
+          p_attempt_id: string
+          p_decision: string
+          p_reason: string
+        }
+        Returns: string
       }
       approve_regulatory_rule_version: {
         Args: { p_review_notes: string; p_version_id: string }
@@ -10751,6 +12893,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      approve_training_session_completion: {
+        Args: { p_class_id: string; p_reason: string }
+        Returns: string
       }
       assert_course_version_publish_ready: {
         Args: { p_version_id: string }
@@ -10919,6 +13065,15 @@ export type Database = {
           timeout_ms: number
         }[]
       }
+      claim_open_shift: {
+        Args: { p_opportunity_id: string }
+        Returns: {
+          claim_id: string
+          claim_status: string
+          eligibility_decision_id: string
+          shift_assignment_id: string
+        }[]
+      }
       claim_pending_notification_deliveries: {
         Args: { p_batch_size: number; p_stale_after_seconds: number }
         Returns: {
@@ -11074,6 +13229,26 @@ export type Database = {
           course_version_id: string
         }[]
       }
+      create_credential_renewal_submission: {
+        Args: {
+          p_credential_document_id: string
+          p_credential_id: string
+          p_credential_type: string
+          p_employee_id: string
+        }
+        Returns: string
+      }
+      create_hris_import_run: {
+        Args: {
+          p_import_mode?: string
+          p_request_id: string
+          p_source_checksum_sha256?: string
+          p_source_count?: number
+          p_source_cursor?: string
+          p_source_system_id: string
+        }
+        Returns: string
+      }
       create_integration_webhook_endpoint: {
         Args: {
           p_description?: string
@@ -11097,6 +13272,19 @@ export type Database = {
           p_organization_id: string
           p_subject_template: string
           p_template_key: string
+        }
+        Returns: string
+      }
+      create_schedule_eligibility_override: {
+        Args: {
+          p_authority_reference: string
+          p_block_code: string
+          p_employee_id: string
+          p_expires_at: string
+          p_facility_id: string
+          p_reason: string
+          p_scope_id: string
+          p_scope_type: string
         }
         Returns: string
       }
@@ -11154,6 +13342,22 @@ export type Database = {
         Args: { p_endpoint_id: string; p_reason: string }
         Returns: undefined
       }
+      decide_shift_swap: {
+        Args: {
+          p_approve: boolean
+          p_reason: string
+          p_swap_request_id: string
+        }
+        Returns: boolean
+      }
+      employee_has_active_qualification: {
+        Args: {
+          p_at?: string
+          p_employee_id: string
+          p_qualification_key: string
+        }
+        Returns: boolean
+      }
       end_enterprise_role_grant: {
         Args: { p_effective_to?: string; p_grant_id: string; p_reason?: string }
         Returns: undefined
@@ -11186,6 +13390,19 @@ export type Database = {
           p_feature_key: string
           p_organization_id: string
           p_required_quantity?: number
+        }
+        Returns: Json
+      }
+      evaluate_schedule_eligibility: {
+        Args: {
+          p_employee_id: string
+          p_ends_at: string
+          p_exclude_assignment_ids?: string[]
+          p_facility_id: string
+          p_required_credential_types?: string[]
+          p_required_qualification_keys?: string[]
+          p_required_training_type_ids?: string[]
+          p_starts_at: string
         }
         Returns: Json
       }
@@ -11377,6 +13594,7 @@ export type Database = {
         Returns: Json
       }
       get_platform_health: { Args: never; Returns: Json }
+      get_qualified_workforce_control_plane: { Args: never; Returns: Json }
       get_quiz_answer_choices: {
         Args: { p_quiz_id: string }
         Returns: {
@@ -11770,6 +13988,19 @@ export type Database = {
         }
         Returns: string
       }
+      record_credential_renewal_extraction: {
+        Args: {
+          p_confidence: Json
+          p_extracted_fields: Json
+          p_extraction_model: string
+          p_extraction_provider: string
+          p_scan_evidence: Json
+          p_scan_provider: string
+          p_scan_status: string
+          p_submission_id: string
+        }
+        Returns: boolean
+      }
       record_notification_consent_event: {
         Args: {
           p_action: string
@@ -11831,6 +14062,26 @@ export type Database = {
         }
         Returns: string
       }
+      record_training_attendance: {
+        Args: {
+          p_attendance_status: string
+          p_attendee_signature_sha256: string
+          p_check_in_at: string
+          p_check_out_at: string
+          p_evidence: Json
+          p_recorder_signature_sha256: string
+          p_registration_id: string
+        }
+        Returns: string
+      }
+      register_for_training_session: {
+        Args: { p_class_id: string; p_employee_id: string }
+        Returns: {
+          registration_id: string
+          registration_status: string
+          waitlist_position: number
+        }[]
+      }
       register_identity_domain: {
         Args: {
           p_domain: string
@@ -11870,6 +14121,14 @@ export type Database = {
           run_id: string
         }[]
       }
+      request_shift_swap: {
+        Args: {
+          p_reason: string
+          p_requester_assignment_id: string
+          p_target_assignment_id: string
+        }
+        Returns: string
+      }
       request_system_job_cancellation: {
         Args: { p_reason: string; p_run_id: string }
         Returns: undefined
@@ -11896,6 +14155,15 @@ export type Database = {
       retry_notification_delivery: {
         Args: { p_delivery_id: string }
         Returns: undefined
+      }
+      review_credential_renewal_submission: {
+        Args: {
+          p_confirmed_fields: Json
+          p_decision: string
+          p_reason: string
+          p_submission_id: string
+        }
+        Returns: string
       }
       revoke_identity_break_glass: {
         Args: { p_event_id: string; p_reason: string }
@@ -11990,6 +14258,10 @@ export type Database = {
         Args: { p_employee_id: string; p_pin: string }
         Returns: undefined
       }
+      set_employee_qualification_state: {
+        Args: { p_qualification_id: string; p_reason: string; p_state: string }
+        Returns: boolean
+      }
       set_feature_kill_switch: {
         Args: {
           p_expires_at?: string
@@ -11999,6 +14271,15 @@ export type Database = {
           p_reason?: string
         }
         Returns: string
+      }
+      set_hris_import_row_decision: {
+        Args: {
+          p_decision: string
+          p_employee_id: string
+          p_import_row_id: string
+          p_reason: string
+        }
+        Returns: boolean
       }
       set_notification_channel_policy: {
         Args: {
@@ -12059,6 +14340,17 @@ export type Database = {
       set_system_job_kill_switch: {
         Args: { p_enabled: boolean; p_job_key: string; p_reason: string }
         Returns: undefined
+      }
+      stage_hris_import_row: {
+        Args: {
+          p_external_employment_id: string
+          p_external_person_id: string
+          p_import_run_id: string
+          p_normalized_payload: Json
+          p_row_number: number
+          p_source_payload_sha256: string
+        }
+        Returns: string
       }
       start_course_assignment: {
         Args: { p_assignment_id: string }
@@ -12240,6 +14532,10 @@ export type Database = {
           p_role_template_id?: string
         }
         Returns: string
+      }
+      validate_hris_import_run: {
+        Args: { p_import_run_id: string }
+        Returns: Json
       }
       verify_certificate: {
         Args: { p_slug: string }

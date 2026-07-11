@@ -173,6 +173,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/admin/notifications", label: "Notification delivery", domain: "support", roles: PLATFORM_ADMIN, keywords: ["email", "sms", "failed"] },
   { path: "/admin/system-jobs", label: "System jobs", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["cron", "queue", "health", "freshness", "retry"] },
   { path: "/admin/enterprise", label: "Enterprise foundation", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["portfolio", "regions", "workforce", "rules", "sso", "scim", "billing", "integrations"] },
+  { path: "/admin/qualified-workforce", label: "Qualified workforce operations", domain: "credentialing", roles: PLATFORM_ADMIN, keywords: ["hris", "qualification", "credential renewal", "eligibility", "shift swap", "waitlist"] },
   { path: "/admin/exclusion-screening", label: "Exclusion screening", domain: "credentialing", roles: PLATFORM_ADMIN, keywords: ["oig", "sam", "snapshot", "screening"] },
   { path: "/admin/security", label: "Security & governance", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["roles", "audit", "access"] },
   { path: "/admin/support-tickets", label: "Support tickets", domain: "support", roles: PLATFORM_ADMIN, keywords: ["help", "queue"] },
@@ -215,6 +216,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/users", label: "Users", domain: "tenant", roles: ORG_MANAGERS, keywords: ["roles", "invites"] },
   { path: "/app/settings", label: "Settings", domain: "tenant", roles: ORG_MANAGERS, keywords: ["configuration", "organization"] },
   { path: "/app/enterprise", label: "Enterprise foundation", domain: "tenant", roles: ORG_ADMINS, keywords: ["workforce", "compliance profiles", "sso", "scim", "entitlements", "integrations"] },
+  { path: "/app/workforce-operations", label: "Workforce operations", domain: "credentialing", roles: ORG_MANAGERS, keywords: ["hris", "qualification", "credential renewal", "eligibility", "shift swap", "waitlist"] },
   { path: "/app/audit", label: "Audit log", domain: "platform", roles: AUDIT_LOG_ROLES, keywords: ["activity", "history"] },
   { path: "/app/help", label: "Help center", domain: "support", roles: ORG_ROLES, keywords: ["support", "articles"] },
 

@@ -59,6 +59,7 @@ import {
   Star,
   Activity,
   Network,
+  UserRoundCheck,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -110,6 +111,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/admin/notifications", label: "Notification Delivery", icon: Send },
           { href: "/admin/system-jobs", label: "System Jobs", icon: Activity },
           { href: "/admin/enterprise", label: "Enterprise Foundation", icon: Network },
+          { href: "/admin/qualified-workforce", label: "Qualified Workforce", icon: UserRoundCheck },
           { href: "/admin/exclusion-screening", label: "Exclusion Screening", icon: ShieldAlert },
           { href: "/admin/security", label: "Security & Governance", icon: Eye },
           { href: "/admin/support-tickets", label: "Support Tickets", icon: LifeBuoy },
@@ -136,6 +138,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/facilities", label: "Facilities", icon: Building2 },
           { href: "/app/employees", label: "Employees", icon: Users },
           { href: "/app/schedule", label: "Schedule", icon: CalendarDays },
+          { href: "/app/workforce-operations", label: "Workforce Operations", icon: UserRoundCheck },
           ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & Equipment", icon: Flame }] : []),
         ]
       },

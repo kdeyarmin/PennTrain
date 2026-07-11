@@ -86,6 +86,15 @@ describe("role-based page visibility", () => {
     expect(canViewPage("/app/enterprise", "employee")).toBe(false);
   });
 
+  it("limits qualified workforce operations to platform and tenant managers", () => {
+    expect(canViewPage("/admin/qualified-workforce", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/workforce-operations", "org_admin")).toBe(true);
+    expect(canViewPage("/app/workforce-operations", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/workforce-operations", "trainer")).toBe(false);
+    expect(canViewPage("/app/workforce-operations", "auditor")).toBe(false);
+    expect(canViewPage("/app/workforce-operations", "employee")).toBe(false);
+  });
+
   it("makes account MFA settings available to every authenticated role", () => {
     for (const role of ["platform_admin", "org_admin", "facility_manager", "trainer", "auditor", "employee"] as const) {
       expect(canViewPage("/account/security", role)).toBe(true);
