@@ -22,6 +22,16 @@ export interface AppPageDefinition {
   keywords: string[];
 }
 
+export interface AppCommandAction {
+  id: string;
+  label: string;
+  description: string;
+  path: string;
+  domain: AppDomain;
+  roles: Role[];
+  keywords: string[];
+}
+
 const PLATFORM_ADMIN: Role[] = ["platform_admin"];
 const ORG_ROLES: Role[] = ["org_admin", "facility_manager", "trainer", "auditor"];
 const ORG_HOME_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
@@ -34,6 +44,117 @@ const PENDING_APPROVAL_ROLES: Role[] = ["org_admin", "facility_manager", "traine
 const TRAINER_ONLY: Role[] = ["trainer"];
 const EMPLOYEE_ONLY: Role[] = ["employee"];
 const ANY_ROLE: Role[] = ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"];
+
+const APP_COMMAND_ACTIONS: AppCommandAction[] = [
+  {
+    id: "add-employee",
+    label: "Add employee",
+    description: "Open the employee creation dialog.",
+    path: "/app/employees?action=add",
+    domain: "directory",
+    roles: ["org_admin", "facility_manager"],
+    keywords: ["new staff", "hire", "create employee", "onboard"],
+  },
+  {
+    id: "platform-add-employee",
+    label: "Add employee",
+    description: "Open the platform employee creation dialog.",
+    path: "/admin/employees?action=add",
+    domain: "directory",
+    roles: PLATFORM_ADMIN,
+    keywords: ["new staff", "hire", "create employee", "onboard"],
+  },
+  {
+    id: "bulk-import-employees",
+    label: "Bulk import employees",
+    description: "Upload a roster CSV from the employee directory.",
+    path: "/app/employees?action=bulk-import",
+    domain: "directory",
+    roles: ["org_admin", "facility_manager"],
+    keywords: ["csv", "roster", "upload staff", "import staff"],
+  },
+  {
+    id: "platform-bulk-import-employees",
+    label: "Bulk import employees",
+    description: "Upload a roster CSV from the platform employee directory.",
+    path: "/admin/employees?action=bulk-import",
+    domain: "directory",
+    roles: PLATFORM_ADMIN,
+    keywords: ["csv", "roster", "upload staff", "import staff"],
+  },
+  {
+    id: "assign-courses",
+    label: "Assign courses",
+    description: "Open course assignments to assign or review learner work.",
+    path: "/app/course-assignments",
+    domain: "training",
+    roles: ORG_ROLES,
+    keywords: ["training assignment", "learners", "courses", "remediation"],
+  },
+  {
+    id: "schedule-class",
+    label: "Schedule an in-service class",
+    description: "Open the live class list for scheduling and attendance follow-up.",
+    path: "/trainer/classes",
+    domain: "training",
+    roles: ["trainer", "org_admin", "facility_manager"],
+    keywords: ["class", "attendance", "in service", "qr", "kiosk"],
+  },
+  {
+    id: "generate-binder",
+    label: "Generate compliance binder",
+    description: "Open the evidence binder workflow for survey-ready exports.",
+    path: "/app/compliance-binder",
+    domain: "documents",
+    roles: REPORTING_ROLES,
+    keywords: ["survey", "inspection", "packet", "evidence", "export"],
+  },
+  {
+    id: "run-reports",
+    label: "Run compliance reports",
+    description: "Open the reporting center for filtered compliance exports.",
+    path: "/app/reports",
+    domain: "documents",
+    roles: REPORTING_ROLES,
+    keywords: ["analytics", "csv", "saved report", "export"],
+  },
+  {
+    id: "new-ai-course",
+    label: "Create AI course",
+    description: "Draft a new course from source material in the AI course builder.",
+    path: "/admin/courses/new-ai",
+    domain: "training",
+    roles: PLATFORM_ADMIN,
+    keywords: ["generate course", "course builder", "curriculum", "ai"],
+  },
+  {
+    id: "review-failed-notifications",
+    label: "Review failed notifications",
+    description: "Open notification delivery filtered to failed messages.",
+    path: "/admin/notifications?status=failed",
+    domain: "support",
+    roles: PLATFORM_ADMIN,
+    keywords: ["email", "sms", "delivery", "failure"],
+  },
+  {
+    id: "open-support",
+    label: "Open Help Center",
+    description: "Find an article or create a support ticket.",
+    path: "/app/help",
+    domain: "support",
+    roles: ORG_ROLES,
+    keywords: ["ticket", "faq", "job aide", "support"],
+  },
+  {
+    id: "open-employee-support",
+    label: "Open Help Center",
+    description: "Find an article or create a support ticket.",
+    path: "/me/help",
+    domain: "support",
+    roles: EMPLOYEE_ONLY,
+    keywords: ["ticket", "faq", "job aide", "support"],
+  },
+];
 
 export const APP_PAGES: AppPageDefinition[] = [
   { path: "/admin", label: "Platform dashboard", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["super admin", "command center", "health"] },
@@ -52,6 +173,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/admin/support-tickets", label: "Support tickets", domain: "support", roles: PLATFORM_ADMIN, keywords: ["help", "queue"] },
   { path: "/admin/help-content", label: "Help center content", domain: "support", roles: PLATFORM_ADMIN, keywords: ["articles", "knowledge base"] },
   { path: "/admin/settings", label: "Platform settings", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["feature flags", "maintenance", "signup"] },
+  { path: "/admin/roadmap", label: "Improvement roadmap", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["phases", "planning", "suggestions", "implementation"] },
 
   { path: "/app", label: "Organization dashboard", domain: "tenant", roles: ORG_HOME_ROLES, keywords: ["overview", "compliance"] },
   { path: "/app/facilities", label: "Facilities", domain: "directory", roles: ORG_HOME_ROLES, keywords: ["locations", "sites"] },
@@ -184,4 +306,21 @@ export function searchPages(query: string, role: Role | undefined): AppPageDefin
       [page.label, page.domain, page.path, ...page.keywords].some((value) => value.toLowerCase().includes(q)),
     )
     .slice(0, 6);
+}
+
+export function commandActionsForRole(role: Role | undefined): AppCommandAction[] {
+  if (!role) return [];
+  return APP_COMMAND_ACTIONS.filter((action) => action.roles.includes(role));
+}
+
+export function searchCommandActions(query: string, role: Role | undefined): AppCommandAction[] {
+  const q = query.trim().toLowerCase();
+  if (!q || !role) return [];
+  return commandActionsForRole(role)
+    .filter((action) =>
+      [action.label, action.description, action.domain, action.path, ...action.keywords].some((value) =>
+        value.toLowerCase().includes(q),
+      ),
+    )
+    .slice(0, 5);
 }

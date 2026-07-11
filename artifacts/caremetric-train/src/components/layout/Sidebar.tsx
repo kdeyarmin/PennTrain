@@ -55,6 +55,8 @@ import {
   HelpCircle,
   Search,
   ChevronDown,
+  Rocket,
+  Star,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -112,6 +114,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Platform",
         items: [
           { href: "/admin/settings", label: "Settings", icon: Sliders },
+          { href: "/admin/roadmap", label: "Improvement Roadmap", icon: Rocket },
         ]
       }
     ];
@@ -374,6 +377,10 @@ function collapsedSectionsStorageKey(userId: string): string {
   return `caremetric.sidebar.collapsedSections.${userId}`;
 }
 
+function pinnedPagesStorageKey(userId: string): string {
+  return `caremetric.sidebar.pinnedPages.${userId}`;
+}
+
 function loadCollapsedSections(userId: string): Set<string> {
   try {
     const raw = window.localStorage.getItem(collapsedSectionsStorageKey(userId));
@@ -391,6 +398,23 @@ function saveCollapsedSections(userId: string, titles: Set<string>): void {
   }
 }
 
+function loadPinnedPages(userId: string): Set<string> {
+  try {
+    const raw = window.localStorage.getItem(pinnedPagesStorageKey(userId));
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function savePinnedPages(userId: string, hrefs: Set<string>): void {
+  try {
+    window.localStorage.setItem(pinnedPagesStorageKey(userId), JSON.stringify([...hrefs]));
+  } catch {
+    // localStorage unavailable -- pinned pages just won't persist.
+  }
+}
+
 /**
  * The sidebar's inner content (logo, filter, nav sections, user footer). Shared by the
  * desktop `<aside>` and the mobile drawer. `onNavigate` lets the mobile drawer
@@ -403,10 +427,15 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
   const [filter, setFilter] = useState("");
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => (user ? loadCollapsedSections(user.id) : new Set()));
+  const [pinnedPages, setPinnedPages] = useState<Set<string>>(() => (user ? loadPinnedPages(user.id) : new Set()));
 
   useEffect(() => {
     if (user) saveCollapsedSections(user.id, collapsedSections);
   }, [user, collapsedSections]);
+
+  useEffect(() => {
+    if (user) savePinnedPages(user.id, pinnedPages);
+  }, [user, pinnedPages]);
 
   if (!user) return null;
 
@@ -430,19 +459,43 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
     });
   };
 
+  const flattenedNavItems = navSections.flatMap((section) => section.items);
+  const currentNavItem = flattenedNavItems.find((item) => isNavItemActive(item, location));
+  const isCurrentPagePinned = !!currentNavItem && pinnedPages.has(currentNavItem.href);
+  const toggleCurrentPagePin = () => {
+    if (!currentNavItem) return;
+    setPinnedPages((prev) => {
+      const next = new Set(prev);
+      if (next.has(currentNavItem.href)) next.delete(currentNavItem.href); else next.add(currentNavItem.href);
+      return next;
+    });
+  };
+
   const trimmedFilter = filter.trim().toLowerCase();
   const isFiltering = trimmedFilter.length > 0;
 
+  const pinnedSection: NavSection | null = !isFiltering
+    ? {
+        title: "Pinned",
+        items: flattenedNavItems.filter((item, index, all) =>
+          pinnedPages.has(item.href) && all.findIndex((candidate) => candidate.href === item.href) === index,
+        ),
+      }
+    : null;
+
   // While filtering, only show matching items so a long list narrows down to what was typed.
   // Otherwise show every item, and let each section's own collapsed/expanded state decide.
-  const visibleSections = navSections
-    .map((section) => ({
-      ...section,
-      items: isFiltering
-        ? section.items.filter((item) => item.label.toLowerCase().includes(trimmedFilter))
-        : section.items,
-    }))
-    .filter((section) => section.items.length > 0);
+  const visibleSections = [
+    ...(pinnedSection?.items.length ? [pinnedSection] : []),
+    ...navSections
+      .map((section) => ({
+        ...section,
+        items: isFiltering
+          ? section.items.filter((item) => item.label.toLowerCase().includes(trimmedFilter))
+          : section.items,
+      }))
+      .filter((section) => section.items.length > 0),
+  ];
 
   return (
     <>
@@ -456,7 +509,18 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       </div>
 
-      <div className="px-3 pt-3 shrink-0">
+      <div className="px-3 pt-3 shrink-0 space-y-2">
+        {currentNavItem && (
+          <button
+            type="button"
+            onClick={toggleCurrentPagePin}
+            className="w-full h-8 px-3 rounded-lg bg-sidebar-accent/30 hover:bg-sidebar-accent/50 text-[12px] font-medium text-sidebar-foreground/70 flex items-center gap-2 transition-colors"
+            aria-pressed={isCurrentPagePinned}
+          >
+            <Star className={cn("h-3.5 w-3.5", isCurrentPagePinned && "fill-sidebar-primary text-sidebar-primary")} />
+            {isCurrentPagePinned ? "Unpin current page" : "Pin current page"}
+          </button>
+        )}
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-sidebar-foreground/40 pointer-events-none" />
           <input

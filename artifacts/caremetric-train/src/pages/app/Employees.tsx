@@ -144,8 +144,11 @@ export default function Employees() {
   // already working on this page.
   useEffect(() => {
     const params = new URLSearchParams(locationSearch);
-    if (params.get("action") === "add") {
+    const action = params.get("action");
+    if (action === "add") {
       openCreate();
+    } else if (action === "bulk-import" && canManage) {
+      openBulkImport();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

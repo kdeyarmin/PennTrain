@@ -33,6 +33,7 @@ const SecurityGovernance = lazy(() => import("@/pages/admin/SecurityGovernance")
 const AdminSupportTickets = lazy(() => import("@/pages/admin/SupportTickets"));
 const AdminSupportTicketDetail = lazy(() => import("@/pages/admin/SupportTicketDetail"));
 const AdminHelpContent = lazy(() => import("@/pages/admin/HelpContent"));
+const ImprovementRoadmap = lazy(() => import("@/pages/admin/ImprovementRoadmap"));
 
 const OrgDashboard = lazy(() => import("@/pages/app/Dashboard"));
 const Facilities = lazy(() => import("@/pages/app/Facilities"));
@@ -351,6 +352,9 @@ function Router() {
       </Route>
       <Route path="/admin/help-content">
         {() => <ProtectedRoute component={AdminHelpContent} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/roadmap">
+        {() => <ProtectedRoute component={ImprovementRoadmap} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
 
       {/* Org/Facility routes */}

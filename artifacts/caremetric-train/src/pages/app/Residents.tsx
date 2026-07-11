@@ -14,6 +14,7 @@ import { BedDouble, ChevronLeft, ChevronRight, Plus, Search } from "lucide-react
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { worstComplianceStatus, complianceStatusBadgeClassName, getComplianceFormLabel, formatDateOnly } from "@/lib/residentCompliance";
+import { summarizeResidentComplianceAnalytics } from "@/lib/residentComplianceAnalytics";
 
 const PAGE_SIZE = 15;
 
@@ -104,6 +105,20 @@ export default function Residents() {
     }
     return map;
   }, [complianceItems]);
+  const residentComplianceSummary = useMemo(() => summarizeResidentComplianceAnalytics(
+    (residents ?? []).map((resident) => ({
+      id: resident.id,
+      status: resident.status,
+      admission_date: resident.admission_date,
+      facility_id: resident.facility_id,
+    })),
+    (complianceItems ?? []).map((item) => ({
+      resident_id: item.resident_id,
+      status: item.status,
+      due_date: item.due_date,
+    })),
+    new Date().toISOString().slice(0, 10),
+  ), [residents, complianceItems]);
 
   const searched = useMemo(() => {
     const q = urlState.search.trim().toLowerCase();
@@ -168,6 +183,33 @@ export default function Residents() {
             <Plus className="mr-2 h-4 w-4" /> Add Resident
           </Button>
         )}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <button type="button" className="premium-card p-4 text-left hover:border-border" onClick={() => setUrlState({ status: "active", page: "1" })}>
+          <p className="text-xs font-medium text-muted-foreground">Active residents</p>
+          <p className="mt-1 text-2xl font-semibold">{residentComplianceSummary.activeResidents}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{residentComplianceSummary.residents} total in this view.</p>
+        </button>
+        <div className="premium-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Residents with gaps</p>
+          <p className="mt-1 text-2xl font-semibold text-destructive">{residentComplianceSummary.residentsWithOpenItems}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Have missing, due-soon, or expired items.</p>
+        </div>
+        <div className="premium-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Open compliance items</p>
+          <p className="mt-1 text-2xl font-semibold">{residentComplianceSummary.expiredItems + residentComplianceSummary.missingItems + residentComplianceSummary.dueSoonItems}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{residentComplianceSummary.expiredItems} expired · {residentComplianceSummary.missingItems} missing · {residentComplianceSummary.dueSoonItems} due soon</p>
+        </div>
+        <div className="premium-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Next 14 days</p>
+          <p className="mt-1 text-2xl font-semibold">{residentComplianceSummary.dueWithin14Days}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {residentComplianceSummary.newestAdmissionResidentId ? (
+              <Link href={`/app/residents/${residentComplianceSummary.newestAdmissionResidentId}`} className="text-primary hover:underline">Review newest admission</Link>
+            ) : "No admissions in this view."}
+          </p>
+        </div>
       </div>
 
       <div className="premium-card">

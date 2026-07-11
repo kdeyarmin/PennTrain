@@ -41,9 +41,11 @@ import {
   Users,
   ChevronRight,
   Copy,
+  Download,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { buildTrainingClassesIcs } from "@/lib/calendarExport";
 
 export default function TrainerClasses() {
   const [, navigate] = useLocation();
@@ -177,6 +179,29 @@ export default function TrainerClasses() {
           toast({ title: "Failed to create class", description: e.message, variant: "destructive" }),
       }
     );
+  }
+
+  function handleExportCalendar() {
+    const ics = buildTrainingClassesIcs(filtered.map((cls) => ({
+      id: cls.id,
+      className: cls.class_name,
+      classDate: cls.class_date,
+      durationHours: cls.duration_hours,
+      trainingTypeName: trainingTypesById.get(cls.training_type_id)?.name,
+      facilityName: cls.facility_id ? facilitiesById.get(cls.facility_id)?.name : undefined,
+      location: cls.location,
+      status: cls.status,
+    })));
+    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "caremetric-training-classes.ics";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    toast({ title: `Exported ${filtered.length} class${filtered.length === 1 ? "" : "es"} to calendar` });
   }
 
   const statusColor = (s: string) => {
@@ -375,6 +400,9 @@ export default function TrainerClasses() {
             <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>
+        <Button variant="outline" onClick={handleExportCalendar} disabled={filtered.length === 0}>
+          <Download className="mr-2 h-4 w-4" /> Export Calendar
+        </Button>
         <Select
           value={facilityFilter}
           onValueChange={(v) => setFacilityFilter(v)}

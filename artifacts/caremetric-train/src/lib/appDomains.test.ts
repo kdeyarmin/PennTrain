@@ -6,6 +6,7 @@ import {
   helpBasePathForRole,
   safePathForRole,
   pagesForRole,
+  searchCommandActions,
 } from "./appDomains";
 
 describe("role-based page visibility", () => {
@@ -84,4 +85,13 @@ describe("role-based page visibility", () => {
     expect(safePathForRole("/app/users", "employee")).toBe("/me");
     expect(safePathForRole("/admin/settings", "org_admin")).toBe("/app");
   });
+
+  it("surfaces role-aware command actions for Phase 1 workflow shortcuts", () => {
+    expect(searchCommandActions("add employee", "org_admin").map((action) => action.path)).toContain("/app/employees?action=add");
+    expect(searchCommandActions("bulk import", "facility_manager").map((action) => action.path)).toContain("/app/employees?action=bulk-import");
+    expect(searchCommandActions("ai course", "platform_admin").map((action) => action.path)).toContain("/admin/courses/new-ai");
+    expect(searchCommandActions("ai course", "org_admin")).toEqual([]);
+    expect(searchCommandActions("bulk import", "employee")).toEqual([]);
+  });
+
 });
