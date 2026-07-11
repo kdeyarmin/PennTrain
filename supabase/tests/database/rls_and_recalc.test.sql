@@ -265,11 +265,13 @@ select throws_ok(
 
 select lives_ok(
   $$ insert into public.resident_documents
-       (id, resident_id, compliance_item_id, storage_path, file_name, file_type, is_state_form)
+       (id, resident_id, compliance_item_id, storage_path, file_name, file_type, is_state_form,
+        state_form_source_label)
      values ('00000000-0000-0000-0000-0000000000aa', '00000000-0000-0000-0000-0000000000a8',
              (select id from public.resident_compliance_items
               where resident_id = '00000000-0000-0000-0000-0000000000a8' and item_type = 'initial_assessment_15day'),
-             'test/other-item.pdf', 'other-item.pdf', 'application/pdf', true) $$,
+             'test/other-item.pdf', 'other-item.pdf', 'application/pdf', true,
+             'PA DHS Personal Care Home RASP form') $$,
   'org_admin can upload a state-form document linked to a different compliance item'
 );
 
@@ -285,11 +287,13 @@ select throws_ok(
 
 select lives_ok(
   $$ insert into public.resident_documents
-       (id, resident_id, compliance_item_id, storage_path, file_name, file_type, is_state_form)
+       (id, resident_id, compliance_item_id, storage_path, file_name, file_type, is_state_form,
+        state_form_source_label)
      values ('00000000-0000-0000-0000-0000000000ab', '00000000-0000-0000-0000-0000000000a8',
              (select id from public.resident_compliance_items
               where resident_id = '00000000-0000-0000-0000-0000000000a8' and item_type = 'preadmission_screening'),
-             'test/preadmission.pdf', 'preadmission.pdf', 'application/pdf', true) $$,
+             'test/preadmission.pdf', 'preadmission.pdf', 'application/pdf', true,
+             'PA DHS Personal Care Home RASP form') $$,
   'org_admin can upload the correctly-flagged, correctly-linked state-form document'
 );
 

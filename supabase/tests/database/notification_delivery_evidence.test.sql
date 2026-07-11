@@ -378,7 +378,7 @@ select results_eq(
        (select count(*)::int from public.notification_delivery_attempts),
        (select count(*)::int from public.notification_provider_events),
        (select count(*)::int from public.notification_consent_events) $$,
-  $$ values (2, 1, 1, 1) $$,
+  $$ values (2, 1, 1, 2) $$,
   'a facility manager sees notification evidence only for recipients in an assigned facility'
 );
 

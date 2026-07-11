@@ -46,3 +46,15 @@ grant select, insert, update, delete
 grant select, insert, delete
   on table public.resident_documents
   to authenticated;
+
+-- Help-center tables predate the explicit Data API grant convention. Their
+-- policies allow ticket owners and platform administrators to read/write the
+-- narrow commands below, and Storage attachment policies must also be able to
+-- inspect both tables while evaluating object access.
+grant select, insert, update
+  on table public.support_tickets
+  to authenticated;
+
+grant select, insert
+  on table public.support_ticket_messages
+  to authenticated;
