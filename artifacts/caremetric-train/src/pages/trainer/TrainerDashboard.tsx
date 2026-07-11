@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useAuth } from "@/lib/auth";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -222,7 +223,7 @@ export default function TrainerDashboard() {
                         {c.class_name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(c.class_date).toLocaleDateString()} &middot;{" "}
+                        {formatDateForDisplay(c.class_date)} &middot;{" "}
                         {attendeeCounts?.[c.id] ?? 0} attendee
                         {(attendeeCounts?.[c.id] ?? 0) === 1 ? "" : "s"}
                       </p>

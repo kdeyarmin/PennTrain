@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import {
   useListCourseAssignmentsPaginated,
   useCreateCourseAssignment,
@@ -508,7 +509,7 @@ export default function CourseAssignments() {
                           <StatusPill status={a.status} />
                         </td>
                         <td className="text-muted-foreground">
-                          {a.due_date ? new Date(a.due_date).toLocaleDateString() : "—"}
+                          {formatDateForDisplay(a.due_date)}
                         </td>
                         <td className="text-muted-foreground">
                           {a.completed_at ? new Date(a.completed_at).toLocaleDateString() : "—"}

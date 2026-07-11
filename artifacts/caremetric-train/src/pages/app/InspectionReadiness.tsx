@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle, ClipboardCheck, Copy, Download, FileArchive, Loader2, ShieldAlert, Sparkles } from "lucide-react";
+import { toLocalIsoDate } from "@/lib/dateUtils";
 
 const BACKGROUND_CHECK_CREDENTIAL_TYPES = ["act34_criminal_history", "act73_fbi_fingerprint", "act33_child_abuse"];
 const HEALTH_CREDENTIAL_TYPES = ["tb_screening", "immunization"];
@@ -86,7 +87,7 @@ export default function InspectionReadiness() {
       .sort((a, b) => a.compliant_count / a.total_count - b.compliant_count / b.total_count);
   }, [breakdown]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalIsoDate();
   const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
 
   function readinessFor(item: EntranceConferenceItem): { level: ReadinessLevel; detail?: string } {

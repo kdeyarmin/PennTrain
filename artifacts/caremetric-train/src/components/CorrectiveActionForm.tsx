@@ -9,6 +9,7 @@ import { useCreateCorrectiveAction, useUpdateCorrectiveAction, type CorrectiveAc
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { humanize } from "@/lib/utils";
+import { toLocalIsoDate } from "@/lib/dateUtils";
 
 // Full set of values the `corrective_actions.status` check constraint allows.
 export const CORRECTIVE_ACTION_STATUSES = ["open", "in_progress", "completed", "overdue", "cancelled"] as const;
@@ -117,7 +118,7 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
       // to "completed" stamps today's date unless it was already completed (in which case its
       // original completion date is kept); moving off "completed" clears it.
       const completedDate =
-        status === "completed" ? (editing.status === "completed" ? editing.completed_date : new Date().toISOString().slice(0, 10))
+        status === "completed" ? (editing.status === "completed" ? editing.completed_date : toLocalIsoDate())
         : null;
       updateAction(
         {

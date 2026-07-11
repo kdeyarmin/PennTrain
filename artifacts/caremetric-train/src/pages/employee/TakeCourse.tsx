@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { Link, useLocation, useParams } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
@@ -506,7 +507,7 @@ useEffect(() => {
           )}
           {assignment.due_date && (
             <span className="text-sm text-muted-foreground">
-              Due {new Date(assignment.due_date).toLocaleDateString()}
+              Due {formatDateForDisplay(assignment.due_date)}
             </span>
           )}
         </div>

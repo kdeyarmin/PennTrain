@@ -15,6 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { worstComplianceStatus, complianceStatusBadgeClassName, getComplianceFormLabel, formatDateOnly } from "@/lib/residentCompliance";
 import { summarizeResidentComplianceAnalytics } from "@/lib/residentComplianceAnalytics";
+import { toLocalIsoDate } from "@/lib/dateUtils";
 
 const PAGE_SIZE = 15;
 
@@ -42,7 +43,7 @@ interface ResidentFormData {
 
 const EMPTY_FORM: ResidentFormData = {
   facilityId: "", firstName: "", lastName: "", room: "",
-  admissionDate: new Date().toISOString().slice(0, 10), sdcu: false, hospice: false, admissionTrack: "standard",
+  admissionDate: toLocalIsoDate(), sdcu: false, hospice: false, admissionTrack: "standard",
 };
 
 const RESIDENTS_URL_DEFAULTS = { search: "", facility: "all", status: "active", page: "1" };

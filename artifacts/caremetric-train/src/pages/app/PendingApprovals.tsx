@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -346,7 +347,7 @@ function PendingRecordRow({
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             <StatusBadge status={record.status} />
             {record.completion_date && (
-              <span className="text-xs text-muted-foreground">Completed {new Date(record.completion_date).toLocaleDateString()}</span>
+              <span className="text-xs text-muted-foreground">Completed {formatDateForDisplay(record.completion_date)}</span>
             )}
           </div>
         </div>

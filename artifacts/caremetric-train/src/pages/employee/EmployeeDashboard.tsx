@@ -1,4 +1,5 @@
 import { useAuth } from "@/lib/auth";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
 import { useListPracticums } from "@/hooks/usePracticums";
@@ -258,7 +259,7 @@ export default function EmployeeDashboard() {
                       <p className="font-medium text-sm">Medication Administration Practicum</p>
                       {myPracticum.completion_date && (
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Completed: {new Date(myPracticum.completion_date).toLocaleDateString()}
+                          Completed: {formatDateForDisplay(myPracticum.completion_date)}
                         </p>
                       )}
                     </div>
@@ -371,7 +372,7 @@ export default function EmployeeDashboard() {
                           {competencyTemplateNameById.get(r.template_id) ?? `Template #${r.template_id.slice(0, 8)}`}
                         </span>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Evaluated {new Date(r.evaluation_date).toLocaleDateString()}
+                          Evaluated {formatDateForDisplay(r.evaluation_date)}
                           {r.signed_at ? " · Signed" : " · Not signed"}
                         </p>
                       </div>
@@ -413,7 +414,7 @@ export default function EmployeeDashboard() {
                         </span>
                         <div className="flex items-center gap-2 shrink-0">
                           <span className="text-muted-foreground text-xs">
-                            Due {new Date(d.dueDate).toLocaleDateString()}
+                            Due {formatDateForDisplay(d.dueDate)}
                           </span>
                           <StatusBadge status={d.status} />
                         </div>
@@ -456,12 +457,12 @@ export default function EmployeeDashboard() {
                       <div className="flex items-center gap-2 shrink-0">
                         {r.completion_date && (
                           <span className="text-muted-foreground text-xs">
-                            Completed {new Date(r.completion_date).toLocaleDateString()}
+                            Completed {formatDateForDisplay(r.completion_date)}
                           </span>
                         )}
                         {r.due_date && r.status !== "compliant" && (
                           <span className="text-muted-foreground text-xs">
-                            Due {new Date(r.due_date).toLocaleDateString()}
+                            Due {formatDateForDisplay(r.due_date)}
                           </span>
                         )}
                         <StatusBadge status={r.status} />

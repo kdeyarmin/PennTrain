@@ -1,3 +1,5 @@
+import { toLocalIsoDate } from "./dateUtils";
+
 // Small date-math helpers shared by the scheduling pages. All inputs/outputs are "yyyy-mm-dd"
 // strings (matching the rest of the app's plain-native-Date convention -- no date-fns/dayjs
 // dependency). Everything operates in UTC internally to avoid local-timezone off-by-one shifts
@@ -8,9 +10,7 @@ export function isoDate(d: Date): string {
 }
 
 export function todayIso(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return toLocalIsoDate();
 }
 
 export function addDaysIso(iso: string, days: number): string {

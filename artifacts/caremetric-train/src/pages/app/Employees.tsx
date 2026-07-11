@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListEmployeesPaginated, useCreateEmployee, useUpdateEmployee, useDeleteEmployee,
@@ -372,7 +373,7 @@ export default function Employees() {
                         <StatusBadge status={emp.status} type="employee" />
                       </td>
                       <td className="text-muted-foreground">
-                        {emp.hire_date ? new Date(emp.hire_date).toLocaleDateString() : "—"}
+                        {formatDateForDisplay(emp.hire_date)}
                       </td>
                       <td>
                         <div className="flex gap-1.5">

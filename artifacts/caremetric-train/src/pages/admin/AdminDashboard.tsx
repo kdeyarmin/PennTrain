@@ -16,6 +16,7 @@ import { useListTrainingRecords } from "@/hooks/useTrainingRecords";
 import { useListPolicyAttestations } from "@/hooks/usePolicyAttestations";
 import { useListTrainingPlans } from "@/hooks/useTrainingPlans";
 import { todayIso } from "@/lib/scheduleDates";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -677,7 +678,7 @@ export default function AdminDashboard() {
                     <Icon className="mt-0.5 h-4 w-4 text-primary" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{label}</p>
-                      <p className="text-xs text-muted-foreground">{date ? new Date(date).toLocaleDateString() : "No date"}</p>
+                      <p className="text-xs text-muted-foreground">{date ? formatDateForDisplay(date) : "No date"}</p>
                     </div>
                     <Badge variant="outline" className="capitalize">{status?.replace(/_/g, " ") ?? "open"}</Badge>
                   </Link>

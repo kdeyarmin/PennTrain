@@ -9,6 +9,7 @@ import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListProfiles } from "@/hooks/useProfiles";
 import { useAuth } from "@/lib/auth";
+import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -78,7 +79,7 @@ export default function TrainerClasses() {
   const [form, setForm] = useState({
     className: "",
     trainingTypeId: "",
-    classDate: new Date().toISOString().slice(0, 10),
+    classDate: toLocalIsoDate(),
     facilityId: "none",
     location: "",
     durationHours: "1",
@@ -118,7 +119,7 @@ export default function TrainerClasses() {
     setForm({
       className: "",
       trainingTypeId: "",
-      classDate: new Date().toISOString().slice(0, 10),
+      classDate: toLocalIsoDate(),
       facilityId: "none",
       location: "",
       durationHours: "1",
@@ -136,7 +137,7 @@ export default function TrainerClasses() {
     setForm({
       className: cls.class_name,
       trainingTypeId: cls.training_type_id,
-      classDate: new Date().toISOString().slice(0, 10),
+      classDate: cls.class_date,
       facilityId: cls.facility_id ?? "none",
       location: cls.location ?? "",
       durationHours: String(cls.duration_hours),
@@ -479,7 +480,7 @@ export default function TrainerClasses() {
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Calendar className="h-3.5 w-3.5" />
                   <span>
-                    {new Date(cls.class_date).toLocaleDateString("en-US", {
+                    {formatDateForDisplay(cls.class_date, {
                       weekday: "short",
                       month: "short",
                       day: "numeric",
