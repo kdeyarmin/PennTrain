@@ -7,10 +7,30 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -2653,7 +2673,7 @@ export type Database = {
         Row: {
           created_at: string
           employee_id: string
-          exclusion_list_entry_id: string
+          exclusion_list_entry_id: string | null
           facility_id: string
           id: string
           match_score: number
@@ -2669,7 +2689,7 @@ export type Database = {
         Insert: {
           created_at?: string
           employee_id: string
-          exclusion_list_entry_id: string
+          exclusion_list_entry_id?: string | null
           facility_id: string
           id?: string
           match_score: number
@@ -2685,7 +2705,7 @@ export type Database = {
         Update: {
           created_at?: string
           employee_id?: string
-          exclusion_list_entry_id?: string
+          exclusion_list_entry_id?: string | null
           facility_id?: string
           id?: string
           match_score?: number
@@ -5362,6 +5382,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "resident_assessment_ai_generations_form_fkey"
+            columns: ["resident_assessment_form_id"]
+            isOneToOne: false
+            referencedRelation: "resident_assessment_forms"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "resident_assessment_ai_generations_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -5373,13 +5400,6 @@ export type Database = {
             columns: ["requested_by"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "resident_assessment_ai_generations_form_fkey"
-            columns: ["resident_assessment_form_id"]
-            isOneToOne: false
-            referencedRelation: "resident_assessment_forms"
             referencedColumns: ["id"]
           },
         ]
@@ -6795,7 +6815,44 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      exclusion_source_health: {
+        Row: {
+          activated_snapshot_id: string | null
+          active_checksum: string | null
+          active_record_count: number | null
+          active_since: string | null
+          active_snapshot_id: string | null
+          completed_at: string | null
+          expected_record_count: number | null
+          health_status: string | null
+          is_stale: boolean | null
+          last_attempt_at: string | null
+          last_error: string | null
+          last_run_checksum: string | null
+          last_run_id: string | null
+          last_status: string | null
+          last_success_at: string | null
+          source: string | null
+          staged_record_count: number | null
+          started_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exclusion_source_state_active_snapshot_fkey"
+            columns: ["active_snapshot_id", "source"]
+            isOneToOne: false
+            referencedRelation: "exclusion_source_snapshots"
+            referencedColumns: ["id", "source"]
+          },
+          {
+            foreignKeyName: "exclusion_source_state_last_run_fkey"
+            columns: ["last_run_id", "source"]
+            isOneToOne: false
+            referencedRelation: "exclusion_refresh_runs"
+            referencedColumns: ["id", "source"]
+          },
+        ]
+      }
     }
     Functions: {
       acknowledge_notification_spend_alert: {
@@ -6808,12 +6865,12 @@ export type Database = {
       }
       admin_emergency_update_course_block: {
         Args: {
-          p_body?: Json | null
+          p_body?: Json
           p_course_block_id: string
-          p_document_id?: string | null
+          p_document_id?: string
           p_reason: string
-          p_title?: string | null
-          p_video_url?: string | null
+          p_title?: string
+          p_video_url?: string
         }
         Returns: undefined
       }
@@ -7133,6 +7190,12 @@ export type Database = {
           verification_notes: string | null
           violation_id: string | null
         }
+        SetofOptions: {
+          from: "*"
+          to: "corrective_actions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       current_org_id: { Args: never; Returns: string }
       current_profile_active: { Args: never; Returns: boolean }
@@ -7293,10 +7356,6 @@ export type Database = {
         Returns: Json
       }
       get_platform_health: { Args: never; Returns: Json }
-      get_platform_setting: {
-        Args: { p_key: string }
-        Returns: Json
-      }
       get_quiz_answer_choices: {
         Args: { p_quiz_id: string }
         Returns: {
@@ -7359,10 +7418,7 @@ export type Database = {
           retry_cost_units_24h: number
         }[]
       }
-      grade_quiz_attempt: {
-        Args: { p_attempt_id: string }
-        Returns: undefined
-      }
+      grade_quiz_attempt: { Args: { p_attempt_id: string }; Returns: undefined }
       heartbeat_system_job: {
         Args: {
           p_attempted_count?: number
@@ -7452,10 +7508,7 @@ export type Database = {
         Args: { p_requested_at: string; p_timezone: string }
         Returns: string
       }
-      notification_phone_key: {
-        Args: { p_phone: string }
-        Returns: string
-      }
+      notification_phone_key: { Args: { p_phone: string }; Returns: string }
       owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
       plan_audit_archive: {
         Args: { p_from: string; p_organization_id?: string; p_to: string }
@@ -7498,10 +7551,7 @@ export type Database = {
         Args: never
         Returns: undefined
       }
-      reconcile_audit_integrity: {
-        Args: { p_limit?: number }
-        Returns: Json
-      }
+      reconcile_audit_integrity: { Args: { p_limit?: number }; Returns: Json }
       reconcile_course_completion_certificates: {
         Args: { p_limit?: number; p_organization_id?: string }
         Returns: Json
@@ -7564,7 +7614,10 @@ export type Database = {
       }
       replay_system_job_dead_letter: {
         Args: { p_reason: string; p_run_id: string }
-        Returns: { correlation_id: string; run_id: string }[]
+        Returns: {
+          correlation_id: string
+          run_id: string
+        }[]
       }
       request_system_job_cancellation: {
         Args: { p_reason: string; p_run_id: string }
@@ -7572,7 +7625,10 @@ export type Database = {
       }
       request_system_job_rerun: {
         Args: { p_job_key: string; p_reason: string }
-        Returns: { correlation_id: string; run_id: string }[]
+        Returns: {
+          correlation_id: string
+          run_id: string
+        }[]
       }
       rescan_org_exclusion_matches: {
         Args: { p_organization_id: string }
@@ -7583,10 +7639,7 @@ export type Database = {
         Returns: undefined
       }
       run_phase1_synthetic_checks: { Args: never; Returns: Json }
-      self_enroll_course: {
-        Args: { p_course_id: string }
-        Returns: string
-      }
+      self_enroll_course: { Args: { p_course_id: string }; Returns: string }
       send_monday_digest: { Args: never; Returns: undefined }
       send_policy_attestation_reminders: { Args: never; Returns: undefined }
       set_certificate_pdf: {
@@ -7867,7 +7920,11 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
 } as const
+
