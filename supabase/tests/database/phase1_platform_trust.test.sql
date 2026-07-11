@@ -411,18 +411,16 @@ select lives_ok(
   'the service worker can run Phase 1 synthetic checks without a user JWT'
 );
 
+create temporary table phase1_failed_job_outcome on commit drop as
+select public.execute_registered_sql_job(
+  'phase1-test-unsupported', 'phase1-durable-failure', 'scheduled'
+) as result;
+
 select results_eq(
-  $$ with outcome as (
-       select public.execute_registered_sql_job(
-         'phase1-test-unsupported', 'phase1-durable-failure', 'scheduled'
-       ) as result
-     )
-     select result->>'status', (
-       select status from app_private.system_job_runs
-       where job_key = 'phase1-test-unsupported'
-         and correlation_id = 'phase1-durable-failure'
-     )
-     from outcome $$,
+  $$ select o.result->>'status', r.status
+     from phase1_failed_job_outcome o
+     join app_private.system_job_runs r
+       on r.id = (o.result->>'runId')::uuid $$,
   $$ values ('failed'::text, 'failed'::text) $$,
   'a SQL worker failure remains durable instead of rolling back with the job error'
 );

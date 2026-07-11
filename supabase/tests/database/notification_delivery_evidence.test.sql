@@ -182,18 +182,20 @@ select results_eq(
   $$ values ('delivered'::text, 'delivered'::text) $$,
   'terminal callback reconciles the delivery outcome'
 );
+do $block$
+begin
+  perform public.record_notification_provider_event(
+    'sendgrid', 'sg-event-late-processed-1',
+    (select id from public.notification_delivery_attempts
+     where delivery_id = '10000000-0000-0000-0000-000000000010'),
+    'sg-message-1', 'processed', null, null, null, now() - interval '1 minute'
+  );
+end;
+$block$;
 select results_eq(
-  $$ with recorded as (
-       select public.record_notification_provider_event(
-         'sendgrid', 'sg-event-late-processed-1',
-         (select id from public.notification_delivery_attempts
-          where delivery_id = '10000000-0000-0000-0000-000000000010'),
-         'sg-message-1', 'processed', null, null, null, now() - interval '1 minute'
-       )
-     )
-     select d.status, d.final_outcome, d.last_provider_status
-     from public.notification_deliveries d, recorded
-     where d.id = '10000000-0000-0000-0000-000000000010' $$,
+  $$ select status, final_outcome, last_provider_status
+     from public.notification_deliveries
+     where id = '10000000-0000-0000-0000-000000000010' $$,
   $$ values ('delivered'::text, 'delivered'::text, 'delivered'::text) $$,
   'out-of-order progress callbacks cannot downgrade a terminal outcome'
 );
@@ -234,19 +236,21 @@ select results_eq(
   $$ values ('failed'::text, 'unknown'::text) $$,
   'ambiguous transport outcomes are quarantined instead of automatically replayed'
 );
+do $block$
+begin
+  perform public.record_notification_provider_event(
+    'sendgrid', 'sg-event-delivered-after-unknown',
+    (select id from public.notification_delivery_attempts
+     where delivery_id = '10000000-0000-0000-0000-000000000012'),
+    'sg-message-after-unknown', 'delivered', 'delivered', null, null,
+    now() - interval '1 minute'
+  );
+end;
+$block$;
 select results_eq(
-  $$ with recorded as (
-       select public.record_notification_provider_event(
-         'sendgrid', 'sg-event-delivered-after-unknown',
-         (select id from public.notification_delivery_attempts
-          where delivery_id = '10000000-0000-0000-0000-000000000012'),
-         'sg-message-after-unknown', 'delivered', 'delivered', null, null,
-         now() - interval '1 minute'
-       )
-     )
-     select d.status, d.final_outcome
-     from public.notification_deliveries d, recorded
-     where d.id = '10000000-0000-0000-0000-000000000012' $$,
+  $$ select status, final_outcome
+     from public.notification_deliveries
+     where id = '10000000-0000-0000-0000-000000000012' $$,
   $$ values ('delivered'::text, 'delivered'::text) $$,
   'a later signed terminal callback resolves an ambiguous transport outcome'
 );
