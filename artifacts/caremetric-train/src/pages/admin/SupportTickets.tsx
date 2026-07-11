@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { useListSupportTickets, SUPPORT_TICKET_CATEGORIES } from "@/hooks/useSup
 import { useOrganizationNameMap } from "@/hooks/useAdminNotificationDeliveries";
 import { useProfileNameMap } from "@/hooks/useSecurityAuditLog";
 import { useUrlState } from "@/hooks/useUrlState";
+import { summarizeSupportTicketAnalytics } from "@/lib/supportTicketAnalytics";
 
 type StatusFilter = "all" | "open" | "in_progress" | "resolved" | "closed";
 
@@ -55,11 +56,22 @@ export default function SupportTickets() {
   // Independent of statusFilter/search -- deriving this from the (possibly filtered) list above
   // would read as 0 whenever a non-"open" filter or search term is active.
   const { data: openTicketsData } = useListSupportTickets({ status: "open" });
+  const { data: allTicketsData } = useListSupportTickets({});
   const { data: orgNameMap } = useOrganizationNameMap();
   const { data: profileNameMap } = useProfileNameMap();
 
   const tickets = ticketsData ?? [];
   const openCount = openTicketsData?.length ?? 0;
+  const supportSummary = useMemo(() => summarizeSupportTicketAnalytics(
+    (allTicketsData ?? []).map((ticket) => ({
+      id: ticket.id,
+      status: ticket.status,
+      priority: ticket.priority,
+      created_at: ticket.created_at,
+      last_message_at: ticket.last_message_at,
+    })),
+    new Date().toISOString().slice(0, 10),
+  ), [allTicketsData]);
 
   return (
     <div className="space-y-6">
@@ -68,6 +80,33 @@ export default function SupportTickets() {
         <p className="text-muted-foreground">
           Requests submitted from every organization's Help Center -- {openCount} awaiting first response.
         </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <button type="button" className="rounded-lg border bg-card p-4 text-left hover:border-primary/40" onClick={() => setUrlState({ status: "open" })}>
+          <p className="text-xs font-medium text-muted-foreground">Open tickets</p>
+          <p className="mt-1 text-2xl font-semibold">{supportSummary.open}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{supportSummary.total} total support requests.</p>
+        </button>
+        <button type="button" className="rounded-lg border bg-card p-4 text-left hover:border-amber-300" onClick={() => setUrlState({ status: "in_progress" })}>
+          <p className="text-xs font-medium text-muted-foreground">In progress</p>
+          <p className="mt-1 text-2xl font-semibold">{supportSummary.inProgress}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Average active age: {supportSummary.averageAgeDays} days.</p>
+        </button>
+        <div className="rounded-lg border bg-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Urgent active</p>
+          <p className="mt-1 text-2xl font-semibold text-destructive">{supportSummary.urgentOpen}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{supportSummary.staleOpen} active tickets have been quiet 3+ days.</p>
+        </div>
+        <div className="rounded-lg border bg-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Oldest active</p>
+          <p className="mt-1 text-lg font-semibold">{supportSummary.oldestOpenTicketId ? "Needs review" : "—"}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {supportSummary.oldestOpenTicketId ? (
+              <Link href={`/admin/support-tickets/${supportSummary.oldestOpenTicketId}`} className="text-primary hover:underline">Open oldest active ticket</Link>
+            ) : "No active tickets."}
+          </p>
+        </div>
       </div>
 
       <Card>
