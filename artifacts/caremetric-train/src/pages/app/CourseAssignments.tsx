@@ -15,6 +15,7 @@ import {
 } from "@/hooks/useCourses";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useIssueCertificate, useListCertificates, useGenerateCertificatePdf } from "@/hooks/useCertificates";
+import { summarizeCourseAssignmentAnalytics } from "@/lib/courseAssignmentAnalytics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -233,6 +234,15 @@ export default function CourseAssignments() {
   const paginated = assignmentsPage?.rows ?? [];
   const totalCount = assignmentsPage?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const assignmentSummary = useMemo(() => summarizeCourseAssignmentAnalytics(
+    paginated.map(a => ({
+      id: a.id,
+      status: a.status,
+      due_date: a.due_date,
+      completed_at: a.completed_at,
+    })),
+    new Date().toISOString().slice(0, 10),
+  ), [paginated]);
 
   // Employees offered in the assign dialog's multi-select, narrowed by that dialog's own facility
   // filter (assignFacilityFilter) -- independent of the page-level facilityId filter above.
@@ -387,6 +397,37 @@ export default function CourseAssignments() {
             <UserPlus className="mr-2 h-4 w-4" /> Assign Course
           </Button>
         )}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className="premium-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Visible completion</p>
+          <p className="mt-1 text-2xl font-semibold">{assignmentSummary.completionRate}%</p>
+          <p className="mt-1 text-xs text-muted-foreground">{assignmentSummary.completed} of {assignmentSummary.total} on this page complete.</p>
+        </div>
+        <button type="button" className="premium-card p-4 text-left hover:border-destructive/40" onClick={() => { setStatusFilter("overdue"); setPage(1); }}>
+          <p className="text-xs font-medium text-muted-foreground">Overdue on page</p>
+          <p className="mt-1 text-2xl font-semibold text-destructive">{assignmentSummary.overdue}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Click to filter all overdue assignments.</p>
+        </button>
+        <div className="premium-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Due within 7 days</p>
+          <p className="mt-1 text-2xl font-semibold">{assignmentSummary.dueWithin7Days}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{assignmentSummary.inProgress} in progress · {assignmentSummary.assigned} not started</p>
+        </div>
+        <div className="premium-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Oldest overdue</p>
+          <p className="mt-1 text-lg font-semibold">
+            {assignmentSummary.oldestOverdueAssignmentId ? "Needs follow-up" : "—"}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {assignmentSummary.oldestOverdueAssignmentId ? (
+              <button type="button" className="text-primary hover:underline" onClick={() => setProgressAssignmentId(assignmentSummary.oldestOverdueAssignmentId)}>
+                Open progress details
+              </button>
+            ) : "No overdue assignments on this page."}
+          </p>
+        </div>
       </div>
 
       <div className="premium-card">
