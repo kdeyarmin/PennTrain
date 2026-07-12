@@ -33,6 +33,8 @@ import { humanize } from "@/lib/utils";
 import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, getComplianceFormLabel, getRequiredStateFormInfo, formatDateOnly } from "@/lib/residentCompliance";
 import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 import { toLocalIsoDate } from "@/lib/dateUtils";
+import { ResidentFaceSheet } from "@/components/residents/ResidentFaceSheet";
+import { buildResidentFaceSheetPacket } from "@/lib/residentFaceSheet";
 
 type SupportRow = Partial<Pick<ResidentInformalSupport, "id">> & { name: string; relationship: string; phone: string };
 
@@ -228,7 +230,13 @@ export default function ResidentDetail() {
     );
   }
 
-  const faceSheetGeneratedAt = new Date().toLocaleDateString();
+  const faceSheetPacket = buildResidentFaceSheetPacket({
+    resident,
+    facility,
+    supports: informalSupports ?? [],
+    complianceItems: items ?? [],
+    documents: documents ?? [],
+  });
 
   return (
     <div className="space-y-6 print:space-y-0">
@@ -572,78 +580,7 @@ export default function ResidentDetail() {
 
       </div>
 
-      <div className="hidden print:block text-black">
-        <div className="mb-4 flex items-start justify-between border-b border-black pb-2">
-          <div>
-            <h2 className="text-xl font-bold">Resident Face Sheet</h2>
-            <p className="text-sm">{facilityName || "Facility not listed"}</p>
-          </div>
-          <div className="text-right text-xs">
-            <p>Generated {faceSheetGeneratedAt}</p>
-            <p>Status: {humanize(resident.status)}</p>
-          </div>
-        </div>
-
-        <div className="mb-4 grid grid-cols-3 gap-2 text-xs">
-          <div className="border border-black p-2"><span className="font-semibold">Resident:</span> {resident.last_name}, {resident.first_name}</div>
-          <div className="border border-black p-2"><span className="font-semibold">DOB:</span> {formatDateOnly(resident.date_of_birth)}</div>
-          <div className="border border-black p-2"><span className="font-semibold">Room:</span> {resident.room || "—"}</div>
-          <div className="border border-black p-2"><span className="font-semibold">Admission Date:</span> {formatDateOnly(resident.admission_date)}</div>
-          <div className="border border-black p-2"><span className="font-semibold">Admission Track:</span> {humanize(resident.admission_track)}</div>
-          <div className="border border-black p-2"><span className="font-semibold">Discharge Date:</span> {formatDateOnly(resident.discharge_date)}</div>
-          <div className="border border-black p-2"><span className="font-semibold">Facility Type:</span> {facility?.facility_type === "ALR" ? "Assisted Living Facility (ALF)" : facility?.facility_type || "—"}</div>
-        </div>
-
-        <div className="mb-4 grid grid-cols-2 gap-3 text-xs">
-          <section className="border border-black p-2">
-            <h3 className="mb-2 border-b border-black pb-1 text-sm font-bold">Clinical & Professional Contacts</h3>
-            <p><span className="font-semibold">Primary Physician:</span> {resident.primary_physician_name || "—"}{resident.primary_physician_phone ? ` · ${resident.primary_physician_phone}` : ""}</p>
-            <p><span className="font-semibold">Dentist:</span> {resident.dentist_name || "—"}{resident.dentist_phone ? ` · ${resident.dentist_phone}` : ""}</p>
-            <p><span className="font-semibold">Case Manager:</span> {resident.case_manager_name || "—"}{resident.case_manager_phone ? ` · ${resident.case_manager_phone}` : ""}</p>
-            <p><span className="font-semibold">Designated Person:</span> {resident.designated_person_name || "—"}</p>
-          </section>
-          <section className="border border-black p-2">
-            <h3 className="mb-2 border-b border-black pb-1 text-sm font-bold">Informal Supports / Emergency Contacts</h3>
-            {!informalSupports?.length ? (
-              <p>None on file.</p>
-            ) : informalSupports.map((support) => (
-              <p key={support.id}><span className="font-semibold">{support.name}</span>{support.relationship ? ` · ${support.relationship}` : ""}{support.phone ? ` · ${support.phone}` : ""}</p>
-            ))}
-          </section>
-        </div>
-
-        <section className="mb-4 border border-black p-2 text-xs">
-          <h3 className="mb-2 border-b border-black pb-1 text-sm font-bold">Current Resident Compliance / Transfer Form Readiness</h3>
-          {!items?.length ? (
-            <p>No compliance items recorded.</p>
-          ) : (
-            <table className="w-full border-collapse">
-              <thead><tr><th className="border border-black p-1 text-left">Item</th><th className="border border-black p-1 text-left">Status</th><th className="border border-black p-1 text-left">Due</th><th className="border border-black p-1 text-left">Completed</th></tr></thead>
-              <tbody>{items.map((item) => (
-                <tr key={item.id}>
-                  <td className="border border-black p-1">{ITEM_TYPE_LABELS[item.item_type] ?? humanize(item.item_type)}</td>
-                  <td className="border border-black p-1">{humanize(item.status)}</td>
-                  <td className="border border-black p-1">{item.due_date ?? "—"}</td>
-                  <td className="border border-black p-1">{item.completed_date ?? "—"}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          )}
-        </section>
-
-        <section className="border border-black p-2 text-xs">
-          <h3 className="mb-2 border-b border-black pb-1 text-sm font-bold">Available Documents to Send</h3>
-          {!documents?.length ? (
-            <p>No resident documents uploaded.</p>
-          ) : (
-            <ul className="list-disc pl-4">
-              {documents.map((doc) => <li key={doc.id}>{doc.file_name}{doc.is_state_form ? " (state form)" : ""}</li>)}
-            </ul>
-          )}
-        </section>
-
-        <p className="mt-4 border-t border-black pt-2 text-[10px]">Face sheet is generated from the resident record, contacts/supports, compliance checklist, and uploaded document index in CareMetric Train.</p>
-      </div>
+      <ResidentFaceSheet packet={faceSheetPacket} />
 
       <AlertDialog open={!!docPendingDelete} onOpenChange={(open) => !open && setDocPendingDelete(null)}>
         <AlertDialogContent>
