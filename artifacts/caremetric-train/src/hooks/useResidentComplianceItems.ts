@@ -93,6 +93,8 @@ export function useLogResidentChangeOfCondition() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["resident_compliance_items", data.resident_id] }),
-  });
+onSuccess: (data) => {
+  queryClient.invalidateQueries({ queryKey: ["resident_compliance_items", data.resident_id] });
+  queryClient.invalidateQueries({ queryKey: ["resident_compliance_items_all"] });
+},
 }
