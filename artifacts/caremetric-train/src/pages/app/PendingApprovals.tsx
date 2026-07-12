@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,7 @@ import {
 } from "@/hooks/useTrainingRecords";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { todayISO, addDaysISO, computeDueDate, computeStatus } from "@/lib/complianceDates";
 import { ClipboardCheck, FileText, ExternalLink, Check, X, Inbox } from "lucide-react";
 
 // The three document_type values that can carry an external training credential. 'roster',
@@ -33,10 +35,9 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 
 type DecisionAction = "pending" | "approved" | "rejected";
 
-// Matches employee_training_records_insert/_update RLS -- auditor can reach this page (it's in
-// ORG_ROLES) but has no write grant, so its Approve/Reject/Save-as-Pending controls must be hidden
-// rather than rendered and left to fail at the database.
-const PENDING_APPROVAL_MANAGE_ROLES = ["platform_admin", "org_admin", "facility_manager", "trainer"];
+// Matches employee_training_records_insert/_update RLS. Auditors are intentionally not routed to
+// this operational queue; everyone who can reach it can review external training evidence.
+const PENDING_APPROVAL_MANAGE_ROLES = ["org_admin", "facility_manager", "trainer"];
 
 // Default age cutoff for the "New Submissions" tab -- a document uploaded this long ago without
 // ever being linked to a training record is presumably already handled some other way (or simply
@@ -76,35 +77,10 @@ function findCurrentRecord(records: TrainingRecord[], employeeId: string, traini
   });
 }
 
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function addDaysISO(dateISO: string, days: number): string {
-  const d = new Date(`${dateISO}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-// Mirrors the due_date formula in recalculate_all_compliance() (supabase/migrations/
-// 20260704053624_compliance_rpcs_and_audit_trigger.sql): completion_date + renewal_interval_days,
-// or no due date at all for one-time trainings.
-function computeDueDate(completionDate: string | null, renewalIntervalDays: number | null | undefined): string | null {
-  if (!completionDate || renewalIntervalDays == null) return null;
-  return addDaysISO(completionDate, renewalIntervalDays);
-}
-
-// Mirrors the status formula in the same RPC. That RPC deliberately leaves 'pending_review' (and
-// 'not_applicable') rows untouched, so approving a record here has to compute the real status
-// ourselves -- recalculate_all_compliance() would never move it out of pending_review on its own.
-function computeStatus(completionDate: string | null, dueDate: string | null, warningDays: number): string {
-  if (!completionDate) return "missing";
-  if (!dueDate) return "compliant";
-  const today = todayISO();
-  if (dueDate < today) return "expired";
-  if (dueDate <= addDaysISO(today, warningDays)) return "due_soon";
-  return "compliant";
-}
+// recalculate_all_compliance() (supabase/migrations/20260704053624_compliance_rpcs_and_audit_trigger.sql)
+// deliberately leaves 'pending_review' (and 'not_applicable') rows untouched, so approving a
+// record here has to compute the real status ourselves via computeStatus() -- the nightly recalc
+// would never move it out of pending_review on its own.
 
 interface DecisionInput {
   organizationId: string;
@@ -371,7 +347,7 @@ function PendingRecordRow({
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             <StatusBadge status={record.status} />
             {record.completion_date && (
-              <span className="text-xs text-muted-foreground">Completed {new Date(record.completion_date).toLocaleDateString()}</span>
+              <span className="text-xs text-muted-foreground">Completed {formatDateForDisplay(record.completion_date)}</span>
             )}
           </div>
         </div>

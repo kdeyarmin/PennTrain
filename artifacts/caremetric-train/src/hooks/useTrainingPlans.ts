@@ -26,18 +26,6 @@ export function useListTrainingPlans() {
   });
 }
 
-export function useGetTrainingPlan(id: string | undefined) {
-  return useQuery({
-    queryKey: ["training_plans", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("training_plans").select("*").eq("id", id!).single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
-}
-
 export function useCreateTrainingPlan() {
   const queryClient = useQueryClient();
   return useMutation({

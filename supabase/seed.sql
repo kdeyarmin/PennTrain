@@ -38,21 +38,15 @@ select o.id, 'Maple Grove Residence', 'PCH', '50 Maple Grove Way', 'Pittsburgh',
 from public.organizations o where o.slug = 'maple-grove'
 and not exists (select 1 from public.facilities f where f.organization_id = o.id and f.name = 'Maple Grove Residence');
 
--- Demo Supabase Auth users (matches the demo credential table in README.md).
+-- Demo Supabase Auth users (password matches the historical PA MedTrack demo credential table).
 -- Inserted directly into auth.users/auth.identities (rather than via the Admin API) since this
 -- script runs in contexts with no service-role key available; mirrors Supabase's documented
 -- direct-SQL seed pattern. The handle_new_user() trigger auto-provisions the matching profiles row.
---
--- role/organization_id go in raw_app_meta_data, NOT raw_user_meta_data: handle_new_user() (see
--- 20260704180244_fix_handle_new_user_trust_boundary.sql) deliberately reads role/organization_id
--- from raw_app_meta_data because that field is never client-writable, whereas raw_user_meta_data
--- is -- trusting it for role/org would let a self-service signup grant itself any role. Only
--- first_name/last_name (cosmetic, not security-sensitive) belong in raw_user_meta_data.
 do $$
 declare
   v_user_id uuid;
 begin
-  if not exists (select 1 from auth.users where email = 'info@caremetrictrain.com') then
+  if not exists (select 1 from auth.users where email = 'admin@pamedtrack.com') then
     insert into auth.users (
       instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
       raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
@@ -60,13 +54,13 @@ begin
       email_change_token_current, reauthentication_token, is_sso_user, is_anonymous
     ) values (
       '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated',
-      'info@caremetrictrain.com', extensions.crypt('admin123', extensions.gen_salt('bf')), now(),
-      jsonb_build_object('provider','email','providers',jsonb_build_array('email'),'role','platform_admin'),
-      jsonb_build_object('first_name','Alex','last_name','Rivera'),
+      'admin@pamedtrack.com', extensions.crypt('admin123', extensions.gen_salt('bf')), now(),
+      '{"provider":"email","providers":["email"]}'::jsonb,
+      jsonb_build_object('first_name','Alex','last_name','Rivera','role','platform_admin'),
       now(), now(), '', '', '', '', '', '', false, false
     ) returning id into v_user_id;
     insert into auth.identities (user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
-    values (v_user_id, v_user_id::text, jsonb_build_object('sub', v_user_id::text, 'email', 'info@caremetrictrain.com'), 'email', now(), now(), now());
+    values (v_user_id, v_user_id::text, jsonb_build_object('sub', v_user_id::text, 'email', 'admin@pamedtrack.com'), 'email', now(), now(), now());
   end if;
 
   if not exists (select 1 from auth.users where email = 'admin@sunrisehealthcare.com') then
@@ -78,9 +72,9 @@ begin
     ) values (
       '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated',
       'admin@sunrisehealthcare.com', extensions.crypt('demo123', extensions.gen_salt('bf')), now(),
-      jsonb_build_object('provider','email','providers',jsonb_build_array('email'),'role','org_admin',
+      '{"provider":"email","providers":["email"]}'::jsonb,
+      jsonb_build_object('first_name','Robert','last_name','Chen','role','org_admin',
         'organization_id', (select id::text from public.organizations where slug = 'sunrise-healthcare')),
-      jsonb_build_object('first_name','Robert','last_name','Chen'),
       now(), now(), '', '', '', '', '', '', false, false
     ) returning id into v_user_id;
     insert into auth.identities (user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
@@ -96,9 +90,9 @@ begin
     ) values (
       '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated',
       'manager@sunrisemanor.com', extensions.crypt('demo123', extensions.gen_salt('bf')), now(),
-      jsonb_build_object('provider','email','providers',jsonb_build_array('email'),'role','facility_manager',
+      '{"provider":"email","providers":["email"]}'::jsonb,
+      jsonb_build_object('first_name','Dana','last_name','Brooks','role','facility_manager',
         'organization_id', (select id::text from public.organizations where slug = 'sunrise-healthcare')),
-      jsonb_build_object('first_name','Dana','last_name','Brooks'),
       now(), now(), '', '', '', '', '', '', false, false
     ) returning id into v_user_id;
     insert into auth.identities (user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
@@ -119,9 +113,9 @@ begin
     ) values (
       '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated',
       'trainer@sunrisehealthcare.com', extensions.crypt('demo123', extensions.gen_salt('bf')), now(),
-      jsonb_build_object('provider','email','providers',jsonb_build_array('email'),'role','trainer',
+      '{"provider":"email","providers":["email"]}'::jsonb,
+      jsonb_build_object('first_name','Casey','last_name','Nguyen','role','trainer',
         'organization_id', (select id::text from public.organizations where slug = 'sunrise-healthcare')),
-      jsonb_build_object('first_name','Casey','last_name','Nguyen'),
       now(), now(), '', '', '', '', '', '', false, false
     ) returning id into v_user_id;
     insert into auth.identities (user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
@@ -142,9 +136,9 @@ begin
     ) values (
       '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated',
       'admin@maplegrove.com', extensions.crypt('demo123', extensions.gen_salt('bf')), now(),
-      jsonb_build_object('provider','email','providers',jsonb_build_array('email'),'role','org_admin',
+      '{"provider":"email","providers":["email"]}'::jsonb,
+      jsonb_build_object('first_name','Patricia','last_name','Nguyen','role','org_admin',
         'organization_id', (select id::text from public.organizations where slug = 'maple-grove')),
-      jsonb_build_object('first_name','Patricia','last_name','Nguyen'),
       now(), now(), '', '', '', '', '', '', false, false
     ) returning id into v_user_id;
     insert into auth.identities (user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
@@ -160,9 +154,9 @@ begin
     ) values (
       '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated',
       'auditor@sunrisehealthcare.com', extensions.crypt('demo123', extensions.gen_salt('bf')), now(),
-      jsonb_build_object('provider','email','providers',jsonb_build_array('email'),'role','auditor',
+      '{"provider":"email","providers":["email"]}'::jsonb,
+      jsonb_build_object('first_name','Jordan','last_name','Patel','role','auditor',
         'organization_id', (select id::text from public.organizations where slug = 'sunrise-healthcare')),
-      jsonb_build_object('first_name','Jordan','last_name','Patel'),
       now(), now(), '', '', '', '', '', '', false, false
     ) returning id into v_user_id;
     insert into auth.identities (user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
@@ -178,9 +172,9 @@ begin
     ) values (
       '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated',
       'employee@sunrisehealthcare.com', extensions.crypt('demo123', extensions.gen_salt('bf')), now(),
-      jsonb_build_object('provider','email','providers',jsonb_build_array('email'),'role','employee',
+      '{"provider":"email","providers":["email"]}'::jsonb,
+      jsonb_build_object('first_name','Avery','last_name','Johnson','role','employee',
         'organization_id', (select id::text from public.organizations where slug = 'sunrise-healthcare')),
-      jsonb_build_object('first_name','Avery','last_name','Johnson'),
       now(), now(), '', '', '', '', '', '', false, false
     ) returning id into v_user_id;
     insert into auth.identities (user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)

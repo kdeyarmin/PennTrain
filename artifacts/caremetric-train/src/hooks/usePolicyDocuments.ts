@@ -48,39 +48,12 @@ export function useCreatePolicyDocument() {
   });
 }
 
-export function useUpdatePolicyDocument() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, ...payload }: PolicyDocumentUpdate & { id: string }) => {
-      const { data, error } = await supabase.from("policy_documents").update(payload).eq("id", id).select().single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["policy_documents"] }),
-  });
-}
-
-export function useDeletePolicyDocument() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      // policy_document_versions.policy_document_id is ON DELETE CASCADE, so the DB cleans up
-      // every version (and its storage row reference) itself -- but the underlying storage
-      // objects are orphaned; deleting a policy document is expected to be rare (superseding
-      // with a new version is the normal path), so we accept that rather than adding a
-      // multi-version storage cleanup fan-out for a rarely-used action.
-      const { error } = await supabase.from("policy_documents").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["policy_documents"] }),
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Policy document versions -- same "course_versions" shape: draft versions can
 // be edited/replaced, publishing locks the row immutable (DB trigger) and
-// callers separately point policy_documents.current_version_id at it via
-// useUpdatePolicyDocument({ id, current_version_id }).
+// callers separately point policy_documents.current_version_id via a direct
+// supabase.from("policy_documents").update(...) call (see
+// usePublishPolicyDocumentVersion below).
 //
 // Versions are scoped under the "policy_documents" query-key namespace so a
 // broad invalidateQueries({ queryKey: ["policy_documents"] }) also sweeps

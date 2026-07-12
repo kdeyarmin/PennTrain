@@ -1,4 +1,5 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+// @ts-nocheck
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 import QRCode from "npm:qrcode@1.5.4";
 
@@ -24,6 +25,13 @@ const SIGNIN_ROWS = 18;
 // generate-certificate-pdf already prints on issued certificates ("Verify at
 // caremetrictrain.com/verify/...") for consistency across every PDF this app generates.
 const DEFAULT_APP_ORIGIN = "https://caremetrictrain.com";
+// Known app origins (see DEPLOYMENT.md's Supabase Auth redirect URL config) -- the caller-supplied
+// baseUrl is only honored if it matches one of these, so this endpoint can't be used to embed an
+// arbitrary attacker domain in the check-in QR code printed on the class notice.
+const ALLOWED_APP_ORIGINS = new Set([
+  "https://caremetrictrain.com",
+  "https://penntrain-production.up.railway.app",
+]);
 
 class PdfWriter {
   doc!: PDFDocument;
@@ -80,7 +88,7 @@ Deno.serve(async (req: Request) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-  const callerClient = createClient(supabaseUrl, anonKey, {
+  const callerClient = createClient<any>(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 
@@ -118,7 +126,8 @@ Deno.serve(async (req: Request) => {
   });
   if (tokenError) return json({ error: tokenError.message }, 500);
 
-  const origin = baseUrl?.replace(/\/$/, "") || DEFAULT_APP_ORIGIN;
+  const requestedOrigin = baseUrl?.replace(/\/$/, "");
+  const origin = requestedOrigin && ALLOWED_APP_ORIGINS.has(requestedOrigin) ? requestedOrigin : DEFAULT_APP_ORIGIN;
   const checkinUrl = `${origin}/checkin/${token}`;
   const qrPng = await QRCode.toBuffer(checkinUrl, { width: 220, margin: 1 });
 
@@ -186,7 +195,7 @@ Deno.serve(async (req: Request) => {
   const pdfBytes = await pdf.save();
   const path = `${cls.organization_id}/${classId}.pdf`;
 
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
   const { error: uploadError } = await adminClient.storage.from(NOTICES_BUCKET).upload(path, pdfBytes, {
     contentType: "application/pdf",
     upsert: true,

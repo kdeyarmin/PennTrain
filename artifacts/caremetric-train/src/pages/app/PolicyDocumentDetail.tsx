@@ -11,6 +11,7 @@ import {
   useListPolicyAttestations, useAssignPolicyAttestationToEmployee, type PolicyAttestation,
 } from "@/hooks/usePolicyAttestations";
 import { useListEmployees } from "@/hooks/useEmployees";
+import { summarizePolicyLifecycle } from "@/lib/policyLifecycle";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,11 +20,11 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
-import { ArrowLeft, Upload, FileText, Megaphone, Plus, Search, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, ClipboardCheck, Upload, FileText, Megaphone, Plus, Search, ChevronDown, ChevronRight } from "lucide-react";
+import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
 
 function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  return new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString("en-US", { dateStyle: "medium" });
+  return formatDateForDisplay(iso, { dateStyle: "medium" });
 }
 
 function VersionStatusBadge({ status }: { status: string }) {
@@ -36,7 +37,7 @@ function AttestationStatusBadge({ attestation }: { attestation: PolicyAttestatio
   if (attestation.status === "attested") {
     return <Badge className="bg-success text-success-foreground hover:bg-success/80">Attested</Badge>;
   }
-  if (attestation.due_date && attestation.due_date < new Date().toISOString().slice(0, 10)) {
+  if (attestation.due_date && attestation.due_date < toLocalIsoDate()) {
     return <Badge className="bg-destructive text-destructive-foreground hover:bg-destructive/80">Overdue</Badge>;
   }
   return <Badge className="bg-warning text-warning-foreground hover:bg-warning/80">Pending</Badge>;
@@ -403,6 +404,18 @@ function CampaignsTab({ documentId, currentVersionId }: { documentId: string; cu
 export default function PolicyDocumentDetail() {
   const { id } = useParams<{ id: string }>();
   const { data: document, isLoading } = useGetPolicyDocument(id);
+  const { data: versions } = useListPolicyDocumentVersions(id);
+  const { data: campaigns } = useListPolicyAttestationCampaigns({ policyDocumentId: id });
+  const { data: attestations } = useListPolicyAttestations({});
+
+  const campaignIds = useMemo(() => new Set((campaigns ?? []).map((c) => c.id)), [campaigns]);
+  const lifecycle = useMemo(() => summarizePolicyLifecycle({
+    currentVersionId: document?.current_version_id ?? null,
+    versions: (versions ?? []).map((v) => ({ id: v.id, status: v.status })),
+    campaigns: campaigns ?? [],
+    attestations: (attestations ?? []).filter((a) => campaignIds.has(a.campaign_id)),
+    today: new Date().toISOString().slice(0, 10),
+  }), [document?.current_version_id, versions, campaigns, attestations, campaignIds]);
 
   if (isLoading || !document) {
     return (
@@ -425,6 +438,45 @@ export default function PolicyDocumentDetail() {
         </div>
         {document.description && <p className="text-muted-foreground mt-1">{document.description}</p>}
       </div>
+
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ClipboardCheck className="h-5 w-5" /> Policy Lifecycle
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={lifecycle.state === "overdue" ? "destructive" : lifecycle.state === "complete" ? "default" : "secondary"}>
+              {lifecycle.label}
+            </Badge>
+            <span className="text-sm text-muted-foreground">{lifecycle.nextStep}</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Draft versions</p>
+              <p className="text-xl font-semibold">{lifecycle.draftVersions}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Campaigns</p>
+              <p className="text-xl font-semibold">{lifecycle.campaigns}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Pending</p>
+              <p className="text-xl font-semibold">{lifecycle.pendingAttestations}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Overdue</p>
+              <p className="text-xl font-semibold">{lifecycle.overdueAttestations}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Attested</p>
+              <p className="text-xl font-semibold">{lifecycle.attestedCount}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="versions">
         <TabsList>

@@ -2,16 +2,19 @@ import { useRef, useState } from "react";
 import { useParams, Link } from "wouter";
 import { useGetViolation, useUpdateViolation, useGeneratePocDocument } from "@/hooks/useViolations";
 import {
-  useListCorrectiveActions, useCreateCorrectiveAction, useUpdateCorrectiveAction,
+  useListCorrectiveActions, useUpdateCorrectiveAction,
+  useDeleteCorrectiveAction, useCreateViolationRetrainingAction, type CorrectiveAction,
 } from "@/hooks/useCorrectiveActions";
 import {
   useListViolationDocuments, useUploadViolationDocument, useViolationDocumentSignedUrl, useDeleteViolationDocument,
+  type ViolationDocument,
 } from "@/hooks/useViolationDocuments";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListCitationTopics } from "@/hooks/useCitationTopics";
 import { useListCourses } from "@/hooks/useCourses";
-import { useCreateCourseAssignment } from "@/hooks/useCourseAssignments";
+import { StatusPill } from "./Violations";
+import { CorrectiveActionForm, CorrectiveActionStatusBadge } from "@/components/CorrectiveActionForm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,15 +22,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   ArrowLeft, ShieldAlert, ClipboardList, FileText, Upload, Download, Trash2, Check, Plus,
-  FileDown, GraduationCap,
+  FileDown, GraduationCap, Pencil,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-
-function humanize(value: string): string {
-  return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-}
+import { humanize } from "@/lib/utils";
+import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
 
 function SeverityBadge({ severity }: { severity: string }) {
   const className =
@@ -35,15 +40,6 @@ function SeverityBadge({ severity }: { severity: string }) {
     : severity === "moderate" ? "bg-warning text-warning-foreground hover:bg-warning/80"
     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"; // low
   return <Badge className={className} variant="outline">{humanize(severity)}</Badge>;
-}
-
-function CorrectiveActionStatusBadge({ status }: { status: string }) {
-  const className =
-    status === "completed" ? "bg-success text-success-foreground hover:bg-success/80"
-    : status === "overdue" ? "bg-destructive text-destructive-foreground hover:bg-destructive/80"
-    : status === "cancelled" ? "bg-muted text-muted-foreground"
-    : "bg-info text-info-foreground hover:bg-info/80"; // open/in_progress
-  return <Badge className={className} variant="outline">{humanize(status)}</Badge>;
 }
 
 export default function ViolationDetail() {
@@ -63,25 +59,30 @@ export default function ViolationDetail() {
   const { data: documents, isLoading: documentsLoading } = useListViolationDocuments(id);
 
   const { mutate: updateViolation, isPending: updatingViolation } = useUpdateViolation();
-  const { mutate: createCorrectiveAction } = useCreateCorrectiveAction();
   const { mutate: updateCorrectiveAction } = useUpdateCorrectiveAction();
-  const { mutateAsync: createCourseAssignment } = useCreateCourseAssignment();
+  const deleteCorrectiveAction = useDeleteCorrectiveAction();
+  const createRetrainingAction = useCreateViolationRetrainingAction();
   const uploadDocument = useUploadViolationDocument();
   const getSignedUrl = useViolationDocumentSignedUrl();
   const deleteDocument = useDeleteViolationDocument();
   const generatePocDocument = useGeneratePocDocument();
 
-  const [newActionDescription, setNewActionDescription] = useState("");
   const [newActionDueDate, setNewActionDueDate] = useState("");
+  const [assignedEmployeeId, setAssignedEmployeeId] = useState("");
   const [assignRetraining, setAssignRetraining] = useState(false);
   const [retrainEmployeeId, setRetrainEmployeeId] = useState("");
   const [retrainCourseId, setRetrainCourseId] = useState("");
   const [creatingAction, setCreatingAction] = useState(false);
+  const [editingActionId, setEditingActionId] = useState<string | null>(null);
+  const [actionPendingDelete, setActionPendingDelete] = useState<CorrectiveAction | null>(null);
+  const [docPendingDelete, setDocPendingDelete] = useState<ViolationDocument | null>(null);
+  const [uploadLabel, setUploadLabel] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const facilityName = facilities?.find((f) => f.id === violation?.facility_id)?.name;
   const topicTitle = citationTopics?.find((t) => t.id === violation?.citation_topic_id)?.title;
   const employeeById = new Map((employees ?? []).map((e) => [e.id, e]));
+  const facilityEmployees = (employees ?? []).filter((e) => e.facility_id === violation?.facility_id);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -89,12 +90,38 @@ export default function ViolationDetail() {
     try {
       await uploadDocument.mutateAsync({
         file, organizationId: violation.organization_id, facilityId: violation.facility_id, violationId: violation.id,
+        documentLabel: uploadLabel.trim() || undefined,
       });
       toast({ title: "Evidence uploaded" });
     } catch (err) {
       toast({ title: "Upload failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
+      setUploadLabel("");
+    }
+  };
+
+  const confirmDeleteDocument = async () => {
+    if (!docPendingDelete) return;
+    try {
+      await deleteDocument.mutateAsync(docPendingDelete);
+      toast({ title: "Evidence document deleted" });
+    } catch (err) {
+      toast({ title: "Delete failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+    } finally {
+      setDocPendingDelete(null);
+    }
+  };
+
+  const confirmDeleteAction = async () => {
+    if (!actionPendingDelete) return;
+    try {
+      await deleteCorrectiveAction.mutateAsync(actionPendingDelete.id);
+      toast({ title: "Corrective action deleted" });
+    } catch (err) {
+      toast({ title: "Delete failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+    } finally {
+      setActionPendingDelete(null);
     }
   };
 
@@ -143,21 +170,14 @@ export default function ViolationDetail() {
           <div>
             <h1 className="text-2xl font-bold">{violation.citation_ref ?? topicTitle ?? "Cited Violation"}</h1>
             <p className="text-muted-foreground">
-              {facilityName} · Inspected {new Date(violation.inspection_date).toLocaleDateString()}
+              {facilityName} · Inspected {formatDateForDisplay(violation.inspection_date)}
               {violation.surveyor_name ? ` · ${violation.surveyor_name}` : ""}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <SeverityBadge severity={violation.severity} />
-          {canManage && (
-            <Select value={violation.status} onValueChange={(v) => updateViolation({ id: violation.id, status: v as typeof violation.status })}>
-              <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {["open", "poc_submitted", "corrected", "verified"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
+          <StatusPill status={violation.status} />
         </div>
       </div>
 
@@ -183,29 +203,64 @@ export default function ViolationDetail() {
             <p className="text-sm text-muted-foreground">No corrective actions recorded.</p>
           ) : (
             <div className="space-y-2">
-              {correctiveActions.map((ca) => (
-                <div key={ca.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      {ca.description}
-                      {ca.course_assignment_id && (
-                        <Badge variant="outline" className="text-[10px]"><GraduationCap className="h-3 w-3 mr-1" /> Retraining</Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Due {ca.due_date}{ca.owner_name ? ` · ${ca.owner_name}` : ""}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <CorrectiveActionStatusBadge status={ca.status} />
-                    {canManage && ca.status !== "completed" && ca.status !== "cancelled" && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: new Date().toISOString().slice(0, 10) })}>
-                        <Check className="h-3.5 w-3.5" />
-                      </Button>
+              {correctiveActions.map((ca) => {
+                const canEdit = canManage && ca.status !== "completed" && ca.status !== "cancelled";
+                return (
+                  <div key={ca.id} className="p-2 rounded-lg border text-sm">
+                    {editingActionId === ca.id ? (
+                      <CorrectiveActionForm
+                        parent={{ organizationId: violation.organization_id, facilityId: violation.facility_id, violationId: violation.id }}
+                        editing={ca}
+                        onDone={() => setEditingActionId(null)}
+                        onCancelEdit={() => setEditingActionId(null)}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            {ca.description}
+                            {ca.course_assignment_id && (
+                              <Badge variant="outline" className="text-[10px]"><GraduationCap className="h-3 w-3 mr-1" /> Retraining</Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Due {ca.due_date}{ca.owner_name ? ` · ${ca.owner_name}` : ""}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <CorrectiveActionStatusBadge status={ca.status} />
+                          {canEdit && (
+                            <Button
+                              variant="ghost" size="icon" className="h-7 w-7"
+                              onClick={() => setEditingActionId(ca.id)}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {canEdit && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: toLocalIsoDate() })}>
+                              <Check className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {canDelete && !ca.course_assignment_id && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setActionPendingDelete(ca)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {canDelete && ca.course_assignment_id && (
+                            <Button
+                              variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/40 cursor-not-allowed" disabled
+                              title="Retraining-backed tasks can't be deleted -- the course assignment would remain active with no linked corrective action. Mark it completed or cancelled instead."
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
           {canManage && (
@@ -213,7 +268,7 @@ export default function ViolationDetail() {
               <label className="flex items-center gap-2 text-xs cursor-pointer">
                 <input
                   type="checkbox" checked={assignRetraining}
-                  onChange={(e) => { setAssignRetraining(e.target.checked); setNewActionDescription(""); }}
+                  onChange={(e) => setAssignRetraining(e.target.checked)}
                 />
                 Assign retraining to a staff member instead of a plain description
               </label>
@@ -222,7 +277,7 @@ export default function ViolationDetail() {
                   <Select value={retrainEmployeeId} onValueChange={setRetrainEmployeeId}>
                     <SelectTrigger className="h-9 flex-1"><SelectValue placeholder="Select staff member" /></SelectTrigger>
                     <SelectContent>
-                      {(employees ?? []).filter((e) => e.facility_id === violation.facility_id).map((e) => (
+                      {facilityEmployees.map((e) => (
                         <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -246,15 +301,10 @@ export default function ViolationDetail() {
                       }
                       setCreatingAction(true);
                       try {
-                        const assignment = await createCourseAssignment({
-                          employee_id: employee.id, course_id: course.id, course_version_id: course.current_version_id,
-                          facility_id: violation.facility_id, organization_id: violation.organization_id,
-                          assigned_by: user?.id ?? null, due_date: newActionDueDate,
-                        });
-                        createCorrectiveAction({
-                          violation_id: violation.id, description: `Complete "${course.title}" retraining — ${employee.first_name} ${employee.last_name}`,
-                          due_date: newActionDueDate, course_assignment_id: assignment.id,
-                          owner_profile_id: user?.id ?? null, organization_id: violation.organization_id, facility_id: violation.facility_id,
+                        await createRetrainingAction.mutateAsync({
+                          violationId: violation.id, employeeId: employee.id, courseId: course.id,
+                          courseVersionId: course.current_version_id, dueDate: newActionDueDate,
+                          description: `Complete "${course.title}" retraining — ${employee.first_name} ${employee.last_name}`,
                         });
                         setRetrainEmployeeId(""); setRetrainCourseId(""); setNewActionDueDate(""); setAssignRetraining(false);
                       } catch (err) {
@@ -268,24 +318,9 @@ export default function ViolationDetail() {
                   </Button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
-                  <Input value={newActionDescription} onChange={(e) => setNewActionDescription(e.target.value)} placeholder="Corrective task description" className="h-9 flex-1" />
-                  <Input type="date" value={newActionDueDate} onChange={(e) => setNewActionDueDate(e.target.value)} className="h-9 w-40" />
-                  <Button
-                    size="sm"
-                    disabled={!newActionDescription.trim() || !newActionDueDate}
-                    onClick={() => {
-                      createCorrectiveAction({
-                        violation_id: violation.id, description: newActionDescription.trim(), due_date: newActionDueDate,
-                        owner_profile_id: user?.id ?? null, organization_id: violation.organization_id, facility_id: violation.facility_id,
-                      });
-                      setNewActionDescription("");
-                      setNewActionDueDate("");
-                    }}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
+                <CorrectiveActionForm
+                  parent={{ organizationId: violation.organization_id, facilityId: violation.facility_id, violationId: violation.id }}
+                />
               )}
             </div>
           )}
@@ -297,12 +332,13 @@ export default function ViolationDetail() {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> Evidence Documents</CardTitle>
             {canManage && (
-              <>
+              <div className="flex items-center gap-2">
+                <Input placeholder="Label (optional)" value={uploadLabel} onChange={(e) => setUploadLabel(e.target.value)} className="h-9 w-40" />
                 <Button variant="outline" size="sm" disabled={uploadDocument.isPending} onClick={() => fileInputRef.current?.click()}>
                   <Upload className="mr-2 h-3.5 w-3.5" /> {uploadDocument.isPending ? "Uploading..." : "Upload"}
                 </Button>
                 <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png" onChange={handleUpload} />
-              </>
+              </div>
             )}
           </div>
         </CardHeader>
@@ -316,7 +352,7 @@ export default function ViolationDetail() {
               {documents.map((doc) => (
                 <div key={doc.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
                   <span className="truncate flex items-center gap-1.5">
-                    {doc.file_name}
+                    {doc.document_label ? `${doc.document_label} — ${doc.file_name}` : doc.file_name}
                     {doc.document_type === "poc" && <Badge variant="outline" className="text-[10px]">POC</Badge>}
                   </span>
                   <div className="flex items-center gap-1 shrink-0">
@@ -324,7 +360,7 @@ export default function ViolationDetail() {
                       <Download className="h-3.5 w-3.5" />
                     </Button>
                     {canDelete && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteDocument.mutate(doc)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDocPendingDelete(doc)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
@@ -383,6 +419,40 @@ export default function ViolationDetail() {
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!docPendingDelete} onOpenChange={(open) => !open && setDocPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Evidence Document</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{docPendingDelete?.file_name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteDocument} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!actionPendingDelete} onOpenChange={(open) => !open && setActionPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Corrective Action</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{actionPendingDelete?.description}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteAction} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

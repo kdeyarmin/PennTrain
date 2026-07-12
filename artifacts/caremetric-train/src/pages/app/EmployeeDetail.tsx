@@ -1,21 +1,22 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useLocation, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   ArrowLeft, User, BookOpen, CalendarCheck, Clock, Pencil, Trash2, FileText, Activity, Building2,
   Download, ShieldCheck, Plus, KeyRound, ClipboardList, Check, MessageCircle,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useGetEmployee, useUpdateEmployee, useDeleteEmployee } from "@/hooks/useEmployees";
+import { useGetEmployee, useUpdateEmployee, useDeleteEmployee, useListEmployees } from "@/hooks/useEmployees";
 import { useGetFacility, useListFacilities } from "@/hooks/useFacilities";
+import { EmployeeFormFields, EMPTY_EMPLOYEE_FORM, employeeToFormData, type EmpFormData } from "@/components/employees/EmployeeFormFields";
 import {
   useListTrainingRecords, useCreateTrainingRecord, useUpdateTrainingRecord,
   type TrainingRecord, type TrainingRecordInsert,
@@ -25,6 +26,9 @@ import { useListPracticums } from "@/hooks/usePracticums";
 import { useListTrainingHourBuckets } from "@/hooks/useTrainingHourBuckets";
 import { useListDocuments, useDocumentSignedUrl, type TrainingDocument } from "@/hooks/useDocuments";
 import { useListEmployeeCredentials } from "@/hooks/useEmployeeCredentials";
+import {
+  useListEmployeeFacilityAssignments, useAddEmployeeFacilityAssignment, useRemoveEmployeeFacilityAssignment,
+} from "@/hooks/useEmployeeFacilityAssignments";
 import { useSetEmployeeCheckinPin } from "@/hooks/useTrainingClasses";
 import {
   useListEmployeeOnboardingItems, useUpdateEmployeeOnboardingItem,
@@ -33,28 +37,11 @@ import {
 import { useListAuditLogs } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { todayISO, addDaysISO, computeDueDate, computeStatus } from "@/lib/complianceDates";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from "@/components/ui/alert-dialog";
-
-interface EmpFormData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  jobTitle: string;
-  department: string;
-  employeeNumber: string;
-  facilityId: string;
-  hireDate: string;
-  status: "active" | "inactive" | "terminated" | "on_leave";
-  administersMedications: boolean;
-  trainerStatus: boolean;
-  notes: string;
-  scheduledHoursPerWeek: string;
-  workerType: "regular" | "agency" | "substitute" | "volunteer";
-}
 
 function EmptyState({ icon: Icon, text }: { icon: typeof BookOpen; text: string }) {
   return (
@@ -63,33 +50,6 @@ function EmptyState({ icon: Icon, text }: { icon: typeof BookOpen; text: string 
       <p className="text-sm">{text}</p>
     </div>
   );
-}
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function addDaysISO(dateISO: string, days: number): string {
-  const d = new Date(`${dateISO}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-// Mirrors the due_date formula in recalculate_all_compliance() (supabase/migrations/
-// 20260704053624_compliance_rpcs_and_audit_trigger.sql), same as PendingApprovals.tsx.
-function computeDueDate(completionDate: string | null, renewalIntervalDays: number | null | undefined): string | null {
-  if (!completionDate || renewalIntervalDays == null) return null;
-  return addDaysISO(completionDate, renewalIntervalDays);
-}
-
-// Mirrors the status formula in the same RPC, same as PendingApprovals.tsx.
-function computeStatus(completionDate: string | null, dueDate: string | null, warningDays: number): string {
-  if (!completionDate) return "missing";
-  if (!dueDate) return "compliant";
-  const today = todayISO();
-  if (dueDate < today) return "expired";
-  if (dueDate <= addDaysISO(today, warningDays)) return "due_soon";
-  return "compliant";
 }
 
 // Employees can accumulate multiple employee_training_records rows for the same training type
@@ -107,6 +67,12 @@ function findCurrentRecord(records: TrainingRecord[], trainingTypeId: string): T
   });
 }
 
+// Sentinel values for the Record Training dialog's trainer picker (see qualifiedTrainers below):
+// "none" leaves trainer_name blank, "__other__" reveals a free-text fallback for a trainer who
+// isn't a designated employee in the system (e.g. an outside vendor/instructor).
+const NONE_TRAINER = "none";
+const OTHER_TRAINER = "__other__";
+
 export default function EmployeeDetail() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
@@ -118,12 +84,14 @@ export default function EmployeeDetail() {
     : "/app/employees";
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
+  const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
   // Matches employee_credentials_select RLS -- trainer is excluded (clearance/license data is
   // more sensitive than the training records shown above), unlike every other card here.
   const canViewCredentials = ["platform_admin", "org_admin", "facility_manager", "auditor"].includes(user?.role ?? "");
 
   const [showEditEmp, setShowEditEmp] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [removeFacilityAssignmentTarget, setRemoveFacilityAssignmentTarget] = useState<{ id: string; facilityName: string } | null>(null);
   const [showRecordTraining, setShowRecordTraining] = useState(false);
   const [showSetPin, setShowSetPin] = useState(false);
   const [pinValue, setPinValue] = useState("");
@@ -131,17 +99,22 @@ export default function EmployeeDetail() {
   const [trainingForm, setTrainingForm] = useState({
     trainingTypeId: "", completionDate: todayISO(), hours: "", trainerName: "", documentId: "",
   });
+  // Drives the trainer Select in the Record Training dialog -- either NONE_TRAINER, OTHER_TRAINER
+  // (reveals the free-text fallback below), or a qualified trainer's employee id.
+  const [trainerSelection, setTrainerSelection] = useState<string>(NONE_TRAINER);
 
-  const [empForm, setEmpForm] = useState<EmpFormData>({
-    firstName: "", lastName: "", email: "", phone: "", jobTitle: "",
-    department: "", employeeNumber: "", facilityId: "", hireDate: "",
-    status: "active", administersMedications: false, trainerStatus: false, notes: "",
-    scheduledHoursPerWeek: "", workerType: "regular",
-  });
+  const [empForm, setEmpForm] = useState<EmpFormData>(EMPTY_EMPLOYEE_FORM);
 
   const { data: employee, isLoading: empLoading } = useGetEmployee(id);
   const { data: facility } = useGetFacility(employee?.facility_id);
   const { data: facilities } = useListFacilities();
+  // Scoped to this employee's own org (unlike Practicums.tsx's equivalent qualifiedObservers list,
+  // which is left unfiltered) so a platform_admin viewing one org's employee doesn't get another
+  // org's trainers mixed into the picker below.
+  const { data: employeesAll } = useListEmployees(
+    { organizationId: employee?.organization_id },
+    { enabled: !!employee?.organization_id },
+  );
 
   const { mutate: updateEmployee, isPending: updating } = useUpdateEmployee();
   const { mutate: deleteEmployee, isPending: deleting } = useDeleteEmployee();
@@ -161,7 +134,22 @@ export default function EmployeeDetail() {
   const { mutate: logCheckin, isPending: loggingCheckin } = useLogEmployeeCheckin();
   const getSignedUrl = useDocumentSignedUrl();
 
+  const { data: facilityAssignments, isLoading: facilityAssignmentsLoading } = useListEmployeeFacilityAssignments({ employeeId: id });
+  const addFacilityAssignment = useAddEmployeeFacilityAssignment();
+  const removeFacilityAssignment = useRemoveEmployeeFacilityAssignment();
+  const [addFacilityId, setAddFacilityId] = useState("");
+
   const trainingTypeName = (typeId: string) => trainingTypes?.find(t => t.id === typeId)?.name ?? "Unknown requirement";
+
+  // "Trainer" picker for the Record Training dialog below -- designated trainers only (mirrors the
+  // pattern Practicums.tsx uses to build its qualifiedObservers list off the same employees query,
+  // but scoped to trainer_status specifically since this field records who *taught* a training,
+  // not who's merely qualified to observe medication administration).
+  const qualifiedTrainers = useMemo(() => (employeesAll ?? []).filter(e => e.trainer_status), [employeesAll]);
+  const qualifiedTrainerNameById = useMemo(
+    () => new Map(qualifiedTrainers.map(e => [e.id, `${e.first_name} ${e.last_name}`])),
+    [qualifiedTrainers],
+  );
 
   const handleDownloadDocument = async (doc: TrainingDocument) => {
     try {
@@ -174,23 +162,7 @@ export default function EmployeeDetail() {
 
   const openEditEmp = () => {
     if (!employee) return;
-    setEmpForm({
-      firstName: employee.first_name,
-      lastName: employee.last_name,
-      email: employee.email ?? "",
-      phone: employee.phone ?? "",
-      jobTitle: employee.job_title ?? "",
-      department: employee.department ?? "",
-      employeeNumber: employee.employee_number ?? "",
-      facilityId: employee.facility_id,
-      hireDate: employee.hire_date ?? "",
-      status: employee.status as EmpFormData["status"],
-      administersMedications: employee.administers_medications ?? false,
-      trainerStatus: employee.trainer_status ?? false,
-      notes: employee.notes ?? "",
-      scheduledHoursPerWeek: employee.scheduled_hours_per_week != null ? String(employee.scheduled_hours_per_week) : "",
-      workerType: (employee.worker_type ?? "regular") as EmpFormData["workerType"],
-    });
+    setEmpForm(employeeToFormData(employee));
     setShowEditEmp(true);
   };
 
@@ -228,6 +200,7 @@ export default function EmployeeDetail() {
 
   const openRecordTraining = () => {
     setTrainingForm({ trainingTypeId: "", completionDate: todayISO(), hours: "", trainerName: "", documentId: "" });
+    setTrainerSelection(NONE_TRAINER);
     setShowRecordTraining(true);
   };
 
@@ -279,6 +252,17 @@ export default function EmployeeDetail() {
       },
       onError: (e: Error) => toast({ title: "Failed to delete employee", description: e.message, variant: "destructive" }),
     });
+  };
+
+  const handleAddFacilityAssignment = () => {
+    if (!employee || !addFacilityId) return;
+    addFacilityAssignment.mutate(
+      { organization_id: employee.organization_id, employee_id: employee.id, facility_id: addFacilityId, is_primary: false },
+      {
+        onSuccess: () => { setAddFacilityId(""); toast({ title: "Facility assignment added" }); },
+        onError: (e: Error) => toast({ title: "Failed to add facility assignment", description: e.message, variant: "destructive" }),
+      },
+    );
   };
 
   const field = (k: keyof EmpFormData, v: string | boolean) =>
@@ -336,17 +320,23 @@ export default function EmployeeDetail() {
             </div>
           </div>
         </div>
-        {canManage && (
+        {(canManage || canDelete) && (
           <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="outline" size="sm" onClick={openEditEmp}>
-              <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => { setPinValue(""); setShowSetPin(true); }}>
-              <KeyRound className="mr-2 h-3.5 w-3.5" /> Set Check-In PIN
-            </Button>
-            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setShowDeleteConfirm(true)}>
-              <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
-            </Button>
+            {canManage && (
+              <>
+                <Button variant="outline" size="sm" onClick={openEditEmp}>
+                  <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => { setPinValue(""); setShowSetPin(true); }}>
+                  <KeyRound className="mr-2 h-3.5 w-3.5" /> Set Check-In PIN
+                </Button>
+              </>
+            )}
+            {canDelete && (
+              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setShowDeleteConfirm(true)}>
+                <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -382,386 +372,375 @@ export default function EmployeeDetail() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" /> New-Hire Onboarding Checklist</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {onboardingLoading ? (
-            <Skeleton className="h-10" />
-          ) : !onboardingItems?.length ? (
-            <p className="text-sm text-muted-foreground">No onboarding checklist instantiated for this hire.</p>
-          ) : (
-            <div className="space-y-2">
-              {onboardingItems.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      {item.label}
-                      {item.is_blocking && <Badge variant="outline" className="text-[10px]">Blocking</Badge>}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {item.category}{item.due_date ? ` · Due ${item.due_date}` : ""}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Badge
-                      className={
-                        item.status === "completed" ? "bg-success text-success-foreground hover:bg-success/80"
-                        : item.status === "not_applicable" ? "bg-muted text-muted-foreground"
-                        : "bg-warning text-warning-foreground hover:bg-warning/80"
-                      }
-                      variant="outline"
-                    >
-                      {item.status.replace(/_/g, " ")}
-                    </Badge>
-                    {canManage && item.status === "pending" && (
-                      <Button
-                        variant="ghost" size="icon" className="h-7 w-7"
-                        onClick={() => updateOnboardingItem({
-                          id: item.id, status: "completed", completed_at: new Date().toISOString(), completed_by_profile_id: user?.id ?? null,
-                        })}
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="overview" className="space-y-4">
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="training">Training &amp; Compliance</TabsTrigger>
+          {canViewCredentials && <TabsTrigger value="credentials">Credentials</TabsTrigger>}
+          <TabsTrigger value="documents">Documents</TabsTrigger>
+          {canManage && <TabsTrigger value="activity">Activity</TabsTrigger>}
+        </TabsList>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5" /> Retention Check-Ins</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Half of first-year quits happen inside 90 days -- log a 7/14/30/60/90-day check-in conversation here.
-          </p>
-          <div className="grid grid-cols-5 gap-2">
-            {[7, 14, 30, 60, 90].map((day) => {
-              const log = checkinLogs?.find((c) => c.check_in_day === day);
-              return (
-                <div key={day} className="flex flex-col items-center gap-1 p-2 rounded-lg border text-center">
-                  <span className="text-xs font-medium">Day {day}</span>
-                  {log ? (
-                    <Badge className="bg-success text-success-foreground hover:bg-success/80 text-[10px]" variant="outline">
-                      Logged {new Date(log.completed_at).toLocaleDateString()}
-                    </Badge>
-                  ) : canManage ? (
-                    <Button
-                      size="sm" variant="outline" className="h-7 text-xs px-2" disabled={loggingCheckin}
-                      onClick={() => logCheckin({
-                        employee_id: employee.id, organization_id: employee.organization_id, facility_id: employee.facility_id,
-                        check_in_day: day, completed_by_profile_id: user?.id ?? null,
-                      })}
-                    >
-                      Log
-                    </Button>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">—</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Notes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {employee.notes ? (
-            <p className="text-sm whitespace-pre-wrap">{employee.notes}</p>
-          ) : (
-            <p className="text-sm text-muted-foreground">No notes on file.</p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5" /> Training Records
-          </CardTitle>
+        <TabsContent value="overview" className="space-y-6">
           {canManage && (
-            <Button size="sm" onClick={openRecordTraining}>
-              <Plus className="mr-2 h-3.5 w-3.5" /> Record Training
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          {recordsLoading ? (
-            <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
-          ) : !trainingRecords?.length ? (
-            <EmptyState icon={BookOpen} text="No training requirements on record for this employee." />
-          ) : (
-            <div className="space-y-2">
-              {trainingRecords.map(r => (
-                <div key={r.id} className="flex items-center justify-between p-3 rounded-lg border">
-                  <div>
-                    <p className="font-medium text-sm">{trainingTypeName(r.training_type_id)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {r.completion_date ? `Completed ${r.completion_date}` : "Not yet completed"}
-                      {r.due_date ? ` · Due ${r.due_date}` : ""}
-                    </p>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" /> Facility Assignments</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Facilities this employee can be scheduled at. Their primary facility is kept in sync with the
+                  Facility field above and can't be removed here.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {facilityAssignmentsLoading ? (
+                  <Skeleton className="h-10" />
+                ) : !facilityAssignments?.length ? (
+                  <EmptyState icon={Building2} text="No facility assignments on record for this employee." />
+                ) : (
+                  <div className="space-y-2">
+                    {facilityAssignments.map(fa => (
+                      <div key={fa.id} className="flex items-center justify-between p-3 rounded-lg border">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">
+                            {facilities?.find(f => f.id === fa.facility_id)?.name ?? "Unknown facility"}
+                          </span>
+                          {fa.is_primary && <Badge variant="outline">Primary</Badge>}
+                        </div>
+                        {!fa.is_primary && (
+                          <Button
+                            variant="ghost" size="icon"
+                            onClick={() => setRemoveFacilityAssignmentTarget({
+                              id: fa.id,
+                              facilityName: facilities?.find(f => f.id === fa.facility_id)?.name ?? "this facility",
+                            })}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                  <StatusBadge status={r.status} type="training" />
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarCheck className="h-5 w-5" /> Annual Practicums
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {practicumsLoading ? (
-            <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
-          ) : !practicums?.length ? (
-            <EmptyState icon={CalendarCheck} text="No practicums on record for this employee." />
-          ) : (
-            <div className="space-y-2">
-              {practicums.map(p => (
-                <div key={p.id} className="flex items-center justify-between p-3 rounded-lg border">
-                  <div>
-                    <p className="font-medium text-sm">Practicum Year {p.practicum_year}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {p.completion_date ? `Completed ${p.completion_date}` : "Not yet completed"}
-                      {p.due_date ? ` · Due ${p.due_date}` : ""}
-                    </p>
-                  </div>
-                  <StatusBadge status={p.status} type="training" />
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" /> Annual Training Hours
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {hoursLoading ? (
-            <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
-          ) : !hourBuckets?.length ? (
-            <EmptyState icon={Clock} text="No annual training-hour tracking on record for this employee." />
-          ) : (
-            <div className="space-y-2">
-              {hourBuckets.map(b => (
-                <div key={b.id} className="flex items-center justify-between p-3 rounded-lg border">
-                  <div>
-                    <p className="font-medium text-sm">{b.training_year}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {Number(b.completed_hours ?? 0)} of {Number(b.required_hours ?? 0)} hours completed
-                    </p>
-                  </div>
-                  <StatusBadge status={b.status} type="training" />
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" /> Documents
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {documentsLoading ? (
-            <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
-          ) : !documents?.length ? (
-            <EmptyState icon={FileText} text="No documents on file for this employee." />
-          ) : (
-            <div className="space-y-2">
-              {documents.map(doc => (
-                <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg border">
-                  <div>
-                    <p className="font-medium text-sm">{doc.file_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {doc.document_type.replace(/_/g, " ")} · {new Date(doc.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => handleDownloadDocument(doc)}>
-                    <Download className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {canViewCredentials && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5" /> Credentials &amp; Clearances
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {credentialsLoading ? (
-              <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
-            ) : !credentials?.length ? (
-              <EmptyState icon={ShieldCheck} text="No credentials on record for this employee." />
-            ) : (
-              <div className="space-y-2">
-                {credentials.map(c => (
-                  <div key={c.id} className="flex items-center justify-between p-3 rounded-lg border">
-                    <div>
-                      <p className="font-medium text-sm">{c.credential_label || c.credential_type.replace(/_/g, " ")}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {c.expiration_date ? `Expires ${c.expiration_date}` : "No expiration on file"}
-                      </p>
+                )}
+                {(() => {
+                  const assignedFacilityIds = new Set((facilityAssignments ?? []).map(fa => fa.facility_id));
+                  const availableFacilities = (facilities ?? []).filter(f => !assignedFacilityIds.has(f.id));
+                  if (!availableFacilities.length) return null;
+                  return (
+                    <div className="flex gap-2 pt-1">
+                      <Select value={addFacilityId} onValueChange={setAddFacilityId}>
+                        <SelectTrigger className="max-w-xs"><SelectValue placeholder="Add a facility" /></SelectTrigger>
+                        <SelectContent>
+                          {availableFacilities.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <Button size="sm" onClick={handleAddFacilityAssignment} disabled={!addFacilityId || addFacilityAssignment.isPending}>
+                        <Plus className="mr-2 h-3.5 w-3.5" /> Add
+                      </Button>
                     </div>
-                    <StatusBadge status={c.status} type="training" />
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                  );
+                })()}
+              </CardContent>
+            </Card>
+          )}
 
-      {canManage && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" /> Recent Activity
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {activityLoading ? (
-              <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-8" />)}</div>
-            ) : !auditLogs?.length ? (
-              <EmptyState icon={Activity} text="No recorded activity for this employee yet." />
-            ) : (
-              <div className="space-y-2">
-                {auditLogs.map(log => (
-                  <div key={log.id} className="flex items-center justify-between py-1.5 border-b last:border-0 text-sm">
-                    <span>{log.action.replace(/_/g, " ")}</span>
-                    <span className="text-xs text-muted-foreground">{new Date(log.created_at).toLocaleString()}</span>
-                  </div>
-                ))}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" /> New-Hire Onboarding Checklist</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {onboardingLoading ? (
+                <Skeleton className="h-10" />
+              ) : !onboardingItems?.length ? (
+                <p className="text-sm text-muted-foreground">No onboarding checklist instantiated for this hire.</p>
+              ) : (
+                <div className="space-y-2">
+                  {onboardingItems.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          {item.label}
+                          {item.is_blocking && <Badge variant="outline" className="text-[10px]">Blocking</Badge>}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {item.category}{item.due_date ? ` · Due ${item.due_date}` : ""}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge
+                          className={
+                            item.status === "completed" ? "bg-success text-success-foreground hover:bg-success/80"
+                            : item.status === "not_applicable" ? "bg-muted text-muted-foreground"
+                            : "bg-warning text-warning-foreground hover:bg-warning/80"
+                          }
+                          variant="outline"
+                        >
+                          {item.status.replace(/_/g, " ")}
+                        </Badge>
+                        {canManage && item.status === "pending" && (
+                          <Button
+                            variant="ghost" size="icon" className="h-7 w-7"
+                            onClick={() => updateOnboardingItem({
+                              id: item.id, status: "completed", completed_at: new Date().toISOString(), completed_by_profile_id: user?.id ?? null,
+                            })}
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5" /> Retention Check-Ins</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Half of first-year quits happen inside 90 days -- log a 7/14/30/60/90-day check-in conversation here.
+              </p>
+              <div className="grid grid-cols-5 gap-2">
+                {[7, 14, 30, 60, 90].map((day) => {
+                  const log = checkinLogs?.find((c) => c.check_in_day === day);
+                  return (
+                    <div key={day} className="flex flex-col items-center gap-1 p-2 rounded-lg border text-center">
+                      <span className="text-xs font-medium">Day {day}</span>
+                      {log ? (
+                        <Badge className="bg-success text-success-foreground hover:bg-success/80 text-[10px]" variant="outline">
+                          Logged {new Date(log.completed_at).toLocaleDateString()}
+                        </Badge>
+                      ) : canManage ? (
+                        <Button
+                          size="sm" variant="outline" className="h-7 text-xs px-2" disabled={loggingCheckin}
+                          onClick={() => logCheckin({
+                            employee_id: employee.id, organization_id: employee.organization_id, facility_id: employee.facility_id,
+                            check_in_day: day, completed_by_profile_id: user?.id ?? null,
+                          })}
+                        >
+                          Log
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Notes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {employee.notes ? (
+                <p className="text-sm whitespace-pre-wrap">{employee.notes}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">No notes on file.</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="training" className="space-y-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <CardTitle className="flex items-center gap-2">
+                <BookOpen className="h-5 w-5" /> Training Records
+              </CardTitle>
+              {canManage && (
+                <Button size="sm" onClick={openRecordTraining}>
+                  <Plus className="mr-2 h-3.5 w-3.5" /> Record Training
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent>
+              {recordsLoading ? (
+                <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+              ) : !trainingRecords?.length ? (
+                <EmptyState icon={BookOpen} text="No training requirements on record for this employee." />
+              ) : (
+                <div className="space-y-2">
+                  {trainingRecords.map(r => (
+                    <div key={r.id} className="flex items-center justify-between p-3 rounded-lg border">
+                      <div>
+                        <p className="font-medium text-sm">{trainingTypeName(r.training_type_id)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {r.completion_date ? `Completed ${r.completion_date}` : "Not yet completed"}
+                          {r.due_date ? ` · Due ${r.due_date}` : ""}
+                        </p>
+                      </div>
+                      <StatusBadge status={r.status} type="training" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CalendarCheck className="h-5 w-5" /> Annual Practicums
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {practicumsLoading ? (
+                <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+              ) : !practicums?.length ? (
+                <EmptyState icon={CalendarCheck} text="No practicums on record for this employee." />
+              ) : (
+                <div className="space-y-2">
+                  {practicums.map(p => (
+                    <div key={p.id} className="flex items-center justify-between p-3 rounded-lg border">
+                      <div>
+                        <p className="font-medium text-sm">Practicum Year {p.practicum_year}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {p.completion_date ? `Completed ${p.completion_date}` : "Not yet completed"}
+                          {p.due_date ? ` · Due ${p.due_date}` : ""}
+                        </p>
+                      </div>
+                      <StatusBadge status={p.status} type="training" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" /> Annual Training Hours
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {hoursLoading ? (
+                <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+              ) : !hourBuckets?.length ? (
+                <EmptyState icon={Clock} text="No annual training-hour tracking on record for this employee." />
+              ) : (
+                <div className="space-y-2">
+                  {hourBuckets.map(b => (
+                    <div key={b.id} className="flex items-center justify-between p-3 rounded-lg border">
+                      <div>
+                        <p className="font-medium text-sm">{b.training_year}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {Number(b.completed_hours ?? 0)} of {Number(b.required_hours ?? 0)} hours completed
+                        </p>
+                      </div>
+                      <StatusBadge status={b.status} type="training" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="documents" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" /> Documents
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {documentsLoading ? (
+                <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+              ) : !documents?.length ? (
+                <EmptyState icon={FileText} text="No documents on file for this employee." />
+              ) : (
+                <div className="space-y-2">
+                  {documents.map(doc => (
+                    <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg border">
+                      <div>
+                        <p className="font-medium text-sm">{doc.file_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {doc.document_type.replace(/_/g, " ")} · {new Date(doc.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => handleDownloadDocument(doc)}>
+                        <Download className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {canViewCredentials && (
+          <TabsContent value="credentials" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5" /> Credentials &amp; Clearances
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {credentialsLoading ? (
+                  <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+                ) : !credentials?.length ? (
+                  <EmptyState icon={ShieldCheck} text="No credentials on record for this employee." />
+                ) : (
+                  <div className="space-y-2">
+                    {credentials.map(c => (
+                      <div key={c.id} className="flex items-center justify-between p-3 rounded-lg border">
+                        <div>
+                          <p className="font-medium text-sm">{c.credential_label || c.credential_type.replace(/_/g, " ")}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {c.expiration_date ? `Expires ${c.expiration_date}` : "No expiration on file"}
+                          </p>
+                        </div>
+                        <StatusBadge status={c.status} type="training" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {canManage && (
+          <TabsContent value="activity" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5" /> Recent Activity
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {activityLoading ? (
+                  <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-8" />)}</div>
+                ) : !auditLogs?.length ? (
+                  <EmptyState icon={Activity} text="No recorded activity for this employee yet." />
+                ) : (
+                  <div className="space-y-2">
+                    {auditLogs.map(log => (
+                      <div key={log.id} className="flex items-center justify-between py-1.5 border-b last:border-0 text-sm">
+                        <span>{log.action.replace(/_/g, " ")}</span>
+                        <span className="text-xs text-muted-foreground">{new Date(log.created_at).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+      </Tabs>
 
       <Dialog open={showEditEmp} onOpenChange={o => { if (!o) setShowEditEmp(false); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit Employee</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
-            <div className="space-y-1">
-              <Label>First Name *</Label>
-              <Input value={empForm.firstName} onChange={e => field("firstName", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Last Name *</Label>
-              <Input value={empForm.lastName} onChange={e => field("lastName", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Email</Label>
-              <Input type="email" value={empForm.email} onChange={e => field("email", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Phone</Label>
-              <Input value={empForm.phone} onChange={e => field("phone", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Job Title</Label>
-              <Input value={empForm.jobTitle} onChange={e => field("jobTitle", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Department</Label>
-              <Input value={empForm.department} onChange={e => field("department", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Employee Number</Label>
-              <Input value={empForm.employeeNumber} onChange={e => field("employeeNumber", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Facility</Label>
-              <Select value={empForm.facilityId} onValueChange={v => field("facilityId", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {facilities?.map(fa => (
-                    <SelectItem key={fa.id} value={fa.id}>{fa.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Status</Label>
-              <Select value={empForm.status} onValueChange={v => field("status", v as EmpFormData["status"])}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                  <SelectItem value="terminated">Terminated</SelectItem>
-                  <SelectItem value="on_leave">On Leave</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Hire Date</Label>
-              <Input type="date" value={empForm.hireDate} onChange={e => field("hireDate", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Scheduled Hours / Week</Label>
-              <Input
-                type="number" min="1" step="0.5" value={empForm.scheduledHoursPerWeek}
-                onChange={e => field("scheduledHoursPerWeek", e.target.value)}
-                placeholder="e.g. 32"
-              />
-              <p className="text-xs text-muted-foreground">Drives the 40-scheduled-hour orientation deadline.</p>
-            </div>
-            <div className="space-y-1">
-              <Label>Worker Type</Label>
-              <Select value={empForm.workerType} onValueChange={v => field("workerType", v as EmpFormData["workerType"])}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="regular">Regular</SelectItem>
-                  <SelectItem value="agency">Agency</SelectItem>
-                  <SelectItem value="substitute">Substitute</SelectItem>
-                  <SelectItem value="volunteer">Volunteer</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">Agency/substitute/volunteer get the rapid-orientation checklist.</p>
-            </div>
-            <div className="col-span-full flex gap-6">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={empForm.administersMedications} onChange={e => field("administersMedications", e.target.checked)} className="h-4 w-4" />
-                <span className="text-sm">Administers Medications</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={empForm.trainerStatus} onChange={e => field("trainerStatus", e.target.checked)} className="h-4 w-4" />
-                <span className="text-sm">Designated Trainer</span>
-              </label>
-            </div>
-            <div className="col-span-full space-y-1">
-              <Label>Notes</Label>
-              <Textarea value={empForm.notes} onChange={e => field("notes", e.target.value)} placeholder="Optional notes" />
-            </div>
-          </div>
+          <EmployeeFormFields form={empForm} onChange={field} facilities={facilities} facilityFieldMode="edit-fixed" />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditEmp(false)}>Cancel</Button>
             <Button onClick={handleEmpSave} disabled={updating}>{updating ? "Saving..." : "Save Changes"}</Button>
@@ -806,11 +785,36 @@ export default function EmployeeDetail() {
               />
             </div>
             <div className="col-span-2 space-y-1.5">
-              <Label className="text-[13px]">Trainer Name</Label>
-              <Input
-                className="h-9" placeholder="Optional" value={trainingForm.trainerName}
-                onChange={e => setTrainingForm(f => ({ ...f, trainerName: e.target.value }))}
-              />
+              <Label className="text-[13px]">Trainer</Label>
+              <Select
+                value={trainerSelection}
+                onValueChange={v => {
+                  setTrainerSelection(v);
+                  setTrainingForm(f => ({
+                    ...f,
+                    trainerName: v === NONE_TRAINER || v === OTHER_TRAINER ? "" : (qualifiedTrainerNameById.get(v) ?? ""),
+                  }));
+                }}
+              >
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE_TRAINER}>None</SelectItem>
+                  {qualifiedTrainers.map(t => (
+                    <SelectItem key={t.id} value={t.id}>{t.first_name} {t.last_name}</SelectItem>
+                  ))}
+                  <SelectItem value={OTHER_TRAINER}>Other (type name)</SelectItem>
+                </SelectContent>
+              </Select>
+              {trainerSelection === OTHER_TRAINER && (
+                <Input
+                  className="h-9 mt-1.5" placeholder="Trainer name" value={trainingForm.trainerName}
+                  onChange={e => setTrainingForm(f => ({ ...f, trainerName: e.target.value }))}
+                  autoFocus
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                Designated trainers only -- choose "Other" for an outside vendor or instructor.
+              </p>
             </div>
             {!!documents?.length && (
               <div className="col-span-2 space-y-1.5">
@@ -895,6 +899,34 @@ export default function EmployeeDetail() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!removeFacilityAssignmentTarget} onOpenChange={(o) => { if (!o) setRemoveFacilityAssignmentTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Facility Assignment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove {employee.first_name} {employee.last_name}'s assignment to {removeFacilityAssignmentTarget?.facilityName}?
+              They will no longer be schedulable at that facility. You can re-add the assignment later if needed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!removeFacilityAssignmentTarget) return;
+                removeFacilityAssignment.mutate(removeFacilityAssignmentTarget.id, {
+                  onError: (e: Error) => toast({ title: "Failed to remove facility assignment", description: e.message, variant: "destructive" }),
+                });
+                setRemoveFacilityAssignmentTarget(null);
+              }}
+              disabled={removeFacilityAssignment.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {removeFacilityAssignment.isPending ? "Removing..." : "Remove"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

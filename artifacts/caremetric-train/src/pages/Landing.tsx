@@ -1,19 +1,24 @@
 import { Link } from "wouter";
 import {
   ArrowRight,
+  BedDouble,
   BellRing,
   BookOpenCheck,
   Building2,
+  CalendarClock,
   CheckCircle2,
   FileCheck2,
   FileStack,
+  Gauge,
   GraduationCap,
   HelpCircle,
   Layers3,
   ListChecks,
   Lock,
+  Pill,
   PlayCircle,
   ShieldCheck,
+  Siren,
   Sparkles,
   UploadCloud,
   XCircle,
@@ -31,6 +36,7 @@ import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { LogoMark } from "@/components/brand/Logo";
 import { OLD_WAY, NEW_WAY } from "@/components/marketing/content";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 const HIGHLIGHTS: { href: string; icon: LucideIcon; title: string; blurb: string }[] = [
   {
@@ -38,7 +44,7 @@ const HIGHLIGHTS: { href: string; icon: LucideIcon; title: string; blurb: string
     icon: GraduationCap,
     title: "Train staff online, in person, or from outside records",
     blurb:
-      "Courses, quizzes, certificates, live classes, uploads, and annual requirements all reconcile to one employee training record.",
+      "Courses, quizzes, certificates, live classes, AI-drafted content, and annual requirements all reconcile to one employee training record.",
   },
   {
     href: "/who-its-for",
@@ -59,7 +65,46 @@ const HIGHLIGHTS: { href: string; icon: LucideIcon; title: string; blurb: string
     icon: ListChecks,
     title: "From roster to survey binder",
     blurb:
-      "Import staff, assign role-based plans, track progress, and generate a survey-ready binder without assembling PDFs by hand.",
+      "Import staff, assign role-based plans, track resident assessments and incidents, and generate a survey-ready binder without assembling PDFs by hand.",
+  },
+];
+
+const BEYOND_TRAINING: { icon: LucideIcon; title: string; blurb: string }[] = [
+  {
+    icon: BedDouble,
+    title: "Resident Assessment Compliance",
+    blurb:
+      "RASP/ASP preadmission screening, initial assessment, and reassessments tracked with their own due dates -- resident-level compliance, not just staff training.",
+  },
+  {
+    icon: Gauge,
+    title: "Citation-Weighted Survey Readiness",
+    blurb:
+      "A live per-facility score weighted by how often DHS actually cites each regulation, so you see what a surveyor is most likely to flag before they do.",
+  },
+  {
+    icon: Siren,
+    title: "Incidents, Violations & Fire Drills",
+    blurb:
+      "Reportable incidents, DHS-cited violations with a plan-of-correction workflow, and fire-drill/life-safety equipment logs, each generating its own survey-ready PDF.",
+  },
+  {
+    icon: Sparkles,
+    title: "AI Course & Avatar Video Generation",
+    blurb:
+      "Draft a complete course from your own source material and attach an AI presenter video -- nothing publishes until a person reviews it.",
+  },
+  {
+    icon: Pill,
+    title: "Live Pass-Meds Authorization",
+    blurb:
+      "One roster cross-checks certification, this year's practicum, and insulin authorization into a single yes/no per employee.",
+  },
+  {
+    icon: CalendarClock,
+    title: "Shift Scheduling & Auto-Fill",
+    blurb:
+      "Build a staff shift schedule per facility and auto-fill it from each employee's typical pattern -- managers only touch the exceptions.",
   },
 ];
 
@@ -72,10 +117,10 @@ const APP_FLOW = [
 ];
 
 const ROLE_VIEWS = [
-  "Org admins see compliance across every facility.",
-  "Facility managers focus on assigned sites and overdue staff.",
-  "Trainers schedule classes, capture sign-in, and monitor retraining.",
-  "Employees complete courses, quizzes, certificates, and uploads in self-service.",
+  "Org admins see compliance across every facility, including resident assessments where required.",
+  "Facility managers focus on assigned sites, overdue staff, and shift coverage.",
+  "Trainers schedule classes with QR/kiosk check-in, draft AI-assisted courses, and monitor retraining.",
+  "Employees complete courses, quizzes, certificates, policy attestations, and uploads in self-service.",
   "Auditors get read-only evidence without changing records.",
 ];
 
@@ -87,7 +132,20 @@ const DASHBOARD_ROWS = [
   { label: "Completed course assignments", value: 96, status: "Strong" },
 ];
 
+const PLATFORM_STATS = [
+  { value: "6", label: "facility types, each with its own rules" },
+  { value: "8", label: "feature categories across the platform" },
+  { value: "60+", label: "survey-ready form templates included" },
+  { value: "6", label: "roles enforced by database policy" },
+];
+
 export default function Landing() {
+  usePageMeta({
+    title: "CareMetric Train — Compliance Training Platform",
+    description:
+      "CareMetric Train is the compliance-training platform for personal care homes, assisted living facilities, group homes, nursing homes, home health, and hospice agencies -- yearly in-services, resident assessments, incidents, and survey-ready compliance binders tracked automatically in one system.",
+    path: "/",
+  });
   return (
     <MarketingLayout>
       <section className="relative overflow-hidden bg-gradient-to-br from-[#071626] via-[#0d2742] to-[#143a5c] text-white">
@@ -106,10 +164,11 @@ export default function Landing() {
                 Know who is trained, what is due, and where the proof lives.
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-white/74">
-                CareMetric Train is an LMS and compliance command center for care
+                CareMetric Train is a compliance training platform and command center for care
                 providers. It turns required in-services, credentials, practicums,
-                live classes, documents, quizzes, and certificates into a single
-                survey-ready record for every employee and facility.
+                live classes, resident assessments, incidents, and certificates
+                into a single survey-ready record for every employee, resident,
+                and facility.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Button asChild size="lg" className="gap-2 shadow-lg shadow-blue-950/30" data-testid="button-hero-demo">
@@ -131,6 +190,13 @@ export default function Landing() {
                   </Link>
                 </Button>
               </div>
+              <p className="mt-4 text-sm text-white/60">
+                Prefer to try it yourself?{" "}
+                <Link href="/signup" className="font-medium text-[#b9e4ff] hover:underline">
+                  Create your organization
+                </Link>{" "}
+                and start a free trial -- no sales call required.
+              </p>
             </div>
 
             <div className="relative animate-in fade-in slide-in-from-bottom-4 duration-700 [animation-delay:150ms] [animation-fill-mode:backwards]">
@@ -202,6 +268,15 @@ export default function Landing() {
               </div>
             </div>
           </div>
+
+          <Reveal className="mt-14 grid grid-cols-2 gap-6 border-t border-white/10 pt-8 sm:grid-cols-4">
+            {PLATFORM_STATS.map((stat) => (
+              <div key={stat.label}>
+                <div className="font-mono text-2xl font-bold tabular-nums text-white">{stat.value}</div>
+                <div className="mt-1 text-xs leading-5 text-white/70">{stat.label}</div>
+              </div>
+            ))}
+          </Reveal>
         </div>
       </section>
 
@@ -302,6 +377,44 @@ export default function Landing() {
               </Link>
             </Reveal>
           ))}
+        </div>
+      </section>
+
+      <section className="border-b border-border/60 bg-muted/30">
+        <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+          <Reveal className="mx-auto max-w-3xl text-center">
+            <h2 className="text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
+              Beyond staff training: a complete survey-readiness platform
+            </h2>
+            <p className="mt-4 text-muted-foreground">
+              Recent releases layered resident care, incident and inspection
+              management, AI-assisted content, and workforce scheduling on top of
+              the core training platform.
+            </p>
+          </Reveal>
+
+          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {BEYOND_TRAINING.map((item, i) => (
+              <Reveal key={item.title} delay={(i % 3) * 0.05}>
+                <Card className="h-full border-border/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
+                  <CardHeader>
+                    <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 ring-8 ring-primary/[0.03]">
+                      <item.icon className="h-5 w-5 text-primary" />
+                    </div>
+                    <CardTitle className="text-base">{item.title}</CardTitle>
+                    <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{item.blurb}</p>
+                  </CardHeader>
+                </Card>
+              </Reveal>
+            ))}
+          </div>
+
+          <Reveal className="mt-10 text-center">
+            <Link href="/features" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+              See the full feature list
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Reveal>
         </div>
       </section>
 

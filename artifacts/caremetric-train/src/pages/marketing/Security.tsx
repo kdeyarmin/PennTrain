@@ -3,14 +3,22 @@ import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { PageHero, Reveal, TechGrid, TechIcon } from "@/components/marketing/primitives";
 import { SECURITY_FEATURES } from "@/components/marketing/content";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 const SECURITY_PROMISES = [
   "Users are scoped by organization, facility, and role before records are shown.",
   "Private evidence files use short-lived access links instead of public buckets.",
   "Compliance-impacting actions are preserved in an audit trail for review.",
+  "A facility outside a viewer's assigned scope shows as 'Not Assigned' -- never a false all-clear.",
 ];
 
 export default function Security() {
+  usePageMeta({
+    title: "Security — CareMetric Train",
+    description:
+      "Row-level security, six enforced access roles, private signed-URL storage, and an immutable audit trail -- see how CareMetric Train protects sensitive compliance data.",
+    path: "/security",
+  });
   return (
     <MarketingLayout>
       <PageHero

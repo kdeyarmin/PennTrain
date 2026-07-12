@@ -6,6 +6,10 @@ senior-care training and operations software markets, and operator pain-point re
 ranked from three perspectives — a PCH administrator, a compliance consultant/former surveyor, and a staff
 engineer who knows this stack — then merged and stress-tested for completeness.*
 
+> **Historical review:** This file preserves the original findings and
+> recommendation rationale. The canonical forward delivery sequence is the
+> [five-phase implementation plan](IMPLEMENTATION_PLAN.md).
+
 ---
 
 ## Part 1 — Where the app stands today
@@ -57,9 +61,8 @@ multiplier for everything else.
 
 - **Password reset is broken end-to-end** — the recovery email link dead-ends at `/login`; there is no
   set-new-password form. Fatal to adoption with high-churn staff.
-- **The shipped Login page hardcodes six demo credentials** including the real seeded platform_admin
-  (`info@caremetrictrain.com` / `admin123`) — a full-platform compromise sitting in the production bundle
-  (`Login.tsx:70-75`).
+- **The shipped Login page hardcodes six demo credentials** including a real seeded platform admin account,
+  which is a full-platform compromise if bundled into production (`Login.tsx:70-75`).
 - **`seed.sql` and `handle_new_user()` disagree**: the seed writes `role`/`organization_id` into
   `raw_user_meta_data`, but the hardened trigger reads `raw_app_meta_data` — a fresh reset provisions every demo
   user as a null-org `employee`.
@@ -227,7 +230,7 @@ Efforts: **S** = days, **M** = 1–2 weeks, **L** = multi-week. Sequence within 
 ### Tier 2 — High-impact features (each M unless noted)
 
 1. **Email/SMS notification delivery engine** — *the unanimous #1 multiplier.*
-   Outbox table + delivery edge function (Twilio SMS via a registered A2P 10DLC campaign; Resend/SendGrid email)
+   Outbox table + delivery edge function (Twilio SMS via a registered A2P 10DLC campaign; SendGrid email)
    driven by the already-enabled `pg_cron`/`pg_net`, consuming the existing alerts/notifications tables.
    Per-user channel + consent capture (TCPA: training reminders are informational, but consent, STOP handling,
    and quiet hours are still mandatory), magic-link deep links into courses, supervisor escalation when staff
@@ -349,13 +352,12 @@ Efforts: **S** = days, **M** = 1–2 weeks, **L** = multi-week. Sequence within 
 | Idea | Verdict | Why |
 |------|---------|-----|
 | eMAR / resident clinical records | **No** | ECP's 850+ pharmacy-integration network is a multi-year moat; segment saturated; patient-safety liability the schema deliberately avoids. Own the staff compliance record, not the resident clinical record. |
-| Qualification-gated shift scheduling | Defer | New product domain; DHS cites training records, not schedules; structurally blocked by the employees-single-facility schema. The "who can pass meds today" roster (Tier 2.4) captures most of the daily value. Revisit after a facility join table exists. |
+| Qualification-gated shift scheduling | **Built** (basic scheduling; qualification-gating still deferred) | The employees-single-facility blocker this line cited is resolved: `employee_facility_assignments` is the facility join table for the roster (mirrors the existing profile-level `facility_assignments`), additive alongside `employees.facility_id` as the home/primary facility. On top of that, a shift-scheduling module shipped -- `facility_units` (wings), `shift_definitions` (typical shift templates), `employee_schedule_preferences` (each employee's typical shift/unit pattern), `schedules` (draft/published periods), and `shift_assignments`, with a `generate_schedule_assignments` auto-fill RPC that prioritizes each employee's typical pattern so a manager isn't arranging every cell by hand. `/app/schedule` (org_admin/facility_manager) and `/me/schedule` (employee, published shifts only) in the frontend. Still out of scope: cross-checking a shift assignment against the employee's actual training/med-admin qualification before scheduling them (the "qualification-gated" half of this line) -- today `owns_employee`/roster membership is the only gate, not compliance status; an employee is capped at one shift per calendar date across every facility (no same-day float) as the simplest anti-double-booking rule. |
 | Building a NAB-accredited course library in-house | Partner instead | Accreditation is a 12+ month content/regulatory business initiative, not a software feature. What survives inspection is the CE-hour *tracking*. Resell/integrate an approved provider; keep HeyGen for non-accredited in-service content. |
-| AI course drafter from policies / policy Q&A tutor | Defer | Hallucination risk in regulated content is a liability vector a surveyor would probe; requires a mandatory SME review-gate workflow that is itself unbuilt. Revisit after the compliance engine is trustworthy. |
+| AI course drafter from policies / policy Q&A tutor | Drafter: **Built**; Q&A tutor: Defer | The course-drafter half shipped as `platform_admin`-only AI curriculum generation (Anthropic Claude, forced tool-use), grounded in optional pasted source material to curb hallucination risk, gated by a mandatory self-review acknowledgment enforced at the database level (no platform_admin bypass) before a version can publish, with a full audit trail via `course_ai_generations` -- the review-gate workflow this line was waiting on now exists. A freeform policy Q&A tutor remains deferred; open-ended chat over policy documents is a different, still-unaddressed hallucination surface. |
 | SCORM import/player | Defer | Small PCHs rarely own SCORM content; it's an LMS-evaluation checkbox for upmarket switchers. Feasible later without licensing (scorm-again + an edge-function commit endpoint) — nothing is lost by waiting. |
 | Multi-state regulation packs | Defer | The PA pack itself doesn't function yet. Design the Tier 2 rulepack engine with a state column so packs become additive data later; earn the abstraction after PA works. |
 | Family portal / activity calendars / engagement suite | **No** | Bloat tier for 5–50-bed operators per review evidence; StoriiCare and Icon own the category; requires resident data the product deliberately lacks. |
-| Stripe billing & subscription enforcement | Defer | Internal plumbing with zero administrator-facing compliance value. The `packages` table and `subscription_status` fields already exist as the landing zone when sales volume demands it. |
 | Spanish / i18n | Defer (revisit soon) | Competitively validated (CareAcademy's flagship Spanish UX; Relias's translated aide library) and workforce-fit, but it's a large cross-cutting retrofit; sequence after the notification rail and mobile experience so there is a Spanish experience worth translating into. |
 | Regulatory update feed; portable training passport | Defer | Nice-to-haves; no citation risk attached; revisit post-Tier-3. |
 
