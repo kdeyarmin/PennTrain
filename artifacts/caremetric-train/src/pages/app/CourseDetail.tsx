@@ -197,6 +197,10 @@ export default function CourseDetail() {
   // only ever reach a course RLS already scoped to their own org/system-catalog, so this is a
   // no-op for them.
   const { data: employee } = useGetEmployeeByProfileId(user?.id);
+  // Prefer the employees row org when it exists; fall back to the profile org so that
+  // org_admin/auditor who haven't self-enrolled yet (no employees row) still see the
+  // "Take This Course" button for their org's published courses.
+  const effectiveOrgId = employee?.organization_id ?? user?.organizationId ?? undefined;
 
   const { mutate: selfEnroll, isPending: enrolling } = useSelfEnrollCourse();
   const handleTakeCourse = () => {
@@ -242,7 +246,7 @@ export default function CourseDetail() {
   const canTakeCourse =
     !!course
     && course.status === "published"
-    && canEnrollInCourse(course, employee?.organization_id)
+    && canEnrollInCourse(course, effectiveOrgId)
     && isCourseVersionLearnerReady(currentVersion);
 
   const { data: blocks, isLoading: blocksLoading } = useListCourseBlocks(selectedVersion?.id);
@@ -899,7 +903,7 @@ export default function CourseDetail() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {course.status === "published" && canEnrollInCourse(course, employee?.organization_id) && (
+          {course.status === "published" && canEnrollInCourse(course, effectiveOrgId) && (
             <Button variant="outline" size="sm" onClick={handleTakeCourse} disabled={enrolling || !canTakeCourse}>
               {enrolling ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-2 h-3.5 w-3.5" />}
               {canTakeCourse ? "Take This Course" : "Course Not Ready"}
