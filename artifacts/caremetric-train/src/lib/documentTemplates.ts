@@ -16,7 +16,7 @@ export type TemplateBody =
 export interface DocumentTemplate {
   code: string;
   title: string;
-  category: string;
+  category: TemplateCategory;
   description: string;
   headerFields?: string[];
   body: TemplateBody;
