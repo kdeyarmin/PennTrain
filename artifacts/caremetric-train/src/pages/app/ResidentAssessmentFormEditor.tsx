@@ -137,7 +137,7 @@ function FrequencyPartyFields({
   return (
     <div className="grid grid-cols-2 gap-2">
       <div className="space-y-1">
-        <Select value={frequency} onValueChange={onFrequencyChange} disabled={disabled}>
+        <Select value={frequency} onValueChange={(v) => { onFrequencyChange(v); if (v !== "other") onFrequencyOtherChange(""); }} disabled={disabled}>
           <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Frequency" /></SelectTrigger>
           <SelectContent>{FREQUENCY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
         </Select>
