@@ -215,6 +215,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/trainer/retraining", label: "Retraining monitor", domain: "training", roles: TRAINER_ONLY, keywords: ["med admin", "recertification"] },
   { path: "/app/residents", label: "Residents", domain: "residents", roles: REPORTING_ROLES, keywords: ["resident records", "assessment"] },
   { path: "/app/resident-compliance", label: "Resident compliance", domain: "residents", roles: REPORTING_ROLES, keywords: ["assessments", "care"] },
+  { path: "/app/state-forms", label: "State forms", domain: "residents", roles: REPORTING_ROLES, keywords: ["rasp", "asp", "dme", "preadmission", "annual reassessment", "dhs forms", "renewals"] },
   { path: "/app/inspections", label: "Inspections & equipment", domain: "compliance", roles: INSPECTION_ROLES, keywords: ["fire drill", "equipment", "physical plant"] },
   { path: "/app/incidents", label: "Incidents & complaints", domain: "compliance", roles: REPORTING_ROLES, keywords: ["complaints", "events"] },
   { path: "/app/violations", label: "Violations & POCs", domain: "compliance", roles: REPORTING_ROLES, keywords: ["dhs", "plan of correction"] },

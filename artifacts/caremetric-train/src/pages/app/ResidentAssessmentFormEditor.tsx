@@ -46,6 +46,7 @@ import {
   type FormSectionKey,
 } from "@/lib/residentAssessmentFormSchema";
 import { getComplianceFormLabel } from "@/lib/residentCompliance";
+import { assessmentFormDocumentLabel } from "@/lib/stateFormWorkflow";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1178,7 +1179,7 @@ ${text}` : text;
   // retry, not a true regenerate. Only offer the button while that row is still missing, otherwise
   // it's guaranteed to fail.
   const hasGeneratedPdf = (residentDocuments ?? []).some(
-    (d) => d.document_label === `resident_assessment_form:${form.id}`,
+    (d) => d.document_label === assessmentFormDocumentLabel(form.id),
   );
   // Advisory only -- see getIncompleteSections' comment. Recomputed on every render off `content`
   // instead of memoized: the item-list walk is small (well under 100 items) and content already

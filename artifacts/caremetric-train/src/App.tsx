@@ -69,6 +69,7 @@ const ViolationDetail = lazy(() => import("@/pages/app/ViolationDetail"));
 const Residents = lazy(() => import("@/pages/app/Residents"));
 const ResidentDetail = lazy(() => import("@/pages/app/ResidentDetail"));
 const ResidentComplianceReport = lazy(() => import("@/pages/app/ResidentComplianceReport"));
+const StateFormsCenter = lazy(() => import("@/pages/app/StateFormsCenter"));
 const ResidentAssessmentFormEditor = lazy(() => import("@/pages/app/ResidentAssessmentFormEditor"));
 const IncidentDetail = lazy(() => import("@/pages/app/IncidentDetail"));
 const InspectionItems = lazy(() => import("@/pages/app/InspectionItems"));
@@ -487,8 +488,12 @@ function Router() {
       <Route path="/app/residents/:id">
         {() => <ProtectedRoute component={ResidentDetail} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
+      {/* Kept alongside /app/state-forms: older notification rows and bookmarks link here. */}
       <Route path="/app/resident-compliance">
         {() => <ProtectedRoute component={ResidentComplianceReport} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/state-forms">
+        {() => <ProtectedRoute component={StateFormsCenter} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/residents/:residentId/assessment-forms/:formId">
         {() => <ProtectedRoute component={ResidentAssessmentFormEditor} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
