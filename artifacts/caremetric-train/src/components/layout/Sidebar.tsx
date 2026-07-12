@@ -371,11 +371,18 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const handleLogout = useSignOut();
   const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
   const [filter, setFilter] = useState("");
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => (user ? loadCollapsedSections(user.id) : new Set()));
+const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => (user ? loadCollapsedSections(user.id) : new Set()));
+const [collapsedSectionsUserId, setCollapsedSectionsUserId] = useState<string | null>(() => user?.id ?? null);
 
-  useEffect(() => {
-    if (user) saveCollapsedSections(user.id, collapsedSections);
-  }, [user, collapsedSections]);
+useEffect(() => {
+  if (!user) return;
+  if (collapsedSectionsUserId !== user.id) {
+    setCollapsedSections(loadCollapsedSections(user.id));
+    setCollapsedSectionsUserId(user.id);
+    return;
+  }
+  saveCollapsedSections(user.id, collapsedSections);
+}, [user, collapsedSections, collapsedSectionsUserId]);
 
   if (!user) return null;
 
