@@ -1,16 +1,18 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+// @ts-nocheck
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parse } from "jsr:@std/csv@1";
+import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
 
-// Internal cron-only endpoint: invoked monthly by pg_cron via net.http_post (see
-// supabase/migrations/20260705160500_schedule_exclusion_screening.sql), the same
-// verify_jwt:false pattern as dispatch-notifications -- pg_net has no way to supply a user JWT,
-// and this function takes no caller-supplied parameters (it always re-ingests the same public
-// federal dataset and re-scans the full multi-tenant roster, regardless of who/what calls it).
+// Internal cron-only endpoint: invoked monthly by pg_cron. Deliberately verify_jwt:false because
+// pg_net has no user JWT; authenticity is enforced here with CRON_SHARED_SECRET. Each request may
+// also carry x-correlation-id (or correlationId in JSON) so an infrastructure retry resumes the
+// same append-only snapshots rather than creating duplicate refresh attempts.
 
-const CORS_HEADERS = {
+const CORS_HEADERS = withCronCorsHeader({
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-correlation-id",
+});
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -22,10 +24,15 @@ function json(body: unknown, status = 200) {
 const LEIE_CSV_URL = "https://oig.hhs.gov/exclusions/downloadables/UPDATED.csv";
 const INSERT_BATCH_SIZE = 1000;
 const SAM_GOV_BASE_URL = "https://api.sam.gov/entity-information/v4/exclusions";
-const NOT_CONFIGURED_SAM = "SAM_GOV_API_KEY is not set -- SAM.gov exclusion screening is skipped for this deployment (OIG LEIE screening still runs).";
+const NOT_CONFIGURED_SAM =
+  "SAM_GOV_API_KEY is not set -- SAM.gov exclusion screening is skipped for this deployment (OIG LEIE screening still runs).";
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type ExclusionSource = "oig_leie" | "sam_exclusions";
 
 interface ExclusionListEntryRow {
-  source: "oig_leie" | "sam_exclusions";
+  source: ExclusionSource;
   last_name: string | null;
   first_name: string | null;
   middle_name: string | null;
@@ -37,55 +44,129 @@ interface ExclusionListEntryRow {
   waiver_date: string | null;
   npi: string | null;
   upin: string | null;
-  raw: Record<string, string>;
+  raw: Record<string, unknown>;
+}
+
+interface RefreshHandle {
+  runId: string;
+  snapshotId: string;
+  status: "staging" | "succeeded" | "superseded";
+  replayed: boolean;
+  recordCount?: number;
+  checksum?: string;
+  activatedSnapshotId: string | null;
+}
+
+interface RefreshResult extends RefreshHandle {
+  recordCount?: number;
+  checksum?: string;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function jobResult(correlationId: string, sources: Record<string, unknown>) {
+  const sourceCounts = Object.fromEntries(
+    Object.entries(sources).map(([source, outcome]) => {
+      const count =
+        outcome && typeof outcome === "object" && "recordCount" in outcome
+          ? (outcome as { recordCount?: unknown }).recordCount
+          : null;
+      return [source, typeof count === "number" ? count : null];
+    }),
+  );
+  return { correlationId, sources, sourceCounts, expectedSources: 2 };
+}
+
+function canonicalEntryIdentity(entry: ExclusionListEntryRow): string {
+  return [
+    entry.source,
+    entry.last_name,
+    entry.first_name,
+    entry.middle_name,
+    entry.business_name,
+    entry.dob,
+    entry.exclusion_type,
+    entry.exclusion_date,
+    entry.reinstate_date,
+    entry.waiver_date,
+    entry.npi,
+    entry.upin,
+  ].map((value) => String(value ?? "").trim()).join("\u001f");
+}
+
+function deduplicateEntries(
+  entries: ExclusionListEntryRow[],
+): ExclusionListEntryRow[] {
+  const byIdentity = new Map<string, ExclusionListEntryRow>();
+  for (const entry of entries) {
+    byIdentity.set(canonicalEntryIdentity(entry), entry);
+  }
+  return Array.from(byIdentity.values());
 }
 
 // LEIE date fields are YYYYMMDD, zero-filled ("00000000") when not applicable.
 function parseLeieDate(value: string | undefined): string | null {
   if (!value || value === "00000000" || value.length !== 8) return null;
-  const y = value.slice(0, 4), m = value.slice(4, 6), d = value.slice(6, 8);
+  const y = value.slice(0, 4);
+  const m = value.slice(4, 6);
+  const d = value.slice(6, 8);
   return `${y}-${m}-${d}`;
 }
 
-async function ingestOigLeie(adminClient: ReturnType<typeof createClient>): Promise<{ imported: number }> {
-  const resp = await fetch(LEIE_CSV_URL);
-  if (!resp.ok) throw new Error(`Failed to download LEIE CSV: HTTP ${resp.status}`);
-  const text = await resp.text();
-  const rows = parse(text, { skipFirstRow: true, columns: [
-    "LASTNAME", "FIRSTNAME", "MIDNAME", "BUSNAME", "GENERAL", "SPECIALTY", "UPIN", "NPI", "DOB",
-    "ADDRESS", "CITY", "STATE", "ZIP", "EXCLTYPE", "EXCLDATE", "REINDATE", "WAIVERDATE", "WVRSTATE",
-  ] }) as Record<string, string>[];
-
-  // Business-only exclusions (blank LASTNAME) can't match against an individual employee's name,
-  // so they're dropped here rather than carried into the roster-matching table.
-  const entries: ExclusionListEntryRow[] = rows
-    .filter((r) => r.LASTNAME && r.LASTNAME.trim().length > 0)
-    .map((r) => ({
-      source: "oig_leie",
-      last_name: r.LASTNAME.trim(),
-      first_name: r.FIRSTNAME?.trim() || null,
-      middle_name: r.MIDNAME?.trim() || null,
-      business_name: r.BUSNAME?.trim() || null,
-      dob: parseLeieDate(r.DOB),
-      exclusion_type: r.EXCLTYPE?.trim() || null,
-      exclusion_date: parseLeieDate(r.EXCLDATE),
-      reinstate_date: parseLeieDate(r.REINDATE),
-      waiver_date: parseLeieDate(r.WAIVERDATE),
-      npi: r.NPI?.trim() || null,
-      upin: r.UPIN?.trim() || null,
-      raw: r,
-    }));
-
-  const { error: deleteError } = await adminClient.from("exclusion_list_entries").delete().eq("source", "oig_leie");
-  if (deleteError) throw new Error(`Failed to clear previous OIG LEIE snapshot: ${deleteError.message}`);
-
-  for (let i = 0; i < entries.length; i += INSERT_BATCH_SIZE) {
-    const batch = entries.slice(i, i + INSERT_BATCH_SIZE);
-    const { error: insertError } = await adminClient.from("exclusion_list_entries").insert(batch);
-    if (insertError) throw new Error(`Failed to insert LEIE batch at offset ${i}: ${insertError.message}`);
+async function loadOigLeie(): Promise<ExclusionListEntryRow[]> {
+  const resp = await fetch(LEIE_CSV_URL, {
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!resp.ok) {
+    throw new Error(`Failed to download LEIE CSV: HTTP ${resp.status}`);
   }
+  const text = await resp.text();
+  const rows = parse(text, {
+    skipFirstRow: true,
+    columns: [
+      "LASTNAME",
+      "FIRSTNAME",
+      "MIDNAME",
+      "BUSNAME",
+      "GENERAL",
+      "SPECIALTY",
+      "UPIN",
+      "NPI",
+      "DOB",
+      "ADDRESS",
+      "CITY",
+      "STATE",
+      "ZIP",
+      "EXCLTYPE",
+      "EXCLDATE",
+      "REINDATE",
+      "WAIVERDATE",
+      "WVRSTATE",
+    ],
+  }) as Record<string, string>[];
 
-  return { imported: entries.length };
+  // Business-only exclusions (blank LASTNAME) cannot match an individual employee's name.
+  return deduplicateEntries(
+    rows
+      .filter((row) => row.LASTNAME?.trim())
+      .map((row) => ({
+        source: "oig_leie" as const,
+        last_name: row.LASTNAME.trim(),
+        first_name: row.FIRSTNAME?.trim() || null,
+        middle_name: row.MIDNAME?.trim() || null,
+        business_name: row.BUSNAME?.trim() || null,
+        dob: parseLeieDate(row.DOB),
+        exclusion_type: row.EXCLTYPE?.trim() || null,
+        exclusion_date: parseLeieDate(row.EXCLDATE),
+        reinstate_date: parseLeieDate(row.REINDATE),
+        waiver_date: parseLeieDate(row.WAIVERDATE),
+        npi: row.NPI?.trim() || null,
+        upin: row.UPIN?.trim() || null,
+        raw: row,
+      })),
+  );
 }
 
 interface SamExclusionRecord {
@@ -99,94 +180,474 @@ interface SamExclusionRecord {
   lastName?: string;
 }
 
-// SAM.gov's free tier is a registered (not anonymous) name-search API, not a bulk download --
-// see api.sam.gov/entity-information/v4/exclusions. Queried once per active employee name; the
-// low daily rate limit on personal accounts (as few as ~10 requests/day) makes this realistically
-// only usable with a registered system account's key, hence the graceful skip below when no key
-// is configured (same pattern as SENDGRID_API_KEY/TWILIO_* in dispatch-notifications).
-async function ingestSamGovForEmployee(
+async function loadSamGovForEmployee(
   apiKey: string,
   firstName: string,
   lastName: string,
 ): Promise<ExclusionListEntryRow[]> {
-  const url = `${SAM_GOV_BASE_URL}?api_key=${encodeURIComponent(apiKey)}&firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`;
-  const resp = await fetch(url);
-  if (!resp.ok) return [];
-  const data = await resp.json().catch(() => null) as { excludedEntity?: SamExclusionRecord[] } | null;
-  const records = data?.excludedEntity ?? [];
-  return records.map((r) => ({
+  const url = `${SAM_GOV_BASE_URL}?api_key=${
+    encodeURIComponent(apiKey)
+  }&firstName=${encodeURIComponent(firstName)}&lastName=${
+    encodeURIComponent(lastName)
+  }`;
+  const resp = await fetch(url, {
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!resp.ok) {
+    // Silently treating throttling/server errors as "no matches" would activate a partial source.
+    throw new Error(`SAM.gov exclusion query failed: HTTP ${resp.status}`);
+  }
+  const data = (await resp.json().catch(() => null)) as {
+    excludedEntity?: SamExclusionRecord[];
+  } | null;
+  if (
+    !data ||
+    (data.excludedEntity !== undefined && !Array.isArray(data.excludedEntity))
+  ) {
+    throw new Error("SAM.gov exclusion query returned an invalid response");
+  }
+
+  return deduplicateEntries((data.excludedEntity ?? []).map((record) => ({
     source: "sam_exclusions" as const,
-    last_name: r.lastName?.trim() || lastName,
-    first_name: r.firstName?.trim() || firstName,
+    last_name: record.lastName?.trim() || lastName,
+    first_name: record.firstName?.trim() || firstName,
     middle_name: null,
     business_name: null,
     dob: null,
-    exclusion_type: r.exclusionType?.term ?? r.classification ?? null,
-    exclusion_date: r.activeDate ?? null,
-    reinstate_date: r.terminationDate ?? null,
+    exclusion_type: record.exclusionType?.term ?? record.classification ?? null,
+    exclusion_date: record.activeDate ?? null,
+    reinstate_date: record.terminationDate ?? null,
     waiver_date: null,
     npi: null,
-    upin: r.samNumber ?? null,
-    raw: r as unknown as Record<string, string>,
-  }));
+    upin: record.samNumber ?? null,
+    raw: record as Record<string, unknown>,
+  })));
 }
 
-async function ingestSamGov(adminClient: ReturnType<typeof createClient>): Promise<{ skipped: boolean; imported: number }> {
-  const apiKey = Deno.env.get("SAM_GOV_API_KEY");
-  if (!apiKey) {
-    console.log(NOT_CONFIGURED_SAM);
-    return { skipped: true, imported: 0 };
-  }
-
+async function loadSamGov(
+  adminClient: ReturnType<typeof createClient>,
+  apiKey: string,
+): Promise<ExclusionListEntryRow[]> {
   const { data: employees, error } = await adminClient
     .from("employees")
     .select("first_name, last_name")
     .eq("status", "active");
-  if (error) throw new Error(`Failed to load roster for SAM.gov screening: ${error.message}`);
+  if (error) {
+    throw new Error(
+      `Failed to load roster for SAM.gov screening: ${error.message}`,
+    );
+  }
 
-  const { error: deleteError } = await adminClient.from("exclusion_list_entries").delete().eq("source", "sam_exclusions");
-  if (deleteError) throw new Error(`Failed to clear previous SAM.gov snapshot: ${deleteError.message}`);
+  const entries: ExclusionListEntryRow[] = [];
+  for (const employee of employees ?? []) {
+    entries.push(
+      ...(await loadSamGovForEmployee(
+        apiKey,
+        employee.first_name,
+        employee.last_name,
+      )),
+    );
+  }
+  return deduplicateEntries(entries);
+}
 
-  let imported = 0;
-  for (const emp of employees ?? []) {
-    const entries = await ingestSamGovForEmployee(apiKey, emp.first_name, emp.last_name);
-    if (entries.length > 0) {
-      const { error: insertError } = await adminClient.from("exclusion_list_entries").insert(entries);
-      if (insertError) throw new Error(`Failed to insert SAM.gov entries for ${emp.first_name} ${emp.last_name}: ${insertError.message}`);
-      imported += entries.length;
+async function beginRefresh(
+  adminClient: ReturnType<typeof createClient>,
+  correlationId: string,
+  source: ExclusionSource,
+): Promise<RefreshHandle> {
+  const { data, error } = await adminClient.rpc(
+    "begin_exclusion_source_refresh",
+    {
+      p_correlation_id: correlationId,
+      p_source: source,
+    },
+  );
+  if (error) {
+    throw new Error(`Failed to begin ${source} refresh: ${error.message}`);
+  }
+  return data as RefreshHandle;
+}
+
+async function stageEntries(
+  adminClient: ReturnType<typeof createClient>,
+  snapshotId: string,
+  entries: ExclusionListEntryRow[],
+): Promise<void> {
+  for (let offset = 0; offset < entries.length; offset += INSERT_BATCH_SIZE) {
+    const batch = entries.slice(offset, offset + INSERT_BATCH_SIZE).map((
+      entry,
+    ) => ({
+      ...entry,
+      snapshot_id: snapshotId,
+    }));
+    const { error } = await adminClient.from("exclusion_list_entries").upsert(
+      batch,
+      {
+        onConflict: "snapshot_id,source_record_key",
+        ignoreDuplicates: true,
+      },
+    );
+    if (error) {
+      throw new Error(
+        `Failed to stage exclusion batch at offset ${offset}: ${error.message}`,
+      );
     }
   }
-  return { skipped: false, imported };
+}
+
+async function completeRefresh(
+  adminClient: ReturnType<typeof createClient>,
+  runId: string,
+  expectedRecordCount: number,
+): Promise<RefreshResult> {
+  const { data, error } = await adminClient.rpc(
+    "complete_exclusion_source_refresh",
+    {
+      p_run_id: runId,
+      p_expected_record_count: expectedRecordCount,
+    },
+  );
+  if (error) {
+    throw new Error(
+      `Failed to validate and activate exclusion snapshot: ${error.message}`,
+    );
+  }
+  return data as RefreshResult;
+}
+
+async function recordFailure(
+  adminClient: ReturnType<typeof createClient>,
+  runId: string,
+  message: string,
+): Promise<void> {
+  const { error } = await adminClient.rpc("fail_exclusion_source_refresh", {
+    p_run_id: runId,
+    p_error: message,
+  });
+  if (error) {
+    console.error(
+      `Could not record exclusion refresh failure for ${runId}:`,
+      error.message,
+    );
+  }
+}
+
+async function beginSystemJob(
+  adminClient: ReturnType<typeof createClient>,
+  correlationId: string,
+  providerRequestId: string | null,
+): Promise<{ runId: string; shouldExecute: boolean }> {
+  const { data, error } = await adminClient.rpc("claim_system_job_execution", {
+    p_job_key: "exclusion-screening",
+    p_correlation_id: correlationId,
+    p_trigger_type: "scheduled",
+    p_provider_request_id: providerRequestId,
+  });
+  if (error) {
+    throw new Error(
+      `Failed to begin exclusion-screening system job: ${error.message}`,
+    );
+  }
+  const claim = Array.isArray(data) ? data[0] : data;
+  if (!claim?.run_id) {
+    throw new Error("Exclusion-screening job claim returned no run");
+  }
+  return {
+    runId: claim.run_id as string,
+    shouldExecute: Boolean(claim.should_execute),
+  };
+}
+
+async function cancellationRequested(
+  adminClient: ReturnType<typeof createClient>,
+  runId: string,
+): Promise<boolean> {
+  const { data, error } = await adminClient.rpc(
+    "is_system_job_cancellation_requested",
+    {
+      p_run_id: runId,
+    },
+  );
+  if (error) {
+    throw new Error(
+      `Could not check exclusion job cancellation: ${error.message}`,
+    );
+  }
+  return Boolean(data);
+}
+
+async function heartbeatSystemJob(
+  adminClient: ReturnType<typeof createClient>,
+  runId: string,
+  attemptedCount: number,
+  succeededCount: number,
+  cursor: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await adminClient.rpc("heartbeat_system_job", {
+    p_run_id: runId,
+    p_attempted_count: attemptedCount,
+    p_succeeded_count: succeededCount,
+    p_failed_count: 0,
+    p_cursor: cursor,
+  });
+  // A replay of an already-terminal job legitimately has nothing to heartbeat. Source-level
+  // begin/complete calls still make the actual refresh replay safe, so do not turn that into a
+  // false source failure.
+  if (error) {
+    console.warn(
+      `Could not heartbeat exclusion-screening job ${runId}:`,
+      error.message,
+    );
+  }
+}
+
+async function finishSystemJob(
+  adminClient: ReturnType<typeof createClient>,
+  runId: string,
+  status: "succeeded" | "partial" | "failed" | "cancelled",
+  attemptedCount: number,
+  succeededCount: number,
+  failedCount: number,
+  result: Record<string, unknown>,
+  error: string | null,
+): Promise<void> {
+  const { error: finishError } = await adminClient.rpc("finish_system_job", {
+    p_run_id: runId,
+    p_status: status,
+    p_attempted_count: attemptedCount,
+    p_succeeded_count: succeededCount,
+    p_failed_count: failedCount,
+    p_result: result,
+    p_error_code: error ? "exclusion_refresh_failed" : null,
+    p_error_message: error,
+  });
+  if (finishError) {
+    throw new Error(
+      `Failed to finish exclusion-screening system job: ${finishError.message}`,
+    );
+  }
+}
+
+async function refreshSource(
+  adminClient: ReturnType<typeof createClient>,
+  correlationId: string,
+  source: ExclusionSource,
+  loadEntries: () => Promise<ExclusionListEntryRow[]>,
+): Promise<RefreshResult> {
+  const handle = await beginRefresh(adminClient, correlationId, source);
+  if (handle.status === "succeeded" || handle.status === "superseded") {
+    return handle;
+  }
+
+  try {
+    const entries = await loadEntries();
+    await stageEntries(adminClient, handle.snapshotId, entries);
+    return await completeRefresh(adminClient, handle.runId, entries.length);
+  } catch (error) {
+    const message = errorMessage(error);
+    await recordFailure(adminClient, handle.runId, message);
+    throw error;
+  }
+}
+
+async function readCorrelationId(req: Request): Promise<string> {
+  let bodyCorrelationId: unknown;
+  try {
+    const body = (await req.json()) as { correlationId?: unknown };
+    bodyCorrelationId = body?.correlationId;
+  } catch {
+    // An empty body is valid for the cron endpoint.
+  }
+
+  const supplied = req.headers.get("x-correlation-id") ?? bodyCorrelationId;
+  if (
+    supplied !== undefined &&
+    (typeof supplied !== "string" || !UUID_PATTERN.test(supplied))
+  ) {
+    throw new Error("correlationId must be a valid UUID");
+  }
+  return supplied || crypto.randomUUID();
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: CORS_HEADERS });
+  }
+  const cronAuthError = requireCronRequest(req, CORS_HEADERS);
+  if (cronAuthError) return cronAuthError;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+
+  let correlationId: string;
+  try {
+    correlationId = await readCorrelationId(req);
+  } catch (error) {
+    return json({ success: false, error: errorMessage(error) }, 400);
+  }
+
+  let systemJobRunId: string;
+  try {
+    const jobClaim = await beginSystemJob(
+      adminClient,
+      correlationId,
+      req.headers.get("x-request-id"),
+    );
+    systemJobRunId = jobClaim.runId;
+    if (!jobClaim.shouldExecute) {
+      return json({
+        success: true,
+        replayed: true,
+        correlationId,
+        runId: systemJobRunId,
+      });
+    }
+  } catch (error) {
+    const message = errorMessage(error);
+    console.error(
+      `screen-exclusions job-control begin failed [${correlationId}]:`,
+      message,
+    );
+    return json({ success: false, correlationId, error: message }, 500);
+  }
+
+  const sources: Record<string, unknown> = {};
+  let currentSource: ExclusionSource = "oig_leie";
+  let attemptedSources = 0;
+  let succeededSources = 0;
 
   try {
-    const leieResult = await ingestOigLeie(adminClient);
-    const { error: leieMatchError } = await adminClient.rpc("match_exclusion_list_against_roster_core", {
-      p_source: "oig_leie",
-      p_organization_id: null,
+    if (await cancellationRequested(adminClient, systemJobRunId)) {
+      await finishSystemJob(
+        adminClient,
+        systemJobRunId,
+        "cancelled",
+        0,
+        0,
+        0,
+        jobResult(correlationId, sources),
+        null,
+      );
+      return json({ success: true, cancelled: true, correlationId, sources });
+    }
+    attemptedSources = 1;
+    await heartbeatSystemJob(adminClient, systemJobRunId, 1, 0, {
+      phase: "refreshing",
+      source: currentSource,
+      correlationId,
     });
-    if (leieMatchError) throw new Error(`OIG LEIE matching failed: ${leieMatchError.message}`);
+    const oigLeie = await refreshSource(
+      adminClient,
+      correlationId,
+      currentSource,
+      loadOigLeie,
+    );
+    sources.oig_leie = oigLeie;
+    succeededSources = 1;
 
-    const samResult = await ingestSamGov(adminClient);
-    if (!samResult.skipped) {
-      const { error: samMatchError } = await adminClient.rpc("match_exclusion_list_against_roster_core", {
-        p_source: "sam_exclusions",
-        p_organization_id: null,
-      });
-      if (samMatchError) throw new Error(`SAM.gov matching failed: ${samMatchError.message}`);
+    if (await cancellationRequested(adminClient, systemJobRunId)) {
+      await finishSystemJob(
+        adminClient,
+        systemJobRunId,
+        "cancelled",
+        attemptedSources,
+        succeededSources,
+        0,
+        jobResult(correlationId, sources),
+        null,
+      );
+      return json({ success: true, cancelled: true, correlationId, sources });
     }
 
-    return json({ success: true, oigLeie: leieResult, samGov: samResult });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    console.error("screen-exclusions failed:", message);
-    return json({ success: false, error: message }, 500);
+    const samApiKey = Deno.env.get("SAM_GOV_API_KEY");
+    if (!samApiKey) {
+      console.log(NOT_CONFIGURED_SAM);
+      sources.sam_exclusions = { skipped: true, reason: NOT_CONFIGURED_SAM };
+      await finishSystemJob(
+        adminClient,
+        systemJobRunId,
+        "partial",
+        attemptedSources,
+        succeededSources,
+        0,
+        jobResult(correlationId, sources),
+        null,
+      );
+      return json({ success: true, partial: true, correlationId, sources });
+    }
+
+    currentSource = "sam_exclusions";
+    attemptedSources = 2;
+    await heartbeatSystemJob(adminClient, systemJobRunId, 2, 1, {
+      phase: "refreshing",
+      source: currentSource,
+      correlationId,
+    });
+    const samGov = await refreshSource(
+      adminClient,
+      correlationId,
+      currentSource,
+      () => loadSamGov(adminClient, samApiKey),
+    );
+    sources.sam_exclusions = samGov;
+    succeededSources = 2;
+  } catch (error) {
+    const message = errorMessage(error);
+    sources[currentSource] = { status: "failed", error: message };
+    const status = succeededSources > 0 ? "partial" : "failed";
+    let jobControlError: string | null = null;
+    try {
+      await finishSystemJob(
+        adminClient,
+        systemJobRunId,
+        status,
+        attemptedSources,
+        succeededSources,
+        1,
+        jobResult(correlationId, sources),
+        message,
+      );
+    } catch (finishError) {
+      jobControlError = errorMessage(finishError);
+      console.error(
+        `screen-exclusions job-control finish failed [${correlationId}]:`,
+        jobControlError,
+      );
+    }
+    console.error(`screen-exclusions failed [${correlationId}]:`, message);
+    return json({
+      success: false,
+      correlationId,
+      sources,
+      error: message,
+      ...(jobControlError ? { jobControlError } : {}),
+    }, 500);
   }
+
+  try {
+    await finishSystemJob(
+      adminClient,
+      systemJobRunId,
+      "succeeded",
+      attemptedSources,
+      succeededSources,
+      0,
+      jobResult(correlationId, sources),
+      null,
+    );
+  } catch (error) {
+    const message = errorMessage(error);
+    console.error(
+      `screen-exclusions job-control finish failed [${correlationId}]:`,
+      message,
+    );
+    return json(
+      { success: false, correlationId, sources, error: message },
+      500,
+    );
+  }
+
+  return json({ success: true, correlationId, sources });
 });

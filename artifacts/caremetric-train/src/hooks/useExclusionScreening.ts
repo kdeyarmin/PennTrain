@@ -4,6 +4,44 @@ import type { Tables } from "@/lib/database.types";
 
 export type ExclusionScreeningMatch = Tables<"exclusion_screening_matches">;
 
+export interface ExclusionSourceHealth {
+  source: "oig_leie" | "sam_exclusions";
+  health_status: "healthy" | "stale" | "failed" | "not_loaded";
+  is_stale: boolean;
+  active_snapshot_id: string | null;
+  active_since: string | null;
+  active_record_count: number | null;
+  active_checksum: string | null;
+  last_run_id: string | null;
+  last_attempt_at: string | null;
+  last_success_at: string | null;
+  last_status: "not_loaded" | "staging" | "validating" | "succeeded" | "failed" | "superseded";
+  last_error: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  expected_record_count: number | null;
+  staged_record_count: number | null;
+  last_run_checksum: string | null;
+  activated_snapshot_id: string | null;
+}
+
+// database.types.ts is generated from the deployed schema and intentionally updates only after
+// the migration is applied. Keep this one view query locally typed so the migration and UI can
+// ship atomically without hand-editing generated output.
+const exclusionHealthClient = supabase as unknown as {
+  from(relation: "exclusion_source_health"): {
+    select(columns: "*"): {
+      order(
+        column: "source",
+        options: { ascending: boolean },
+      ): PromiseLike<{
+        data: unknown[] | null;
+        error: { message: string } | null;
+      }>;
+    };
+  };
+};
+
 export interface ListExclusionScreeningMatchesFilters {
   organizationId?: string;
   facilityId?: string;
@@ -22,6 +60,21 @@ export function useListExclusionScreeningMatches(filters: ListExclusionScreening
       if (error) throw error;
       return data;
     },
+  });
+}
+
+export function useListExclusionSourceHealth() {
+  return useQuery({
+    queryKey: ["exclusion_source_health"],
+    queryFn: async () => {
+      const { data, error } = await exclusionHealthClient
+        .from("exclusion_source_health")
+        .select("*")
+        .order("source", { ascending: true });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as unknown as ExclusionSourceHealth[];
+    },
+    refetchInterval: 60_000,
   });
 }
 

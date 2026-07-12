@@ -14,11 +14,11 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, ListChecks, Pencil, Plus, Trash2, Lock } from "lucide-react";
+import { ArrowLeft, ArrowUp, ArrowDown, ListChecks, Pencil, Plus, Trash2, Lock } from "lucide-react";
 import {
   useGetQuiz, useUpdateQuiz,
   useListQuizQuestions, useCreateQuizQuestion, useUpdateQuizQuestion, useDeleteQuizQuestion,
-  useListQuizAnswers, useCreateQuizAnswer, useUpdateQuizAnswer, useDeleteQuizAnswer,
+  useQuizAnswersByQuestionIds, useCreateQuizAnswer, useUpdateQuizAnswer, useDeleteQuizAnswer,
   useQuizQuestionStats,
   type QuizQuestionWithExplanation, type QuizAnswer, type QuestionStats,
 } from "@/hooks/useQuizzes";
@@ -127,6 +127,13 @@ function QuestionCard({
   index,
   locked,
   stats,
+  answers,
+  answersLoading,
+  isFirst,
+  isLast,
+  reordering,
+  onMoveUp,
+  onMoveDown,
   onEdit,
   onDelete,
 }: {
@@ -134,10 +141,16 @@ function QuestionCard({
   index: number;
   locked: boolean;
   stats: QuestionStats | undefined;
+  answers: QuizAnswer[] | undefined;
+  answersLoading: boolean;
+  isFirst: boolean;
+  isLast: boolean;
+  reordering: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const { data: answers, isLoading } = useListQuizAnswers(question.id);
   const { toast } = useToast();
   const { mutate: createAnswer, isPending: creatingAnswer } = useCreateQuizAnswer();
   const { mutate: updateAnswer } = useUpdateQuizAnswer();
@@ -201,6 +214,12 @@ function QuestionCard({
           </div>
           {!locked && (
             <div className="flex items-center gap-1 shrink-0">
+              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={isFirst || reordering} onClick={onMoveUp} aria-label="Move question up">
+                <ArrowUp className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={isLast || reordering} onClick={onMoveDown} aria-label="Move question down">
+                <ArrowDown className="h-3.5 w-3.5" />
+              </Button>
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onEdit} aria-label="Edit question">
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
@@ -212,7 +231,7 @@ function QuestionCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
-        {isLoading ? (
+        {answersLoading ? (
           <div className="space-y-2">
             {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-8" />)}
           </div>
@@ -256,6 +275,9 @@ export default function QuizBuilder() {
   const { data: course } = useGetCourse(courseVersion?.course_id);
   const { data: questions, isLoading: questionsLoading } = useListQuizQuestions(quizId);
   const { data: questionStats } = useQuizQuestionStats((questions ?? []).map(q => q.id));
+  // Batches every question's answers into one request instead of each QuestionCard fetching its
+  // own (previously 20 requests for a 20-question quiz) -- see useQuizAnswersByQuestionIds.
+  const { data: answersByQuestion, isLoading: answersLoading } = useQuizAnswersByQuestionIds((questions ?? []).map(q => q.id));
 
   const isLocked = !canManage || courseVersion?.status === "published";
 
@@ -300,9 +322,33 @@ export default function QuizBuilder() {
   const [editingQuestion, setEditingQuestion] = useState<QuizQuestionWithExplanation | null>(null);
   const [questionForm, setQuestionForm] = useState<QuestionFormState>(EMPTY_QUESTION_FORM);
   const { mutate: createQuestion, isPending: creatingQuestion } = useCreateQuizQuestion();
-  const { mutate: updateQuestion, isPending: updatingQuestion } = useUpdateQuizQuestion();
+  const { mutate: updateQuestion, mutateAsync: updateQuestionAsync, isPending: updatingQuestion } = useUpdateQuizQuestion();
   const { mutate: deleteQuestion, isPending: deletingQuestion } = useDeleteQuizQuestion();
   const [questionPendingDelete, setQuestionPendingDelete] = useState<QuizQuestionWithExplanation | null>(null);
+
+  // --- Question reordering (sort_order swap with the adjacent question) ---
+  // Mirrors CompetencyTemplates.tsx's ManageItemsDialog.handleMove: two concurrent mutateAsync
+  // calls swapping sort_order, with a busy-state guard so a second click can't race an in-flight
+  // swap.
+  const [reorderingQuestions, setReorderingQuestions] = useState(false);
+
+  const handleMoveQuestion = async (index: number, direction: -1 | 1) => {
+    if (!questions) return;
+    const target = questions[index];
+    const neighbor = questions[index + direction];
+    if (!target || !neighbor) return;
+    setReorderingQuestions(true);
+    try {
+      await Promise.all([
+        updateQuestionAsync({ id: target.id, sort_order: neighbor.sort_order }),
+        updateQuestionAsync({ id: neighbor.id, sort_order: target.sort_order }),
+      ]);
+    } catch (e) {
+      toast({ title: "Failed to reorder questions", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setReorderingQuestions(false);
+    }
+  };
 
   const openAddQuestion = () => {
     setEditingQuestion(null);
@@ -462,6 +508,13 @@ export default function QuizBuilder() {
                   index={idx}
                   locked={isLocked}
                   stats={questionStats?.[q.id]}
+                  answers={answersByQuestion?.[q.id]}
+                  answersLoading={answersLoading}
+                  isFirst={idx === 0}
+                  isLast={idx === questions.length - 1}
+                  reordering={reorderingQuestions}
+                  onMoveUp={() => handleMoveQuestion(idx, -1)}
+                  onMoveDown={() => handleMoveQuestion(idx, 1)}
                   onEdit={() => openEditQuestion(q)}
                   onDelete={() => setQuestionPendingDelete(q)}
                 />

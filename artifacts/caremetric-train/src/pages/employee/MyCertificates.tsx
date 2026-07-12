@@ -15,7 +15,12 @@ export default function MyCertificates() {
   const { toast } = useToast();
 
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
-  const { data: certificates, isLoading: certificatesLoading } = useListCertificates({ employeeId: employee?.id });
+  // Gate on a resolved employee id -- see useListCertificates' own comment on why `enabled`, not
+  // just the filter, is required to avoid an unscoped fetch-then-refetch on every page load.
+  const { data: certificates, isLoading: certificatesLoading } = useListCertificates(
+    { employeeId: employee?.id },
+    { enabled: !!employee?.id },
+  );
   const { data: courses } = useListCourses();
   const { mutateAsync: generatePdf } = useGenerateCertificatePdf();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -85,6 +90,14 @@ export default function MyCertificates() {
                           <> &middot; {expired ? "Expired" : "Expires"} {new Date(cert.expires_at).toLocaleDateString()}</>
                         )}
                       </p>
+                      <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                        {cert.credential_number}
+                      </p>
+                      {cert.pdf_status !== "ready" && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          PDF {cert.pdf_status === "failed" ? "needs another attempt" : "is being prepared"}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <Badge variant={expired ? "destructive" : "default"}>
@@ -92,8 +105,6 @@ export default function MyCertificates() {
                       </Badge>
                       <Button
                         variant="outline"
-                        size="sm"
-                        className="h-8 text-xs"
                         disabled={downloadingId === cert.id}
                         onClick={() => handleDownload(cert.id)}
                       >
@@ -102,7 +113,13 @@ export default function MyCertificates() {
                         ) : (
                           <Download className="mr-1.5 h-3.5 w-3.5" />
                         )}
-                        {downloadingId === cert.id ? "Preparing..." : "Download"}
+                        {downloadingId === cert.id
+                          ? "Preparing..."
+                          : cert.pdf_status === "ready"
+                            ? "Download"
+                            : cert.pdf_status === "failed"
+                              ? "Retry PDF"
+                              : "Prepare PDF"}
                       </Button>
                       <Link
                         href={`/verify/${cert.slug}`}

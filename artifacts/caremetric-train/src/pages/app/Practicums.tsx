@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useListPracticums, useCreatePracticum, useUpdatePracticum, type Practicum, type PracticumInsert } from "@/hooks/usePracticums";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -325,7 +326,7 @@ export default function Practicums() {
                           {emp ? `${emp.first_name} ${emp.last_name}` : `Employee #${p.employee_id}`}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {p.completion_date ? `Completed: ${new Date(p.completion_date).toLocaleDateString()}` : `Due: ${p.due_date ? new Date(p.due_date).toLocaleDateString() : "N/A"}`}
+                          {p.completion_date ? `Completed: ${formatDateForDisplay(p.completion_date)}` : `Due: ${p.due_date ? formatDateForDisplay(p.due_date) : "N/A"}`}
                           {p.observed_by && ` · Observed by: ${p.observed_by}`}
                         </p>
                       </div>

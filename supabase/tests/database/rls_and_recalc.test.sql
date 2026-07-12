@@ -42,11 +42,24 @@ from (values
   ('00000000-0000-0000-0000-0000000000b3'::uuid, 'org-admin-b@test.local')
 ) as v(id, email);
 
+-- auth.users fires handle_new_user(); finish the trigger-created fixture rows under the
+-- same transaction-local bypass used by trusted profile administration paths.
+select set_config('app.privileged_write', 'on', true);
+
 insert into public.profiles (id, organization_id, email, first_name, last_name, role, is_active) values
   ('00000000-0000-0000-0000-0000000000a3', '00000000-0000-0000-0000-0000000000a1', 'org-admin-a@test.local', 'Org', 'AdminA', 'org_admin', true),
   ('00000000-0000-0000-0000-0000000000a4', '00000000-0000-0000-0000-0000000000a1', 'auditor-a@test.local', 'Auditor', 'A', 'auditor', true),
   ('00000000-0000-0000-0000-0000000000a5', '00000000-0000-0000-0000-0000000000a1', 'fm-a@test.local', 'Facility', 'ManagerA', 'facility_manager', true),
-  ('00000000-0000-0000-0000-0000000000b3', '00000000-0000-0000-0000-0000000000b1', 'org-admin-b@test.local', 'Org', 'AdminB', 'org_admin', true);
+  ('00000000-0000-0000-0000-0000000000b3', '00000000-0000-0000-0000-0000000000b1', 'org-admin-b@test.local', 'Org', 'AdminB', 'org_admin', true)
+on conflict (id) do update set
+  organization_id = excluded.organization_id,
+  email = excluded.email,
+  first_name = excluded.first_name,
+  last_name = excluded.last_name,
+  role = excluded.role,
+  is_active = excluded.is_active;
+
+select set_config('app.privileged_write', 'off', true);
 
 insert into public.facility_assignments (profile_id, facility_id) values
   ('00000000-0000-0000-0000-0000000000a5', '00000000-0000-0000-0000-0000000000a2');
@@ -252,11 +265,13 @@ select throws_ok(
 
 select lives_ok(
   $$ insert into public.resident_documents
-       (id, resident_id, compliance_item_id, storage_path, file_name, file_type, is_state_form)
+       (id, resident_id, compliance_item_id, storage_path, file_name, file_type, is_state_form,
+        state_form_source_label)
      values ('00000000-0000-0000-0000-0000000000aa', '00000000-0000-0000-0000-0000000000a8',
              (select id from public.resident_compliance_items
               where resident_id = '00000000-0000-0000-0000-0000000000a8' and item_type = 'initial_assessment_15day'),
-             'test/other-item.pdf', 'other-item.pdf', 'application/pdf', true) $$,
+             'test/other-item.pdf', 'other-item.pdf', 'application/pdf', true,
+             'PA DHS Personal Care Home RASP form') $$,
   'org_admin can upload a state-form document linked to a different compliance item'
 );
 
@@ -272,11 +287,13 @@ select throws_ok(
 
 select lives_ok(
   $$ insert into public.resident_documents
-       (id, resident_id, compliance_item_id, storage_path, file_name, file_type, is_state_form)
+       (id, resident_id, compliance_item_id, storage_path, file_name, file_type, is_state_form,
+        state_form_source_label)
      values ('00000000-0000-0000-0000-0000000000ab', '00000000-0000-0000-0000-0000000000a8',
              (select id from public.resident_compliance_items
               where resident_id = '00000000-0000-0000-0000-0000000000a8' and item_type = 'preadmission_screening'),
-             'test/preadmission.pdf', 'preadmission.pdf', 'application/pdf', true) $$,
+             'test/preadmission.pdf', 'preadmission.pdf', 'application/pdf', true,
+             'PA DHS Personal Care Home RASP form') $$,
   'org_admin can upload the correctly-flagged, correctly-linked state-form document'
 );
 

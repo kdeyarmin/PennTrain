@@ -2,26 +2,22 @@ import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListShiftAssignments } from "@/hooks/useShiftAssignments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { CalendarDays, Clock, MapPin } from "lucide-react";
 import { formatDateLabel, formatTimeLabel, todayIso } from "@/lib/scheduleDates";
 
 export default function MySchedule() {
   const { user } = useAuth();
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
-  const { data: shifts, isLoading: shiftsLoading } = useListShiftAssignments({
-    employeeId: employee?.id,
-    fromDate: todayIso(),
-  });
+  // Gate on a resolved employee id -- see useListShiftAssignments' own comment on why `enabled`,
+  // not just the filter, is required to avoid an unscoped fetch-then-refetch on every page load.
+  const { data: shifts, isLoading: shiftsLoading } = useListShiftAssignments(
+    { employeeId: employee?.id, fromDate: todayIso() },
+    { enabled: !!employee?.id },
+  );
 
   const isLoading = employeeLoading || shiftsLoading;
   const upcoming = shifts ?? [];
-
-  const statusVariant = (status: string) => {
-    if (status === "called_off" || status === "no_show") return "destructive" as const;
-    if (status === "confirmed" || status === "completed") return "default" as const;
-    return "secondary" as const;
-  };
 
   return (
     <div className="space-y-6">
@@ -67,7 +63,7 @@ export default function MySchedule() {
                     </div>
                     {s.notes && <p className="text-sm text-muted-foreground mt-1">{s.notes}</p>}
                   </div>
-                  <Badge variant={statusVariant(s.status)}>{s.status.replace("_", " ")}</Badge>
+                  <StatusBadge status={s.status} />
                 </div>
               ))}
             </div>
