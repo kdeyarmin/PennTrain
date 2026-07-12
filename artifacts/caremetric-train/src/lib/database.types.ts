@@ -12882,6 +12882,7 @@ export type Database = {
           item_type: string
           notes: string | null
           organization_id: string
+          reminder_sent_at: string | null
           renewal_interval_days: number | null
           resident_id: string
           status: string
@@ -12900,6 +12901,7 @@ export type Database = {
           item_type: string
           notes?: string | null
           organization_id: string
+          reminder_sent_at?: string | null
           renewal_interval_days?: number | null
           resident_id: string
           status?: string
@@ -12918,6 +12920,7 @@ export type Database = {
           item_type?: string
           notes?: string | null
           organization_id?: string
+          reminder_sent_at?: string | null
           renewal_interval_days?: number | null
           resident_id?: string
           status?: string
@@ -16664,6 +16667,7 @@ export type Database = {
           item_type: string
           notes: string | null
           organization_id: string
+          reminder_sent_at: string | null
           renewal_interval_days: number | null
           resident_id: string
           status: string
@@ -17421,6 +17425,7 @@ export type Database = {
           item_type: string
           notes: string | null
           organization_id: string
+          reminder_sent_at: string | null
           renewal_interval_days: number | null
           resident_id: string
           status: string
@@ -17788,6 +17793,7 @@ export type Database = {
       self_enroll_course: { Args: { p_course_id: string }; Returns: string }
       send_monday_digest: { Args: never; Returns: undefined }
       send_policy_attestation_reminders: { Args: never; Returns: undefined }
+      send_resident_compliance_reminders: { Args: never; Returns: undefined }
       set_billing_account_override: {
         Args: {
           p_expires_at?: string

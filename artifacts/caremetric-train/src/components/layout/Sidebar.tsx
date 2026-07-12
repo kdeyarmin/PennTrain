@@ -179,7 +179,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Residents",
         items: [
           { href: "/app/residents", label: "Residents", icon: BedDouble },
-          { href: "/app/resident-compliance", label: "Resident Compliance", icon: ClipboardList },
+          { href: "/app/state-forms", label: "State Forms", icon: ClipboardList },
         ]
       }] : []),
       {
@@ -265,7 +265,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Residents",
         items: [
           { href: "/app/residents", label: "Residents", icon: BedDouble },
-          { href: "/app/resident-compliance", label: "Resident Compliance", icon: ClipboardList },
+          { href: "/app/state-forms", label: "State Forms", icon: ClipboardList },
         ]
       }] : []),
       {
