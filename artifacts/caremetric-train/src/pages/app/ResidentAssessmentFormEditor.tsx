@@ -639,19 +639,20 @@ export default function ResidentAssessmentFormEditor() {
     if (isReadOnly || !formId) return;
     pendingSave.current = { id: formId, content: next };
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      pendingSave.current = null;
-      saveDraft.mutate(
-        { id: formId, content: next },
-        {
-          // A failed autosave (e.g. someone else finalized this form in another tab, so RLS now
-          // rejects the update since it's no longer a draft) used to fail completely silently --
-          // the user would keep editing a form that was never actually being saved, with no
-          // indication anything was wrong until they navigated away and lost the changes.
-          onError: (e: Error) => toast({ title: "Failed to save changes", description: e.message, variant: "destructive" }),
-        },
-      );
-    }, AUTOSAVE_DEBOUNCE_MS);
+saveTimer.current = setTimeout(() => {
+  saveTimer.current = null;
+  pendingSave.current = null;
+  saveDraft.mutate(
+    { id: formId, content: next },
+    {
+      // A failed autosave (e.g. someone else finalized this form in another tab, so RLS now
+      // rejects the update since it's no longer a draft) used to fail completely silently --
+      // the user would keep editing a form that was never actually being saved, with no
+      // indication anything was wrong until they navigated away and lost the changes.
+      onError: (e: Error) => toast({ title: "Failed to save changes", description: e.message, variant: "destructive" }),
+    },
+  );
+}, AUTOSAVE_DEBOUNCE_MS);
   };
 
   // Navigating away (e.g. "Back to Resident") within the debounce window used to just cancel the
