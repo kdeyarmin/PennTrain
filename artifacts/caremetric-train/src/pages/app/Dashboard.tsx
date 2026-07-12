@@ -325,11 +325,7 @@ function StatLabel({ label, tooltip }: { label: string; tooltip: string }) {
       <TooltipTrigger asChild>
         <button
           type="button"
-<<<<<<< HEAD
           className="stat-label inline-flex w-fit cursor-help items-center gap-1 rounded-sm border-0 bg-transparent p-0 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-=======
-          className="stat-label inline-flex w-fit cursor-help items-center gap-1 border-0 bg-transparent p-0 text-left"
->>>>>>> origin/main
         >
           {label}
           <Info className="h-3 w-3 text-muted-foreground/50" aria-hidden="true" />
@@ -554,11 +550,7 @@ export default function OrgDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <StatLabel
-<<<<<<< HEAD
                   label="Trainers Needing Recertification"
-=======
-                  label="Trainers Needing Recert"
->>>>>>> origin/main
                   tooltip="Active staff marked as trainers who have at least one training requirement that is due soon or expired, and must recertify to keep training others."
                 />
                 <p className="stat-value text-purple-600">{summary.trainersDueForRecert}</p>
