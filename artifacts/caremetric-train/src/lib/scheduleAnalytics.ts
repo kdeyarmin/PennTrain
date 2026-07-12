@@ -142,7 +142,7 @@ export function summarizeStaffingRatios({
     ppd: residentCount > 0 ? Math.round((scheduledCareHours / residentCount / scheduleDays) * 100) / 100 : 0,
     targetPpd: Math.max(0, targetPpd),
     targetHours: Math.round(targetHours * 10) / 10,
-    hoursGap: Math.max(0, Math.round((targetHours - scheduledCareHours) * 10) / 10),
+    hoursGap: Math.max(0, Math.ceil((targetHours - scheduledCareHours) * 10) / 10),
     isBelowTarget: scheduledCareHours < targetHours,
     averageResidentsPerScheduledStaff: totalScheduledStaffDays > 0 ? Math.round((residentCount / (totalScheduledStaffDays / scheduleDays)) * 10) / 10 : null,
     minimumStaffPerDay: safeMinimumStaff,
