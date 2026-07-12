@@ -92,8 +92,7 @@ jobs:
       - name: Verify generated database types
         shell: bash
         run: |
-          supabase gen types typescript --local > /tmp/database.types.ts
-          diff -u artifacts/caremetric-train/src/lib/database.types.ts /tmp/database.types.ts
+          node scripts/check-database-types.mjs
 
       - name: Export local Supabase browser-test environment
         shell: bash
