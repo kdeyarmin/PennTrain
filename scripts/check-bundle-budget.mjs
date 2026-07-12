@@ -8,7 +8,12 @@ const assetDirectory = path.resolve(
 
 const budgets = {
   largestJavaScript: 400 * 1024,
-  totalJavaScript: 2300 * 1024,
+  // Sum of every lazy route chunk, not what any one page load fetches -- the per-load
+  // guardrails are largestJavaScript and initialShell. Raised 2300 -> 2400 when the
+  // end-user-review rounds (evidence room, saved views, confidential console, ...)
+  // and the state-forms/document-analyzer features landed together; both per-load
+  // budgets were still comfortably met (largest 388 KiB, shell 1062 KiB).
+  totalJavaScript: 2400 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };
