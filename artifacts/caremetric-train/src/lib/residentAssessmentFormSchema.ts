@@ -12,7 +12,11 @@
 // deliberate, explicit product decision (see Tier 3.6 plan, Phase 6).
 
 export type FormType = "RASP" | "ASP";
-export type AssessmentReason = "initial" | "annual" | "significant_change" | "department_request";
+export type AssessmentReason =
+  | "initial"
+  | "annual"
+  | "significant_change"
+  | "department_request";
 
 export const REASON_OPTIONS: { value: AssessmentReason; label: string }[] = [
   { value: "initial", label: "Initial" },
@@ -65,12 +69,17 @@ export const RESPONSIBLE_PARTY_OPTIONS_ASP = [
 ];
 
 export function responsiblePartyOptions(formType: FormType) {
-  return formType === "ASP" ? RESPONSIBLE_PARTY_OPTIONS_ASP : RESPONSIBLE_PARTY_OPTIONS_RASP;
+  return formType === "ASP"
+    ? RESPONSIBLE_PARTY_OPTIONS_ASP
+    : RESPONSIBLE_PARTY_OPTIONS_RASP;
 }
 
 // Part V participation record-keeping -- whether a copy of the finished assessment/support plan was
 // requested and provided, and (when no signature was collected) why.
-export const COPY_PROVIDED_OPTIONS: { value: "yes" | "no" | "na"; label: string }[] = [
+export const COPY_PROVIDED_OPTIONS: {
+  value: "yes" | "no" | "na";
+  label: string;
+}[] = [
   { value: "yes", label: "Yes" },
   { value: "no", label: "No" },
   { value: "na", label: "N/A" },
@@ -101,7 +110,10 @@ export const ASSESSOR_TITLE_OPTIONS = [
   { value: "Assistant Administrator", label: "Assistant Administrator" },
   { value: "Director of Nursing", label: "Director of Nursing" },
   { value: "Registered Nurse (RN)", label: "Registered Nurse (RN)" },
-  { value: "Licensed Practical Nurse (LPN)", label: "Licensed Practical Nurse (LPN)" },
+  {
+    value: "Licensed Practical Nurse (LPN)",
+    label: "Licensed Practical Nurse (LPN)",
+  },
   { value: "Case Manager", label: "Case Manager" },
   { value: "Social Worker", label: "Social Worker" },
   { value: "Program Director", label: "Program Director" },
@@ -151,7 +163,10 @@ export const BEHAVIORAL_ITEMS_SHARED: SectionItem[] = [
   { key: "understandingInstructions", label: "Understanding Instructions" },
   { key: "shortTermMemory", label: "Short-Term Memory" },
   { key: "longTermMemory", label: "Long-Term Memory" },
-  { key: "poisonousMaterials", label: "Ability to Use and Avoid Poisonous Materials" },
+  {
+    key: "poisonousMaterials",
+    label: "Ability to Use and Avoid Poisonous Materials",
+  },
 ];
 export const BEHAVIORAL_ITEMS_RASP: SectionItem[] = [
   { key: "behavioral", label: "Behavioral" },
@@ -160,7 +175,10 @@ export const BEHAVIORAL_ITEMS_RASP: SectionItem[] = [
 export const BEHAVIORAL_ITEMS_ASP: SectionItem[] = [
   { key: "orientation", label: "Orientation to Time, Place, and Person" },
   ...BEHAVIORAL_ITEMS_SHARED,
-  { key: "keyLockingDevices", label: "Ability to Safely Use Key-Locking Devices" },
+  {
+    key: "keyLockingDevices",
+    label: "Ability to Safely Use Key-Locking Devices",
+  },
 ];
 export function behavioralItems(formType: FormType): SectionItem[] {
   return formType === "ASP" ? BEHAVIORAL_ITEMS_ASP : BEHAVIORAL_ITEMS_RASP;
@@ -181,7 +199,10 @@ export const SOCIAL_ITEMS: SectionItem[] = [
   { key: "solitaryActivities", label: "Enjoyable Solitary Activities" },
   { key: "groupActivities", label: "Enjoyable Group Activities" },
   { key: "religiousAffiliation", label: "Religious Affiliation" },
-  { key: "nonParticipationReason", label: "Reason for Non-Participation (if applicable)" },
+  {
+    key: "nonParticipationReason",
+    label: "Reason for Non-Participation (if applicable)",
+  },
 ];
 
 // One assessment/support-plan answer, shared by every ADL and behavioral item. ASP doubles the
@@ -203,16 +224,27 @@ export interface DegreeItemAnswer {
 // A degree item counts as "rated" once the assessor has actually picked a value -- both degree
 // scales include an explicit "Not Applicable" option, so an unrated item is a genuine gap in the
 // assessment, not a legitimate answer left blank on purpose.
-export function isDegreeItemRated(formType: FormType, answer: DegreeItemAnswer): boolean {
-  return formType === "ASP" ? !!answer.degreePreliminary && !!answer.degreeAllOther : !!answer.degree;
+export function isDegreeItemRated(
+  formType: FormType,
+  answer: DegreeItemAnswer,
+): boolean {
+  return formType === "ASP"
+    ? !!answer.degreePreliminary && !!answer.degreeAllOther
+    : !!answer.degree;
 }
 export function emptyDegreeItemAnswer(): DegreeItemAnswer {
   return {
-    degree: "", degreePreliminary: "", degreeAllOther: "",
-    serviceNeedNotApplicable: false, serviceNeedDescription: "",
-    planNotApplicable: false, planDescription: "",
-    planFrequency: "", planFrequencyOther: "",
-    planResponsibleParty: "", planResponsiblePartyOther: "",
+    degree: "",
+    degreePreliminary: "",
+    degreeAllOther: "",
+    serviceNeedNotApplicable: false,
+    serviceNeedDescription: "",
+    planNotApplicable: false,
+    planDescription: "",
+    planFrequency: "",
+    planFrequencyOther: "",
+    planResponsibleParty: "",
+    planResponsiblePartyOther: "",
   };
 }
 
@@ -229,9 +261,13 @@ export interface SimpleNeedAnswer {
 }
 export function emptySimpleNeedAnswer(): SimpleNeedAnswer {
   return {
-    applicable: true, description: "", planDescription: "",
-    planFrequency: "", planFrequencyOther: "",
-    planResponsibleParty: "", planResponsiblePartyOther: "",
+    applicable: true,
+    description: "",
+    planDescription: "",
+    planFrequency: "",
+    planFrequencyOther: "",
+    planResponsibleParty: "",
+    planResponsiblePartyOther: "",
   };
 }
 // Companion to isDegreeItemRated() for the sensory/social item shape: addressed once the assessor
@@ -250,7 +286,14 @@ export interface DiagnosisRow {
   planResponsiblePartyOther: string;
 }
 export function emptyDiagnosisRow(): DiagnosisRow {
-  return { description: "", planDescription: "", planFrequency: "", planFrequencyOther: "", planResponsibleParty: "", planResponsiblePartyOther: "" };
+  return {
+    description: "",
+    planDescription: "",
+    planFrequency: "",
+    planFrequencyOther: "",
+    planResponsibleParty: "",
+    planResponsiblePartyOther: "",
+  };
 }
 export const MAX_DIAGNOSIS_ROWS = 8;
 export const MAX_DENTAL_DIETARY_ROWS = 2;
@@ -272,8 +315,13 @@ export interface ParticipantRow {
 }
 export function emptyParticipantRow(): ParticipantRow {
   return {
-    name: "", relationshipToResident: "", signedDate: "",
-    copyRequested: false, copyProvided: "na", noSignatureReason: "", noSignatureReasonOther: "",
+    name: "",
+    relationshipToResident: "",
+    signedDate: "",
+    copyRequested: false,
+    copyProvided: "na",
+    noSignatureReason: "",
+    noSignatureReasonOther: "",
   };
 }
 
@@ -290,9 +338,27 @@ export interface ResidentAssessmentFormContent {
   };
   section1: {
     items: Record<string, DegreeItemAnswer>;
-    supervision: { level: string; needsDescription: string; planDescription: string; planResponsibleParty: string; planResponsiblePartyOther: string };
-    mobility: { level: string; needsDescription: string; planDescription: string; planResponsibleParty: string; planResponsiblePartyOther: string };
-    medications: { level: string; needsDescription: string; planDescription: string; planResponsibleParty: string; planResponsiblePartyOther: string };
+    supervision: {
+      level: string;
+      needsDescription: string;
+      planDescription: string;
+      planResponsibleParty: string;
+      planResponsiblePartyOther: string;
+    };
+    mobility: {
+      level: string;
+      needsDescription: string;
+      planDescription: string;
+      planResponsibleParty: string;
+      planResponsiblePartyOther: string;
+    };
+    medications: {
+      level: string;
+      needsDescription: string;
+      planDescription: string;
+      planResponsibleParty: string;
+      planResponsiblePartyOther: string;
+    };
   };
   section2: {
     physicalDiagnoses: DiagnosisRow[];
@@ -333,20 +399,31 @@ function simpleItemsFor(keys: SectionItem[]): Record<string, SimpleNeedAnswer> {
 // and medical_evaluation are separate DHS forms/processes this schema doesn't model, so they only
 // ever get the "Mark Complete" (attach the state form) path, not "Prepare in CareMetric".
 export function isDigitalFormEligible(itemType: string): boolean {
-  return ["initial_assessment_15day", "annual_reassessment", "significant_change_reassessment", "support_plan_30day"].includes(itemType);
+  return [
+    "initial_assessment_15day",
+    "annual_reassessment",
+    "significant_change_reassessment",
+    "support_plan_30day",
+  ].includes(itemType);
 }
 
 export function deriveAssessmentReason(itemType: string): AssessmentReason {
   if (itemType === "annual_reassessment") return "annual";
-  if (itemType === "significant_change_reassessment") return "significant_change";
+  if (itemType === "significant_change_reassessment")
+    return "significant_change";
   return "initial";
 }
 
-function mergeItemMap<T>(defaults: Record<string, T>, saved: Record<string, T> | undefined): Record<string, T> {
+function mergeItemMap<T>(
+  defaults: Record<string, T>,
+  saved: Record<string, T> | undefined,
+): Record<string, T> {
   const result = {} as Record<string, T>;
   for (const key of Object.keys(defaults)) {
     const savedAnswer = saved?.[key];
-    result[key] = savedAnswer ? { ...defaults[key], ...savedAnswer } : defaults[key];
+    result[key] = savedAnswer
+      ? { ...defaults[key], ...savedAnswer }
+      : defaults[key];
   }
   return result;
 }
@@ -372,9 +449,15 @@ export function mergeContentWithDefaults(
       ...defaults.section1,
       ...saved.section1,
       items: mergeItemMap(defaults.section1.items, saved.section1?.items),
-      supervision: { ...defaults.section1.supervision, ...saved.section1?.supervision },
+      supervision: {
+        ...defaults.section1.supervision,
+        ...saved.section1?.supervision,
+      },
       mobility: { ...defaults.section1.mobility, ...saved.section1?.mobility },
-      medications: { ...defaults.section1.medications, ...saved.section1?.medications },
+      medications: {
+        ...defaults.section1.medications,
+        ...saved.section1?.medications,
+      },
     },
     section2: {
       ...defaults.section2,
@@ -400,8 +483,9 @@ export function mergeContentWithDefaults(
       // participant row loads with those keys simply missing, so a display-only fallback like
       // `p.copyProvided || "na"` would show "N/A" on screen while the actual stored/finalized
       // value stays undefined, silently disagreeing with what the assessor sees and reviews.
-      participants: (saved.participation?.participants ?? defaults.participation.participants)
-        .map((p) => ({ ...emptyParticipantRow(), ...p })),
+      participants: (
+        saved.participation?.participants ?? defaults.participation.participants
+      ).map((p) => ({ ...emptyParticipantRow(), ...p })),
     },
   };
 }
@@ -409,9 +493,16 @@ export function mergeContentWithDefaults(
 // Only spreads patch keys whose value is actually set -- a naive `{ ...v, ...patch }` would
 // overwrite existing data with `undefined` for any key the caller included but left unset (e.g. a
 // bulk-fill bar that always builds its patch object with all fields present, some `undefined`).
-export function applyPatchToAll<T>(items: Record<string, T>, patch: Partial<T>): Record<string, T> {
-  const definedPatch = Object.fromEntries(Object.entries(patch as object).filter(([, v]) => v !== undefined)) as Partial<T>;
-  return Object.fromEntries(Object.entries(items).map(([k, v]) => [k, { ...v, ...definedPatch }]));
+export function applyPatchToAll<T>(
+  items: Record<string, T>,
+  patch: Partial<T>,
+): Record<string, T> {
+  const definedPatch = Object.fromEntries(
+    Object.entries(patch as object).filter(([, v]) => v !== undefined),
+  ) as Partial<T>;
+  return Object.fromEntries(
+    Object.entries(items).map(([k, v]) => [k, { ...v, ...definedPatch }]),
+  );
 }
 
 // A facility's usual plan responsible party/frequency (facilities.default_care_responsible_party/
@@ -421,7 +512,10 @@ export interface FacilityCareDefaults {
   frequency?: string | null;
 }
 
-export function createEmptyContent(formType: FormType, facilityDefaults?: FacilityCareDefaults): ResidentAssessmentFormContent {
+export function createEmptyContent(
+  formType: FormType,
+  facilityDefaults?: FacilityCareDefaults,
+): ResidentAssessmentFormContent {
   const responsibleParty = facilityDefaults?.responsibleParty || "";
   const frequency = facilityDefaults?.frequency || "";
   const degreeItemPatch: Partial<DegreeItemAnswer> = {
@@ -429,30 +523,259 @@ export function createEmptyContent(formType: FormType, facilityDefaults?: Facili
     ...(frequency ? { planFrequency: frequency } : {}),
   };
   const simpleNeedPatch: Partial<SimpleNeedAnswer> = degreeItemPatch;
-  const levelDefaults = responsibleParty ? { planResponsibleParty: responsibleParty } : {};
+  const levelDefaults = responsibleParty
+    ? { planResponsibleParty: responsibleParty }
+    : {};
 
   return {
     residentInfo: { comments: "" },
-    assessmentInfo: { lastAssessmentDate: "", lastSupportPlanDate: "", assessmentReason: "", supportPlanReason: "", changeDescription: "" },
+    assessmentInfo: {
+      lastAssessmentDate: "",
+      lastSupportPlanDate: "",
+      assessmentReason: "",
+      supportPlanReason: "",
+      changeDescription: "",
+    },
     section1: {
       items: applyPatchToAll(itemsFor(ADL_ITEMS), degreeItemPatch),
-      supervision: { level: "", needsDescription: "", planDescription: "", planResponsibleParty: "", planResponsiblePartyOther: "", ...levelDefaults },
-      mobility: { level: "", needsDescription: "", planDescription: "", planResponsibleParty: "", planResponsiblePartyOther: "", ...levelDefaults },
-      medications: { level: "", needsDescription: "", planDescription: "", planResponsibleParty: "", planResponsiblePartyOther: "", ...levelDefaults },
+      supervision: {
+        level: "",
+        needsDescription: "",
+        planDescription: "",
+        planResponsibleParty: "",
+        planResponsiblePartyOther: "",
+        ...levelDefaults,
+      },
+      mobility: {
+        level: "",
+        needsDescription: "",
+        planDescription: "",
+        planResponsibleParty: "",
+        planResponsiblePartyOther: "",
+        ...levelDefaults,
+      },
+      medications: {
+        level: "",
+        needsDescription: "",
+        planDescription: "",
+        planResponsibleParty: "",
+        planResponsiblePartyOther: "",
+        ...levelDefaults,
+      },
     },
     section2: {
-      physicalDiagnoses: [], noPhysicalDiagnoses: false,
-      dental: [], noDental: false,
-      dietary: [], noDietary: false,
+      physicalDiagnoses: [],
+      noPhysicalDiagnoses: false,
+      dental: [],
+      noDental: false,
+      dietary: [],
+      noDietary: false,
       sensory: applyPatchToAll(simpleItemsFor(SENSORY_ITEMS), simpleNeedPatch),
     },
     section3: {
-      psychologicalDiagnoses: [], noPsychologicalDiagnoses: false,
-      items: applyPatchToAll(itemsFor(behavioralItems(formType)), degreeItemPatch),
+      psychologicalDiagnoses: [],
+      noPsychologicalDiagnoses: false,
+      items: applyPatchToAll(
+        itemsFor(behavioralItems(formType)),
+        degreeItemPatch,
+      ),
     },
-    section4: { items: applyPatchToAll(simpleItemsFor(SOCIAL_ITEMS), simpleNeedPatch) },
+    section4: {
+      items: applyPatchToAll(simpleItemsFor(SOCIAL_ITEMS), simpleNeedPatch),
+    },
     summary: { overallWellness: "" },
-    participation: { assessorName: "", assessorTitle: "", assessorSignedDate: "", participants: [] },
+    participation: {
+      assessorName: "",
+      assessorTitle: "",
+      assessorSignedDate: "",
+      participants: [],
+    },
+  };
+}
+
+export interface ResidentAssessmentAutoFillContext {
+  formType?: FormType;
+  assessmentReason?: AssessmentReason | "" | null;
+  assessorName?: string | null;
+  today?: string | null;
+  residentName?: string | null;
+  designatedPersonName?: string | null;
+}
+
+function pushIfChanged(
+  changed: string[],
+  label: string,
+  before: string | undefined,
+  after: string | undefined,
+) {
+  if ((before ?? "") !== (after ?? "")) changed.push(label);
+}
+
+function upsertParticipant(
+  participants: ParticipantRow[],
+  row: Partial<ParticipantRow>,
+): { participants: ParticipantRow[]; changed: boolean } {
+  const name = row.name?.trim();
+  if (!name) return { participants, changed: false };
+  const existingIndex = participants.findIndex(
+    (p) => p.name.trim().toLowerCase() === name.toLowerCase(),
+  );
+  const merged = { ...emptyParticipantRow(), ...row };
+  if (existingIndex === -1)
+    return { participants: [...participants, merged], changed: true };
+  const existing = participants[existingIndex];
+  const next = {
+    ...existing,
+    relationshipToResident:
+      existing.relationshipToResident || merged.relationshipToResident,
+    copyProvided: existing.copyProvided || merged.copyProvided,
+  };
+  if (JSON.stringify(existing) === JSON.stringify(next))
+    return { participants, changed: false };
+  return {
+    participants: participants.map((p, i) => (i === existingIndex ? next : p)),
+    changed: true,
+  };
+}
+
+function shouldAutoMarkDegreeItemNotApplicable(
+  formType: FormType,
+  item: DegreeItemAnswer,
+): boolean {
+  if (formType === "ASP")
+    return item.degreePreliminary === "E" && item.degreeAllOther === "E";
+  return item.degree === "E";
+}
+
+function autoMarkDegreeMapNotApplicable(
+  formType: FormType,
+  items: Record<string, DegreeItemAnswer>,
+): { items: Record<string, DegreeItemAnswer>; changed: boolean } {
+  let changed = false;
+  const next = Object.fromEntries(
+    Object.entries(items).map(([key, item]) => {
+      if (!shouldAutoMarkDegreeItemNotApplicable(formType, item))
+        return [key, item];
+      const patch: Partial<DegreeItemAnswer> = {};
+      if (!item.serviceNeedNotApplicable && !item.serviceNeedDescription.trim())
+        patch.serviceNeedNotApplicable = true;
+      if (!item.planNotApplicable && !item.planDescription.trim())
+        patch.planNotApplicable = true;
+      if (Object.keys(patch).length === 0) return [key, item];
+      changed = true;
+      return [key, { ...item, ...patch }];
+    }),
+  ) as Record<string, DegreeItemAnswer>;
+  return { items: next, changed };
+}
+
+// Safe, user-triggered autocomplete for official state assessment forms. It only fills fields that
+// are already known from CareMetric records or the form itself, and it never overwrites assessor-
+// entered narrative, degree ratings, diagnoses, or plan text. The returned changedFields list is
+// surfaced in the editor so the user can quickly verify what was inserted before finalizing.
+export function buildResidentAssessmentAutoFill(
+  content: ResidentAssessmentFormContent,
+  context: ResidentAssessmentAutoFillContext,
+): { nextContent: ResidentAssessmentFormContent; changedFields: string[] } {
+  const changedFields: string[] = [];
+  const inferredReason =
+    content.assessmentInfo.assessmentReason ||
+    content.assessmentInfo.supportPlanReason ||
+    context.assessmentReason ||
+    "";
+  const nextAssessmentInfo = { ...content.assessmentInfo };
+
+  if (!nextAssessmentInfo.assessmentReason && inferredReason) {
+    pushIfChanged(
+      changedFields,
+      "Reason for Assessment",
+      nextAssessmentInfo.assessmentReason,
+      inferredReason,
+    );
+    nextAssessmentInfo.assessmentReason = inferredReason;
+  }
+  if (!nextAssessmentInfo.supportPlanReason && inferredReason) {
+    pushIfChanged(
+      changedFields,
+      "Reason for Support Plan",
+      nextAssessmentInfo.supportPlanReason,
+      inferredReason,
+    );
+    nextAssessmentInfo.supportPlanReason = inferredReason;
+  }
+
+  const nextParticipation = {
+    ...content.participation,
+    participants: [...content.participation.participants],
+  };
+  const assessorName = context.assessorName?.trim();
+  if (!nextParticipation.assessorName.trim() && assessorName) {
+    pushIfChanged(
+      changedFields,
+      "Assessor's Printed Name",
+      nextParticipation.assessorName,
+      assessorName,
+    );
+    nextParticipation.assessorName = assessorName;
+  }
+  if (!nextParticipation.assessorSignedDate && context.today) {
+    pushIfChanged(
+      changedFields,
+      "Assessor Date Signed",
+      nextParticipation.assessorSignedDate,
+      context.today,
+    );
+    nextParticipation.assessorSignedDate = context.today;
+  }
+
+  const residentParticipant = upsertParticipant(
+    nextParticipation.participants,
+    {
+      name: context.residentName ?? "",
+      relationshipToResident: "Resident",
+      copyProvided: "no",
+    },
+  );
+  if (residentParticipant.changed) {
+    nextParticipation.participants = residentParticipant.participants;
+    changedFields.push("Resident participant row");
+  }
+
+  const designatedParticipant = upsertParticipant(
+    nextParticipation.participants,
+    {
+      name: context.designatedPersonName ?? "",
+      relationshipToResident: "Designated Person",
+      copyProvided: "no",
+    },
+  );
+  if (designatedParticipant.changed) {
+    nextParticipation.participants = designatedParticipant.participants;
+    changedFields.push("Designated person participant row");
+  }
+
+  const section1Na = autoMarkDegreeMapNotApplicable(
+    context.formType ?? "RASP",
+    content.section1.items,
+  );
+  const section3Na = autoMarkDegreeMapNotApplicable(
+    context.formType ?? "RASP",
+    content.section3.items,
+  );
+  if (section1Na.changed)
+    changedFields.push("Section 1 Not Applicable answers");
+  if (section3Na.changed)
+    changedFields.push("Section 3 Not Applicable answers");
+
+  return {
+    nextContent: {
+      ...content,
+      assessmentInfo: nextAssessmentInfo,
+      section1: { ...content.section1, items: section1Na.items },
+      section3: { ...content.section3, items: section3Na.items },
+      participation: nextParticipation,
+    },
+    changedFields,
   };
 }
 
@@ -460,7 +783,13 @@ export function createEmptyContent(formType: FormType, facilityDefaults?: Facili
 // without blocking save/finalize/PDF export. A facility can still have a legitimate reason to
 // finalize with gaps (e.g. a resident refuses part of the assessment), so this is advisory only:
 // surfaced as a badge/banner in the editor and a notice on the generated PDF, never a hard stop.
-export type FormSectionKey = "info" | "section1" | "section2" | "section3" | "section4" | "summary";
+export type FormSectionKey =
+  | "info"
+  | "section1"
+  | "section2"
+  | "section3"
+  | "section4"
+  | "summary";
 export const SECTION_LABELS: Record<FormSectionKey, string> = {
   info: "Resident & Assessment Info",
   section1: "Personal Care, Supervision, Mobility, Meds",
@@ -473,9 +802,16 @@ export const SECTION_LABELS: Record<FormSectionKey, string> = {
 // Exported (not just used internally by getIncompleteSections) so the editor's Review tab can name
 // the specific items behind a section's incomplete flag instead of maintaining a second, narrower
 // definition of "answered" that could disagree with this one -- and with what the PDF reports.
-export function degreeItemAnswered(item: DegreeItemAnswer, formType: FormType): boolean {
-  const degreeAnswered = formType === "ASP" ? !!item.degreePreliminary && !!item.degreeAllOther : !!item.degree;
-  const needAnswered = item.serviceNeedNotApplicable || !!item.serviceNeedDescription.trim();
+export function degreeItemAnswered(
+  item: DegreeItemAnswer,
+  formType: FormType,
+): boolean {
+  const degreeAnswered =
+    formType === "ASP"
+      ? !!item.degreePreliminary && !!item.degreeAllOther
+      : !!item.degree;
+  const needAnswered =
+    item.serviceNeedNotApplicable || !!item.serviceNeedDescription.trim();
   const planAnswered = item.planNotApplicable || !!item.planDescription.trim();
   return degreeAnswered && needAnswered && planAnswered;
 }
@@ -484,46 +820,75 @@ export function simpleNeedAnswered(item: SimpleNeedAnswer): boolean {
   return item.applicable === false || !!item.description.trim();
 }
 
-export function diagnosisRowsAnswered(rows: DiagnosisRow[], none: boolean): boolean {
+export function diagnosisRowsAnswered(
+  rows: DiagnosisRow[],
+  none: boolean,
+): boolean {
   return none || (rows.length > 0 && rows.every((r) => !!r.description.trim()));
 }
 
 // Deliberately mirrors what a preparer would reasonably need to have typed before signing off --
 // not a check against every optional field (e.g. participants/comments are opt-in, so their
 // absence doesn't flag the summary tab).
-export function getIncompleteSections(content: ResidentAssessmentFormContent, formType: FormType): FormSectionKey[] {
+export function getIncompleteSections(
+  content: ResidentAssessmentFormContent,
+  formType: FormType,
+): FormSectionKey[] {
   const incomplete: FormSectionKey[] = [];
 
-  if (!content.assessmentInfo.assessmentReason || !content.assessmentInfo.supportPlanReason) {
+  if (
+    !content.assessmentInfo.assessmentReason ||
+    !content.assessmentInfo.supportPlanReason
+  ) {
     incomplete.push("info");
   }
 
   const section1Answered =
-    (["supervision", "mobility", "medications"] as const).every((key) =>
-      !!content.section1[key].needsDescription.trim() && !!content.section1[key].planDescription.trim())
-    && ADL_ITEMS.every((item) => degreeItemAnswered(content.section1.items[item.key], formType));
+    (["supervision", "mobility", "medications"] as const).every(
+      (key) =>
+        !!content.section1[key].needsDescription.trim() &&
+        !!content.section1[key].planDescription.trim(),
+    ) &&
+    ADL_ITEMS.every((item) =>
+      degreeItemAnswered(content.section1.items[item.key], formType),
+    );
   if (!section1Answered) incomplete.push("section1");
 
   const section2Answered =
-    diagnosisRowsAnswered(content.section2.physicalDiagnoses, content.section2.noPhysicalDiagnoses)
-    && diagnosisRowsAnswered(content.section2.dental, content.section2.noDental)
-    && diagnosisRowsAnswered(content.section2.dietary, content.section2.noDietary)
-    && SENSORY_ITEMS.every((item) => simpleNeedAnswered(content.section2.sensory[item.key]));
+    diagnosisRowsAnswered(
+      content.section2.physicalDiagnoses,
+      content.section2.noPhysicalDiagnoses,
+    ) &&
+    diagnosisRowsAnswered(content.section2.dental, content.section2.noDental) &&
+    diagnosisRowsAnswered(
+      content.section2.dietary,
+      content.section2.noDietary,
+    ) &&
+    SENSORY_ITEMS.every((item) =>
+      simpleNeedAnswered(content.section2.sensory[item.key]),
+    );
   if (!section2Answered) incomplete.push("section2");
 
   const section3Answered =
-    diagnosisRowsAnswered(content.section3.psychologicalDiagnoses, content.section3.noPsychologicalDiagnoses)
-    && behavioralItems(formType).every((item) => degreeItemAnswered(content.section3.items[item.key], formType));
+    diagnosisRowsAnswered(
+      content.section3.psychologicalDiagnoses,
+      content.section3.noPsychologicalDiagnoses,
+    ) &&
+    behavioralItems(formType).every((item) =>
+      degreeItemAnswered(content.section3.items[item.key], formType),
+    );
   if (!section3Answered) incomplete.push("section3");
 
-  const section4Answered = SOCIAL_ITEMS.every((item) => simpleNeedAnswered(content.section4.items[item.key]));
+  const section4Answered = SOCIAL_ITEMS.every((item) =>
+    simpleNeedAnswered(content.section4.items[item.key]),
+  );
   if (!section4Answered) incomplete.push("section4");
 
   const summaryAnswered =
-    !!content.summary.overallWellness.trim()
-    && !!content.participation.assessorName.trim()
-    && !!content.participation.assessorTitle.trim()
-    && !!content.participation.assessorSignedDate.trim();
+    !!content.summary.overallWellness.trim() &&
+    !!content.participation.assessorName.trim() &&
+    !!content.participation.assessorTitle.trim() &&
+    !!content.participation.assessorSignedDate.trim();
   if (!summaryAnswered) incomplete.push("summary");
 
   return incomplete;

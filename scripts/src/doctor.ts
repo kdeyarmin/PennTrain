@@ -117,6 +117,8 @@ const checks: Check[] = [
   commandVersion("pnpm", "pnpm", ["--version"]),
   commandVersion("npm", "npm", ["--version"]),
   commandVersion("Corepack", "corepack", ["--version"]),
+  commandVersion("Deno", "deno", ["--version"]),
+  commandVersion("Supabase CLI", "supabase", ["--version"]),
   firstAvailableBrowser(),
   aptAvailable(),
 ];
@@ -136,7 +138,9 @@ for (const check of checks) {
 }
 
 if (!includeNetwork) {
-  console.log("\nTip: run `pnpm run doctor:network` to test npm and apt network access.");
+  console.log(
+    "\nTip: run `pnpm run doctor:network` to test npm and apt network access.",
+  );
 }
 
 if (hasWarning) {

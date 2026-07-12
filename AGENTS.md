@@ -8,13 +8,18 @@ Instructions for Codex cloud and other AI coding agents working in this reposito
 - Setup script:
 
   ```bash
-  corepack enable
-  corepack prepare pnpm@10.28.1 --activate
-  pnpm install --frozen-lockfile
+  bash scripts/setup-codex-cloud.sh
   ```
 
+  The setup script installs/pins pnpm 10.28.1 and Deno 2.5.6 before running
+  `pnpm install --frozen-lockfile`, so `pnpm run check:edge-functions` works in
+  Codex cloud instead of being skipped for a missing `deno` binary. If cloud
+  egress blocks both `deno.land` and GitHub release downloads, set
+  `DENO_DOWNLOAD_URL` to an approved internal mirror of the Deno Linux x64 zip
+  before running the setup script.
+
 - Store Supabase, Turnstile, Vite, deployment, and service credentials in Codex environment variables or secrets. Do not commit `.env` files.
-- Edge function checks may require Deno and the Supabase CLI in the cloud environment. Add those tools to the Codex setup script if the universal image does not already provide them.
+- Edge function checks require Deno. Use the setup script above so Deno is available in Codex cloud. Supabase CLI checks still require Supabase credentials/secrets when running database workflows.
 
 ## Project shape
 
