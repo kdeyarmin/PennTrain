@@ -116,7 +116,8 @@ export function summarizeStaffingRatios({
 }): StaffingRatioSummary {
   const residentCount = Math.max(0, residentsInHouse);
   const scheduleDays = Math.max(1, dates.length);
-  const activeAssignments = assignments.filter((a) => a.status !== "called_off" && a.status !== "no_show");
+  const dateSet = new Set(dates);
+  const activeAssignments = assignments.filter((a) => dateSet.has(a.shift_date) && a.status !== "called_off" && a.status !== "no_show");
   const scheduledCareHours = activeAssignments.reduce((total, assignment) => total + shiftDurationHours(assignment.start_time, assignment.end_time), 0);
   const targetHours = residentCount * scheduleDays * Math.max(0, targetPpd);
 
