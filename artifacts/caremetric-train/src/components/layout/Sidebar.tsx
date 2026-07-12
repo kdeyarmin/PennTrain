@@ -391,11 +391,11 @@ function isNavItemActive(item: NavItem, location: string): boolean {
 // Persisted per-user so each person's choice of which groups to keep collapsed sticks across
 // visits, without needing a backend round-trip for what's purely a display preference.
 function collapsedSectionsStorageKey(userId: string): string {
-  return `caremetric.sidebar.collapsedSections.${userId}`;
+  return `cmtrain.sidebar.collapsedSections.${userId}`;
 }
 
 function pinnedPagesStorageKey(userId: string): string {
-  return `caremetric.sidebar.pinnedPages.${userId}`;
+  return `cmtrain.sidebar.pinnedPages.${userId}`;
 }
 
 function loadCollapsedSections(userId: string): Set<string> {
@@ -444,11 +444,18 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
   const [filter, setFilter] = useState("");
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => (user ? loadCollapsedSections(user.id) : new Set()));
+  const [collapsedSectionsUserId, setCollapsedSectionsUserId] = useState<string | null>(() => user?.id ?? null);
   const [pinnedPages, setPinnedPages] = useState<Set<string>>(() => (user ? loadPinnedPages(user.id) : new Set()));
 
   useEffect(() => {
-    if (user) saveCollapsedSections(user.id, collapsedSections);
-  }, [user, collapsedSections]);
+    if (!user) return;
+    if (collapsedSectionsUserId !== user.id) {
+      setCollapsedSections(loadCollapsedSections(user.id));
+      setCollapsedSectionsUserId(user.id);
+      return;
+    }
+    saveCollapsedSections(user.id, collapsedSections);
+  }, [user, collapsedSections, collapsedSectionsUserId]);
 
   useEffect(() => {
     if (user) savePinnedPages(user.id, pinnedPages);
