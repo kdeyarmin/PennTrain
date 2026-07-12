@@ -118,11 +118,33 @@ export function summarizeStaffingRatios({
   minimumStaffPerDay: number;
 }): StaffingRatioSummary {
   const residentCount = Math.max(0, residentsInHouse);
-  const scheduleDays = Math.max(1, dates.length);
+  const scheduleDays = dates.length;
+
+  if (scheduleDays === 0) {
+    const safeTargetPpd = Math.max(0, targetPpd);
+    const safeMinimumStaff = Math.max(0, Math.floor(minimumStaffPerDay));
+
+    return {
+      residentsInHouse: residentCount,
+      days: 0,
+      scheduledCareHours: 0,
+      ppd: 0,
+      targetPpd: safeTargetPpd,
+      targetHours: 0,
+      targetHoursPerDay: 0,
+      hoursGap: 0,
+      hoursGapPerDay: 0,
+      suggestedEightHourShifts: 0,
+      isBelowTarget: false,
+      averageResidentsPerScheduledStaff: null,
+      minimumStaffPerDay: safeMinimumStaff,
+      daysBelowMinimumStaffing: [],
+    };
+  }
+
   const activeAssignments = assignments.filter((a) => a.status !== "called_off" && a.status !== "no_show");
   const scheduledCareHours = activeAssignments.reduce((total, assignment) => total + shiftDurationHours(assignment.start_time, assignment.end_time), 0);
   const targetHours = residentCount * scheduleDays * Math.max(0, targetPpd);
-
   const staffByDate = new Map<string, Set<string>>();
   for (const date of dates) staffByDate.set(date, new Set());
   for (const assignment of activeAssignments) {
