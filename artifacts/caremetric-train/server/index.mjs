@@ -95,37 +95,18 @@ function sendText(res, status, body) {
   res.end(body);
 }
 
-function isSupabaseConfigured() {
-  return Boolean(process.env.VITE_SUPABASE_URL && process.env.VITE_SUPABASE_ANON_KEY);
-}
-
-// Best-effort reachability check against Supabase Auth's public health route.
-// Never throws, never blocks the healthcheck response for long, and never
-// touches the service-role key (this process should not have it at all) --
-// only the anon key, the same key already shipped to every browser.
-async function checkSupabaseReachable() {
-  const url = process.env.VITE_SUPABASE_URL;
-  const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) return null;
-  try {
-    const response = await fetch(new URL("/auth/v1/health", url), {
-      headers: { apikey: anonKey },
-      signal: AbortSignal.timeout(2000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
+// This server never talks to Supabase itself -- the browser does, using whatever
+// VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY were baked into the currently-served bundle at
+// build time. This process's own env vars at request time can silently diverge from that
+// (no rebuild on a runtime variable change, dummy build-time values, etc.), so /health
+// intentionally does not report Supabase configuration or reachability -- doing so would
+// describe this process's environment, not the bundle actually being served, which is
+// exactly the kind of false assurance a healthcheck must not give.
 async function handleHealth(_req, res) {
-  const supabaseReachable = await checkSupabaseReachable();
   const body = JSON.stringify({
     status: "ok",
     service: "caremetric-train",
     timestamp: new Date().toISOString(),
-    supabase: isSupabaseConfigured() ? "configured" : "not_configured",
-    supabaseReachable,
   });
   res.writeHead(200, {
     ...SECURITY_HEADERS,

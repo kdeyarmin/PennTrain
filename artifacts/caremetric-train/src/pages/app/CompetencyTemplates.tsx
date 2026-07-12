@@ -260,7 +260,7 @@ export default function CompetencyTemplates() {
 
   return (
     <div className="space-y-6">
-      <div className="page-header flex items-center justify-between">
+      <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Competency Templates</h1>
           <p>Define reusable competency checklists that evaluators fill out for employees.</p>
@@ -298,8 +298,8 @@ export default function CompetencyTemplates() {
             </p>
           </div>
         ) : (
-          <div className="overflow-hidden">
-            <table className="data-table">
+          <div className="overflow-x-auto">
+            <table className="data-table min-w-[560px]">
               <thead>
                 <tr>
                   <th>Template</th>
@@ -328,7 +328,7 @@ export default function CompetencyTemplates() {
                         <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground hover:text-foreground" onClick={() => setManagingTemplate(t)}>
                           <ListChecks className="mr-1.5 h-3.5 w-3.5" /> Items
                         </Button>
-                        {canManage && (
+                        {canManage && t.organization_id !== null && (
                           <>
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => openEdit(t)} aria-label={`Edit ${t.name}`}>
                               <Pencil className="h-3.5 w-3.5" />
