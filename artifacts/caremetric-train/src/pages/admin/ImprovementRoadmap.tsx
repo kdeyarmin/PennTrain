@@ -49,8 +49,8 @@ const phases = [
   {
     name: "Phase 4",
     title: "Governed learning and content",
-    timeline: "Planned",
-    status: "planned",
+    timeline: "Code complete; production pilots pending",
+    status: "implemented",
     icon: Sparkles,
     goal: "Make content governed, interoperable, adaptive, and safely available offline.",
     outcomes: [
@@ -82,6 +82,7 @@ const currentFoundation = [
   "Billing and entitlements",
   "Signed integrations",
   "Qualified workforce operations",
+  "Governed learning and content",
 ];
 
 export default function ImprovementRoadmap() {
@@ -108,8 +109,8 @@ export default function ImprovementRoadmap() {
             {currentFoundation.map((item) => <Badge key={item} variant="outline">{item}</Badge>)}
           </div>
           <p className="mt-3 text-sm text-muted-foreground">
-            Phases 2 and 3 are implemented behind trusted database and Edge boundaries. General availability remains
-            blocked on controlled HRIS, credential-processor, identity-provider, rule-shadow, and reconciliation pilots.
+            Phases 2 through 4 are implemented behind trusted database and Edge boundaries. General availability remains
+            blocked on controlled identity, workforce, content-governance, standards-runtime, adaptive, and offline pilots.
           </p>
         </CardContent>
       </Card>

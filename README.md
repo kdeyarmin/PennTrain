@@ -81,6 +81,9 @@ procedures are in [`PHASE2_OPERATIONS.md`](PHASE2_OPERATIONS.md).
 Phase 3 HRIS, qualification, credential renewal, instructor-led training,
 eligibility, and pilot procedures are in
 [`PHASE3_OPERATIONS.md`](PHASE3_OPERATIONS.md).
+Phase 4 content governance, policy lifecycle, standards interoperability,
+adaptive learning, offline safety, and pilot procedures are in
+[`PHASE4_OPERATIONS.md`](PHASE4_OPERATIONS.md).
 
 ## Database / backend setup
 

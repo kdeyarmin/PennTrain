@@ -44,6 +44,7 @@ import {
   Radar,
   Gavel,
   BookOpen,
+  BookCheck,
   BedDouble,
   FileStack,
   Sparkles,
@@ -112,6 +113,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/admin/system-jobs", label: "System Jobs", icon: Activity },
           { href: "/admin/enterprise", label: "Enterprise Foundation", icon: Network },
           { href: "/admin/qualified-workforce", label: "Qualified Workforce", icon: UserRoundCheck },
+          { href: "/admin/governed-learning", label: "Governed Learning", icon: BookCheck },
           { href: "/admin/exclusion-screening", label: "Exclusion Screening", icon: ShieldAlert },
           { href: "/admin/security", label: "Security & Governance", icon: Eye },
           { href: "/admin/support-tickets", label: "Support Tickets", icon: LifeBuoy },
@@ -150,6 +152,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/course-assignments", label: "Course Assignments", icon: FileCheck },
           { href: "/trainer/classes", label: "In-Service Classes", icon: GraduationCap },
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
+          { href: "/app/governed-learning", label: "Governed Learning", icon: BookCheck },
           { href: "/me/courses", label: "My Courses", icon: BookOpen },
         ]
       },

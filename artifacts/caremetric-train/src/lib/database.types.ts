@@ -5118,6 +5118,328 @@ export type Database = {
           },
         ]
       }
+      governed_content_assets: {
+        Row: {
+          asset_type: string
+          created_at: string
+          current_published_revision_id: string | null
+          id: string
+          organization_id: string | null
+          owner_profile_id: string | null
+          platform_owned: boolean
+          source_id: string
+          status: string
+          template_asset_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          asset_type: string
+          created_at?: string
+          current_published_revision_id?: string | null
+          id?: string
+          organization_id?: string | null
+          owner_profile_id?: string | null
+          platform_owned?: boolean
+          source_id: string
+          status?: string
+          template_asset_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          asset_type?: string
+          created_at?: string
+          current_published_revision_id?: string | null
+          id?: string
+          organization_id?: string | null
+          owner_profile_id?: string | null
+          platform_owned?: boolean
+          source_id?: string
+          status?: string
+          template_asset_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "governed_content_assets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "governed_content_assets_owner_profile_id_fkey"
+            columns: ["owner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "governed_content_assets_template_asset_id_fkey"
+            columns: ["template_asset_id"]
+            isOneToOne: false
+            referencedRelation: "governed_content_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "governed_content_current_revision_fk"
+            columns: ["current_published_revision_id"]
+            isOneToOne: false
+            referencedRelation: "governed_content_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      governed_content_publication_events: {
+        Row: {
+          actor_profile_id: string | null
+          asset_id: string
+          event_type: string
+          evidence: Json
+          id: string
+          occurred_at: string
+          organization_id: string | null
+          reason: string
+          revision_id: string
+        }
+        Insert: {
+          actor_profile_id?: string | null
+          asset_id: string
+          event_type: string
+          evidence?: Json
+          id?: string
+          occurred_at?: string
+          organization_id?: string | null
+          reason: string
+          revision_id: string
+        }
+        Update: {
+          actor_profile_id?: string | null
+          asset_id?: string
+          event_type?: string
+          evidence?: Json
+          id?: string
+          occurred_at?: string
+          organization_id?: string | null
+          reason?: string
+          revision_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "governed_content_publication_events_actor_profile_id_fkey"
+            columns: ["actor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "governed_content_publication_events_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "governed_content_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "governed_content_publication_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "governed_content_publication_events_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "governed_content_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      governed_content_review_comments: {
+        Row: {
+          author_profile_id: string
+          body: string
+          created_at: string
+          id: string
+          organization_id: string | null
+          resolution_status: string
+          resolved_at: string | null
+          resolved_by: string | null
+          revision_id: string
+          section_path: string | null
+        }
+        Insert: {
+          author_profile_id: string
+          body: string
+          created_at?: string
+          id?: string
+          organization_id?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          revision_id: string
+          section_path?: string | null
+        }
+        Update: {
+          author_profile_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          organization_id?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          revision_id?: string
+          section_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "governed_content_review_comments_author_profile_id_fkey"
+            columns: ["author_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "governed_content_review_comments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "governed_content_review_comments_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "governed_content_review_comments_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "governed_content_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      governed_content_revisions: {
+        Row: {
+          asset_id: string
+          authored_by: string
+          change_summary: string
+          created_at: string
+          id: string
+          material_change: boolean
+          material_change_action: string
+          organization_id: string | null
+          published_at: string | null
+          published_by: string | null
+          review_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          revision_number: number
+          snapshot: Json
+          snapshot_sha256: string
+          source_version_id: string | null
+          state: string
+          submitted_at: string | null
+          supersedes_revision_id: string | null
+          validation_results: Json
+        }
+        Insert: {
+          asset_id: string
+          authored_by: string
+          change_summary: string
+          created_at?: string
+          id?: string
+          material_change?: boolean
+          material_change_action?: string
+          organization_id?: string | null
+          published_at?: string | null
+          published_by?: string | null
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          revision_number: number
+          snapshot: Json
+          snapshot_sha256: string
+          source_version_id?: string | null
+          state?: string
+          submitted_at?: string | null
+          supersedes_revision_id?: string | null
+          validation_results?: Json
+        }
+        Update: {
+          asset_id?: string
+          authored_by?: string
+          change_summary?: string
+          created_at?: string
+          id?: string
+          material_change?: boolean
+          material_change_action?: string
+          organization_id?: string | null
+          published_at?: string | null
+          published_by?: string | null
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          revision_number?: number
+          snapshot?: Json
+          snapshot_sha256?: string
+          source_version_id?: string | null
+          state?: string
+          submitted_at?: string | null
+          supersedes_revision_id?: string | null
+          validation_results?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "governed_content_revisions_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "governed_content_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "governed_content_revisions_authored_by_fkey"
+            columns: ["authored_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "governed_content_revisions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "governed_content_revisions_published_by_fkey"
+            columns: ["published_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "governed_content_revisions_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "governed_content_revisions_supersedes_revision_id_fkey"
+            columns: ["supersedes_revision_id"]
+            isOneToOne: false
+            referencedRelation: "governed_content_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       help_articles: {
         Row: {
           article_type: string
@@ -6907,6 +7229,631 @@ export type Database = {
           },
         ]
       }
+      learning_packages: {
+        Row: {
+          capabilities: string[]
+          compressed_bytes: number
+          connectivity_mode: string
+          content_sha256: string
+          course_version_id: string
+          created_at: string
+          created_by: string | null
+          entry_point: string | null
+          expanded_bytes: number | null
+          id: string
+          immutable_at: string | null
+          manifest: Json
+          organization_id: string | null
+          scanner_name: string | null
+          scanner_version: string | null
+          standard_type: string
+          storage_bucket: string
+          storage_path: string
+          validated_at: string | null
+          validation_results: Json
+          validation_status: string
+        }
+        Insert: {
+          capabilities?: string[]
+          compressed_bytes: number
+          connectivity_mode?: string
+          content_sha256: string
+          course_version_id: string
+          created_at?: string
+          created_by?: string | null
+          entry_point?: string | null
+          expanded_bytes?: number | null
+          id?: string
+          immutable_at?: string | null
+          manifest?: Json
+          organization_id?: string | null
+          scanner_name?: string | null
+          scanner_version?: string | null
+          standard_type: string
+          storage_bucket?: string
+          storage_path: string
+          validated_at?: string | null
+          validation_results?: Json
+          validation_status?: string
+        }
+        Update: {
+          capabilities?: string[]
+          compressed_bytes?: number
+          connectivity_mode?: string
+          content_sha256?: string
+          course_version_id?: string
+          created_at?: string
+          created_by?: string | null
+          entry_point?: string | null
+          expanded_bytes?: number | null
+          id?: string
+          immutable_at?: string | null
+          manifest?: Json
+          organization_id?: string | null
+          scanner_name?: string | null
+          scanner_version?: string | null
+          standard_type?: string
+          storage_bucket?: string
+          storage_path?: string
+          validated_at?: string | null
+          validation_results?: Json
+          validation_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_packages_course_version_id_fkey"
+            columns: ["course_version_id"]
+            isOneToOne: false
+            referencedRelation: "course_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_packages_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_packages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      learning_path_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          completed_at: string | null
+          current_state: Json
+          due_at: string | null
+          employee_id: string
+          facility_id: string
+          id: string
+          organization_id: string
+          path_version_id: string
+          state: string
+          state_version: number
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          completed_at?: string | null
+          current_state?: Json
+          due_at?: string | null
+          employee_id: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          path_version_id: string
+          state?: string
+          state_version?: number
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          completed_at?: string | null
+          current_state?: Json
+          due_at?: string | null
+          employee_id?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          path_version_id?: string
+          state?: string
+          state_version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_path_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_path_assignments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_path_assignments_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_path_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_path_assignments_path_version_id_fkey"
+            columns: ["path_version_id"]
+            isOneToOne: false
+            referencedRelation: "learning_path_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      learning_path_definitions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          current_version_id: string | null
+          description: string | null
+          id: string
+          name: string
+          organization_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          current_version_id?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          current_version_id?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_path_current_version_fk"
+            columns: ["current_version_id"]
+            isOneToOne: false
+            referencedRelation: "learning_path_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_path_definitions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_path_definitions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      learning_path_transition_events: {
+        Row: {
+          explanation: string
+          id: string
+          occurred_at: string
+          organization_id: string
+          path_assignment_id: string
+          prior_state: string | null
+          reason_code: string
+          resulting_state: string
+          source_outcome: Json
+          state_version: number
+          step_key: string
+        }
+        Insert: {
+          explanation: string
+          id?: string
+          occurred_at?: string
+          organization_id: string
+          path_assignment_id: string
+          prior_state?: string | null
+          reason_code: string
+          resulting_state: string
+          source_outcome?: Json
+          state_version: number
+          step_key: string
+        }
+        Update: {
+          explanation?: string
+          id?: string
+          occurred_at?: string
+          organization_id?: string
+          path_assignment_id?: string
+          prior_state?: string | null
+          reason_code?: string
+          resulting_state?: string
+          source_outcome?: Json
+          state_version?: number
+          step_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_path_transition_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_path_transition_events_path_assignment_id_fkey"
+            columns: ["path_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "learning_path_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      learning_path_versions: {
+        Row: {
+          created_at: string
+          definition: Json
+          definition_sha256: string
+          id: string
+          organization_id: string
+          path_definition_id: string
+          published_at: string | null
+          published_by: string | null
+          state: string
+          version_number: number
+        }
+        Insert: {
+          created_at?: string
+          definition: Json
+          definition_sha256: string
+          id?: string
+          organization_id: string
+          path_definition_id: string
+          published_at?: string | null
+          published_by?: string | null
+          state?: string
+          version_number: number
+        }
+        Update: {
+          created_at?: string
+          definition?: Json
+          definition_sha256?: string
+          id?: string
+          organization_id?: string
+          path_definition_id?: string
+          published_at?: string | null
+          published_by?: string | null
+          state?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_path_versions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_path_versions_path_definition_id_fkey"
+            columns: ["path_definition_id"]
+            isOneToOne: false
+            referencedRelation: "learning_path_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_path_versions_published_by_fkey"
+            columns: ["published_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      learning_runtime_commits: {
+        Row: {
+          committed_at: string
+          completion_status: string | null
+          id: string
+          idempotency_key: string
+          organization_id: string
+          progress_measure: number | null
+          raw_state: Json
+          runtime_session_id: string
+          score_max: number | null
+          score_min: number | null
+          score_raw: number | null
+          sequence_number: number
+          session_time_seconds: number | null
+          state_sha256: string
+          success_status: string | null
+          suspend_data: string | null
+        }
+        Insert: {
+          committed_at?: string
+          completion_status?: string | null
+          id?: string
+          idempotency_key: string
+          organization_id: string
+          progress_measure?: number | null
+          raw_state?: Json
+          runtime_session_id: string
+          score_max?: number | null
+          score_min?: number | null
+          score_raw?: number | null
+          sequence_number: number
+          session_time_seconds?: number | null
+          state_sha256: string
+          success_status?: string | null
+          suspend_data?: string | null
+        }
+        Update: {
+          committed_at?: string
+          completion_status?: string | null
+          id?: string
+          idempotency_key?: string
+          organization_id?: string
+          progress_measure?: number | null
+          raw_state?: Json
+          runtime_session_id?: string
+          score_max?: number | null
+          score_min?: number | null
+          score_raw?: number | null
+          sequence_number?: number
+          session_time_seconds?: number | null
+          state_sha256?: string
+          success_status?: string | null
+          suspend_data?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_runtime_commits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_runtime_commits_runtime_session_id_fkey"
+            columns: ["runtime_session_id"]
+            isOneToOne: false
+            referencedRelation: "learning_runtime_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      learning_runtime_sessions: {
+        Row: {
+          assignment_id: string
+          employee_id: string
+          expires_at: string
+          id: string
+          last_commit_at: string | null
+          launch_nonce_sha256: string
+          launched_at: string
+          organization_id: string
+          package_id: string
+          registration_key: string
+          runtime_standard: string
+          state: string
+        }
+        Insert: {
+          assignment_id: string
+          employee_id: string
+          expires_at: string
+          id?: string
+          last_commit_at?: string | null
+          launch_nonce_sha256: string
+          launched_at?: string
+          organization_id: string
+          package_id: string
+          registration_key: string
+          runtime_standard: string
+          state?: string
+        }
+        Update: {
+          assignment_id?: string
+          employee_id?: string
+          expires_at?: string
+          id?: string
+          last_commit_at?: string | null
+          launch_nonce_sha256?: string
+          launched_at?: string
+          organization_id?: string
+          package_id?: string
+          registration_key?: string
+          runtime_standard?: string
+          state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_runtime_sessions_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "course_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_runtime_sessions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_runtime_sessions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_runtime_sessions_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "learning_packages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lti_launch_receipts: {
+        Row: {
+          assignment_id: string | null
+          deployment_id: string
+          employee_id: string
+          id: string
+          launched_at: string
+          message_type: string
+          nonce_sha256: string
+          organization_id: string
+          registration_id: string
+          state_sha256: string
+          target_link_uri: string
+        }
+        Insert: {
+          assignment_id?: string | null
+          deployment_id: string
+          employee_id: string
+          id?: string
+          launched_at?: string
+          message_type: string
+          nonce_sha256: string
+          organization_id: string
+          registration_id: string
+          state_sha256: string
+          target_link_uri: string
+        }
+        Update: {
+          assignment_id?: string | null
+          deployment_id?: string
+          employee_id?: string
+          id?: string
+          launched_at?: string
+          message_type?: string
+          nonce_sha256?: string
+          organization_id?: string
+          registration_id?: string
+          state_sha256?: string
+          target_link_uri?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lti_launch_receipts_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "course_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lti_launch_receipts_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lti_launch_receipts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lti_launch_receipts_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "lti_tool_registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lti_tool_registrations: {
+        Row: {
+          allowed_roles: string[]
+          authorization_endpoint: string
+          client_id: string
+          created_at: string
+          created_by: string | null
+          deployment_ids: string[]
+          id: string
+          issuer: string
+          jwks_uri: string
+          organization_id: string
+          status: string
+        }
+        Insert: {
+          allowed_roles?: string[]
+          authorization_endpoint: string
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          deployment_ids?: string[]
+          id?: string
+          issuer: string
+          jwks_uri: string
+          organization_id: string
+          status?: string
+        }
+        Update: {
+          allowed_roles?: string[]
+          authorization_endpoint?: string
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          deployment_ids?: string[]
+          id?: string
+          issuer?: string
+          jwks_uri?: string
+          organization_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lti_tool_registrations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lti_tool_registrations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_channel_policies: {
         Row: {
           created_at: string
@@ -7544,6 +8491,223 @@ export type Database = {
           },
           {
             foreignKeyName: "notifications_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      offline_content_manifests: {
+        Row: {
+          allowlisted_assets: Json
+          content_sha256: string
+          course_version_id: string
+          created_at: string
+          device_id: string
+          encrypted_content_key: string
+          expires_at: string
+          id: string
+          manifest_version: number
+          organization_id: string
+          profile_id: string
+          withdrawn_at: string | null
+        }
+        Insert: {
+          allowlisted_assets: Json
+          content_sha256: string
+          course_version_id: string
+          created_at?: string
+          device_id: string
+          encrypted_content_key: string
+          expires_at: string
+          id?: string
+          manifest_version: number
+          organization_id: string
+          profile_id: string
+          withdrawn_at?: string | null
+        }
+        Update: {
+          allowlisted_assets?: Json
+          content_sha256?: string
+          course_version_id?: string
+          created_at?: string
+          device_id?: string
+          encrypted_content_key?: string
+          expires_at?: string
+          id?: string
+          manifest_version?: number
+          organization_id?: string
+          profile_id?: string
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offline_content_manifests_course_version_id_fkey"
+            columns: ["course_version_id"]
+            isOneToOne: false
+            referencedRelation: "course_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_content_manifests_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "offline_device_registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_content_manifests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_content_manifests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      offline_device_registrations: {
+        Row: {
+          created_at: string
+          device_fingerprint_sha256: string
+          device_public_key: string
+          id: string
+          last_sync_at: string | null
+          organization_id: string
+          profile_id: string
+          revoked_at: string | null
+          role_at_registration: string
+          status: string
+          wipe_required_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          device_fingerprint_sha256: string
+          device_public_key: string
+          id?: string
+          last_sync_at?: string | null
+          organization_id: string
+          profile_id: string
+          revoked_at?: string | null
+          role_at_registration: string
+          status?: string
+          wipe_required_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          device_fingerprint_sha256?: string
+          device_public_key?: string
+          id?: string
+          last_sync_at?: string | null
+          organization_id?: string
+          profile_id?: string
+          revoked_at?: string | null
+          role_at_registration?: string
+          status?: string
+          wipe_required_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offline_device_registrations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_device_registrations_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      offline_sync_receipts: {
+        Row: {
+          action_type: string
+          assignment_id: string
+          client_base_version: number
+          client_occurred_at: string
+          client_sequence: number
+          conflict_detail: Json
+          device_id: string
+          id: string
+          idempotency_key: string
+          organization_id: string
+          outcome: string
+          payload: Json
+          payload_sha256: string
+          processed_at: string
+          profile_id: string
+          server_version: number | null
+        }
+        Insert: {
+          action_type: string
+          assignment_id: string
+          client_base_version: number
+          client_occurred_at: string
+          client_sequence: number
+          conflict_detail?: Json
+          device_id: string
+          id?: string
+          idempotency_key: string
+          organization_id: string
+          outcome: string
+          payload: Json
+          payload_sha256: string
+          processed_at?: string
+          profile_id: string
+          server_version?: number | null
+        }
+        Update: {
+          action_type?: string
+          assignment_id?: string
+          client_base_version?: number
+          client_occurred_at?: string
+          client_sequence?: number
+          conflict_detail?: Json
+          device_id?: string
+          id?: string
+          idempotency_key?: string
+          organization_id?: string
+          outcome?: string
+          payload?: Json
+          payload_sha256?: string
+          processed_at?: string
+          profile_id?: string
+          server_version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offline_sync_receipts_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "course_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_sync_receipts_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "offline_device_registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_sync_receipts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_sync_receipts_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -8602,6 +9766,154 @@ export type Database = {
           },
         ]
       }
+      policy_audience_rules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          exception_rule: Json
+          id: string
+          organization_id: string
+          policy_document_id: string
+          reminder_days: number[]
+          requires_attestation: boolean
+          requires_quiz: boolean
+          target_id: string | null
+          target_type: string
+          target_value: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          effective_to?: string | null
+          exception_rule?: Json
+          id?: string
+          organization_id: string
+          policy_document_id: string
+          reminder_days?: number[]
+          requires_attestation?: boolean
+          requires_quiz?: boolean
+          target_id?: string | null
+          target_type: string
+          target_value?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          exception_rule?: Json
+          id?: string
+          organization_id?: string
+          policy_document_id?: string
+          reminder_days?: number[]
+          requires_attestation?: boolean
+          requires_quiz?: boolean
+          target_id?: string | null
+          target_type?: string
+          target_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "policy_audience_rules_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_audience_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_audience_rules_policy_document_id_fkey"
+            columns: ["policy_document_id"]
+            isOneToOne: false
+            referencedRelation: "policy_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      policy_delivery_events: {
+        Row: {
+          audience_rule_id: string | null
+          campaign_id: string | null
+          employee_id: string
+          event_type: string
+          id: string
+          idempotency_key: string
+          occurred_at: string
+          organization_id: string
+          policy_document_version_id: string
+          provider_outcome: Json
+        }
+        Insert: {
+          audience_rule_id?: string | null
+          campaign_id?: string | null
+          employee_id: string
+          event_type: string
+          id?: string
+          idempotency_key: string
+          occurred_at?: string
+          organization_id: string
+          policy_document_version_id: string
+          provider_outcome?: Json
+        }
+        Update: {
+          audience_rule_id?: string | null
+          campaign_id?: string | null
+          employee_id?: string
+          event_type?: string
+          id?: string
+          idempotency_key?: string
+          occurred_at?: string
+          organization_id?: string
+          policy_document_version_id?: string
+          provider_outcome?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "policy_delivery_events_audience_rule_id_fkey"
+            columns: ["audience_rule_id"]
+            isOneToOne: false
+            referencedRelation: "policy_audience_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_delivery_events_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "policy_attestation_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_delivery_events_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_delivery_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_delivery_events_policy_document_version_id_fkey"
+            columns: ["policy_document_version_id"]
+            isOneToOne: false
+            referencedRelation: "policy_document_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       policy_document_versions: {
         Row: {
           content_hash: string
@@ -8729,6 +10041,61 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      policy_version_links: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          link_type: string
+          linked_record_id: string
+          organization_id: string
+          policy_document_version_id: string
+          rationale: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          link_type: string
+          linked_record_id: string
+          organization_id: string
+          policy_document_version_id: string
+          rationale: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          link_type?: string
+          linked_record_id?: string
+          organization_id?: string
+          policy_document_version_id?: string
+          rationale?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "policy_version_links_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_version_links_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_version_links_policy_document_version_id_fkey"
+            columns: ["policy_document_version_id"]
+            isOneToOne: false
+            referencedRelation: "policy_document_versions"
             referencedColumns: ["id"]
           },
         ]
@@ -12664,6 +14031,76 @@ export type Database = {
           },
         ]
       }
+      xapi_statements: {
+        Row: {
+          authority: string
+          context: Json
+          employee_id: string
+          id: string
+          object_iri: string
+          occurred_at: string
+          organization_id: string
+          result: Json
+          runtime_session_id: string | null
+          statement_id: string
+          statement_sha256: string
+          stored_at: string
+          verb_iri: string
+        }
+        Insert: {
+          authority: string
+          context?: Json
+          employee_id: string
+          id?: string
+          object_iri: string
+          occurred_at: string
+          organization_id: string
+          result?: Json
+          runtime_session_id?: string | null
+          statement_id: string
+          statement_sha256: string
+          stored_at?: string
+          verb_iri: string
+        }
+        Update: {
+          authority?: string
+          context?: Json
+          employee_id?: string
+          id?: string
+          object_iri?: string
+          occurred_at?: string
+          organization_id?: string
+          result?: Json
+          runtime_session_id?: string | null
+          statement_id?: string
+          statement_sha256?: string
+          stored_at?: string
+          verb_iri?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xapi_statements_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xapi_statements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xapi_statements_runtime_session_id_fkey"
+            columns: ["runtime_session_id"]
+            isOneToOne: false
+            referencedRelation: "learning_runtime_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       exclusion_source_health: {
@@ -13135,6 +14572,15 @@ export type Database = {
         Args: { p_ticket_id: string }
         Returns: undefined
       }
+      commit_learning_runtime_state: {
+        Args: {
+          p_idempotency_key: string
+          p_runtime_session_id: string
+          p_sequence_number: number
+          p_state: Json
+        }
+        Returns: string
+      }
       complete_course_assignment: {
         Args: { p_assignment_id: string }
         Returns: undefined
@@ -13235,6 +14681,17 @@ export type Database = {
           p_credential_id: string
           p_credential_type: string
           p_employee_id: string
+        }
+        Returns: string
+      }
+      create_governed_content_revision: {
+        Args: {
+          p_asset_id: string
+          p_change_summary: string
+          p_material_change: boolean
+          p_material_change_action: string
+          p_snapshot: Json
+          p_source_version_id: string
         }
         Returns: string
       }
@@ -13390,6 +14847,14 @@ export type Database = {
           p_feature_key: string
           p_organization_id: string
           p_required_quantity?: number
+        }
+        Returns: Json
+      }
+      evaluate_learning_path: {
+        Args: {
+          p_expected_state_version: number
+          p_outcomes: Json
+          p_path_assignment_id: string
         }
         Returns: Json
       }
@@ -13563,6 +15028,7 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_governed_learning_control_plane: { Args: never; Returns: Json }
       get_identity_control_plane: {
         Args: never
         Returns: {
@@ -13779,6 +15245,19 @@ export type Database = {
         Args: { p_operation: string }
         Returns: boolean
       }
+      ingest_xapi_statement: {
+        Args: {
+          p_actor_employee_id: string
+          p_context: Json
+          p_object_iri: string
+          p_occurred_at: string
+          p_result: Json
+          p_runtime_session_id: string
+          p_statement_id: string
+          p_verb_iri: string
+        }
+        Returns: string
+      }
       instantiate_employee_onboarding_checklist: {
         Args: { p_employee_id: string }
         Returns: undefined
@@ -13951,6 +15430,10 @@ export type Database = {
       }
       publish_course_version: {
         Args: { p_course_version_id: string }
+        Returns: string
+      }
+      publish_governed_content_revision: {
+        Args: { p_reason: string; p_revision_id: string }
         Returns: string
       }
       publish_schedule: { Args: { p_schedule_id: string }; Returns: undefined }
@@ -14164,6 +15647,10 @@ export type Database = {
           p_submission_id: string
         }
         Returns: string
+      }
+      review_governed_content_revision: {
+        Args: { p_decision: string; p_reason: string; p_revision_id: string }
+        Returns: boolean
       }
       revoke_identity_break_glass: {
         Args: { p_event_id: string; p_reason: string }
@@ -14432,6 +15919,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      submit_governed_content_revision: {
+        Args: { p_revision_id: string; p_validation_results: Json }
+        Returns: boolean
+      }
       submit_regulatory_rule_version: {
         Args: { p_version_id: string }
         Returns: {
@@ -14472,6 +15963,19 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      sync_offline_learning_action: {
+        Args: {
+          p_action_type: string
+          p_assignment_id: string
+          p_client_base_version: number
+          p_client_occurred_at: string
+          p_client_sequence: number
+          p_device_id: string
+          p_idempotency_key: string
+          p_payload: Json
+        }
+        Returns: Json
       }
       unpublish_schedule: {
         Args: { p_schedule_id: string }

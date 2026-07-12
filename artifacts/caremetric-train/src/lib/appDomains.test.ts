@@ -95,6 +95,14 @@ describe("role-based page visibility", () => {
     expect(canViewPage("/app/workforce-operations", "employee")).toBe(false);
   });
 
+  it("limits governed learning operations to platform and tenant managers", () => {
+    expect(canViewPage("/admin/governed-learning", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/governed-learning", "org_admin")).toBe(true);
+    expect(canViewPage("/app/governed-learning", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/governed-learning", "trainer")).toBe(false);
+    expect(canViewPage("/app/governed-learning", "employee")).toBe(false);
+  });
+
   it("makes account MFA settings available to every authenticated role", () => {
     for (const role of ["platform_admin", "org_admin", "facility_manager", "trainer", "auditor", "employee"] as const) {
       expect(canViewPage("/account/security", role)).toBe(true);
