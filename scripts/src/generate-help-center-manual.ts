@@ -96,7 +96,7 @@ const SECTIONS: Section[] = [
   {
     title: "Practicums & Medication Administration Roster",
     paragraphs: [
-      "Practicums (/app/practicums) track the hands-on, supervised practicum hours required for certain staff roles at personal care homes and assisted living residences, alongside their due dates and compliance status. This module only appears for facilities of a type that requires practicums.",
+      "Practicums (/app/practicums) track the hands-on, supervised practicum hours required for certain staff roles at personal care homes and assisted living facilities (ALF), alongside their due dates and compliance status. This module only appears for facilities of a type that requires practicums.",
       "The Medication Administration Roster (/app/med-admin-roster) is the authoritative list of which employees are currently certified to administer medications at a given facility, and is one of the first documents a state surveyor will ask to see during an inspection. Keeping it current depends on the underlying training records and credentials staying up to date, since roster eligibility is derived from those records rather than tracked separately.",
     ],
     bullets: [
