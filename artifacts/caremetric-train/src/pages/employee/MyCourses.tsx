@@ -1,11 +1,27 @@
+<<<<<<< HEAD
 import { useState } from "react";
+=======
+import { useMemo, useState } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
+>>>>>>> origin/main
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListCourseAssignments, useSelfEnrollCourse } from "@/hooks/useCourseAssignments";
+<<<<<<< HEAD
 import { useListCourses, canEnrollInCourse } from "@/hooks/useCourses";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+=======
+import {
+  useListCourses,
+  useListCourseVersionsByIds,
+  canEnrollInCourse,
+  isCourseVersionLearnerReady,
+} from "@/hooks/useCourses";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusBadge } from "@/components/ui/status-badge";
+>>>>>>> origin/main
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GraduationCap, ChevronRight, BookOpen, Loader2 } from "lucide-react";
@@ -23,15 +39,6 @@ function actionLabel(status: string) {
 // learner's assignments surfaced at all was the dashboard's "Upcoming Deadlines" widget, which
 // explicitly drops any assignment with a null due_date, making it unreachable in the app
 // (ROADMAP.md Tier 3.4: "assignments without due dates are unreachable today").
-function StatusBadge({ status }: { status: string }) {
-  const className =
-    status === "completed" ? "bg-success text-success-foreground hover:bg-success/80"
-    : status === "overdue" ? "bg-destructive text-destructive-foreground hover:bg-destructive/80"
-    : status === "in_progress" ? "bg-info text-info-foreground hover:bg-info/80"
-    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"; // assigned
-  return <Badge className={className} variant="outline">{status.replace(/_/g, " ")}</Badge>;
-}
-
 export default function MyCourses() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -49,10 +56,20 @@ export default function MyCourses() {
     { enabled: !!employee?.id },
   );
   const { data: courses, isLoading: coursesLoading } = useListCourses();
+<<<<<<< HEAD
+=======
+  const currentVersionIds = useMemo(
+    () => (courses ?? []).map(c => c.current_version_id).filter((id): id is string => !!id),
+    [courses],
+  );
+  const { data: currentVersions, isLoading: currentVersionsLoading } = useListCourseVersionsByIds(currentVersionIds);
+>>>>>>> origin/main
   const { mutate: selfEnroll, isPending: enrolling, variables: enrollingCourseId } = useSelfEnrollCourse();
 
   const isLoading = employeeLoading || assignmentsLoading;
-  const courseById = new Map((courses ?? []).map(c => [c.id, c]));
+  const coursesReadyLoading = coursesLoading || currentVersionsLoading;
+  const courseById = useMemo(() => new Map((courses ?? []).map(c => [c.id, c])), [courses]);
+  const currentVersionById = useMemo(() => new Map((currentVersions ?? []).map(v => [v.id, v])), [currentVersions]);
 
   const allAssignments = assignments ?? [];
   const filtered = statusFilter === "all" ? allAssignments : allAssignments.filter(a => a.status === statusFilter);
@@ -65,7 +82,15 @@ export default function MyCourses() {
   // the caller's own (for platform_admin, always the internal) org's.
   const assignedCourseIds = new Set(allAssignments.map(a => a.course_id));
   const availableCourses = (courses ?? []).filter(
+<<<<<<< HEAD
     c => c.status === "published" && !assignedCourseIds.has(c.id) && canEnrollInCourse(c, employee?.organization_id),
+=======
+    c =>
+      c.status === "published"
+      && !assignedCourseIds.has(c.id)
+      && canEnrollInCourse(c, employee?.organization_id)
+      && isCourseVersionLearnerReady(c.current_version_id ? currentVersionById.get(c.current_version_id) : null),
+>>>>>>> origin/main
   );
 
   const handleStart = (courseId: string) => {
@@ -132,7 +157,11 @@ export default function MyCourses() {
                     <div className="min-w-0">
                       <p className="font-medium truncate">{course?.title ?? "Course"}</p>
                       <p className="text-xs text-muted-foreground">
+<<<<<<< HEAD
                         {a.due_date ? `Due ${new Date(a.due_date).toLocaleDateString()}` : "No due date"}
+=======
+                        {a.due_date ? `Due ${formatDateForDisplay(a.due_date)}` : "No due date"}
+>>>>>>> origin/main
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -156,11 +185,19 @@ export default function MyCourses() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BookOpen className="h-5 w-5" />
+<<<<<<< HEAD
             Available Courses {!coursesLoading && `(${availableCourses.length})`}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {coursesLoading ? (
+=======
+            Available Courses {!coursesReadyLoading && `(${availableCourses.length})`}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {coursesReadyLoading ? (
+>>>>>>> origin/main
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)}
             </div>

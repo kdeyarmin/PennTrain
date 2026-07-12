@@ -48,11 +48,17 @@ export function useListAllResidentComplianceItems(filters: ListAllResidentCompli
 // support-plan-revision cross-trigger) lives server-side in complete_resident_compliance_item() so
 // it's correct regardless of which UI surface calls it -- see
 // supabase/migrations/20260706090100_resident_compliance_cross_triggers_and_change_of_condition.sql.
+// p_document_id is required server-side (a resident_documents row linked to this item with
+// is_state_form = true) -- documents like the RASP/ASP and DME must be on the state-approved form,
+// no exception, so there is no "complete without evidence" call shape anymore.
 export function useCompleteResidentComplianceItem() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (item: ResidentComplianceItem) => {
-      const { data, error } = await supabase.rpc("complete_resident_compliance_item", { p_item_id: item.id });
+    mutationFn: async ({ item, documentId }: { item: ResidentComplianceItem; documentId: string }) => {
+      const { data, error } = await supabase.rpc("complete_resident_compliance_item", {
+        p_item_id: item.id,
+        p_document_id: documentId,
+      });
       if (error) throw error;
       return data;
     },

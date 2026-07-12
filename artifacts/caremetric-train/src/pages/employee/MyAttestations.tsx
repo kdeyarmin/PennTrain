@@ -14,17 +14,17 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { FileCheck2, ExternalLink, Loader2 } from "lucide-react";
+import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
 
 function fmtDate(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", { dateStyle: "medium" });
+  return formatDateForDisplay(iso, { dateStyle: "medium" });
 }
 
 function AttestationBadge({ attestation }: { attestation: PolicyAttestation }) {
   if (attestation.status === "attested") {
     return <Badge className="bg-success text-success-foreground hover:bg-success/80">Attested</Badge>;
   }
-  if (attestation.due_date && attestation.due_date < new Date().toISOString().slice(0, 10)) {
+  if (attestation.due_date && attestation.due_date < toLocalIsoDate()) {
     return <Badge className="bg-destructive text-destructive-foreground hover:bg-destructive/80">Overdue</Badge>;
   }
   return <Badge className="bg-warning text-warning-foreground hover:bg-warning/80">Pending</Badge>;
@@ -34,7 +34,12 @@ export default function MyAttestations() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
-  const { data: attestations, isLoading: attestationsLoading } = useListPolicyAttestations({ employeeId: employee?.id });
+  // Gate on a resolved employee id -- see useListPolicyAttestations' own comment on why `enabled`,
+  // not just the filter, is required to avoid an unscoped fetch-then-refetch on every page load.
+  const { data: attestations, isLoading: attestationsLoading } = useListPolicyAttestations(
+    { employeeId: employee?.id },
+    { enabled: !!employee?.id },
+  );
   const { data: campaigns } = useListPolicyAttestationCampaigns({ organizationId: user?.organizationId ?? undefined });
   const { data: documents } = useListPolicyDocuments({ organizationId: user?.organizationId ?? undefined });
   const { data: versions } = useListPolicyDocumentVersionsForOrg(user?.organizationId ?? undefined);
@@ -121,7 +126,7 @@ export default function MyAttestations() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <AttestationBadge attestation={a} />
-                    <Button size="sm" variant={a.status === "pending" ? "default" : "outline"} onClick={() => openReview(a)}>
+                    <Button variant={a.status === "pending" ? "default" : "outline"} onClick={() => openReview(a)}>
                       {a.status === "pending" ? "Review & Attest" : "View"}
                     </Button>
                   </div>

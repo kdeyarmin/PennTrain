@@ -1,3 +1,5 @@
+import { toLocalIsoDate } from "./dateUtils";
+
 // Mirrors the due_date/status formulas in recalculate_all_compliance() (supabase/migrations/
 // 20260704053624_compliance_rpcs_and_audit_trigger.sql) for employee_training_records, so pages
 // that create/update a record client-side (EmployeeDetail.tsx, TrainingMatrix.tsx,
@@ -6,7 +8,7 @@
 // there is no single source of truth shared between SQL and TypeScript here.
 
 export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalIsoDate();
 }
 
 export function addDaysISO(dateISO: string, days: number): string {
