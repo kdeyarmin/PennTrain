@@ -292,8 +292,8 @@ function planSummary(item: AnyRecord): string {
   const parts: string[] = [];
   if (item.planNotApplicable) return "Plan: N/A";
   if (item.planDescription) parts.push(item.planDescription);
-  if (item.planFrequency) parts.push(`Frequency: ${humanize(item.planFrequency)}${item.planFrequencyOther ? ` (${item.planFrequencyOther})` : ""}`);
-  if (item.planResponsibleParty) parts.push(`Responsible: ${item.planResponsibleParty}${item.planResponsiblePartyOther ? ` (${item.planResponsiblePartyOther})` : ""}`);
+  if (item.planFrequency) parts.push(`Frequency: ${humanize(item.planFrequency)}${item.planFrequency === "other" && item.planFrequencyOther ? ` (${item.planFrequencyOther})` : ""}`);
+  if (item.planResponsibleParty) parts.push(`Responsible: ${item.planResponsibleParty}${item.planResponsibleParty === "O" && item.planResponsiblePartyOther ? ` (${item.planResponsiblePartyOther})` : ""}`);
   return parts.length ? parts.join(" — ") : "—";
 }
 
@@ -456,7 +456,7 @@ async function buildAssessmentPdf(input: {
         ? ` — Copy Provided: ${COPY_PROVIDED_LABELS[p.copyProvided] ?? humanize(p.copyProvided)}${p.copyRequested ? " (Requested)" : ""}`
         : "";
       const reasonPart = !p.signedDate && p.noSignatureReason
-        ? ` — Reason Not Signed: ${NO_SIGNATURE_REASON_LABELS[p.noSignatureReason] ?? humanize(p.noSignatureReason)}${p.noSignatureReasonOther ? ` (${p.noSignatureReasonOther})` : ""}`
+        ? ` — Reason Not Signed: ${NO_SIGNATURE_REASON_LABELS[p.noSignatureReason] ?? humanize(p.noSignatureReason)}${p.noSignatureReason === "other" && p.noSignatureReasonOther ? ` (${p.noSignatureReasonOther})` : ""}`
         : "";
       w.row(`${p.name || "—"} (${p.relationshipToResident || "—"}) — signed ${p.signedDate || "—"}${copyPart}${reasonPart}`);
     }

@@ -137,7 +137,7 @@ function FrequencyPartyFields({
   return (
     <div className="grid grid-cols-2 gap-2">
       <div className="space-y-1">
-        <Select value={frequency} onValueChange={onFrequencyChange} disabled={disabled}>
+        <Select value={frequency} onValueChange={(v) => { onFrequencyChange(v); if (v !== "other") onFrequencyOtherChange(""); }} disabled={disabled}>
           <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Frequency" /></SelectTrigger>
           <SelectContent>{FREQUENCY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
         </Select>
@@ -147,7 +147,7 @@ function FrequencyPartyFields({
         )}
       </div>
       <div className="space-y-1">
-        <Select value={responsibleParty} onValueChange={onPartyChange} disabled={disabled}>
+        <Select value={responsibleParty} onValueChange={(v) => { onPartyChange(v); if (v !== "O") onPartyOtherChange(""); }} disabled={disabled}>
           <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Responsible party" /></SelectTrigger>
           <SelectContent>{partyOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
         </Select>
@@ -1255,7 +1255,7 @@ ${text}` : text;
                       {!p.signedDate && (
                         <div className="space-y-1">
                           <Label className="text-[11px]">Reason Not Signed</Label>
-                          <Select value={p.noSignatureReason || ""} onValueChange={(v) => updateParticipant({ noSignatureReason: v })}>
+                          <Select value={p.noSignatureReason || ""} onValueChange={(v) => updateParticipant({ noSignatureReason: v, ...(v === "other" ? {} : { noSignatureReasonOther: "" }) })}>
                             <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Reason" /></SelectTrigger>
                             <SelectContent>{NO_SIGNATURE_REASON_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                           </Select>
