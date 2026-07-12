@@ -39,8 +39,8 @@ export function ResidentFaceSheet({ packet }: { packet: ResidentFaceSheetPacket 
           <h3 className="mb-2 border-b border-black pb-1 text-sm font-bold">Informal Supports / Emergency Contacts</h3>
           {!packet.supports.length ? (
             <p>None on file.</p>
-          ) : packet.supports.map((support) => (
-            <p key={`${support.name}-${support.relationship}-${support.phone}`}>
+          ) : packet.supports.map((support, idx) => (
+            <p key={`${support.name}-${support.relationship}-${support.phone}-${idx}`}>
               <span className="font-semibold">{support.name}</span> · {support.relationship} · {support.phone}
             </p>
           ))}
