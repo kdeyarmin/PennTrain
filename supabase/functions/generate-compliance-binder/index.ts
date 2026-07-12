@@ -1,4 +1,5 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+// @ts-nocheck
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 
 const CORS_HEADERS = {
@@ -115,7 +116,7 @@ Deno.serve(async (req: Request) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-  const callerClient = createClient(supabaseUrl, anonKey, {
+  const callerClient = createClient<any>(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 
@@ -136,7 +137,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: "not authorized to generate a compliance binder" }, 403);
   }
 
-  let body: { organization_id?: string } = {};
+  let body: { organization_id?: string; facility_id?: string; facility_ids?: string[] } = {};
   if (req.headers.get("content-length") !== "0") {
     try {
       body = await req.json();
@@ -151,7 +152,7 @@ Deno.serve(async (req: Request) => {
   const orgId = callerProfile.role === "platform_admin" ? body.organization_id : callerProfile.organization_id;
   if (!orgId) return json({ error: "organization_id is required" }, 400);
 
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
 
   const { data: org, error: orgError } = await adminClient
     .from("organizations")
@@ -175,6 +176,39 @@ Deno.serve(async (req: Request) => {
     facilityScope = (assignments ?? []).map((a) => a.facility_id);
     if (facilityScope.length === 0) {
       return json({ error: "no facilities assigned to this account" }, 403);
+    }
+  }
+
+  // org_admin/auditor may optionally narrow the binder to one or more of their own org's
+  // facilities via facility_id/facility_ids -- platform_admin's scope stays governed entirely by
+  // organization_id above (no facility narrowing here), and this block only ever runs for
+  // org_admin/auditor, so it can never widen or otherwise change facility_manager's own
+  // auto-derived scope just above. Requested ids are checked against `orgId`, which is already
+  // locked to the caller's own organization for every non-platform_admin role (see the orgId
+  // computation above) -- the same "never trust the client, verify server-side" rule that block
+  // already follows for facility_manager.
+  if (callerProfile.role === "org_admin" || callerProfile.role === "auditor") {
+    const requested = Array.isArray(body.facility_ids) && body.facility_ids.length > 0
+      ? body.facility_ids
+      : body.facility_id
+        ? [body.facility_id]
+        : null;
+    if (requested) {
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (requested.some((id) => !uuidRe.test(id))) {
+        return json({ error: "invalid facility_id/facility_ids" }, 400);
+      }
+      const { data: matchedFacilities, error: facilityScopeError } = await adminClient
+        .from("facilities")
+        .select("id")
+        .eq("organization_id", orgId)
+        .in("id", requested);
+      if (facilityScopeError) return json({ error: facilityScopeError.message }, 500);
+      const validIds = new Set((matchedFacilities ?? []).map((f) => f.id));
+      if (requested.some((id) => !validIds.has(id))) {
+        return json({ error: "one or more requested facilities are not part of your organization" }, 403);
+      }
+      facilityScope = requested;
     }
   }
 

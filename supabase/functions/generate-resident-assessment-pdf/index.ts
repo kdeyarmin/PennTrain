@@ -1,4 +1,5 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+// @ts-nocheck
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 
 const CORS_HEADERS = {
@@ -18,6 +19,38 @@ const SIGNED_URL_TTL_SECONDS = 60 * 10;
 const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
 const MARGIN = 54;
+
+type StateAssessmentTemplate = { url: string; sourceLabel: string };
+
+const DHS_ASSESSMENT_FORM_TEMPLATES: Record<string, StateAssessmentTemplate> = {
+  RASP: {
+    url: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Personal_Care_Home-Resident_Assessment_Support_Plan_RASP.pdf",
+    sourceLabel: "PA DHS Personal Care Home RASP form",
+  },
+  ASP: {
+    url: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Assisted_Living-Assessment_Support_Plan_Form.pdf",
+    sourceLabel: "PA DHS Assisted Living Facility (ALF) ASP form",
+  },
+};
+
+async function fetchStateApprovedAssessmentTemplate(formType: string): Promise<{ templateBytes: Uint8Array; template: StateAssessmentTemplate }> {
+  const template = DHS_ASSESSMENT_FORM_TEMPLATES[formType];
+  if (!template) throw new Error(`No PA DHS state-approved template configured for ${formType}`);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const res = await fetch(template.url, { signal: controller.signal });
+    if (!res.ok) throw new Error(`Failed to download ${template.sourceLabel} (${res.status})`);
+    const contentType = res.headers.get("content-type") ?? "";
+    if (contentType && !contentType.toLowerCase().includes("pdf")) {
+      throw new Error(`PA DHS template response for ${template.sourceLabel} was not a PDF (${contentType})`);
+    }
+    return { templateBytes: new Uint8Array(await res.arrayBuffer()), template };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 function humanize(value: string | null | undefined): string {
   if (!value) return "—";
@@ -63,9 +96,99 @@ const SOCIAL_ITEMS = [
   ["groupActivities", "Enjoyable Group Activities"], ["religiousAffiliation", "Religious Affiliation"],
   ["nonParticipationReason", "Reason for Non-Participation"],
 ] as const;
+// Mirrors residentAssessmentFormSchema.ts's COPY_PROVIDED_OPTIONS/NO_SIGNATURE_REASON_OPTIONS
+// labels -- a generic humanize() of the raw code would show different wording than what the
+// assessor actually saw in the editor's dropdown (e.g. "unable" -> "Unable" instead of "Unable to
+// Sign (Medical/Cognitive)").
+const COPY_PROVIDED_LABELS: Record<string, string> = { yes: "Yes", no: "No", na: "N/A" };
+const NO_SIGNATURE_REASON_LABELS: Record<string, string> = {
+  declined: "Resident/Representative Declined",
+  unable: "Unable to Sign (Medical/Cognitive)",
+  unavailable: "Not Available to Sign",
+  other: "Other",
+};
+// Mirrors residentAssessmentFormSchema.ts's CARE_DEGREE_OPTIONS/BEHAVIORAL_DEGREE_OPTIONS -- same
+// A-E letters mean different things in each scale, so both maps are kept distinct rather than
+// merged even though their keys overlap.
+const CARE_DEGREE_LABELS: Record<string, string> = {
+  A: "A — Independent", B: "B — Prompting/Cueing", C: "C — Some Physical Assistance",
+  D: "D — Total Physical Assistance", E: "E — Not Applicable",
+};
+const BEHAVIORAL_DEGREE_LABELS: Record<string, string> = {
+  A: "A — No Problem", B: "B — Minimal Problem", C: "C — Moderate Problem",
+  D: "D — Severe Problem", E: "E — Not Applicable",
+};
 
 // deno-lint-ignore no-explicit-any
 type AnyRecord = Record<string, any>;
+
+// Mirrors artifacts/caremetric-train/src/lib/residentAssessmentFormSchema.ts's getIncompleteSections
+// -- advisory only, never blocks finalize/PDF export (see that function's comment for why). Printed
+// on the PDF itself so a gap left at finalization stays visible on the document DHS/an auditor sees,
+// not just in the CareMetric editor.
+const SECTION_LABELS: Record<string, string> = {
+  info: "Resident & Assessment Info",
+  section1: "Personal Care, Supervision, Mobility, Meds",
+  section2: "Medical, Dental, Dietary, Sensory",
+  section3: "Mental / Behavioral / Cognitive",
+  section4: "Social & Recreational",
+  summary: "Summary & Participation",
+};
+
+function degreeItemAnswered(formType: string, item: AnyRecord): boolean {
+  const degreeAnswered = formType === "ASP" ? !!item.degreePreliminary && !!item.degreeAllOther : !!item.degree;
+  const needAnswered = !!item.serviceNeedNotApplicable || !!(item.serviceNeedDescription ?? "").trim();
+  const planAnswered = !!item.planNotApplicable || !!(item.planDescription ?? "").trim();
+  return degreeAnswered && needAnswered && planAnswered;
+}
+
+function simpleNeedAnswered(item: AnyRecord): boolean {
+  return item.applicable === false || !!(item.description ?? "").trim();
+}
+
+function diagnosisRowsAnswered(rows: AnyRecord[] | undefined, none: boolean | undefined): boolean {
+  const list = rows ?? [];
+  return !!none || (list.length > 0 && list.every((r) => !!(r.description ?? "").trim()));
+}
+
+function getIncompleteSections(formType: string, content: AnyRecord): string[] {
+  const incomplete: string[] = [];
+
+  if (!content.assessmentInfo?.assessmentReason || !content.assessmentInfo?.supportPlanReason) {
+    incomplete.push("info");
+  }
+
+  const section1Answered =
+    (["supervision", "mobility", "medications"] as const).every((k) =>
+      !!(content.section1?.[k]?.needsDescription ?? "").trim() && !!(content.section1?.[k]?.planDescription ?? "").trim())
+    && ADL_ITEMS.every(([key]) => degreeItemAnswered(formType, content.section1?.items?.[key] ?? {}));
+  if (!section1Answered) incomplete.push("section1");
+
+  const section2Answered =
+    diagnosisRowsAnswered(content.section2?.physicalDiagnoses, content.section2?.noPhysicalDiagnoses)
+    && diagnosisRowsAnswered(content.section2?.dental, content.section2?.noDental)
+    && diagnosisRowsAnswered(content.section2?.dietary, content.section2?.noDietary)
+    && SENSORY_ITEMS.every(([key]) => simpleNeedAnswered(content.section2?.sensory?.[key] ?? {}));
+  if (!section2Answered) incomplete.push("section2");
+
+  const behavioralList = formType === "ASP" ? BEHAVIORAL_ITEMS_ASP : BEHAVIORAL_ITEMS_RASP;
+  const section3Answered =
+    diagnosisRowsAnswered(content.section3?.psychologicalDiagnoses, content.section3?.noPsychologicalDiagnoses)
+    && behavioralList.every(([key]) => degreeItemAnswered(formType, content.section3?.items?.[key] ?? {}));
+  if (!section3Answered) incomplete.push("section3");
+
+  const section4Answered = SOCIAL_ITEMS.every(([key]) => simpleNeedAnswered(content.section4?.items?.[key] ?? {}));
+  if (!section4Answered) incomplete.push("section4");
+
+  const summaryAnswered =
+    !!(content.summary?.overallWellness ?? "").trim()
+    && !!(content.participation?.assessorName ?? "").trim()
+    && !!(content.participation?.assessorTitle ?? "").trim()
+    && !!(content.participation?.assessorSignedDate ?? "").trim();
+  if (!summaryAnswered) incomplete.push("summary");
+
+  return incomplete;
+}
 
 class PdfWriter {
   doc!: PDFDocument;
@@ -74,10 +197,17 @@ class PdfWriter {
   page!: PDFPage;
   y = 0;
 
-  async init() {
+  async init(templateBytes?: Uint8Array) {
     this.doc = await PDFDocument.create();
     this.font = await this.doc.embedFont(StandardFonts.Helvetica);
     this.bold = await this.doc.embedFont(StandardFonts.HelveticaBold);
+
+    if (templateBytes) {
+      const template = await PDFDocument.load(templateBytes);
+      const pages = await this.doc.copyPages(template, template.getPageIndices());
+      for (const page of pages) this.doc.addPage(page);
+    }
+
     this.newPage();
   }
 
@@ -143,28 +273,32 @@ class PdfWriter {
   }
 }
 
-function degreeSummary(formType: string, item: AnyRecord): string {
+function degreeLabel(labels: Record<string, string>, code: string): string {
+  return code ? (labels[code] ?? code) : "—";
+}
+
+function degreeSummary(formType: string, item: AnyRecord, labels: Record<string, string>): string {
   // Branch on the authoritative formType, not field truthiness: DegreeItemEditor's onChange always
   // mirrors degree into degreePreliminary (see ResidentAssessmentFormEditor.tsx's DegreeSelect), so a
   // truthy-check on degreePreliminary alone would render RASP items as "Preliminary/All Other" too,
   // when only ASP's doubled Preliminary/All-Other mechanic actually applies.
   if (formType === "ASP") {
-    return `Preliminary: ${item.degreePreliminary || "—"}, All Other: ${item.degreeAllOther || "—"}`;
+    return `Preliminary: ${degreeLabel(labels, item.degreePreliminary)}, All Other: ${degreeLabel(labels, item.degreeAllOther)}`;
   }
-  return item.degree || "—";
+  return degreeLabel(labels, item.degree);
 }
 
 function planSummary(item: AnyRecord): string {
   const parts: string[] = [];
   if (item.planNotApplicable) return "Plan: N/A";
   if (item.planDescription) parts.push(item.planDescription);
-  if (item.planFrequency) parts.push(`Frequency: ${humanize(item.planFrequency)}`);
+  if (item.planFrequency) parts.push(`Frequency: ${humanize(item.planFrequency)}${item.planFrequencyOther ? ` (${item.planFrequencyOther})` : ""}`);
   if (item.planResponsibleParty) parts.push(`Responsible: ${item.planResponsibleParty}${item.planResponsiblePartyOther ? ` (${item.planResponsiblePartyOther})` : ""}`);
   return parts.length ? parts.join(" — ") : "—";
 }
 
-function writeDegreeItem(w: PdfWriter, formType: string, label: string, item: AnyRecord) {
-  w.row(`${label} — Degree: ${degreeSummary(formType, item)}`);
+function writeDegreeItem(w: PdfWriter, formType: string, label: string, item: AnyRecord, labels: Record<string, string>) {
+  w.row(`${label} — Degree: ${degreeSummary(formType, item, labels)}`);
   if (!item.serviceNeedNotApplicable && item.serviceNeedDescription) w.row(`  Need: ${item.serviceNeedDescription}`);
   w.row(`  ${planSummary(item)}`);
 }
@@ -207,17 +341,37 @@ async function buildAssessmentPdf(input: {
   designatedPersonName: string | null;
   informalSupports: { name: string; relationship: string | null; phone: string | null }[];
   content: AnyRecord;
-}): Promise<Uint8Array> {
+}): Promise<{ pdfBytes: Uint8Array; template: StateAssessmentTemplate }> {
+  const { templateBytes, template } = await fetchStateApprovedAssessmentTemplate(input.formType);
   const w = new PdfWriter();
-  await w.init();
+  await w.init(templateBytes);
   const content = input.content ?? {};
 
-  w.page.drawText(`Resident ${input.formType}${input.formType === "ASP" ? "" : " (Resident Assessment-Support Plan)"}`, {
+  w.page.drawText(`CareMetric completion addendum for PA DHS ${input.formType}${input.formType === "ASP" ? "" : " (Resident Assessment-Support Plan)"}`, {
     x: MARGIN, y: w.y, size: 17, font: w.bold, color: rgb(0.16, 0.22, 0.44),
   });
   w.y -= 20;
   w.page.drawText(`Version ${input.versionNumber} — ${humanize(input.status)}`, { x: MARGIN, y: w.y, size: 10, font: w.font, color: rgb(0.35, 0.35, 0.35) });
   w.y -= 20;
+  w.page.drawText(`DHS template source: ${template.sourceLabel}`, { x: MARGIN, y: w.y, size: 8.5, font: w.font, color: rgb(0.35, 0.35, 0.35) });
+  w.y -= 12;
+  w.wrapText(template.url, MARGIN, PAGE_WIDTH - (MARGIN * 2), 8);
+  w.y -= 8;
+
+  // The generated artifact starts with the unmodified PA DHS state-approved form pages. CareMetric's
+  // structured data follows only as a completion addendum so the document the app creates is the DHS
+  // form packet, not a replacement form invented by the product.
+  w.row(
+    `This packet begins with the official PA DHS ${input.formType} form. The following pages are a `
+    + `CareMetric completion addendum generated from the facility's saved entries for that state form.`
+  );
+  w.y -= 6;
+
+  const incompleteSections = getIncompleteSections(input.formType, content);
+  if (incompleteSections.length > 0) {
+    w.row(`INCOMPLETE AT FINALIZATION -- sections with unanswered items: ${incompleteSections.map((k) => SECTION_LABELS[k]).join(", ")}.`);
+    w.y -= 6;
+  }
 
   w.heading("Facility & Preparer");
   w.field("Facility", input.facilityName);
@@ -258,11 +412,12 @@ async function buildAssessmentPdf(input: {
   for (const key of ["supervision", "mobility", "medications"] as const) {
     const s = content.section1?.[key] ?? {};
     w.subheading(humanize(key));
+    w.row(`Degree: ${degreeLabel(CARE_DEGREE_LABELS, s.level)}`);
     w.row(`${s.needsDescription || "—"}`);
-    w.row(`Plan: ${s.planDescription || "—"}`);
+    w.row(`Plan: ${planSummary(s)}`);
   }
   for (const [key, label] of ADL_ITEMS) {
-    writeDegreeItem(w, input.formType, label, content.section1?.items?.[key] ?? {});
+    writeDegreeItem(w, input.formType, label, content.section1?.items?.[key] ?? {}, CARE_DEGREE_LABELS);
   }
 
   w.heading("Section 2 — Medical, Dental, Dietary, Sensory Needs");
@@ -278,7 +433,7 @@ async function buildAssessmentPdf(input: {
   writeDiagnosisRows(w, "Psychological Diagnoses", content.section3?.psychologicalDiagnoses ?? [], !!content.section3?.noPsychologicalDiagnoses);
   const behavioralList = input.formType === "ASP" ? BEHAVIORAL_ITEMS_ASP : BEHAVIORAL_ITEMS_RASP;
   for (const [key, label] of behavioralList) {
-    writeDegreeItem(w, input.formType, label, content.section3?.items?.[key] ?? {});
+    writeDegreeItem(w, input.formType, label, content.section3?.items?.[key] ?? {}, BEHAVIORAL_DEGREE_LABELS);
   }
 
   w.heading("Section 4 — Social and Recreational Needs");
@@ -297,11 +452,17 @@ async function buildAssessmentPdf(input: {
     w.row("No participants recorded.");
   } else {
     for (const p of participants) {
-      w.row(`${p.name || "—"} (${p.relationshipToResident || "—"}) — signed ${p.signedDate || "—"}`);
+      const copyPart = p.copyProvided
+        ? ` — Copy Provided: ${COPY_PROVIDED_LABELS[p.copyProvided] ?? humanize(p.copyProvided)}${p.copyRequested ? " (Requested)" : ""}`
+        : "";
+      const reasonPart = !p.signedDate && p.noSignatureReason
+        ? ` — Reason Not Signed: ${NO_SIGNATURE_REASON_LABELS[p.noSignatureReason] ?? humanize(p.noSignatureReason)}${p.noSignatureReasonOther ? ` (${p.noSignatureReasonOther})` : ""}`
+        : "";
+      w.row(`${p.name || "—"} (${p.relationshipToResident || "—"}) — signed ${p.signedDate || "—"}${copyPart}${reasonPart}`);
     }
   }
 
-  return await w.doc.save();
+  return { pdfBytes: await w.doc.save(), template };
 }
 
 Deno.serve(async (req: Request) => {
@@ -315,7 +476,7 @@ Deno.serve(async (req: Request) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-  const callerClient = createClient(supabaseUrl, anonKey, {
+  const callerClient = createClient<any>(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 
@@ -427,7 +588,7 @@ Deno.serve(async (req: Request) => {
     .order("sort_order");
   if (supportsError) return json({ error: supportsError.message }, 500);
 
-  const pdfBytes = await buildAssessmentPdf({
+  const { pdfBytes, template } = await buildAssessmentPdf({
     formType: form.form_type,
     reason: form.reason,
     versionNumber: form.version_number,
@@ -453,7 +614,7 @@ Deno.serve(async (req: Request) => {
     content: (form.content ?? {}) as AnyRecord,
   });
 
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
   const path = `${form.organization_id}/${form.facility_id}/${form.resident_id}-${form.form_type.toLowerCase()}-v${form.version_number}-${form.id}.pdf`;
 
   const { error: uploadError } = await adminClient.storage.from(DOCUMENTS_BUCKET).upload(path, pdfBytes, {
@@ -463,20 +624,42 @@ Deno.serve(async (req: Request) => {
   if (uploadError) return json({ error: uploadError.message }, 500);
 
   // One resident_documents row per assessment-form version -- the existence check above already
-  // guarantees no row with this document_label exists yet, so this is always a fresh insert.
-  const { error: docError } = await adminClient.from("resident_documents").insert({
+  // guarantees no row with this document_label exists yet, so this is always a fresh insert. The PDF
+  // starts with the official PA DHS form pages and is therefore flagged as the state form created by
+  // the app; the RPC below then completes the linked compliance item with that exact document.
+  const { data: insertedDocument, error: docError } = await adminClient.from("resident_documents").insert({
     organization_id: form.organization_id,
     facility_id: form.facility_id,
     resident_id: form.resident_id,
     compliance_item_id: form.compliance_item_id,
     storage_bucket: DOCUMENTS_BUCKET,
     storage_path: path,
-    file_name: `${form.form_type} v${form.version_number}.pdf`,
+    file_name: `PA DHS ${form.form_type} v${form.version_number}.pdf`,
     file_type: "application/pdf",
     document_label: documentLabel,
     uploaded_by_profile_id: callerUser.id,
-  });
-  if (docError) return json({ error: docError.message }, 500);
+    is_state_form: true,
+    state_form_source_label: template.sourceLabel,
+    state_form_source_url: template.url,
+  })
+    .select("id")
+    .single();
+  if (docError) {
+    await adminClient.storage.from(DOCUMENTS_BUCKET).remove([path]);
+    return json({ error: docError.message }, 500);
+  }
+
+  if (form.compliance_item_id && insertedDocument?.id) {
+    const { error: completeError } = await callerClient.rpc("complete_resident_compliance_item", {
+      p_item_id: form.compliance_item_id,
+      p_document_id: insertedDocument.id,
+    });
+    if (completeError) {
+      await adminClient.from("resident_documents").delete().eq("id", insertedDocument.id);
+      await adminClient.storage.from(DOCUMENTS_BUCKET).remove([path]);
+      return json({ error: completeError.message }, 500);
+    }
+  }
 
   const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
     .from(DOCUMENTS_BUCKET)
@@ -485,5 +668,5 @@ Deno.serve(async (req: Request) => {
     return json({ error: signedUrlError?.message ?? "failed to create signed url" }, 500);
   }
 
-  return json({ success: true, url: signedUrlData.signedUrl, path, expiresIn: SIGNED_URL_TTL_SECONDS });
+  return json({ success: true, url: signedUrlData.signedUrl, path, documentId: insertedDocument?.id, expiresIn: SIGNED_URL_TTL_SECONDS });
 });

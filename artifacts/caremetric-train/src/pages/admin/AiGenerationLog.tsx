@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "wouter";
-import { useListCourseAiGenerations } from "@/hooks/useCourseAiGenerations";
+import { useListCourseAiGenerations, useListResidentAssessmentAiGenerations } from "@/hooks/useCourseAiGenerations";
 import { useAuth } from "@/lib/auth";
 import { courseDetailPath } from "@/lib/courseRoutes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Bot, Sparkles } from "lucide-react";
 
 type StatusFilter = "all" | "pending" | "completed" | "failed";
+
+type AiGenerationLogRow = {
+  id: string;
+  kind: string;
+  subject: ReactNode;
+  requestedBy: string;
+  model: string;
+  status: string;
+  errorMessage: string | null;
+  detail: ReactNode;
+  createdAt: string;
+};
 
 // Mirrors AuditLog.tsx's getActionDisplay / NotificationDeliveries.tsx's
 // getStatusDisplay color-map convention -- course_ai_generations.status
@@ -37,10 +49,55 @@ export default function AiGenerationLog() {
   const { user } = useAuth();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
-  const { data: generationsData, isLoading } = useListCourseAiGenerations({
-    status: statusFilter !== "all" ? statusFilter : undefined,
-  });
-  const generations = generationsData ?? [];
+  const filters = { status: statusFilter !== "all" ? statusFilter : undefined };
+  const { data: courseGenerationsData, isLoading: isLoadingCourseGenerations } = useListCourseAiGenerations(filters);
+  const { data: residentAssessmentGenerationsData, isLoading: isLoadingResidentAssessmentGenerations } = useListResidentAssessmentAiGenerations(filters);
+  const isLoading = isLoadingCourseGenerations || isLoadingResidentAssessmentGenerations;
+
+  const generations: AiGenerationLogRow[] = [
+    ...(courseGenerationsData ?? []).map((gen): AiGenerationLogRow => {
+      const requesterName = gen.requester ? `${gen.requester.first_name} ${gen.requester.last_name}`.trim() : "Unknown";
+      return {
+        id: `course:${gen.id}`,
+        kind: getKindLabel(gen.kind),
+        subject: gen.course_id ? (
+          <Link href={courseDetailPath(gen.course_id, user?.role)} className="text-primary hover:underline font-medium">
+            {gen.courses?.title ?? gen.course_id}
+          </Link>
+        ) : (
+          <span className="text-muted-foreground">-- (not yet linked)</span>
+        ),
+        requestedBy: requesterName || "Unknown",
+        model: gen.model,
+        status: gen.status,
+        errorMessage: gen.error_message,
+        detail: gen.reviewed_at ? (
+          <Badge className="bg-green-100 text-green-800 whitespace-nowrap" variant="outline">Reviewed</Badge>
+        ) : (
+          <span className="text-xs text-muted-foreground">Pending review</span>
+        ),
+        createdAt: gen.created_at,
+      };
+    }),
+    ...(residentAssessmentGenerationsData ?? []).map((gen): AiGenerationLogRow => {
+      const requesterName = gen.requester ? `${gen.requester.first_name} ${gen.requester.last_name}`.trim() : "Unknown";
+      return {
+        id: `resident-assessment:${gen.id}`,
+        kind: "Resident Wellness Summary",
+        subject: (
+          <span className="font-medium">
+            Assessment form {gen.resident_assessment_form_id.slice(0, 8)}
+          </span>
+        ),
+        requestedBy: requesterName || "Unknown",
+        model: gen.model,
+        status: gen.status,
+        errorMessage: gen.error_message,
+        detail: <span className="text-xs text-muted-foreground">No PHI stored in audit row</span>,
+        createdAt: gen.created_at,
+      };
+    }),
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return (
     <div className="space-y-6">
@@ -48,7 +105,7 @@ export default function AiGenerationLog() {
         <div>
           <h1 className="text-2xl font-bold">AI Generation Log</h1>
           <p className="text-muted-foreground">
-            Every AI course-curriculum and avatar-video generation call across the platform.
+            Every AI course-content and resident wellness-summary generation call across the platform.
           </p>
         </div>
         <Button asChild className="shadow-sm">
@@ -83,7 +140,7 @@ export default function AiGenerationLog() {
               </div>
               <p className="font-medium text-muted-foreground">No AI generation calls found</p>
               <p className="text-sm text-muted-foreground/60 mt-1">
-                Try adjusting your filters, or check back after the next AI course generation.
+                Try adjusting your filters, or check back after the next AI generation.
               </p>
             </div>
           ) : (
@@ -91,58 +148,38 @@ export default function AiGenerationLog() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Kind</TableHead>
-                  <TableHead>Course</TableHead>
+                  <TableHead>Subject</TableHead>
                   <TableHead>Requested By</TableHead>
                   <TableHead>Model</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Review</TableHead>
+                  <TableHead>Details</TableHead>
                   <TableHead>Created</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {generations.map((gen) => {
                   const { color, label } = getStatusDisplay(gen.status);
-                  const requesterName = gen.requester
-                    ? `${gen.requester.first_name} ${gen.requester.last_name}`.trim()
-                    : "Unknown";
                   return (
                     <TableRow key={gen.id}>
                       <TableCell>
-                        <Badge variant="outline" className="whitespace-nowrap">{getKindLabel(gen.kind)}</Badge>
+                        <Badge variant="outline" className="whitespace-nowrap">{gen.kind}</Badge>
                       </TableCell>
-                      <TableCell>
-                        {gen.course_id ? (
-                          <Link
-                            href={courseDetailPath(gen.course_id, user?.role)}
-                            className="text-primary hover:underline font-medium"
-                          >
-                            {gen.courses?.title ?? gen.course_id}
-                          </Link>
-                        ) : (
-                          <span className="text-muted-foreground">-- (not yet linked)</span>
-                        )}
-                      </TableCell>
-                      <TableCell>{requesterName}</TableCell>
+                      <TableCell>{gen.subject}</TableCell>
+                      <TableCell>{gen.requestedBy}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{gen.model}</TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
                           <span className={`inline-flex items-center w-fit px-2 py-0.5 rounded text-xs font-medium ${color}`}>
                             {label}
                           </span>
-                          {gen.error_message && (
-                            <span className="text-xs text-destructive max-w-xs">{gen.error_message}</span>
+                          {gen.errorMessage && (
+                            <span className="text-xs text-destructive max-w-xs">{gen.errorMessage}</span>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>
-                        {gen.reviewed_at ? (
-                          <Badge className="bg-green-100 text-green-800 whitespace-nowrap" variant="outline">Reviewed</Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">Pending review</span>
-                        )}
-                      </TableCell>
+                      <TableCell>{gen.detail}</TableCell>
                       <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(gen.created_at).toLocaleString()}
+                        {new Date(gen.createdAt).toLocaleString()}
                       </TableCell>
                     </TableRow>
                   );

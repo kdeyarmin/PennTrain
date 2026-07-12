@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect, useParams } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -20,6 +20,7 @@ const Demo = lazy(() => import("@/pages/auth/Demo"));
 const Signup = lazy(() => import("@/pages/auth/Signup"));
 const ForgotPassword = lazy(() => import("@/pages/auth/ForgotPassword"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
+const MfaSettings = lazy(() => import("@/pages/auth/MfaSettings"));
 
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
 const Organizations = lazy(() => import("@/pages/admin/Organizations"));
@@ -28,11 +29,18 @@ const Packages = lazy(() => import("@/pages/admin/Packages"));
 const AiCourseWizard = lazy(() => import("@/pages/admin/AiCourseWizard"));
 const AiGenerationLog = lazy(() => import("@/pages/admin/AiGenerationLog"));
 const NotificationDeliveries = lazy(() => import("@/pages/admin/NotificationDeliveries"));
+const SystemJobs = lazy(() => import("@/pages/admin/SystemJobs"));
+const EnterpriseFoundation = lazy(() => import("@/pages/admin/EnterpriseFoundation"));
+const QualifiedWorkforce = lazy(() => import("@/pages/admin/QualifiedWorkforce"));
+const GovernedLearning = lazy(() => import("@/pages/admin/GovernedLearning"));
+const ClosedLoopCompliance = lazy(() => import("@/pages/admin/ClosedLoopCompliance"));
+const SafetyReport = lazy(() => import("@/pages/public/SafetyReport"));
 const PlatformSettings = lazy(() => import("@/pages/admin/PlatformSettings"));
 const SecurityGovernance = lazy(() => import("@/pages/admin/SecurityGovernance"));
 const AdminSupportTickets = lazy(() => import("@/pages/admin/SupportTickets"));
 const AdminSupportTicketDetail = lazy(() => import("@/pages/admin/SupportTicketDetail"));
 const AdminHelpContent = lazy(() => import("@/pages/admin/HelpContent"));
+const ImprovementRoadmap = lazy(() => import("@/pages/admin/ImprovementRoadmap"));
 
 const OrgDashboard = lazy(() => import("@/pages/app/Dashboard"));
 const Facilities = lazy(() => import("@/pages/app/Facilities"));
@@ -104,6 +112,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import MaintenanceBanner from "@/components/layout/MaintenanceBanner";
 import { useAuth } from "@/lib/auth";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
+import { helpBasePathForRole } from "@/lib/appDomains";
 import { PCH_ALR_ONLY_FACILITY_TYPES, hasAnyFacilityType } from "@/lib/facilityTypes";
 import { Loader2 } from "lucide-react";
 import type { ComponentType } from "react";
@@ -171,24 +180,21 @@ function ProtectedRoute({
 const PLATFORM_ADMIN: UserRole[] = ["platform_admin"];
 const ORG_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor"];
 // support_tickets_select RLS gates on created_by = auth.uid() (or platform_admin), not on role,
-// and a ticket's stored notification link is baked in from the creator's role *at notify time* --
-// so if that role changes later (promotion/demotion), a route guard scoped to just ORG_ROLES or
-// just employee would bounce a still-authorized viewer away from their own ticket at the other
-// prefix. Every non-platform_admin role can reach either /app/help/tickets/:id or
-// /me/help/tickets/:id; SupportTicketDetail.tsx itself derives its "back to Help Center" link from
-// the current URL, not from allowedRoles, so it's safe to widen this one without also widening
-// the HelpCenter.tsx list/FAQ/submit routes.
+// and a ticket's stored notification link is baked in from the creator's role *at notify time*.
+// SupportTicketRoute below keeps those historical links usable but redirects each role to the
+// correct prefix before rendering, so learners stay in /me and org-scoped roles stay in /app.
 const SUPPORT_TICKET_DETAIL_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor", "employee"];
+// self_enroll_course() lets any role take a course now, not just employee -- these three routes
+// are the only "/me/*" self-service pages every role can reach; the rest of that prefix
+// (dashboard, schedule, credentials, etc.) stays employee-only real HR/scheduling data.
+const ANY_ROLE: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"];
 const ORG_MANAGE_ROLES: UserRole[] = ["org_admin", "facility_manager"];
 const ORG_ADMIN_ONLY: UserRole[] = ["org_admin"];
 // Read-only compliance views auditor needs alongside the org admin roles -- auditor never
 // gets ORG_MANAGE_ROLES (Users/Settings are true admin config, not audit-relevant).
 const REPORTS_VIEW_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
-// facility_manager is deliberately excluded: audit_logs has no facility_id column, so unlike every
-// other facility_manager grant in this schema (scoped via is_assigned_to_facility(facility_id)),
-// granting this role here would expose every other facility's audit trail in the org -- see
-// 20260706002752_revert_facility_manager_audit_logs_select_pending_facility_scope.sql.
-const AUDIT_LOG_ROLES: UserRole[] = ["org_admin", "auditor"];
+// Phase 1 adds facility_id to audit evidence and enforces assigned-facility scope in RLS.
+const AUDIT_LOG_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
 // Matches employee_credentials_select RLS -- trainer is excluded, unlike ORG_ROLES, because
 // clearance/license data is more sensitive than training records.
 const CREDENTIAL_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
@@ -215,9 +221,24 @@ const TEMPLATE_DOCUMENT_ROLES: UserRole[] = ["org_admin", "facility_manager", "a
 // any class in their org (not just trainer-owned ones) at the DB layer; this just gives them a
 // route to reach the same trainer-facing pages instead of needing a separate trainer account.
 const CLASS_SCHEDULING_ROLES: UserRole[] = ["trainer", "org_admin", "facility_manager"];
+// External certificate approvals are an operational training queue: admins/managers oversee it,
+// and trainers can approve training evidence. Auditors stay out of this action queue.
+const PENDING_APPROVAL_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer"];
 // Matches schedules_write / facility_units_write / shift_definitions_write / employee_schedule_preferences_write
 // RLS -- shift scheduling is org_admin/facility_manager only (no trainer, no auditor write).
 const SCHEDULE_MANAGE_ROLES: UserRole[] = ["org_admin", "facility_manager"];
+
+function SupportTicketRoute({ prefix }: { prefix: "/app" | "/me" }) {
+  const { user, isLoading, isAuthenticated } = useAuth();
+  const { id } = useParams<{ id: string }>();
+  const canonicalPrefix = helpBasePathForRole(user?.role);
+
+  if (!isLoading && isAuthenticated && canonicalPrefix && canonicalPrefix !== prefix) {
+    return <Redirect to={`${canonicalPrefix}/help/tickets/${id}`} />;
+  }
+
+  return <ProtectedRoute component={SupportTicketDetail} allowedRoles={SUPPORT_TICKET_DETAIL_ROLES} />;
+}
 
 function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -249,10 +270,14 @@ function Router() {
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/verify/:slug" component={VerifyCertificate} />
-      {/* Bare, chrome-less page (no ProtectedRoute/MainLayout wrapper) -- AuthProvider's own
-          global redirect already bounces a signed-out visitor to /login since this path isn't in
-          isPublicPath(); intentionally no sidebar for a page reached by scanning a QR code. */}
+      <Route path="/report-safety" component={SafetyReport} />
+      {/* Bare, chrome-less public page intentionally left outside ProtectedRoute/MainLayout so
+          signed-out visitors can open it directly after scanning a QR code. */}
       <Route path="/checkin/:token" component={CheckIn} />
+
+      <Route path="/account/security">
+        {() => <ProtectedRoute component={MfaSettings} allowedRoles={ANY_ROLE} />}
+      </Route>
 
       {/* Public marketing pages (nav targets from the landing page) */}
       <Route path="/features" component={Features} />
@@ -321,6 +346,24 @@ function Router() {
       <Route path="/admin/notifications">
         {() => <ProtectedRoute component={NotificationDeliveries} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
+      <Route path="/admin/system-jobs">
+        {() => <ProtectedRoute component={SystemJobs} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/enterprise">
+        {() => <ProtectedRoute component={EnterpriseFoundation} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/qualified-workforce">
+        {() => <ProtectedRoute component={QualifiedWorkforce} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/governed-learning">
+        {() => <ProtectedRoute component={GovernedLearning} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/closed-loop-compliance">
+        {() => <ProtectedRoute component={ClosedLoopCompliance} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/exclusion-screening">
+        {() => <ProtectedRoute component={ExclusionScreening} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
       <Route path="/admin/settings">
         {() => <ProtectedRoute component={PlatformSettings} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
@@ -335,6 +378,9 @@ function Router() {
       </Route>
       <Route path="/admin/help-content">
         {() => <ProtectedRoute component={AdminHelpContent} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/roadmap">
+        {() => <ProtectedRoute component={ImprovementRoadmap} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
 
       {/* Org/Facility routes */}
@@ -453,13 +499,25 @@ function Router() {
         {() => <ProtectedRoute component={Documents} allowedRoles={ORG_ROLES} />}
       </Route>
       <Route path="/app/pending-approvals">
-        {() => <ProtectedRoute component={PendingApprovals} allowedRoles={ORG_ROLES} />}
+        {() => <ProtectedRoute component={PendingApprovals} allowedRoles={PENDING_APPROVAL_ROLES} />}
       </Route>
       <Route path="/app/users">
         {() => <ProtectedRoute component={Users} allowedRoles={ORG_MANAGE_ROLES} />}
       </Route>
       <Route path="/app/settings">
         {() => <ProtectedRoute component={Settings} allowedRoles={ORG_MANAGE_ROLES} />}
+      </Route>
+      <Route path="/app/enterprise">
+        {() => <ProtectedRoute component={EnterpriseFoundation} allowedRoles={ORG_ADMIN_ONLY} />}
+      </Route>
+      <Route path="/app/workforce-operations">
+        {() => <ProtectedRoute component={QualifiedWorkforce} allowedRoles={ORG_MANAGE_ROLES} />}
+      </Route>
+      <Route path="/app/governed-learning">
+        {() => <ProtectedRoute component={GovernedLearning} allowedRoles={ORG_MANAGE_ROLES} />}
+      </Route>
+      <Route path="/app/closed-loop-compliance">
+        {() => <ProtectedRoute component={ClosedLoopCompliance} allowedRoles={REPORTS_VIEW_ROLES} />}
       </Route>
       <Route path="/app/audit">
         {() => <ProtectedRoute component={AuditLog} allowedRoles={AUDIT_LOG_ROLES} />}
@@ -468,7 +526,7 @@ function Router() {
         {() => <ProtectedRoute component={HelpCenter} allowedRoles={ORG_ROLES} />}
       </Route>
       <Route path="/app/help/tickets/:id">
-        {() => <ProtectedRoute component={SupportTicketDetail} allowedRoles={SUPPORT_TICKET_DETAIL_ROLES} />}
+        {() => <SupportTicketRoute prefix="/app" />}
       </Route>
       <Route path="/app/schedule">
         {() => <ProtectedRoute component={Schedule} allowedRoles={SCHEDULE_MANAGE_ROLES} />}
@@ -502,8 +560,14 @@ function Router() {
       <Route path="/trainer/facilities">
         {() => <ProtectedRoute component={Facilities} allowedRoles={["trainer"]} />}
       </Route>
+      <Route path="/trainer/facilities/:id">
+        {() => <ProtectedRoute component={FacilityDetail} allowedRoles={["trainer"]} />}
+      </Route>
       <Route path="/trainer/employees">
         {() => <ProtectedRoute component={Employees} allowedRoles={["trainer"]} />}
+      </Route>
+      <Route path="/trainer/employees/:id">
+        {() => <ProtectedRoute component={EmployeeDetail} allowedRoles={["trainer"]} />}
       </Route>
 
       {/* Employee self-service routes */}
@@ -520,13 +584,13 @@ function Router() {
         {() => <ProtectedRoute component={MyCertificates} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/courses">
-        {() => <ProtectedRoute component={MyCourses} allowedRoles={["employee"]} />}
+        {() => <ProtectedRoute component={MyCourses} allowedRoles={ANY_ROLE} />}
       </Route>
       <Route path="/me/courses/:assignmentId">
-        {() => <ProtectedRoute component={TakeCourse} allowedRoles={["employee"]} />}
+        {() => <ProtectedRoute component={TakeCourse} allowedRoles={ANY_ROLE} />}
       </Route>
       <Route path="/me/courses/:assignmentId/quiz/:quizId">
-        {() => <ProtectedRoute component={TakeQuiz} allowedRoles={["employee"]} />}
+        {() => <ProtectedRoute component={TakeQuiz} allowedRoles={ANY_ROLE} />}
       </Route>
       <Route path="/me/documents">
         {() => <ProtectedRoute component={Documents} allowedRoles={["employee"]} />}
@@ -541,7 +605,7 @@ function Router() {
         {() => <ProtectedRoute component={HelpCenter} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/help/tickets/:id">
-        {() => <ProtectedRoute component={SupportTicketDetail} allowedRoles={SUPPORT_TICKET_DETAIL_ROLES} />}
+        {() => <SupportTicketRoute prefix="/me" />}
       </Route>
 
       <Route component={NotFound} />

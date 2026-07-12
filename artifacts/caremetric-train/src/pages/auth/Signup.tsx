@@ -1,14 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
-import { markExplicitPasswordSignIn } from "@/lib/auth";
 import { useSignupOrganization } from "@/hooks/useSignup";
-import { Loader2, ArrowRight } from "lucide-react";
+import { Loader2, ArrowRight, CheckCircle2 } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 
 interface SignupForm {
@@ -16,58 +14,121 @@ interface SignupForm {
   firstName: string;
   lastName: string;
   email: string;
-  password: string;
-  confirmPassword: string;
 }
 
 const EMPTY_FORM: SignupForm = {
-  organizationName: "", firstName: "", lastName: "", email: "", password: "", confirmPassword: "",
+  organizationName: "", firstName: "", lastName: "", email: "",
 };
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (
+        container: HTMLElement,
+        options: {
+          sitekey: string;
+          callback: (token: string) => void;
+          "expired-callback": () => void;
+          "error-callback": () => void;
+        },
+      ) => string;
+      reset: (widgetId?: string) => void;
+      remove?: (widgetId: string) => void;
+    };
+  }
+}
 
 export default function Signup() {
   const [form, setForm] = useState<SignupForm>(EMPTY_FORM);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
+  const turnstileContainerRef = useRef<HTMLDivElement | null>(null);
+  const turnstileWidgetIdRef = useRef<string | null>(null);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { mutate: signup, isPending } = useSignupOrganization();
+  const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
 
   const field = (k: keyof SignupForm, v: string) => setForm(f => ({ ...f, [k]: v }));
 
+  useEffect(() => {
+    if (!turnstileSiteKey) return;
+    let cancelled = false;
+
+    const renderTurnstile = () => {
+      if (cancelled || !window.turnstile || !turnstileContainerRef.current || turnstileWidgetIdRef.current) return;
+      turnstileWidgetIdRef.current = window.turnstile.render(turnstileContainerRef.current, {
+        sitekey: turnstileSiteKey,
+        callback: setTurnstileToken,
+        "expired-callback": () => setTurnstileToken(""),
+        "error-callback": () => setTurnstileToken(""),
+      });
+    };
+
+    if (window.turnstile) {
+      renderTurnstile();
+    } else {
+      const scriptId = "cloudflare-turnstile-api";
+      let script = document.getElementById(scriptId) as HTMLScriptElement | null;
+      if (!script) {
+        script = document.createElement("script");
+        script.id = scriptId;
+        script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+      }
+      script.addEventListener("load", renderTurnstile);
+      return () => {
+        cancelled = true;
+        script?.removeEventListener("load", renderTurnstile);
+        if (turnstileWidgetIdRef.current) window.turnstile?.remove?.(turnstileWidgetIdRef.current);
+        turnstileWidgetIdRef.current = null;
+      };
+    }
+
+    return () => {
+      cancelled = true;
+      if (turnstileWidgetIdRef.current) window.turnstile?.remove?.(turnstileWidgetIdRef.current);
+      turnstileWidgetIdRef.current = null;
+    };
+  }, [turnstileSiteKey]);
+
+  const resetTurnstile = () => {
+    if (turnstileWidgetIdRef.current) window.turnstile?.reset(turnstileWidgetIdRef.current);
+    setTurnstileToken("");
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.organizationName.trim() || !form.firstName.trim() || !form.lastName.trim() || !form.email.trim() || !form.password) {
+    if (!form.organizationName.trim() || !form.firstName.trim() || !form.lastName.trim() || !form.email.trim()) {
       toast({ variant: "destructive", title: "All fields are required" });
       return;
     }
-    if (form.password.length < 8) {
-      toast({ variant: "destructive", title: "Password too short", description: "Use at least 8 characters." });
-      return;
-    }
-    if (form.password !== form.confirmPassword) {
-      toast({ variant: "destructive", title: "Passwords don't match" });
+    if (!turnstileSiteKey || !turnstileToken) {
+      toast({ variant: "destructive", title: "Signup verification required" });
       return;
     }
 
+    const email = form.email.trim();
     signup(
       {
-        email: form.email.trim(),
-        password: form.password,
+        email,
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         organizationName: form.organizationName.trim(),
+        turnstileToken,
+        redirectTo: `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/reset-password`,
       },
       {
-        onSuccess: async () => {
-          markExplicitPasswordSignIn();
-          const { error } = await supabase.auth.signInWithPassword({ email: form.email.trim(), password: form.password });
-          if (error) {
-            toast({ title: "Account created", description: "Sign in with your new credentials." });
-            setLocation("/login");
-            return;
-          }
-          toast({ title: "Welcome to CareMetric Train", description: "Your organization is ready to go." });
-          setLocation("/");
+        onSuccess: () => {
+          setSubmittedEmail(email);
+          toast({ title: "Check your email", description: "Use the invite link to set your password." });
         },
-        onError: (err: Error) => toast({ variant: "destructive", title: "Couldn't create your account", description: err.message }),
+        onError: (err: Error) => {
+          resetTurnstile();
+          toast({ variant: "destructive", title: "Couldn't create your account", description: err.message });
+        },
       },
     );
   };
@@ -93,10 +154,27 @@ export default function Signup() {
 
         <Card className="border-border/50 shadow-xl shadow-black/[0.04] backdrop-blur-sm">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg">Create your organization</CardTitle>
-            <CardDescription>Set up your facility's account to start tracking training and compliance.</CardDescription>
+            <CardTitle className="text-lg">{submittedEmail ? "Check your email" : "Create your organization"}</CardTitle>
+            <CardDescription>
+              {submittedEmail
+                ? `We sent an invite link to ${submittedEmail}.`
+                : "Set up your facility's account to start tracking training and compliance."}
+            </CardDescription>
           </CardHeader>
           <CardContent>
+            {submittedEmail ? (
+              <div className="space-y-4 text-center">
+                <div className="mx-auto h-16 w-16 rounded-full bg-green-100 flex items-center justify-center">
+                  <CheckCircle2 className="h-8 w-8 text-green-600" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Open the link from your email to verify the address and choose a password.
+                </p>
+                <Button type="button" className="w-full h-10" onClick={() => setLocation("/login")}>
+                  Back to sign in
+                </Button>
+              </div>
+            ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="organizationName" className="text-[13px] font-medium">Organization / Facility Name</Label>
@@ -147,35 +225,16 @@ export default function Signup() {
                   required
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="text-[13px] font-medium">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={form.password}
-                    onChange={e => field("password", e.target.value)}
-                    disabled={isPending}
-                    className="h-10"
-                    minLength={8}
-                    required
-                  />
+              {turnstileSiteKey ? (
+                <div className="min-h-[65px]">
+                  <div ref={turnstileContainerRef} />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword" className="text-[13px] font-medium">Confirm Password</Label>
-                  <Input
-                    id="confirmPassword"
-                    type="password"
-                    value={form.confirmPassword}
-                    onChange={e => field("confirmPassword", e.target.value)}
-                    disabled={isPending}
-                    className="h-10"
-                    minLength={8}
-                    required
-                  />
+              ) : (
+                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                  Signup verification is not configured for this deployment.
                 </div>
-              </div>
-              <Button type="submit" className="w-full h-10 font-medium shadow-sm" disabled={isPending}>
+              )}
+              <Button type="submit" className="w-full h-10 font-medium shadow-sm" disabled={isPending || !turnstileSiteKey || !turnstileToken}>
                 {isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -183,18 +242,23 @@ export default function Signup() {
                   </>
                 ) : (
                   <>
-                    Create account
+                    Send verification email
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </>
                 )}
               </Button>
             </form>
-            <p className="mt-4 text-center text-[13px] text-muted-foreground">
-              Already have an account?{" "}
-              <Link href="/login" className="font-medium text-primary hover:text-primary/80">
-                Sign in
-              </Link>
-            </p>
+            )}
+            {!submittedEmail && (
+              <div>
+                <p className="mt-4 text-center text-[13px] text-muted-foreground">
+                  Already have an account?{" "}
+                  <Link href="/login" className="font-medium text-primary hover:text-primary/80">
+                    Sign in
+                  </Link>
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 

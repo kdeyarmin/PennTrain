@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Webhook } from "https://esm.sh/standardwebhooks@1.0.0";
 
 // Supabase Auth "Send Email" hook (Authentication -> Hooks in the dashboard): when enabled,
