@@ -99,14 +99,14 @@ select
 from (values
   (1, 'credential_expiring'), (2, 'certificate_expiring'), (3, 'practicum_due_soon'),
   (4, 'practicum_expired'), (5, 'course_assigned'), (6, 'policy_attestation_assigned'),
-  (7, 'incident_reported')
+  (7, 'incident_reported'), (8, 'course_assignment_due_soon')
 ) as v(ord, notification_type);
 select results_eq(
   $$ select count(*)::int from public.notification_deliveries d
      join public.notifications n on n.id = d.notification_id
      where n.id::text like '12000000-0000-0000-0000-0000000001%' $$,
   array[0],
-  'with the flag off, none of the seven new types queues a delivery'
+  'with the flag off, none of the expanded types queues a delivery'
 );
 
 insert into public.notifications (
@@ -143,21 +143,21 @@ select
 from (values
   (1, 'credential_expiring'), (2, 'certificate_expiring'), (3, 'practicum_due_soon'),
   (4, 'practicum_expired'), (5, 'course_assigned'), (6, 'policy_attestation_assigned'),
-  (7, 'incident_reported')
+  (7, 'incident_reported'), (8, 'course_assignment_due_soon')
 ) as v(ord, notification_type);
 select results_eq(
   $$ select count(*)::int from public.notification_deliveries d
      join public.notifications n on n.id = d.notification_id
      where n.id::text like '12000000-0000-0000-0000-0000000003%' $$,
-  array[7],
-  'with the flag globally enabled, all seven new types queue exactly one delivery'
+  array[8],
+  'with the flag globally enabled, all eight expanded types queue exactly one delivery'
 );
 select results_eq(
   $$ select count(*)::int from public.notification_deliveries d
      join public.notifications n on n.id = d.notification_id
      where n.id::text like '12000000-0000-0000-0000-0000000003%'
        and d.template_version_id is not null $$,
-  array[7],
+  array[8],
   'every expanded-type delivery retains a template version'
 );
 select results_eq(

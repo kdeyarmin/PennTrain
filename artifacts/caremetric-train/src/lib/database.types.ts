@@ -17523,6 +17523,7 @@ export type Database = {
         Returns: string
       }
       publish_schedule: { Args: { p_schedule_id: string }; Returns: undefined }
+      queue_course_assignment_due_reminders: { Args: never; Returns: undefined }
       queue_course_continuation_reminders: { Args: never; Returns: undefined }
       recalculate_all_compliance: { Args: never; Returns: undefined }
       recalculate_compliance_core: {
