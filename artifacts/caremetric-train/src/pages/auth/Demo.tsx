@@ -1,52 +1,8 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation, Link } from "wouter";
+import { Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
-import { markExplicitPasswordSignIn } from "@/lib/auth";
-import { Loader2 } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
-import { parseDemoAccounts, type DemoAccount } from "@/lib/demoAccounts";
-
-const DEMO_ACCOUNTS = parseDemoAccounts(import.meta.env.VITE_DEMO_ACCOUNTS_JSON as string | undefined);
 
 export default function Demo() {
-  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
-  const [, setLocation] = useLocation();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  const loginMutation = useMutation({
-    mutationFn: async ({ email, password }: { email: string; password: string }) => {
-      markExplicitPasswordSignIn();
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["profile"] });
-      toast({
-        title: "Login successful",
-        description: "Welcome to the CareMetric Train demo",
-      });
-      setLocation("/");
-    },
-    onError: (error: Error) => {
-      setPendingEmail(null);
-      toast({
-        variant: "destructive",
-        title: "Demo login failed",
-        description: error.message || "Please try again or sign in manually.",
-      });
-    },
-  });
-
-  const handleDemoLogin = (account: DemoAccount) => {
-    setPendingEmail(account.email);
-    loginMutation.mutate({ email: account.email, password: account.password });
-  };
-
   return (
     <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50" />
@@ -68,39 +24,15 @@ export default function Demo() {
 
         <Card className="border-border/50 shadow-xl shadow-black/[0.04] backdrop-blur-sm">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg">Try a demo account</CardTitle>
-            <CardDescription>
-              {DEMO_ACCOUNTS.length > 0
-                ? "Pick a role to explore sample data."
-                : "Demo access is not enabled for this deployment."}
-            </CardDescription>
+            <CardTitle className="text-lg">Demo access</CardTitle>
+            <CardDescription>Request a dedicated demo login to explore sample Sunrise Healthcare data safely</CardDescription>
           </CardHeader>
           <CardContent>
-            {DEMO_ACCOUNTS.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2">
-                {DEMO_ACCOUNTS.map((account) => (
-                  <button
-                    key={account.email}
-                    type="button"
-                    disabled={loginMutation.isPending}
-                    onClick={() => handleDemoLogin(account)}
-                    className="flex items-center gap-2.5 p-2.5 rounded-lg border border-border/60 bg-card hover:bg-muted/60 transition-all text-left disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {loginMutation.isPending && pendingEmail === account.email ? (
-                      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
-                    ) : (
-                      <div className={`h-2 w-2 rounded-full ${account.color} shrink-0`} />
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-foreground leading-tight">{account.label}</p>
-                      <p className="text-[10px] text-muted-foreground truncate">{account.email}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : null}
+            <p className="text-sm text-muted-foreground">
+              This public page does not expose shared demo credentials. Contact the CareMetric team for a dedicated demo account.
+            </p>
             <p className="mt-4 text-center text-[13px] text-muted-foreground">
-              Have your own account?{" "}
+              Have credentials already?{" "}
               <Link href="/login" className="font-medium text-primary hover:text-primary/80">
                 Sign in
               </Link>
@@ -109,7 +41,7 @@ export default function Demo() {
         </Card>
 
         <p className="text-center text-[11px] text-muted-foreground/60">
-          Demo data only. Changes here don&apos;t affect any real facility.
+          Demo data only &mdash; changes here don&apos;t affect any real facility.
         </p>
       </div>
     </div>

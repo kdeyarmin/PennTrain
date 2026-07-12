@@ -297,11 +297,25 @@ test.describe("role-aware release journeys", () => {
     ).toBeVisible();
   });
 
-  test("configured guests can enter through the demo journey", async ({
+  test("the demo page exposes no shared credentials and routes guests to sign in", async ({
     page,
   }) => {
     await page.goto("/demo");
-    await page.getByRole("button", { name: /Guest auditor/ }).click();
+    await expect(page.getByText("Demo access")).toBeVisible();
+    await expect(
+      page.getByText(/does not expose shared demo credentials/),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Guest auditor/ }),
+    ).toHaveCount(0);
+
+    await page.getByRole("link", { name: "Sign in" }).click();
+    await expect.poll(() => new URL(page.url()).pathname).toBe("/login");
+
+    // Guests issued dedicated credentials still get in through the login form.
+    await page.getByLabel("Email").fill(guestEmail);
+    await page.getByLabel("Password").fill(password);
+    await page.getByRole("button", { name: "Sign in" }).click();
     await expect
       .poll(() => new URL(page.url()).pathname, { timeout: 20000 })
       .toBe("/app");
