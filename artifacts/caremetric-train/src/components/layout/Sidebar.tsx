@@ -378,6 +378,12 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/me/help", label: "Help Center", icon: HelpCircle },
         ]
+      },
+      {
+        title: "Settings",
+        items: [
+          { href: "/account/notifications", label: "Notification Settings", icon: Bell },
+        ]
       }
     ];
   }
@@ -648,6 +654,12 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
               <Link href="/account/security" className="cursor-pointer" onClick={onNavigate}>
                 <ShieldCheck className="mr-2 h-4 w-4" />
                 <span>Account security</span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/account/notifications" className="cursor-pointer" onClick={onNavigate}>
+                <Bell className="mr-2 h-4 w-4" />
+                <span>Notification settings</span>
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />

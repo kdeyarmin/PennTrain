@@ -21,6 +21,7 @@ const Signup = lazy(() => import("@/pages/auth/Signup"));
 const ForgotPassword = lazy(() => import("@/pages/auth/ForgotPassword"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 const MfaSettings = lazy(() => import("@/pages/auth/MfaSettings"));
+const NotificationSettings = lazy(() => import("@/pages/auth/NotificationSettings"));
 
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
 const Organizations = lazy(() => import("@/pages/admin/Organizations"));
@@ -277,6 +278,10 @@ function Router() {
 
       <Route path="/account/security">
         {() => <ProtectedRoute component={MfaSettings} allowedRoles={ANY_ROLE} />}
+      </Route>
+
+      <Route path="/account/notifications">
+        {() => <ProtectedRoute component={NotificationSettings} allowedRoles={ANY_ROLE} />}
       </Route>
 
       {/* Public marketing pages (nav targets from the landing page) */}

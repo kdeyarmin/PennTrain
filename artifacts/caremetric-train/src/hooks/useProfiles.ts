@@ -29,6 +29,29 @@ export function useListProfiles(filters: ListProfilesFilters = {}) {
 }
 
 /**
+ * The signed-in user's own profiles row, sharing the exact query key and shape the
+ * AuthProvider already populates (see lib/auth.tsx `["profile", session.user.id]`), so
+ * pages reading it usually render from cache with no second fetch. Exposes the contact/
+ * notification columns (`phone`, `sms_opt_in`, `sms_consent_at`,
+ * `preferred_notification_channel`) that `useAuth()`'s slimmed-down user object omits.
+ */
+export function useMyProfile(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["profile", userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId!)
+        .single();
+      if (error) throw error;
+      return data as Profile;
+    },
+    enabled: !!userId,
+  });
+}
+
+/**
  * `profiles.role` / `organization_id` / `is_active` / `email` are protected by the
  * `protect_profile_privileged_fields()` DB trigger (see
  * supabase/migrations/20260704050114_fix_profiles_grants_and_email_protection.sql and
@@ -60,7 +83,13 @@ export function useUpdateProfile() {
       if (error) throw error;
       return (data as unknown as Profile[])[0];
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["profiles"] }),
+    // Both key families: ["profiles"] covers the admin lists, ["profile"] covers the
+    // AuthProvider's own-row query (and useMyProfile) so a self-edit refreshes the
+    // signed-in identity (sidebar name/initials) instead of staying stale.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["profiles"] });
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+    },
   });
 }
 

@@ -124,6 +124,18 @@ Deno.test("uses generic external copy for sensitive notification types", () => {
       body: "Sign in to CareMetric Train to review the update securely.",
     },
   );
+  assertEquals(
+    renderProviderMessage(
+      "incident_reported",
+      "New incident reported",
+      "abuse allegation incident reported Jul 12, 2026 03:15 PM",
+    ),
+    {
+      subject: "A new incident report requires review",
+      body:
+        "A new incident report was submitted. Sign in to CareMetric Train to review it securely.",
+    },
+  );
 });
 
 Deno.test("renders only allow-listed variables from a versioned template", () => {
