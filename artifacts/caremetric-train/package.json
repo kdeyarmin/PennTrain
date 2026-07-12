@@ -8,12 +8,8 @@
     "build": "vite build --config vite.config.ts && node server/precompress.mjs",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "start": "node server/index.mjs",
-<<<<<<< HEAD:artifacts/pa-medtrack/package.json
-    "test": "vitest run",
-=======
     "test": "vitest run --exclude e2e/**",
     "test:e2e": "playwright test",
->>>>>>> origin/main:artifacts/caremetric-train/package.json
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

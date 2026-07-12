@@ -1,11 +1,6 @@
 # Deployment: Railway + Supabase
 
 CareMetric Train's backend (Postgres, Auth, Storage, RLS, Edge Functions) already lives entirely in
-<<<<<<< HEAD
-Supabase -- see `replit.md` and `README.md` for the architecture. This document covers the piece that
-was missing: running the frontend in production on **Railway**, and how the two systems fit together.
-
-=======
 Supabase -- see `ARCHITECTURE.md` and `README.md` for the architecture. This document covers the piece that
 was missing: running the frontend in production on **Railway**, and how the two systems fit together.
 
@@ -16,7 +11,6 @@ was missing: running the frontend in production on **Railway**, and how the two 
 > Because the app answers on *both* origins, Supabase Auth's Redirect URL allowlist must contain
 > both (see step 1.5 below).
 
->>>>>>> origin/main
 ## Architecture at a glance
 
 ```
@@ -24,11 +18,6 @@ Browser  --https-->  Railway (Node server, static SPA build)
 Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
 ```
 
-<<<<<<< HEAD
-- **Railway** hosts and runs `artifacts/pa-medtrack` -- a static Vite/React build served by a small
-  Node process (`artifacts/pa-medtrack/server/index.mjs`). There is no API layer on Railway; the
-  browser talks to Supabase directly via `supabase-js`.
-=======
 - **Railway** hosts and runs `artifacts/caremetric-train` -- a static Vite/React build served by a small
   Node process (`artifacts/caremetric-train/server/index.mjs`). There is no API layer on Railway; the
   browser talks to Supabase directly via `supabase-js`. The server serves precompressed (brotli/
@@ -36,7 +25,6 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
   compress for you), sends baseline security headers (nosniff, frame denial, HSTS,
   Referrer-Policy), binds dual-stack `::`, tunes keep-alive above the proxy's idle window, and
   drains in-flight requests on SIGTERM.
->>>>>>> origin/main
 - **Supabase** ("CM Train" project) is the source of truth for everything else: schema, migrations,
   RLS policies, Auth (GoTrue), Storage buckets, and Edge Functions (`create-user`,
   `admin-update-user`, `bulk-import-employees`, `generate-compliance-binder`,
@@ -57,12 +45,6 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    ```
    (equivalent to `pnpm run db:migrate` from the repo root once linked). This also creates the
    Storage buckets and RLS policies -- they're defined in the migrations, not a separate step.
-<<<<<<< HEAD
-3. Deploy the Edge Functions:
-   ```bash
-   npx supabase functions deploy create-user admin-update-user bulk-import-employees \
-     generate-compliance-binder generate-course-video check-course-video-status list-heygen-options
-=======
 3. Deploy the Edge Functions (every function declared in `supabase/config.toml`):
    ```bash
    npx supabase functions deploy create-user admin-update-user bulk-import-employees \
@@ -71,30 +53,11 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
      check-course-video-status list-heygen-options generate-course-curriculum \
      regenerate-course-block poll-heygen-video-statuses dispatch-notifications \
      screen-exclusions send-auth-email invite-user signup-organization
->>>>>>> origin/main
    ```
    Or connect the Supabase GitHub integration (Project Settings -> Integrations) so pushes to `main`
    auto-deploy both migrations and functions declared in `supabase/config.toml`.
 4. Set Edge Function secrets (these run on Supabase's infrastructure, never on Railway):
    ```bash
-<<<<<<< HEAD
-   npx supabase secrets set HEYGEN_API_KEY=... 
-   ```
-   `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are injected into Edge
-   Functions automatically by Supabase -- you do not set those secrets yourself.
-5. **Auth URL configuration** (Authentication -> URL Configuration in the dashboard): set **Site URL**
-   and add a **Redirect URL** for your Railway domain, e.g. `https://your-app.up.railway.app/login` --
-   `ForgotPassword.tsx` calls `supabase.auth.resetPasswordForEmail` with
-   `redirectTo: window.location.origin + "/login"`, and Supabase Auth rejects redirects to
-   unlisted origins.
-6. Seed demo/admin users via the Supabase Admin API or the `create-user` Edge Function -- there is no
-   public self-signup route by design (see `replit.md` "Roles"). The `handle_new_user()` trigger
-   creates the matching `profiles` row automatically.
-7. Generate TypeScript types after any schema change:
-   ```bash
-   npx supabase gen types typescript --project-id <your-project-ref> \
-     > artifacts/pa-medtrack/src/lib/database.types.ts
-=======
    npx supabase secrets set HEYGEN_API_KEY=... \
      ANTHROPIC_API_KEY=... \
      SENDGRID_API_KEY=... \
@@ -157,7 +120,6 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    ```bash
    npx supabase gen types typescript --project-id <your-project-ref> \
      > artifacts/caremetric-train/src/lib/database.types.ts
->>>>>>> origin/main
    ```
 
 ### Remaining recommended Supabase hardening (one manual dashboard step)
@@ -177,30 +139,12 @@ real tenant data outside the scope of this task.
 
 ## 2. Railway deployment
 
-<<<<<<< HEAD
-The repo root is a pnpm workspace; the deployable app is the `@workspace/pa-medtrack` package. Keep
-Railway's **Root Directory** setting at the repo root (not `artifacts/pa-medtrack`) so `pnpm --filter`
-=======
 The repo root is a pnpm workspace; the deployable app is the `@workspace/caremetric-train` package. Keep
 Railway's **Root Directory** setting at the repo root (not `artifacts/caremetric-train`) so `pnpm --filter`
->>>>>>> origin/main
 can see the whole workspace and lockfile.
 
 1. In Railway: **New Project -> Deploy from GitHub repo**, select this repository.
 2. Railway auto-detects `railway.json` at the repo root:
-<<<<<<< HEAD
-   - Build: `pnpm install --frozen-lockfile && pnpm --filter @workspace/pa-medtrack run build`
-   - Start: `pnpm --filter @workspace/pa-medtrack run start`
-   - Healthcheck: `GET /health`
-   Nixpacks reads `.node-version` (Node 24) and the `packageManager` field (`pnpm@10.28.1`) to
-   provision the right toolchain automatically.
-3. Add the environment variables below (Service -> Variables). Do **not** paste real secrets into
-   any file in this repo -- only into Railway's variable UI.
-4. Deploy. Railway assigns a `*.up.railway.app` domain (or attach a custom domain under
-   Service -> Settings -> Networking); use that domain in step 1.5 above (Supabase Auth redirect
-   URLs) and re-deploy/update once you know it.
-5. Verify `GET https://<your-domain>/health` returns:
-=======
    - Builder: **Railpack** (Railway's current default builder; Nixpacks is deprecated on Railway
      and its hosted version cannot provision Node 24 -- it silently falls back to Node 18, which
      breaks the Vite 7 build. Do not switch this service back to Nixpacks.)
@@ -231,22 +175,10 @@ can see the whole workspace and lockfile.
    app answers on must be listed in step 1.5 above (Supabase Auth redirect URLs); update that
    list and re-deploy whenever a domain is added.
 5. Verify `GET https://caremetrictrain.com/health` returns:
->>>>>>> origin/main
    ```json
    {
      "status": "ok",
      "service": "caremetric-train",
-<<<<<<< HEAD
-     "timestamp": "2026-07-04T12:00:00.000Z",
-     "supabase": "configured",
-     "supabaseReachable": true
-   }
-   ```
-   `supabase` reflects whether `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` are set on the Railway
-   service; `supabaseReachable` is a best-effort live check against Supabase Auth's public health
-   route (2s timeout, never touches the service-role key, never fails the healthcheck response
-   itself -- Railway only cares about the HTTP 200).
-=======
      "timestamp": "2026-07-04T12:00:00.000Z"
    }
    ```
@@ -257,46 +189,11 @@ can see the whole workspace and lockfile.
    actually contains (no rebuild on a runtime variable change, dummy build-time values, etc.) --
    exactly the false assurance a healthcheck must not give. A green `/health` only means the Node
    process is up; confirm Supabase connectivity by loading the app in a browser (step 8).
->>>>>>> origin/main
 
 ### Environment variables to set on the Railway service
 
 | Variable | Required | Notes |
 |---|---|---|
-<<<<<<< HEAD
-| `VITE_SUPABASE_URL` | yes | Supabase project URL (Project Settings -> API) |
-| `VITE_SUPABASE_ANON_KEY` | yes | anon/publishable key -- safe for the browser, RLS is the real gate |
-| `NODE_ENV` | recommended | set to `production` |
-| `PORT` | no | Railway injects this automatically; the server reads it |
-| `BASE_PATH` | no | e.g. `/train/`; only needed if served from a non-root subpath. Set it identically for both the build (`vite.config.ts` reads it) and the running server (`server/index.mjs` strips it before resolving files) -- both read the same `BASE_PATH` var, so one value covers both. |
-
-Not needed for this repo (and intentionally left out of `.env.example` -- see the comments there for
-why): `DATABASE_URL`, `NEXT_PUBLIC_*` (this is Vite, not Next.js), `SESSION_SECRET`/`AUTH_SECRET`
-(Supabase Auth owns session state, no server-side session here), `STRIPE_SECRET_KEY` /
-`RESEND_API_KEY` (no billing or transactional-email integration exists in this codebase today).
-`SUPABASE_SERVICE_ROLE_KEY` must never be set on the Railway service -- it belongs only in Supabase
-Edge Function secrets.
-
-**Do not set `VITE_OPENAI_API_KEY`.** `src/lib/caremetricAi.ts` reads it and its own fallback
-message suggests adding it, but any `VITE_`-prefixed variable is baked into the public client
-bundle at build time -- unlike the anon key, an OpenAI key has no RLS-style gate and is directly
-billable/misusable by anyone who reads the bundle. If this feature is ever wired to a real OpenAI
-call, proxy it through a Supabase Edge Function the same way `HEYGEN_API_KEY` already is.
-
-## 3. Local development
-
-```bash
-pnpm install
-cp artifacts/pa-medtrack/.env.example artifacts/pa-medtrack/.env   # fill in your Supabase URL/anon key
-pnpm run dev          # -> pnpm --filter @workspace/pa-medtrack run dev, http://localhost:5173
-```
-
-To exercise the production build path locally:
-
-```bash
-pnpm --filter @workspace/pa-medtrack run build
-pnpm --filter @workspace/pa-medtrack run start   # node server/index.mjs, http://localhost:8080
-=======
 | `VITE_SUPABASE_URL` | yes | Supabase project URL (Project Settings -> API). **Build-time**: baked into the bundle; changes require a redeploy, not just a restart |
 | `VITE_SUPABASE_ANON_KEY` | yes | anon/publishable key -- safe for the browser, RLS is the real gate. **Build-time**, same caveat as above |
 | `VITE_TURNSTILE_SITE_KEY` | yes | Cloudflare Turnstile site key for `/signup`. **Build-time**, same redeploy caveat as other `VITE_` values |
@@ -337,7 +234,6 @@ missing from your `.env`/environment -- that's the `vite.config.ts` guard doing 
 ```bash
 pnpm --filter @workspace/caremetric-train run build   # vite build + server/precompress.mjs (.br/.gz)
 pnpm --filter @workspace/caremetric-train run start   # node server/index.mjs, http://localhost:8080
->>>>>>> origin/main
 curl http://localhost:8080/health
 ```
 
@@ -372,11 +268,7 @@ handles migrations/functions) -- both can watch the same repo without conflictin
 ## 6. Data-access layer (already implemented)
 
 The required data-access functions for this SaaS already exist in
-<<<<<<< HEAD
-`artifacts/pa-medtrack/src/hooks/*.ts` and `src/lib/auth.tsx` -- this change did not need to build
-=======
 `artifacts/caremetric-train/src/hooks/*.ts` and `src/lib/auth.tsx` -- this change did not need to build
->>>>>>> origin/main
 them from scratch:
 
 - current user profile / session -- `src/lib/auth.tsx` (`useAuth()`)
@@ -417,17 +309,10 @@ inspect, `rollback` -- zero data persisted) before being written up here.
   admin-gated `create-user` Edge Function entirely. Fixed by reading role/organization_id from
   `raw_app_meta_data` instead -- a field only settable via the service-role Admin API, never by the
   public signup endpoint -- and updating `create-user`'s Edge Function to set it there (redeployed
-<<<<<<< HEAD
-  as part of this fix, so admin-provisioned account creation is unaffected). **Recommended
-  additional step**: disable public email signup entirely in Authentication -> Providers unless
-  self-service signup is an intended product feature; this fix closes the privilege-escalation path
-  regardless, but signup is not otherwise used by this app's UI (see `replit.md` "Roles").
-=======
   as part of this fix, so admin-provisioned account creation is unaffected). Production should keep
   plain Supabase email signup disabled in Authentication -> Providers; the intended self-service
   path is the hardened `signup-organization` Edge Function, which creates a brand-new organization
   only after Turnstile, rate-limit, platform-setting, and invite-email checks pass.
->>>>>>> origin/main
 - **High -- unauthenticated cross-tenant RPC**
   (`20260704180605_revoke_public_grant_on_privileged_functions.sql`): a prior migration
   (`tighten_function_grants.sql`) revoked `EXECUTE` on several `SECURITY DEFINER` functions from
@@ -476,13 +361,8 @@ policy at all, so it was never exploitable there, but the trigger was extended f
 
 ### Standing security posture
 
-<<<<<<< HEAD
-- The service-role key is never referenced anywhere under `artifacts/pa-medtrack/src` or
-  `artifacts/pa-medtrack/server` -- confirmed by grep as part of this change. Vite only exposes
-=======
 - The service-role key is never referenced anywhere under `artifacts/caremetric-train/src` or
   `artifacts/caremetric-train/server` -- confirmed by grep as part of this change. Vite only exposes
->>>>>>> origin/main
   `VITE_`-prefixed variables to the client bundle (`import.meta.env`), which is itself a structural
   guardrail against accidentally shipping the service-role key to the browser.
 - RLS is enabled on every table (`mcp__Supabase__list_tables` confirms `rls_enabled: true` across
@@ -498,8 +378,6 @@ policy at all, so it was never exploitable there, but the trigger was extended f
   Supabase and Railway, and that both platforms' HIPAA-eligible service tiers are enabled -- neither
   is HIPAA-eligible by default on their base plans. Do not upload real PHI to any storage bucket
   until that's confirmed.
-<<<<<<< HEAD
-=======
 - **AI + resident data**: `resident_assessment_forms.content` is the one place in the app that
   stores real clinical/functional-assessment content (see `residentAssessmentFormSchema.ts`). The
   `generate-resident-assessment-summary` edge function can draft its "Overall Wellness Summary" via
@@ -508,18 +386,10 @@ policy at all, so it was never exploitable there, but the trigger was extended f
   (course drafting) is scoped to training content and never touches resident data -- do not flip
   this setting to `true` until a BAA with the AI vendor has been confirmed to cover resident data,
   same as the Supabase/Railway BAA requirement above.
->>>>>>> origin/main
 
 ## 8. Verifying the deployment
 
 ```bash
-<<<<<<< HEAD
-curl -s https://<your-domain>/health | jq
-```
-
-Expect `status: "ok"` and `supabase: "configured"`. If `supabaseReachable` is `false`, double-check
-`VITE_SUPABASE_URL` on the Railway service and that the Supabase project is not paused.
-=======
 curl -s https://caremetrictrain.com/health | jq
 # same app on the Railway-provided domain:
 curl -s https://penntrain-production.up.railway.app/health | jq
@@ -531,25 +401,11 @@ about Supabase. `/health` intentionally can't tell you whether the served bundle
 the login page renders (a blank page means the bundle was built without the `VITE_` vars) --
 after changing `VITE_` variables, redeploy (rebuild); a mere restart ships the old bundle and a
 green `/health` would not reveal that.
->>>>>>> origin/main
 
 ## Limitations / manual steps remaining
 
 - Railway project creation, GitHub connection, and env var entry must be done in the Railway
   dashboard -- not scriptable from this repo.
-<<<<<<< HEAD
-- Supabase Auth redirect URL and Site URL configuration must be set in the Supabase dashboard once
-  you know your Railway domain.
-- Leaked password protection (Authentication -> Policies) is still disabled and must be toggled on
-  manually in the dashboard -- it's an Auth config setting, not something a SQL migration can flip.
-- Public email signup is currently enabled on the live project. The privilege-escalation path this
-  allowed is closed (see section 7), but if self-service signup isn't an intended product feature,
-  disable it in Authentication -> Providers as defense in depth.
-- No linter (ESLint/Biome/etc.) is configured in this repo; `pnpm run typecheck` (tsc, no-emit) is
-  the static check currently available. Add one separately if desired -- out of scope here.
-- `pnpm run db:migrate` requires `supabase login` + `supabase link --project-ref <ref>` to have been
-  run once first (interactive, not scriptable).
-=======
 - Supabase Auth redirect URL and Site URL configuration must be set in the Supabase dashboard.
   The production values: Site URL `https://caremetrictrain.com`; Redirect URLs
   `https://caremetrictrain.com/login` and `https://penntrain-production.up.railway.app/login`.
@@ -566,4 +422,3 @@ green `/health` would not reveal that.
   emails `dispatch-notifications` sends to actually go out -- without it, those deliveries are
   logged as `skipped` rather than failing loudly. Routing Supabase Auth's own password-reset/
   email-change mail through SendGrid too (step 1.6) is a separate, optional dashboard setting.
->>>>>>> origin/main
