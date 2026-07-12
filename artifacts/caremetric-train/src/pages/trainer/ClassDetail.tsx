@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useRoute, useLocation, Link } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import QRCode from "qrcode";
@@ -60,8 +61,10 @@ import {
   QrCode,
   Monitor,
   Printer,
+  AlertTriangle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { summarizeClassAttendance } from "@/lib/classAttendance";
 
 // No Supabase hook deletes a training class yet; RLS already lets a trainer
 // delete their own draft class, so do it with a direct call.
@@ -230,6 +233,7 @@ export default function ClassDetail() {
   const [selectedEmps, setSelectedEmps] = useState<string[]>([]);
   const [addingAttendees, setAddingAttendees] = useState(false);
   const [uploadingRoster, setUploadingRoster] = useState(false);
+  const [bulkAttendanceUpdating, setBulkAttendanceUpdating] = useState(false);
 
   const facilitiesById = useMemo(
     () => new Map((facilities ?? []).map((f) => [f.id, f])),
@@ -245,6 +249,7 @@ export default function ClassDetail() {
   );
 
   const allAttendees = attendees ?? [];
+  const attendanceSummary = useMemo(() => summarizeClassAttendance(allAttendees), [allAttendees]);
   const isDraft = cls?.status === "draft";
 
   const existingEmpIds = new Set(allAttendees.map((a) => a.employee_id));
@@ -263,6 +268,69 @@ export default function ClassDetail() {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   }, []);
+
+  const allFilteredEmpsSelected =
+    filteredEmployees.length > 0 && filteredEmployees.every((e) => selectedEmps.includes(e.id));
+  const someFilteredEmpsSelected = filteredEmployees.some((e) => selectedEmps.includes(e.id));
+
+  function toggleSelectAllFilteredEmployees() {
+    setSelectedEmps((prev) => {
+      const filteredIds = filteredEmployees.map((e) => e.id);
+      if (filteredIds.length > 0 && filteredIds.every((id) => prev.includes(id))) {
+        const toRemove = new Set(filteredIds);
+        return prev.filter((id) => !toRemove.has(id));
+      }
+      return [...new Set([...prev, ...filteredIds])];
+    });
+  }
+
+  const allAttendeesChecked = allAttendees.length > 0 && allAttendees.every((a) => a.attended);
+  const someAttendeesChecked = allAttendees.some((a) => a.attended);
+
+  // Bulk-toggles every currently-listed attendee's Attended checkbox in one action (mirrors the
+  // Promise.allSettled + one-summary-toast bulk pattern used elsewhere in this app) instead of
+  // requiring one click per row.
+  async function handleMarkCheckedInPresent() {
+    if (!classId) return;
+    const targets = allAttendees.filter((a) => a.checked_in_at && !a.attended);
+    if (targets.length === 0) return;
+    setBulkAttendanceUpdating(true);
+    const results = await Promise.allSettled(
+      targets.map((a) => updateAttendee.mutateAsync({ id: a.id, classId, attended: true }))
+    );
+    setBulkAttendanceUpdating(false);
+
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.length - succeeded;
+    toast({
+      title: failed > 0 ? "Attendance partially reconciled" : "Checked-in staff marked present",
+      description: `${succeeded} of ${results.length} checked-in attendee${results.length === 1 ? "" : "s"} updated${failed > 0 ? `; ${failed} failed` : ""}.`,
+      variant: failed > 0 ? "destructive" : "success",
+    });
+  }
+
+  async function handleToggleAllAttended(checked: boolean) {
+    if (!classId) return;
+    const targets = allAttendees.filter((a) => a.attended !== checked);
+    if (targets.length === 0) return;
+    setBulkAttendanceUpdating(true);
+    const results = await Promise.allSettled(
+      targets.map((a) => updateAttendee.mutateAsync({ id: a.id, classId, attended: checked }))
+    );
+    setBulkAttendanceUpdating(false);
+
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.length - succeeded;
+    if (failed > 0) {
+      toast({
+        title: succeeded === 0 ? "Failed to update attendance" : "Attendance partially updated",
+        description: `${succeeded} of ${results.length} updated successfully. ${failed} failed.`,
+        variant: succeeded === 0 ? "destructive" : undefined,
+      });
+    } else {
+      toast({ title: checked ? "All attendees marked present" : "All attendees marked absent", variant: "success" });
+    }
+  }
 
   async function handleAddAttendees() {
     if (!classId || selectedEmps.length === 0) return;
@@ -479,7 +547,7 @@ export default function ClassDetail() {
             <div>
               <p className="text-sm text-muted-foreground">Date</p>
               <p className="font-semibold">
-                {new Date(cls.class_date).toLocaleDateString("en-US", {
+                {formatDateForDisplay(cls.class_date, {
                   weekday: "long",
                   month: "long",
                   day: "numeric",
@@ -543,6 +611,68 @@ export default function ClassDetail() {
       {isDraft && <QrCheckinCard classId={classId} />}
       {isDraft && <MeetingNoticeCard classId={classId} />}
 
+      {allAttendees.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5" /> Attendance Reconciliation
+              </CardTitle>
+              {isDraft && attendanceSummary.checkedInNotMarkedPresent > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleMarkCheckedInPresent}
+                  disabled={bulkAttendanceUpdating}
+                >
+                  Mark checked-in staff present
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Roster</p>
+                <p className="text-xl font-semibold">{attendanceSummary.rosterCount}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Marked present</p>
+                <p className="text-xl font-semibold">{attendanceSummary.markedPresent}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Checked in / out</p>
+                <p className="text-xl font-semibold">{attendanceSummary.checkedIn} / {attendanceSummary.checkedOut}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Records pending</p>
+                <p className="text-xl font-semibold">{attendanceSummary.recordsPending}</p>
+              </div>
+            </div>
+
+            {(attendanceSummary.checkedInNotMarkedPresent > 0 || attendanceSummary.presentWithoutCheckin > 0 || attendanceSummary.checkedInWithoutCheckout > 0) ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="space-y-1">
+                    <p className="font-medium">Resolve these before completing the class for the cleanest audit trail.</p>
+                    <ul className="list-disc pl-5 text-xs">
+                      {attendanceSummary.checkedInNotMarkedPresent > 0 && <li>{attendanceSummary.checkedInNotMarkedPresent} checked-in attendee{attendanceSummary.checkedInNotMarkedPresent === 1 ? " is" : "s are"} not marked present.</li>}
+                      {attendanceSummary.presentWithoutCheckin > 0 && <li>{attendanceSummary.presentWithoutCheckin} present attendee{attendanceSummary.presentWithoutCheckin === 1 ? " has" : "s have"} no digital check-in.</li>}
+                      {attendanceSummary.checkedInWithoutCheckout > 0 && <li>{attendanceSummary.checkedInWithoutCheckout} checked-in attendee{attendanceSummary.checkedInWithoutCheckout === 1 ? " has" : "s have"} no checkout time.</li>}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+                Attendance, check-in, and checkout are reconciled for the current roster.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -589,7 +719,21 @@ export default function ClassDetail() {
                   <tr>
                     <th className="text-left p-3">Employee</th>
                     <th className="text-left p-3">Facility</th>
-                    <th className="text-left p-3">Attended</th>
+                    <th className="text-left p-3">
+                      {isDraft ? (
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <Checkbox
+                            checked={allAttendeesChecked ? true : someAttendeesChecked ? "indeterminate" : false}
+                            onCheckedChange={(checked) => handleToggleAllAttended(!!checked)}
+                            disabled={bulkAttendanceUpdating}
+                            aria-label="Select all attendees"
+                          />
+                          Attended
+                        </label>
+                      ) : (
+                        "Attended"
+                      )}
+                    </th>
                     <th className="text-left p-3">Check-In / Out</th>
                     <th className="text-left p-3">Record</th>
                   </tr>
@@ -731,6 +875,16 @@ export default function ClassDetail() {
               </p>
             ) : (
               <div className="divide-y">
+                <label className="flex items-center gap-3 px-4 py-2 bg-muted/40 cursor-pointer">
+                  <Checkbox
+                    checked={allFilteredEmpsSelected ? true : someFilteredEmpsSelected ? "indeterminate" : false}
+                    onCheckedChange={toggleSelectAllFilteredEmployees}
+                    aria-label="Select all visible employees"
+                  />
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Select all visible ({filteredEmployees.length})
+                  </span>
+                </label>
                 {filteredEmployees.map((emp) => (
                   <label
                     key={emp.id}

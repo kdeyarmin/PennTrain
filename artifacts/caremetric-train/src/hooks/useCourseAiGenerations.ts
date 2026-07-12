@@ -4,6 +4,12 @@ import type { Tables } from "@/lib/database.types";
 
 export type CourseAiGeneration = Tables<"course_ai_generations">;
 
+export type ResidentAssessmentAiGeneration = Tables<"resident_assessment_ai_generations">;
+
+export type ResidentAssessmentAiGenerationWithRelations = ResidentAssessmentAiGeneration & {
+  requester: { first_name: string; last_name: string } | null;
+};
+
 // Joined shape returned by useListCourseAiGenerations below -- course title and
 // requester name are read alongside the audit row so the platform-wide log page
 // doesn't have to do N+1 lookups per row. Mirrors the QuizQuestionWithExplanation
@@ -49,6 +55,24 @@ export function useListCourseAiGenerations(filters: ListCourseAiGenerationsFilte
       const { data, error } = await query;
       if (error) throw error;
       return data as unknown as CourseAiGenerationWithRelations[];
+    },
+  });
+}
+
+
+export function useListResidentAssessmentAiGenerations(filters: ListCourseAiGenerationsFilters = {}) {
+  return useQuery({
+    queryKey: ["resident_assessment_ai_generations", filters],
+    queryFn: async () => {
+      let query = supabase
+        .from("resident_assessment_ai_generations")
+        .select("*, requester:profiles!resident_assessment_ai_generations_requested_by_fkey(first_name,last_name)")
+        .order("created_at", { ascending: false })
+        .limit(filters.limit ?? 200);
+      if (filters.status) query = query.eq("status", filters.status);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as unknown as ResidentAssessmentAiGenerationWithRelations[];
     },
   });
 }

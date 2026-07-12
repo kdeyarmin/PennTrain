@@ -28,12 +28,13 @@ function commandVersion(
   name: string,
   command: string,
   args: string[] = ["--version"],
+  missingStatus: CheckStatus = "fail",
 ): Check {
   const result = run(command, args);
   const output = result.stdout || result.stderr;
   return {
     name,
-    status: result.status === 0 ? "pass" : "fail",
+    status: result.status === 0 ? "pass" : missingStatus,
     detail: output || `Unable to execute ${command}`,
   };
 }
@@ -117,6 +118,8 @@ const checks: Check[] = [
   commandVersion("pnpm", "pnpm", ["--version"]),
   commandVersion("npm", "npm", ["--version"]),
   commandVersion("Corepack", "corepack", ["--version"]),
+  commandVersion("Deno", "deno", ["--version"], "warn"),
+  commandVersion("Supabase CLI", "supabase", ["--version"], "warn"),
   firstAvailableBrowser(),
   aptAvailable(),
 ];
@@ -136,7 +139,9 @@ for (const check of checks) {
 }
 
 if (!includeNetwork) {
-  console.log("\nTip: run `pnpm run doctor:network` to test npm and apt network access.");
+  console.log(
+    "\nTip: run `pnpm run doctor:network` to test npm and apt network access.",
+  );
 }
 
 if (hasWarning) {

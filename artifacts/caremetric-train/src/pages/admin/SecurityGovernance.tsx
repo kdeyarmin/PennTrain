@@ -1,9 +1,17 @@
 import { useState } from "react";
-import { useListSecurityAuditLog, useProfileNameMap, type SecurityAuditEntityType } from "@/hooks/useSecurityAuditLog";
+import {
+  useAuditCoverage,
+  useAuditGovernanceStatus,
+  useListSecurityAuditLog,
+  useProfileNameMap,
+  type SecurityAuditEntityType,
+} from "@/hooks/useSecurityAuditLog";
 import type { Tables } from "@/lib/database.types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Eye, Building2, Sliders, ShieldAlert, type LucideIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Eye, Building2, Sliders, ShieldAlert, ShieldCheck, Archive, Scale, type LucideIcon } from "lucide-react";
 
 type SecurityAuditRow = Tables<"audit_logs">;
 
@@ -95,9 +103,15 @@ export default function SecurityGovernance() {
     entityType: tab === "all" ? undefined : tab,
   });
   const { data: profileNameMap } = useProfileNameMap();
+  const { data: coverageData, isLoading: coverageLoading } = useAuditCoverage();
+  const { data: governance } = useAuditGovernanceStatus();
 
   const logs = logsData ?? [];
   const profileNames = profileNameMap ?? {};
+  const regulatedCoverage = (coverageData ?? []).filter(
+    (entry) => entry.contains_regulated_data || !entry.has_required_trigger,
+  );
+  const coverageGaps = regulatedCoverage.filter((entry) => !entry.has_required_trigger);
 
   return (
     <div className="space-y-6">
@@ -107,6 +121,95 @@ export default function SecurityGovernance() {
           Impersonation sessions, organization suspensions, and platform settings changes across the entire platform.
         </p>
       </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Card>
+          <CardContent className="flex items-center gap-3 p-5">
+            <ShieldCheck className="h-7 w-7 text-emerald-600" />
+            <div>
+              <p className="text-2xl font-bold">v{governance?.hashVersion ?? 2}</p>
+              <p className="text-sm text-muted-foreground">Audit hash format</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 p-5">
+            <ShieldAlert className="h-7 w-7 text-red-600" />
+            <div>
+              <p className="text-2xl font-bold">{governance?.openIntegrityIssues ?? 0}</p>
+              <p className="text-sm text-muted-foreground">Open integrity issues</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 p-5">
+            <Scale className="h-7 w-7 text-violet-600" />
+            <div>
+              <p className="text-2xl font-bold">{governance?.activeLegalHolds ?? 0}</p>
+              <p className="text-sm text-muted-foreground">Active legal holds</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 p-5">
+            <Archive className="h-7 w-7 text-blue-600" />
+            <div>
+              <p className="text-2xl font-bold">{governance?.plannedArchives ?? 0}</p>
+              <p className="text-sm text-muted-foreground">Archive batches planned</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <div>
+            <CardTitle>Audit Coverage</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Approved evidence mode and trigger health for regulated and administrative tables.
+            </p>
+          </div>
+          <Badge variant={coverageGaps.length === 0 ? "secondary" : "destructive"}>
+            {coverageGaps.length === 0 ? "Complete" : String(coverageGaps.length) + " gaps"}
+          </Badge>
+        </CardHeader>
+        <CardContent>
+          {coverageLoading ? (
+            <div className="space-y-3">
+              {[...Array(5)].map((_, index) => (
+                <div key={index} className="h-10 animate-pulse rounded-md bg-muted" />
+              ))}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Table</TableHead>
+                  <TableHead>Evidence mode</TableHead>
+                  <TableHead>Coverage</TableHead>
+                  <TableHead>Rationale</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {regulatedCoverage.map((entry) => (
+                  <TableRow key={entry.table_name}>
+                    <TableCell className="font-medium">{entry.table_name}</TableCell>
+                    <TableCell>{entry.audit_mode.replace(/_/g, " ")}</TableCell>
+                    <TableCell>
+                      <Badge variant={entry.has_required_trigger ? "outline" : "destructive"}>
+                        {entry.has_required_trigger ? "Covered" : "Missing trigger"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="max-w-lg text-sm text-muted-foreground">
+                      {entry.rationale}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-3">

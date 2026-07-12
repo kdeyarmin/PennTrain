@@ -293,9 +293,13 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
   const { data: roster } = useListEmployeeFacilityAssignments({ facilityId });
   const { data: units } = useListFacilityUnits({ facilityId });
   const { data: shiftDefs } = useListShiftDefinitions({ facilityId });
-  const [employeeId, setEmployeeId] = useState("");
+  const [employeeIds, setEmployeeIds] = useState<Set<string>>(new Set());
 
-  const { data: preferences } = useListEmployeeSchedulePreferences({ employeeId: employeeId || undefined, facilityId });
+  // Browsing/managing existing patterns only makes sense for exactly one employee at a time --
+  // useListEmployeeSchedulePreferences takes a single employeeId, so that list (below) only shows
+  // once exactly one employee is checked above.
+  const singleEmployeeId = employeeIds.size === 1 ? [...employeeIds][0] : undefined;
+  const { data: preferences } = useListEmployeeSchedulePreferences({ employeeId: singleEmployeeId, facilityId });
   const create = useCreateEmployeeSchedulePreference();
   const del = useDeleteEmployeeSchedulePreference();
 
@@ -306,35 +310,82 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [shiftDefinitionId, setShiftDefinitionId] = useState("");
   const [unitId, setUnitId] = useState("");
+  const [addingPattern, setAddingPattern] = useState(false);
 
   function toggleDay(day: number) {
     setSelectedDays((d) => (d.includes(day) ? d.filter((x) => x !== day) : [...d, day].sort()));
   }
 
-  function handleAdd() {
-    if (!employeeId || !shiftDefinitionId || selectedDays.length === 0) {
-      toast({ title: "Pick at least one day and a shift", variant: "destructive" });
+  function toggleEmployee(id: string) {
+    setEmployeeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  const allRosterSelected = activeRoster.length > 0 && activeRoster.every((r) => employeeIds.has(r.employee_id));
+  const someRosterSelected = activeRoster.some((r) => employeeIds.has(r.employee_id));
+
+  function toggleSelectAllRoster() {
+    setEmployeeIds(allRosterSelected ? new Set() : new Set(activeRoster.map((r) => r.employee_id)));
+  }
+
+  const singleEmployeeRoster = singleEmployeeId ? activeRoster.find((r) => r.employee_id === singleEmployeeId) : undefined;
+  const patternTargetLabel =
+    employeeIds.size === 1
+      ? singleEmployeeRoster
+        ? `${singleEmployeeRoster.employees?.first_name} ${singleEmployeeRoster.employees?.last_name}`
+        : "this employee"
+      : `${employeeIds.size} employees`;
+
+  // Applies the same pattern to every selected employee in one batch via Promise.allSettled (so
+  // one employee's failure doesn't block the rest), then reports one summary toast -- mirrors the
+  // bulk-assignment pattern used elsewhere in this app (e.g. CourseAssignments' Assign Course).
+  async function handleAdd() {
+    if (employeeIds.size === 0 || !shiftDefinitionId || selectedDays.length === 0) {
+      toast({ title: "Pick at least one employee, day, and shift", variant: "destructive" });
       return;
     }
-    create.mutate(
-      {
-        organization_id: organizationId,
-        employee_id: employeeId,
-        facility_id: facilityId,
-        unit_id: unitId || null,
-        shift_definition_id: shiftDefinitionId,
-        days_of_week: selectedDays,
-      },
-      {
-        onSuccess: () => {
-          setSelectedDays([]);
-          setShiftDefinitionId("");
-          setUnitId("");
-          toast({ title: "Pattern added" });
-        },
-        onError: (e: Error) => toast({ title: "Couldn't add pattern", description: e.message, variant: "destructive" }),
-      }
+    const targets = [...employeeIds];
+    setAddingPattern(true);
+    const results = await Promise.allSettled(
+      targets.map((employeeId) =>
+        create.mutateAsync({
+          organization_id: organizationId,
+          employee_id: employeeId,
+          facility_id: facilityId,
+          unit_id: unitId || null,
+          shift_definition_id: shiftDefinitionId,
+          days_of_week: selectedDays,
+        })
+      )
     );
+    setAddingPattern(false);
+
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.length - succeeded;
+    if (targets.length === 1) {
+      const [only] = results;
+      if (only.status === "fulfilled") {
+        toast({ title: "Pattern added", variant: "success" });
+      } else {
+        const reason = only.reason instanceof Error ? only.reason.message : String(only.reason);
+        toast({ title: "Couldn't add pattern", description: reason, variant: "destructive" });
+      }
+    } else {
+      toast({
+        title: failed === 0 ? "Pattern added" : succeeded === 0 ? "Couldn't add pattern" : "Pattern partially added",
+        description:
+          `${succeeded} of ${targets.length} employees updated successfully.` + (failed > 0 ? ` ${failed} failed.` : ""),
+        variant: failed === 0 ? "success" : succeeded === 0 ? "destructive" : undefined,
+      });
+    }
+    if (succeeded > 0) {
+      setSelectedDays([]);
+      setShiftDefinitionId("");
+      setUnitId("");
+    }
   }
 
   const shiftById = new Map(activeShiftDefs.map((s) => [s.id, s]));
@@ -351,23 +402,35 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2 max-w-sm">
-          <Label className="text-xs">Employee</Label>
-          <Select value={employeeId} onValueChange={setEmployeeId}>
-            <SelectTrigger><SelectValue placeholder="Select an employee" /></SelectTrigger>
-            <SelectContent>
-              {activeRoster.map((r) => (
-                <SelectItem key={r.employee_id} value={r.employee_id}>
-                  {r.employees?.first_name} {r.employees?.last_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label className="text-xs">Employees ({employeeIds.size} selected)</Label>
+          <div className="border rounded-md overflow-hidden">
+            <label className="flex items-center gap-2 px-2.5 py-1.5 text-xs border-b bg-muted/40 cursor-pointer">
+              <Checkbox
+                checked={allRosterSelected ? true : someRosterSelected ? "indeterminate" : false}
+                onCheckedChange={toggleSelectAllRoster}
+                aria-label="Select all visible employees"
+              />
+              <span className="text-muted-foreground">Select all visible ({activeRoster.length})</span>
+            </label>
+            <div className="max-h-48 overflow-y-auto divide-y">
+              {activeRoster.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4">No active employees at this facility.</p>
+              ) : (
+                activeRoster.map((r) => (
+                  <label key={r.employee_id} className="flex items-center gap-2 px-2.5 py-1.5 text-sm cursor-pointer hover:bg-muted/40">
+                    <Checkbox checked={employeeIds.has(r.employee_id)} onCheckedChange={() => toggleEmployee(r.employee_id)} />
+                    <span className="flex-1 truncate">{r.employees?.first_name} {r.employees?.last_name}</span>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
         </div>
 
-        {employeeId && (
+        {employeeIds.size > 0 && (
           <>
             <div className="rounded-md border p-4 space-y-3">
-              <Label className="text-xs">Add a pattern</Label>
+              <Label className="text-xs">Add a pattern for {patternTargetLabel}</Label>
               <div className="flex flex-wrap gap-3">
                 {WEEKDAY_LABELS.map((label, i) => (
                   <label key={i} className="flex items-center gap-1.5 text-sm">
@@ -390,34 +453,37 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleAdd} disabled={create.isPending}>
+              <Button onClick={handleAdd} disabled={addingPattern}>
                 <Plus className="h-4 w-4 mr-2" />
-                Add Pattern
+                {addingPattern ? "Adding..." : employeeIds.size > 1 ? `Add Pattern to ${employeeIds.size} Employees` : "Add Pattern"}
               </Button>
             </div>
 
-            <div className="space-y-2">
-              {(preferences ?? []).length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">No typical patterns yet for this employee.</p>
-              ) : (
-                (preferences ?? []).map((p: EmployeeSchedulePreference) => (
-                  <div key={p.id} className="flex items-center justify-between rounded-md border px-3 py-2">
-                    <div className="text-sm">
-                      <span className="font-medium">
-                        {p.days_of_week.map((d) => WEEKDAY_LABELS[d]).join(", ")}
-                      </span>
-                      <span className="text-muted-foreground">
-                        {" "}&middot; {shiftById.get(p.shift_definition_id)?.name ?? "—"}
-                        {p.unit_id ? ` · ${unitById.get(p.unit_id)?.name ?? "—"}` : ""}
-                      </span>
+            {singleEmployeeId && (
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Existing patterns</Label>
+                {(preferences ?? []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">No typical patterns yet for this employee.</p>
+                ) : (
+                  (preferences ?? []).map((p: EmployeeSchedulePreference) => (
+                    <div key={p.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                      <div className="text-sm">
+                        <span className="font-medium">
+                          {p.days_of_week.map((d) => WEEKDAY_LABELS[d]).join(", ")}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {" "}&middot; {shiftById.get(p.shift_definition_id)?.name ?? "—"}
+                          {p.unit_id ? ` · ${unitById.get(p.unit_id)?.name ?? "—"}` : ""}
+                        </span>
+                      </div>
+                      <Button variant="ghost" size="icon" onClick={() => del.mutate(p.id)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => del.mutate(p.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                ))
-              )}
-            </div>
+                  ))
+                )}
+              </div>
+            )}
           </>
         )}
       </CardContent>
