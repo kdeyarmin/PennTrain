@@ -16963,6 +16963,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      delete_saved_report_definition: {
+        Args: { p_definition_id: string }
+        Returns: boolean
+      }
       employee_has_active_qualification: {
         Args: {
           p_at?: string
@@ -17966,6 +17970,35 @@ export type Database = {
         }[]
       }
       run_phase1_synthetic_checks: { Args: never; Returns: Json }
+      save_report_definition: {
+        Args: {
+          p_columns?: Json
+          p_filters?: Json
+          p_name: string
+          p_report_type: string
+          p_time_zone?: string
+        }
+        Returns: {
+          audience_roles: string[]
+          created_at: string
+          current_version_id: string | null
+          entitlement_key: string | null
+          id: string
+          name: string
+          organization_id: string
+          owner_profile_id: string | null
+          report_type: string
+          retention_days: number
+          schedule_enabled: boolean
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "saved_report_definitions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       self_enroll_course: { Args: { p_course_id: string }; Returns: string }
       send_monday_digest: { Args: never; Returns: undefined }
       send_policy_attestation_reminders: { Args: never; Returns: undefined }
