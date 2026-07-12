@@ -25,8 +25,11 @@ import {
   estimateBlockMinutes,
   getBlockLabel,
   getTextPreview,
+  hasLearningToolsEntries,
   lessonStorageKey,
   parseLearningToolsState,
+  sanitizeLearningToolsState,
+  type LearningToolsState,
   type LessonConfidence,
 } from "@/lib/courseLearningTools";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -184,28 +187,42 @@ export default function TakeCourse() {
   const [learningToolsStorageError, setLearningToolsStorageError] = useState<string | null>(null);
   const [lastStudyToolsSavedAt, setLastStudyToolsSavedAt] = useState<string | null>(null);
   const [readingComfort, setReadingComfort] = useState<ReadingComfort>("comfortable");
+  // Mirrors lessonNotes/lessonConfidence so the checkpoint upserts below can persist the
+  // latest values without re-running on every keystroke (same pattern as videoStateRef).
+  const learningToolsRef = useRef<LearningToolsState>({ notes: {}, confidence: {} });
 
+  // Hydrate study aids once per assignment, after the progress row settles: the server
+  // copy (course_progress.learning_tools) is the source of truth so notes follow the
+  // learner across devices; localStorage is adopted only when the server has nothing --
+  // the one-time migration path for notes written before server sync existed (the
+  // debounced save below then persists them).
   useEffect(() => {
     const key = lessonStorageKey(assignmentId);
-    if (!key) return;
-    setLessonToolsLoadedForId(null);
+    if (!key || progressLoading || lessonToolsLoadedForId === assignmentId) return;
     setLearningToolsStorageError(null);
+    let local: LearningToolsState = { notes: {}, confidence: {} };
     try {
       // Local reflection state is a learning aid only; malformed browser storage should not block
       // the regulated source-of-truth progress row from loading or saving normally.
-      const parsed = parseLearningToolsState(window.localStorage.getItem(key));
-      setLessonNotes(parsed.notes);
-      setLessonConfidence(parsed.confidence);
+      local = parseLearningToolsState(window.localStorage.getItem(key));
     } catch (e) {
       console.warn("Unable to load local course learning tools:", (e as Error).message);
       setLearningToolsStorageError("Local notes are unavailable in this browser session.");
-      setLessonNotes({});
-      setLessonConfidence({});
-    } finally {
-      setLessonToolsLoadedForId(assignmentId);
-      setLastStudyToolsSavedAt(null);
     }
-  }, [assignmentId]);
+    const server = sanitizeLearningToolsState(progress?.learning_tools);
+    const adopted = hasLearningToolsEntries(server) ? server : local;
+    setLessonNotes(adopted.notes);
+    setLessonConfidence(adopted.confidence);
+    learningToolsRef.current = adopted;
+    setLessonToolsLoadedForId(assignmentId);
+    setLastStudyToolsSavedAt(null);
+  }, [assignmentId, progress?.learning_tools, progressLoading, lessonToolsLoadedForId]);
+
+  // Keep the ref in step with state; declared before the persistence effects so they
+  // always read the current values.
+  useEffect(() => {
+    learningToolsRef.current = { notes: lessonNotes, confidence: lessonConfidence };
+  }, [lessonNotes, lessonConfidence]);
 
 useEffect(() => {
   const key = lessonStorageKey(assignmentId);
@@ -256,11 +273,35 @@ useEffect(() => {
         percent_complete: Math.round(((stepIndex + 1) / blocks.length) * 100),
         started_at: progress?.started_at ?? new Date().toISOString(),
         video_state: videoStateRef.current as unknown as Json,
+        learning_tools: learningToolsRef.current as unknown as Json,
       });
     }, 3_000);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoState]);
+
+  // Same trailing debounce for study aids: notes change on every keystroke, so the
+  // server write waits for a pause; block navigation and tab-backgrounding still
+  // checkpoint immediately. Also fires once right after hydration, which is what
+  // persists device-only notes adopted from localStorage.
+  useEffect(() => {
+    if (!resumed || !assignment || !blocks || blocks.length === 0) return;
+    if (lessonToolsLoadedForId !== assignmentId) return;
+    const block = blocks[stepIndex];
+    if (!block) return;
+    const timer = window.setTimeout(() => {
+      upsertProgress.mutate({
+        assignment_id: assignment.id,
+        last_block_id: block.id,
+        percent_complete: Math.round(((stepIndex + 1) / blocks.length) * 100),
+        started_at: progress?.started_at ?? new Date().toISOString(),
+        video_state: videoStateRef.current as unknown as Json,
+        learning_tools: learningToolsRef.current as unknown as Json,
+      });
+    }, 3_000);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lessonNotes, lessonConfidence, lessonToolsLoadedForId]);
 
   // Resume where the learner left off (course_progress.last_block_id), once,
   // as soon as blocks are loaded. If there's no progress row yet (brand new
@@ -291,6 +332,7 @@ useEffect(() => {
       percent_complete: percentComplete,
       started_at: progress?.started_at ?? new Date().toISOString(),
       video_state: videoStateRef.current as unknown as Json,
+      learning_tools: learningToolsRef.current as unknown as Json,
     });
     // Only re-run when the resolved step (or the assignment/blocks it's
     // scoped to) actually changes -- upsertProgress.mutate is stable.
@@ -325,6 +367,7 @@ useEffect(() => {
         percent_complete: Math.round(((stepIndex + 1) / blocks.length) * 100),
         started_at: progress?.started_at ?? new Date().toISOString(),
         video_state: videoStateRef.current as unknown as Json,
+        learning_tools: learningToolsRef.current as unknown as Json,
       });
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -822,7 +865,9 @@ useEffect(() => {
                       <div>
                         <p className="text-sm font-medium">My takeaway</p>
                         <p className="text-xs text-muted-foreground">
-                          Jot down what you would do differently on the job because of this lesson. Notes stay on this device.
+                          Jot down what you would do differently on the job because of this lesson. Notes save to
+                          your training record so you can pick up on any device, and your trainer can review them
+                          with you.
                         </p>
                       </div>
                       <Textarea
@@ -835,8 +880,8 @@ useEffect(() => {
                         {learningToolsStorageError
                           ? learningToolsStorageError
                           : lastStudyToolsSavedAt
-                            ? `Saved on this device at ${lastStudyToolsSavedAt}.`
-                            : "Notes and confidence checks save on this device."}
+                            ? `Saved at ${lastStudyToolsSavedAt}.`
+                            : "Notes and confidence checks save to your training record."}
                       </p>
                       <div className="space-y-2">
                         <div className="flex items-center gap-2 text-sm font-medium">

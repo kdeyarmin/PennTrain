@@ -4,8 +4,10 @@ import {
   estimateBlockMinutes,
   getBlockLabel,
   getTextPreview,
+  hasLearningToolsEntries,
   lessonStorageKey,
   parseLearningToolsState,
+  sanitizeLearningToolsState,
   type LearningToolBlock,
 } from "./courseLearningTools";
 
@@ -55,6 +57,21 @@ describe("course learning tools", () => {
       notes: { one: "Keep this" },
       confidence: { one: "ready", three: "review" },
     });
+  });
+
+  it("sanitizes server-stored learning-tools objects with the same rules", () => {
+    expect(sanitizeLearningToolsState(null)).toEqual({ notes: {}, confidence: {} });
+    expect(sanitizeLearningToolsState("nonsense")).toEqual({ notes: {}, confidence: {} });
+    expect(sanitizeLearningToolsState([1, 2])).toEqual({ notes: {}, confidence: {} });
+    const raw = {
+      notes: { one: "Keep this", two: 123 },
+      confidence: { one: "ready", two: "invalid" },
+      extra: "ignored",
+    };
+    expect(sanitizeLearningToolsState(raw)).toEqual(parseLearningToolsState(JSON.stringify(raw)));
+    expect(hasLearningToolsEntries({ notes: {}, confidence: {} })).toBe(false);
+    expect(hasLearningToolsEntries({ notes: { one: "x" }, confidence: {} })).toBe(true);
+    expect(hasLearningToolsEntries({ notes: {}, confidence: { one: "ready" } })).toBe(true);
   });
 
   it("builds a study guide from only notes and confidence entries", () => {

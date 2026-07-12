@@ -1,10 +1,12 @@
 begin;
-select plan(6);
+select plan(7);
 
--- Video watch state: resume data lives on the learner-writable progress row, and the
--- minimum-watch gate is exposed to clients through the caller-scoped release-flag read.
+-- Learner state on the progress row: video resume/watch data and study aids live on the
+-- learner-writable course_progress row, and the minimum-watch gate is exposed to clients
+-- through the caller-scoped release-flag read.
 
 select has_column('public','course_progress','video_state','course progress carries per-block video watch state');
+select has_column('public','course_progress','learning_tools','course progress carries per-block learner notes and confidence');
 select results_eq(
   $$ select rollout_mode, is_enabled from public.release_flags
      where feature_key = 'learning.video_watch_gate' $$,

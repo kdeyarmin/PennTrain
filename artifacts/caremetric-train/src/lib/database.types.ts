@@ -2522,6 +2522,7 @@ export type Database = {
           assignment_id: string
           id: string
           last_block_id: string | null
+          learning_tools: Json
           percent_complete: number
           started_at: string | null
           updated_at: string
@@ -2531,6 +2532,7 @@ export type Database = {
           assignment_id: string
           id?: string
           last_block_id?: string | null
+          learning_tools?: Json
           percent_complete?: number
           started_at?: string | null
           updated_at?: string
@@ -2540,6 +2542,7 @@ export type Database = {
           assignment_id?: string
           id?: string
           last_block_id?: string | null
+          learning_tools?: Json
           percent_complete?: number
           started_at?: string | null
           updated_at?: string

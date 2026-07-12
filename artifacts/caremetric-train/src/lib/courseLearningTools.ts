@@ -24,27 +24,40 @@ export function isLessonConfidence(value: unknown): value is LessonConfidence {
   return value === "unsure" || value === "review" || value === "ready";
 }
 
+/**
+ * Validate an already-parsed learning-tools object (e.g. the course_progress
+ * learning_tools jsonb column). Malformed input degrades to empty, never throws.
+ */
+export function sanitizeLearningToolsState(raw: unknown): LearningToolsState {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return EMPTY_LEARNING_TOOLS_STATE;
+  const parsed = raw as { notes?: unknown; confidence?: unknown };
+  const notes: Record<string, string> = {};
+  const confidence: Record<string, LessonConfidence> = {};
+
+  if (parsed.notes && typeof parsed.notes === "object" && !Array.isArray(parsed.notes)) {
+    Object.entries(parsed.notes).forEach(([blockId, value]) => {
+      if (typeof value === "string") notes[blockId] = value;
+    });
+  }
+
+  if (parsed.confidence && typeof parsed.confidence === "object" && !Array.isArray(parsed.confidence)) {
+    Object.entries(parsed.confidence).forEach(([blockId, value]) => {
+      if (isLessonConfidence(value)) confidence[blockId] = value;
+    });
+  }
+
+  return { notes, confidence };
+}
+
+export function hasLearningToolsEntries(state: LearningToolsState): boolean {
+  return Object.keys(state.notes).length > 0 || Object.keys(state.confidence).length > 0;
+}
+
 export function parseLearningToolsState(raw: string | null): LearningToolsState {
   if (!raw) return EMPTY_LEARNING_TOOLS_STATE;
 
   try {
-    const parsed = JSON.parse(raw) as { notes?: unknown; confidence?: unknown };
-    const notes: Record<string, string> = {};
-    const confidence: Record<string, LessonConfidence> = {};
-
-    if (parsed.notes && typeof parsed.notes === "object" && !Array.isArray(parsed.notes)) {
-      Object.entries(parsed.notes).forEach(([blockId, value]) => {
-        if (typeof value === "string") notes[blockId] = value;
-      });
-    }
-
-    if (parsed.confidence && typeof parsed.confidence === "object" && !Array.isArray(parsed.confidence)) {
-      Object.entries(parsed.confidence).forEach(([blockId, value]) => {
-        if (isLessonConfidence(value)) confidence[blockId] = value;
-      });
-    }
-
-    return { notes, confidence };
+    return sanitizeLearningToolsState(JSON.parse(raw));
   } catch {
     return EMPTY_LEARNING_TOOLS_STATE;
   }
