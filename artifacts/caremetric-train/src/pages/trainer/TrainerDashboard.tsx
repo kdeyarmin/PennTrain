@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useAuth } from "@/lib/auth";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -9,6 +10,7 @@ import {
   buildFacilityRetrainingStatus,
   ORG_WIDE_VISIBILITY_ROLES,
 } from "@/lib/facilityRetrainingStatus";
+import { todayIso } from "@/lib/scheduleDates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +23,7 @@ import {
   Plus,
   AlertTriangle,
   ChevronRight,
+  Monitor,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -48,6 +51,11 @@ export default function TrainerDashboard() {
   const allClasses = classes ?? [];
   const totalClasses = allClasses.length;
   const draftClasses = allClasses.filter((c) => c.status === "draft").length;
+  // "Recent Classes" below is sorted by date descending (a future-dated class can outrank
+  // today's), and reaching the kiosk from there is dashboard -> class detail -> "Open Kiosk Mode".
+  // Surface today's still-open class(es) directly here with a one-click kiosk launch. Only draft
+  // classes qualify -- a completed/cancelled class dated today has nothing left to check in.
+  const todaysClasses = allClasses.filter((c) => c.class_date === todayIso() && c.status === "draft");
   const compliant = practicums?.filter((p) => p.status === "compliant").length ?? 0;
   const pending = practicums?.filter((p) => p.status !== "compliant").length ?? 0;
 
@@ -143,6 +151,36 @@ export default function TrainerDashboard() {
         </Card>
       </div>
 
+      {todaysClasses.length > 0 && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <Monitor className="h-8 w-8 text-primary shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {todaysClasses.length === 1 ? "Today's Class" : `${todaysClasses.length} Classes Today`}
+                  </p>
+                  <p className="text-lg font-semibold">
+                    {todaysClasses.length === 1 ? todaysClasses[0].class_name : "Ready to check people in?"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {todaysClasses.map((c) => (
+                  <Link key={c.id} href={`/trainer/classes/${c.id}/kiosk`}>
+                    <Button size="sm">
+                      <Monitor className="h-4 w-4 mr-2" />
+                      {todaysClasses.length === 1 ? "Open Kiosk" : `Open Kiosk — ${c.class_name}`}
+                    </Button>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
@@ -185,7 +223,7 @@ export default function TrainerDashboard() {
                         {c.class_name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(c.class_date).toLocaleDateString()} &middot;{" "}
+                        {formatDateForDisplay(c.class_date)} &middot;{" "}
                         {attendeeCounts?.[c.id] ?? 0} attendee
                         {(attendeeCounts?.[c.id] ?? 0) === 1 ? "" : "s"}
                       </p>

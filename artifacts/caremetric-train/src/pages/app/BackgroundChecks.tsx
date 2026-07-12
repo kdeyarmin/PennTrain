@@ -107,9 +107,9 @@ export default function BackgroundChecks() {
 
     const paResident = form.paResidentTwoYears === "yes" ? true : form.paResidentTwoYears === "no" ? false : null;
     const provisionalMaxDays = form.provisionalStartDate
-      ? (paResident === false
-          ? orgSettings?.oapsa_provisional_days_nonresident ?? 90
-          : orgSettings?.oapsa_provisional_days_resident ?? 30)
+      ? (paResident === true
+          ? orgSettings?.oapsa_provisional_days_resident ?? 30
+          : orgSettings?.oapsa_provisional_days_nonresident ?? 90)
       : null;
 
     try {

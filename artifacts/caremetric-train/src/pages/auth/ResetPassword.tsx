@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,11 @@ export default function ResetPassword() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  // Whether a recovery session actually got established, and whether the visitor finished the
+  // reset -- used on unmount below to sign out of an abandoned recovery session so navigating
+  // away (URL edit, back button, bookmark) doesn't leave it usable elsewhere in the app.
+  const sessionEstablishedRef = useRef(false);
+  const completedRef = useRef(false);
 
   useEffect(() => {
     // The recovery link lands here with tokens in the URL hash; supabase-js parses them
@@ -26,12 +31,16 @@ export default function ResetPassword() {
     let cancelled = false;
 
     supabase.auth.getSession().then(({ data }) => {
-      if (!cancelled && data.session) setLinkState("valid");
+      if (!cancelled && data.session) {
+        sessionEstablishedRef.current = true;
+        setLinkState("valid");
+      }
     });
 
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (cancelled) return;
       if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session)) {
+        sessionEstablishedRef.current = true;
         setLinkState("valid");
       }
     });
@@ -47,6 +56,9 @@ export default function ResetPassword() {
       cancelled = true;
       subscription.subscription.unsubscribe();
       clearTimeout(timeout);
+      if (sessionEstablishedRef.current && !completedRef.current) {
+        void supabase.auth.signOut();
+      }
     };
   }, []);
 
@@ -64,6 +76,7 @@ export default function ResetPassword() {
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
+      completedRef.current = true;
       setDone(true);
       // Sign out of the temporary recovery session so the user logs in fresh with the new
       // password, rather than silently landing in the app on a token meant only for this reset.
@@ -99,13 +112,13 @@ export default function ResetPassword() {
 
         <Card className="border-border/50 shadow-xl shadow-black/[0.04] backdrop-blur-sm">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg">Set a new password</CardTitle>
+            <CardTitle className="text-lg">Set your password</CardTitle>
             <CardDescription>
               {linkState === "invalid"
-                ? "This reset link is invalid or has expired."
+                ? "This link is invalid or has expired."
                 : done
                 ? "Your password has been updated."
-                : "Choose a new password for your account."}
+                : "Choose a password for your account."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -116,7 +129,7 @@ export default function ResetPassword() {
             ) : linkState === "invalid" ? (
               <div className="text-center py-4 space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Request a new password reset link and try again.
+                  Request a new link and try again.
                 </p>
                 <Link href="/forgot-password">
                   <Button className="w-full">Request a new link</Button>

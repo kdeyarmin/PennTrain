@@ -6,6 +6,10 @@ import { useListAllIncidentNotifications } from "@/hooks/useIncidents";
 import { useListCorrectiveActions } from "@/hooks/useCorrectiveActions";
 import { useListAllInspectionEvents } from "@/hooks/useInspectionEvents";
 import { useListAllResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
+<<<<<<< HEAD
+=======
+import { useUrlState } from "@/hooks/useUrlState";
+>>>>>>> origin/main
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +28,19 @@ type SortField = "severity" | "createdAt" | "title";
 // but Postgres will reject any write, so those controls must not be shown to them.
 const ALERTS_WRITE_ROLES: Role[] = ["org_admin", "facility_manager", "platform_admin"];
 
+// Synced into the URL query string via useUrlState so opening a linked employee/incident/
+// inspection/resident record (below) and hitting Back returns to the same filtered/sorted/paged
+// view instead of resetting to these defaults.
+const ALERTS_FILTER_DEFAULTS = {
+  status: "open",
+  severity: "all",
+  facilityId: "all",
+  search: "",
+  sortField: "createdAt",
+  sortDir: "desc",
+  page: "1",
+};
+
 export default function Alerts() {
   const { user } = useAuth();
   const { viewingOrgId } = useViewingOrg();
@@ -34,13 +51,11 @@ export default function Alerts() {
   const employeeDetailBase = user?.role === "platform_admin" ? "/admin/employees" : "/app/employees";
   const incidentDetailBase = user?.role === "platform_admin" ? "/admin/incidents" : "/app/incidents";
   const inspectionDetailBase = user?.role === "platform_admin" ? "/admin/inspections" : "/app/inspections";
-  const [status, setStatus] = useState<string>("open");
-  const [severity, setSeverity] = useState<string>("all");
-  const [facilityId, setFacilityId] = useState<string>("all");
-  const [search, setSearch] = useState("");
-  const [sortField, setSortField] = useState<SortField>("createdAt");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [page, setPage] = useState(1);
+  const [filters, setFilters] = useUrlState(ALERTS_FILTER_DEFAULTS);
+  const { status, severity, facilityId, search } = filters;
+  const sortField = filters.sortField as SortField;
+  const sortDir = filters.sortDir as "asc" | "desc";
+  const page = Math.max(1, Number(filters.page) || 1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pendingId, setPendingId] = useState<string | null>(null);
 
@@ -95,7 +110,8 @@ export default function Alerts() {
   }
 
   const { mutate: updateAlert } = useUpdateAlert();
-  const { mutate: bulkUpdateAlerts, isPending: bulkDismissing } = useBulkUpdateAlerts();
+  const { mutate: bulkUpdateAlerts, isPending: bulkUpdating } = useBulkUpdateAlerts();
+  const [pendingBulkStatus, setPendingBulkStatus] = useState<"dismissed" | "resolved" | null>(null);
 
   const handleAction = (id: string, action: "dismiss" | "resolve") => {
     setPendingId(id);
@@ -103,7 +119,7 @@ export default function Alerts() {
       { id, status: action === "resolve" ? "resolved" : "dismissed" },
       {
         onSuccess: () => {
-          toast({ title: action === "resolve" ? "Alert resolved" : "Alert dismissed" });
+          toast({ title: action === "resolve" ? "Alert resolved" : "Alert dismissed", variant: "success" });
           setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
         },
         onError: () => toast({ variant: "destructive", title: "Action failed" }),
@@ -112,17 +128,22 @@ export default function Alerts() {
     );
   };
 
-  const handleBulkDismiss = () => {
+  // Status-agnostic on purpose (useBulkUpdateAlerts just takes a status) so "Resolve Selected" and
+  // "Bulk Dismiss" below share one handler and one in-flight-request guard instead of two
+  // independent mutation hooks that could race each other.
+  const handleBulkAction = (targetStatus: "dismissed" | "resolved") => {
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
+    setPendingBulkStatus(targetStatus);
     bulkUpdateAlerts(
-      { ids, status: "dismissed" },
+      { ids, status: targetStatus },
       {
         onSuccess: () => {
-          toast({ title: `${ids.length} alert(s) dismissed` });
+          toast({ title: `${ids.length} alert(s) ${targetStatus}`, variant: "success" });
           setSelectedIds(new Set());
         },
-        onError: () => toast({ variant: "destructive", title: "Bulk dismiss failed" }),
+        onError: () => toast({ variant: "destructive", title: `Bulk ${targetStatus === "resolved" ? "resolve" : "dismiss"} failed` }),
+        onSettled: () => setPendingBulkStatus(null),
       },
     );
   };
@@ -192,9 +213,8 @@ export default function Alerts() {
   };
 
   function toggleSort(field: SortField) {
-    if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
-    else { setSortField(field); setSortDir("desc"); }
-    setPage(1);
+    if (sortField === field) setFilters({ sortDir: sortDir === "asc" ? "desc" : "asc", page: "1" });
+    else setFilters({ sortField: field, sortDir: "desc", page: "1" });
   }
 
   const sortIndicator = (field: SortField) =>
@@ -213,11 +233,11 @@ export default function Alerts() {
           <Input
             placeholder="Search alerts..."
             value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1); }}
+            onChange={e => setFilters({ search: e.target.value, page: "1" })}
             className="pl-9"
           />
         </div>
-        <Select value={status} onValueChange={v => { setStatus(v); setPage(1); setSelectedIds(new Set()); }}>
+        <Select value={status} onValueChange={v => { setFilters({ status: v, page: "1" }); setSelectedIds(new Set()); }}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -227,7 +247,7 @@ export default function Alerts() {
             <SelectItem value="resolved">Resolved</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={severity} onValueChange={v => { setSeverity(v); setPage(1); }}>
+        <Select value={severity} onValueChange={v => setFilters({ severity: v, page: "1" })}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="All Severities" />
           </SelectTrigger>
@@ -238,7 +258,7 @@ export default function Alerts() {
             <SelectItem value="info">Info</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={facilityId} onValueChange={v => { setFacilityId(v); setPage(1); }}>
+        <Select value={facilityId} onValueChange={v => setFilters({ facilityId: v, page: "1" })}>
           <SelectTrigger className="w-48">
             <SelectValue placeholder="All Facilities" />
           </SelectTrigger>
@@ -272,11 +292,19 @@ export default function Alerts() {
           <span className="text-sm font-medium">{selectedIds.size} alert(s) selected</span>
           <Button
             size="sm"
-            variant="destructive"
-            onClick={handleBulkDismiss}
-            disabled={bulkDismissing}
+            variant="outline"
+            onClick={() => handleBulkAction("resolved")}
+            disabled={bulkUpdating}
           >
-            {bulkDismissing ? "Dismissing..." : "Bulk Dismiss"}
+            {pendingBulkStatus === "resolved" ? "Resolving..." : "Resolve Selected"}
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => handleBulkAction("dismissed")}
+            disabled={bulkUpdating}
+          >
+            {pendingBulkStatus === "dismissed" ? "Dismissing..." : "Bulk Dismiss"}
           </Button>
           <Button
             size="sm"
@@ -377,11 +405,11 @@ export default function Alerts() {
                     Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)} of {sorted.length}
                   </p>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
+                    <Button variant="outline" size="sm" onClick={() => setFilters({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <span className="text-sm">Page {page} of {totalPages}</span>
-                    <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+                    <Button variant="outline" size="sm" onClick={() => setFilters({ page: String(Math.min(totalPages, page + 1)) })} disabled={page === totalPages}>
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>

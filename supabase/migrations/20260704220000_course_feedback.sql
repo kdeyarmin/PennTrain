@@ -16,6 +16,7 @@ create table public.course_feedback (
   comment              text,
   created_at           timestamptz not null default now()
 );
+
 create index course_feedback_course_idx on public.course_feedback(course_id);
 
 alter table public.course_feedback enable row level security;

@@ -1,4 +1,5 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,18 +21,20 @@ import {
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useListFacilities, type Facility } from "@/hooks/useFacilities";
-import { useListEmployees, type Employee } from "@/hooks/useEmployees";
-import { useListTrainingTypes, type TrainingType } from "@/hooks/useTrainingTypes";
-import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
-import { useListPracticums, type Practicum } from "@/hooks/usePracticums";
-import { useListAlerts, type Alert } from "@/hooks/useAlerts";
-import { useListDocuments, type TrainingDocument } from "@/hooks/useDocuments";
-import { useListTrainingHourBuckets } from "@/hooks/useTrainingHourBuckets";
-import { useListEmployeeCredentials, type EmployeeCredential } from "@/hooks/useEmployeeCredentials";
-import { useListIncidents, type Incident, useListAllIncidentNotificationsDetailed, type IncidentNotification } from "@/hooks/useIncidents";
-import { useListInspectionItems, type InspectionItem } from "@/hooks/useInspectionItems";
-import { useListOrganizations, type Organization } from "@/hooks/useOrganizations";
+import type { Employee } from "@/hooks/useEmployees";
+import type { TrainingType } from "@/hooks/useTrainingTypes";
+import type { TrainingRecord } from "@/hooks/useTrainingRecords";
+import type { Practicum } from "@/hooks/usePracticums";
+import type { Alert } from "@/hooks/useAlerts";
+import type { TrainingDocument } from "@/hooks/useDocuments";
+import type { EmployeeCredential } from "@/hooks/useEmployeeCredentials";
+import type { Incident, IncidentNotification } from "@/hooks/useIncidents";
+import type { InspectionItem } from "@/hooks/useInspectionItems";
+import type { Organization } from "@/hooks/useOrganizations";
+import type { Profile } from "@/hooks/useProfiles";
 import type { Tables } from "@/lib/database.types";
+import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { ReportViewer } from "@/components/reports/ReportViewer";
@@ -233,16 +236,6 @@ const ALL_REPORTS: ReportDef[] = [
     requiredBy: "Internal Compliance",
   },
   {
-    id: "org-compliance",
-    title: "Organization Compliance Overview",
-    description:
-      "High-level compliance metrics and trends across the entire organization.",
-    icon: BarChart3,
-    category: "Compliance",
-    requiredBy: "55 Pa. Code §2600",
-    roles: ["platform_admin"],
-  },
-  {
     id: "credential-status",
     title: "Credential & Clearance Status",
     description:
@@ -333,7 +326,7 @@ function byFacility<T extends { facility_id: string | null }>(items: T[], facili
 
 const BUCKET_TYPE_LABELS: Record<string, string> = {
   general_annual: "General Annual",
-  alr_dementia: "ALR Dementia (§2800.69)",
+  alr_dementia: "ALF Dementia (§2800.69)",
   sdcu_dementia: "Secured Dementia Unit (§2600.236)",
 };
 
@@ -387,11 +380,129 @@ interface ReportContext {
   documents: TrainingDocument[];
   alerts: Alert[];
   organizations: Organization[];
+  profiles: Profile[];
   hourBuckets: HourBucket[];
   credentials: EmployeeCredential[];
   incidents: Incident[];
   incidentNotifications: IncidentNotification[];
   inspectionItems: InspectionItem[];
+}
+
+type DatasetKey =
+  | "facilities"
+  | "employees"
+  | "trainingTypes"
+  | "trainingRecords"
+  | "practicums"
+  | "documents"
+  | "alerts"
+  | "hourBuckets"
+  | "profiles"
+  | "credentials"
+  | "incidents"
+  | "incidentNotifications"
+  | "inspectionItems";
+
+// Which of the datasets above each report's buildReport() branch actually reads (verified
+// against every `if (reportId === ...)` block below). Drives two things: (1) each dataset
+// query's `enabled` flag, so we don't unconditionally fetch all 14 datasets on mount regardless
+// of which single report is wanted, and (2) each report card's own loading/disabled state,
+// instead of gating every card on a global OR of all queries. Reports commonly share datasets
+// (most need `employees`, many need `trainingRecords`/`trainingTypes`) -- that's expected and
+// fine, it just means those queries stay enabled across more selections.
+//
+// `organizations` never appears in any Set below: no report reads ctx.organizations (see the
+// `organizations` field being hardcoded to `[]` further down instead of being fetched).
+const REPORT_DATASETS: Record<string, ReadonlySet<DatasetKey>> = {
+  "compliance-summary": new Set<DatasetKey>(["employees", "trainingRecords"]),
+  "facility-compliance": new Set<DatasetKey>(["facilities", "trainingRecords"]),
+  "survey-readiness": new Set<DatasetKey>(["trainingRecords", "practicums", "employees", "trainingTypes", "alerts"]),
+  "expired-training": new Set<DatasetKey>(["trainingRecords", "employees", "trainingTypes"]),
+  "due-soon": new Set<DatasetKey>(["trainingRecords", "employees", "trainingTypes"]),
+  "medication-administration": new Set<DatasetKey>(["employees", "trainingTypes", "trainingRecords"]),
+  "training-matrix": new Set<DatasetKey>(["trainingTypes", "employees", "facilities", "trainingRecords"]),
+  "practicum-status": new Set<DatasetKey>(["practicums", "employees"]),
+  "annual-practicum": new Set<DatasetKey>(["practicums", "employees"]),
+  "annual-hours": new Set<DatasetKey>(["hourBuckets", "employees"]),
+  "training-hours": new Set<DatasetKey>(["hourBuckets", "employees"]),
+  "trainer-certification": new Set<DatasetKey>(["employees", "trainingTypes", "trainingRecords"]),
+  "new-employee-training": new Set<DatasetKey>(["employees", "trainingRecords", "trainingTypes"]),
+  "employee-transcript": new Set<DatasetKey>(["employees", "trainingRecords", "practicums", "trainingTypes"]),
+  "expiring-certifications": new Set<DatasetKey>(["trainingRecords", "employees", "trainingTypes"]),
+  "missing-documents": new Set<DatasetKey>(["trainingRecords", "employees", "trainingTypes"]),
+  "document-audit": new Set<DatasetKey>(["documents", "trainingRecords", "profiles"]),
+  "overdue-training": new Set<DatasetKey>(["trainingRecords", "practicums", "employees", "trainingTypes"]),
+  "credential-status": new Set<DatasetKey>(["credentials", "employees"]),
+  "incident-log": new Set<DatasetKey>(["incidents", "facilities"]),
+  "incident-notification-register": new Set<DatasetKey>(["incidents", "facilities", "incidentNotifications"]),
+  "inspection-compliance": new Set<DatasetKey>(["inspectionItems", "facilities"]),
+};
+
+function reportNeeds(reportId: string, dataset: DatasetKey): boolean {
+  return REPORT_DATASETS[reportId]?.has(dataset) ?? false;
+}
+
+// Item 1b/1c: the one shared date-range control filters a *different* underlying field
+// depending on which report is selected (due_date for most, occurred_at for the incident log,
+// created_at for the document audit, expiration_date for credentials, next_due_date for
+// inspections, due_at for the notification register) -- this label is shown next to the
+// control so that's never silent. `null` means the report doesn't use date filtering at all
+// (training-matrix cross-references every training type against each employee's *latest*
+// record regardless of date, so a date range can't be meaningfully applied); the control is
+// disabled for it instead of silently doing nothing.
+const REPORT_DATE_FIELD_LABEL: Record<string, string | null> = {
+  "compliance-summary": "Due Date",
+  "facility-compliance": "Due Date",
+  "survey-readiness": "Due Date",
+  "expired-training": "Due Date",
+  "due-soon": "Due Date",
+  "medication-administration": "Due Date",
+  "training-matrix": null,
+  "practicum-status": "Due Date",
+  "annual-practicum": "Due Date",
+  "annual-hours": "Training Year",
+  "training-hours": "Training Year",
+  "trainer-certification": "Due Date",
+  "new-employee-training": "Due Date",
+  "employee-transcript": "Due Date",
+  "expiring-certifications": "Due Date",
+  "missing-documents": "Due Date",
+  "document-audit": "Document Upload Date",
+  "overdue-training": "Due Date",
+  "credential-status": "Expiration Date",
+  "incident-log": "Occurred Date",
+  "incident-notification-register": "Notification Due Date",
+  "inspection-compliance": "Next Due Date",
+};
+
+// Item 3: reports excluded from the automatic "default to a recent window" behavior (below)
+// even though they otherwise support date filtering. `annual-hours` already has its own more
+// precise default baked directly into buildReport() (current training year only -- see the
+// `reportId === "annual-hours"` branch below); injecting a second, competing default here would
+// silently widen it and make View and CSV disagree whenever both fields are left blank.
+// `employee-transcript`'s own card explicitly promises "Complete training transcript ... all
+// training history" for one person -- inherently small (a career's worth of records, not
+// "thousands of rows"), so bounding it by default would contradict what it says it is, for no
+// rendering benefit.
+const SKIP_AUTO_DATE_DEFAULT = new Set<string>(["annual-hours", "employee-transcript"]);
+
+function supportsAutoDateDefault(reportId: string): boolean {
+  return Boolean(REPORT_DATE_FIELD_LABEL[reportId]) && !SKIP_AUTO_DATE_DEFAULT.has(reportId);
+}
+
+// Item 3: the bounded window a View (not CSV -- see exportCsv call sites) falls back to when
+// both date fields are left empty, instead of rendering a multi-year org's full history into
+// ReportViewer's plain, uncapped table. Weighted mostly toward the past (matching how most
+// reports read: due/expired/occurred dates), but with a forward buffer too: "Training Due Soon"
+// and "Expiring Certifications" filter for dates in the *next* 90 days, and a purely backward
+// window would silently zero those reports out by default.
+function defaultDateWindow(): { from: string; to: string } {
+  const now = new Date();
+  const from = new Date(now);
+  from.setMonth(from.getMonth() - 12);
+  const to = new Date(now);
+  to.setMonth(to.getMonth() + 6);
+  return { from: toLocalIsoDate(from), to: toLocalIsoDate(to) };
 }
 
 function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
@@ -404,6 +515,7 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
 
   const employeeById = new Map(ctx.employees.map((e) => [e.id, e]));
   const trainingTypeById = new Map(ctx.trainingTypes.map((t) => [t.id, t]));
+  const profileById = new Map(ctx.profiles.map((p) => [p.id, p]));
 
   if (reportId === "compliance-summary") {
     const rangedRecords = scopedRecords.filter((r) => inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo));
@@ -475,9 +587,12 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
   }
 
   if (reportId === "survey-readiness") {
-    const total = relevantRecords(scopedRecords).length;
-    const compliantCount = scopedRecords.filter((r) => r.status === "compliant").length;
-    const expiredCount = scopedRecords.filter((r) => r.status === "expired").length;
+    const rangedRecords = scopedRecords.filter((r) => inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo));
+    const rangedPracticums = scopedPracticums.filter((p) => inDateRange(p.due_date, ctx.dateFrom, ctx.dateTo));
+
+    const total = relevantRecords(rangedRecords).length;
+    const compliantCount = rangedRecords.filter((r) => r.status === "compliant").length;
+    const expiredCount = rangedRecords.filter((r) => r.status === "expired").length;
     const overallComplianceScore = pct(compliantCount, total);
 
     const medAdminStaff = scopedEmployees.filter((e) => e.administers_medications);
@@ -492,18 +607,18 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
       ctx.trainingTypes.filter((t) => t.is_active && t.applies_to_trainers).map((t) => t.id)
     );
 
-    const medAdminBadRecords = scopedRecords.filter(
+    const medAdminBadRecords = rangedRecords.filter(
       (r) => medAdminIds.has(r.employee_id) && medAdminTypeIds.has(r.training_type_id) && (r.status === "expired" || r.status === "missing")
     );
-    const trainerBadRecords = scopedRecords.filter(
+    const trainerBadRecords = rangedRecords.filter(
       (r) => trainerIds.has(r.employee_id) && trainerTypeIds.has(r.training_type_id) && (r.status === "expired" || r.status === "missing")
     );
 
     const currentYear = new Date().getFullYear();
-    const yearPracticums = scopedPracticums.filter((p) => p.practicum_year === currentYear);
+    const yearPracticums = rangedPracticums.filter((p) => p.practicum_year === currentYear);
     const pendingPracticums = yearPracticums.filter((p) => p.status !== "compliant");
 
-    const missingDocsRecords = scopedRecords.filter((r) => r.status === "missing" && r.document_required);
+    const missingDocsRecords = rangedRecords.filter((r) => r.status === "missing" && r.document_required);
 
     const criticalAlerts = byFacility(ctx.alerts, ctx.facilityId).filter((a) => a.severity === "critical");
 
@@ -703,7 +818,14 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
   if (reportId === "annual-hours" || reportId === "training-hours") {
     const scopedBuckets = byFacility(ctx.hourBuckets, ctx.facilityId);
     const currentYear = new Date().getFullYear();
-    const buckets = reportId === "annual-hours" ? scopedBuckets.filter((b) => b.training_year === currentYear) : scopedBuckets;
+    const fromYear = ctx.dateFrom ? new Date(ctx.dateFrom).getFullYear() : undefined;
+    const toYear = ctx.dateTo ? new Date(ctx.dateTo).getFullYear() : undefined;
+    const buckets = scopedBuckets.filter((b) => {
+      if (fromYear !== undefined && b.training_year < fromYear) return false;
+      if (toYear !== undefined && b.training_year > toYear) return false;
+      if (fromYear === undefined && toYear === undefined && reportId === "annual-hours") return b.training_year === currentYear;
+      return true;
+    });
     const compliantCount = buckets.filter((b) => b.status === "compliant").length;
     const incompleteCount = buckets.length - compliantCount;
     const staffTracked = new Set(buckets.map((b) => b.employee_id)).size;
@@ -850,7 +972,15 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
     );
     return {
       headers: ["File Name", "Type", "Uploaded By", "Created"],
-      rows: rangedDocuments.map((d) => [d.file_name, d.document_type, d.uploaded_by_profile_id ?? "", d.created_at]),
+      rows: rangedDocuments.map((d) => {
+        const uploader = d.uploaded_by_profile_id ? profileById.get(d.uploaded_by_profile_id) : undefined;
+        return [
+          d.file_name,
+          d.document_type,
+          uploader ? `${uploader.first_name} ${uploader.last_name}` : d.uploaded_by_profile_id ?? "",
+          d.created_at,
+        ];
+      }),
       summaryCards,
     };
   }
@@ -884,44 +1014,6 @@ function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
     ];
     summaryCards.push({ label: "Overdue Items", value: rows.length, variant: rows.length > 0 ? "danger" : "success" });
     return { headers: ["Employee", "Job Title", "Type", "Item", "Due Date", "Status"], rows, summaryCards };
-  }
-
-  if (reportId === "org-compliance") {
-    const rows = ctx.organizations.map((o) => {
-      const orgFacilities = ctx.facilities.filter((f) => f.organization_id === o.id);
-      const orgEmployees = ctx.employees.filter((e) => e.organization_id === o.id);
-      const orgRecords = ctx.trainingRecords.filter(
-        (r) => r.organization_id === o.id && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo)
-      );
-      const relevantOrgRecords = relevantRecords(orgRecords);
-      const compliantCount = orgRecords.filter((r) => r.status === "compliant").length;
-      const expiredCount = orgRecords.filter((r) => r.status === "expired").length;
-      const dueSoonCount = orgRecords.filter((r) => r.status === "due_soon").length;
-      return {
-        org: o,
-        totalEmployees: orgEmployees.length,
-        totalFacilities: orgFacilities.length,
-        totalRecords: relevantOrgRecords.length,
-        compliantCount,
-        expiredCount,
-        dueSoonCount,
-        compliancePercentage: pct(compliantCount, relevantOrgRecords.length),
-      };
-    });
-    return {
-      headers: ["Org ID", "Total Employees", "Facilities", "Total Records", "Compliant", "Expired", "Due Soon", "Compliance %"],
-      rows: rows.map((r) => [
-        r.org.name,
-        String(r.totalEmployees),
-        String(r.totalFacilities),
-        String(r.totalRecords),
-        String(r.compliantCount),
-        String(r.expiredCount),
-        String(r.dueSoonCount),
-        `${r.compliancePercentage}%`,
-      ]),
-      summaryCards: [{ label: "Organizations", value: rows.length }],
-    };
   }
 
   if (reportId === "credential-status") {
@@ -1073,6 +1165,16 @@ function downloadCsv(csv: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+// A View/CSV request made before its report's datasets (per REPORT_DATASETS) finished loading;
+// see the pendingAction state + effect in the component below.
+interface PendingAction {
+  report: ReportDef;
+  action: "view" | "csv";
+  employeeIdOverride?: string;
+  dateFrom: string;
+  dateTo: string;
+}
+
 export default function Reports() {
   const [facilityId, setFacilityId] = useState<string>("all");
   const [category, setCategory] = useState<string>("All");
@@ -1081,6 +1183,16 @@ export default function Reports() {
   const [dateTo, setDateTo] = useState<string>("");
   const [pendingReport, setPendingReport] = useState<ReportDef | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("none");
+  // The report the shared date-range control (and the per-report query gating below) currently
+  // pertains to. Defaults to the first report so the "Filtering by:" label and dataset fetching
+  // have a sensible starting point before the user has clicked anything. Changing it always
+  // clears dateFrom/dateTo (see selectReport) so a range typed in for one field never silently
+  // carries over onto a differently-named field on a different report.
+  const [selectedReportId, setSelectedReportId] = useState<string>(ALL_REPORTS[0].id);
+  // A View/CSV click on a report whose datasets aren't loaded yet queues here instead of
+  // generating from an incomplete/empty context; the effect further down fires it automatically
+  // as soon as everything that report needs has actually arrived.
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
 
   const [activeReport, setActiveReport] = useState<ReportDef | null>(null);
   const [reportData, setReportData] = useState<{
@@ -1093,19 +1205,133 @@ export default function Reports() {
   const { toast } = useToast();
   const { user } = useAuth();
 
+  // Facilities always fetch: the facility picker below and the "Filtered to X" label are
+  // page-level chrome, not tied to any single report.
   const facilitiesQuery = useListFacilities({});
-  const employeesQuery = useListEmployees({});
-  const trainingTypesQuery = useListTrainingTypes({});
-  const trainingRecordsQuery = useListTrainingRecords({});
-  const practicumsQuery = useListPracticums({});
-  const documentsQuery = useListDocuments({});
-  const alertsQuery = useListAlerts({ status: "open" });
-  const hourBucketsQuery = useListTrainingHourBuckets({});
-  const organizationsQuery = useListOrganizations();
-  const credentialsQuery = useListEmployeeCredentials({});
-  const incidentsQuery = useListIncidents({});
-  const incidentNotificationsQuery = useListAllIncidentNotificationsDetailed();
-  const inspectionItemsQuery = useListInspectionItems({});
+
+  // The other 13 datasets buildReport() can draw on, gated to only the reports that actually
+  // need them (REPORT_DATASETS) -- addresses "14 unbounded queries fire on mount regardless of
+  // which single report is wanted." useListEmployees()/useListTrainingRecords()/etc. don't
+  // expose an `enabled` option, so these call useQuery directly with the exact same
+  // queryKey/queryFn those hooks use internally, so they stay a cache-compatible stand-in for
+  // them (e.g. this still shares a cache entry with the Employees page's useListEmployees({})).
+  const employeesQuery = useQuery({
+    queryKey: ["employees", {}],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("employees").select("*").order("last_name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: reportNeeds(selectedReportId, "employees"),
+  });
+  const trainingTypesQuery = useQuery({
+    queryKey: ["training_types", {}],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("training_types").select("*").order("sort_order").order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: reportNeeds(selectedReportId, "trainingTypes"),
+  });
+  const trainingRecordsQuery = useQuery({
+    queryKey: ["training_records", {}],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("employee_training_records").select("*").order("due_date");
+      if (error) throw error;
+      return data;
+    },
+    enabled: reportNeeds(selectedReportId, "trainingRecords"),
+  });
+  const practicumsQuery = useQuery({
+    queryKey: ["practicums", {}],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("practicums").select("*").order("due_date");
+      if (error) throw error;
+      return data;
+    },
+    enabled: reportNeeds(selectedReportId, "practicums"),
+  });
+  const documentsQuery = useQuery({
+    // Same queryKey useListDocuments({}) uses (see useDocuments.ts) -- kept select-shape-identical
+    // to it ("*, employees(...)") on purpose, since two queries sharing a cache slot with
+    // different shapes means whichever runs second serves its shape to both consumers.
+    queryKey: ["documents", {}],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("training_documents")
+        .select("*, employees(id, first_name, last_name)")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: reportNeeds(selectedReportId, "documents"),
+  });
+  const alertsQuery = useQuery({
+    queryKey: ["alerts", { status: "open" }],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("alerts").select("*").order("created_at", { ascending: false }).eq("status", "open");
+      if (error) throw error;
+      return data;
+    },
+    enabled: reportNeeds(selectedReportId, "alerts"),
+  });
+  const hourBucketsQuery = useQuery({
+    queryKey: ["training_hour_buckets", {}],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employee_training_hour_buckets")
+        .select("*")
+        .order("training_year", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: reportNeeds(selectedReportId, "hourBuckets"),
+  });
+  const profilesQuery = useQuery({
+    queryKey: ["profiles", {}],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles").select("*").order("last_name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: reportNeeds(selectedReportId, "profiles"),
+  });
+  const credentialsQuery = useQuery({
+    queryKey: ["employee_credentials", {}],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("employee_credentials").select("*").order("expiration_date");
+      if (error) throw error;
+      return data;
+    },
+    enabled: reportNeeds(selectedReportId, "credentials"),
+  });
+  const incidentsQuery = useQuery({
+    queryKey: ["incidents", {}],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("incidents").select("*").order("occurred_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: reportNeeds(selectedReportId, "incidents"),
+  });
+  const incidentNotificationsQuery = useQuery({
+    queryKey: ["incident_notifications", "all", "detailed"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("incident_notifications").select("*").order("due_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: reportNeeds(selectedReportId, "incidentNotifications"),
+  });
+  const inspectionItemsQuery = useQuery({
+    queryKey: ["inspection_items", {}],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("inspection_items").select("*").order("next_due_date");
+      if (error) throw error;
+      return data;
+    },
+    enabled: reportNeeds(selectedReportId, "inspectionItems"),
+  });
 
   const facilities = facilitiesQuery.data ?? [];
   const employees = employeesQuery.data ?? [];
@@ -1115,26 +1341,42 @@ export default function Reports() {
   const documents = documentsQuery.data ?? [];
   const alerts = alertsQuery.data ?? [];
   const hourBuckets = hourBucketsQuery.data ?? [];
-  const organizations = organizationsQuery.data ?? [];
+  // No report reads ctx.organizations (see REPORT_DATASETS above) -- kept on ReportContext for
+  // shape-compatibility, but there's nothing that ever needs it fetched.
+  const organizations: Organization[] = [];
+  const profiles = profilesQuery.data ?? [];
   const credentials = credentialsQuery.data ?? [];
   const incidents = incidentsQuery.data ?? [];
   const incidentNotifications = incidentNotificationsQuery.data ?? [];
   const inspectionItems = inspectionItemsQuery.data ?? [];
 
-  const dataLoading =
-    facilitiesQuery.isLoading ||
-    employeesQuery.isLoading ||
-    trainingTypesQuery.isLoading ||
-    trainingRecordsQuery.isLoading ||
-    practicumsQuery.isLoading ||
-    documentsQuery.isLoading ||
-    alertsQuery.isLoading ||
-    hourBucketsQuery.isLoading ||
-    organizationsQuery.isLoading ||
-    credentialsQuery.isLoading ||
-    incidentsQuery.isLoading ||
-    incidentNotificationsQuery.isLoading ||
-    inspectionItemsQuery.isLoading;
+  // Per-report readiness: true once every dataset that report's buildReport() branch touches
+  // has finished its first fetch. Drives each card's own disabled/spinner state (instead of the
+  // old blanket "all 14 queries" OR) and whether a click can generate immediately or has to
+  // queue in pendingAction until its data arrives.
+  function isReportDataReady(reportId: string): boolean {
+    const needs = REPORT_DATASETS[reportId];
+    if (!needs) return true;
+    const readiness: Record<DatasetKey, boolean> = {
+      facilities: facilitiesQuery.data !== undefined,
+      employees: employeesQuery.data !== undefined,
+      trainingTypes: trainingTypesQuery.data !== undefined,
+      trainingRecords: trainingRecordsQuery.data !== undefined,
+      practicums: practicumsQuery.data !== undefined,
+      documents: documentsQuery.data !== undefined,
+      alerts: alertsQuery.data !== undefined,
+      hourBuckets: hourBucketsQuery.data !== undefined,
+      profiles: profilesQuery.data !== undefined,
+      credentials: credentialsQuery.data !== undefined,
+      incidents: incidentsQuery.data !== undefined,
+      incidentNotifications: incidentNotificationsQuery.data !== undefined,
+      inspectionItems: inspectionItemsQuery.data !== undefined,
+    };
+    for (const key of needs) {
+      if (!readiness[key]) return false;
+    }
+    return true;
+  }
 
   const facilityName = facilityId !== "all" ? facilities.find((f) => f.id === facilityId)?.name : undefined;
 
@@ -1152,12 +1394,39 @@ export default function Reports() {
     return true;
   });
 
+  // Item 1b/1c: what the shared date-range control above shows/does right now, derived from
+  // whichever report is currently selected (see selectReport / REPORT_DATE_FIELD_LABEL).
+  const selectedReportForLabel = ALL_REPORTS.find((r) => r.id === selectedReportId);
+  const dateFieldLabel = REPORT_DATE_FIELD_LABEL[selectedReportId];
+
+  // The employee-picker dialog (requiresEmployee reports -- currently just Employee Transcript)
+  // opens immediately on click, before selectReport's newly-enabled queries have necessarily
+  // resolved; gate its own Confirm/CSV buttons on that report's readiness instead of the click
+  // that opened it.
+  const pendingReportDataReady = pendingReport ? isReportDataReady(pendingReport.id) : false;
+
+  // Item 1a: switching which report the date-range control applies to always clears it, so a
+  // range typed in for one field (e.g. due_date) never silently carries over and gets read as a
+  // filter on a differently-named field (e.g. occurred_at) for the next report. Returns whether
+  // the selection actually changed, so callers know whether the reset applies to their own
+  // in-flight click.
+  const selectReport = useCallback(
+    (reportId: string): boolean => {
+      if (reportId === selectedReportId) return false;
+      setSelectedReportId(reportId);
+      setDateFrom("");
+      setDateTo("");
+      return true;
+    },
+    [selectedReportId]
+  );
+
   const buildContext = useCallback(
-    (employeeIdOverride?: string): ReportContext => ({
+    (employeeIdOverride?: string, dateFromOverride?: string, dateToOverride?: string): ReportContext => ({
       facilityId,
       employeeIdOverride,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
+      dateFrom: (dateFromOverride !== undefined ? dateFromOverride : dateFrom) || undefined,
+      dateTo: (dateToOverride !== undefined ? dateToOverride : dateTo) || undefined,
       facilities,
       employees,
       trainingTypes,
@@ -1166,6 +1435,7 @@ export default function Reports() {
       documents,
       alerts,
       organizations,
+      profiles,
       hourBuckets,
       credentials,
       incidents,
@@ -1174,14 +1444,18 @@ export default function Reports() {
     }),
     [
       facilityId, dateFrom, dateTo, facilities, employees, trainingTypes, trainingRecords, practicums, documents, alerts, organizations,
-      hourBuckets, credentials, incidents, incidentNotifications, inspectionItems,
+      profiles, hourBuckets, credentials, incidents, incidentNotifications, inspectionItems,
     ]
   );
 
+  // dateFromOverride/dateToOverride let callers bypass the dateFrom/dateTo *state* for one
+  // generation -- needed because switching reports (selectReport) and the item-3 default window
+  // are both computed synchronously in the same click that may generate immediately afterward,
+  // before a reset/default setDateFrom("")/setDateTo() call has actually taken effect on state.
   const viewReport = useCallback(
-    (report: ReportDef, employeeIdOverride?: string) => {
+    (report: ReportDef, employeeIdOverride?: string, dateFromOverride?: string, dateToOverride?: string) => {
       try {
-        const parsed = buildReport(report.id, buildContext(employeeIdOverride));
+        const parsed = buildReport(report.id, buildContext(employeeIdOverride, dateFromOverride, dateToOverride));
         setActiveReport(report);
         setReportData({ ...parsed, generatedAt: new Date().toISOString() });
         setPendingReport(null);
@@ -1197,9 +1471,9 @@ export default function Reports() {
   );
 
   const exportCsv = useCallback(
-    (report: ReportDef, employeeIdOverride?: string) => {
+    (report: ReportDef, employeeIdOverride?: string, dateFromOverride?: string, dateToOverride?: string) => {
       try {
-        const parsed = buildReport(report.id, buildContext(employeeIdOverride));
+        const parsed = buildReport(report.id, buildContext(employeeIdOverride, dateFromOverride, dateToOverride));
         const csv = toCsv(parsed.headers, parsed.rows);
         const timestamp = new Date().toISOString().split("T")[0];
         downloadCsv(csv, `${report.id}-${timestamp}.csv`);
@@ -1216,14 +1490,70 @@ export default function Reports() {
     [buildContext, toast]
   );
 
+  // Item 2 (correctness): a click that lands before its report's datasets have finished loading
+  // queues in pendingAction rather than generating from an incomplete/empty context. This fires
+  // it the moment everything that report needs has actually arrived -- see isReportDataReady
+  // above and the dataset queries' `enabled` flags.
+  useEffect(() => {
+    if (!pendingAction) return;
+    if (!isReportDataReady(pendingAction.report.id)) return;
+    const { report, action, employeeIdOverride, dateFrom: pFrom, dateTo: pTo } = pendingAction;
+    setPendingAction(null);
+    if (action === "view") viewReport(report, employeeIdOverride, pFrom, pTo);
+    else exportCsv(report, employeeIdOverride, pFrom, pTo);
+  }, [
+    pendingAction,
+    facilitiesQuery.data,
+    employeesQuery.data,
+    trainingTypesQuery.data,
+    trainingRecordsQuery.data,
+    practicumsQuery.data,
+    documentsQuery.data,
+    alertsQuery.data,
+    hourBucketsQuery.data,
+    profilesQuery.data,
+    credentialsQuery.data,
+    incidentsQuery.data,
+    incidentNotificationsQuery.data,
+    inspectionItemsQuery.data,
+    viewReport,
+    exportCsv,
+  ]);
+
   const handleReportAction = (report: ReportDef, action: "view" | "csv") => {
+    const isNewSelection = selectReport(report.id);
+    let effFrom = isNewSelection ? "" : dateFrom;
+    let effTo = isNewSelection ? "" : dateTo;
+
+    // Item 3: only View gets the bounded default when both fields are empty -- CSV is left
+    // alone so clearing the fields on purpose still produces a genuine "all time" export. The
+    // From/To inputs are deliberately *not* updated to show this window (setDateFrom/setDateTo
+    // are never called here): leaving them empty is what keeps CSV "all time by default" after
+    // a View. A toast instead says out loud what got applied, so this fix doesn't just trade one
+    // silent date filter for another.
+    if (action === "view" && !effFrom && !effTo && supportsAutoDateDefault(report.id)) {
+      const dateWindow = defaultDateWindow();
+      effFrom = dateWindow.from;
+      effTo = dateWindow.to;
+      const fmt = (d: string) => formatDateForDisplay(d, { month: "short", day: "numeric", year: "numeric" });
+      toast({
+        title: "Showing recent data only",
+        description: `No date range was set, so ${report.title} is limited to ${fmt(effFrom)} – ${fmt(effTo)}. Set the From/To fields above for a different range, or use CSV export for all-time data.`,
+      });
+    }
+
     if (report.requiresEmployee) {
       setSelectedEmployeeId("none");
       setPendingReport(report);
       return;
     }
-    if (action === "view") viewReport(report);
-    else exportCsv(report);
+
+    if (isReportDataReady(report.id)) {
+      if (action === "view") viewReport(report, undefined, effFrom, effTo);
+      else exportCsv(report, undefined, effFrom, effTo);
+    } else {
+      setPendingAction({ report, action, employeeIdOverride: undefined, dateFrom: effFrom, dateTo: effTo });
+    }
   };
 
   const handleEmployeeReportAction = (action: "view" | "csv") => {
@@ -1344,6 +1674,7 @@ export default function Reports() {
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
+            disabled={!dateFieldLabel}
             className="w-40"
           />
         </div>
@@ -1356,9 +1687,19 @@ export default function Reports() {
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
+            disabled={!dateFieldLabel}
             className="w-40"
           />
         </div>
+        {dateFieldLabel ? (
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            Filtering by: <strong className="font-medium text-foreground">{dateFieldLabel}</strong>
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground italic whitespace-nowrap">
+            {selectedReportForLabel?.title ?? "This report"} doesn't support date filtering
+          </span>
+        )}
         {(dateFrom || dateTo) && (
           <Button
             variant="ghost"
@@ -1389,7 +1730,7 @@ export default function Reports() {
             &middot; Date range: <strong>{dateFrom || "any"}</strong> to <strong>{dateTo || "any"}</strong>
           </span>
         )}
-        {dataLoading && <span className="ml-2 text-xs">(loading report data…)</span>}
+        {!isReportDataReady(selectedReportId) && <span className="ml-2 text-xs">(loading report data…)</span>}
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -1407,10 +1748,17 @@ export default function Reports() {
             Inspections: { border: "border-l-cyan-500", bg: "bg-cyan-100 dark:bg-cyan-950/30", text: "text-cyan-600 dark:text-cyan-400" },
           };
           const colors = catColors[report.category] ?? catColors.Compliance;
+          const isSelected = report.id === selectedReportId;
+          // Only the currently-selected card can be "busy": selecting a report (see
+          // selectReport, triggered below on click) is what turns its datasets' queries on, so
+          // a not-yet-selected card is never stuck showing a permanent spinner -- clicking it is
+          // exactly what starts loading its data.
+          const cardBusy = isSelected && !isReportDataReady(report.id);
           return (
             <Card
               key={report.id}
-              className={`group hover:shadow-md transition-shadow flex flex-col border-l-4 ${colors.border}`}
+              onClick={() => selectReport(report.id)}
+              className={`group hover:shadow-md transition-shadow flex flex-col border-l-4 ${colors.border} cursor-pointer ${isSelected ? "ring-2 ring-primary" : ""}`}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-start gap-3">
@@ -1440,11 +1788,14 @@ export default function Reports() {
                   <Button
                     size="sm"
                     variant="default"
-                    disabled={dataLoading}
-                    onClick={() => handleReportAction(report, "view")}
+                    disabled={cardBusy}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleReportAction(report, "view");
+                    }}
                     className="flex-1"
                   >
-                    {dataLoading ? (
+                    {cardBusy ? (
                       <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
                     ) : (
                       <Eye className="h-3.5 w-3.5 mr-1" />
@@ -1454,8 +1805,11 @@ export default function Reports() {
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={dataLoading}
-                    onClick={() => handleReportAction(report, "csv")}
+                    disabled={cardBusy}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleReportAction(report, "csv");
+                    }}
                   >
                     <Download className="h-3.5 w-3.5 mr-1" />
                     CSV
@@ -1491,9 +1845,10 @@ export default function Reports() {
               <Select
                 value={selectedEmployeeId}
                 onValueChange={setSelectedEmployeeId}
+                disabled={employeesQuery.data === undefined}
               >
                 <SelectTrigger id="emp-select">
-                  <SelectValue placeholder="Select an employee..." />
+                  <SelectValue placeholder={employeesQuery.data === undefined ? "Loading employees…" : "Select an employee..."} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Select an employee...</SelectItem>
@@ -1514,16 +1869,16 @@ export default function Reports() {
             <Button
               variant="outline"
               onClick={() => handleEmployeeReportAction("csv")}
-              disabled={selectedEmployeeId === "none" || dataLoading}
+              disabled={selectedEmployeeId === "none" || !pendingReportDataReady}
             >
               <Download className="mr-2 h-4 w-4" />
               CSV
             </Button>
             <Button
               onClick={() => handleEmployeeReportAction("view")}
-              disabled={selectedEmployeeId === "none" || dataLoading}
+              disabled={selectedEmployeeId === "none" || !pendingReportDataReady}
             >
-              {dataLoading ? (
+              {!pendingReportDataReady ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Eye className="mr-2 h-4 w-4" />

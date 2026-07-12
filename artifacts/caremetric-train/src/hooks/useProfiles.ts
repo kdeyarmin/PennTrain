@@ -2,8 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesUpdate } from "@/lib/database.types";
 
-export type Profile = Tables<"profiles">;
-export type ProfileUpdate = TablesUpdate<"profiles">;
+export type Profile = Tables<"profiles"> & {
+  preferred_notification_channel?: string;
+};
+export type ProfileUpdate = TablesUpdate<"profiles"> & {
+  preferred_notification_channel?: string;
+};
 
 export interface ListProfilesFilters {
   organizationId?: string;
@@ -31,18 +35,30 @@ export function useListProfiles(filters: ListProfilesFilters = {}) {
  * .../20260704050209_pin_search_path_on_trigger_functions.sql): for anyone who is not
  * platform_admin, the trigger silently reverts those four columns back to their old
  * values, so a plain client-side `.update()` on them is a silent no-op. This hook is
- * only for the remaining, non-protected fields; role/org/active/email changes must go
- * through `useAdminUpdateUser()` instead.
+ * only for the remaining, non-protected fields; it uses the scoped
+ * `update_profile_contact_preferences()` command so organization and facility
+ * administrators can manage users in their authorized scope. Role/org/active/email
+ * changes must go through `useAdminUpdateUser()` instead.
  */
-export type ProfileSelfServiceUpdate = Pick<ProfileUpdate, "first_name" | "last_name" | "phone" | "sms_opt_in" | "sms_consent_at">;
+export type ProfileSelfServiceUpdate = Pick<
+  ProfileUpdate,
+  "first_name" | "last_name" | "phone" | "sms_opt_in" | "preferred_notification_channel"
+>;
 
 export function useUpdateProfile() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...payload }: ProfileSelfServiceUpdate & { id: string }) => {
-      const { data, error } = await supabase.from("profiles").update(payload).eq("id", id).select().single();
+      const { data, error } = await supabase.rpc("update_profile_contact_preferences" as never, {
+        p_profile_id: id,
+        p_first_name: payload.first_name,
+        p_last_name: payload.last_name,
+        p_phone: payload.phone,
+        p_sms_opt_in: payload.sms_opt_in,
+        p_preferred_notification_channel: payload.preferred_notification_channel,
+      } as never);
       if (error) throw error;
-      return data;
+      return (data as unknown as Profile[])[0];
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["profiles"] }),
   });

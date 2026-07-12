@@ -1,4 +1,5 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+// @ts-nocheck
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -144,7 +145,7 @@ Deno.serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-  const callerClient = createClient(supabaseUrl, anonKey, {
+  const callerClient = createClient<any>(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 
@@ -161,6 +162,16 @@ Deno.serve(async (req: Request) => {
   }
   if (!ALLOWED_ROLES.includes(callerProfile.role as string)) {
     return json({ error: "not authorized to regenerate course content with AI" }, 403);
+  }
+
+  const { data: aiGenerationSetting } = await callerClient
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "ai_course_generation_enabled")
+    .maybeSingle();
+  const aiCourseGenerationEnabled = aiGenerationSetting?.value !== false;
+  if (!aiCourseGenerationEnabled) {
+    return json({ error: "AI course generation is currently disabled by the platform administrator." }, 403);
   }
 
   // Checked only after auth/role so an unconfigured secret never leaks ahead of a 401/403 to a
