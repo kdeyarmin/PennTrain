@@ -38,6 +38,7 @@ yarn-error.log
 testem.log
 /typings
 supabase/.temp/
+supabase/.branches/
 
 # System Files
 .DS_Store
