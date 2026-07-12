@@ -47,7 +47,7 @@ export function buildResidentFaceSheetPacket({
     demographics: [
       { label: "Resident", value: `${resident.last_name}, ${resident.first_name}` },
       { label: "Facility", value: blank(facility?.name) },
-      { label: "Facility Type", value: blank(facility?.facility_type) },
+      { label: "Facility Type", value: blank(FACILITY_TYPES.find((t) => t.value === facility?.facility_type)?.label ?? facility?.facility_type) },
       { label: "Status", value: humanize(resident.status) },
       { label: "Date of Birth", value: formatDateOnly(resident.date_of_birth) },
       { label: "Room", value: blank(resident.room) },
