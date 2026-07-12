@@ -193,6 +193,10 @@ Deno.serve(async (req: Request) => {
         ? [body.facility_id]
         : null;
     if (requested) {
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (requested.some((id) => !uuidRe.test(id))) {
+        return json({ error: "invalid facility_id/facility_ids" }, 400);
+      }
       const { data: matchedFacilities, error: facilityScopeError } = await adminClient
         .from("facilities")
         .select("id")
