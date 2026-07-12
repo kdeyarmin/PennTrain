@@ -53,7 +53,7 @@ export default function ScheduleDetail() {
   const { data: units } = useListFacilityUnits({ facilityId });
   const { data: shiftDefs } = useListShiftDefinitions({ facilityId });
   const { data: roster } = useListEmployeeFacilityAssignments({ facilityId });
-  const { data: activeResidents } = useListResidents({ facilityId, status: "active" });
+  const { data: activeResidents } = useListResidents({ facilityId: facilityId ?? "00000000-0000-0000-0000-000000000000", status: "active" });
   const { data: assignments, isLoading: assignmentsLoading } = useListShiftAssignments({ scheduleId: id });
 
   const generate = useGenerateScheduleAssignments();
