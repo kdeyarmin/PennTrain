@@ -4,6 +4,7 @@ import type { ResidentDocument } from "@/hooks/useResidentDocuments";
 import type { ResidentInformalSupport } from "@/hooks/useResidentInformalSupports";
 import type { Resident } from "@/hooks/useResidents";
 import { formatDateOnly, ITEM_TYPE_LABELS } from "@/lib/residentCompliance";
+import { FACILITY_TYPES } from "@/lib/facilityTypes";
 import { humanize } from "@/lib/utils";
 
 export interface ResidentFaceSheetPacket {
