@@ -1,5 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatDateForDisplay } from "@/lib/dateUtils";
+import { sanitizeVideoState, type VideoBlockState } from "@/lib/videoWatchState";
+import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
+import { useFeatureReleaseActive } from "@/hooks/useFeatureRelease";
+import type { Json } from "@/lib/database.types";
 import { Link, useLocation, useParams } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
@@ -138,6 +142,15 @@ export default function TakeCourse() {
   const [stepIndex, setStepIndex] = useState(0);
   const [resumed, setResumed] = useState(false);
 
+  // Per-block video watch state (resume position, no-skip high-water mark, completion).
+  // Hydrated once per assignment from course_progress.video_state; the ref mirrors the
+  // state so the navigation/visibility checkpoints below can persist the latest values
+  // without re-running on every playback tick.
+  const { isActive: watchGateReleased } = useFeatureReleaseActive("learning.video_watch_gate");
+  const [videoState, setVideoState] = useState<Record<string, VideoBlockState>>({});
+  const videoStateRef = useRef<Record<string, VideoBlockState>>({});
+  const [videoStateLoadedForId, setVideoStateLoadedForId] = useState<string | null>(null);
+
   // Tracks the furthest lesson the learner has ever reached, so the lesson-stepper pills below can
   // allow jumping back to any already-visited lesson while still blocking a jump ahead of it. Starts
   // at 0 and only grows -- moving stepIndex backward (Previous, or a pill click) never lowers it, so
@@ -212,6 +225,43 @@ useEffect(() => {
   return () => window.clearTimeout(timeoutId);
 }, [assignmentId, lessonNotes, lessonConfidence, lessonToolsLoadedForId]);
 
+  // Hydrate video watch state once per assignment (progress refetches after every
+  // checkpoint upsert; re-hydrating from those echoes would clobber newer local ticks).
+  useEffect(() => {
+    if (videoStateLoadedForId === assignmentId || progressLoading) return;
+    const parsed = sanitizeVideoState(progress?.video_state);
+    videoStateRef.current = parsed;
+    setVideoState(parsed);
+    setVideoStateLoadedForId(assignmentId);
+  }, [assignmentId, progress?.video_state, progressLoading, videoStateLoadedForId]);
+
+  const handleVideoStateChange = (blockId: string, next: VideoBlockState) => {
+    videoStateRef.current = { ...videoStateRef.current, [blockId]: next };
+    setVideoState(videoStateRef.current);
+  };
+
+  // Debounced persistence of playback ticks: the player reports every few seconds while
+  // playing and on pause/completion; this trails those reports so an interrupted session
+  // loses at most a few seconds of position. Block navigation and tab-backgrounding
+  // still checkpoint immediately via the effects below.
+  useEffect(() => {
+    if (!resumed || !assignment || !blocks || blocks.length === 0) return;
+    if (videoStateLoadedForId !== assignmentId) return;
+    const block = blocks[stepIndex];
+    if (!block || Object.keys(videoState).length === 0) return;
+    const timer = window.setTimeout(() => {
+      upsertProgress.mutate({
+        assignment_id: assignment.id,
+        last_block_id: block.id,
+        percent_complete: Math.round(((stepIndex + 1) / blocks.length) * 100),
+        started_at: progress?.started_at ?? new Date().toISOString(),
+        video_state: videoStateRef.current as unknown as Json,
+      });
+    }, 3_000);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoState]);
+
   // Resume where the learner left off (course_progress.last_block_id), once,
   // as soon as blocks are loaded. If there's no progress row yet (brand new
   // assignment) or the stored block no longer exists, we simply start at 0.
@@ -240,6 +290,7 @@ useEffect(() => {
       last_block_id: block.id,
       percent_complete: percentComplete,
       started_at: progress?.started_at ?? new Date().toISOString(),
+      video_state: videoStateRef.current as unknown as Json,
     });
     // Only re-run when the resolved step (or the assignment/blocks it's
     // scoped to) actually changes -- upsertProgress.mutate is stable.
@@ -273,6 +324,7 @@ useEffect(() => {
         last_block_id: block.id,
         percent_complete: Math.round(((stepIndex + 1) / blocks.length) * 100),
         started_at: progress?.started_at ?? new Date().toISOString(),
+        video_state: videoStateRef.current as unknown as Json,
       });
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -325,7 +377,15 @@ useEffect(() => {
   // *every* quiz block in the course before completion is reachable --
   // without having to bulk-resolve every quiz in the course up front.
   // ---------------------------------------------------------------------
-  const canAdvance = !isQuizBlock || currentQuizPassed;
+  // Video blocks gate the same way when the org has released the watch gate:
+  // the learner can't move past an unwatched video. Completed assignments are
+  // never re-locked (review mode), and videos finished before the flag was
+  // enabled already carry completedAt from the resume tracking.
+  const isVideoBlock = currentBlock?.block_type === "video" && !!currentBlock?.video_url;
+  const currentVideoWatched = currentBlock ? !!videoState[currentBlock.id]?.completedAt : false;
+  const videoGateBlocksAdvance =
+    watchGateReleased && isVideoBlock && assignment?.status !== "completed" && !currentVideoWatched;
+  const canAdvance = (!isQuizBlock || currentQuizPassed) && !videoGateBlocksAdvance;
 
   const handleLessonNoteChange = (value: string) => {
     if (!currentBlock) return;
@@ -704,9 +764,13 @@ useEffect(() => {
 
               {currentBlock?.block_type === "video" && (
                 currentBlock.video_url ? (
-                  <video controls className="w-full rounded-lg border" src={currentBlock.video_url}>
-                    Your browser does not support embedded video.
-                  </video>
+                  <CourseVideoPlayer
+                    key={currentBlock.id}
+                    src={currentBlock.video_url}
+                    state={videoState[currentBlock.id]}
+                    gated={watchGateReleased && assignment?.status !== "completed"}
+                    onChange={(next) => handleVideoStateChange(currentBlock.id, next)}
+                  />
                 ) : (
                   <p className="text-sm text-muted-foreground">No video available for this lesson.</p>
                 )
@@ -861,7 +925,7 @@ useEffect(() => {
           </div>
           {!canAdvance && (
             <p className="text-xs text-muted-foreground text-right">
-              Pass the quiz above to continue.
+              {videoGateBlocksAdvance ? "Watch the video above to continue." : "Pass the quiz above to continue."}
             </p>
           )}
           <p className="text-xs text-muted-foreground text-center">

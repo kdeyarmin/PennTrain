@@ -2525,6 +2525,7 @@ export type Database = {
           percent_complete: number
           started_at: string | null
           updated_at: string
+          video_state: Json
         }
         Insert: {
           assignment_id: string
@@ -2533,6 +2534,7 @@ export type Database = {
           percent_complete?: number
           started_at?: string | null
           updated_at?: string
+          video_state?: Json
         }
         Update: {
           assignment_id?: string
@@ -2541,6 +2543,7 @@ export type Database = {
           percent_complete?: number
           started_at?: string | null
           updated_at?: string
+          video_state?: Json
         }
         Relationships: [
           {
@@ -16954,6 +16957,10 @@ export type Database = {
       fail_exclusion_source_refresh: {
         Args: { p_error: string; p_run_id: string }
         Returns: Json
+      }
+      feature_release_active: {
+        Args: { p_feature_key: string }
+        Returns: boolean
       }
       finalize_resident_assessment_form: {
         Args: { p_form_id: string }
