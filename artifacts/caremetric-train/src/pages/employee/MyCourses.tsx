@@ -58,6 +58,11 @@ export default function MyCourses() {
   const courseById = useMemo(() => new Map((courses ?? []).map(c => [c.id, c])), [courses]);
   const currentVersionById = useMemo(() => new Map((currentVersions ?? []).map(v => [v.id, v])), [currentVersions]);
 
+  // Prefer the employees row org when it exists; fall back to the profile org so that
+  // org_admin/auditor who haven't self-enrolled yet (no employees row) still see their org's
+  // published courses in the "Available Courses" list rather than an empty page.
+  const effectiveOrgId = employee?.organization_id ?? user?.organizationId ?? undefined;
+
   const allAssignments = assignments ?? [];
   const filtered = statusFilter === "all" ? allAssignments : allAssignments.filter(a => a.status === statusFilter);
 
@@ -72,7 +77,7 @@ export default function MyCourses() {
     c =>
       c.status === "published"
       && !assignedCourseIds.has(c.id)
-      && canEnrollInCourse(c, employee?.organization_id)
+      && canEnrollInCourse(c, effectiveOrgId)
       && isCourseVersionLearnerReady(c.current_version_id ? currentVersionById.get(c.current_version_id) : null),
   );
 
