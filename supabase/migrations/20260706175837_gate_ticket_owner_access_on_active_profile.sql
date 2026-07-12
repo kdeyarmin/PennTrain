@@ -15,8 +15,8 @@ create or replace function public.current_profile_active() returns boolean
 language sql stable security definer set search_path = public as $$
   select coalesce((select is_active from public.profiles where id = auth.uid()), false);
 $$;
+revoke all on function public.current_profile_active() from public, anon, authenticated;
 grant execute on function public.current_profile_active() to authenticated;
-
 drop policy support_tickets_select on public.support_tickets;
 create policy support_tickets_select on public.support_tickets
   for select to authenticated
