@@ -4,14 +4,22 @@ import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { PageHero, Reveal } from "@/components/marketing/primitives";
 import { STEPS } from "@/components/marketing/content";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 const DELIVERABLES = [
   "Employee training plans tied to role, facility, and license type",
   "Completion evidence from online courses, live classes, outside records, and practicums",
   "Dashboards, alerts, certificates, documents, audit log, and binder exports",
+  "Resident assessments, incidents, inspections, and plans of correction tracked alongside staff compliance",
 ];
 
 export default function HowItWorks() {
+  usePageMeta({
+    title: "How It Works — CareMetric Train",
+    description:
+      "From roster import to a survey-ready compliance binder in three steps -- see how CareMetric Train keeps your facility inspection-ready year round.",
+    path: "/how-it-works",
+  });
   return (
     <MarketingLayout>
       <PageHero

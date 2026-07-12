@@ -14,17 +14,31 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Sparkles, Eraser, Send, Undo2, Plus, Loader2 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { AlertTriangle, ArrowLeft, BarChart3, Eraser, Loader2, Plus, Send, Sparkles, Undo2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { enumerateDatesIso, formatDateLabel, formatTimeLabel } from "@/lib/scheduleDates";
+import { summarizeScheduleAnalytics } from "@/lib/scheduleAnalytics";
 
 const UNASSIGNED = "__unassigned__";
+
+const SHIFT_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "scheduled", label: "Scheduled" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "completed", label: "Completed" },
+  { value: "called_off", label: "Called Off" },
+  { value: "no_show", label: "No Show" },
+];
 
 export default function ScheduleDetail() {
   const { id } = useParams<{ id: string }>();
@@ -51,8 +65,14 @@ export default function ScheduleDetail() {
   const [addTarget, setAddTarget] = useState<{ unitId: string | null; date: string } | null>(null);
   const [editTarget, setEditTarget] = useState<ShiftAssignmentWithDetails | null>(null);
 
-  const [addForm, setAddForm] = useState({ employeeId: "", shiftDefinitionId: "", notes: "" });
+  const [addForm, setAddForm] = useState({ shiftDefinitionId: "", notes: "" });
+  const [addEmployeeIds, setAddEmployeeIds] = useState<Set<string>>(new Set());
+  const [isAddingShifts, setIsAddingShifts] = useState(false);
   const [editForm, setEditForm] = useState({ unitId: UNASSIGNED, shiftDefinitionId: "", status: "scheduled", notes: "" });
+  // Tracks which single cell's status dropdown is mid-update (rather than reusing
+  // updateAssignment.isPending, which reflects the shared mutation instance and would also flip
+  // true while the edit-shift modal's own Save is in flight) so only that one badge shows "…".
+  const [quickStatusId, setQuickStatusId] = useState<string | null>(null);
 
   const dates = useMemo(
     () => (schedule ? enumerateDatesIso(schedule.period_start, schedule.period_end) : []),
@@ -77,12 +97,34 @@ export default function ScheduleDetail() {
     return map;
   }, [assignments]);
 
+  const scheduleAnalytics = useMemo(() => summarizeScheduleAnalytics({
+    assignments: assignments ?? [],
+    dates,
+    unitIds: activeUnits.map((u) => u.id),
+  }), [assignments, dates, activeUnits]);
+
   const isDraft = schedule?.status === "draft";
   const hasAutoFill = (assignments ?? []).some((a) => a.source === "auto_fill" && a.status === "scheduled");
 
   function openAddDialog(unitId: string | null, date: string) {
-    setAddForm({ employeeId: "", shiftDefinitionId: activeShiftDefs[0]?.id ?? "", notes: "" });
+    setAddForm({ shiftDefinitionId: activeShiftDefs[0]?.id ?? "", notes: "" });
+    setAddEmployeeIds(new Set());
     setAddTarget({ unitId, date });
+  }
+
+  function toggleAddEmployee(employeeId: string) {
+    setAddEmployeeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(employeeId)) next.delete(employeeId); else next.add(employeeId);
+      return next;
+    });
+  }
+
+  const allAddEmployeesSelected = activeRoster.length > 0 && activeRoster.every((r) => addEmployeeIds.has(r.employee_id));
+  const someAddEmployeesSelected = activeRoster.some((r) => addEmployeeIds.has(r.employee_id));
+
+  function toggleSelectAllAddEmployees() {
+    setAddEmployeeIds(allAddEmployeesSelected ? new Set() : new Set(activeRoster.map((r) => r.employee_id)));
   }
 
   function openEditDialog(a: ShiftAssignmentWithDetails) {
@@ -95,39 +137,85 @@ export default function ScheduleDetail() {
     setEditTarget(a);
   }
 
-  function handleAdd() {
-    if (!addTarget || !schedule || !addForm.employeeId || !addForm.shiftDefinitionId) {
-      toast({ title: "Pick an employee and a shift", variant: "destructive" });
+  // Applies the same shift to every selected employee in one batch via Promise.allSettled (so one
+  // employee's conflict doesn't block the rest), then reports a single summary toast -- mirrors
+  // the bulk-assignment pattern used elsewhere in this app (e.g. CourseAssignments' Assign Course).
+  async function handleAdd() {
+    if (!addTarget || !schedule || addEmployeeIds.size === 0 || !addForm.shiftDefinitionId) {
+      toast({ title: "Pick at least one employee and a shift", variant: "destructive" });
       return;
     }
     const shiftDef = activeShiftDefs.find((s) => s.id === addForm.shiftDefinitionId);
     if (!shiftDef) return;
-    createAssignment.mutate(
-      {
-        organization_id: schedule.organization_id,
-        schedule_id: schedule.id,
-        facility_id: schedule.facility_id,
-        employee_id: addForm.employeeId,
-        unit_id: addTarget.unitId,
-        shift_definition_id: shiftDef.id,
-        shift_date: addTarget.date,
-        start_time: shiftDef.start_time,
-        end_time: shiftDef.end_time,
-        status: "scheduled",
-        source: "manual",
-        notes: addForm.notes.trim() || null,
-      },
+    const employeeIds = [...addEmployeeIds];
+
+    const describeFailure = (reason: unknown) => {
+      const message = reason instanceof Error ? reason.message : String(reason);
+      return message.includes("duplicate") || message.includes("overlapping shift")
+        ? "This employee already has a conflicting shift for that day."
+        : message;
+    };
+
+    setIsAddingShifts(true);
+    const results = await Promise.allSettled(
+      employeeIds.map((employeeId) =>
+        createAssignment.mutateAsync({
+          organization_id: schedule.organization_id,
+          schedule_id: schedule.id,
+          facility_id: schedule.facility_id,
+          employee_id: employeeId,
+          unit_id: addTarget.unitId,
+          shift_definition_id: shiftDef.id,
+          shift_date: addTarget.date,
+          start_time: shiftDef.start_time,
+          end_time: shiftDef.end_time,
+          status: "scheduled",
+          source: "manual",
+          notes: addForm.notes.trim() || null,
+        })
+      )
+    );
+    setIsAddingShifts(false);
+
+    if (employeeIds.length === 1) {
+      const [only] = results;
+      if (only.status === "fulfilled") {
+        toast({ title: "Shift added", variant: "success" });
+        setAddTarget(null);
+      } else {
+        toast({ title: "Couldn't add shift", description: describeFailure(only.reason), variant: "destructive" });
+      }
+      return;
+    }
+
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.length - succeeded;
+    toast({
+      title: failed === 0 ? "Shifts added" : succeeded === 0 ? "Couldn't add shifts" : "Shifts partially added",
+      description:
+        `${succeeded} of ${employeeIds.length} employees added successfully.`
+        + (failed > 0 ? ` ${failed} failed -- check for conflicting shifts.` : ""),
+      variant: failed === 0 ? "success" : succeeded === 0 ? "destructive" : undefined,
+    });
+    if (succeeded > 0) setAddTarget(null);
+  }
+
+  // Cycles a single shift's status without opening the full edit modal -- the common case is a
+  // status-only change (called off, confirmed, etc.), and this uses the same update mutation the
+  // modal's Save button calls, just with a smaller payload. Notes/unit/time changes still require
+  // the full modal.
+  function handleQuickStatusChange(assignment: ShiftAssignmentWithDetails, status: string) {
+    if (status === assignment.status || quickStatusId) return;
+    setQuickStatusId(assignment.id);
+    updateAssignment.mutate(
+      { id: assignment.id, status },
       {
         onSuccess: () => {
-          toast({ title: "Shift added" });
-          setAddTarget(null);
+          const label = SHIFT_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status;
+          toast({ title: `Marked as ${label}`, variant: "success" });
         },
-        onError: (e: Error) =>
-          toast({
-            title: "Couldn't add shift",
-            description: e.message.includes("duplicate") ? "This employee already has a shift that day." : e.message,
-            variant: "destructive",
-          }),
+        onError: (e: Error) => toast({ title: "Couldn't update status", description: e.message, variant: "destructive" }),
+        onSettled: () => setQuickStatusId(null),
       }
     );
   }
@@ -153,7 +241,15 @@ export default function ScheduleDetail() {
           toast({ title: "Shift updated" });
           setEditTarget(null);
         },
-        onError: (e: Error) => toast({ title: "Couldn't update shift", description: e.message, variant: "destructive" }),
+        onError: (e: Error) =>
+          toast({
+            title: "Couldn't update shift",
+            description:
+              e.message.includes("duplicate") || e.message.includes("overlapping shift")
+                ? "This employee already has a conflicting shift for that day."
+                : e.message,
+            variant: "destructive",
+          }),
       }
     );
   }
@@ -172,7 +268,7 @@ export default function ScheduleDetail() {
     if (!schedule) return;
     generate.mutate(schedule.id, {
       onSuccess: (result) => {
-        toast({ title: "Auto-fill complete", description: `${result.inserted} shift(s) added, ${result.skipped} skipped (already had a shift that day).` });
+        toast({ title: "Auto-fill complete", description: `${result.inserted} shift(s) added, ${result.skipped} skipped (already scheduled or would create an overlapping shift).` });
       },
       onError: (e: Error) => toast({ title: "Auto-fill failed", description: e.message, variant: "destructive" }),
     });
@@ -257,6 +353,54 @@ export default function ScheduleDetail() {
         </p>
       )}
 
+
+      <Card>
+        <CardContent className="pt-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-primary" />
+            <h2 className="font-semibold">Coverage & Hours Snapshot</h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Shifts</p>
+              <p className="text-xl font-semibold">{scheduleAnalytics.totalShifts}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Scheduled hours</p>
+              <p className="text-xl font-semibold">{scheduleAnalytics.scheduledHours}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Auto / manual</p>
+              <p className="text-xl font-semibold">{scheduleAnalytics.autoFilledShifts} / {scheduleAnalytics.manualShifts}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Exceptions</p>
+              <p className="text-xl font-semibold">{scheduleAnalytics.exceptionShifts}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Unit-day gaps</p>
+              <p className="text-xl font-semibold">{scheduleAnalytics.unitDayCoverageGaps}</p>
+            </div>
+          </div>
+          {(scheduleAnalytics.unitDayCoverageGaps > 0 || scheduleAnalytics.employeesOver40Hours.length > 0) && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <div className="space-y-1">
+                  <p className="font-medium">Review coverage before publishing.</p>
+                  <ul className="list-disc pl-5 text-xs">
+                    {scheduleAnalytics.unitDayCoverageGaps > 0 && <li>{scheduleAnalytics.unitDayCoverageGaps} unit-day coverage gap{scheduleAnalytics.unitDayCoverageGaps === 1 ? "" : "s"} based on active units and schedule dates.</li>}
+                    {scheduleAnalytics.employeesOver40Hours.map((row) => (
+                      <li key={row.employeeId}>{row.name} is scheduled for {row.hours} hours in this period.</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm border-collapse">
@@ -281,25 +425,61 @@ export default function ScheduleDetail() {
                         <td key={d} className="p-2 border-l align-top">
                           <div className="space-y-1">
                             {cellAssignments.map((a) => (
-                              <button
+                              <div
                                 key={a.id}
-                                type="button"
-                                onClick={() => openEditDialog(a)}
-                                className="w-full text-left rounded-md border px-2 py-1 hover:shadow-sm transition-shadow"
+                                className="w-full rounded-md border px-2 py-1 hover:shadow-sm transition-shadow"
                                 style={a.shift_definitions?.color ? { borderLeftColor: a.shift_definitions.color, borderLeftWidth: 3 } : undefined}
                               >
-                                <div className="font-medium truncate">
-                                  {a.employees?.first_name} {a.employees?.last_name}
-                                </div>
+                                <button type="button" onClick={() => openEditDialog(a)} className="w-full text-left block">
+                                  <div className="font-medium truncate">
+                                    {a.employees?.first_name} {a.employees?.last_name}
+                                  </div>
+                                </button>
                                 <div className="text-xs text-muted-foreground flex items-center justify-between gap-1">
-                                  <span className="truncate">{a.shift_definitions?.name ?? formatTimeLabel(a.start_time)}</span>
-                                  {a.status !== "scheduled" && (
-                                    <Badge variant={a.status === "called_off" || a.status === "no_show" ? "destructive" : "secondary"} className="text-[10px] px-1 py-0">
-                                      {a.status.replace("_", " ")}
-                                    </Badge>
-                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditDialog(a)}
+                                    className="truncate text-left flex-1 min-w-0"
+                                    title="Edit shift"
+                                  >
+                                    {a.shift_definitions?.name ?? formatTimeLabel(a.start_time)}
+                                  </button>
+                                  {/* Quick status change -- the common case doesn't need the full edit modal.
+                                      Anything beyond status (notes, unit, time) still goes through openEditDialog above. */}
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <button
+                                        type="button"
+                                        disabled={quickStatusId === a.id}
+                                        className="shrink-0 rounded-sm disabled:opacity-60 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                        aria-label={`Change status for ${a.employees?.first_name} ${a.employees?.last_name}`}
+                                      >
+                                        <Badge
+                                          variant={a.status === "called_off" || a.status === "no_show" ? "destructive" : "secondary"}
+                                          className="text-[10px] px-1 py-0 cursor-pointer hover:opacity-80"
+                                        >
+                                          {quickStatusId === a.id ? "…" : a.status.replace("_", " ")}
+                                        </Badge>
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="min-w-36">
+                                      <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                                        Set status
+                                      </DropdownMenuLabel>
+                                      <DropdownMenuSeparator />
+                                      {SHIFT_STATUS_OPTIONS.map((opt) => (
+                                        <DropdownMenuItem
+                                          key={opt.value}
+                                          onClick={() => handleQuickStatusChange(a, opt.value)}
+                                          className={opt.value === a.status ? "font-semibold" : undefined}
+                                        >
+                                          {opt.label}
+                                        </DropdownMenuItem>
+                                      ))}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </div>
-                              </button>
+                              </div>
                             ))}
                             {isDraft && (
                               <Button
@@ -335,17 +515,32 @@ export default function ScheduleDetail() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Employee *</Label>
-              <Select value={addForm.employeeId} onValueChange={(v) => setAddForm((f) => ({ ...f, employeeId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
-                <SelectContent>
-                  {activeRoster.map((r) => (
-                    <SelectItem key={r.employee_id} value={r.employee_id}>
-                      {r.employees?.first_name} {r.employees?.last_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Employees * ({addEmployeeIds.size} selected)</Label>
+              <div className="border rounded-md overflow-hidden">
+                <label className="flex items-center gap-2 px-2.5 py-1.5 text-xs border-b bg-muted/40 cursor-pointer">
+                  <Checkbox
+                    checked={allAddEmployeesSelected ? true : someAddEmployeesSelected ? "indeterminate" : false}
+                    onCheckedChange={toggleSelectAllAddEmployees}
+                    aria-label="Select all visible employees"
+                  />
+                  <span className="text-muted-foreground">Select all visible ({activeRoster.length})</span>
+                </label>
+                <div className="max-h-48 overflow-y-auto divide-y">
+                  {activeRoster.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">No active employees at this facility.</p>
+                  ) : (
+                    activeRoster.map((r) => (
+                      <label key={r.employee_id} className="flex items-center gap-2 px-2.5 py-1.5 text-sm cursor-pointer hover:bg-muted/40">
+                        <Checkbox
+                          checked={addEmployeeIds.has(r.employee_id)}
+                          onCheckedChange={() => toggleAddEmployee(r.employee_id)}
+                        />
+                        <span className="flex-1 truncate">{r.employees?.first_name} {r.employees?.last_name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Shift *</Label>
@@ -367,8 +562,12 @@ export default function ScheduleDetail() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddTarget(null)}>Cancel</Button>
-            <Button onClick={handleAdd} disabled={createAssignment.isPending}>
-              {createAssignment.isPending ? "Adding..." : "Add Shift"}
+            <Button onClick={handleAdd} disabled={isAddingShifts || addEmployeeIds.size === 0}>
+              {isAddingShifts
+                ? "Adding..."
+                : addEmployeeIds.size > 1
+                  ? `Add Shift to ${addEmployeeIds.size} Employees`
+                  : "Add Shift"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -410,11 +609,9 @@ export default function ScheduleDetail() {
               <Select value={editForm.status} onValueChange={(v) => setEditForm((f) => ({ ...f, status: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="scheduled">Scheduled</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="called_off">Called Off</SelectItem>
-                  <SelectItem value="no_show">No Show</SelectItem>
+                  {SHIFT_STATUS_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

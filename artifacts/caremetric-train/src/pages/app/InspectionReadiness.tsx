@@ -12,12 +12,15 @@ import { useListAdministratorProfiles } from "@/hooks/useAdministratorProfiles";
 import { useFacilityReadinessBreakdown } from "@/hooks/useCitationTopics";
 import { useListEntranceConferenceItems, type EntranceConferenceItem } from "@/hooks/useEntranceConferenceItems";
 import { useGenerateComplianceBinder } from "@/hooks/useComplianceBinder";
+import { buildInspectionReadinessActions, type ReadinessActionChecklistItem } from "@/lib/inspectionReadiness";
+import { buildRemediationPlanDraft, remediationPlanToText } from "@/lib/remediationPlan";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ClipboardCheck, Download, FileArchive, Loader2, ShieldAlert } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, Copy, Download, FileArchive, Loader2, ShieldAlert, Sparkles } from "lucide-react";
+import { toLocalIsoDate } from "@/lib/dateUtils";
 
 const BACKGROUND_CHECK_CREDENTIAL_TYPES = ["act34_criminal_history", "act73_fbi_fingerprint", "act33_child_abuse"];
 const HEALTH_CREDENTIAL_TYPES = ["tb_screening", "immunization"];
@@ -44,6 +47,7 @@ export default function InspectionReadiness() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [facilityId, setFacilityId] = useState<string>("");
+  const [showDraftPlan, setShowDraftPlan] = useState(false);
 
   const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   const activeFacilityId = facilityId || facilities?.[0]?.id || "";
@@ -83,7 +87,7 @@ export default function InspectionReadiness() {
       .sort((a, b) => a.compliant_count / a.total_count - b.compliant_count / b.total_count);
   }, [breakdown]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalIsoDate();
   const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
 
   function readinessFor(item: EntranceConferenceItem): { level: ReadinessLevel; detail?: string } {
@@ -148,6 +152,44 @@ export default function InspectionReadiness() {
         return { level: "unknown" };
     }
   }
+
+  const checklistReadiness = useMemo<ReadinessActionChecklistItem[]>(() =>
+    (checklistItems ?? []).map((item) => {
+      const result = readinessFor(item);
+      return {
+        id: item.id,
+        category: item.category,
+        prompt: item.prompt,
+        level: result.level,
+        detail: result.detail,
+      };
+    }),
+    [checklistItems, employees, trainingRecords, credentials, inspectionItems, incidents, correctiveActions, policyAttestations, administratorProfiles, activeFacilityId, oneYearAgo, today],
+  );
+
+  const actionQueue = useMemo(() => buildInspectionReadinessActions({
+    topics: (breakdown ?? []).map((row) => ({
+      id: row.citation_topic_id,
+      title: row.title,
+      citationRef: row.citation_ref,
+      compliantCount: row.compliant_count,
+      totalCount: row.total_count,
+      frequencyWeight: row.frequency_weight,
+    })),
+    checklistItems: checklistReadiness,
+  }), [breakdown, checklistReadiness]);
+
+  const remediationDraft = useMemo(() => buildRemediationPlanDraft(actionQueue), [actionQueue]);
+  const remediationDraftText = useMemo(() => remediationPlanToText(remediationDraft), [remediationDraft]);
+
+  const handleCopyDraftPlan = async () => {
+    try {
+      await navigator.clipboard.writeText(remediationDraftText);
+      toast({ title: "Draft remediation plan copied" });
+    } catch (err) {
+      toast({ title: "Failed to copy draft", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+    }
+  };
 
   const groupedChecklist = useMemo(() => {
     const groups = new Map<string, EntranceConferenceItem[]>();
@@ -255,6 +297,92 @@ export default function InspectionReadiness() {
               </tbody>
             </table>
           </div>
+        </CardContent>
+      </Card>
+
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5" /> Readiness Action Queue
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Prioritized gaps from the citation-weighted score and entrance-conference checklist. Work from the top down before generating the packet.
+          </p>
+          {actionQueue.length === 0 ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+              No prioritized readiness gaps found for this facility.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {actionQueue.map((action) => (
+                <div key={action.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border p-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">{action.title}</p>
+                    <p className="text-xs text-muted-foreground">{action.detail}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={action.kind === "citation_topic" ? "secondary" : "outline"}>
+                      {action.kind === "citation_topic" ? "Citation topic" : "Entrance item"}
+                    </Badge>
+                    <Badge variant={action.severity === "critical" ? "destructive" : "outline"}>
+                      {action.severity}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5" /> Draft Remediation Plan
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowDraftPlan((v) => !v)}>
+                {showDraftPlan ? "Hide Draft" : "Build Draft"}
+              </Button>
+              {showDraftPlan && (
+                <Button variant="outline" size="sm" onClick={handleCopyDraftPlan}>
+                  <Copy className="mr-2 h-4 w-4" /> Copy
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Creates a human-review draft from the current action queue so managers can assign owners, due dates, and evidence requests without starting from a blank page.
+          </p>
+          {showDraftPlan && (
+            <div className="space-y-3">
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-sm font-medium">{remediationDraft.summary}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{remediationDraft.reviewerNote}</p>
+              </div>
+              <div className="space-y-2">
+                {remediationDraft.steps.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No remediation steps are needed from the current queue.</p>
+                ) : remediationDraft.steps.map((step) => (
+                  <div key={`${step.title}-${step.owner}`} className="rounded-lg border p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-medium">{step.title}</p>
+                      <Badge variant="outline">Due in {step.dueInDays} days</Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">Owner: {step.owner}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Evidence: {step.evidence}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
