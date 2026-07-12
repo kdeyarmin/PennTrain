@@ -17446,6 +17446,29 @@ export type Database = {
         Returns: string
       }
       notification_phone_key: { Args: { p_phone: string }; Returns: string }
+      open_confidential_intake_details: {
+        Args: { p_intake_id: string; p_purpose: string }
+        Returns: {
+          created_at: string
+          id: string
+          intake_id: string
+          investigation_findings: string | null
+          location_detail: string | null
+          narrative: string
+          organization_id: string
+          regulatory_deadline_at: string | null
+          resident_id: string | null
+          root_cause: string | null
+          updated_at: string
+          witness_data: Json
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "confidential_incident_details"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
       plan_audit_archive: {
         Args: { p_from: string; p_organization_id?: string; p_to: string }
@@ -17725,6 +17748,10 @@ export type Database = {
         Args: { p_delivery_id: string }
         Returns: undefined
       }
+      reveal_confidential_reporter_identity: {
+        Args: { p_intake_id: string; p_purpose: string }
+        Returns: Json
+      }
       review_credential_renewal_submission: {
         Args: {
           p_confirmed_fields: Json
@@ -17826,6 +17853,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      set_confidential_intake_status: {
+        Args: { p_intake_id: string; p_reason: string; p_target_status: string }
+        Returns: boolean
       }
       set_employee_checkin_pin: {
         Args: { p_employee_id: string; p_pin: string }

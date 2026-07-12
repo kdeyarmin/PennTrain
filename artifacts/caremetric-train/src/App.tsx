@@ -64,6 +64,8 @@ const BackgroundChecks = lazy(() => import("@/pages/app/BackgroundChecks"));
 const ExclusionScreening = lazy(() => import("@/pages/app/ExclusionScreening"));
 const AdministratorQualification = lazy(() => import("@/pages/app/AdministratorQualification"));
 const Incidents = lazy(() => import("@/pages/app/Incidents"));
+const ConfidentialIncidents = lazy(() => import("@/pages/app/ConfidentialIncidents"));
+const ConfidentialIncidentDetail = lazy(() => import("@/pages/app/ConfidentialIncidentDetail"));
 const Violations = lazy(() => import("@/pages/app/Violations"));
 const ViolationDetail = lazy(() => import("@/pages/app/ViolationDetail"));
 const Residents = lazy(() => import("@/pages/app/Residents"));
@@ -202,6 +204,12 @@ const CREDENTIAL_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"
 // Matches incidents_select RLS -- trainer AND self-service are both excluded (the incident
 // itself is sensitive, not any one employee's own record).
 const INCIDENT_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
+// Matches incident_intakes_select RLS -- org_admin/auditor see every org intake,
+// facility_manager sees assigned-facility summaries only; protected-detail and identity
+// actions inside the page are further gated to org_admin (and platform_admin) by the
+// review RPCs themselves. platform_admin is included so support can reach the console
+// directly via the Viewing-as-Org selector.
+const CONFIDENTIAL_INTAKE_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 // Matches dhs_violations_select RLS -- same no-trainer, no-self-service sensitivity model as
 // incidents (a cited DHS violation and its POC are an org-compliance matter).
 const VIOLATION_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
@@ -469,6 +477,12 @@ function Router() {
       </Route>
       <Route path="/app/incidents/:id">
         {() => <ProtectedRoute component={IncidentDetail} allowedRoles={INCIDENT_ROLES} />}
+      </Route>
+      <Route path="/app/confidential-incidents">
+        {() => <ProtectedRoute component={ConfidentialIncidents} allowedRoles={CONFIDENTIAL_INTAKE_ROLES} />}
+      </Route>
+      <Route path="/app/confidential-incidents/:id">
+        {() => <ProtectedRoute component={ConfidentialIncidentDetail} allowedRoles={CONFIDENTIAL_INTAKE_ROLES} />}
       </Route>
       <Route path="/app/violations">
         {() => <ProtectedRoute component={Violations} allowedRoles={VIOLATION_ROLES} />}
