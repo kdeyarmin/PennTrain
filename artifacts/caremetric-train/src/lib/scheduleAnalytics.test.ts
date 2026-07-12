@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shiftDurationHours, summarizeScheduleAnalytics } from "./scheduleAnalytics";
+import { shiftDurationHours, summarizeScheduleAnalytics, summarizeStaffingRatios } from "./scheduleAnalytics";
 
 describe("schedule analytics", () => {
   it("computes overnight shift duration", () => {
@@ -25,6 +25,31 @@ describe("schedule analytics", () => {
       manualShifts: 1,
       unitDayCoverageGaps: 2,
       employeesOver40Hours: [{ employeeId: "e1", name: "Ava Aide", hours: 48 }],
+    });
+  });
+
+  it("calculates PPD and minimum staffing warnings from resident count", () => {
+    const assignments = [
+      { employee_id: "e1", shift_date: "2026-07-10", start_time: "08:00", end_time: "16:00", status: "scheduled", source: "manual", unit_id: "u1" },
+      { employee_id: "e2", shift_date: "2026-07-10", start_time: "16:00", end_time: "00:00", status: "scheduled", source: "manual", unit_id: "u1" },
+      { employee_id: "e1", shift_date: "2026-07-11", start_time: "08:00", end_time: "16:00", status: "called_off", source: "manual", unit_id: "u1" },
+    ];
+
+    expect(summarizeStaffingRatios({
+      assignments,
+      dates: ["2026-07-10", "2026-07-11"],
+      residentsInHouse: 10,
+      targetPpd: 1.5,
+      minimumStaffPerDay: 2,
+    })).toMatchObject({
+      residentsInHouse: 10,
+      scheduledCareHours: 16,
+      ppd: 0.8,
+      targetHours: 30,
+      hoursGap: 14,
+      isBelowTarget: true,
+      averageResidentsPerScheduledStaff: 10,
+      daysBelowMinimumStaffing: [{ date: "2026-07-11", scheduledStaff: 0, minimumStaff: 2 }],
     });
   });
 });
