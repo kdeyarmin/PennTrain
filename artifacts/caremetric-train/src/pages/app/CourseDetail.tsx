@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-import { useEffect, useState } from "react";
-=======
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
->>>>>>> origin/main
 import { useParams, Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,27 +17,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-<<<<<<< HEAD
-  ArrowLeft, BookOpen, Pencil, Plus, Rocket, FileText, Video, File as FileIcon,
-  ListChecks, Trash2, Lock, Layers, Sparkles, RefreshCw, Star, Wand2, Play, Loader2,
-=======
   ArrowLeft, ArrowUp, ArrowDown, BookOpen, Pencil, Plus, Rocket, FileText, Video, File as FileIcon,
   ListChecks, Trash2, Lock, Layers, Sparkles, RefreshCw, Star, Wand2, Play, Loader2, Upload,
   Eye, CheckCircle2, CircleAlert,
->>>>>>> origin/main
   type LucideIcon,
 } from "lucide-react";
 import {
   useGetCourse, useUpdateCourse,
-<<<<<<< HEAD
-  useListCourseVersions, useCreateCourseVersion, useUpdateCourseVersion,
-  useListCourseBlocks, useCreateCourseBlock, useDeleteCourseBlock,
-  canEnrollInCourse,
-=======
   useListCourseVersions, useCreateCourseVersion, useCloneCourseVersion, usePublishCourseVersion,
   useListCourseBlocks, useCreateCourseBlock, useUpdateCourseBlock, useDeleteCourseBlock,
   canEnrollInCourse, getCourseVersionPublishIssues, isCourseVersionLearnerReady, useCourseVersionPublishIssues,
->>>>>>> origin/main
   type CourseVersion, type CourseBlock, type CourseBlockInsert,
 } from "@/hooks/useCourses";
 import { useSelfEnrollCourse } from "@/hooks/useCourseAssignments";
@@ -212,12 +197,14 @@ export default function CourseDetail() {
   // only ever reach a course RLS already scoped to their own org/system-catalog, so this is a
   // no-op for them.
   const { data: employee } = useGetEmployeeByProfileId(user?.id);
+  // Prefer the employees row org when it exists; fall back to the profile org so that
+  // org_admin/auditor who haven't self-enrolled yet (no employees row) still see the
+  // "Take This Course" button for their org's published courses.
+  const effectiveOrgId = employee?.organization_id ?? user?.organizationId ?? undefined;
 
   const { mutate: selfEnroll, isPending: enrolling } = useSelfEnrollCourse();
   const handleTakeCourse = () => {
     if (!course) return;
-<<<<<<< HEAD
-=======
     if (!canTakeCourse) {
       toast({
         title: "Course is not ready yet",
@@ -226,7 +213,6 @@ export default function CourseDetail() {
       });
       return;
     }
->>>>>>> origin/main
     selfEnroll(course.id, {
       onSuccess: assignmentId => navigate(`/me/courses/${assignmentId}`),
       onError: (e: Error) => toast({ title: "Couldn't start course", description: e.message, variant: "destructive" }),
@@ -260,7 +246,7 @@ export default function CourseDetail() {
   const canTakeCourse =
     !!course
     && course.status === "published"
-    && canEnrollInCourse(course, employee?.organization_id)
+    && canEnrollInCourse(course, effectiveOrgId)
     && isCourseVersionLearnerReady(currentVersion);
 
   const { data: blocks, isLoading: blocksLoading } = useListCourseBlocks(selectedVersion?.id);
@@ -917,16 +903,10 @@ export default function CourseDetail() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {course.status === "published" && canEnrollInCourse(course, employee?.organization_id) && (
-<<<<<<< HEAD
-            <Button variant="outline" size="sm" onClick={handleTakeCourse} disabled={enrolling}>
-              {enrolling ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-2 h-3.5 w-3.5" />}
-              Take This Course
-=======
+          {course.status === "published" && canEnrollInCourse(course, effectiveOrgId) && (
             <Button variant="outline" size="sm" onClick={handleTakeCourse} disabled={enrolling || !canTakeCourse}>
               {enrolling ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-2 h-3.5 w-3.5" />}
               {canTakeCourse ? "Take This Course" : "Course Not Ready"}
->>>>>>> origin/main
             </Button>
           )}
           {canManage && (

@@ -17725,12 +17725,6 @@ export type Database = {
         Args: { p_delivery_id: string }
         Returns: undefined
       }
-<<<<<<< HEAD
-      self_enroll_course: {
-        Args: { p_course_id: string }
-        Returns: string
-      }
-=======
       review_credential_renewal_submission: {
         Args: {
           p_confirmed_fields: Json
@@ -17792,7 +17786,6 @@ export type Database = {
       }
       run_phase1_synthetic_checks: { Args: never; Returns: Json }
       self_enroll_course: { Args: { p_course_id: string }; Returns: string }
->>>>>>> origin/main
       send_monday_digest: { Args: never; Returns: undefined }
       send_policy_attestation_reminders: { Args: never; Returns: undefined }
       set_billing_account_override: {

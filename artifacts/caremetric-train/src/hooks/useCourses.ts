@@ -21,8 +21,6 @@ export interface ListCoursesFilters {
   systemOnly?: boolean;
 }
 
-<<<<<<< HEAD
-=======
 export function isCourseVersionLearnerReady(
   version: Pick<CourseVersion, "status" | "ai_generated" | "ai_reviewed_at"> | null | undefined,
 ): boolean {
@@ -43,7 +41,6 @@ export function useCourseVersionPublishIssues(versionId: string | undefined, ena
   });
 }
 
->>>>>>> origin/main
 // Mirrors self_enroll_course()'s own organization-scope check. courses_select RLS lets
 // platform_admin see every organization's courses (its RLS grant bypasses the org filter
 // entirely -- see ListCoursesFilters.systemOnly above), but self_enroll_course rejects enrolling

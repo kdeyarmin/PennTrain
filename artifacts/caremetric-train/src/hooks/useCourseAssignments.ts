@@ -41,8 +41,6 @@ export function useListCourseAssignments(filters: ListCourseAssignmentsFilters =
       return data;
     },
     enabled: options.enabled,
-<<<<<<< HEAD
-=======
   });
 }
 
@@ -97,7 +95,6 @@ export function useListCourseAssignmentsPaginated(filters: ListCourseAssignments
       return { rows: data ?? [], count: count ?? 0 };
     },
     placeholderData: (previousData) => previousData,
->>>>>>> origin/main
   });
 }
 

@@ -403,37 +403,11 @@ useEffect(() => {
     if (!assignment) return;
     completeAssignment.mutate(assignment.id, {
       onSuccess: () => {
-<<<<<<< HEAD
-        issueCertificate.mutate(
-          {
-            employeeId: assignment.employee_id,
-            courseId: assignment.course_id,
-            assignmentId: assignment.id,
-          },
-          {
-            onSuccess: () => {
-              toast({ title: "Course completed", description: "Certificate issued -- nice work!" });
-              setPostCompleteDestination(isEmployeeRole ? "/me/certificates" : "/me/courses");
-              setShowRatingPrompt(true);
-            },
-            onError: (e: Error) => {
-              // Completion already succeeded and is not undone by a failed certificate issuance
-              // (e.g. one was already issued for this assignment) -- still route the learner
-              // forward rather than blocking on this secondary step.
-              toast({ title: "Course completed", description: "Nice work -- this course is now marked complete." });
-              console.error("issue_certificate failed after course completion:", e.message);
-              setPostCompleteDestination(isEmployeeRole ? "/me/trainings" : "/me/courses");
-              setShowRatingPrompt(true);
-            },
-          }
-        );
-=======
         // Certificate issuance is part of the same database transaction. A successful response
         // guarantees there is exactly one certificate, even after retries or concurrent clicks.
         toast({ title: "Course completed", description: "Certificate issued -- nice work!" });
         setPostCompleteDestination(isEmployeeRole ? "/me/certificates" : "/me/courses");
         setShowRatingPrompt(true);
->>>>>>> origin/main
       },
       onError: (e: Error) => toast({ title: "Failed to complete course", description: e.message, variant: "destructive" }),
     });

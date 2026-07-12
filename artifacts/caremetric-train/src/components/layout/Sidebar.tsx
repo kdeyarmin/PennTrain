@@ -153,10 +153,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/course-assignments", label: "Course Assignments", icon: FileCheck },
           { href: "/trainer/classes", label: "In-Service Classes", icon: GraduationCap },
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
-<<<<<<< HEAD
-=======
           { href: "/app/governed-learning", label: "Governed Learning", icon: BookCheck },
->>>>>>> origin/main
           { href: "/me/courses", label: "My Courses", icon: BookOpen },
         ]
       },
@@ -313,9 +310,6 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/course-assignments", label: "Course Assignments", icon: FileCheck },
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
           { href: "/trainer/retraining", label: "Retraining Monitor", icon: ShieldAlert },
-<<<<<<< HEAD
-          { href: "/me/courses", label: "My Courses", icon: BookOpen },
-=======
           { href: "/app/pending-approvals", label: "Pending Approvals", icon: ClipboardCheck },
           { href: "/me/courses", label: "My Courses", icon: BookOpen },
         ]
@@ -328,7 +322,6 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
           ...(showPchAlrModules ? [{ href: "/app/practicums", label: "Practicums", icon: FileCheck }] : []),
           ...(showPchAlrModules ? [{ href: "/app/med-admin-roster", label: "Who Can Pass Meds", icon: Pill }] : []),
->>>>>>> origin/main
         ]
       },
       {
