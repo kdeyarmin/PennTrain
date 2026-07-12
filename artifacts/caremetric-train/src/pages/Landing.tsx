@@ -1,169 +1,441 @@
 import { Link } from "wouter";
 import {
   ArrowRight,
-  CheckCircle2,
-  XCircle,
-  FileStack,
-  GraduationCap,
+  BedDouble,
+  BellRing,
+  BookOpenCheck,
   Building2,
-  Lock,
-  ListChecks,
+  CalendarClock,
+  CheckCircle2,
+  FileCheck2,
+  FileStack,
+  FolderCheck,
+  Gauge,
+  GraduationCap,
   HelpCircle,
+  Layers3,
+  ListChecks,
+  Lock,
+  MessageSquareQuote,
+  Pill,
+  PlayCircle,
+  ShieldCheck,
+  Siren,
+  Target,
+  Sparkles,
+  UploadCloud,
+  UsersRound,
+  XCircle,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { LogoMark } from "@/components/brand/Logo";
 import { OLD_WAY, NEW_WAY } from "@/components/marketing/content";
+import { usePageMeta } from "@/lib/usePageMeta";
 
-/** Landing-page teasers -- each links out to its dedicated marketing page. */
-const HIGHLIGHTS: { href: string; icon: LucideIcon; title: string; blurb: string }[] = [
+const HIGHLIGHTS: {
+  href: string;
+  icon: LucideIcon;
+  title: string;
+  blurb: string;
+}[] = [
   {
     href: "/features",
     icon: GraduationCap,
-    title: "Features",
+    title: "Train staff online, in person, or from outside records",
     blurb:
-      "Compliance tracking, a built-in course builder, one-click compliance binders, and more -- the full toolkit.",
+      "Courses, quizzes, certificates, live classes, AI-drafted content, and annual requirements all reconcile to one employee training record.",
   },
   {
     href: "/who-its-for",
     icon: Building2,
-    title: "Who It's For",
+    title: "Configured for care providers",
     blurb:
-      "Personal care, assisted living, group homes, nursing homes, home health, and hospice -- each configured to its own rules.",
+      "Personal care, assisted living, group homes, nursing homes, home health, and hospice each get rules matched to their setting.",
   },
   {
     href: "/security",
     icon: Lock,
-    title: "Security",
+    title: "Protected by role and facility",
     blurb:
-      "Row-level security, six enforced access levels, private signed-URL storage, and an immutable audit trail.",
+      "Admins, managers, trainers, employees, and auditors see the exact records they should -- enforced by database policies.",
   },
   {
     href: "/how-it-works",
     icon: ListChecks,
-    title: "How It Works",
+    title: "From roster to survey binder",
     blurb:
-      "Set up your organization, assign training and practicums, and stay survey-ready -- in three steps.",
+      "Import staff, assign role-based plans, track resident assessments and incidents, and generate a survey-ready binder without assembling PDFs by hand.",
   },
 ];
 
+const BEYOND_TRAINING: { icon: LucideIcon; title: string; blurb: string }[] = [
+  {
+    icon: BedDouble,
+    title: "Resident Assessment Compliance",
+    blurb:
+      "RASP/ASP preadmission screening, initial assessment, and reassessments tracked with their own due dates -- resident-level compliance, not just staff training.",
+  },
+  {
+    icon: Gauge,
+    title: "Citation-Weighted Survey Readiness",
+    blurb:
+      "A live per-facility score weighted by how often DHS actually cites each regulation, so you see what a surveyor is most likely to flag before they do.",
+  },
+  {
+    icon: Siren,
+    title: "Incidents, Violations & Fire Drills",
+    blurb:
+      "Reportable incidents, DHS-cited violations with a plan-of-correction workflow, and fire-drill/life-safety equipment logs, each generating its own survey-ready PDF.",
+  },
+  {
+    icon: Sparkles,
+    title: "AI Course & Avatar Video Generation",
+    blurb:
+      "Draft a complete course from your own source material and attach an AI presenter video -- nothing publishes until a person reviews it.",
+  },
+  {
+    icon: Pill,
+    title: "Live Pass-Meds Authorization",
+    blurb:
+      "One roster cross-checks certification, this year's practicum, and insulin authorization into a single yes/no per employee.",
+  },
+  {
+    icon: CalendarClock,
+    title: "Shift Scheduling & Auto-Fill",
+    blurb:
+      "Build a staff shift schedule per facility and auto-fill it from each employee's typical pattern -- managers only touch the exceptions.",
+  },
+];
+
+const APP_FLOW = [
+  {
+    icon: UploadCloud,
+    label: "Import roster",
+    detail: "Bulk-add employees and facilities",
+  },
+  {
+    icon: Layers3,
+    label: "Assign plans",
+    detail: "Map training to role and license type",
+  },
+  {
+    icon: BookOpenCheck,
+    label: "Deliver training",
+    detail: "Online courses, live classes, outside records",
+  },
+  {
+    icon: BellRing,
+    label: "Watch deadlines",
+    detail: "Alerts before certificates or hours lapse",
+  },
+  {
+    icon: FileStack,
+    label: "Export proof",
+    detail: "Binder, certificates, documents, audit trail",
+  },
+];
+
+const ROLE_VIEWS = [
+  "Org admins see compliance across every facility, including resident assessments where required.",
+  "Facility managers focus on assigned sites, overdue staff, and shift coverage.",
+  "Trainers schedule classes with QR/kiosk check-in, draft AI-assisted courses, and monitor retraining.",
+  "Employees complete courses, quizzes, certificates, policy attestations, and uploads in self-service.",
+  "Auditors get read-only evidence without changing records.",
+];
+
+const BUYER_PROMISES: { icon: LucideIcon; title: string; blurb: string }[] = [
+  {
+    icon: Target,
+    title: "Built around inspection risk, not generic e-learning",
+    blurb:
+      "CareMetric Train connects training, resident assessments, incidents, credentials, policies, and life-safety evidence to the questions surveyors actually ask.",
+  },
+  {
+    icon: FolderCheck,
+    title: "Proof is collected as work happens",
+    blurb:
+      "Certificates, sign-ins, course versions, policy signatures, documents, and audit events are attached to the right person, facility, deadline, and requirement from day one.",
+  },
+  {
+    icon: UsersRound,
+    title: "Every role gets a focused workflow",
+    blurb:
+      "Executives see rollups, managers see action lists, trainers run classes, employees complete assignments, and auditors review evidence without accidental edits.",
+  },
+];
+
+const DECISION_SIGNALS = [
+  "You need more than an LMS: training hours, competencies, credentials, resident compliance, incidents, inspections, policy signatures, and survey binders must agree.",
+  "You operate across multiple facility types or sites and need one source of truth without overexposing sensitive records.",
+  "You want managers to fix risk before an inspection instead of discovering missing evidence after a surveyor requests it.",
+];
+
+const DASHBOARD_ROWS = [
+  { label: "Annual in-service hours", value: 92, status: "On track" },
+  { label: "Medication practicums", value: 88, status: "12 due" },
+  { label: "Expiring credentials", value: 74, status: "Review" },
+  { label: "Completed course assignments", value: 96, status: "Strong" },
+];
+
+const PLATFORM_STATS = [
+  { value: "6", label: "facility types, each with its own rules" },
+  { value: "8", label: "feature categories across the platform" },
+  { value: "60+", label: "survey-ready form templates included" },
+  { value: "6", label: "roles enforced by database policy" },
+];
+
 export default function Landing() {
+  usePageMeta({
+    title: "CareMetric Train — Compliance Training Platform",
+    description:
+      "CareMetric Train is the compliance-training platform for personal care homes, assisted living facilities, group homes, nursing homes, home health, and hospice agencies -- yearly in-services, resident assessments, incidents, and survey-ready compliance binders tracked automatically in one system.",
+    path: "/",
+  });
   return (
     <MarketingLayout>
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#0a1a2e] via-[#102a43] to-[#16324f] text-white">
+      <section className="relative overflow-hidden bg-gradient-to-br from-[#071626] via-[#0d2742] to-[#143a5c] text-white">
         <TechGrid />
-        <div className="absolute top-0 right-0 h-[560px] w-[560px] -translate-y-1/3 translate-x-1/4 rounded-full bg-[#59b2ff]/[0.10] blur-3xl" />
-        <div className="absolute bottom-0 left-0 h-[360px] w-[360px] translate-y-1/3 -translate-x-1/4 rounded-full bg-[#59b2ff]/[0.06] blur-3xl" />
+        <div className="absolute left-1/2 top-0 h-[680px] w-[680px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#59b2ff]/15 blur-3xl" />
+        <div className="absolute bottom-0 right-0 h-[420px] w-[420px] translate-x-1/4 translate-y-1/3 rounded-full bg-orange-400/10 blur-3xl" />
 
-        <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
-          <div className="grid items-center gap-12 lg:grid-cols-2">
+        <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24">
+          <div className="grid items-center gap-12 lg:grid-cols-[1.02fr_0.98fr]">
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-700">
-              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-[#8eceff]">
-                <span className="whitespace-nowrap">Compliance Training Platform</span>
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-[#b9e4ff] shadow-sm backdrop-blur">
+                <Sparkles className="h-3.5 w-3.5" />
+                Compliance training, evidence, and survey prep in one place
               </div>
-              <h1 className="mt-5 text-balance text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-[52px] lg:leading-[1.05]">
-                Compliance training that keeps your facility{" "}
-                <span className="whitespace-nowrap text-[#59b2ff]">survey-ready</span>, every day.
+              <h1 className="mt-6 text-balance text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-[58px] lg:leading-[1.02]">
+                Know who is trained, what is due, and where the proof lives.
               </h1>
-              <p className="mt-6 max-w-xl text-lg text-white/70">
-                CareMetric Train is the compliance-training platform built for
-                personal care homes, assisted living, group homes, nursing homes, home
-                health, and hospice agencies -- replacing spreadsheets and paper binders
-                with one system of record for yearly in-services, certifications, and
-                practicums.
+              <p className="mt-6 max-w-2xl text-lg leading-8 text-white/74">
+                CareMetric Train is a compliance training platform and command center for care
+                providers. It turns required in-services, credentials, practicums,
+                live classes, resident assessments, incidents, and certificates
+                into a single survey-ready record for every employee, resident,
+                and facility.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
-                <a href="#contact">
-                  <Button size="lg" className="gap-2" data-testid="button-hero-demo">
+                <Button
+                  asChild
+                  size="lg"
+                  className="gap-2 shadow-lg shadow-blue-950/30"
+                  data-testid="button-hero-demo"
+                >
+                  <a href="#contact">
                     Request a Demo
                     <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </a>
-                <Link href="/login">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="border-white/25 bg-transparent text-white hover:bg-white/10"
-                    data-testid="button-hero-login"
-                  >
-                    Log In
-                  </Button>
-                </Link>
+                  </a>
+                </Button>
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  className="gap-2 border-white/25 bg-white/5 text-white hover:bg-white/12"
+                  data-testid="button-hero-tour"
+                >
+                  <Link href="/features">
+                    <PlayCircle className="h-4 w-4" />
+                    See what it does
+                  </Link>
+                </Button>
               </div>
+              <p className="mt-4 text-sm text-white/60">
+                Prefer to try it yourself?{" "}
+                <Link
+                  href="/signup"
+                  className="font-medium text-[#b9e4ff] hover:underline"
+                >
+                  Create your organization
+                </Link>{" "}
+                and start a free trial -- no sales call required.
+              </p>
             </div>
 
-            {/* Product preview mock */}
             <div className="relative animate-in fade-in slide-in-from-bottom-4 duration-700 [animation-delay:150ms] [animation-fill-mode:backwards]">
-              <Card className="overflow-hidden border-white/10 shadow-2xl shadow-black/30 ring-1 ring-white/5">
+              <div className="absolute -inset-4 rounded-[2rem] bg-gradient-to-br from-[#59b2ff]/20 to-orange-400/10 blur-2xl" />
+              <Card className="relative overflow-hidden border-white/10 shadow-2xl shadow-black/30 ring-1 ring-white/10">
                 <div className="flex items-center gap-1.5 border-b border-border/60 bg-muted/40 px-4 py-2.5">
                   <span className="h-2.5 w-2.5 rounded-full bg-destructive/40" />
                   <span className="h-2.5 w-2.5 rounded-full bg-warning/40" />
                   <span className="h-2.5 w-2.5 rounded-full bg-success/40" />
                   <span className="ml-2 font-mono text-[10px] tracking-wide text-muted-foreground/70">
-                    CareMetric Train / Dashboard
+                    CareMetric Train / Compliance Command Center
                   </span>
                 </div>
-                <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-border/60 py-4">
-                  <div className="flex items-center gap-2">
-                    <LogoMark className="h-7 w-7" />
-                    <div>
-                      <CardTitle className="text-sm">Sunrise Healthcare Group</CardTitle>
-                      <div className="font-mono text-[10px] tracking-wide text-muted-foreground/70">
-                        FACILITY-0042
+                <CardHeader className="border-b border-border/60 py-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-2.5">
+                      <LogoMark className="h-9 w-9" />
+                      <div>
+                        <CardTitle className="text-base">
+                          Sunrise Healthcare Group
+                        </CardTitle>
+                        <div className="font-mono text-[10px] tracking-wide text-muted-foreground/70">
+                          4 facilities · 186 employees · survey binder ready
+                        </div>
                       </div>
                     </div>
+                    <span className="rounded-full bg-success/10 px-2.5 py-1 font-mono text-[11px] font-semibold tabular-nums text-success">
+                      98% Compliant
+                    </span>
                   </div>
-                  <span className="rounded-full bg-success/10 px-2.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-success">
-                    98% Compliant
-                  </span>
                 </CardHeader>
-                <CardContent className="space-y-3 pt-5 pb-10">
-                  {[
-                    { label: "Medication Administration", value: 100 },
-                    { label: "Annual In-Service", value: 92 },
-                    { label: "Competency Checklists", value: 88 },
-                    { label: "Retraining Due (14 days)", value: 34 },
-                  ].map((row) => (
-                    <div key={row.label}>
-                      <div className="mb-1.5 flex items-center justify-between text-xs">
-                        <span className="font-medium text-foreground/80">{row.label}</span>
-                        <span className="font-mono tabular-nums text-muted-foreground">{row.value}%</span>
+                <CardContent className="space-y-5 pt-5 pb-6">
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    {[
+                      ["14", "items due"],
+                      ["51", "certificates"],
+                      ["2.3s", "binder"],
+                    ].map(([value, label]) => (
+                      <div
+                        key={label}
+                        className="rounded-lg border bg-muted/35 p-3"
+                      >
+                        <div className="font-mono text-lg font-bold text-foreground">
+                          {value}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {label}
+                        </div>
                       </div>
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full bg-primary"
-                          style={{ width: `${row.value}%` }}
-                        />
+                    ))}
+                  </div>
+                  <div className="space-y-3">
+                    {DASHBOARD_ROWS.map((row) => (
+                      <div key={row.label}>
+                        <div className="mb-1.5 flex items-center justify-between text-xs">
+                          <span className="font-medium text-foreground/80">
+                            {row.label}
+                          </span>
+                          <span className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[10px] text-primary">
+                            {row.status}
+                          </span>
+                        </div>
+                        <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-primary to-[#59b2ff]"
+                            style={{ width: `${row.value}%` }}
+                          />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
               <div className="absolute -bottom-5 -left-5 hidden rounded-xl border border-border/60 bg-card px-4 py-3 text-card-foreground shadow-xl sm:block">
                 <div className="flex items-center gap-2 text-xs font-semibold">
-                  <FileStack className="h-4 w-4 text-primary" />
-                  Compliance Binder generated
+                  <FileCheck2 className="h-4 w-4 text-primary" />
+                  Evidence packet generated
                 </div>
                 <div className="mt-0.5 font-mono text-[11px] tabular-nums text-muted-foreground">
-                  Maple Grove Senior Living -- 2.3s
+                  Maple Grove Senior Living -- certificates, sign-ins, audits
                 </div>
               </div>
             </div>
           </div>
+
+          <Reveal className="mt-14 grid grid-cols-2 gap-6 border-t border-white/10 pt-8 sm:grid-cols-4">
+            {PLATFORM_STATS.map((stat) => (
+              <div key={stat.label}>
+                <div className="font-mono text-2xl font-bold tabular-nums text-white">
+                  {stat.value}
+                </div>
+                <div className="mt-1 text-xs leading-5 text-white/70">
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </Reveal>
         </div>
       </section>
 
-      {/* Problem / Solution */}
+      <section className="border-b border-border/60 bg-background">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+          <Reveal className="grid gap-4 md:grid-cols-5">
+            {APP_FLOW.map((step, i) => (
+              <div
+                key={step.label}
+                className="relative rounded-2xl border border-border/60 bg-card p-4 shadow-sm"
+              >
+                {i < APP_FLOW.length - 1 && (
+                  <ArrowRight className="absolute -right-5 top-1/2 hidden h-4 w-4 -translate-y-1/2 text-muted-foreground/40 md:block" />
+                )}
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                  <step.icon className="h-5 w-5 text-primary" />
+                </div>
+                <h3 className="mt-3 text-sm font-semibold">{step.label}</h3>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {step.detail}
+                </p>
+              </div>
+            ))}
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="border-b border-border/60 bg-background">
+        <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+          <Reveal className="mx-auto max-w-3xl text-center">
+            <div className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs font-semibold text-primary shadow-sm">
+              <MessageSquareQuote className="h-3.5 w-3.5" />
+              Positioning for operators who cannot afford evidence gaps
+            </div>
+            <h2 className="mt-4 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
+              Make compliance visible, provable, and actionable before survey
+              day.
+            </h2>
+            <p className="mt-4 text-muted-foreground">
+              CareMetric Train gives operators one place to see risk, assign the
+              work, capture evidence, and hand a defensible record to leadership
+              or an auditor. It is not a course library with a dashboard bolted
+              on -- it is the workflow that keeps daily training, resident
+              documentation, and survey evidence aligned.
+            </p>
+          </Reveal>
+
+          <div className="mt-12 grid gap-6 lg:grid-cols-3">
+            {BUYER_PROMISES.map((item, i) => (
+              <Reveal key={item.title} delay={(i % 3) * 0.06}>
+                <Card className="h-full border-border/60 bg-card shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
+                  <CardHeader>
+                    <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 ring-8 ring-primary/[0.03]">
+                      <item.icon className="h-5 w-5 text-primary" />
+                    </div>
+                    <CardTitle className="text-base">{item.title}</CardTitle>
+                    <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
+                      {item.blurb}
+                    </p>
+                  </CardHeader>
+                </Card>
+              </Reveal>
+            ))}
+          </div>
+
+          <Reveal className="mt-10 rounded-2xl border border-primary/20 bg-primary/[0.03] p-6">
+            <h3 className="text-lg font-semibold">
+              CareMetric Train is strongest when...
+            </h3>
+            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+              {DECISION_SIGNALS.map((signal) => (
+                <div
+                  key={signal}
+                  className="flex items-start gap-3 rounded-xl bg-background/70 p-4 text-sm leading-6 text-foreground/85"
+                >
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                  <span>{signal}</span>
+                </div>
+              ))}
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
       <section className="border-y border-border/60 bg-muted/30">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
           <Reveal className="mx-auto max-w-2xl text-center">
@@ -171,9 +443,10 @@ export default function Landing() {
               From binders and spreadsheets to one system of record
             </h2>
             <p className="mt-4 text-muted-foreground">
-              Most facilities aren't failing surveys because staff aren't trained --
-              they're failing because the paperwork proving it is scattered across a
-              dozen places.
+              Most facilities do not fail surveys because staff never learned
+              the material. They struggle because proof is split across paper
+              sign-in sheets, old PDFs, email attachments, and spreadsheets that
+              only one person understands.
             </p>
           </Reveal>
 
@@ -181,11 +454,16 @@ export default function Landing() {
             <Reveal>
               <Card className="h-full border-border/60">
                 <CardHeader>
-                  <CardTitle className="text-base text-muted-foreground">The old way</CardTitle>
+                  <CardTitle className="text-base text-muted-foreground">
+                    The old way
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {OLD_WAY.map((item) => (
-                    <div key={item} className="flex items-start gap-2.5 text-sm text-muted-foreground">
+                    <div
+                      key={item}
+                      className="flex items-start gap-2.5 text-sm text-muted-foreground"
+                    >
                       <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/60" />
                       {item}
                     </div>
@@ -197,11 +475,16 @@ export default function Landing() {
             <Reveal delay={0.1}>
               <Card className="h-full border-primary/30 bg-primary/[0.03] shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-base text-primary">With CareMetric Train</CardTitle>
+                  <CardTitle className="text-base text-primary">
+                    With CareMetric Train
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {NEW_WAY.map((item) => (
-                    <div key={item} className="flex items-start gap-2.5 text-sm text-foreground/90">
+                    <div
+                      key={item}
+                      className="flex items-start gap-2.5 text-sm text-foreground/90"
+                    >
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                       {item}
                     </div>
@@ -213,40 +496,122 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Highlights -- teasers linking to the dedicated pages */}
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-        <Reveal className="mx-auto max-w-2xl text-center">
+        <Reveal className="mx-auto max-w-3xl text-center">
           <h2 className="text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
-            Everything you need to stay survey-ready
+            What the app actually does
           </h2>
           <p className="mt-4 text-muted-foreground">
-            A quick tour of what CareMetric Train does. Dive into any area for the
-            full picture.
+            CareMetric Train combines learning management, compliance tracking,
+            secure document storage, and role-based reporting so every
+            stakeholder works from the same source of truth.
           </p>
         </Reveal>
 
         <div className="mt-12 grid gap-6 sm:grid-cols-2">
           {HIGHLIGHTS.map((item, i) => (
             <Reveal key={item.href} delay={(i % 2) * 0.08}>
-              <Link href={item.href} className="group block h-full" data-testid={`link-highlight-${item.href.slice(1)}`}>
-                <Card className="flex h-full flex-col border-border/60 transition-colors group-hover:border-primary/40">
+              <Link
+                href={item.href}
+                className="group block h-full"
+                data-testid={`link-highlight-${item.href.slice(1)}`}
+              >
+                <Card className="flex h-full flex-col overflow-hidden border-border/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
                   <CardHeader>
-                    <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
+                    <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 ring-8 ring-primary/[0.03]">
                       <item.icon className="h-5 w-5 text-primary" />
                     </div>
                     <CardTitle className="flex items-center justify-between text-lg">
                       {item.title}
                       <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
                     </CardTitle>
-                    <p className="mt-1.5 text-sm text-muted-foreground">{item.blurb}</p>
+                    <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
+                      {item.blurb}
+                    </p>
                   </CardHeader>
                 </Card>
               </Link>
             </Reveal>
           ))}
         </div>
+      </section>
 
-        <Reveal className="mt-8 text-center">
+      <section className="border-b border-border/60 bg-muted/30">
+        <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+          <Reveal className="mx-auto max-w-3xl text-center">
+            <h2 className="text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
+              Beyond staff training: a complete survey-readiness platform
+            </h2>
+            <p className="mt-4 text-muted-foreground">
+              Recent releases layered resident care, incident and inspection
+              management, AI-assisted content, and workforce scheduling on top of
+              the core training platform.
+            </p>
+          </Reveal>
+
+          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {BEYOND_TRAINING.map((item, i) => (
+              <Reveal key={item.title} delay={(i % 3) * 0.05}>
+                <Card className="h-full border-border/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
+                  <CardHeader>
+                    <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 ring-8 ring-primary/[0.03]">
+                      <item.icon className="h-5 w-5 text-primary" />
+                    </div>
+                    <CardTitle className="text-base">{item.title}</CardTitle>
+                    <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
+                      {item.blurb}
+                    </p>
+                  </CardHeader>
+                </Card>
+              </Reveal>
+            ))}
+          </div>
+
+          <Reveal className="mt-10 text-center">
+            <Link
+              href="/features"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            >
+              See the full feature list
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="bg-[#071626] text-white">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-20 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
+          <Reveal>
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-[#b9e4ff]">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Role-aware from login to report export
+            </div>
+            <h2 className="mt-5 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
+              Built for the people who manage, deliver, complete, and inspect
+              training.
+            </h2>
+            <p className="mt-4 text-white/68">
+              The app is not just a public course catalog. It is a multi-role
+              workflow where each person gets the screens, actions, and evidence
+              they need.
+            </p>
+          </Reveal>
+          <Reveal delay={0.1} className="grid gap-3">
+            {ROLE_VIEWS.map((role) => (
+              <div
+                key={role}
+                className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.06] p-4"
+              >
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#59b2ff]" />
+                <span className="text-sm text-white/82">{role}</span>
+              </div>
+            ))}
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-16 text-center sm:px-6 lg:px-8">
+        <Reveal>
           <Link
             href="/faq"
             className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"

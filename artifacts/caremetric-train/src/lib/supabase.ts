@@ -9,3 +9,14 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+
+// Older service workers used the "supabase-runtime" cache for RLS-scoped REST responses. Current
+// builds only runtime-cache public course-video storage, but keep clearing both names on auth
+// transitions so upgraded clients cannot keep serving stale protected responses from the old cache.
+export async function clearSupabaseRuntimeCache(): Promise<void> {
+  if (typeof caches === "undefined") return;
+  await Promise.all([
+    caches.delete("supabase-runtime"),
+    caches.delete("supabase-public-storage"),
+  ]);
+}

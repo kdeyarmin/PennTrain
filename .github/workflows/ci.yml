@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      VITE_SUPABASE_URL: https://example.supabase.co
+      VITE_SUPABASE_ANON_KEY: test-anon-key
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: v2.x
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.28.1 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Dependency vulnerability gate
+        run: pnpm run check:dependencies
+
+      - name: Application release gate
+        run: pnpm run check:all
+
+      - name: Publish immutable application artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: caremetric-train-${{ github.sha }}
+          path: artifacts/caremetric-train/dist/public
+          if-no-files-found: error
+          retention-days: 14
+
+  database:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.28.1 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Pin both the setup action and the CLI version. The CLI release pins the
+      # service images that reproduce migration and type-generation behavior.
+      - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.109.1
+
+      - name: Start clean local Supabase stack
+        # Browser journeys need Auth, PostgREST, and the API gateway in addition
+        # to Postgres. `supabase db start` starts only the database service.
+        run: supabase start
+
+      - name: Reapply full migration chain without demo data
+        run: supabase db reset --no-seed
+
+      - name: Database and RLS tests
+        run: supabase test db
+
+      - name: Database lint
+        run: supabase db lint --level error
+
+      - name: Database security and performance advisors
+        run: supabase db advisors --local --type all --fail-on error
+
+      - name: Verify generated database types
+        shell: bash
+        run: |
+          supabase gen types typescript --local > /tmp/database.types.ts
+          python - <<'PY'
+          from pathlib import Path
+
+          paths = [
+            ("artifacts/caremetric-train/src/lib/database.types.ts", "/tmp/database.types.repo.ts"),
+            ("/tmp/database.types.ts", "/tmp/database.types.generated.ts"),
+          ]
+          for source, destination in paths:
+            normalized = Path(source).read_text().rstrip("\n") + "\n"
+            Path(destination).write_text(normalized)
+          PY
+          diff -u /tmp/database.types.repo.ts /tmp/database.types.generated.ts
+
+      - name: Export local Supabase browser-test environment
+        shell: bash
+        run: |
+          eval "$(supabase status -o env)"
+          echo "SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY" >> "$GITHUB_ENV"
+          echo "VITE_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
+          echo "VITE_SUPABASE_ANON_KEY=$ANON_KEY" >> "$GITHUB_ENV"
+          e2e_password="phase1-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-only"
+          echo "E2E_ACCOUNT_PASSWORD=$e2e_password" >> "$GITHUB_ENV"
+          echo "VITE_DEMO_ACCOUNTS_JSON=[{\"label\":\"Guest auditor\",\"email\":\"phase1-guest@test.local\",\"password\":\"$e2e_password\",\"color\":\"bg-blue-500\"}]" >> "$GITHUB_ENV"
+
+      - name: Build browser-test application
+        run: pnpm --filter @workspace/caremetric-train run build
+
+      - name: Install Chromium
+        run: pnpm --filter @workspace/caremetric-train exec playwright install --with-deps chromium
+
+      - name: Role, public, guest, and accessibility browser journeys
+        run: pnpm --filter @workspace/caremetric-train run test:e2e
+
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop --no-backup
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan repository history for committed secrets
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

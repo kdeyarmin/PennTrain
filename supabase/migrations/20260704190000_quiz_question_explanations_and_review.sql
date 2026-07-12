@@ -38,5 +38,7 @@ language sql stable security definer set search_path to 'public' as $function$
     )
   order by a.sort_order;
 $function$;
+
 revoke all on function public.get_quiz_review(uuid) from public;
+
 grant execute on function public.get_quiz_review(uuid) to authenticated;

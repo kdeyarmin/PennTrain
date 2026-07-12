@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useListCourses, useCreateCourse, type Course } from "@/hooks/useCourses";
+import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,23 +8,29 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, Search, ChevronRight, Plus } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BookOpen, Search, ChevronRight, Plus, Sparkles } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { courseDetailPath } from "@/lib/courseRoutes";
 
 interface CourseFormData {
   title: string;
   description: string;
   category: string;
   estimatedDurationMinutes: string;
+  trainingTypeId: string;
 }
+
+const NO_TRAINING_TYPE = "none";
 
 const EMPTY_FORM: CourseFormData = {
   title: "",
   description: "",
   category: "",
   estimatedDurationMinutes: "",
+  trainingTypeId: NO_TRAINING_TYPE,
 };
 
 function StatusPill({ status }: { status: string }) {
@@ -59,12 +66,20 @@ export default function Courses() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const canCreate = user?.role === "org_admin" || user?.role === "trainer";
+  const canCreate = user?.role === "platform_admin";
+
+  // platform_admin's RLS grant sees every organization's courses at once; default
+  // to the shared system catalog (organization_id IS NULL) since that's what this
+  // page is for building/managing -- "All Organizations" is an explicit opt-in.
+  const [catalogScope, setCatalogScope] = useState<"system" | "all">("system");
+  const systemOnly = user?.role === "platform_admin" && catalogScope === "system";
 
   const { data: courses, isLoading } = useListCourses({
     status: status !== "all" ? status : undefined,
+    systemOnly,
   });
   const { mutate: createCourse, isPending: creating } = useCreateCourse();
+  const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
 
   const allCourses = courses ?? [];
 
@@ -99,7 +114,12 @@ export default function Courses() {
       toast({ title: "Title is required", variant: "destructive" });
       return;
     }
-    if (!user?.organizationId) return;
+    // Only platform_admin can reach this handler now (canCreate above); unlike
+    // org_admin/trainer, platform_admin isn't scoped to an organization, so its
+    // organizationId is expected to be null -- that's what makes the created
+    // course a system-catalog course (organization_id IS NULL) rather than
+    // blocking creation outright.
+    if (!user) return;
 
     const durationMinutes = form.estimatedDurationMinutes.trim()
       ? Number(form.estimatedDurationMinutes)
@@ -112,6 +132,7 @@ export default function Courses() {
         category: form.category || null,
         estimated_duration_minutes: Number.isFinite(durationMinutes) ? durationMinutes : null,
         organization_id: user.organizationId,
+        training_type_id: form.trainingTypeId === NO_TRAINING_TYPE ? null : form.trainingTypeId,
       },
       {
         onSuccess: () => {
@@ -131,11 +152,28 @@ export default function Courses() {
           <h1>Courses</h1>
           <p>Browse the system catalog and your organization's authored training courses.</p>
         </div>
-        {canCreate && (
-          <Button onClick={openCreate} className="shadow-sm">
-            <Plus className="mr-2 h-4 w-4" /> New Course
-          </Button>
-        )}
+        <div className="flex items-center gap-3">
+          {user?.role === "platform_admin" && (
+            <Tabs value={catalogScope} onValueChange={v => setCatalogScope(v as "system" | "all")}>
+              <TabsList>
+                <TabsTrigger value="system">System Catalog</TabsTrigger>
+                <TabsTrigger value="all">All Organizations</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+          {canCreate && (
+            <>
+              <Button asChild variant="outline" className="shadow-sm">
+                <Link href="/admin/courses/new-ai">
+                  <Sparkles className="mr-2 h-4 w-4" /> Generate with AI
+                </Link>
+              </Button>
+              <Button onClick={openCreate} className="shadow-sm">
+                <Plus className="mr-2 h-4 w-4" /> New Course
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="premium-card">
@@ -202,7 +240,7 @@ export default function Courses() {
                 {filtered.map((course: Course) => (
                   <tr key={course.id}>
                     <td>
-                      <Link href={`/app/courses/${course.id}`}>
+                      <Link href={courseDetailPath(course.id, user?.role)}>
                         <div className="cursor-pointer">
                           <span className="font-medium text-foreground hover:text-primary transition-colors">
                             {course.title}
@@ -226,7 +264,7 @@ export default function Courses() {
                       )}
                     </td>
                     <td>
-                      <Link href={`/app/courses/${course.id}`}>
+                      <Link href={courseDetailPath(course.id, user?.role)}>
                         <ChevronRight className="h-4 w-4 text-muted-foreground/40 cursor-pointer" />
                       </Link>
                     </td>
@@ -273,6 +311,21 @@ export default function Courses() {
                   className="h-9"
                 />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Compliance Training Type</Label>
+              <Select value={form.trainingTypeId} onValueChange={v => field("trainingTypeId", v)}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_TRAINING_TYPE}>Not linked to a compliance requirement</SelectItem>
+                  {(trainingTypes ?? []).map(tt => (
+                    <SelectItem key={tt.id} value={tt.id}>{tt.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Optional. Link this course to a training requirement so completing it records the matching training record automatically.
+              </p>
             </div>
           </div>
           <DialogFooter>
