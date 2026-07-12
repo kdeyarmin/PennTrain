@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, Link, useLocation } from "wouter";
+import { useParams, Link } from "wouter";
 import { useGetResident } from "@/hooks/useResidents";
 import { useListFacilities } from "@/hooks/useFacilities";
 import {
@@ -410,7 +410,6 @@ function DiagnosisRowsEditor({ title, rows, noneChecked, onRowsChange, onNoneCha
 
 export default function ResidentAssessmentFormEditor() {
   const { residentId, formId } = useParams<{ residentId: string; formId: string }>();
-  const [, navigate] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -524,6 +523,7 @@ export default function ResidentAssessmentFormEditor() {
     pendingSave.current = { id: formId, content: next };
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
       pendingSave.current = null;
       saveDraft.mutate(
         { id: formId, content: next },

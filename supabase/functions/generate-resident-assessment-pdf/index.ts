@@ -645,6 +645,24 @@ Deno.serve(async (req: Request) => {
     .select("id")
     .single();
   if (docError) {
+    // If a concurrent request raced and inserted first (unique constraint violation on
+    // (resident_id, document_label)), treat it as idempotent and return the existing document.
+    // Do NOT remove the storage file here: both requests use the same deterministic path with
+    // upsert:true, so the file belongs to the winner; deleting it would orphan their DB row.
+    if (docError.code === "23505") {
+      const { data: racedDoc } = await adminClient
+        .from("resident_documents")
+        .select("id, storage_path")
+        .eq("resident_id", form.resident_id)
+        .eq("document_label", documentLabel)
+        .maybeSingle();
+      if (racedDoc) {
+        return json({
+          error: "A document has already been generated for this finalized form. Contact an administrator if it needs to be replaced.",
+          documentId: racedDoc.id,
+        }, 409);
+      }
+    }
     await adminClient.storage.from(DOCUMENTS_BUCKET).remove([path]);
     return json({ error: docError.message }, 500);
   }
