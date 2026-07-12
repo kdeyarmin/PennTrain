@@ -340,7 +340,7 @@ function isNavItemActive(item: NavItem, location: string): boolean {
 // Persisted per-user so each person's choice of which groups to keep collapsed sticks across
 // visits, without needing a backend round-trip for what's purely a display preference.
 function collapsedSectionsStorageKey(userId: string): string {
-  return `caremetric.sidebar.collapsedSections.${userId}`;
+  return `cmtrain.sidebar.collapsedSections.${userId}`;
 }
 
 function loadCollapsedSections(userId: string): Set<string> {
