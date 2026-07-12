@@ -95,14 +95,16 @@ jobs:
           supabase gen types typescript --local > /tmp/database.types.ts
           python - <<'PY'
           from pathlib import Path
-          for path in (
-              "artifacts/caremetric-train/src/lib/database.types.ts",
-              "/tmp/database.types.ts",
-          ):
-              text = Path(path).read_text()
-              Path(path).write_text(text.rstrip("\n") + "\n")
+
+          paths = [
+            ("artifacts/caremetric-train/src/lib/database.types.ts", "/tmp/database.types.repo.ts"),
+            ("/tmp/database.types.ts", "/tmp/database.types.generated.ts"),
+          ]
+          for source, destination in paths:
+            normalized = Path(source).read_text().rstrip("\n") + "\n"
+            Path(destination).write_text(normalized)
           PY
-          diff -u artifacts/caremetric-train/src/lib/database.types.ts /tmp/database.types.ts
+          diff -u /tmp/database.types.repo.ts /tmp/database.types.generated.ts
 
       - name: Export local Supabase browser-test environment
         shell: bash
