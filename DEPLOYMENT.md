@@ -159,7 +159,14 @@ can see the whole workspace and lockfile.
      redeploy production.
    Railpack resolves Node from `engines.node` in package.json / `.nvmrc` / `.node-version` (all
    pinned to Node 24 here; `RAILPACK_NODE_VERSION` would override) and installs pnpm 10.28.1 via
-   Corepack from the `packageManager` field. Because `railway.json` sets an explicit
+   Corepack from the `packageManager` field.
+   **`railpack.json` (repo root) pins `"provider": "node"` and must stay.** The repo root also
+   contains `deno.json`/`deno.lock` (Deno tooling for the Supabase Edge Functions), and Railpack's
+   auto-detection prefers Deno over Node when both are present -- without the pin it builds a
+   Deno-only image with no Node/Corepack/pnpm, and the build dies with `pnpm: not found`
+   (exit 127). The `corepack enable` prefix in `buildCommand`/`startCommand` is belt-and-braces on
+   top of that: it guarantees the `pnpm` shim exists even if Railpack's own package-manager
+   install step is skipped when a custom build command is set. Because `railway.json` sets an explicit
    `startCommand`, Railpack's Vite-SPA auto-detection (serving via Caddy) is overridden and the
    custom Node server is used -- keep `startCommand` in place, or set `RAILPACK_NO_SPA=1` to make
    that explicit.
