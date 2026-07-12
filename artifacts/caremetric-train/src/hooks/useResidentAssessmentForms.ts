@@ -7,7 +7,7 @@ export type ResidentAssessmentForm = Omit<Tables<"resident_assessment_forms">, "
   content: ResidentAssessmentFormContent;
 };
 
-async function describeFunctionError(error: unknown, fallback: string): Promise<string> {
+export async function describeFunctionError(error: unknown, fallback: string): Promise<string> {
   const context = (error as { context?: unknown } | null)?.context;
   if (context instanceof Response) {
     try {
@@ -119,9 +119,10 @@ async function invokeGenerateAssessmentPdf(formId: string) {
   return pdfData;
 }
 
-// Locks the form/lineage server-side, then generates the official PA DHS form packet. The edge
-// function stores that packet as is_state_form=true and completes the linked resident_compliance_items
-// row with that exact generated document.
+// Locks the form/lineage server-side, then generates the CareMetric reference packet (the official
+// DHS PDF filled from the draft). The edge function stores it with is_state_form=false and never
+// completes the linked compliance item -- only uploading the signed DHS form via
+// complete_resident_compliance_item() does that, no exception.
 export function useFinalizeResidentAssessmentForm() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -7,6 +7,12 @@ import {
   StandardFonts,
   rgb,
 } from "npm:pdf-lib@1.17.1";
+import {
+  checkFirstMatchingBox,
+  fetchDhsTemplate,
+  normalizeFieldName,
+  setFirstMatchingTextField,
+} from "../_shared/dhsStateFormFill.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -48,25 +54,7 @@ async function fetchStateApprovedAssessmentTemplate(
     throw new Error(
       `No PA DHS state-approved template configured for ${formType}`,
     );
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
-  try {
-    const res = await fetch(template.url, { signal: controller.signal });
-    if (!res.ok)
-      throw new Error(
-        `Failed to download ${template.sourceLabel} (${res.status})`,
-      );
-    const contentType = res.headers.get("content-type") ?? "";
-    if (contentType && !contentType.toLowerCase().includes("pdf")) {
-      throw new Error(
-        `PA DHS template response for ${template.sourceLabel} was not a PDF (${contentType})`,
-      );
-    }
-    return { templateBytes: new Uint8Array(await res.arrayBuffer()), template };
-  } finally {
-    clearTimeout(timeout);
-  }
+  return { templateBytes: await fetchDhsTemplate(template), template };
 }
 
 function humanize(value: string | null | undefined): string {
@@ -284,55 +272,8 @@ function getIncompleteSections(formType: string, content: AnyRecord): string[] {
   return incomplete;
 }
 
-function normalizeFieldName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
-function includesEvery(name: string, words: string[]): boolean {
-  return words.every((word) => name.includes(word));
-}
-
-function setFirstMatchingTextField(
-  form: any,
-  wordSets: string[][],
-  value: string | null | undefined,
-): boolean {
-  if (!value) return false;
-  for (const field of form.getFields()) {
-    const name = normalizeFieldName(field.getName());
-    if (!wordSets.some((words) => includesEvery(name, words))) continue;
-    try {
-      if (typeof field.setText === "function") {
-        field.setText(String(value));
-        field.enableReadOnly?.();
-        return true;
-      }
-    } catch (_) {
-      // Keep scanning: some template widgets can share names with non-text fields.
-    }
-  }
-  return false;
-}
-
-function checkFirstMatchingBox(form: any, wordSets: string[][]): boolean {
-  for (const field of form.getFields()) {
-    const name = normalizeFieldName(field.getName());
-    if (!wordSets.some((words) => includesEvery(name, words))) continue;
-    try {
-      if (typeof field.check === "function") {
-        field.check();
-        field.enableReadOnly?.();
-        return true;
-      }
-    } catch (_) {
-      // Keep scanning for another checkbox with clearer field metadata.
-    }
-  }
-  return false;
-}
+// normalizeFieldName / setFirstMatchingTextField / checkFirstMatchingBox live in
+// ../_shared/dhsStateFormFill.ts, shared with generate-state-form-prefill.
 
 function reasonWords(reason: string | null | undefined): string[] | null {
   if (reason === "initial") return ["initial"];
