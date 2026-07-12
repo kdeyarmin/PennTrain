@@ -41,6 +41,7 @@ const AdminSupportTickets = lazy(() => import("@/pages/admin/SupportTickets"));
 const AdminSupportTicketDetail = lazy(() => import("@/pages/admin/SupportTicketDetail"));
 const AdminHelpContent = lazy(() => import("@/pages/admin/HelpContent"));
 const ImprovementRoadmap = lazy(() => import("@/pages/admin/ImprovementRoadmap"));
+const DocumentAnalyzer = lazy(() => import("@/pages/admin/DocumentAnalyzer"));
 
 const OrgDashboard = lazy(() => import("@/pages/app/Dashboard"));
 const Facilities = lazy(() => import("@/pages/app/Facilities"));
@@ -324,6 +325,12 @@ function Router() {
       <Route path="/admin/inspections/:id">
         {() => <ProtectedRoute component={InspectionItemDetail} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
+      <Route path="/admin/residents/:id">
+        {() => <ProtectedRoute component={ResidentDetail} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/residents/:residentId/assessment-forms/:formId">
+        {() => <ProtectedRoute component={ResidentAssessmentFormEditor} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
       <Route path="/admin/packages">
         {() => <ProtectedRoute component={Packages} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
@@ -379,6 +386,9 @@ function Router() {
       </Route>
       <Route path="/admin/help-content">
         {() => <ProtectedRoute component={AdminHelpContent} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/document-analyzer">
+        {() => <ProtectedRoute component={DocumentAnalyzer} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
       <Route path="/admin/roadmap">
         {() => <ProtectedRoute component={ImprovementRoadmap} allowedRoles={PLATFORM_ADMIN} />}

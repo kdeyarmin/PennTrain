@@ -6,6 +6,7 @@ import {
   helpBasePathForRole,
   safePathForRole,
   pagesForRole,
+  searchPages,
   searchCommandActions,
 } from "./appDomains";
 
@@ -142,6 +143,11 @@ describe("role-based page visibility", () => {
     expect(searchCommandActions("ai course", "platform_admin").map((action) => action.path)).toContain("/admin/courses/new-ai");
     expect(searchCommandActions("ai course", "org_admin")).toEqual([]);
     expect(searchCommandActions("bulk import", "employee")).toEqual([]);
+  });
+
+  it("excludes template detail routes from generic page search results", () => {
+    const paths = searchPages("resident chart", "platform_admin").map((page) => page.path);
+    expect(paths).not.toContain("/admin/residents/:id");
   });
 
 });

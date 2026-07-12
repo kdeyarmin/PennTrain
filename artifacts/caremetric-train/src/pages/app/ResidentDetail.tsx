@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { useGetResident, useUpdateResident } from "@/hooks/useResidents";
 import { useListResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
 import {
@@ -44,11 +44,13 @@ function ComplianceStatusBadge({ status }: { status: string }) {
 
 export default function ResidentDetail() {
   const { id } = useParams<{ id: string }>();
+  const [location] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
+  const residentPathPrefix = location.startsWith("/admin/") ? "/admin/residents" : "/app/residents";
 
   const { data: resident, isLoading } = useGetResident(id);
   const { data: facilities } = useListFacilities();
@@ -220,7 +222,7 @@ export default function ResidentDetail() {
       <div className="text-center py-12">
         <p className="text-muted-foreground">Resident not found.</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href="/app/residents">Back to Residents</Link>
+          <Link href={residentPathPrefix}>Back to Residents</Link>
         </Button>
       </div>
     );
@@ -233,7 +235,7 @@ export default function ResidentDetail() {
       <div className="space-y-6 print:hidden">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-          <Link href="/app/residents"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
+          <Link href={residentPathPrefix}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
         </Button>
       </div>
 
@@ -505,7 +507,7 @@ export default function ResidentDetail() {
                       {f.status === "finalized" ? `Finalized ${new Date(f.finalized_at!).toLocaleDateString()}` : `Prepared by ${f.prepared_by_name || "—"}`}
                     </p>
                   </div>
-                  <Link href={`/app/residents/${id}/assessment-forms/${f.id}`} className="text-sm text-primary hover:underline">
+                  <Link href={`${residentPathPrefix}/${id}/assessment-forms/${f.id}`} className="text-sm text-primary hover:underline">
                     {f.status === "finalized" ? "View" : "Continue"}
                   </Link>
                 </div>

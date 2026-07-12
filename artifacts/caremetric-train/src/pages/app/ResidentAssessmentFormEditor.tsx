@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { useGetResident } from "@/hooks/useResidents";
 import { useListFacilities } from "@/hooks/useFacilities";
 import {
@@ -717,8 +717,10 @@ function DiagnosisRowsEditor({
 
 export default function ResidentAssessmentFormEditor() {
   const { residentId, formId } = useParams<{ residentId: string; formId: string }>();
+  const [location] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
+  const residentPathPrefix = location.startsWith("/admin/") ? "/admin/residents" : "/app/residents";
 
   const { data: resident } = useGetResident(residentId);
   const { data: facilities } = useListFacilities();
@@ -1262,7 +1264,7 @@ ${text}` : text;
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Button asChild variant="ghost" size="sm">
-            <Link href={`/app/residents/${residentId}`}>
+            <Link href={`${residentPathPrefix}/${residentId}`}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Back to Resident
             </Link>
           </Button>
