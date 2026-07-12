@@ -4,7 +4,7 @@ import { useLocation, useSearch } from "wouter";
 // Keeps a set of string filter/sort/page values synced into the URL query string, so navigating
 // away (opening a row) and back preserves what the user had selected instead of resetting to
 // defaults on every remount. Values are read from the current URL on every render (not just
-// mount) so browser Back/Forward between two filtered states of the same page also works, and
+// mount) so Back/Forward navigation that changes the URL restores the same filter state, and
 // written back via `replace: true` so adjusting a filter doesn't pile up back-stack entries.
 //
 // A value equal to its default is omitted from the URL entirely, keeping links to the "default"
@@ -25,14 +25,16 @@ export function useUrlState<T extends Record<string, string>>(defaults: T) {
 
   const setState = useCallback(
     (updates: Partial<T>) => {
-      const params = new URLSearchParams(search);
+      const currentSearch = typeof window !== "undefined" ? window.location.search : search;
+      const currentPath = typeof window !== "undefined" ? window.location.pathname : location.split("?")[0];
+      const params = new URLSearchParams(currentSearch.startsWith("?") ? currentSearch.slice(1) : currentSearch);
       for (const key of Object.keys(updates) as (keyof T)[]) {
         const value = updates[key];
         if (value === undefined || value === defaults[key]) params.delete(key as string);
         else params.set(key as string, value);
       }
       const qs = params.toString();
-      setLocation(`${location.split("?")[0]}${qs ? `?${qs}` : ""}`, { replace: true });
+      setLocation(`${currentPath}${qs ? `?${qs}` : ""}`, { replace: true });
     },
     [search, location, setLocation, defaults]
   );
