@@ -3,24 +3,43 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
+    "preinstall": "node scripts/enforce-pnpm.cjs",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
+<<<<<<< HEAD
     "start": "pnpm --filter @workspace/pa-medtrack run start",
     "dev": "pnpm --filter @workspace/pa-medtrack run dev",
+=======
+    "start": "pnpm --filter @workspace/caremetric-train run start",
+    "dev": "pnpm --filter @workspace/caremetric-train run dev",
+>>>>>>> origin/main
     "test": "pnpm -r --if-present run test",
     "typecheck": "pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
     "doctor": "pnpm --filter @workspace/scripts run doctor",
     "doctor:network": "pnpm --filter @workspace/scripts run doctor:network",
+<<<<<<< HEAD
     "db:migrate": "npx --yes supabase db push"
+=======
+    "db:migrate": "npx --yes supabase@2.109.1 db push",
+    "check:database": "npx --yes supabase@2.109.1 start && npx --yes supabase@2.109.1 db reset --no-seed && npx --yes supabase@2.109.1 test db && npx --yes supabase@2.109.1 db lint --level error && npx --yes supabase@2.109.1 db advisors --local --type all --fail-on error && node scripts/check-database-types.mjs",
+    "check:bundle": "node scripts/check-bundle-budget.mjs",
+    "check:dependencies": "pnpm audit --audit-level high",
+    "check:release": "pnpm run check:dependencies && pnpm run check:all && pnpm run check:database",
+    "check:edge-functions": "node scripts/check-edge-functions.mjs",
+    "check:all": "pnpm run typecheck && pnpm run test && pnpm run check:edge-functions && pnpm --filter @workspace/caremetric-train run build && pnpm run check:bundle"
+>>>>>>> origin/main
   },
   "private": true,
   "devDependencies": {
-    "typescript": "~5.9.2",
-    "prettier": "^3.8.1"
+    "typescript": "~5.9.2"
   },
   "packageManager": "pnpm@10.28.1",
   "engines": {
     "node": ">=24.15.0 <25",
     "pnpm": ">=10.28.1"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "4.59.0",
+    "@tailwindcss/oxide-win32-x64-msvc": "4.2.1",
+    "lightningcss-win32-x64-msvc": "1.31.1"
   }
 }
