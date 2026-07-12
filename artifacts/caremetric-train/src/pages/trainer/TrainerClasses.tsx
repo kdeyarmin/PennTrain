@@ -134,7 +134,7 @@ export default function TrainerClasses() {
     setForm({
       className: cls.class_name,
       trainingTypeId: cls.training_type_id,
-      classDate: new Date().toISOString().slice(0, 10),
+      classDate: (() => { const d = new Date(); const pad = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; })(),
       facilityId: cls.facility_id ?? "none",
       location: cls.location ?? "",
       durationHours: String(cls.duration_hours),
