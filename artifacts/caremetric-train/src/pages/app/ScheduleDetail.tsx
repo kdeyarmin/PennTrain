@@ -12,6 +12,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -28,7 +29,7 @@ import {
 import { AlertTriangle, ArrowLeft, BarChart3, Eraser, Loader2, Plus, Send, Sparkles, Undo2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { enumerateDatesIso, formatDateLabel, formatTimeLabel } from "@/lib/scheduleDates";
-import { summarizeScheduleAnalytics } from "@/lib/scheduleAnalytics";
+import { summarizeScheduleAnalytics, summarizeStaffingRatios } from "@/lib/scheduleAnalytics";
 
 const UNASSIGNED = "__unassigned__";
 
@@ -73,6 +74,9 @@ export default function ScheduleDetail() {
   // updateAssignment.isPending, which reflects the shared mutation instance and would also flip
   // true while the edit-shift modal's own Save is in flight) so only that one badge shows "…".
   const [quickStatusId, setQuickStatusId] = useState<string | null>(null);
+  const [residentsInHouse, setResidentsInHouse] = useState(0);
+  const [targetPpd, setTargetPpd] = useState(2.0);
+  const [minimumStaffPerDay, setMinimumStaffPerDay] = useState(2);
 
   const dates = useMemo(
     () => (schedule ? enumerateDatesIso(schedule.period_start, schedule.period_end) : []),
@@ -102,6 +106,14 @@ export default function ScheduleDetail() {
     dates,
     unitIds: activeUnits.map((u) => u.id),
   }), [assignments, dates, activeUnits]);
+
+  const staffingRatios = useMemo(() => summarizeStaffingRatios({
+    assignments: assignments ?? [],
+    dates,
+    residentsInHouse,
+    targetPpd,
+    minimumStaffPerDay,
+  }), [assignments, dates, residentsInHouse, targetPpd, minimumStaffPerDay]);
 
   const isDraft = schedule?.status === "draft";
   const hasAutoFill = (assignments ?? []).some((a) => a.source === "auto_fill" && a.status === "scheduled");
@@ -382,7 +394,45 @@ export default function ScheduleDetail() {
               <p className="text-xl font-semibold">{scheduleAnalytics.unitDayCoverageGaps}</p>
             </div>
           </div>
-          {(scheduleAnalytics.unitDayCoverageGaps > 0 || scheduleAnalytics.employeesOver40Hours.length > 0) && (
+          <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
+            <div>
+              <h3 className="font-medium">Resident census & staffing calculator</h3>
+              <p className="text-xs text-muted-foreground">Enter today's residents in house to calculate PPD and see if scheduled staffing is below your threshold before publishing.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="residentsInHouse">Residents in house</Label>
+                <Input id="residentsInHouse" type="number" min={0} value={residentsInHouse} onChange={(e) => setResidentsInHouse(Number(e.target.value) || 0)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="targetPpd">Target PPD</Label>
+                <Input id="targetPpd" type="number" min={0} step="0.1" value={targetPpd} onChange={(e) => setTargetPpd(Number(e.target.value) || 0)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="minimumStaffPerDay">Minimum staff/day</Label>
+                <Input id="minimumStaffPerDay" type="number" min={0} value={minimumStaffPerDay} onChange={(e) => setMinimumStaffPerDay(Number(e.target.value) || 0)} />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border bg-background p-3">
+                <p className="text-xs text-muted-foreground">Current PPD</p>
+                <p className="text-xl font-semibold">{staffingRatios.ppd.toFixed(2)}</p>
+              </div>
+              <div className="rounded-lg border bg-background p-3">
+                <p className="text-xs text-muted-foreground">Care hours needed</p>
+                <p className="text-xl font-semibold">{staffingRatios.targetHours}</p>
+              </div>
+              <div className="rounded-lg border bg-background p-3">
+                <p className="text-xs text-muted-foreground">Hours gap</p>
+                <p className="text-xl font-semibold">{staffingRatios.hoursGap}</p>
+              </div>
+              <div className="rounded-lg border bg-background p-3">
+                <p className="text-xs text-muted-foreground">Residents/staff avg.</p>
+                <p className="text-xl font-semibold">{staffingRatios.averageResidentsPerScheduledStaff ?? "—"}</p>
+              </div>
+            </div>
+          </div>
+          {(scheduleAnalytics.unitDayCoverageGaps > 0 || scheduleAnalytics.employeesOver40Hours.length > 0 || staffingRatios.isBelowTarget || staffingRatios.daysBelowMinimumStaffing.length > 0) && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               <div className="flex items-start gap-2">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -390,6 +440,10 @@ export default function ScheduleDetail() {
                   <p className="font-medium">Review coverage before publishing.</p>
                   <ul className="list-disc pl-5 text-xs">
                     {scheduleAnalytics.unitDayCoverageGaps > 0 && <li>{scheduleAnalytics.unitDayCoverageGaps} unit-day coverage gap{scheduleAnalytics.unitDayCoverageGaps === 1 ? "" : "s"} based on active units and schedule dates.</li>}
+                    {staffingRatios.isBelowTarget && <li>Current PPD is {staffingRatios.ppd.toFixed(2)} against a target of {staffingRatios.targetPpd.toFixed(2)}; add {staffingRatios.hoursGap} scheduled care hour{staffingRatios.hoursGap === 1 ? "" : "s"} to meet the target.</li>}
+                    {staffingRatios.daysBelowMinimumStaffing.map((row) => (
+                      <li key={row.date}>{formatDateLabel(row.date)} has {row.scheduledStaff} scheduled staff, below the minimum of {row.minimumStaff}.</li>
+                    ))}
                     {scheduleAnalytics.employeesOver40Hours.map((row) => (
                       <li key={row.employeeId}>{row.name} is scheduled for {row.hours} hours in this period.</li>
                     ))}
