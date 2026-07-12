@@ -9,15 +9,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
-  useListHelpArticles, type HelpArticle, type FaqContent, type JobAideContent,
+  useListHelpArticles, findArticleForRoute, LAST_VISITED_ROUTE_KEY,
+  type HelpArticle, type FaqContent, type JobAideContent,
 } from "@/hooks/useHelpArticles";
 import {
   useListSupportTickets, useCreateSupportTicket,
   SUPPORT_TICKET_CATEGORIES, SUPPORT_TICKET_PRIORITIES,
 } from "@/hooks/useSupportTickets";
 import { useAuth } from "@/lib/auth";
+import { canViewPath, canonicalHelpPathForRole } from "@/lib/appDomains";
+import { filterHelpArticlesForRole } from "@/lib/helpArticleVisibility";
 import { useToast } from "@/hooks/use-toast";
-import { Search, FileDown, Plus, ChevronRight, Lightbulb, ExternalLink, Paperclip, X } from "lucide-react";
+import { Search, FileDown, Plus, ChevronRight, Lightbulb, ExternalLink, Paperclip, X, Sparkles } from "lucide-react";
 
 const STATUS_DISPLAY: Record<string, { color: string; label: string }> = {
   open: { color: "bg-blue-100 text-blue-800", label: "Open" },
@@ -113,7 +116,13 @@ function FaqTab() {
 }
 
 function JobAideItem({ article }: { article: HelpArticle }) {
+  const { user } = useAuth();
   const aide = article.content as unknown as JobAideContent;
+  const relatedHref = aide.relatedRoute
+    ? canonicalHelpPathForRole(aide.relatedRoute.href, user?.role)
+    : null;
+  const showRelatedRoute = !!relatedHref && canViewPath(relatedHref, user?.role);
+
   return (
     <AccordionItem value={article.id} className="border rounded-lg px-4">
       <AccordionTrigger className="hover:no-underline text-left">
@@ -135,8 +144,8 @@ function JobAideItem({ article }: { article: HelpArticle }) {
             ))}
           </div>
         )}
-        {aide.relatedRoute && (
-          <Link href={aide.relatedRoute.href}>
+        {showRelatedRoute && aide.relatedRoute && relatedHref && (
+          <Link href={relatedHref}>
             <Button variant="outline" size="sm" className="mt-3 gap-1.5">
               {aide.relatedRoute.label} <ExternalLink className="h-3.5 w-3.5" />
             </Button>
@@ -147,13 +156,18 @@ function JobAideItem({ article }: { article: HelpArticle }) {
   );
 }
 
-function JobAidesTab() {
+function JobAidesTab({ pinnedArticleId }: { pinnedArticleId?: string }) {
+  const { user } = useAuth();
   const [query, setQuery] = useState("");
   const { data, isLoading } = useListHelpArticles("job_aide");
-  const articles = useMemo(() => data ?? [], [data]);
+  const articles = useMemo(() => filterHelpArticlesForRole(data ?? [], user?.role), [data, user?.role]);
   const filtered = useMemo(() => searchArticles(articles, query), [articles, query]);
   const categories = useMemo(() => articleCategories(articles), [articles]);
   const isSearching = query.trim().length > 0;
+  const pinnedArticle = useMemo(
+    () => (pinnedArticleId ? articles.find((a) => a.id === pinnedArticleId) : undefined),
+    [articles, pinnedArticleId]
+  );
 
   if (isLoading) {
     return <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}</div>;
@@ -161,6 +175,23 @@ function JobAidesTab() {
 
   return (
     <div className="space-y-4">
+      {/* Pinned above the search box/category list -- see findArticleForRoute -- so the one job
+          aide relevant to wherever the user came from doesn't get lost in the rest. Hidden while
+          actively searching since it'd otherwise duplicate/compete with results the user explicitly
+          asked for. */}
+      {pinnedArticle && !isSearching && (
+        <div>
+          <p className="flex items-center gap-1.5 px-1 pb-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
+            <Sparkles className="h-3.5 w-3.5" /> Related to where you came from
+          </p>
+          <Accordion type="multiple" defaultValue={[pinnedArticle.id]}>
+            <div className="rounded-lg ring-2 ring-primary/30">
+              <JobAideItem article={pinnedArticle} />
+            </div>
+          </Accordion>
+        </div>
+      )}
+
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search job aides..." className="pl-9" />
@@ -184,7 +215,9 @@ function JobAidesTab() {
       ) : (
         <Accordion type="multiple" defaultValue={categories.slice(0, 1)} className="space-y-3">
           {categories.map((category) => {
-            const aides = articles.filter((a) => a.category === category);
+            // Excludes the pinned article (if any) -- it's already shown, expanded, above -- so it
+            // doesn't also show up a second time buried in its normal category.
+            const aides = articles.filter((a) => a.category === category && a.id !== pinnedArticle?.id);
             if (!aides.length) return null;
             return (
               <AccordionItem key={category} value={category} className="border rounded-lg px-4">
@@ -414,8 +447,31 @@ function SupportTab({ base }: { base: string }) {
 }
 
 export default function HelpCenter() {
+  const { user } = useAuth();
   const [location] = useLocation();
   const base = location.startsWith("/me") ? "/me" : "/app";
+  const [activeTab, setActiveTab] = useState("faq");
+
+  // Read once per mount rather than tracked live -- this page is about where the user *came from*
+  // on the way in, so it shouldn't shift under them while they're sitting here (it wouldn't anyway,
+  // since Header excludes /app/help and /me/help from what it records, but this keeps that
+  // invariant explicit rather than relying on it implicitly).
+  const [originRoute] = useState<string | null>(() => {
+    try {
+      return window.sessionStorage.getItem(LAST_VISITED_ROUTE_KEY);
+    } catch {
+      return null;
+    }
+  });
+  const { data: jobAides } = useListHelpArticles("job_aide");
+  const visibleJobAides = useMemo(
+    () => filterHelpArticlesForRole(jobAides ?? [], user?.role),
+    [jobAides, user?.role]
+  );
+  const contextualArticle = useMemo(
+    () => findArticleForRoute(visibleJobAides, originRoute),
+    [visibleJobAides, originRoute]
+  );
 
   return (
     <div className="space-y-6">
@@ -426,7 +482,22 @@ export default function HelpCenter() {
         </p>
       </div>
 
-      <Tabs defaultValue="faq">
+      {contextualArticle && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="flex flex-wrap items-center gap-3 py-4">
+            <Sparkles className="h-5 w-5 text-primary shrink-0" />
+            <div className="flex-1 min-w-[12rem]">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">Related to where you came from</p>
+              <p className="text-sm font-medium mt-0.5">{contextualArticle.title}</p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setActiveTab("job-aides")}>
+              View job aide <ChevronRight className="h-3.5 w-3.5 ml-1" />
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="faq">FAQ</TabsTrigger>
           <TabsTrigger value="job-aides">Job Aides</TabsTrigger>
@@ -434,7 +505,7 @@ export default function HelpCenter() {
           <TabsTrigger value="support">Support</TabsTrigger>
         </TabsList>
         <TabsContent value="faq" className="mt-4"><FaqTab /></TabsContent>
-        <TabsContent value="job-aides" className="mt-4"><JobAidesTab /></TabsContent>
+        <TabsContent value="job-aides" className="mt-4"><JobAidesTab pinnedArticleId={contextualArticle?.id} /></TabsContent>
         <TabsContent value="manual" className="mt-4"><ManualTab /></TabsContent>
         <TabsContent value="support" className="mt-4"><SupportTab base={base} /></TabsContent>
       </Tabs>

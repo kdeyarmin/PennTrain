@@ -164,7 +164,7 @@ export default function Landing() {
                 Know who is trained, what is due, and where the proof lives.
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-white/74">
-                CareMetric Train is an LMS and compliance command center for care
+                CareMetric Train is a compliance training platform and command center for care
                 providers. It turns required in-services, credentials, practicums,
                 live classes, resident assessments, incidents, and certificates
                 into a single survey-ready record for every employee, resident,
@@ -389,7 +389,7 @@ export default function Landing() {
             <p className="mt-4 text-muted-foreground">
               Recent releases layered resident care, incident and inspection
               management, AI-assisted content, and workforce scheduling on top of
-              the core training LMS.
+              the core training platform.
             </p>
           </Reveal>
 

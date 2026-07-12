@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useRoute, Link } from "wouter";
 import { useGetTrainingClass, useListClassAttendees, useCheckinViaKioskPin } from "@/hooks/useTrainingClasses";
 import { useListEmployees } from "@/hooks/useEmployees";
+import { useListFacilities } from "@/hooks/useFacilities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,20 @@ export default function ClassKiosk() {
 
   const { data: cls } = useGetTrainingClass(classId);
   const { data: attendees } = useListClassAttendees(classId);
-  const { data: employees } = useListEmployees({ status: "active" });
+  // Scoped to the class's facility when it has one -- an org-wide search would otherwise let a
+  // same-named employee from a different site get checked in by mistake at a live kiosk with
+  // people waiting. Cross-facility classes (facility_id null) fall back to an org-wide search,
+  // which is why facility name is still surfaced per row below.
+  const { data: facilityEmployees } = useListEmployees(
+    { status: "active", facilityId: cls?.facility_id ?? undefined },
+    { enabled: !!cls?.facility_id },
+  );
+  // ClassDetail's Add Attendees dialog isn't facility-restricted, so a class can legitimately have
+  // an attendee whose home facility differs from the class's own -- without this, that person could
+  // never be found by the facility-scoped search above and could never check in. Merged in below,
+  // scoped to just the actual attendee roster rather than opening the whole search back up org-wide.
+  const { data: allActiveEmployees } = useListEmployees({ status: "active" });
+  const { data: facilities } = useListFacilities();
   const { mutateAsync: checkinKiosk, isPending } = useCheckinViaKioskPin();
 
   const [search, setSearch] = useState("");
@@ -24,12 +38,22 @@ export default function ClassKiosk() {
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
 
   const attendeeByEmployeeId = useMemo(() => new Map((attendees ?? []).map((a) => [a.employee_id, a])), [attendees]);
+  const facilitiesById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
 
-  const filteredEmployees = (employees ?? [])
+  const employees = useMemo(() => {
+    if (!cls?.facility_id) return allActiveEmployees ?? [];
+    const facilityEmployeeIds = new Set((facilityEmployees ?? []).map((e) => e.id));
+    const outOfFacilityAttendees = (allActiveEmployees ?? []).filter(
+      (e) => attendeeByEmployeeId.has(e.id) && !facilityEmployeeIds.has(e.id)
+    );
+    return [...(facilityEmployees ?? []), ...outOfFacilityAttendees];
+  }, [cls?.facility_id, facilityEmployees, allActiveEmployees, attendeeByEmployeeId]);
+
+  const filteredEmployees = employees
     .filter((e) => !search || `${e.first_name} ${e.last_name}`.toLowerCase().includes(search.toLowerCase()))
     .slice(0, 8);
 
-  const selectedEmployee = (employees ?? []).find((e) => e.id === selectedEmployeeId);
+  const selectedEmployee = employees.find((e) => e.id === selectedEmployeeId);
 
   const resetToSearch = () => {
     setSelectedEmployeeId(null);
@@ -89,19 +113,27 @@ export default function ClassKiosk() {
               {search && (
                 <div className="divide-y border rounded-lg max-h-64 overflow-y-auto">
                   {filteredEmployees.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">No matching employee.</p>
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No matching employee{cls?.facility_id ? ` at ${facilitiesById.get(cls.facility_id)?.name ?? "this facility"}` : ""}.
+                    </p>
                   ) : (
                     filteredEmployees.map((emp) => {
                       const attendee = attendeeByEmployeeId.get(emp.id);
                       const status = attendee?.checked_out_at ? "Checked out" : attendee?.checked_in_at ? "Checked in" : "Not checked in";
+                      const facilityName = facilitiesById.get(emp.facility_id)?.name;
                       return (
                         <button
                           key={emp.id}
-                          className="w-full text-left px-4 py-3 hover:bg-muted/50 flex items-center justify-between"
+                          className="w-full text-left px-4 py-3 hover:bg-muted/50 flex items-center justify-between gap-3"
                           onClick={() => setSelectedEmployeeId(emp.id)}
                         >
-                          <span className="font-medium">{emp.first_name} {emp.last_name}</span>
-                          <span className="text-xs text-muted-foreground">{status}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="font-medium block truncate">{emp.first_name} {emp.last_name}</span>
+                            <span className="text-xs text-muted-foreground block truncate">
+                              {[facilityName, emp.job_title].filter(Boolean).join(" · ") || "—"}
+                            </span>
+                          </span>
+                          <span className="text-xs text-muted-foreground shrink-0">{status}</span>
                         </button>
                       );
                     })

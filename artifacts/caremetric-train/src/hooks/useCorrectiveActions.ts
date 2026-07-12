@@ -57,3 +57,48 @@ export function useUpdateCorrectiveAction() {
   });
 }
 
+export function useDeleteCorrectiveAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("corrective_actions").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["corrective_actions"] }),
+  });
+}
+
+export interface CreateViolationRetrainingActionInput {
+  violationId: string;
+  employeeId: string;
+  courseId: string;
+  courseVersionId: string;
+  dueDate: string;
+  description: string;
+}
+
+// Atomic: creates the course_assignment and its corrective_action in one call so a mid-flow
+// failure can't leave an orphaned assignment untracked by the violation's Plan of Correction --
+// see create_violation_retraining_action_rpc.sql.
+export function useCreateViolationRetrainingAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CreateViolationRetrainingActionInput) => {
+      const { data, error } = await supabase.rpc("create_violation_retraining_action", {
+        p_violation_id: input.violationId,
+        p_employee_id: input.employeeId,
+        p_course_id: input.courseId,
+        p_course_version_id: input.courseVersionId,
+        p_due_date: input.dueDate,
+        p_description: input.description,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["corrective_actions"] });
+      queryClient.invalidateQueries({ queryKey: ["course_assignments"] });
+    },
+  });
+}
+

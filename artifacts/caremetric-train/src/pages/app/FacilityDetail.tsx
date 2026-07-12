@@ -11,10 +11,11 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Building2, MapPin, Phone, Users, BookOpen, BarChart3, Clock, XCircle, Pencil, Trash2, AlertTriangle, Flame } from "lucide-react";
+import { ArrowLeft, Building2, MapPin, Phone, Users, BedDouble, BookOpen, BarChart3, Clock, XCircle, Pencil, Trash2, AlertTriangle, Flame, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGetFacility, useUpdateFacility, useDeleteFacility } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
+import { useListResidents } from "@/hooks/useResidents";
 import { useListTrainingRecords } from "@/hooks/useTrainingRecords";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useListPracticums } from "@/hooks/usePracticums";
@@ -57,19 +58,35 @@ export default function FacilityDetail() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // This page is mounted at both /admin/facilities/:id (platform_admin) and
-  // /app/facilities/:id (org roles) -- every internal link/redirect must match whichever
-  // prefix the viewer is under, mirroring the pattern in EmployeeDetail.tsx.
-  const basePath = user?.role === "platform_admin" ? "/admin/facilities" : "/app/facilities";
-  const employeeBasePath = user?.role === "platform_admin" ? "/admin/employees" : "/app/employees";
+  // This page is mounted under /admin, /app, and /trainer prefixes -- every internal
+  // link/redirect must match whichever role-specific directory surface the viewer is under,
+  // mirroring the pattern in EmployeeDetail.tsx.
+  const basePath = user?.role === "platform_admin" ? "/admin/facilities"
+    : user?.role === "trainer" ? "/trainer/facilities"
+    : "/app/facilities";
+  const employeeBasePath = user?.role === "platform_admin" ? "/admin/employees"
+    : user?.role === "trainer" ? "/trainer/employees"
+    : "/app/employees";
+  // Incident *detail* rows do have an /admin/incidents/:id counterpart (Alerts deep links use it --
+  // see IncidentDetail.tsx), unlike the list route the "View all" link below points at.
+  const incidentsBasePath = user?.role === "platform_admin" ? "/admin/incidents" : "/app/incidents";
 
   const canManage = ["platform_admin", "org_admin"].includes(user?.role ?? "");
   // Matches incidents_select RLS -- trainer is excluded (the incident data itself is sensitive),
   // unlike the inspection-compliance card below, which every viewer of this page can see.
   const canViewIncidents = ["platform_admin", "org_admin", "facility_manager", "auditor"].includes(user?.role ?? "");
+  // Matches RESIDENT_ROLES in App.tsx (the actual /app/residents* route gate) exactly -- unlike
+  // canViewIncidents above, platform_admin is deliberately left out here since there's no
+  // /admin/residents route for a "View all"/row link to land on.
+  const canViewResidents = ["org_admin", "facility_manager", "auditor"].includes(user?.role ?? "");
+  // Incidents/Inspections are only reachable via /app/incidents and /app/inspections -- there's no
+  // /admin/incidents or /admin/inspections *list* route (only .../:id, for Alerts deep links), so a
+  // platform_admin viewing this page via /admin/facilities/:id has nowhere for a "View all" link to go.
+  const canLinkToOrgLists = user?.role !== "platform_admin";
 
   const { data: facility, isLoading: facLoading } = useGetFacility(id);
   const { data: employees, isLoading: empLoading } = useListEmployees({ facilityId: id });
+  const { data: residents, isLoading: residentsLoading } = useListResidents({ facilityId: id });
   const { data: trainingRecords, isLoading: recordsLoading } = useListTrainingRecords({ facilityId: id });
   const { data: trainingTypes } = useListTrainingTypes();
   const { data: practicums, isLoading: practicumsLoading } = useListPracticums({ facilityId: id });
@@ -369,10 +386,19 @@ export default function FacilityDetail() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {canViewIncidents && (
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2 text-base">
                 <AlertTriangle className="h-4 w-4 text-muted-foreground" /> Open Incidents
               </CardTitle>
+              {canLinkToOrgLists && (
+                // Incidents.tsx reads this facility filter via useUrlState({ ..., facility: "all", ... }) --
+                // the query param is named "facility", not "facilityId".
+                <Link href={`${incidentsBasePath}?facility=${facility.id}`}>
+                  <Button variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground -mr-2">
+                    View All <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                  </Button>
+                </Link>
+              )}
             </CardHeader>
             <CardContent>
               {incidentsLoading ? (
@@ -387,7 +413,7 @@ export default function FacilityDetail() {
                 ) : (
                   <div className="space-y-1.5">
                     {openIncidents.slice(0, 5).map(i => (
-                      <Link key={i.id} href={`/app/incidents/${i.id}`} className="flex items-center justify-between text-sm hover:underline">
+                      <Link key={i.id} href={`${incidentsBasePath}/${i.id}`} className="flex items-center justify-between text-sm hover:underline">
                         <span className="truncate">{i.incident_type.replace(/_/g, " ")}</span>
                         <Badge
                           variant="outline"
@@ -408,10 +434,18 @@ export default function FacilityDetail() {
           </Card>
         )}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base">
               <Flame className="h-4 w-4 text-muted-foreground" /> Inspection Compliance
             </CardTitle>
+            {canLinkToOrgLists && (
+              // Same useUrlState "facility" key as Incidents.tsx above -- see InspectionItems.tsx.
+              <Link href={`/app/inspections?facility=${facility.id}`}>
+                <Button variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground -mr-2">
+                  View All <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                </Button>
+              </Link>
+            )}
           </CardHeader>
           <CardContent>
             {inspectionsLoading ? (
@@ -473,6 +507,43 @@ export default function FacilityDetail() {
           )}
         </CardContent>
       </Card>
+
+      {canViewResidents && (PCH_ALR_ONLY_FACILITY_TYPES as readonly string[]).includes(facility.facility_type) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BedDouble className="h-5 w-5" /> Residents ({residents?.length ?? "..."})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {residentsLoading ? (
+              <div className="space-y-2">
+                {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12" />)}
+              </div>
+            ) : !residents?.length ? (
+              <p className="text-sm text-muted-foreground">No residents on record.</p>
+            ) : (
+              <div className="space-y-2">
+                {residents.map(r => (
+                  <Link key={r.id} href={`/app/residents/${r.id}`}>
+                    <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/5 cursor-pointer">
+                      <div>
+                        <p className="font-medium text-sm">{r.last_name}, {r.first_name}</p>
+                        <p className="text-xs text-muted-foreground">{r.room ? `Room ${r.room}` : "No room on file"}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {r.sdcu && <Badge variant="outline" className="text-xs">SDCU</Badge>}
+                        {r.hospice && <Badge variant="outline" className="text-xs">Hospice</Badge>}
+                        <Badge variant={r.status === "active" ? "default" : "secondary"} className="text-xs">{r.status}</Badge>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Dialog open={showEdit} onOpenChange={o => { if (!o) setShowEdit(false); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">

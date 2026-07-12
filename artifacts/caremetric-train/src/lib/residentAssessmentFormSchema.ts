@@ -1,10 +1,11 @@
 // Shape of resident_assessment_forms.content (jsonb) plus the data-driven section/item lists that
 // both the editor UI and PDF generation walk. Field/section structure mirrors the real DHS
-// RASP (PCH) and ASP (ALR) forms directly -- reusing DHS's own structure is the compliance
-// argument for why a custom-rendered layout is acceptable in place of DHS's own PDF (both forms'
-// "Instructions for Use" pages state facilities may substitute their own form as long as it
-// captures every required DHS element: 55 Pa Code 2600.225(b)/227(b) for RASP, the parallel Ch.
-// 2800 clause for ASP).
+// RASP (PCH) and ASP (ALR) forms so this tool organizes the same information a preparer will put
+// on the state form. PDF generation starts with the official PA DHS RASP/ASP pages and appends a
+// CareMetric completion addendum from this schema. Documents like the RASP/ASP and DME have to be
+// on state-approved forms, no exception: complete_resident_compliance_item() enforces this
+// server-side by requiring a linked resident_documents row flagged is_state_form = true before an
+// item can be marked compliant.
 //
 // This is the one place in the app that stores real clinical/functional-assessment content -- the
 // no-EHR posture governing every other resident-compliance table does not apply here, by
@@ -330,7 +331,7 @@ function simpleItemsFor(keys: SectionItem[]): Record<string, SimpleNeedAnswer> {
 
 // Which resident_compliance_items item types the digital form applies to -- preadmission_screening
 // and medical_evaluation are separate DHS forms/processes this schema doesn't model, so they only
-// ever get the plain "mark complete"/"upload document" paths, not "Complete in CareMetric".
+// ever get the "Mark Complete" (attach the state form) path, not "Prepare in CareMetric".
 export function isDigitalFormEligible(itemType: string): boolean {
   return ["initial_assessment_15day", "annual_reassessment", "significant_change_reassessment", "support_plan_30day"].includes(itemType);
 }
