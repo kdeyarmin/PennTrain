@@ -35,7 +35,7 @@ import {
   declineResidentChartCreation,
   isPdfFileName,
   isPotentialResidentDuplicate,
-  nextJobState,
+  simulateNextJobState,
   markResidentChartCreated,
   splitResidentName,
   summarizeBatch,
@@ -103,7 +103,8 @@ export default function DocumentAnalyzer() {
   const selectedJob = jobs.find((job) => job.id === selectedJobId) ?? jobs[0];
   const canReview = !!selectedJob && ["ready", "needs_review"].includes(selectedJob.status);
   const selectedFacility = facilities?.find((facility) => facility.id === selectedJob?.facilityId);
-  const { data: existingResidents } = useListResidents({ facilityId: selectedJob?.facilityId || "__no_facility_selected__" });
+  const selectedFacilityId = selectedJob?.facilityId.trim() || undefined;
+  const { data: existingResidents } = useListResidents({ facilityId: selectedFacilityId }, { enabled: Boolean(selectedFacilityId) });
   const possibleDuplicateResident = selectedJob
     ? existingResidents?.find((resident) => isPotentialResidentDuplicate(selectedJob, resident))
     : undefined;
@@ -114,7 +115,7 @@ export default function DocumentAnalyzer() {
     if (!hasInProgressJobs) return;
 
     const timer = window.setInterval(() => {
-      setJobs((current) => current.map((job) => nextJobState(job)));
+      setJobs((current) => current.map((job) => simulateNextJobState(job)));
     }, 1_200);
 
     return () => window.clearInterval(timer);

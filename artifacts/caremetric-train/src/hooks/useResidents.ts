@@ -11,7 +11,11 @@ export interface ListResidentsFilters {
   status?: string;
 }
 
-export function useListResidents(filters: ListResidentsFilters = {}) {
+export interface ListResidentsOptions {
+  enabled?: boolean;
+}
+
+export function useListResidents(filters: ListResidentsFilters = {}, options: ListResidentsOptions = {}) {
   return useQuery({
     queryKey: ["residents", filters],
     queryFn: async () => {
@@ -22,6 +26,7 @@ export function useListResidents(filters: ListResidentsFilters = {}) {
       if (error) throw error;
       return data;
     },
+    enabled: options.enabled ?? true,
   });
 }
 

@@ -74,7 +74,7 @@ export function summarizeBatch(jobs: DocumentAnalyzerJob[]) {
   };
 }
 
-export function nextJobState(job: DocumentAnalyzerJob, now = new Date()): DocumentAnalyzerJob {
+export function simulateNextJobState(job: DocumentAnalyzerJob, now = new Date()): DocumentAnalyzerJob {
   if (job.status === "ready" || job.status === "needs_review" || job.status === "failed") return job;
 
   if (job.status === "queued") {
@@ -105,6 +105,10 @@ export function nextJobState(job: DocumentAnalyzerJob, now = new Date()): Docume
     chartCreationStatus: "not_asked",
     lastUpdated: now.toISOString(),
   };
+}
+
+export function nextJobState(job: DocumentAnalyzerJob, now = new Date()): DocumentAnalyzerJob {
+  return simulateNextJobState(job, now);
 }
 
 export function updateJobDraft(job: DocumentAnalyzerJob, patch: Partial<Pick<DocumentAnalyzerJob, "residentName" | "facility" | "facilityId" | "currentStateForm" | "reviewDueDate" | "admissionDate" | "notes">>, now = new Date()): DocumentAnalyzerJob {
