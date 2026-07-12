@@ -26,7 +26,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, BedDouble, ClipboardList, FileText, Upload, Download, Trash2, Check, TriangleAlert, FilePenLine, Lock, Users, Plus, Pencil } from "lucide-react";
+import { ArrowLeft, BedDouble, ClipboardList, FileText, Upload, Download, Trash2, Check, TriangleAlert, FilePenLine, Lock, Users, Plus, Pencil, Printer } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
@@ -34,6 +34,8 @@ import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, getComplianceFormLabe
 import { isDigitalFormEligible, deriveAssessmentReason } from "@/lib/residentAssessmentFormSchema";
 import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 import { toLocalIsoDate } from "@/lib/dateUtils";
+import { ResidentFaceSheet } from "@/components/residents/ResidentFaceSheet";
+import { buildResidentFaceSheetPacket } from "@/lib/residentFaceSheet";
 
 type SupportRow = Partial<Pick<ResidentInformalSupport, "id">> & { name: string; relationship: string; phone: string };
 
@@ -304,8 +306,17 @@ export default function ResidentDetail() {
     );
   }
 
+  const faceSheetPacket = buildResidentFaceSheetPacket({
+    resident,
+    facility,
+    supports: informalSupports ?? [],
+    complianceItems: items ?? [],
+    documents: documents ?? [],
+  });
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 print:space-y-0">
+      <div className="space-y-6 print:hidden">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
           <Link href="/app/residents"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
@@ -325,6 +336,9 @@ export default function ResidentDetail() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => window.print()} disabled={informalSupportsLoading || itemsLoading || documentsLoading}>
+            <Printer className="mr-2 h-3.5 w-3.5" /> Print Face Sheet
+          </Button>
           {resident.sdcu && <Badge variant="outline">SDCU</Badge>}
           {resident.hospice && <Badge variant="outline">Hospice</Badge>}
           {canManage ? (
@@ -714,6 +728,10 @@ export default function ResidentDetail() {
           )}
         </CardContent>
       </Card>
+
+      </div>
+
+      <ResidentFaceSheet packet={faceSheetPacket} />
 
       <AlertDialog open={!!docPendingDelete} onOpenChange={(open) => !open && setDocPendingDelete(null)}>
         <AlertDialogContent>
