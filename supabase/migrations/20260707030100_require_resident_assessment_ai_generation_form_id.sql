@@ -15,14 +15,15 @@
 do $$
 declare v_conname text;
 begin
-  select conname into v_conname
-  from pg_constraint
-  where conrelid = 'public.resident_assessment_ai_generations'::regclass
-    and contype = 'f'
-    and pg_get_constraintdef(oid) like '%resident_assessment_form_id%';
-  if v_conname is not null then
+  for v_conname in
+    select conname
+    from pg_constraint
+    where conrelid = 'public.resident_assessment_ai_generations'::regclass
+      and contype = 'f'
+      and pg_get_constraintdef(oid) like '%resident_assessment_form_id%'
+  loop
     execute format('alter table public.resident_assessment_ai_generations drop constraint %I', v_conname);
-  end if;
+  end loop;
 end $$;
 
 alter table public.resident_assessment_ai_generations
