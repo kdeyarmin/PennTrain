@@ -164,9 +164,11 @@ function pickEncoding(acceptEncoding) {
     accepted.set(name.trim().toLowerCase(), Number.isNaN(q) ? 0 : q);
   }
   const q = (name) => accepted.get(name) ?? accepted.get("*") ?? 0;
-  if (q("br") > 0) return { encoding: "br", suffix: ".br" };
-  if (q("gzip") > 0) return { encoding: "gzip", suffix: ".gz" };
-  return null;
+  const qBr = q("br");
+  const qGzip = q("gzip");
+  if (qBr <= 0 && qGzip <= 0) return null;
+  if (qBr >= qGzip) return { encoding: "br", suffix: ".br" };
+  return { encoding: "gzip", suffix: ".gz" };
 }
 
 async function serveFile(filePath, req, res, { cacheable }) {
