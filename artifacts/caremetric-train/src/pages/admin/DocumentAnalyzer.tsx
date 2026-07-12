@@ -108,15 +108,17 @@ export default function DocumentAnalyzer() {
     ? existingResidents?.find((resident) => isPotentialResidentDuplicate(selectedJob, resident))
     : undefined;
 
+  const hasInProgressJobs = jobs.some((job) => job.status === "queued" || job.status === "processing");
+
   useEffect(() => {
-    if (!jobs.some((job) => job.status === "queued" || job.status === "processing")) return;
+    if (!hasInProgressJobs) return;
 
     const timer = window.setInterval(() => {
       setJobs((current) => current.map((job) => nextJobState(job)));
     }, 1_200);
 
     return () => window.clearInterval(timer);
-  }, [jobs]);
+  }, [hasInProgressJobs]);
 
   useEffect(() => {
     if (!summary.isComplete) return;
