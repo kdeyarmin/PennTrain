@@ -61,14 +61,36 @@ create trigger set_updated_at before update on public.binder_export_jobs
 
 alter table public.binder_export_jobs enable row level security;
 
--- Mirrors the binder-exports storage bucket read policy: the roles who may read the
--- finished PDF may see the export queue for their organization.
+-- The async download path treats visibility of a binder_export_jobs row as the proof that
+-- the caller may sign and download its PDF, so this policy must not be wider than the old
+-- synchronous flow's auto-scoping. org_admin/auditor are org-wide reporting roles and see
+-- the whole org queue; a facility_manager sees only exports they requested or whose facility
+-- scope is entirely within their assigned facilities -- never an org-wide (empty scope) or
+-- other-facility export.
 create policy binder_export_jobs_select on public.binder_export_jobs
 for select to authenticated using (
   (select public.is_platform_admin())
   or (
     organization_id = (select public.current_org_id())
-    and (select public.current_role()) in ('org_admin', 'facility_manager', 'auditor')
+    and (
+      (select public.current_role()) in ('org_admin', 'auditor')
+      or (
+        (select public.current_role()) = 'facility_manager'
+        and (
+          requested_by = (select auth.uid())
+          or (
+            cardinality(facility_ids) > 0
+            and facility_ids <@ (
+              select coalesce(array_agg(fa.facility_id), '{}'::uuid[])
+              from public.facility_assignments fa
+              join public.facilities f on f.id = fa.facility_id
+              where fa.profile_id = (select auth.uid())
+                and f.organization_id = (select public.current_org_id())
+            )
+          )
+        )
+      )
+    )
   )
 );
 

@@ -54,7 +54,7 @@ select results_eq(
   'with the flag off, hires are not screened at insert time'
 );
 
-select pg_temp.act_as('15000000-0000-4000-8000-000000000021','aal2');
+select pg_temp.act_as('15000000-0000-4000-8000-000000000021');
 select lives_ok(
   $$ select public.set_release_flag(
        'screening.on_hire_exclusion','global',true,'screening','pgTAP: enable on-hire screening',null) $$,

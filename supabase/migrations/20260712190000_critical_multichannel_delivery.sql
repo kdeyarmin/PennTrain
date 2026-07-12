@@ -69,13 +69,16 @@ begin
     and v_profile.sms_opt_in and v_profile.sms_consent_at is not null
     and v_profile.phone is not null;
 
-  -- Neither deliverable: fall back to the single-channel path so its swap logic still
-  -- gets a chance (e.g. the preferred channel is off but the other is on but flagged
-  -- undeliverable here for a different reason -- keep behavior conservative and identical).
+  -- Neither channel deliverable by the rules above: fall back to the single-channel path,
+  -- which applies the same deliverability rules and so also creates nothing here -- but
+  -- return its actual result rather than a hard-coded 0, so the documented "number of
+  -- deliveries created" contract holds even if the two rule sets ever diverge.
   if not v_email_ok and not v_sms_ok then
-    perform public.enqueue_preferred_notification_delivery(
+    if public.enqueue_preferred_notification_delivery(
       p_organization_id, p_profile_id, p_notification_id, p_delivery_type
-    );
+    ) is not null then
+      return 1;
+    end if;
     return 0;
   end if;
 

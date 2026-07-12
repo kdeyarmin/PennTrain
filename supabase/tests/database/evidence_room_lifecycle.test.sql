@@ -1,5 +1,5 @@
 begin;
-select plan(36);
+select plan(37);
 
 -- Evidence room lifecycle: staff create/promote/publish/withdraw/revoke over the Phase 5
 -- evidence schema, binder-export promotion under the checksum contract, and the anon
@@ -51,6 +51,10 @@ select ok(has_function_privilege('anon','public.accept_evidence_guest_terms(text
   'guests can accept terms without a session');
 select ok(not has_function_privilege('anon','public.add_binder_export_to_evidence_collection(uuid,uuid,text)','EXECUTE'),
   'anonymous callers cannot manage collections');
+-- The evidence-guest-download edge function authorizes through a service-role client before
+-- signing the object, so service_role must be able to execute the authorization RPC.
+select ok(has_function_privilege('service_role','public.authorize_evidence_guest_artifact(text,uuid,text,text)','EXECUTE'),
+  'the trusted download backend can authorize a guest artifact');
 
 -- Worker finish now records the PDF checksum alongside the storage location.
 insert into ev_ids(key,id)

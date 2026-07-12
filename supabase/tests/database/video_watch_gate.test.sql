@@ -43,7 +43,7 @@ select results_eq(
   'unknown feature keys read false'
 );
 
-select pg_temp.act_as('16000000-0000-4000-8000-000000000021','aal2');
+select pg_temp.act_as('16000000-0000-4000-8000-000000000021');
 select lives_ok(
   $$ select public.set_release_flag(
        'learning.video_watch_gate','global',true,'learning','pgTAP: enable watch gate',null) $$,

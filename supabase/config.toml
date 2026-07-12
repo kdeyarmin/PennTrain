@@ -9,8 +9,13 @@ verify_jwt = true
 [functions.bulk-import-employees]
 verify_jwt = true
 
+# Serves both authenticated user downloads/enqueues and the internal binder-export cron
+# worker. pg_net sends no user JWT, so the gateway must not require one; JWT verification is
+# enforced inside the function for user requests (Authorization header + getUser), and cron
+# requests are gated by the shared X-CareMetric-Cron-Secret constant-time check -- the same
+# split as generate-certificate-pdf.
 [functions.generate-compliance-binder]
-verify_jwt = true
+verify_jwt = false
 
 [functions.generate-certificate-pdf]
 # Serves both authenticated user downloads and the internal PDF-job cron worker. JWT

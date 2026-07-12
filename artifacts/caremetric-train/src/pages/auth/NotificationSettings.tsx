@@ -66,7 +66,7 @@ export default function NotificationSettings() {
         id: user.id,
         first_name: form.firstName.trim(),
         last_name: form.lastName.trim(),
-        phone: form.phone || null,
+        phone: form.phone.trim() || null,
         sms_opt_in: form.smsOptIn,
         preferred_notification_channel: form.preferredNotificationChannel,
       },

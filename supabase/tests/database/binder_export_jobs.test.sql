@@ -1,5 +1,5 @@
 begin;
-select plan(14);
+select plan(16);
 
 -- Async compliance binder exports: caller-authorized enqueue with role scoping and
 -- in-flight dedup, service-role worker claim/finish with lease checks and retry
@@ -71,6 +71,21 @@ select results_eq(
      where id = (select id from binder_ids where key='manager') $$,
   $$ values (array['17000000-0000-4000-8000-000000000011'::uuid]) $$,
   'a facility manager is auto-scoped to their assigned facilities'
+);
+
+-- Queue visibility: a facility manager sees only exports they requested or whose scope is
+-- entirely within their assigned facilities -- never the org-wide or other-facility exports
+-- the org admin created (the download path signs on the strength of this visibility).
+select results_eq(
+  $$ select count(*)::int from public.binder_export_jobs $$,
+  array[1],
+  'a facility manager sees only exports scoped to their assigned facilities'
+);
+select results_eq(
+  $$ select count(*)::int from public.binder_export_jobs
+     where id = (select id from binder_ids where key='admin') $$,
+  array[0],
+  'a facility manager cannot see an org-wide export they did not request'
 );
 
 -- Queue visibility is org-scoped.
