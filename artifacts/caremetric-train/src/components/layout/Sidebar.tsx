@@ -56,14 +56,11 @@ import {
   HelpCircle,
   Search,
   ChevronDown,
-<<<<<<< HEAD
-=======
   Rocket,
   Star,
   Activity,
   Network,
   UserRoundCheck,
->>>>>>> origin/main
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -144,10 +141,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/facilities", label: "Facilities", icon: Building2 },
           { href: "/app/employees", label: "Employees", icon: Users },
           { href: "/app/schedule", label: "Schedule", icon: CalendarDays },
-<<<<<<< HEAD
-=======
           { href: "/app/workforce-operations", label: "Workforce Operations", icon: UserRoundCheck },
->>>>>>> origin/main
           ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & Equipment", icon: Flame }] : []),
         ]
       },
@@ -159,11 +153,8 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/course-assignments", label: "Course Assignments", icon: FileCheck },
           { href: "/trainer/classes", label: "In-Service Classes", icon: GraduationCap },
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
-<<<<<<< HEAD
-=======
           { href: "/app/governed-learning", label: "Governed Learning", icon: BookCheck },
           { href: "/me/courses", label: "My Courses", icon: BookOpen },
->>>>>>> origin/main
         ]
       },
       {
@@ -258,10 +249,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
           { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
           ...(showPchAlrModules ? [{ href: "/app/practicums", label: "Practicums", icon: FileCheck }] : []),
-<<<<<<< HEAD
-=======
           { href: "/me/courses", label: "My Courses", icon: BookOpen },
->>>>>>> origin/main
         ]
       },
       {
@@ -403,15 +391,11 @@ function isNavItemActive(item: NavItem, location: string): boolean {
 // Persisted per-user so each person's choice of which groups to keep collapsed sticks across
 // visits, without needing a backend round-trip for what's purely a display preference.
 function collapsedSectionsStorageKey(userId: string): string {
-<<<<<<< HEAD
   return `cmtrain.sidebar.collapsedSections.${userId}`;
-=======
-  return `caremetric.sidebar.collapsedSections.${userId}`;
 }
 
 function pinnedPagesStorageKey(userId: string): string {
-  return `caremetric.sidebar.pinnedPages.${userId}`;
->>>>>>> origin/main
+  return `cmtrain.sidebar.pinnedPages.${userId}`;
 }
 
 function loadCollapsedSections(userId: string): Set<string> {
@@ -431,8 +415,6 @@ function saveCollapsedSections(userId: string, titles: Set<string>): void {
   }
 }
 
-<<<<<<< HEAD
-=======
 function loadPinnedPages(userId: string): Set<string> {
   try {
     const raw = window.localStorage.getItem(pinnedPagesStorageKey(userId));
@@ -450,7 +432,6 @@ function savePinnedPages(userId: string, hrefs: Set<string>): void {
   }
 }
 
->>>>>>> origin/main
 /**
  * The sidebar's inner content (logo, filter, nav sections, user footer). Shared by the
  * desktop `<aside>` and the mobile drawer. `onNavigate` lets the mobile drawer
@@ -462,31 +443,23 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const handleLogout = useSignOut();
   const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
   const [filter, setFilter] = useState("");
-<<<<<<< HEAD
-const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => (user ? loadCollapsedSections(user.id) : new Set()));
-const [collapsedSectionsUserId, setCollapsedSectionsUserId] = useState<string | null>(() => user?.id ?? null);
-
-useEffect(() => {
-  if (!user) return;
-  if (collapsedSectionsUserId !== user.id) {
-    setCollapsedSections(loadCollapsedSections(user.id));
-    setCollapsedSectionsUserId(user.id);
-    return;
-  }
-  saveCollapsedSections(user.id, collapsedSections);
-}, [user, collapsedSections, collapsedSectionsUserId]);
-=======
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => (user ? loadCollapsedSections(user.id) : new Set()));
+  const [collapsedSectionsUserId, setCollapsedSectionsUserId] = useState<string | null>(() => user?.id ?? null);
   const [pinnedPages, setPinnedPages] = useState<Set<string>>(() => (user ? loadPinnedPages(user.id) : new Set()));
 
   useEffect(() => {
-    if (user) saveCollapsedSections(user.id, collapsedSections);
-  }, [user, collapsedSections]);
+    if (!user) return;
+    if (collapsedSectionsUserId !== user.id) {
+      setCollapsedSections(loadCollapsedSections(user.id));
+      setCollapsedSectionsUserId(user.id);
+      return;
+    }
+    saveCollapsedSections(user.id, collapsedSections);
+  }, [user, collapsedSections, collapsedSectionsUserId]);
 
   useEffect(() => {
     if (user) savePinnedPages(user.id, pinnedPages);
   }, [user, pinnedPages]);
->>>>>>> origin/main
 
   if (!user) return null;
 
@@ -548,28 +521,6 @@ useEffect(() => {
       .filter((section) => section.items.length > 0),
   ];
 
-  const toggleSection = (title: string) => {
-    setCollapsedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(title)) next.delete(title); else next.add(title);
-      return next;
-    });
-  };
-
-  const trimmedFilter = filter.trim().toLowerCase();
-  const isFiltering = trimmedFilter.length > 0;
-
-  // While filtering, only show matching items so a long list narrows down to what was typed.
-  // Otherwise show every item, and let each section's own collapsed/expanded state decide.
-  const visibleSections = navSections
-    .map((section) => ({
-      ...section,
-      items: isFiltering
-        ? section.items.filter((item) => item.label.toLowerCase().includes(trimmedFilter))
-        : section.items,
-    }))
-    .filter((section) => section.items.length > 0);
-
   return (
     <>
       <div className="h-[68px] flex items-center gap-3 px-6 shrink-0">
@@ -582,9 +533,6 @@ useEffect(() => {
         </div>
       </div>
 
-<<<<<<< HEAD
-      <div className="px-3 pt-3 shrink-0">
-=======
       <div className="px-3 pt-3 shrink-0 space-y-2">
         {currentNavItem && (
           <button
@@ -597,7 +545,6 @@ useEffect(() => {
             {isCurrentPagePinned ? "Unpin current page" : "Pin current page"}
           </button>
         )}
->>>>>>> origin/main
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-sidebar-foreground/40 pointer-events-none" />
           <input
