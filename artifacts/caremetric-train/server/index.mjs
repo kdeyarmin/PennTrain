@@ -145,9 +145,11 @@ function pickEncoding(acceptEncoding) {
     accepted.set(name.trim().toLowerCase(), Number.isNaN(q) ? 0 : q);
   }
   const q = (name) => accepted.get(name) ?? accepted.get("*") ?? 0;
-  if (q("br") > 0) return { encoding: "br", suffix: ".br" };
-  if (q("gzip") > 0) return { encoding: "gzip", suffix: ".gz" };
-  return null;
+  const qBr = q("br");
+  const qGzip = q("gzip");
+  if (qBr <= 0 && qGzip <= 0) return null;
+  if (qBr >= qGzip) return { encoding: "br", suffix: ".br" };
+  return { encoding: "gzip", suffix: ".gz" };
 }
 
 async function serveFile(filePath, req, res, { cacheable }) {
@@ -169,8 +171,9 @@ async function serveFile(filePath, req, res, { cacheable }) {
       try {
         data = await readFile(filePath + picked.suffix);
         headers["Content-Encoding"] = picked.encoding;
-      } catch {
-        // No precompressed sibling (or unreadable) -- fall back to identity.
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+        // No precompressed sibling -- fall back to identity.
       }
     }
   }
@@ -218,7 +221,7 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    const staticFile = await resolveStaticFile(appPath);
+    const staticFile = await resolveStaticFile(appPath.replace(/^\/+/, ""));
     if (staticFile) {
       await serveFile(staticFile, req, res, { cacheable: appPath.startsWith("/assets/") });
       return;
