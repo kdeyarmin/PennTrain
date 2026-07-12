@@ -71,8 +71,8 @@ export function buildResidentFaceSheetPacket({
     complianceItems: complianceItems.map((item) => ({
       label: ITEM_TYPE_LABELS[item.item_type] ?? humanize(item.item_type),
       status: humanize(item.status),
-      dueDate: item.due_date ?? "—",
-      completedDate: item.completed_date ?? "—",
+      dueDate: formatDateOnly(item.due_date),
+      completedDate: formatDateOnly(item.completed_date),
     })),
     documents: documents.map((document) => ({
       fileName: document.file_name,
