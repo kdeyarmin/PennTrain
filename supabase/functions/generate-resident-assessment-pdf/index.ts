@@ -252,8 +252,8 @@ function planSummary(item: AnyRecord): string {
   const parts: string[] = [];
   if (item.planNotApplicable) return "Plan: N/A";
   if (item.planDescription) parts.push(item.planDescription);
-  if (item.planFrequency) parts.push(`Frequency: ${humanize(item.planFrequency)}${item.planFrequencyOther ? ` (${item.planFrequencyOther})` : ""}`);
-  if (item.planResponsibleParty) parts.push(`Responsible: ${item.planResponsibleParty}${item.planResponsiblePartyOther ? ` (${item.planResponsiblePartyOther})` : ""}`);
+  if (item.planFrequency) parts.push(`Frequency: ${humanize(item.planFrequency)}${item.planFrequency === "other" && item.planFrequencyOther ? ` (${item.planFrequencyOther})` : ""}`);
+  if (item.planResponsibleParty) parts.push(`Responsible: ${item.planResponsibleParty}${item.planResponsibleParty === "O" && item.planResponsiblePartyOther ? ` (${item.planResponsiblePartyOther})` : ""}`);
   return parts.length ? parts.join(" — ") : "—";
 }
 
