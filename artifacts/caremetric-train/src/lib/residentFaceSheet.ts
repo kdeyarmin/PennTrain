@@ -18,7 +18,13 @@ export interface ResidentFaceSheetPacket {
 }
 
 const blank = (value: string | null | undefined) => value?.trim() || "—";
-const contactWithPhone = (name: string | null, phone: string | null) => phone?.trim() ? `${blank(name)} · ${phone}` : blank(name);
+const contactWithPhone = (name: string | null, phone: string | null) => {
+  const nameValue = name?.trim();
+  const phoneValue = phone?.trim();
+  if (phoneValue && nameValue) return `${nameValue} · ${phoneValue}`;
+  if (phoneValue) return phoneValue;
+  return blank(name);
+};
 
 export function buildResidentFaceSheetPacket({
   resident,
