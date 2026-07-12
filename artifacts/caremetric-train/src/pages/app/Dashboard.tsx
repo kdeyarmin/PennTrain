@@ -325,7 +325,7 @@ function StatLabel({ label, tooltip }: { label: string; tooltip: string }) {
       <TooltipTrigger asChild>
         <button
           type="button"
-          className="stat-label inline-flex w-fit cursor-help items-center gap-1 border-0 bg-transparent p-0 text-left"
+          className="stat-label inline-flex w-fit cursor-help items-center gap-1 rounded-sm border-0 bg-transparent p-0 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           {label}
           <Info className="h-3 w-3 text-muted-foreground/50" aria-hidden="true" />
