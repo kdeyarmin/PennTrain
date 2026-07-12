@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import {
   useListInspectionItems, useCreateInspectionItem, useUpdateInspectionItem, useDeleteInspectionItem,
   type InspectionItem,
 } from "@/hooks/useInspectionItems";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useUrlState } from "@/hooks/useUrlState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +17,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Flame, ChevronLeft, ChevronRight, Plus, Pencil, Trash2 } from "lucide-react";
+import { Flame, ChevronLeft, ChevronRight, Plus, Pencil, Search, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -33,6 +34,8 @@ const ITEM_TYPE_OPTIONS: Array<{ value: InspectionItem["item_type"]; label: stri
   { value: "other_equipment", label: "Other Equipment", kind: "equipment" },
   { value: "fire_drill_program", label: "Fire Drill Program", kind: "procedural" },
   { value: "emergency_prep_plan_review", label: "Emergency Preparedness Plan Review", kind: "procedural" },
+  { value: "evacuation_time_letter", label: "Fire-Safety-Expert Evacuation Time Letter", kind: "procedural" },
+  { value: "emergency_supply_check", label: "Emergency 3-Day Supply Check", kind: "procedural" },
   { value: "other_procedural", label: "Other Procedural Requirement", kind: "procedural" },
 ];
 
@@ -59,14 +62,24 @@ const EMPTY_FORM: ItemFormData = {
   inspectionIntervalDays: "30", notes: "",
 };
 
+// Fire drills are monthly (55 Pa. Code 2600.132); everything else defaults to an annual cadence
+// when an administrator switches the type selector, saving a manual edit for the common case.
+const DEFAULT_INTERVAL_DAYS: Partial<Record<InspectionItem["item_type"], number>> = {
+  fire_drill_program: 30,
+  emergency_prep_plan_review: 365,
+  evacuation_time_letter: 365,
+  emergency_supply_check: 365,
+};
+
+const INSPECTION_ITEMS_URL_DEFAULTS = { search: "", facility: "all", kind: "all", status: "all", page: "1" };
+
 export default function InspectionItems() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [facilityFilter, setFacilityFilter] = useState("all");
-  const [kindFilter, setKindFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [page, setPage] = useState(1);
+  const [urlState, setUrlState] = useUrlState(INSPECTION_ITEMS_URL_DEFAULTS);
+  const [search, setSearch] = useState(urlState.search);
+  const page = Math.max(1, Number(urlState.page) || 1);
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<InspectionItem | null>(null);
@@ -82,20 +95,57 @@ export default function InspectionItems() {
 
   const { data: facilities } = useListFacilities();
   const { data: items, isLoading } = useListInspectionItems({
-    facilityId: facilityFilter !== "all" ? facilityFilter : undefined,
-    itemKind: kindFilter !== "all" ? kindFilter : undefined,
-    status: statusFilter !== "all" ? statusFilter : undefined,
+    facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
+    itemKind: urlState.kind !== "all" ? urlState.kind : undefined,
+    status: urlState.status !== "all" ? urlState.status : undefined,
   });
 
   const { mutate: createItem, isPending: creating } = useCreateInspectionItem();
   const { mutate: updateItem, isPending: updating } = useUpdateInspectionItem();
   const { mutate: deleteItem, isPending: deleting } = useDeleteInspectionItem();
 
+  // Debounce the free-text box before it commits to the URL (and re-filters/re-paginates below),
+  // so typing doesn't replace the URL's query string on every keystroke. The commit runs through a
+  // ref (refreshed every render) rather than closing over `urlState`/`setUrlState` directly --
+  // setUrlState's snapshot of the URL is only as fresh as the render that created it, so a plain
+  // `[search]`-keyed effect could fire 300ms later still holding a stale pre-update URL and wipe
+  // out any other filter change made in the meantime.
+  const commitSearchRef = useRef(() => {});
+  commitSearchRef.current = () => {
+    if (search !== urlState.search) setUrlState({ search, page: "1" });
+  };
+  useEffect(() => {
+    const t = setTimeout(() => commitSearchRef.current(), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+  // Resyncs the input's local mirror when urlState.search changes for a reason other than the
+  // commit above (browser Back/Forward, a bookmarked/deep link) -- otherwise the box shows a
+  // stale value that the debounce would then commit right back over the state just navigated to.
+  useEffect(() => {
+    setSearch(urlState.search);
+  }, [urlState.search]);
+
   const facilityById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
 
-  const allItems = items ?? [];
-  const totalPages = Math.max(1, Math.ceil(allItems.length / PAGE_SIZE));
-  const paginated = allItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const searched = useMemo(() => {
+    const q = urlState.search.trim().toLowerCase();
+    if (!q) return items ?? [];
+    return (items ?? []).filter((item) =>
+      item.label.toLowerCase().includes(q) || (item.notes ?? "").toLowerCase().includes(q)
+    );
+  }, [items, urlState.search]);
+
+  const totalPages = Math.max(1, Math.ceil(searched.length / PAGE_SIZE));
+  const paginated = searched.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Auto-fill the create dialog's Facility field when the user is scoped to exactly one facility
+  // (e.g. a facility_manager) -- saves a needless click every time. Guarded on an empty facilityId,
+  // so it's a no-op both for multi-facility orgs and when editing (the field is already populated).
+  useEffect(() => {
+    if (!showForm || facilities?.length !== 1) return;
+    const soleId = facilities[0].id;
+    setForm((f) => (f.facilityId ? f : { ...f, facilityId: soleId }));
+  }, [showForm, facilities]);
 
   const openCreate = () => { setEditing(null); setForm(EMPTY_FORM); setShowForm(true); };
 
@@ -174,14 +224,23 @@ export default function InspectionItems() {
 
       <div className="premium-card">
         <div className="filter-bar">
-          <Select value={facilityFilter} onValueChange={(v) => { setFacilityFilter(v); setPage(1); }}>
+          <div className="relative flex-1 min-w-48">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search inspection items..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 h-9 bg-card"
+            />
+          </div>
+          <Select value={urlState.facility} onValueChange={(v) => setUrlState({ facility: v, page: "1" })}>
             <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Facilities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
               {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={kindFilter} onValueChange={(v) => { setKindFilter(v); setPage(1); }}>
+          <Select value={urlState.kind} onValueChange={(v) => setUrlState({ kind: v, page: "1" })}>
             <SelectTrigger className="w-40 h-9 bg-card"><SelectValue placeholder="All Kinds" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Kinds</SelectItem>
@@ -189,7 +248,7 @@ export default function InspectionItems() {
               <SelectItem value="procedural">Procedural</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+          <Select value={urlState.status} onValueChange={(v) => setUrlState({ status: v, page: "1" })}>
             <SelectTrigger className="w-40 h-9 bg-card"><SelectValue placeholder="All Statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
@@ -257,14 +316,14 @@ export default function InspectionItems() {
             </div>
             <div className="flex items-center justify-between px-5 py-4 border-t border-border/60">
               <p className="text-[13px] text-muted-foreground">
-                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, allItems.length)}</span> of {allItems.length}
+                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, searched.length)}</span> of {searched.length}
               </p>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="text-[13px] text-muted-foreground px-2">Page {page} of {totalPages}</span>
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.min(totalPages, page + 1)) })} disabled={page === totalPages}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
@@ -288,7 +347,14 @@ export default function InspectionItems() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-[13px]">Type *</Label>
-              <Select value={form.itemType} onValueChange={(v) => field("itemType", v)}>
+              <Select
+                value={form.itemType}
+                onValueChange={(v) => {
+                  field("itemType", v);
+                  const defaultDays = DEFAULT_INTERVAL_DAYS[v as InspectionItem["item_type"]];
+                  if (defaultDays && !editing) field("inspectionIntervalDays", String(defaultDays));
+                }}
+              >
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {ITEM_TYPE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}

@@ -34,18 +34,6 @@ export function useListCompetencyTemplates() {
   });
 }
 
-export function useGetCompetencyTemplate(id: string | undefined) {
-  return useQuery({
-    queryKey: ["competency_templates", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("competency_templates").select("*").eq("id", id!).single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
-}
-
 export function useCreateCompetencyTemplate() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -177,7 +165,15 @@ export interface ListCompetencyRecordsFilters {
   templateId?: string;
 }
 
-export function useListCompetencyRecords(filters: ListCompetencyRecordsFilters = {}) {
+// `options.enabled` matters for callers that intend to scope by employeeId but don't have one yet
+// (e.g. an employee self-service page before its employees row has resolved) -- every filter field
+// here is applied only `if` truthy, so an absent employeeId doesn't scope to "nothing," it scopes
+// to "no filter at all," silently returning every record RLS permits. Passing `enabled: false` in
+// that case (rather than `employeeId: undefined`) is the only way to get "no results yet" instead
+// of firing twice (once unscoped, once scoped) on every page load. Mirrors
+// useCourseAssignments.ts's useListCourseAssignments. Defaults to `undefined`, which react-query
+// treats as "always enabled," so every existing caller that doesn't pass `options` is unaffected.
+export function useListCompetencyRecords(filters: ListCompetencyRecordsFilters = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["competency_records", filters],
     queryFn: async () => {
@@ -189,18 +185,7 @@ export function useListCompetencyRecords(filters: ListCompetencyRecordsFilters =
       if (error) throw error;
       return data;
     },
-  });
-}
-
-export function useGetCompetencyRecord(id: string | undefined) {
-  return useQuery({
-    queryKey: ["competency_records", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("competency_records").select("*").eq("id", id!).single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
+    enabled: options.enabled,
   });
 }
 

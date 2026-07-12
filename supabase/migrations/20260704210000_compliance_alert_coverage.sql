@@ -128,6 +128,7 @@ end;
 $$;
 
 alter table public.notifications drop constraint notifications_notification_type_check;
+
 alter table public.notifications add constraint notifications_notification_type_check
   check (notification_type in (
     'course_assigned', 'quiz_graded', 'certificate_issued', 'training_due_soon', 'training_expired',

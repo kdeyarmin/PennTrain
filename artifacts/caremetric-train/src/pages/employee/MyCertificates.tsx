@@ -1,19 +1,29 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
-import { useListCertificates } from "@/hooks/useCertificates";
+import { useListCertificates, useGenerateCertificatePdf } from "@/hooks/useCertificates";
 import { useListCourses } from "@/hooks/useCourses";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Award, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Award, ExternalLink, Download, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 
 export default function MyCertificates() {
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
-  const { data: certificates, isLoading: certificatesLoading } = useListCertificates({ employeeId: employee?.id });
+  // Gate on a resolved employee id -- see useListCertificates' own comment on why `enabled`, not
+  // just the filter, is required to avoid an unscoped fetch-then-refetch on every page load.
+  const { data: certificates, isLoading: certificatesLoading } = useListCertificates(
+    { employeeId: employee?.id },
+    { enabled: !!employee?.id },
+  );
   const { data: courses } = useListCourses();
+  const { mutateAsync: generatePdf } = useGenerateCertificatePdf();
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const courseTitleById = useMemo(() => new Map((courses ?? []).map(c => [c.id, c.title])), [courses]);
 
@@ -23,6 +33,22 @@ export default function MyCertificates() {
   function isExpired(expiresAt: string | null) {
     return !!expiresAt && new Date(expiresAt).getTime() < Date.now();
   }
+
+  const handleDownload = async (certificateId: string) => {
+    setDownloadingId(certificateId);
+    try {
+      const { url } = await generatePdf(certificateId);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      toast({
+        title: "Could not generate certificate PDF",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -64,11 +90,37 @@ export default function MyCertificates() {
                           <> &middot; {expired ? "Expired" : "Expires"} {new Date(cert.expires_at).toLocaleDateString()}</>
                         )}
                       </p>
+                      <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                        {cert.credential_number}
+                      </p>
+                      {cert.pdf_status !== "ready" && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          PDF {cert.pdf_status === "failed" ? "needs another attempt" : "is being prepared"}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <Badge variant={expired ? "destructive" : "default"}>
                         {expired ? "Expired" : "Valid"}
                       </Badge>
+                      <Button
+                        variant="outline"
+                        disabled={downloadingId === cert.id}
+                        onClick={() => handleDownload(cert.id)}
+                      >
+                        {downloadingId === cert.id ? (
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Download className="mr-1.5 h-3.5 w-3.5" />
+                        )}
+                        {downloadingId === cert.id
+                          ? "Preparing..."
+                          : cert.pdf_status === "ready"
+                            ? "Download"
+                            : cert.pdf_status === "failed"
+                              ? "Retry PDF"
+                              : "Prepare PDF"}
+                      </Button>
                       <Link
                         href={`/verify/${cert.slug}`}
                         className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary/80 transition-colors"

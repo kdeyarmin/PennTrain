@@ -99,17 +99,6 @@ export function useUpdateIncident() {
   });
 }
 
-export function useDeleteIncident() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("incidents").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["incidents"] }),
-  });
-}
-
 export function useListIncidentStaffInvolved(incidentId: string | undefined) {
   return useQuery({
     queryKey: ["incident_staff_involved", incidentId],
@@ -158,6 +147,21 @@ export function useListAllIncidentNotifications() {
   });
 }
 
+// Full (RLS-scoped) rows across every incident -- used by Reports.tsx's incident notification
+// register, the reconciliation view an inspector uses to diff CareMetric Train's log against the
+// regional office's own. useListAllIncidentNotifications() above stays minimal (id, incident_id
+// only) for its existing deep-link-resolution use.
+export function useListAllIncidentNotificationsDetailed() {
+  return useQuery({
+    queryKey: ["incident_notifications", "all", "detailed"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("incident_notifications").select("*").order("due_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
 export function useListIncidentNotifications(incidentId: string | undefined) {
   return useQuery({
     queryKey: ["incident_notifications", incidentId],
@@ -182,23 +186,40 @@ export function useAddIncidentNotification() {
   });
 }
 
-export function useUpdateIncidentNotification() {
-  const queryClient = useQueryClient();
+export interface GenerateIncidentReportPdfResult {
+  url: string;
+  path: string;
+  expiresIn: number;
+}
+
+interface GenerateIncidentReportPdfResponse extends GenerateIncidentReportPdfResult {
+  success?: boolean;
+  error?: string;
+}
+
+// Always regenerates (no client-visible caching) -- an incident report evolves as the
+// investigation progresses, so re-running this after adding findings is the expected flow.
+export function useGenerateIncidentReportPdf() {
   return useMutation({
-    mutationFn: async ({ id, incidentId, ...payload }: IncidentNotificationUpdate & { id: string; incidentId: string }) => {
-      const { data, error } = await supabase.from("incident_notifications").update(payload).eq("id", id).select().single();
+    mutationFn: async (incidentId: string): Promise<GenerateIncidentReportPdfResult> => {
+      const { data, error } = await supabase.functions.invoke<GenerateIncidentReportPdfResponse>(
+        "generate-incident-report-pdf",
+        { body: { incidentId } },
+      );
       if (error) throw error;
-      return data;
+      if (!data || data.success === false || !data.url) {
+        throw new Error(data?.error ?? "Failed to generate incident report PDF");
+      }
+      return { url: data.url, path: data.path, expiresIn: data.expiresIn };
     },
-    onSuccess: (_data, variables) => queryClient.invalidateQueries({ queryKey: ["incident_notifications", variables.incidentId] }),
   });
 }
 
 export function useCompleteIncidentNotification() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, incidentId, completedByProfileId, notificationMethod, referenceNumber }: {
-      id: string; incidentId: string; completedByProfileId: string; notificationMethod?: string; referenceNumber?: string;
+    mutationFn: async ({ id, incidentId, completedByProfileId, notificationMethod, recipient, referenceNumber }: {
+      id: string; incidentId: string; completedByProfileId: string; notificationMethod?: string; recipient?: string; referenceNumber?: string;
     }) => {
       const { data, error } = await supabase
         .from("incident_notifications")
@@ -207,6 +228,7 @@ export function useCompleteIncidentNotification() {
           completed_by_profile_id: completedByProfileId,
           status: "completed",
           notification_method: notificationMethod ?? null,
+          recipient: recipient ?? null,
           reference_number: referenceNumber ?? null,
         })
         .eq("id", id)

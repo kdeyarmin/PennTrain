@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { ClipboardCheck, ChevronLeft, ChevronRight, Plus, Eye } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
 
 const PAGE_SIZE = 15;
 
@@ -61,7 +62,7 @@ interface RecordFormData {
 const EMPTY_RECORD_FORM: RecordFormData = {
   employeeId: "",
   templateId: "",
-  evaluationDate: new Date().toISOString().slice(0, 10),
+  evaluationDate: toLocalIsoDate(),
   overallResult: "met",
   signNow: false,
 };
@@ -103,7 +104,7 @@ function RecordDetailDialog({ record, onClose }: { record: CompetencyRecord | nu
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Evaluation Date</p>
-                <p>{new Date(record.evaluation_date).toLocaleDateString()}</p>
+                <p>{formatDateForDisplay(record.evaluation_date)}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Evaluator</p>
@@ -366,7 +367,7 @@ export default function CompetencyRecords() {
                           </span>
                         </td>
                         <td className="text-muted-foreground">{template?.name ?? `Template #${r.template_id.slice(0, 8)}`}</td>
-                        <td className="text-muted-foreground">{new Date(r.evaluation_date).toLocaleDateString()}</td>
+                        <td className="text-muted-foreground">{formatDateForDisplay(r.evaluation_date)}</td>
                         <td><ResultBadge result={r.overall_result} /></td>
                         <td className="text-muted-foreground">{r.signed_at ? "Yes" : "No"}</td>
                         <td>
