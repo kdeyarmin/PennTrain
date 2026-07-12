@@ -1063,7 +1063,7 @@ export default function ResidentAssessmentFormEditor() {
                       {!p.signedDate && (
                         <div className="space-y-1">
                           <Label className="text-[11px]">Reason Not Signed</Label>
-                          <Select value={p.noSignatureReason || ""} onValueChange={(v) => updateParticipant({ noSignatureReason: v })}>
+                          <Select value={p.noSignatureReason || ""} onValueChange={(v) => updateParticipant({ noSignatureReason: v, ...(v === "other" ? {} : { noSignatureReasonOther: "" }) })}>
                             <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Reason" /></SelectTrigger>
                             <SelectContent>{NO_SIGNATURE_REASON_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                           </Select>
