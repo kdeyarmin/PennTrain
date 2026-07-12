@@ -8,6 +8,9 @@ export interface PlatformHealth {
   aiGenerationsPending: number;
   aiGenerationsFailed: number;
   heygenJobsInProgress: number;
+  systemJobsStale: number;
+  systemJobsFailed: number;
+  auditCoverageMissing: number;
   totalFacilities: number;
   totalEmployees: number;
   totalCourses: number;

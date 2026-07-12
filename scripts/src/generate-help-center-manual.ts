@@ -43,7 +43,7 @@ const SECTIONS: Section[] = [
   {
     title: "Facilities & Employees",
     paragraphs: [
-      "Facilities (/app/facilities) are the physical locations your organization operates -- personal care homes, assisted living facilities (ALF), or other licensed sites. Each facility record carries its own license number and facility type, which in turn controls which compliance modules apply to it: some workflows, like Practicums, the Medication Administration Roster, Residents, and Inspections, only appear for facility types that require them.",
+      "Facilities (/app/facilities) are the physical locations your organization operates -- personal care homes, assisted living residences, or other licensed sites. Each facility record carries its own license number and facility type, which in turn controls which compliance modules apply to it: some workflows, like Practicums, the Medication Administration Roster, Residents, and Inspections, only appear for facility types that require them.",
       "Employees (/app/employees) is your staff roster. Every employee belongs to a home facility, and can optionally be assigned to work additional facilities for scheduling purposes. Opening an employee's detail page brings together everything about that person in one place: their training record status, credentials, background checks, assigned courses, and practicum progress, so a facility_manager preparing for an inspection doesn't have to hunt across five different pages.",
       "New employees can be added one at a time or in bulk via CSV import, which is useful when onboarding an entire facility's existing staff at once.",
     ],
@@ -96,7 +96,7 @@ const SECTIONS: Section[] = [
   {
     title: "Practicums & Medication Administration Roster",
     paragraphs: [
-      "Practicums (/app/practicums) track the hands-on, supervised practicum hours required for certain staff roles at personal care homes and assisted living facilities (ALF), alongside their due dates and compliance status. This module only appears for facilities of a type that requires practicums.",
+      "Practicums (/app/practicums) track the hands-on, supervised practicum hours required for certain staff roles at personal care homes and assisted living residences, alongside their due dates and compliance status. This module only appears for facilities of a type that requires practicums.",
       "The Medication Administration Roster (/app/med-admin-roster) is the authoritative list of which employees are currently certified to administer medications at a given facility, and is one of the first documents a state surveyor will ask to see during an inspection. Keeping it current depends on the underlying training records and credentials staying up to date, since roster eligibility is derived from those records rather than tracked separately.",
     ],
     bullets: [

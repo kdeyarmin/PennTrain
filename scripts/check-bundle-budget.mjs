@@ -1,0 +1,90 @@
+import { readdir, stat } from "node:fs/promises";
+import path from "node:path";
+
+const assetDirectory = path.resolve(
+  process.cwd(),
+  "artifacts/caremetric-train/dist/public/assets",
+);
+
+const budgets = {
+  largestJavaScript: 400 * 1024,
+  totalJavaScript: 2300 * 1024,
+  totalCss: 140 * 1024,
+  initialShell: 1200 * 1024,
+};
+
+const initialShellPattern =
+  /^(index|router|query|radix|supabase|motion|icons)-.+\.(?:js|css)$/;
+
+function formatBytes(bytes) {
+  return `${(bytes / 1024).toFixed(1)} KiB`;
+}
+
+let names;
+try {
+  names = await readdir(assetDirectory);
+} catch (error) {
+  throw new Error(
+    `Bundle output is missing at ${assetDirectory}. Run the production build first.`,
+    { cause: error },
+  );
+}
+
+const assets = await Promise.all(
+  names
+    .filter((name) => name.endsWith(".js") || name.endsWith(".css"))
+    .map(async (name) => ({
+      name,
+      bytes: (await stat(path.join(assetDirectory, name))).size,
+    })),
+);
+
+const javascript = assets.filter(({ name }) => name.endsWith(".js"));
+const css = assets.filter(({ name }) => name.endsWith(".css"));
+const largestJavaScript = javascript.reduce(
+  (largest, asset) => (asset.bytes > largest.bytes ? asset : largest),
+  { name: "none", bytes: 0 },
+);
+const totalJavaScript = javascript.reduce((sum, asset) => sum + asset.bytes, 0);
+const totalCss = css.reduce((sum, asset) => sum + asset.bytes, 0);
+const initialShell = assets
+  .filter(({ name }) => initialShellPattern.test(name))
+  .reduce((sum, asset) => sum + asset.bytes, 0);
+
+const failures = [
+  {
+    label: `largest JavaScript chunk (${largestJavaScript.name})`,
+    actual: largestJavaScript.bytes,
+    budget: budgets.largestJavaScript,
+  },
+  {
+    label: "all JavaScript chunks",
+    actual: totalJavaScript,
+    budget: budgets.totalJavaScript,
+  },
+  { label: "all CSS assets", actual: totalCss, budget: budgets.totalCss },
+  {
+    label: "initial application shell",
+    actual: initialShell,
+    budget: budgets.initialShell,
+  },
+].filter(({ actual, budget }) => actual > budget);
+
+for (const measurement of [
+  ["Largest JavaScript", largestJavaScript.bytes],
+  ["Total JavaScript", totalJavaScript],
+  ["Total CSS", totalCss],
+  ["Initial shell", initialShell],
+]) {
+  console.log(`${measurement[0]}: ${formatBytes(measurement[1])}`);
+}
+
+if (failures.length > 0) {
+  const details = failures
+    .map(
+      ({ label, actual, budget }) =>
+        `${label} is ${formatBytes(actual)} (budget ${formatBytes(budget)})`,
+    )
+    .join("\n");
+  throw new Error(`Bundle budget exceeded:\n${details}`);
+}

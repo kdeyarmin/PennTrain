@@ -72,10 +72,19 @@ export function buildFacilityRetrainingStatus(
 
     // Only active staff currently administer medications day-to-day; inactive/terminated/
     // on_leave employees shouldn't count toward a facility's retraining exposure.
-    const staffCount = employees.filter(
-      (e) => e.facility_id === facility.id && e.status === "active" && e.administers_medications
-    ).length;
-    const facilityPracticums = practicums.filter((p) => p.facility_id === facility.id);
+    const activeStaffIds = new Set(
+      employees
+        .filter((e) => e.facility_id === facility.id && e.status === "active" && e.administers_medications)
+        .map((e) => e.id)
+    );
+    const staffCount = activeStaffIds.size;
+    // Practicum status is recomputed nightly purely from due_date, with no server-side
+    // check on the owning employee's status, so a terminated employee's last practicum
+    // stays "expired" forever. Exclude those rows here so the facility's compliance
+    // picture reflects only currently-active staff.
+    const facilityPracticums = practicums.filter(
+      (p) => p.facility_id === facility.id && activeStaffIds.has(p.employee_id)
+    );
 
     const compliantCount = facilityPracticums.filter((p) => p.status === "compliant").length;
     const dueSoonCount = facilityPracticums.filter((p) => p.status === "due_soon").length;

@@ -1,3 +1,23 @@
+-- Policy & procedure attestation with ESIGN/UETA audit trail, per ROADMAP.md Tier 2.6.
+--
+-- Four tables:
+--   policy_documents            -- the org's policy library (parent; "current_version_id" points
+--                                  at the live version, mirroring courses/course_versions).
+--   policy_document_versions    -- immutable once published (content_hash + storage path locked),
+--                                  so an attestation can always be traced to exactly what the
+--                                  signer saw.
+--   policy_attestation_campaigns -- a named "read-and-attest" assignment batch against one
+--                                  specific version (mirrors training_plans: org-scoped, no
+--                                  facility_id column -- facility/role targeting happens by
+--                                  picking employees at apply-time, same as
+--                                  useApplyTrainingPlanToEmployee).
+--   policy_attestations         -- one row per (campaign, employee): the actual audit row. No
+--                                  update policy for authenticated at all (same immutable-audit-
+--                                  row posture as training_documents/audit_logs) -- the only way
+--                                  to move it from 'pending' to 'attested' is the attest_policy()
+--                                  RPC below, which stamps timestamp/IP/auth-method/hash together.
+
+-- ---- 1. policy_documents (STEP 1 of circular FK: created WITHOUT current_version_id) ----
 create table public.policy_documents (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -12,6 +32,7 @@ create index policy_documents_org_idx on public.policy_documents(organization_id
 create trigger set_updated_at before update on public.policy_documents
   for each row execute function public.set_updated_at();
 
+-- ---- 2. policy_document_versions (STEP 2 of circular FK) ----
 create table public.policy_document_versions (
   id uuid primary key default gen_random_uuid(),
   policy_document_id uuid not null references public.policy_documents(id) on delete cascade,
@@ -31,9 +52,12 @@ create table public.policy_document_versions (
 );
 create index policy_document_versions_doc_idx on public.policy_document_versions(policy_document_id);
 
+-- ---- 3. close the policy_documents<->policy_document_versions cycle (STEP 3) ----
 alter table public.policy_documents
   add column current_version_id uuid references public.policy_document_versions(id) on delete set null;
 
+-- Once published, a version is frozen: an attestation must always be traceable to exactly the
+-- bytes/hash the signer saw. Mirrors the "lock completed training classes" precedent.
 create or replace function public.lock_published_policy_version()
 returns trigger language plpgsql set search_path to 'public' as $$
 begin
@@ -46,6 +70,7 @@ $$;
 create trigger lock_published_policy_version before update on public.policy_document_versions
   for each row execute function public.lock_published_policy_version();
 
+-- ---- 4. policy_attestation_campaigns ----
 create table public.policy_attestation_campaigns (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -59,6 +84,7 @@ create table public.policy_attestation_campaigns (
 create index policy_attestation_campaigns_org_idx on public.policy_attestation_campaigns(organization_id);
 create index policy_attestation_campaigns_doc_idx on public.policy_attestation_campaigns(policy_document_id);
 
+-- ---- 5. policy_attestations (the audit row) ----
 create table public.policy_attestations (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -89,6 +115,8 @@ create index policy_attestations_pending_idx on public.policy_attestations(due_d
 create trigger set_updated_at before update on public.policy_attestations
   for each row execute function public.set_updated_at();
 
+-- organization_id/facility_id are server-derived from employee_id (never client-trusted), same
+-- pattern as employee_training_records/practicums/employee_credentials.
 create or replace function public.stamp_scope_from_employee_for_attestation()
 returns trigger language plpgsql set search_path to 'public' as $$
 declare v_org uuid; v_fac uuid;

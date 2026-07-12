@@ -88,6 +88,7 @@ export function useCreateQuiz() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["quizzes", "by-block", data.course_block_id] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
     },
   });
 }
@@ -103,6 +104,7 @@ export function useUpdateQuiz() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["quizzes", data.id] });
       queryClient.invalidateQueries({ queryKey: ["quizzes", "by-block", data.course_block_id] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
     },
   });
 }
@@ -148,7 +150,10 @@ export function useCreateQuizQuestion() {
       }
       return { ...data, explanation: trimmed } as QuizQuestionWithExplanation;
     },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["quiz_questions", data.quiz_id] }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["quiz_questions", data.quiz_id] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
+    },
   });
 }
 
@@ -182,7 +187,10 @@ export function useUpdateQuizQuestion() {
       }
       return { ...data, explanation: finalExplanation } as QuizQuestionWithExplanation;
     },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["quiz_questions", data.quiz_id] }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["quiz_questions", data.quiz_id] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
+    },
   });
 }
 
@@ -196,8 +204,10 @@ export function useDeleteQuizQuestion() {
       const { error } = await supabase.from("quiz_questions").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: (_data, variables) =>
-      queryClient.invalidateQueries({ queryKey: ["quiz_questions", variables.quizId] }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["quiz_questions", variables.quizId] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
+    },
   });
 }
 
@@ -224,6 +234,37 @@ export function useListQuizAnswers(questionId: string | undefined) {
   });
 }
 
+// Batches every answer for a whole quiz's questions into one request instead of each question
+// card firing its own useListQuizAnswers -- mirrors useQuizQuestionStats' .in("question_id", ids)
+// pattern below, grouping the flat result by question_id client-side. QuizBuilder.tsx calls this
+// once at the parent level and passes each question's slice down as a prop, instead of every
+// QuestionCard independently fetching its own answers (previously 20 requests for a 20-question quiz).
+export function useQuizAnswersByQuestionIds(questionIds: string[]) {
+  return useQuery({
+    queryKey: ["quiz_answers", "by-questions", questionIds],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quiz_answers")
+        .select("*")
+        .in("question_id", questionIds)
+        .order("sort_order");
+      if (error) throw error;
+      const grouped: Record<string, QuizAnswer[]> = {};
+      for (const row of data ?? []) {
+        (grouped[row.question_id] ??= []).push(row);
+      }
+      return grouped;
+    },
+    enabled: questionIds.length > 0,
+  });
+}
+
+// The three mutations below invalidate the whole ["quiz_answers"] prefix rather than just
+// ["quiz_answers", questionId] -- invalidateQueries prefix-matches, and the batched
+// useQuizAnswersByQuestionIds cache above is keyed ["quiz_answers", "by-questions", questionIds],
+// which a single question_id-scoped invalidation would never match. Broadening to the bare prefix
+// keeps both the single-question and batched caches correct after any answer add/edit/delete.
+
 export function useCreateQuizAnswer() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -232,7 +273,10 @@ export function useCreateQuizAnswer() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["quiz_answers", data.question_id] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["quiz_answers"] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
+    },
   });
 }
 
@@ -244,20 +288,27 @@ export function useUpdateQuizAnswer() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["quiz_answers", data.question_id] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["quiz_answers"] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
+    },
   });
 }
 
 export function useDeleteQuizAnswer() {
   const queryClient = useQueryClient();
   return useMutation({
-    // questionId is passed in for the same reason as useDeleteQuizQuestion above.
+    // questionId is still accepted for callers that want it (and for symmetry with
+    // useDeleteQuizQuestion above), even though invalidation itself is now broad -- see the
+    // comment above useCreateQuizAnswer.
     mutationFn: async ({ id }: { id: string; questionId: string }) => {
       const { error } = await supabase.from("quiz_answers").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: (_data, variables) =>
-      queryClient.invalidateQueries({ queryKey: ["quiz_answers", variables.questionId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["quiz_answers"] });
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
+    },
   });
 }
 

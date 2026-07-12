@@ -1,0 +1,16 @@
+-- Version placeholder -- intentionally a no-op. DO NOT DELETE and DO NOT add statements here.
+--
+-- Version 20260707040000 is already recorded in supabase_migrations.schema_migrations on live
+-- databases, but with DIFFERENT content depending on the database:
+--   * Production applied it as require_state_approved_form_for_resident_compliance (PR #53).
+--   * The PR #56 preview branch applied it as include_resident_ai_generations_in_platform_health,
+--     because both files briefly shared this version and the CLI ran the alphabetically-first one.
+-- Both of those migrations now live under their own unique, later versions
+-- (20260707190000_include_resident_ai_generations_in_platform_health.sql and
+-- 20260707200000_require_state_approved_form_for_resident_compliance.sql), each written to be safe
+-- to re-run on a database where its content already exists.
+--
+-- This file exists only so `supabase db push` / branch deploys can match the recorded remote
+-- version to a local file ("Remote migration versions not found in local migrations directory"
+-- otherwise fails the deploy). On fresh databases it applies as a harmless no-op.
+select 1;

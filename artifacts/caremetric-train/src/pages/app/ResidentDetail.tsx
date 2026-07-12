@@ -21,21 +21,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, BedDouble, ClipboardList, FileText, Upload, Download, Trash2, Check, TriangleAlert, FilePenLine, Lock, Users, Plus, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, getComplianceFormLabel, formatDateOnly } from "@/lib/residentCompliance";
+import { humanize } from "@/lib/utils";
+import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, getComplianceFormLabel, getRequiredStateFormInfo, formatDateOnly } from "@/lib/residentCompliance";
 import { isDigitalFormEligible, deriveAssessmentReason } from "@/lib/residentAssessmentFormSchema";
 import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
+import { toLocalIsoDate } from "@/lib/dateUtils";
 
 type SupportRow = Partial<Pick<ResidentInformalSupport, "id">> & { name: string; relationship: string; phone: string };
 
 const emptySupportRow = (): SupportRow => ({ name: "", relationship: "", phone: "" });
-
-function humanize(value: string): string {
-  return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-}
 
 function ComplianceStatusBadge({ status }: { status: string }) {
   return <Badge className={complianceStatusBadgeClassName(status)} variant="outline">{humanize(status)}</Badge>;
@@ -68,8 +70,12 @@ export default function ResidentDetail() {
   const deleteSupport = useDeleteResidentInformalSupport();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const completeFileInputRef = useRef<HTMLInputElement>(null);
   const [showChangeDialog, setShowChangeDialog] = useState(false);
   const [changeNotes, setChangeNotes] = useState("");
+  const [completingItem, setCompletingItem] = useState<NonNullable<typeof items>[number] | null>(null);
+  const [completeFile, setCompleteFile] = useState<File | null>(null);
+  const [docPendingDelete, setDocPendingDelete] = useState<NonNullable<typeof documents>[number] | null>(null);
   const [showContactsDialog, setShowContactsDialog] = useState(false);
   const [contactsForm, setContactsForm] = useState({
     date_of_birth: "",
@@ -115,8 +121,46 @@ export default function ResidentDetail() {
     );
   };
 
+  // Documents like the RASP/ASP and DME have to be on the state-approved form -- no exception --
+  // so completion always goes through this single path: upload the actual DHS form flagged
+  // is_state_form, linked to this specific item, then complete_resident_compliance_item() validates
+  // that exact document server-side. There is no "mark complete" shortcut that skips the upload.
+  //
+  // Single reset used by every way this dialog can close (Cancel, backdrop/Escape via
+  // onOpenChange, and a successful submit) so a file picked for one item can never carry over
+  // into the next item's dialog -- a stale completeFile would leave "Upload & Mark Complete"
+  // enabled and could attach the wrong item's document, which a facility_manager (no delete
+  // access on resident documents) has no way to undo themselves.
+  const closeCompleteDialog = () => {
+    setCompletingItem(null);
+    setCompleteFile(null);
+    if (completeFileInputRef.current) completeFileInputRef.current.value = "";
+  };
+
+  const handleMarkComplete = async () => {
+    if (!resident || !completingItem || !completeFile) return;
+    try {
+      const uploadedDocument = await uploadDocument.mutateAsync({
+        file: completeFile,
+        organizationId: resident.organization_id,
+        facilityId: resident.facility_id,
+        residentId: resident.id,
+        complianceItemId: completingItem.id,
+        isStateForm: true,
+        stateFormSourceLabel: completingStateForm?.sourceLabel,
+        stateFormSourceUrl: completingStateForm?.url,
+      });
+      await completeItem.mutateAsync({ item: completingItem, documentId: uploadedDocument.id });
+      toast({ title: "Marked complete" });
+      closeCompleteDialog();
+    } catch (err) {
+      toast({ title: "Failed to mark complete", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+    }
+  };
+
   const facility = facilities?.find((f) => f.id === resident?.facility_id);
   const facilityName = facility?.name;
+  const completingStateForm = completingItem ? getRequiredStateFormInfo(completingItem.item_type, facility?.facility_type) : null;
   const formLabel = getComplianceFormLabel(facility?.facility_type);
   // instantiate_resident_compliance_items() only seeds rule-pack rows for PCH/ALR (Phase 5) --
   // mirror that gate here so an unsupported facility type can't get a significant_change_reassessment
@@ -228,6 +272,18 @@ export default function ResidentDetail() {
     }
   };
 
+  const confirmDeleteDocument = async () => {
+    if (!docPendingDelete) return;
+    try {
+      await deleteDocument.mutateAsync(docPendingDelete);
+      toast({ title: "Document deleted" });
+    } catch (err) {
+      toast({ title: "Delete failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+    } finally {
+      setDocPendingDelete(null);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -277,7 +333,7 @@ export default function ResidentDetail() {
               onValueChange={(v) => updateResident({
                 id: resident.id,
                 status: v as typeof resident.status,
-                discharge_date: v === "discharged" ? new Date().toISOString().slice(0, 10) : null,
+                discharge_date: v === "discharged" ? toLocalIsoDate() : null,
               })}
             >
               <SelectTrigger className="w-36 h-9"><SelectValue /></SelectTrigger>
@@ -443,56 +499,100 @@ export default function ResidentDetail() {
             <p className="text-sm text-muted-foreground">No compliance items recorded.</p>
           ) : (
             <div className="space-y-2">
-              {items.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      {ITEM_TYPE_LABELS[item.item_type] ?? humanize(item.item_type)}
-                      {item.renewal_interval_days != null && (
-                        <Badge variant="outline" className="text-[10px]">Recurring</Badge>
+              {items.map((item) => {
+                const requiredForm = getRequiredStateFormInfo(item.item_type, facility?.facility_type);
+                return (
+                  <div key={item.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        {ITEM_TYPE_LABELS[item.item_type] ?? humanize(item.item_type)}
+                        {item.renewal_interval_days != null && (
+                          <Badge variant="outline" className="text-[10px]">Recurring</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Due {item.due_date ?? "—"}{item.completed_date ? ` · Completed ${item.completed_date}` : ""}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Required DHS source: <a href={requiredForm.url} target="_blank" rel="noreferrer" className="hover:underline">{requiredForm.sourceLabel}</a>
+                      </p>
+                      {item.triggered_by_item_id && itemById.get(item.triggered_by_item_id) && (
+                        <p className="text-xs text-muted-foreground italic">
+                          → triggered by {ITEM_TYPE_LABELS[itemById.get(item.triggered_by_item_id)!.item_type]
+                            ?? humanize(itemById.get(item.triggered_by_item_id)!.item_type)} completed{" "}
+                          {itemById.get(item.triggered_by_item_id)!.completed_date}
+                        </p>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Due {item.due_date ?? "—"}{item.completed_date ? ` · Completed ${item.completed_date}` : ""}
-                    </p>
-                    {item.triggered_by_item_id && itemById.get(item.triggered_by_item_id) && (
-                      <p className="text-xs text-muted-foreground italic">
-                        → triggered by {ITEM_TYPE_LABELS[itemById.get(item.triggered_by_item_id)!.item_type]
-                          ?? humanize(itemById.get(item.triggered_by_item_id)!.item_type)} completed{" "}
-                        {itemById.get(item.triggered_by_item_id)!.completed_date}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <ComplianceStatusBadge status={item.status} />
-                    {canManage && item.status !== "compliant" && item.status !== "not_applicable" && (
-                      <>
-                        {isDigitalFormEligible(item.item_type) && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <ComplianceStatusBadge status={item.status} />
+                      {canManage && item.status !== "compliant" && item.status !== "not_applicable" && (
+                        <>
+                          {isDigitalFormEligible(item.item_type) && (
+                            <Button
+                              variant="outline" size="sm" className="h-7 text-xs" disabled={startAssessmentForm.isPending}
+                              onClick={() => handleCompleteInCareMetric(item)}
+                            >
+                              <FilePenLine className="mr-1.5 h-3.5 w-3.5" /> Prepare in CareMetric
+                            </Button>
+                          )}
                           <Button
-                            variant="outline" size="sm" className="h-7 text-xs" disabled={startAssessmentForm.isPending}
-                            onClick={() => handleCompleteInCareMetric(item)}
+                            variant="outline" size="sm" className="h-7 text-xs" title="Attach the state-approved form and mark complete"
+                            onClick={() => setCompletingItem(item)}
                           >
-                            <FilePenLine className="mr-1.5 h-3.5 w-3.5" /> Complete in CareMetric
+                            <Check className="mr-1.5 h-3.5 w-3.5" /> Mark Complete
                           </Button>
-                        )}
-                        <Button
-                          variant="ghost" size="icon" className="h-7 w-7" title="Mark complete without the digital form"
-                          disabled={completeItem.isPending}
-                          onClick={() => completeItem.mutate(item, {
-                            onError: (e: Error) => toast({ title: "Failed to mark complete", description: e.message, variant: "destructive" }),
-                          })}
-                        >
-                          <Check className="h-3.5 w-3.5" />
-                        </Button>
-                      </>
-                    )}
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!completingItem} onOpenChange={(o) => { if (!o) closeCompleteDialog(); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Mark Complete — {completingItem && (ITEM_TYPE_LABELS[completingItem.item_type] ?? humanize(completingItem.item_type))}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">
+              Attach the completed <strong>{completingStateForm?.label}</strong> form.
+              This must be the official DHS-prescribed form — a CareMetric-prepared draft or any other document
+              can't be used to satisfy this requirement, no exception.
+            </p>
+            {completingStateForm && (
+              <Button asChild variant="link" size="sm" className="h-auto p-0 text-xs">
+                <a href={completingStateForm.url} target="_blank" rel="noreferrer">
+                  Download official {completingStateForm.sourceLabel}
+                </a>
+              </Button>
+            )}
+            <input
+              ref={completeFileInputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={(e) => setCompleteFile(e.target.files?.[0] ?? null)}
+            />
+            <Button type="button" variant="outline" size="sm" onClick={() => completeFileInputRef.current?.click()}>
+              <Upload className="mr-2 h-3.5 w-3.5" /> Choose File
+            </Button>
+            {completeFile && <p className="text-xs text-muted-foreground">{completeFile.name}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeCompleteDialog}>Cancel</Button>
+            <Button onClick={handleMarkComplete} disabled={!completeFile || uploadDocument.isPending || completeItem.isPending}>
+              {uploadDocument.isPending || completeItem.isPending ? "Saving..." : "Upload & Mark Complete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showChangeDialog} onOpenChange={(o) => { setShowChangeDialog(o); if (!o) setChangeNotes(""); }}>
         <DialogContent>
@@ -525,12 +625,17 @@ export default function ResidentDetail() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><FilePenLine className="h-5 w-5" /> Digital {formLabel} Forms</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            State-form workflow — finalizing creates a packet that starts with the official PA DHS {formLabel} form,
+            appends the CareMetric completion addendum, and uses that generated DHS packet to complete the
+            linked checklist item.
+          </p>
           {assessmentFormsLoading ? (
             <Skeleton className="h-10" />
           ) : !assessmentForms?.length ? (
             <p className="text-sm text-muted-foreground">
-              No {formLabel} completed in CareMetric yet — use "Complete in CareMetric" on a checklist item above to start one.
+              No {formLabel} prepared in CareMetric yet — use "Prepare in CareMetric" on a checklist item above to start one.
             </p>
           ) : (
             <div className="space-y-2">
@@ -580,13 +685,25 @@ export default function ResidentDetail() {
             <div className="space-y-2">
               {documents.map((doc) => (
                 <div key={doc.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
-                  <span className="truncate">{doc.file_name}</span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="truncate">{doc.file_name}</span>
+                      {doc.is_state_form && <Badge variant="outline" className="text-[10px]">State form</Badge>}
+                    </div>
+                    {doc.state_form_source_label && (
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        Source: {doc.state_form_source_url ? (
+                          <a href={doc.state_form_source_url} target="_blank" rel="noreferrer" className="hover:underline">{doc.state_form_source_label}</a>
+                        ) : doc.state_form_source_label}
+                      </p>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownload(doc)}>
                       <Download className="h-3.5 w-3.5" />
                     </Button>
                     {canDelete && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteDocument.mutate(doc)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDocPendingDelete(doc)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
@@ -597,6 +714,23 @@ export default function ResidentDetail() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!docPendingDelete} onOpenChange={(open) => !open && setDocPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Document</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes "{docPendingDelete?.file_name}" and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteDocument} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

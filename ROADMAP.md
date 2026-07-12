@@ -6,6 +6,10 @@ senior-care training and operations software markets, and operator pain-point re
 ranked from three perspectives — a PCH administrator, a compliance consultant/former surveyor, and a staff
 engineer who knows this stack — then merged and stress-tested for completeness.*
 
+> **Historical review:** This file preserves the original findings and
+> recommendation rationale. The canonical forward delivery sequence is the
+> [five-phase implementation plan](IMPLEMENTATION_PLAN.md).
+
 ---
 
 ## Part 1 — Where the app stands today
@@ -57,9 +61,8 @@ multiplier for everything else.
 
 - **Password reset is broken end-to-end** — the recovery email link dead-ends at `/login`; there is no
   set-new-password form. Fatal to adoption with high-churn staff.
-- **The shipped Login page hardcodes six demo credentials** including the real seeded platform_admin
-  (`info@caremetrictrain.com` / `admin123`) — a full-platform compromise sitting in the production bundle
-  (`Login.tsx:70-75`).
+- **The shipped Login page hardcodes six demo credentials** including a real seeded platform admin account,
+  which is a full-platform compromise if bundled into production (`Login.tsx:70-75`).
 - **`seed.sql` and `handle_new_user()` disagree**: the seed writes `role`/`organization_id` into
   `raw_user_meta_data`, but the hardened trigger reads `raw_app_meta_data` — a fresh reset provisions every demo
   user as a null-org `employee`.
