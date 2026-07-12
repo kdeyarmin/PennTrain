@@ -386,7 +386,7 @@ function tryPopulateStateTemplate(
     return stats;
   }
 
-  fillText([["name"], ["resident", "name"]], input.residentName);
+  fillText([["resident", "name"]], input.residentName);
   fillText([["birth"], ["dob"]], input.residentDob);
   fillText([["admission"]], input.admissionDate);
   fillText([["license"]], input.facilityLicenseNumber);
