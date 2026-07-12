@@ -146,7 +146,10 @@ export function useCreateQuizQuestion() {
         const { error: explError } = await supabase
           .from("quiz_question_explanations")
           .insert({ question_id: data.id, organization_id: data.organization_id, explanation: trimmed });
-        if (explError) throw explError;
+        if (explError) {
+          await supabase.from("quiz_questions").delete().eq("id", data.id);
+          throw explError;
+        }
       }
       return { ...data, explanation: trimmed } as QuizQuestionWithExplanation;
     },
@@ -178,11 +181,12 @@ export function useUpdateQuizQuestion() {
       } else {
         // Caller didn't touch explanation -- look up its current value rather than assuming
         // null, since the row (or lack of one) in quiz_question_explanations is untouched.
-        const { data: existing } = await supabase
+        const { data: existing, error: existingError } = await supabase
           .from("quiz_question_explanations")
           .select("explanation")
           .eq("question_id", id)
           .maybeSingle();
+        if (existingError) throw existingError;
         finalExplanation = existing?.explanation ?? null;
       }
       return { ...data, explanation: finalExplanation } as QuizQuestionWithExplanation;
