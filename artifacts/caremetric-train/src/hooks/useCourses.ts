@@ -278,7 +278,8 @@ export function useCloneCourseVersion() {
 
         return newVersion;
       } catch (err) {
-        await supabase.from("course_versions").delete().eq("id", newVersion.id);
+        const { error: cleanupError } = await supabase.from("course_versions").delete().eq("id", newVersion.id);
+        if (cleanupError) throw new Error(`Clone failed and cleanup failed: ${cleanupError.message}`, { cause: err });
         throw err;
       }
     },
