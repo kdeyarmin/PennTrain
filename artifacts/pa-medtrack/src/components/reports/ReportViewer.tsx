@@ -73,7 +73,7 @@ export function ReportViewer({
             <div className="flex items-center gap-3">
               <ShieldCheck className="h-8 w-8 text-primary" />
               <div>
-                <h1 className="text-xl font-bold">PA MedTrack</h1>
+                <h1 className="text-xl font-bold">CareMetric Train</h1>
                 <p className="text-sm text-muted-foreground">Pennsylvania Care Provider Compliance Platform</p>
               </div>
             </div>
