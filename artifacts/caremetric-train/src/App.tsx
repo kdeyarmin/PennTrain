@@ -271,9 +271,8 @@ function Router() {
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/verify/:slug" component={VerifyCertificate} />
       <Route path="/report-safety" component={SafetyReport} />
-      {/* Bare, chrome-less page (no ProtectedRoute/MainLayout wrapper) -- AuthProvider's own
-          global redirect already bounces a signed-out visitor to /login since this path isn't in
-          isPublicPath(); intentionally no sidebar for a page reached by scanning a QR code. */}
+      {/* Bare, chrome-less public page intentionally left outside ProtectedRoute/MainLayout so
+          signed-out visitors can open it directly after scanning a QR code. */}
       <Route path="/checkin/:token" component={CheckIn} />
 
       <Route path="/account/security">

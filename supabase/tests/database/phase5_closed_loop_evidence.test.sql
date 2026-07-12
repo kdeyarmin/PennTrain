@@ -1,4 +1,4 @@
-begin; select plan(23);
+begin; select plan(24);
 select has_table('public','work_items','reusable owned work exists');
 select has_table('public','confidential_reporter_identities','reporter identity is separated');
 select has_table('public','move_in_workspaces','resident move-in workspace exists');
@@ -6,6 +6,7 @@ select has_table('public','report_snapshots','immutable as-of snapshots exist');
 select has_table('public','evidence_guest_grants','scoped evidence room grants exist');
 select has_function('public','authorize_evidence_guest_artifact',array['text','uuid','text','text'],'guest access is server authorized');
 select ok(not has_table_privilege('authenticated','public.confidential_reporter_identities','SELECT'),'reporter identity is not exposed to browser roles');
+select ok(has_table_privilege('authenticated','public.report_schedules','SELECT'),'authenticated reporting roles can read report schedules through RLS');
 select ok(not has_function_privilege('anon','public.create_deduplicated_work_item(uuid,uuid,text,text,uuid,text,text,text,uuid,text,timestamp with time zone)','EXECUTE'),'anonymous callers cannot create internal work');
 select ok(has_function_privilege('anon','public.authorize_evidence_guest_artifact(text,uuid,text,text)','EXECUTE'),'external artifact authorization is an explicit narrow API');
 select ok(not has_function_privilege('anon','public.start_confidential_incident_intake(uuid,text,timestamp with time zone,boolean,text,text,text,text,uuid,jsonb,text,text)','EXECUTE'),'anonymous intake cannot bypass Turnstile Edge boundary');
