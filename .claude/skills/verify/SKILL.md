@@ -16,8 +16,8 @@ export VITE_SUPABASE_URL=https://dummy-project.supabase.co VITE_SUPABASE_ANON_KE
 pnpm install --frozen-lockfile --prod=false \
   && pnpm --filter @workspace/caremetric-train run typecheck \
   && pnpm --filter @workspace/caremetric-train run build
-# Build must end with: "precompress: N compressible files scanned, 2N variants written"
-# and dist/public/assets must contain .br/.gz siblings next to each js/css file.
+# Build must end with: "precompress: N compressible files scanned, M variants written" (M can be < 2N)
+# and dist/public/assets should contain .br and/or .gz siblings next to each js/css file where compression shrinks it.
 ```
 
 ## Run + probe

@@ -149,7 +149,7 @@ can see the whole workspace and lockfile.
      and its hosted version cannot provision Node 24 -- it silently falls back to Node 18, which
      breaks the Vite 7 build. Do not switch this service back to Nixpacks.)
    - Build: `pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-train run typecheck && pnpm --filter @workspace/caremetric-train run build`
-     (Railpack also runs its own install beforehand; the explicit one is a harmless belt-and-braces
+    (Railpack also runs its own install beforehand; the explicit one is a harmless belt-and-braces
     step, and the typecheck is the deploy's static gate; GitHub Actions runs the broader
     `check:all`-style workflow on pushes/PRs)
    - Start: `pnpm --filter @workspace/caremetric-train run start`
@@ -401,6 +401,11 @@ about Supabase. `/health` intentionally can't tell you whether the served bundle
 the login page renders (a blank page means the bundle was built without the `VITE_` vars) --
 after changing `VITE_` variables, redeploy (rebuild); a mere restart ships the old bundle and a
 green `/health` would not reveal that.
+
+Remember that `/health` reflects the **server process env**, while the SPA uses values **baked in
+at build time** -- after changing `VITE_` variables, redeploy (rebuild); don't trust a green
+`/health` after a mere restart. Then load the app in a browser and confirm the login page renders
+(a blank page means the bundle was built without the `VITE_` vars).
 
 ## Limitations / manual steps remaining
 
