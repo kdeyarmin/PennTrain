@@ -77,6 +77,48 @@ describe("role-based page visibility", () => {
     expect(canViewPage("/app/audit", "employee")).toBe(false);
   });
 
+  it("limits the enterprise control plane to platform and organization administrators", () => {
+    expect(canViewPage("/admin/enterprise", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/enterprise", "org_admin")).toBe(true);
+    expect(canViewPage("/app/enterprise", "facility_manager")).toBe(false);
+    expect(canViewPage("/app/enterprise", "trainer")).toBe(false);
+    expect(canViewPage("/app/enterprise", "auditor")).toBe(false);
+    expect(canViewPage("/app/enterprise", "employee")).toBe(false);
+  });
+
+  it("limits qualified workforce operations to platform and tenant managers", () => {
+    expect(canViewPage("/admin/qualified-workforce", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/workforce-operations", "org_admin")).toBe(true);
+    expect(canViewPage("/app/workforce-operations", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/workforce-operations", "trainer")).toBe(false);
+    expect(canViewPage("/app/workforce-operations", "auditor")).toBe(false);
+    expect(canViewPage("/app/workforce-operations", "employee")).toBe(false);
+  });
+
+  it("limits governed learning operations to platform and tenant managers", () => {
+    expect(canViewPage("/admin/governed-learning", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/governed-learning", "org_admin")).toBe(true);
+    expect(canViewPage("/app/governed-learning", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/governed-learning", "trainer")).toBe(false);
+    expect(canViewPage("/app/governed-learning", "employee")).toBe(false);
+  });
+
+  it("exposes closed-loop compliance to reporting roles only", () => {
+    expect(canViewPage("/admin/closed-loop-compliance", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/closed-loop-compliance", "org_admin")).toBe(true);
+    expect(canViewPage("/app/closed-loop-compliance", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/closed-loop-compliance", "auditor")).toBe(true);
+    expect(canViewPage("/app/closed-loop-compliance", "trainer")).toBe(false);
+    expect(canViewPage("/app/closed-loop-compliance", "employee")).toBe(false);
+  });
+
+  it("makes account MFA settings available to every authenticated role", () => {
+    for (const role of ["platform_admin", "org_admin", "facility_manager", "trainer", "auditor", "employee"] as const) {
+      expect(canViewPage("/account/security", role)).toBe(true);
+      expect(canViewPath("/account/security", role)).toBe(true);
+    }
+  });
+
   it("checks nested paths against the owning visible page", () => {
     expect(canViewPath("/me/courses/assignment-1/quiz/quiz-1", "employee")).toBe(true);
     expect(canViewPath("/app/help/tickets/t1", "employee")).toBe(true);

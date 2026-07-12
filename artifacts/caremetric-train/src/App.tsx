@@ -20,6 +20,7 @@ const Demo = lazy(() => import("@/pages/auth/Demo"));
 const Signup = lazy(() => import("@/pages/auth/Signup"));
 const ForgotPassword = lazy(() => import("@/pages/auth/ForgotPassword"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
+const MfaSettings = lazy(() => import("@/pages/auth/MfaSettings"));
 
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
 const Organizations = lazy(() => import("@/pages/admin/Organizations"));
@@ -29,6 +30,11 @@ const AiCourseWizard = lazy(() => import("@/pages/admin/AiCourseWizard"));
 const AiGenerationLog = lazy(() => import("@/pages/admin/AiGenerationLog"));
 const NotificationDeliveries = lazy(() => import("@/pages/admin/NotificationDeliveries"));
 const SystemJobs = lazy(() => import("@/pages/admin/SystemJobs"));
+const EnterpriseFoundation = lazy(() => import("@/pages/admin/EnterpriseFoundation"));
+const QualifiedWorkforce = lazy(() => import("@/pages/admin/QualifiedWorkforce"));
+const GovernedLearning = lazy(() => import("@/pages/admin/GovernedLearning"));
+const ClosedLoopCompliance = lazy(() => import("@/pages/admin/ClosedLoopCompliance"));
+const SafetyReport = lazy(() => import("@/pages/public/SafetyReport"));
 const PlatformSettings = lazy(() => import("@/pages/admin/PlatformSettings"));
 const SecurityGovernance = lazy(() => import("@/pages/admin/SecurityGovernance"));
 const AdminSupportTickets = lazy(() => import("@/pages/admin/SupportTickets"));
@@ -264,10 +270,14 @@ function Router() {
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/verify/:slug" component={VerifyCertificate} />
-      {/* Bare, chrome-less page (no ProtectedRoute/MainLayout wrapper) -- AuthProvider's own
-          global redirect already bounces a signed-out visitor to /login since this path isn't in
-          isPublicPath(); intentionally no sidebar for a page reached by scanning a QR code. */}
+      <Route path="/report-safety" component={SafetyReport} />
+      {/* Bare, chrome-less public page intentionally left outside ProtectedRoute/MainLayout so
+          signed-out visitors can open it directly after scanning a QR code. */}
       <Route path="/checkin/:token" component={CheckIn} />
+
+      <Route path="/account/security">
+        {() => <ProtectedRoute component={MfaSettings} allowedRoles={ANY_ROLE} />}
+      </Route>
 
       {/* Public marketing pages (nav targets from the landing page) */}
       <Route path="/features" component={Features} />
@@ -338,6 +348,18 @@ function Router() {
       </Route>
       <Route path="/admin/system-jobs">
         {() => <ProtectedRoute component={SystemJobs} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/enterprise">
+        {() => <ProtectedRoute component={EnterpriseFoundation} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/qualified-workforce">
+        {() => <ProtectedRoute component={QualifiedWorkforce} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/governed-learning">
+        {() => <ProtectedRoute component={GovernedLearning} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/closed-loop-compliance">
+        {() => <ProtectedRoute component={ClosedLoopCompliance} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
       <Route path="/admin/exclusion-screening">
         {() => <ProtectedRoute component={ExclusionScreening} allowedRoles={PLATFORM_ADMIN} />}
@@ -484,6 +506,18 @@ function Router() {
       </Route>
       <Route path="/app/settings">
         {() => <ProtectedRoute component={Settings} allowedRoles={ORG_MANAGE_ROLES} />}
+      </Route>
+      <Route path="/app/enterprise">
+        {() => <ProtectedRoute component={EnterpriseFoundation} allowedRoles={ORG_ADMIN_ONLY} />}
+      </Route>
+      <Route path="/app/workforce-operations">
+        {() => <ProtectedRoute component={QualifiedWorkforce} allowedRoles={ORG_MANAGE_ROLES} />}
+      </Route>
+      <Route path="/app/governed-learning">
+        {() => <ProtectedRoute component={GovernedLearning} allowedRoles={ORG_MANAGE_ROLES} />}
+      </Route>
+      <Route path="/app/closed-loop-compliance">
+        {() => <ProtectedRoute component={ClosedLoopCompliance} allowedRoles={REPORTS_VIEW_ROLES} />}
       </Route>
       <Route path="/app/audit">
         {() => <ProtectedRoute component={AuditLog} allowedRoles={AUDIT_LOG_ROLES} />}

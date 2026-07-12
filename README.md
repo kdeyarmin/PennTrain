@@ -76,6 +76,17 @@ guest, and accessibility journeys in Chromium.
 For production deployment (Railway + Supabase), see `DEPLOYMENT.md`.
 Phase 1 rollout, recovery, ownership, and pilot procedures are in
 [`PHASE1_OPERATIONS.md`](PHASE1_OPERATIONS.md).
+Phase 2 hierarchy, workforce, rule, identity, billing, integration, and pilot
+procedures are in [`PHASE2_OPERATIONS.md`](PHASE2_OPERATIONS.md).
+Phase 3 HRIS, qualification, credential renewal, instructor-led training,
+eligibility, and pilot procedures are in
+[`PHASE3_OPERATIONS.md`](PHASE3_OPERATIONS.md).
+Phase 4 content governance, policy lifecycle, standards interoperability,
+adaptive learning, offline safety, and pilot procedures are in
+[`PHASE4_OPERATIONS.md`](PHASE4_OPERATIONS.md).
+Phase 5 remediation, confidential intake, move-in collaboration, historical
+reporting, evidence-room access, and pilot procedures are in
+[`PHASE5_OPERATIONS.md`](PHASE5_OPERATIONS.md).
 
 ## Database / backend setup
 
