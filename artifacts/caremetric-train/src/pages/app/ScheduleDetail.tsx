@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useGetSchedule, useGenerateScheduleAssignments, useClearAutoFilledAssignments, usePublishSchedule, useUnpublishSchedule } from "@/hooks/useSchedules";
 import { useGetFacility } from "@/hooks/useFacilities";
 import { useListFacilityUnits } from "@/hooks/useFacilityUnits";
 import { useListShiftDefinitions } from "@/hooks/useShiftDefinitions";
 import { useListEmployeeFacilityAssignments } from "@/hooks/useEmployeeFacilityAssignments";
+import { useListResidents } from "@/hooks/useResidents";
 import {
   useListShiftAssignments, useCreateShiftAssignment, useUpdateShiftAssignment, useDeleteShiftAssignment,
   type ShiftAssignmentWithDetails,
@@ -52,6 +53,7 @@ export default function ScheduleDetail() {
   const { data: units } = useListFacilityUnits({ facilityId });
   const { data: shiftDefs } = useListShiftDefinitions({ facilityId });
   const { data: roster } = useListEmployeeFacilityAssignments({ facilityId });
+  const { data: activeResidents } = useListResidents({ facilityId: facilityId ?? "00000000-0000-0000-0000-000000000000", status: "active" });
   const { data: assignments, isLoading: assignmentsLoading } = useListShiftAssignments({ scheduleId: id });
 
   const generate = useGenerateScheduleAssignments();
@@ -77,6 +79,7 @@ export default function ScheduleDetail() {
   const [residentsInHouse, setResidentsInHouse] = useState(0);
   const [targetPpd, setTargetPpd] = useState(2.0);
   const [minimumStaffPerDay, setMinimumStaffPerDay] = useState(2);
+  const [censusWasEdited, setCensusWasEdited] = useState(false);
 
   const dates = useMemo(
     () => (schedule ? enumerateDatesIso(schedule.period_start, schedule.period_end) : []),
@@ -89,6 +92,11 @@ export default function ScheduleDetail() {
     () => (roster ?? []).filter((r) => r.employees && r.employees.status === "active"),
     [roster]
   );
+  const activeResidentCount = activeResidents?.length ?? 0;
+
+  useEffect(() => {
+    if (!censusWasEdited) setResidentsInHouse(activeResidentCount);
+  }, [activeResidentCount, censusWasEdited]);
 
   const grid = useMemo(() => {
     const map = new Map<string, ShiftAssignmentWithDetails[]>();
@@ -397,12 +405,13 @@ export default function ScheduleDetail() {
           <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
             <div>
               <h3 className="font-medium">Resident census & staffing calculator</h3>
-              <p className="text-xs text-muted-foreground">Enter today's residents in house to calculate PPD and see if scheduled staffing is below your threshold before publishing.</p>
+              <p className="text-xs text-muted-foreground">Active resident census loads automatically; override it for today's in-house count to calculate PPD and staffing gaps before publishing.</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
                 <Label htmlFor="residentsInHouse">Residents in house</Label>
-                <Input id="residentsInHouse" type="number" min={0} value={residentsInHouse} onChange={(e) => setResidentsInHouse(Number(e.target.value) || 0)} />
+                <Input id="residentsInHouse" type="number" min={0} value={residentsInHouse} onChange={(e) => { setCensusWasEdited(true); setResidentsInHouse(Number(e.target.value) || 0); }} />
+                <button type="button" className="text-xs text-primary hover:underline" onClick={() => { setCensusWasEdited(false); setResidentsInHouse(activeResidentCount); }}>Use active census ({activeResidentCount})</button>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="targetPpd">Target PPD</Label>
@@ -425,10 +434,12 @@ export default function ScheduleDetail() {
               <div className="rounded-lg border bg-background p-3">
                 <p className="text-xs text-muted-foreground">Hours gap</p>
                 <p className="text-xl font-semibold">{staffingRatios.hoursGap}</p>
+                <p className="text-[11px] text-muted-foreground">{staffingRatios.hoursGapPerDay}/day</p>
               </div>
               <div className="rounded-lg border bg-background p-3">
-                <p className="text-xs text-muted-foreground">Residents/staff avg.</p>
-                <p className="text-xl font-semibold">{staffingRatios.averageResidentsPerScheduledStaff ?? "—"}</p>
+                <p className="text-xs text-muted-foreground">8h shifts to add</p>
+                <p className="text-xl font-semibold">{staffingRatios.suggestedEightHourShifts}</p>
+                <p className="text-[11px] text-muted-foreground">Residents/staff avg. {staffingRatios.averageResidentsPerScheduledStaff ?? "—"}</p>
               </div>
             </div>
           </div>
@@ -440,7 +451,7 @@ export default function ScheduleDetail() {
                   <p className="font-medium">Review coverage before publishing.</p>
                   <ul className="list-disc pl-5 text-xs">
                     {scheduleAnalytics.unitDayCoverageGaps > 0 && <li>{scheduleAnalytics.unitDayCoverageGaps} unit-day coverage gap{scheduleAnalytics.unitDayCoverageGaps === 1 ? "" : "s"} based on active units and schedule dates.</li>}
-                    {staffingRatios.isBelowTarget && <li>Current PPD is {staffingRatios.ppd.toFixed(2)} against a target of {staffingRatios.targetPpd.toFixed(2)}; add {staffingRatios.hoursGap} scheduled care hour{staffingRatios.hoursGap === 1 ? "" : "s"} to meet the target.</li>}
+                    {staffingRatios.isBelowTarget && <li>Current PPD is {staffingRatios.ppd.toFixed(2)} against a target of {staffingRatios.targetPpd.toFixed(2)}; add {staffingRatios.hoursGap} scheduled care hour{staffingRatios.hoursGap === 1 ? "" : "s"} ({staffingRatios.suggestedEightHourShifts} more 8-hour shift{staffingRatios.suggestedEightHourShifts === 1 ? "" : "s"}) to meet the target.</li>}
                     {staffingRatios.daysBelowMinimumStaffing.map((row) => (
                       <li key={row.date}>{formatDateLabel(row.date)} has {row.scheduledStaff} scheduled staff, below the minimum of {row.minimumStaff}.</li>
                     ))}
