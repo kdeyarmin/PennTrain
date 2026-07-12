@@ -147,7 +147,7 @@ function FrequencyPartyFields({
         )}
       </div>
       <div className="space-y-1">
-        <Select value={responsibleParty} onValueChange={onPartyChange} disabled={disabled}>
+        <Select value={responsibleParty} onValueChange={(v) => { onPartyChange(v); if (v !== "O") onPartyOtherChange(""); }} disabled={disabled}>
           <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Responsible party" /></SelectTrigger>
           <SelectContent>{partyOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
         </Select>
