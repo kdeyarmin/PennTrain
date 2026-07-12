@@ -103,6 +103,15 @@ describe("role-based page visibility", () => {
     expect(canViewPage("/app/governed-learning", "employee")).toBe(false);
   });
 
+  it("exposes closed-loop compliance to reporting roles only", () => {
+    expect(canViewPage("/admin/closed-loop-compliance", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/closed-loop-compliance", "org_admin")).toBe(true);
+    expect(canViewPage("/app/closed-loop-compliance", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/closed-loop-compliance", "auditor")).toBe(true);
+    expect(canViewPage("/app/closed-loop-compliance", "trainer")).toBe(false);
+    expect(canViewPage("/app/closed-loop-compliance", "employee")).toBe(false);
+  });
+
   it("makes account MFA settings available to every authenticated role", () => {
     for (const role of ["platform_admin", "org_admin", "facility_manager", "trainer", "auditor", "employee"] as const) {
       expect(canViewPage("/account/security", role)).toBe(true);

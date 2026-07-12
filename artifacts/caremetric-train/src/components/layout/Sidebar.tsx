@@ -114,6 +114,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/admin/enterprise", label: "Enterprise Foundation", icon: Network },
           { href: "/admin/qualified-workforce", label: "Qualified Workforce", icon: UserRoundCheck },
           { href: "/admin/governed-learning", label: "Governed Learning", icon: BookCheck },
+          { href: "/admin/closed-loop-compliance", label: "Closed-Loop Compliance", icon: Gavel },
           { href: "/admin/exclusion-screening", label: "Exclusion Screening", icon: ShieldAlert },
           { href: "/admin/security", label: "Security & Governance", icon: Eye },
           { href: "/admin/support-tickets", label: "Support Tickets", icon: LifeBuoy },
@@ -194,6 +195,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Reporting & Documents",
         items: [
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
+          { href: "/app/closed-loop-compliance", label: "Closed-Loop Compliance", icon: Gavel },
           ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar }] : []),
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
           { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },

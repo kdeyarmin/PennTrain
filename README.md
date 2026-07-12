@@ -84,6 +84,9 @@ eligibility, and pilot procedures are in
 Phase 4 content governance, policy lifecycle, standards interoperability,
 adaptive learning, offline safety, and pilot procedures are in
 [`PHASE4_OPERATIONS.md`](PHASE4_OPERATIONS.md).
+Phase 5 remediation, confidential intake, move-in collaboration, historical
+reporting, evidence-room access, and pilot procedures are in
+[`PHASE5_OPERATIONS.md`](PHASE5_OPERATIONS.md).
 
 ## Database / backend setup
 

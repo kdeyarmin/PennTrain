@@ -1,0 +1,64 @@
+# Phase 5 closed-loop compliance and evidence
+
+Phase 5 converts findings and resident workflows into owned work, reproducible
+historical snapshots, and selected external evidence. Live unrestricted database
+access is never an evidence-room feature.
+
+## Remediation work
+
+Configure templates for each enabled source with ownership, due interval, required
+evidence, approval, and escalation. Source automations must use a stable
+deduplication key. Closure fails while required evidence or blocking dependencies
+remain incomplete. History is append-only; recurrence and effectiveness review
+create new evidence rather than rewriting the prior action.
+
+## Confidential incident intake
+
+The public flow stores broadly visible triage metadata separately from protected
+narrative, resident/witness information, and reporter identity. Resume and
+confirmation secrets must be generated on the client, shown once, and never logged.
+Critical or immediate-danger reports create urgent owned work. Only authorized
+investigators may access details or identity, and views, downloads, disclosures,
+denials, and state changes must produce access events.
+
+Do not send protected narrative in notification copy. Notifications identify the
+facility, urgency, intake number, and restricted application route only.
+
+## Move-in collaboration
+
+Pin each workspace to a versioned template. Readiness is derived from task,
+dependency, document, signature, approval, and exception state. Guest tokens are
+non-enumerable, resident/workspace/task-specific, expiring, and revocable. Store
+only token hashes. Revocation must block subsequent access immediately.
+
+## Historical reports
+
+Publish versioned definitions before scheduling them. The trusted report worker
+records the configuration, as-of timestamp, source watermarks, included record IDs,
+row counts, material totals, reconciliation result, and snapshot checksum. Reusing
+the same version, configuration, and as-of time returns the canonical snapshot.
+Only reconciled snapshots may be delivered or published to an evidence collection.
+
+Artifacts include a checksummed manifest, byte size, watermark instructions, and
+retention. A snapshot is immutable and is explicitly distinguished from a live
+dashboard.
+
+## Evidence room
+
+Publish only selected immutable snapshot artifacts into a facility-scoped
+collection. Guest grants must specify artifact IDs, expiration, terms, and optional
+step-up verification. Authorization fails closed for cross-facility scope, expired
+or revoked grants, unaccepted terms, missing step-up, withdrawn artifacts, and
+suspended/canceled tenants. Log successful and denied access, downloads, comments,
+shares, withdrawals, and revocations.
+
+Legal hold prevents retention deletion but does not extend guest access.
+
+## Production exit gate
+
+Run a 30-day pilot proving no lost or duplicate source work, urgent routing within
+the agreed objective, confidential access boundaries, reproducible report sets,
+reconciled totals, and complete external-access attribution. Before general
+availability, rehearse backup/PITR and full application restore, test emergency
+guest revocation, and close every critical/high finding from an independent
+penetration test.

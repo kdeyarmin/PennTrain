@@ -62,8 +62,8 @@ const phases = [
   {
     name: "Phase 5",
     title: "Closed-loop compliance and evidence",
-    timeline: "Planned",
-    status: "planned",
+    timeline: "Code complete; production pilots pending",
+    status: "implemented",
     icon: Rocket,
     goal: "Turn findings and resident workflows into owned work, reproducible reports, and regulator-ready evidence.",
     outcomes: [
@@ -83,6 +83,7 @@ const currentFoundation = [
   "Signed integrations",
   "Qualified workforce operations",
   "Governed learning and content",
+  "Closed-loop compliance and evidence",
 ];
 
 export default function ImprovementRoadmap() {
@@ -109,8 +110,8 @@ export default function ImprovementRoadmap() {
             {currentFoundation.map((item) => <Badge key={item} variant="outline">{item}</Badge>)}
           </div>
           <p className="mt-3 text-sm text-muted-foreground">
-            Phases 2 through 4 are implemented behind trusted database and Edge boundaries. General availability remains
-            blocked on controlled identity, workforce, content-governance, standards-runtime, adaptive, and offline pilots.
+            All five phases are implemented behind trusted database and Edge boundaries. General availability remains
+            blocked on controlled domain pilots, restore rehearsal, and an independent penetration-test exit gate.
           </p>
         </CardContent>
       </Card>
