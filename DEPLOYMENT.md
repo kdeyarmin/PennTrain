@@ -148,11 +148,11 @@ can see the whole workspace and lockfile.
    - Builder: **Railpack** (Railway's current default builder; Nixpacks is deprecated on Railway
      and its hosted version cannot provision Node 24 -- it silently falls back to Node 18, which
      breaks the Vite 7 build. Do not switch this service back to Nixpacks.)
-   - Build: `pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-train run typecheck && pnpm --filter @workspace/caremetric-train run build`
+   - Build: `corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-train run typecheck && pnpm --filter @workspace/caremetric-train run build`
     (Railpack also runs its own install beforehand; the explicit one is a harmless belt-and-braces
     step, and the typecheck is the deploy's static gate; GitHub Actions runs the broader
     `check:all`-style workflow on pushes/PRs)
-   - Start: `pnpm --filter @workspace/caremetric-train run start`
+   - Start: `corepack enable && pnpm --filter @workspace/caremetric-train run start`
    - Healthcheck: `GET /health`
    - Watch paths: only changes under `artifacts/caremetric-train/` and the root toolchain/config files
      trigger a deploy, so pushes touching e.g. `artifacts/mockup-sandbox` or `scripts/` don't
