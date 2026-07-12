@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-import { useEffect, useMemo, useState } from "react";
-=======
 import { useEffect, useMemo, useRef, useState } from "react";
->>>>>>> origin/main
 import { Link, useSearch } from "wouter";
 import { useListViolations, useCreateViolation, type ViolationInsert } from "@/hooks/useViolations";
 import { useListCitationTopics } from "@/hooks/useCitationTopics";

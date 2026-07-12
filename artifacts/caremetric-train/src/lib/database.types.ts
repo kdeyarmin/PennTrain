@@ -16710,8 +16710,6 @@ export type Database = {
           course_version_id: string
         }[]
       }
-<<<<<<< HEAD
-=======
       create_credential_renewal_submission: {
         Args: {
           p_credential_document_id: string
@@ -16811,7 +16809,6 @@ export type Database = {
           credential_secret: string
         }[]
       }
->>>>>>> origin/main
       create_violation_retraining_action: {
         Args: {
           p_course_id: string
@@ -16839,15 +16836,12 @@ export type Database = {
           verification_notes: string | null
           violation_id: string | null
         }
-<<<<<<< HEAD
-=======
         SetofOptions: {
           from: "*"
           to: "corrective_actions"
           isOneToOne: true
           isSetofReturn: false
         }
->>>>>>> origin/main
       }
       current_org_id: { Args: never; Returns: string }
       current_profile_active: { Args: never; Returns: boolean }

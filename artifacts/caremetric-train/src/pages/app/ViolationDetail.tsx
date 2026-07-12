@@ -2,11 +2,7 @@ import { useRef, useState } from "react";
 import { useParams, Link } from "wouter";
 import { useGetViolation, useUpdateViolation, useGeneratePocDocument } from "@/hooks/useViolations";
 import {
-<<<<<<< HEAD
-  useListCorrectiveActions, useCreateCorrectiveAction, useUpdateCorrectiveAction,
-=======
   useListCorrectiveActions, useUpdateCorrectiveAction,
->>>>>>> origin/main
   useDeleteCorrectiveAction, useCreateViolationRetrainingAction, type CorrectiveAction,
 } from "@/hooks/useCorrectiveActions";
 import {
@@ -18,10 +14,7 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useListCitationTopics } from "@/hooks/useCitationTopics";
 import { useListCourses } from "@/hooks/useCourses";
 import { StatusPill } from "./Violations";
-<<<<<<< HEAD
-=======
 import { CorrectiveActionForm, CorrectiveActionStatusBadge } from "@/components/CorrectiveActionForm";
->>>>>>> origin/main
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,10 +59,6 @@ export default function ViolationDetail() {
   const { data: documents, isLoading: documentsLoading } = useListViolationDocuments(id);
 
   const { mutate: updateViolation, isPending: updatingViolation } = useUpdateViolation();
-<<<<<<< HEAD
-  const { mutate: createCorrectiveAction } = useCreateCorrectiveAction();
-=======
->>>>>>> origin/main
   const { mutate: updateCorrectiveAction } = useUpdateCorrectiveAction();
   const deleteCorrectiveAction = useDeleteCorrectiveAction();
   const createRetrainingAction = useCreateViolationRetrainingAction();
@@ -85,11 +74,6 @@ export default function ViolationDetail() {
   const [retrainCourseId, setRetrainCourseId] = useState("");
   const [creatingAction, setCreatingAction] = useState(false);
   const [editingActionId, setEditingActionId] = useState<string | null>(null);
-<<<<<<< HEAD
-  const [editDescription, setEditDescription] = useState("");
-  const [editDueDate, setEditDueDate] = useState("");
-=======
->>>>>>> origin/main
   const [actionPendingDelete, setActionPendingDelete] = useState<CorrectiveAction | null>(null);
   const [docPendingDelete, setDocPendingDelete] = useState<ViolationDocument | null>(null);
   const [uploadLabel, setUploadLabel] = useState("");
@@ -224,35 +208,12 @@ export default function ViolationDetail() {
                 return (
                   <div key={ca.id} className="p-2 rounded-lg border text-sm">
                     {editingActionId === ca.id ? (
-<<<<<<< HEAD
-                      <div className="flex items-center gap-2">
-                        <Input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="h-9 flex-1" />
-                        <Input type="date" value={editDueDate} onChange={(e) => setEditDueDate(e.target.value)} className="h-9 w-40" />
-                        <Button
-                          size="sm"
-                          disabled={!editDescription.trim() || !editDueDate}
-                          onClick={() => {
-                            updateCorrectiveAction(
-                              { id: ca.id, description: editDescription.trim(), due_date: editDueDate },
-                              {
-                                onSuccess: () => setEditingActionId(null),
-                                onError: (err: Error) => toast({ title: "Failed to update corrective action", description: err.message, variant: "destructive" }),
-                              },
-                            );
-                          }}
-                        >
-                          Save
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setEditingActionId(null)}>Cancel</Button>
-                      </div>
-=======
                       <CorrectiveActionForm
                         parent={{ organizationId: violation.organization_id, facilityId: violation.facility_id, violationId: violation.id }}
                         editing={ca}
                         onDone={() => setEditingActionId(null)}
                         onCancelEdit={() => setEditingActionId(null)}
                       />
->>>>>>> origin/main
                     ) : (
                       <div className="flex items-center justify-between">
                         <div>
@@ -271,21 +232,13 @@ export default function ViolationDetail() {
                           {canEdit && (
                             <Button
                               variant="ghost" size="icon" className="h-7 w-7"
-<<<<<<< HEAD
-                              onClick={() => { setEditingActionId(ca.id); setEditDescription(ca.description); setEditDueDate(ca.due_date); }}
-=======
                               onClick={() => setEditingActionId(ca.id)}
->>>>>>> origin/main
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                           )}
                           {canEdit && (
-<<<<<<< HEAD
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: new Date().toISOString().slice(0, 10) })}>
-=======
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: toLocalIsoDate() })}>
->>>>>>> origin/main
                               <Check className="h-3.5 w-3.5" />
                             </Button>
                           )}
@@ -365,49 +318,9 @@ export default function ViolationDetail() {
                   </Button>
                 </div>
               ) : (
-<<<<<<< HEAD
-                <div className="flex items-center gap-2">
-                  <Input value={newActionDescription} onChange={(e) => setNewActionDescription(e.target.value)} placeholder="Corrective task description" className="h-9 flex-1" />
-                  <Select value={assignedEmployeeId} onValueChange={setAssignedEmployeeId}>
-                    <SelectTrigger className="h-9 w-44"><SelectValue placeholder="Assigned to (optional)" /></SelectTrigger>
-                    <SelectContent>
-                      {facilityEmployees.map((e) => (
-                        <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input type="date" value={newActionDueDate} onChange={(e) => setNewActionDueDate(e.target.value)} className="h-9 w-40" />
-                  <Button
-                    size="sm"
-                    disabled={!newActionDescription.trim() || !newActionDueDate}
-                    onClick={() => {
-                      const employee = employeeById.get(assignedEmployeeId);
-                      createCorrectiveAction(
-                        {
-                          violation_id: violation.id, description: newActionDescription.trim(), due_date: newActionDueDate,
-                          owner_profile_id: employee?.profile_id ?? null,
-                          owner_name: employee ? `${employee.last_name}, ${employee.first_name}` : null,
-                          organization_id: violation.organization_id, facility_id: violation.facility_id,
-                        },
-                        {
-                          onSuccess: () => {
-                            setNewActionDescription("");
-                            setNewActionDueDate("");
-                            setAssignedEmployeeId("");
-                          },
-                          onError: (err: Error) => toast({ title: "Failed to add corrective action", description: err.message, variant: "destructive" }),
-                        },
-                      );
-                    }}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-=======
                 <CorrectiveActionForm
                   parent={{ organizationId: violation.organization_id, facilityId: violation.facility_id, violationId: violation.id }}
                 />
->>>>>>> origin/main
               )}
             </div>
           )}

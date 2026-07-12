@@ -6,10 +6,7 @@ import { useListCorrectiveActions, useUpdateCorrectiveAction } from "@/hooks/use
 import type { InspectionEvent } from "@/hooks/useInspectionEvents";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListViolationsBySourceInspectionEvents } from "@/hooks/useViolations";
-<<<<<<< HEAD
-=======
 import { CorrectiveActionForm, CorrectiveActionStatusBadge } from "@/components/CorrectiveActionForm";
->>>>>>> origin/main
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
