@@ -550,7 +550,7 @@ export default function OrgDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <StatLabel
-                  label="Trainers Needing Recert"
+                  label="Trainers Needing Recertification"
                   tooltip="Active staff marked as trainers who have at least one training requirement that is due soon or expired, and must recertify to keep training others."
                 />
                 <p className="stat-value text-purple-600">{summary.trainersDueForRecert}</p>
