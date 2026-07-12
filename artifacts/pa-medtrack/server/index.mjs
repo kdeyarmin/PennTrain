@@ -119,11 +119,7 @@ const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
-    if (req.method !== "GET" && req.method !== "HEAD") {
-      res.writeHead(405, { "Content-Type": "text/plain; charset=utf-8" });
-      res.end("Method Not Allowed");
-      return;
-    }
+    if (req.method !== "GET") {
 
     if (url.pathname === "/health") {
       await handleHealth(req, res);
