@@ -1,4 +1,4 @@
-import { Webhook } from "https://esm.sh/standardwebhooks@1.0.0";
+import { Webhook } from "npm:standardwebhooks@1.0.0";
 
 // Supabase Auth "Send Email" hook (Authentication -> Hooks in the dashboard): when enabled,
 // Supabase Auth calls this function instead of using SMTP/its default mailer for every
