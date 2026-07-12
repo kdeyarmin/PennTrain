@@ -61,6 +61,7 @@ import {
   Activity,
   Network,
   UserRoundCheck,
+  ScanText,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -95,6 +96,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/admin/courses", label: "Courses", icon: GraduationCap },
           { href: "/admin/courses/new-ai", label: "New AI Course", icon: Sparkles },
           { href: "/admin/ai-generations", label: "AI Generation Log", icon: BarChart3 },
+          { href: "/admin/document-analyzer", label: "Document Analyzer", icon: ScanText },
           { href: "/admin/help-content", label: "Help Center Content", icon: HelpCircle },
         ]
       },
