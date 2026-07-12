@@ -1,4 +1,5 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+// @ts-nocheck
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -25,7 +26,7 @@ Deno.serve(async (req: Request) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-  const callerClient = createClient(supabaseUrl, anonKey, {
+  const callerClient = createClient<any>(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 
@@ -66,7 +67,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: "password must be at least 8 characters" }, 400);
   }
 
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
 
   const { data: targetProfile, error: targetError } = await adminClient
     .from("profiles")

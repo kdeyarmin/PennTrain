@@ -4,19 +4,12 @@ import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
-import type { Role } from "@/lib/auth";
-import { Loader2, ArrowRight } from "lucide-react";
+import { markExplicitPasswordSignIn } from "@/lib/auth";
+import { Loader2, ArrowRight, ShieldCheck } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
-
-function roleHome(role: Role | undefined) {
-  if (role === "platform_admin") return "/admin";
-  if (role === "org_admin" || role === "facility_manager" || role === "auditor") return "/app";
-  if (role === "trainer") return "/trainer";
-  return "/me";
-}
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -27,24 +20,47 @@ export default function Login() {
 
   const loginMutation = useMutation({
     mutationFn: async ({ email, password }: { email: string; password: string }) => {
+      markExplicitPasswordSignIn();
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       toast({
         title: "Login successful",
         description: "Welcome back to CareMetric Train",
       });
-      const role = data.user?.user_metadata?.role as Role | undefined;
-      setLocation(roleHome(role));
+      // Land on "/" and let Router's role redirect (driven by the profiles-table-backed
+      // useAuth().user.role, not the client-writable auth user_metadata) send the user to
+      // their actual home once the profile query resolves.
+      setLocation("/");
     },
     onError: (error: Error) => {
       toast({
         variant: "destructive",
         title: "Login failed",
         description: error.message || "Please check your credentials and try again.",
+      });
+    },
+  });
+
+  const ssoMutation = useMutation({
+    mutationFn: async (address: string) => {
+      const domain = address.trim().toLowerCase().split("@")[1];
+      if (!domain) throw new Error("Enter your work email to discover your organization's SSO connection.");
+      const { data, error } = await supabase.auth.signInWithSSO({
+        domain,
+        options: { redirectTo: `${window.location.origin}/` },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Enterprise sign-in unavailable",
+        description: error.message,
       });
     },
   });
@@ -62,26 +78,12 @@ export default function Login() {
     loginMutation.mutate({ email, password });
   };
 
-  const setDemoCredentials = (e: string, p: string) => {
-    setEmail(e);
-    setPassword(p);
-  };
-
-  const demoAccounts = [
-    { label: "Platform Admin", email: "info@caremetrictrain.com", password: "admin123", color: "bg-violet-500" },
-    { label: "Org Admin", email: "admin@sunrisehealthcare.com", password: "demo123", color: "bg-blue-500" },
-    { label: "Facility Manager", email: "manager@sunrisemanor.com", password: "demo123", color: "bg-emerald-500" },
-    { label: "Trainer", email: "trainer@sunrisehealthcare.com", password: "demo123", color: "bg-amber-500" },
-    { label: "Auditor", email: "auditor@sunrisehealthcare.com", password: "demo123", color: "bg-slate-500" },
-    { label: "Employee", email: "employee@sunrisehealthcare.com", password: "demo123", color: "bg-teal-500" },
-  ];
-
   return (
     <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50" />
       <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/[0.03] rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
       <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-500/[0.03] rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
-      
+
       <div className="w-full max-w-[420px] space-y-8 relative z-10 px-4">
         <div className="flex flex-col items-center text-center space-y-3">
           <Link href="/" aria-label="CareMetric Train home">
@@ -97,7 +99,9 @@ export default function Login() {
 
         <Card className="border-border/50 shadow-xl shadow-black/[0.04] backdrop-blur-sm">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg">Sign in to your account</CardTitle>
+            <CardTitle className="text-lg">
+              <h2>Sign in to your account</h2>
+            </CardTitle>
             <CardDescription>Enter your credentials to access your dashboard</CardDescription>
           </CardHeader>
           <CardContent>
@@ -107,7 +111,7 @@ export default function Login() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="info@caremetrictrain.com"
+                  placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loginMutation.isPending}
@@ -146,26 +150,36 @@ export default function Login() {
                 )}
               </Button>
             </form>
-          </CardContent>
-          <CardFooter className="flex flex-col border-t bg-muted/30 px-6 py-5">
-            <p className="text-xs font-semibold text-foreground mb-3 w-full">Quick Demo Access</p>
-            <div className="grid grid-cols-2 gap-2 w-full">
-              {demoAccounts.map((account) => (
-                <button
-                  key={account.email}
-                  type="button"
-                  onClick={() => setDemoCredentials(account.email, account.password)}
-                  className="flex items-center gap-2.5 p-2.5 rounded-lg border border-border/60 bg-card hover:bg-muted/60 transition-all text-left group"
-                >
-                  <div className={`h-2 w-2 rounded-full ${account.color} shrink-0`} />
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-foreground leading-tight">{account.label}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">{account.email}</p>
-                  </div>
-                </button>
-              ))}
+            <div className="my-4 flex items-center gap-3" aria-hidden="true">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">or</span>
+              <div className="h-px flex-1 bg-border" />
             </div>
-          </CardFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-10"
+              disabled={ssoMutation.isPending || loginMutation.isPending}
+              onClick={() => ssoMutation.mutate(email)}
+            >
+              {ssoMutation.isPending
+                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                : <ShieldCheck className="mr-2 h-4 w-4" />}
+              Continue with enterprise SSO
+            </Button>
+            <p className="mt-4 text-center text-[13px] text-muted-foreground">
+              New facility?{" "}
+              <Link href="/signup" className="font-medium text-primary hover:text-primary/80">
+                Create your organization
+              </Link>
+            </p>
+            <p className="mt-2 text-center text-[13px] text-muted-foreground">
+              Just exploring?{" "}
+              <Link href="/demo" className="font-medium text-primary hover:text-primary/80">
+                Try a demo account
+              </Link>
+            </p>
+          </CardContent>
         </Card>
 
         <p className="text-center text-[11px] text-muted-foreground/60">

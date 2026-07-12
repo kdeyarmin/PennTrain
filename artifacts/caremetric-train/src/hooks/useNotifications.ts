@@ -67,3 +67,24 @@ export function useMarkAllNotificationsRead() {
     onSuccess: () => invalidateNotifications(queryClient),
   });
 }
+
+export type NotificationDelivery = Tables<"notification_deliveries">;
+
+// Read-only delivery log (email/SMS attempts for training_due_soon/training_expired
+// notifications, plus escalations and the Monday digest) -- populated entirely server-side by
+// the queue_notification_delivery trigger and the dispatch-notifications Edge Function; there is
+// no client insert/update, only this list view.
+export function useListNotificationDeliveries(limit = 20) {
+  return useQuery({
+    queryKey: ["notification_deliveries", limit],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("notification_deliveries")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      return data;
+    },
+  });
+}

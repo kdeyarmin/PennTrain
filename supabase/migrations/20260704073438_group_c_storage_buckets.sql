@@ -2,15 +2,18 @@
 --   course-documents: {org_id|'system'}/{course_id}/...  (course authoring uploads: pdf/scorm/video files
 --     referenced by course_blocks.document_id -> training_documents)
 --   certificates: generated PDFs referenced by certificates.pdf_storage_bucket/pdf_storage_path.
---     Write is service-role only (a future generate-certificate-pdf Edge Function would use the
---     service-role key to write here) -- no authenticated INSERT/UPDATE/DELETE policy is created at
---     all, matching conv #10's no-direct-client-write posture for anything certificate-related.
+--     Write is service-role only (the issue_certificate() RPC route is table-only today; a future
+--     generate-certificate-pdf Edge Function would use the service-role key to write here) --
+--     no authenticated INSERT/UPDATE/DELETE policy is created at all, matching conv #10's
+--     no-direct-client-write posture for anything certificate-related.
 insert into storage.buckets (id, name, public)
 values
   ('course-documents', 'course-documents', false),
   ('certificates', 'certificates', false)
 on conflict (id) do nothing;
 
+-- course-documents: read = platform_admin, system-catalog ('system' folder), or own-org members;
+-- write = platform_admin (system catalog) or org_admin/trainer authoring their own org's courses.
 create policy "course-documents read" on storage.objects for select to authenticated using (
   bucket_id = 'course-documents'
   and (

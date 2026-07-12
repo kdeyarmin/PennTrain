@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useAuth } from "@/lib/auth";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -217,7 +218,7 @@ export default function RetrainingMonitor() {
                           {compliancePercent}%
                         </span>
                       </div>
-                      <div className="grid grid-cols-4 gap-3 text-center text-sm">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-sm">
                         <div className="rounded-lg bg-green-50 dark:bg-green-950/20 py-2">
                           <p className="text-lg font-bold text-green-700 dark:text-green-400">
                             {fac.compliantCount}
@@ -246,7 +247,7 @@ export default function RetrainingMonitor() {
                       {fac.nextExpiryDate && (
                         <p className="text-xs text-muted-foreground">
                           Next expiry:{" "}
-                          {new Date(fac.nextExpiryDate).toLocaleDateString("en-US", {
+                          {formatDateForDisplay(fac.nextExpiryDate, {
                             month: "short",
                             day: "numeric",
                             year: "numeric",

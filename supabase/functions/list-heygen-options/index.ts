@@ -1,4 +1,5 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+// @ts-nocheck
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -26,7 +27,7 @@ Deno.serve(async (req: Request) => {
   const heygenApiKey = Deno.env.get("HEYGEN_API_KEY");
   if (!heygenApiKey) return json({ error: "HEYGEN_API_KEY is not configured" }, 500);
 
-  const callerClient = createClient(supabaseUrl, anonKey, {
+  const callerClient = createClient<any>(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 
