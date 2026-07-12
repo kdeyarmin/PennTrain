@@ -118,12 +118,11 @@ export function summarizeStaffingRatios({
   minimumStaffPerDay: number;
 }): StaffingRatioSummary {
   const residentCount = Math.max(0, residentsInHouse);
+  const safeTargetPpd = Math.max(0, targetPpd);
+  const safeMinimumStaff = Math.max(0, Math.floor(minimumStaffPerDay));
   const scheduleDays = dates.length;
 
   if (scheduleDays === 0) {
-    const safeTargetPpd = Math.max(0, targetPpd);
-    const safeMinimumStaff = Math.max(0, Math.floor(minimumStaffPerDay));
-
     return {
       residentsInHouse: residentCount,
       days: 0,
@@ -142,9 +141,13 @@ export function summarizeStaffingRatios({
     };
   }
 
-  const activeAssignments = assignments.filter((a) => a.status !== "called_off" && a.status !== "no_show");
+  const dateSet = new Set(dates);
+  const activeAssignments = assignments.filter((a) => dateSet.has(a.shift_date) && a.status !== "called_off" && a.status !== "no_show");
   const scheduledCareHours = activeAssignments.reduce((total, assignment) => total + shiftDurationHours(assignment.start_time, assignment.end_time), 0);
-  const targetHours = residentCount * scheduleDays * Math.max(0, targetPpd);
+  const targetHours = residentCount * scheduleDays * safeTargetPpd;
+  const roundedScheduledCareHours = Math.round(scheduledCareHours * 10) / 10;
+  const roundedTargetHours = Math.round(targetHours * 10) / 10;
+  const roundedHoursGap = Math.max(0, Math.round((targetHours - scheduledCareHours) * 10) / 10);
   const staffByDate = new Map<string, Set<string>>();
   for (const date of dates) staffByDate.set(date, new Set());
   for (const assignment of activeAssignments) {
@@ -152,7 +155,6 @@ export function summarizeStaffingRatios({
     if (staff) staff.add(assignment.employee_id);
   }
 
-  const safeMinimumStaff = Math.max(0, Math.floor(minimumStaffPerDay));
   const daysBelowMinimumStaffing = dates
     .map((date) => ({ date, scheduledStaff: staffByDate.get(date)?.size ?? 0, minimumStaff: safeMinimumStaff }))
     .filter((row) => row.scheduledStaff < row.minimumStaff);
@@ -162,15 +164,15 @@ export function summarizeStaffingRatios({
   return {
     residentsInHouse: residentCount,
     days: scheduleDays,
-    scheduledCareHours: Math.round(scheduledCareHours * 10) / 10,
+    scheduledCareHours: roundedScheduledCareHours,
     ppd: residentCount > 0 ? Math.round((scheduledCareHours / residentCount / scheduleDays) * 100) / 100 : 0,
-    targetPpd: Math.max(0, targetPpd),
-    targetHours: Math.round(targetHours * 10) / 10,
-    targetHoursPerDay: Math.round((targetHours / scheduleDays) * 10) / 10,
-    hoursGap: Math.max(0, Math.round((targetHours - scheduledCareHours) * 10) / 10),
-    hoursGapPerDay: Math.max(0, Math.round(((targetHours - scheduledCareHours) / scheduleDays) * 10) / 10),
-    suggestedEightHourShifts: Math.ceil(Math.max(0, Math.round((targetHours - scheduledCareHours) * 10) / 10) / 8),
-    isBelowTarget: residentCount > 0 && Math.max(0, Math.round((targetHours - scheduledCareHours) * 10) / 10) > 0,
+    targetPpd: safeTargetPpd,
+    targetHours: roundedTargetHours,
+    targetHoursPerDay: Math.round((roundedTargetHours / scheduleDays) * 10) / 10,
+    hoursGap: roundedHoursGap,
+    hoursGapPerDay: Math.round((roundedHoursGap / scheduleDays) * 10) / 10,
+    suggestedEightHourShifts: Math.ceil(roundedHoursGap / 8),
+    isBelowTarget: residentCount > 0 && roundedHoursGap > 0,
     averageResidentsPerScheduledStaff: totalScheduledStaffDays > 0 ? Math.round((residentCount / (totalScheduledStaffDays / scheduleDays)) * 10) / 10 : null,
     minimumStaffPerDay: safeMinimumStaff,
     daysBelowMinimumStaffing,

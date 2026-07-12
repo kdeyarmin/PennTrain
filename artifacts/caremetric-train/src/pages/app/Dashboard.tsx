@@ -6,6 +6,11 @@ import { useListPracticums, type Practicum } from "@/hooks/usePracticums";
 import { useListAlerts, type Alert } from "@/hooks/useAlerts";
 import { useListDocuments, type TrainingDocument } from "@/hooks/useDocuments";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
+import { useListAllResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
+import { useListResidents } from "@/hooks/useResidents";
+import { summarizeResidentComplianceAnalytics } from "@/lib/residentComplianceAnalytics";
+import { hasAnyFacilityType, PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
+import { toLocalIsoDate } from "@/lib/dateUtils";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -364,6 +369,10 @@ export default function OrgDashboard() {
   const { data: alerts, isLoading: alertsLoading } = useListAlerts({ status: "open" });
   const { data: documents, isLoading: documentsLoading } = useListDocuments();
   const { data: trainingTypes, isLoading: trainingTypesLoading } = useListTrainingTypes({ isActive: true });
+  // RLS scopes both of these to what the viewer can see; roles without resident access simply
+  // get empty results and the banner below stays hidden.
+  const { data: residentItems } = useListAllResidentComplianceItems({ status: ["expired", "missing", "due_soon"] });
+  const { data: residents } = useListResidents();
 
   const summaryLoading =
     employeesLoading || facilitiesLoading || trainingRecordsLoading || practicumsLoading || alertsLoading || trainingTypesLoading || documentsLoading;
@@ -397,6 +406,25 @@ export default function OrgDashboard() {
   const facilityComplianceMap = new Map(
     summary.facilityCompliance.map(fc => [fc.facilityId, fc]),
   );
+
+  // "State forms" banner: only for roles that can act on resident forms, only for orgs with a
+  // PCH/ALF facility, and only when something actually needs attention -- an all-zero banner
+  // would just be noise on every other org's dashboard.
+  const residentFormsSummary = useMemo(
+    () =>
+      summarizeResidentComplianceAnalytics(
+        (residents ?? []).filter((r) => r.status === "active"),
+        residentItems ?? [],
+        toLocalIsoDate(),
+      ),
+    [residents, residentItems],
+  );
+  const openResidentFormsCount =
+    residentFormsSummary.expiredItems + residentFormsSummary.missingItems + residentFormsSummary.dueSoonItems;
+  const showResidentFormsBanner =
+    ["org_admin", "facility_manager", "auditor"].includes(user?.role ?? "")
+    && hasAnyFacilityType(new Set((facilities ?? []).map((f) => f.facility_type)), PCH_ALR_ONLY_FACILITY_TYPES)
+    && openResidentFormsCount > 0;
 
   const recentUploads = summary.recentUploads;
   const actionPlan = buildActionPlan({
@@ -454,6 +482,27 @@ export default function OrgDashboard() {
           <Link href="/app/alerts">
             <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white shadow-sm">
               View Alerts
+            </Button>
+          </Link>
+        </div>
+      )}
+
+      {showResidentFormsBanner && (
+        <div className="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 p-5 flex items-start gap-4">
+          <div className="h-10 w-10 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+            <FileText className="h-5 w-5 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-amber-900">
+              {openResidentFormsCount} Resident State Form{openResidentFormsCount > 1 ? "s" : ""} Need{openResidentFormsCount > 1 ? "" : "s"} Attention
+            </p>
+            <p className="text-sm text-amber-700/80 mt-0.5">
+              {residentFormsSummary.expiredItems} expired · {residentFormsSummary.missingItems} missing · {residentFormsSummary.dueSoonItems} due soon
+            </p>
+          </div>
+          <Link href="/app/state-forms">
+            <Button size="sm" variant="outline" className="border-amber-300 text-amber-900 hover:bg-amber-100 shadow-sm">
+              Open State Forms
             </Button>
           </Link>
         </div>

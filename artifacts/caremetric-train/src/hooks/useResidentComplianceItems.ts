@@ -33,7 +33,9 @@ export function useListAllResidentComplianceItems(filters: ListAllResidentCompli
   return useQuery({
     queryKey: ["resident_compliance_items_all", filters],
     queryFn: async () => {
-      let query = supabase.from("resident_compliance_items").select("id,resident_id,facility_id,item_type,due_date,status").order("due_date");
+      // completed_date/triggered_by_item_id/renewal_interval_days feed the State Forms Center's
+      // urgency queue, renewal window, and cross-trigger reason derivation.
+      let query = supabase.from("resident_compliance_items").select("id,resident_id,facility_id,item_type,due_date,status,completed_date,triggered_by_item_id,renewal_interval_days").order("due_date");
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
       if (filters.status?.length) query = query.in("status", filters.status);
       if (filters.itemType) query = query.eq("item_type", filters.itemType);
@@ -54,7 +56,9 @@ export function useListAllResidentComplianceItems(filters: ListAllResidentCompli
 export function useCompleteResidentComplianceItem() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ item, documentId }: { item: ResidentComplianceItem; documentId: string }) => {
+    // item is structurally Pick<...>, not the full row, so the State Forms Center (whose org-wide
+    // query selects a column subset) can call this with the same rows it renders.
+    mutationFn: async ({ item, documentId }: { item: Pick<ResidentComplianceItem, "id">; documentId: string }) => {
       const { data, error } = await supabase.rpc("complete_resident_compliance_item", {
         p_item_id: item.id,
         p_document_id: documentId,
