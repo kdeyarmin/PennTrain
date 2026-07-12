@@ -14,7 +14,7 @@ import { usePageMeta } from "@/lib/usePageMeta";
 
 const RESIDENT_CARE_POINTS = [
   "Preadmission screening, 15-day initial assessment, annual reassessment, and significant-change reassessment, each on its own due date.",
-  "A digital drafting tool mirroring the DHS assessment structure, with autosave, finalize-and-lock, and one-click reference PDF generation -- the signed DHS-prescribed form is still what's required on file.",
+  "A state-form workflow that starts generated packets with the official PA DHS RASP/ASP pages, appends a CareMetric completion addendum, and locks each finalized version for survey records.",
   "Automatic support-plan follow-ups whenever a reassessment is completed.",
 ];
 

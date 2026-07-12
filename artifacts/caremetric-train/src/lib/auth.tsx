@@ -205,6 +205,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       lastSessionRef.current = nextSession;
       setSession(nextSession);
       if (event === "SIGNED_IN") {
+        void clearSupabaseRuntimeCache();
         queryClient.clear();
       } else {
         queryClient.invalidateQueries({ queryKey: ["profile"] });

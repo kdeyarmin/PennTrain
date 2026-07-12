@@ -10,6 +10,7 @@ import {
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
+import { summarizeCredentialAnalytics } from "@/lib/credentialAnalytics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +22,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { ShieldCheck, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Upload, Download } from "lucide-react";
+import { AlertTriangle, ShieldCheck, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Upload, Download } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -230,6 +231,23 @@ export default function EmployeeCredentials() {
   );
 
   const allCredentials = credentials ?? [];
+  const credentialSummary = useMemo(() => summarizeCredentialAnalytics(
+    allCredentials.map((c) => ({
+      id: c.id,
+      employee_id: c.employee_id,
+      credential_type: c.credential_type,
+      credential_label: c.credential_label,
+      status: c.status,
+      expiration_date: c.expiration_date,
+      warning_days: c.warning_days,
+      last_verified_date: c.last_verified_date,
+    })),
+    new Date().toISOString().slice(0, 10),
+  ), [allCredentials]);
+  const credentialById = useMemo(() => new Map(allCredentials.map((c) => [c.id, c])), [allCredentials]);
+  const topRiskCredentials = credentialSummary.topRiskCredentialIds
+    .map((id) => credentialById.get(id))
+    .filter((c): c is EmployeeCredential => !!c);
   const sorted = [...allCredentials].sort((a, b) => (a.expiration_date ?? "9999").localeCompare(b.expiration_date ?? "9999"));
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -332,6 +350,53 @@ export default function EmployeeCredentials() {
           </Button>
         )}
       </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <button type="button" className="premium-card p-4 text-left hover:border-destructive/40" onClick={() => setFilters({ statusFilter: "expired", page: "1" })}>
+          <p className="text-xs font-medium text-muted-foreground">Expired</p>
+          <p className="mt-1 text-2xl font-semibold text-destructive">{credentialSummary.expired}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Require immediate remediation.</p>
+        </button>
+        <button type="button" className="premium-card p-4 text-left hover:border-warning/40" onClick={() => setFilters({ statusFilter: "due_soon", page: "1" })}>
+          <p className="text-xs font-medium text-muted-foreground">Due soon</p>
+          <p className="mt-1 text-2xl font-semibold">{credentialSummary.dueSoon}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{credentialSummary.expiringWithin30Days} expire within 30 days.</p>
+        </button>
+        <button type="button" className="premium-card p-4 text-left hover:border-border" onClick={() => setFilters({ statusFilter: "missing", page: "1" })}>
+          <p className="text-xs font-medium text-muted-foreground">Missing</p>
+          <p className="mt-1 text-2xl font-semibold">{credentialSummary.missing}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Evidence has not been recorded.</p>
+        </button>
+        <div className="premium-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Employees with gaps</p>
+          <p className="mt-1 text-2xl font-semibold">{credentialSummary.employeesWithGaps}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{credentialSummary.unverified} active records lack verification date.</p>
+        </div>
+      </div>
+
+      {topRiskCredentials.length > 0 && (
+        <div className="premium-card p-4">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <h2 className="text-sm font-semibold">Credential Risk Queue</h2>
+          </div>
+          <div className="mt-3 grid gap-2 lg:grid-cols-2">
+            {topRiskCredentials.map((credential) => {
+              const emp = employeeById.get(credential.employee_id);
+              return (
+                <button key={credential.id} type="button" className="rounded-lg border p-3 text-left hover:bg-muted/40" onClick={() => openEdit(credential)}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{emp ? `${emp.last_name}, ${emp.first_name}` : `Employee #${credential.employee_id.slice(0, 8)}`}</span>
+                    <StatusBadge status={credential.status} type="training" />
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">{credential.credential_label || credentialTypeLabel(credential.credential_type)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Expiration: {credential.expiration_date ?? "No expiration"} · Last verified: {credential.last_verified_date ?? "Not recorded"}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="premium-card">
         <div className="filter-bar">

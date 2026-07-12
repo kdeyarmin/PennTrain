@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useRoute, useLocation, Link } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import QRCode from "qrcode";
@@ -60,8 +61,10 @@ import {
   QrCode,
   Monitor,
   Printer,
+  AlertTriangle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { summarizeClassAttendance } from "@/lib/classAttendance";
 
 // No Supabase hook deletes a training class yet; RLS already lets a trainer
 // delete their own draft class, so do it with a direct call.
@@ -246,6 +249,7 @@ export default function ClassDetail() {
   );
 
   const allAttendees = attendees ?? [];
+  const attendanceSummary = useMemo(() => summarizeClassAttendance(allAttendees), [allAttendees]);
   const isDraft = cls?.status === "draft";
 
   const existingEmpIds = new Set(allAttendees.map((a) => a.employee_id));
@@ -286,6 +290,25 @@ export default function ClassDetail() {
   // Bulk-toggles every currently-listed attendee's Attended checkbox in one action (mirrors the
   // Promise.allSettled + one-summary-toast bulk pattern used elsewhere in this app) instead of
   // requiring one click per row.
+  async function handleMarkCheckedInPresent() {
+    if (!classId) return;
+    const targets = allAttendees.filter((a) => a.checked_in_at && !a.attended);
+    if (targets.length === 0) return;
+    setBulkAttendanceUpdating(true);
+    const results = await Promise.allSettled(
+      targets.map((a) => updateAttendee.mutateAsync({ id: a.id, classId, attended: true }))
+    );
+    setBulkAttendanceUpdating(false);
+
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.length - succeeded;
+    toast({
+      title: failed > 0 ? "Attendance partially reconciled" : "Checked-in staff marked present",
+      description: `${succeeded} of ${results.length} checked-in attendee${results.length === 1 ? "" : "s"} updated${failed > 0 ? `; ${failed} failed` : ""}.`,
+      variant: failed > 0 ? "destructive" : "success",
+    });
+  }
+
   async function handleToggleAllAttended(checked: boolean) {
     if (!classId) return;
     const targets = allAttendees.filter((a) => a.attended !== checked);
@@ -524,7 +547,7 @@ export default function ClassDetail() {
             <div>
               <p className="text-sm text-muted-foreground">Date</p>
               <p className="font-semibold">
-                {new Date(cls.class_date).toLocaleDateString("en-US", {
+                {formatDateForDisplay(cls.class_date, {
                   weekday: "long",
                   month: "long",
                   day: "numeric",
@@ -587,6 +610,68 @@ export default function ClassDetail() {
 
       {isDraft && <QrCheckinCard classId={classId} />}
       {isDraft && <MeetingNoticeCard classId={classId} />}
+
+      {allAttendees.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5" /> Attendance Reconciliation
+              </CardTitle>
+              {isDraft && attendanceSummary.checkedInNotMarkedPresent > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleMarkCheckedInPresent}
+                  disabled={bulkAttendanceUpdating}
+                >
+                  Mark checked-in staff present
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Roster</p>
+                <p className="text-xl font-semibold">{attendanceSummary.rosterCount}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Marked present</p>
+                <p className="text-xl font-semibold">{attendanceSummary.markedPresent}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Checked in / out</p>
+                <p className="text-xl font-semibold">{attendanceSummary.checkedIn} / {attendanceSummary.checkedOut}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Records pending</p>
+                <p className="text-xl font-semibold">{attendanceSummary.recordsPending}</p>
+              </div>
+            </div>
+
+            {(attendanceSummary.checkedInNotMarkedPresent > 0 || attendanceSummary.presentWithoutCheckin > 0 || attendanceSummary.checkedInWithoutCheckout > 0) ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="space-y-1">
+                    <p className="font-medium">Resolve these before completing the class for the cleanest audit trail.</p>
+                    <ul className="list-disc pl-5 text-xs">
+                      {attendanceSummary.checkedInNotMarkedPresent > 0 && <li>{attendanceSummary.checkedInNotMarkedPresent} checked-in attendee{attendanceSummary.checkedInNotMarkedPresent === 1 ? " is" : "s are"} not marked present.</li>}
+                      {attendanceSummary.presentWithoutCheckin > 0 && <li>{attendanceSummary.presentWithoutCheckin} present attendee{attendanceSummary.presentWithoutCheckin === 1 ? " has" : "s have"} no digital check-in.</li>}
+                      {attendanceSummary.checkedInWithoutCheckout > 0 && <li>{attendanceSummary.checkedInWithoutCheckout} checked-in attendee{attendanceSummary.checkedInWithoutCheckout === 1 ? " has" : "s have"} no checkout time.</li>}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+                Attendance, check-in, and checkout are reconciled for the current roster.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

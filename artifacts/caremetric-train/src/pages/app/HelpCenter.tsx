@@ -17,6 +17,8 @@ import {
   SUPPORT_TICKET_CATEGORIES, SUPPORT_TICKET_PRIORITIES,
 } from "@/hooks/useSupportTickets";
 import { useAuth } from "@/lib/auth";
+import { canViewPath, canonicalHelpPathForRole } from "@/lib/appDomains";
+import { filterHelpArticlesForRole } from "@/lib/helpArticleVisibility";
 import { useToast } from "@/hooks/use-toast";
 import { Search, FileDown, Plus, ChevronRight, Lightbulb, ExternalLink, Paperclip, X, Sparkles } from "lucide-react";
 
@@ -114,7 +116,13 @@ function FaqTab() {
 }
 
 function JobAideItem({ article }: { article: HelpArticle }) {
+  const { user } = useAuth();
   const aide = article.content as unknown as JobAideContent;
+  const relatedHref = aide.relatedRoute
+    ? canonicalHelpPathForRole(aide.relatedRoute.href, user?.role)
+    : null;
+  const showRelatedRoute = !!relatedHref && canViewPath(relatedHref, user?.role);
+
   return (
     <AccordionItem value={article.id} className="border rounded-lg px-4">
       <AccordionTrigger className="hover:no-underline text-left">
@@ -136,8 +144,8 @@ function JobAideItem({ article }: { article: HelpArticle }) {
             ))}
           </div>
         )}
-        {aide.relatedRoute && (
-          <Link href={aide.relatedRoute.href}>
+        {showRelatedRoute && aide.relatedRoute && relatedHref && (
+          <Link href={relatedHref}>
             <Button variant="outline" size="sm" className="mt-3 gap-1.5">
               {aide.relatedRoute.label} <ExternalLink className="h-3.5 w-3.5" />
             </Button>
@@ -149,9 +157,10 @@ function JobAideItem({ article }: { article: HelpArticle }) {
 }
 
 function JobAidesTab({ pinnedArticleId }: { pinnedArticleId?: string }) {
+  const { user } = useAuth();
   const [query, setQuery] = useState("");
   const { data, isLoading } = useListHelpArticles("job_aide");
-  const articles = useMemo(() => data ?? [], [data]);
+  const articles = useMemo(() => filterHelpArticlesForRole(data ?? [], user?.role), [data, user?.role]);
   const filtered = useMemo(() => searchArticles(articles, query), [articles, query]);
   const categories = useMemo(() => articleCategories(articles), [articles]);
   const isSearching = query.trim().length > 0;
@@ -438,6 +447,7 @@ function SupportTab({ base }: { base: string }) {
 }
 
 export default function HelpCenter() {
+  const { user } = useAuth();
   const [location] = useLocation();
   const base = location.startsWith("/me") ? "/me" : "/app";
   const [activeTab, setActiveTab] = useState("faq");
@@ -454,9 +464,13 @@ export default function HelpCenter() {
     }
   });
   const { data: jobAides } = useListHelpArticles("job_aide");
+  const visibleJobAides = useMemo(
+    () => filterHelpArticlesForRole(jobAides ?? [], user?.role),
+    [jobAides, user?.role]
+  );
   const contextualArticle = useMemo(
-    () => findArticleForRoute(jobAides ?? [], originRoute),
-    [jobAides, originRoute]
+    () => findArticleForRoute(visibleJobAides, originRoute),
+    [visibleJobAides, originRoute]
   );
 
   return (

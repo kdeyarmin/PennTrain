@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useUrlState } from "@/hooks/useUrlState";
 import { useListEmployees } from "@/hooks/useEmployees";
 import type { Employee } from "@/hooks/useEmployees";
@@ -324,11 +325,11 @@ function CellDetailDialog({
               </div>
               <div>
                 <div className="text-muted-foreground text-xs mb-1">Last Completed</div>
-                <div>{entry.completionDate ? new Date(entry.completionDate).toLocaleDateString() : "—"}</div>
+                <div>{formatDateForDisplay(entry.completionDate)}</div>
               </div>
               <div>
                 <div className="text-muted-foreground text-xs mb-1">Due Date</div>
-                <div>{entry.dueDate ? new Date(entry.dueDate).toLocaleDateString() : "—"}</div>
+                <div>{formatDateForDisplay(entry.dueDate)}</div>
               </div>
               <div>
                 <div className="text-muted-foreground text-xs mb-1">Trainer</div>

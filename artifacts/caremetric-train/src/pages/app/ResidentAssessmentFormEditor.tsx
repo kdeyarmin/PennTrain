@@ -4,7 +4,7 @@ import { useGetResident } from "@/hooks/useResidents";
 import { useListFacilities } from "@/hooks/useFacilities";
 import {
   useGetResidentAssessmentForm, useSaveResidentAssessmentFormDraft, useFinalizeResidentAssessmentForm,
-  useGenerateResidentAssessmentFormPdf,
+  useGenerateResidentAssessmentFormPdf, useGenerateResidentAssessmentSummary,
 } from "@/hooks/useResidentAssessmentForms";
 import { useListResidentDocuments } from "@/hooks/useResidentDocuments";
 import {
@@ -29,7 +29,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, ArrowRight, Plus, Trash2, Lock, CheckCircle2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Trash2, Lock, CheckCircle2, AlertTriangle, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -421,15 +421,29 @@ export default function ResidentAssessmentFormEditor() {
   const saveDraft = useSaveResidentAssessmentFormDraft();
   const finalize = useFinalizeResidentAssessmentForm();
   const generatePdf = useGenerateResidentAssessmentFormPdf();
+  const generateSummary = useGenerateResidentAssessmentSummary();
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const facility = facilities?.find((f) => f.id === resident?.facility_id);
   const formLabel = getComplianceFormLabel(facility?.facility_type);
 
   const [content, setContent] = useState<ResidentAssessmentFormContent | null>(null);
+  const [aiSummaryAssist, setAiSummaryAssist] = useState<{ suggestedAdditions: string[]; followUpQuestions: string[] } | null>(null);
+  const contentRef = useRef<ResidentAssessmentFormContent | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSave = useRef<{ id: string; content: ResidentAssessmentFormContent } | null>(null);
   const isReadOnly = !canManage || form?.status === "finalized";
+  const flushPendingAutosave = () => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    if (pendingSave.current) {
+      const pending = pendingSave.current;
+      pendingSave.current = null;
+      saveDraft.mutate(pending);
+    }
+  };
 
   const tabStorageKey = (id: string) => `resident-assessment-form-tab:${id}`;
   const readStoredTab = (id: string): TabValue => {
@@ -463,6 +477,7 @@ export default function ResidentAssessmentFormEditor() {
   // above only covers first mount) -- guarded so it doesn't re-run on every render.
   useEffect(() => {
     if (!formId || formId === lastRestoredFormId.current) return;
+    flushPendingAutosave();
     lastRestoredFormId.current = formId;
     setActiveTab(readStoredTab(formId));
   }, [formId]);
@@ -474,6 +489,7 @@ export default function ResidentAssessmentFormEditor() {
 
   useEffect(() => {
     if (!form) return;
+    flushPendingAutosave();
     // A brand-new form's content is a bare {} (see start_resident_assessment_form()'s
     // coalesce(v_prior.content, '{}'::jsonb)) -- deep-merge onto the full default shape so every
     // section, including item maps that may have grown new keys since this form's schema_version,
@@ -489,16 +505,20 @@ export default function ResidentAssessmentFormEditor() {
     // that window (it rebuilds from the stale form.content snapshot, not live state) -- and if that
     // query ever errors instead of resolving, the effect would never fire at all, leaving the whole
     // editor stuck on the loading skeleton.
-    setContent(mergeContentWithDefaults(
+    const nextContent = mergeContentWithDefaults(
       createEmptyContent(form.form_type as FormType, {
         responsibleParty: facility?.default_care_responsible_party,
         frequency: facility?.default_care_frequency,
       }),
       form.content,
-    ));
+    );
+    contentRef.current = nextContent;
+    setContent(nextContent);
+    setAiSummaryAssist(null);
   }, [form?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = (next: ResidentAssessmentFormContent) => {
+    contentRef.current = next;
     setContent(next);
     if (isReadOnly || !formId) return;
     pendingSave.current = { id: formId, content: next };
@@ -535,10 +555,49 @@ export default function ResidentAssessmentFormEditor() {
   // render that created them. This is what makes DegreeItemEditor/SimpleNeedEditor's React.memo
   // actually skip re-rendering untouched items: a fresh inline arrow function passed as onChange
   // on every keystroke would defeat memo() no matter how stable `answer` itself is.
-  const contentRef = useRef(content);
   contentRef.current = content;
   const updateRef = useRef(update);
   updateRef.current = update;
+
+  const handleGenerateWellnessSummary = async () => {
+    if (!formId || !content) return;
+    const runGeneration = () => generateSummary.mutate(formId, {
+      onSuccess: ({ summary, suggested_additions, follow_up_questions }) => {
+        const latestContent = contentRef.current;
+        if (!latestContent) return;
+        update({ ...latestContent, summary: { overallWellness: summary } });
+        setAiSummaryAssist({ suggestedAdditions: suggested_additions, followUpQuestions: follow_up_questions });
+        toast({ title: "AI wellness summary drafted" });
+      },
+      onError: (e: Error) => toast({ title: "Failed to generate wellness summary", description: e.message, variant: "destructive" }),
+    });
+
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    if (pendingSave.current) {
+      const pending = pendingSave.current;
+      pendingSave.current = null;
+      try {
+        await saveDraft.mutateAsync(pending);
+      } catch (e) {
+        toast({ title: "Failed to save latest changes before generating", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+        return;
+      }
+    }
+    runGeneration();
+  };
+
+  const appendToWellnessSummary = (text: string) => {
+    const latestContent = contentRef.current;
+    if (!latestContent) return;
+    const currentSummary = latestContent.summary.overallWellness.trim();
+    const nextSummary = currentSummary ? `${currentSummary}
+
+${text}` : text;
+    update({ ...latestContent, summary: { overallWellness: nextSummary } });
+  };
 
   const behavioralList = useMemo(() => behavioralItems((form?.form_type as FormType) ?? "RASP"), [form?.form_type]);
 
@@ -642,7 +701,7 @@ export default function ResidentAssessmentFormEditor() {
     finalize.mutate(formId, {
       onSuccess: () => toast({
         title: `${formLabel} finalized and saved as a PDF`,
-        description: "This is a reference copy. Attach the signed, DHS-prescribed form on the resident's page to complete the compliance record.",
+        description: "The generated packet starts with the official PA DHS form and completes the linked checklist item.",
       }),
       onError: (e: Error) => toast({ title: "Failed to finalize", description: e.message, variant: "destructive" }),
     });
@@ -759,9 +818,8 @@ export default function ResidentAssessmentFormEditor() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Drafting/reference tool only — finalizing does not by itself satisfy the resident's compliance
-        requirement. Documents like the {formLabel} have to be on the state-approved form, no exception:
-        attach the signed DHS-prescribed form on the resident's page to mark the item complete.
+        CareMetric saves your entries into a generated packet that starts with the official PA DHS {formLabel} form,
+        followed by a completion addendum. Finalizing creates that state-form packet and completes the linked checklist item.
       </p>
 
       {incompleteSections.length > 0 && (
@@ -1046,12 +1104,67 @@ export default function ResidentAssessmentFormEditor() {
             <CardHeader><CardTitle className="text-base">Part IV — Summary and Determination</CardTitle></CardHeader>
             <CardContent>
               <fieldset disabled={isReadOnly}>
-                <Label className="text-xs">Summary of Resident's Overall Wellness</Label>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <Label className="text-xs">Summary of Resident's Overall Wellness</Label>
+                  {!isReadOnly && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGenerateWellnessSummary}
+                      disabled={generateSummary.isPending || saveDraft.isPending}
+                    >
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      {generateSummary.isPending ? "Drafting…" : "Draft with AI"}
+                    </Button>
+                  )}
+                </div>
                 <Textarea
                   className="min-h-28"
                   value={content.summary.overallWellness}
                   onChange={(e) => update({ ...content, summary: { overallWellness: e.target.value } })}
                 />
+                {!isReadOnly && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    AI drafts must be reviewed before finalizing. The prompt is constrained to use only saved assessment content and to omit unsupported facts.
+                  </p>
+                )}
+                {!isReadOnly && aiSummaryAssist && (aiSummaryAssist.suggestedAdditions.length > 0 || aiSummaryAssist.followUpQuestions.length > 0) && (
+                  <div className="mt-4 space-y-3 rounded-md border bg-muted/30 p-3">
+                    <div>
+                      <p className="text-sm font-medium">AI review suggestions</p>
+                      <p className="text-xs text-muted-foreground">
+                        Verified suggestions can be added manually. Questions identify details the AI could not verify, so they are not added automatically.
+                      </p>
+                    </div>
+                    {aiSummaryAssist.suggestedAdditions.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold uppercase text-muted-foreground">Verified addable details</p>
+                        {aiSummaryAssist.suggestedAdditions.map((suggestion, index) => (
+                          <div key={`${suggestion}-${index}`} className="flex flex-col gap-2 rounded-md border bg-background p-2 sm:flex-row sm:items-start sm:justify-between">
+                            <p className="text-sm">{suggestion}</p>
+                            <Button type="button" variant="outline" size="sm" onClick={() => appendToWellnessSummary(suggestion)}>
+                              Add to summary
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {aiSummaryAssist.followUpQuestions.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold uppercase text-muted-foreground">Questions before adding unsupported details</p>
+                        {aiSummaryAssist.followUpQuestions.map((question, index) => (
+                          <div key={`${question}-${index}`} className="flex flex-col gap-2 rounded-md border bg-background p-2 sm:flex-row sm:items-start sm:justify-between">
+                            <p className="text-sm">{question}</p>
+                            <Button type="button" variant="ghost" size="sm" onClick={() => appendToWellnessSummary(`Follow-up needed: ${question}`)}>
+                              Add note
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </fieldset>
             </CardContent>
           </Card>

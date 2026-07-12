@@ -21,6 +21,7 @@ import { ArrowLeft, Flame, ClipboardList, Plus, Check, Printer, AlertTriangle, S
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { cn, humanize } from "@/lib/utils";
+import { toLocalIsoDate } from "@/lib/dateUtils";
 
 const SHIFT_OPTIONS = ["day", "evening", "overnight"] as const;
 
@@ -61,7 +62,7 @@ function EventCorrectiveActions({ event, canManage }: { event: InspectionEvent; 
           <div className="flex items-center gap-1.5">
             <CorrectiveActionStatusBadge status={ca.status} />
             {canManage && ca.status !== "completed" && (
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => updateAction({ id: ca.id, status: "completed", completed_date: new Date().toISOString().slice(0, 10) })}>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => updateAction({ id: ca.id, status: "completed", completed_date: toLocalIsoDate() })}>
                 <Check className="h-3 w-3" />
               </Button>
             )}
@@ -107,7 +108,7 @@ export default function InspectionItemDetail() {
   const violationByEventId = new Map((sourcedViolations ?? []).map((v) => [v.source_inspection_event_id, v]));
 
   const [showEventForm, setShowEventForm] = useState(false);
-  const [performedDate, setPerformedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [performedDate, setPerformedDate] = useState(toLocalIsoDate());
   const [performedBy, setPerformedBy] = useState("");
   const [result, setResult] = useState<"pass" | "fail" | "deficiency_noted">("pass");
   const [deficiencyNotes, setDeficiencyNotes] = useState("");

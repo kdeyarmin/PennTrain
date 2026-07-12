@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
@@ -79,8 +80,8 @@ export default function MyTrainings() {
                   <div className="min-w-0">
                     <p className="font-medium text-sm truncate">{trainingTypeName(r)}</p>
                     <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground mt-0.5">
-                      {r.completion_date && <span>Completed {new Date(r.completion_date).toLocaleDateString()}</span>}
-                      {r.due_date && r.status !== "compliant" && <span>Due {new Date(r.due_date).toLocaleDateString()}</span>}
+                      {r.completion_date && <span>Completed {formatDateForDisplay(r.completion_date)}</span>}
+                      {r.due_date && r.status !== "compliant" && <span>Due {formatDateForDisplay(r.due_date)}</span>}
                       {!r.completion_date && !r.due_date && <span>No dates on file</span>}
                     </div>
                   </div>

@@ -7,6 +7,20 @@ export type ResidentAssessmentForm = Omit<Tables<"resident_assessment_forms">, "
   content: ResidentAssessmentFormContent;
 };
 
+async function describeFunctionError(error: unknown, fallback: string): Promise<string> {
+  const context = (error as { context?: unknown } | null)?.context;
+  if (context instanceof Response) {
+    try {
+      const body = await context.clone().json();
+      if (body && typeof body.error === "string" && body.error.trim()) return body.error;
+    } catch {
+      // Non-JSON body or already-consumed response -- fall through to the generic message below.
+    }
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
+
 export function useListResidentAssessmentForms(residentId: string | undefined) {
   return useQuery({
     queryKey: ["resident_assessment_forms", residentId],
@@ -69,8 +83,32 @@ export function useSaveResidentAssessmentFormDraft() {
   });
 }
 
+export interface GeneratedResidentAssessmentSummary {
+  summary: string;
+  suggested_additions: string[];
+  follow_up_questions: string[];
+}
+
+export function useGenerateResidentAssessmentSummary() {
+  return useMutation({
+    mutationFn: async (formId: string) => {
+      const { data, error } = await supabase.functions.invoke<Partial<GeneratedResidentAssessmentSummary> & { error?: string }>(
+        "generate-resident-assessment-summary",
+        { body: { formId } },
+      );
+      if (error) throw new Error(await describeFunctionError(error, "Failed to generate wellness summary"));
+      if (!data?.summary) throw new Error(data?.error ?? "Failed to generate wellness summary");
+      return {
+        summary: data.summary,
+        suggested_additions: data.suggested_additions ?? [],
+        follow_up_questions: data.follow_up_questions ?? [],
+      };
+    },
+  });
+}
+
 async function invokeGenerateAssessmentPdf(formId: string) {
-  const { data: pdfData, error: pdfError } = await supabase.functions.invoke<{ success?: boolean; error?: string; url?: string }>(
+  const { data: pdfData, error: pdfError } = await supabase.functions.invoke<{ success?: boolean; error?: string; url?: string; documentId?: string }>(
     "generate-resident-assessment-pdf",
     { body: { formId } },
   );
@@ -81,10 +119,9 @@ async function invokeGenerateAssessmentPdf(formId: string) {
   return pdfData;
 }
 
-// Locks the form, marks the prior version superseded, and completes the linked
-// resident_compliance_items row (feeding Phase 2's support-plan cross-trigger) -- all server-side
-// in finalize_resident_assessment_form(). Also generates and attaches the PDF, mirroring
-// useComplianceBinder.ts's supabase.functions.invoke pattern.
+// Locks the form/lineage server-side, then generates the official PA DHS form packet. The edge
+// function stores that packet as is_state_form=true and completes the linked resident_compliance_items
+// row with that exact generated document.
 export function useFinalizeResidentAssessmentForm() {
   const queryClient = useQueryClient();
   return useMutation({

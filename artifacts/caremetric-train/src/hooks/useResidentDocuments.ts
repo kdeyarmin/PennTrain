@@ -25,19 +25,23 @@ export interface UploadResidentDocumentInput {
   complianceItemId?: string;
   documentLabel?: string;
   /**
-   * True only when `file` IS the actual DHS-prescribed form (RASP/ASP, DME, Preadmission
-   * Screening, etc.) as completed by facility staff -- never set for CareMetric-generated
-   * reference PDFs. complete_resident_compliance_item() requires a linked document with this
-   * flag set; defaults to false so every other upload path (the generic Documents uploader,
-   * generate-resident-assessment-pdf) stays inert by default.
+   * True only when `file` is the actual DHS-prescribed form evidence (RASP/ASP, DME,
+   * Preadmission Screening, etc.) -- either completed/uploaded by facility staff or generated as
+   * the app's official DHS form packet. complete_resident_compliance_item() requires a linked
+   * document with this flag set; defaults to false so generic resident uploads stay inert.
    */
   isStateForm?: boolean;
+  stateFormSourceLabel?: string;
+  stateFormSourceUrl?: string;
 }
 
 export function useUploadResidentDocument() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ file, organizationId, facilityId, residentId, complianceItemId, documentLabel, isStateForm }: UploadResidentDocumentInput) => {
+    mutationFn: async ({ file, organizationId, facilityId, residentId, complianceItemId, documentLabel, isStateForm, stateFormSourceLabel, stateFormSourceUrl }: UploadResidentDocumentInput) => {
+      if (isStateForm && !stateFormSourceLabel) {
+        throw new Error("State-form uploads must include the official PA DHS source label.");
+      }
       const path = `${organizationId}/${facilityId}/${crypto.randomUUID()}-${file.name}`;
       const { error: uploadError } = await supabase.storage.from("resident-documents").upload(path, file);
       if (uploadError) throw uploadError;
@@ -57,6 +61,8 @@ export function useUploadResidentDocument() {
           file_size: file.size,
           document_label: documentLabel ?? null,
           is_state_form: isStateForm ?? false,
+          state_form_source_label: stateFormSourceLabel ?? null,
+          state_form_source_url: stateFormSourceUrl ?? null,
         })
         .select()
         .single();

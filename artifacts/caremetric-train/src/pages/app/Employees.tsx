@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListEmployeesPaginated, useCreateEmployee, useUpdateEmployee, useDeleteEmployee,
@@ -86,7 +87,9 @@ export default function Employees() {
   // Query string, e.g. "?action=add" -- distinct from the free-text `search` state above,
   // which is the employee name/role/department search box.
   const locationSearch = useSearch();
-  const basePath = user?.role === "platform_admin" ? "/admin/employees" : "/app/employees";
+  const basePath = user?.role === "platform_admin" ? "/admin/employees"
+    : user?.role === "trainer" ? "/trainer/employees"
+    : "/app/employees";
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
@@ -142,8 +145,11 @@ export default function Employees() {
   // already working on this page.
   useEffect(() => {
     const params = new URLSearchParams(locationSearch);
-    if (params.get("action") === "add") {
+    const action = params.get("action");
+    if (action === "add") {
       openCreate();
+    } else if (action === "bulk-import" && canManage) {
+      openBulkImport();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -367,7 +373,7 @@ export default function Employees() {
                         <StatusBadge status={emp.status} type="employee" />
                       </td>
                       <td className="text-muted-foreground">
-                        {emp.hire_date ? new Date(emp.hire_date).toLocaleDateString() : "—"}
+                        {formatDateForDisplay(emp.hire_date)}
                       </td>
                       <td>
                         <div className="flex gap-1.5">

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import {
   useListCourseAssignmentsPaginated,
   useCreateCourseAssignment,
@@ -7,9 +8,15 @@ import {
   type CourseAssignment,
 } from "@/hooks/useCourseAssignments";
 import { useListEmployees, type Employee } from "@/hooks/useEmployees";
-import { useListCourses, useListCourseVersions } from "@/hooks/useCourses";
+import {
+  useListCourses,
+  useListCourseVersions,
+  useListCourseVersionsForCourses,
+  isCourseVersionLearnerReady,
+} from "@/hooks/useCourses";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { useIssueCertificate, useListCertificates, useGenerateCertificatePdf } from "@/hooks/useCertificates";
+import { useListCertificates, useGenerateCertificatePdf } from "@/hooks/useCertificates";
+import { summarizeCourseAssignmentAnalytics } from "@/lib/courseAssignmentAnalytics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -131,11 +138,12 @@ export default function CourseAssignments() {
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees();
   const { data: courses } = useListCourses();
+  const courseIds = useMemo(() => (courses ?? []).map(c => c.id), [courses]);
+  const { data: allCourseVersions } = useListCourseVersionsForCourses(courseIds);
   const { data: courseVersions } = useListCourseVersions(assignForm.courseId || undefined);
 
   const { mutateAsync: createAssignmentAsync } = useCreateCourseAssignment();
   const { mutate: completeAssignment, isPending: completing } = useCompleteCourseAssignment();
-  const { mutate: issueCertificate } = useIssueCertificate();
   // Unfiltered on purpose -- RLS (certificates_select) already scopes this to certificates the
   // current caller is allowed to see (their own, or org/facility staff), the same population this
   // page's own assignments query is implicitly scoped to. Mirrors the "fetch full set, look up
@@ -160,20 +168,42 @@ export default function CourseAssignments() {
         .sort((a, b) => `${a.last_name}${a.first_name}`.localeCompare(`${b.last_name}${b.first_name}`)),
     [employees],
   );
-  // Only published courses have content worth assigning; course_blocks/quizzes
-  // are locked once a version is published, so a draft course has nothing for
-  // an employee to actually take yet.
-  const publishedCourses = useMemo(() => (courses ?? []).filter(c => c.status === "published"), [courses]);
+  const learnerReadyVersionsByCourseId = useMemo(() => {
+    type CourseVersionRows = NonNullable<typeof allCourseVersions>;
+    const map = new Map<string, CourseVersionRows>();
+    for (const version of allCourseVersions ?? []) {
+      if (!isCourseVersionLearnerReady(version)) continue;
+      const list = map.get(version.course_id) ?? [];
+      list.push(version);
+      map.set(version.course_id, list);
+    }
+    return map;
+  }, [allCourseVersions]);
+
+  // Only courses with at least one published, learner-ready version are worth assigning. This
+  // keeps managers from selecting a catalog-published course whose current version is still a
+  // draft or whose AI-generated content has not completed the required review.
+  const publishedCourses = useMemo(
+    () =>
+      (courses ?? []).filter(
+        c => c.status === "published" && (learnerReadyVersionsByCourseId.get(c.id)?.length ?? 0) > 0,
+      ),
+    [courses, learnerReadyVersionsByCourseId],
+  );
 
   const selectedCourse = assignForm.courseId ? courseById.get(assignForm.courseId) : undefined;
   // Assignments pin to a specific published version. Only offer the picker when
   // more than one published version exists; otherwise silently default to
   // current_version_id in handleAssign.
   const publishedVersions = useMemo(
-    () => (courseVersions ?? []).filter(v => v.status === "published"),
+    () => (courseVersions ?? []).filter(isCourseVersionLearnerReady),
     [courseVersions],
   );
   const showVersionPicker = publishedVersions.length > 1;
+  const defaultVersion = useMemo(
+    () => publishedVersions.find(v => v.id === selectedCourse?.current_version_id) ?? publishedVersions[publishedVersions.length - 1],
+    [publishedVersions, selectedCourse?.current_version_id],
+  );
 
   // course_assignments has no employee-name/course-title columns of its own, so the free-text
   // search box is resolved against the employees/courses lists above (already loaded, and
@@ -204,6 +234,15 @@ export default function CourseAssignments() {
   const paginated = assignmentsPage?.rows ?? [];
   const totalCount = assignmentsPage?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const assignmentSummary = useMemo(() => summarizeCourseAssignmentAnalytics(
+    paginated.map(a => ({
+      id: a.id,
+      status: a.status,
+      due_date: a.due_date,
+      completed_at: a.completed_at,
+    })),
+    new Date().toISOString().slice(0, 10),
+  ), [paginated]);
 
   // Employees offered in the assign dialog's multi-select, narrowed by that dialog's own facility
   // filter (assignFacilityFilter) -- independent of the page-level facilityId filter above.
@@ -266,7 +305,7 @@ export default function CourseAssignments() {
     const assignedBy = user?.id;
     if (!course || !organizationId || !assignedBy) return;
 
-    const versionId = assignForm.courseVersionId || course.current_version_id;
+    const versionId = assignForm.courseVersionId || defaultVersion?.id;
     if (!versionId) {
       toast({ title: "This course has no published version to assign", variant: "destructive" });
       return;
@@ -314,16 +353,9 @@ export default function CourseAssignments() {
     setCompletingId(assignment.id);
     completeAssignment(assignment.id, {
       onSuccess: () => {
-        toast({ title: "Marked complete" });
-        issueCertificate(
-          { employeeId: assignment.employee_id, courseId: assignment.course_id, assignmentId: assignment.id },
-          {
-            onError: (e: Error) =>
-              // Completion already succeeded; a failed issuance (e.g. one already exists for this
-              // assignment) shouldn't read as a failure of the "Mark Complete" action itself.
-              console.error("issue_certificate failed after marking assignment complete:", e.message),
-          }
-        );
+        // The completion RPC now commits the assignment, compliance evidence, certificate,
+        // lifecycle event, and PDF job together. There is deliberately no second issuance call.
+        toast({ title: "Marked complete", description: "Certificate issued and PDF preparation queued." });
       },
       onError: (e: Error) => toast({ title: "Failed to mark complete", description: e.message, variant: "destructive" }),
       onSettled: () => setCompletingId(null),
@@ -358,6 +390,37 @@ export default function CourseAssignments() {
             <UserPlus className="mr-2 h-4 w-4" /> Assign Course
           </Button>
         )}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className="premium-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Visible completion</p>
+          <p className="mt-1 text-2xl font-semibold">{assignmentSummary.completionRate}%</p>
+          <p className="mt-1 text-xs text-muted-foreground">{assignmentSummary.completed} of {assignmentSummary.total} on this page complete.</p>
+        </div>
+        <button type="button" className="premium-card p-4 text-left hover:border-destructive/40" onClick={() => { setStatusFilter("overdue"); setPage(1); }}>
+          <p className="text-xs font-medium text-muted-foreground">Overdue on page</p>
+          <p className="mt-1 text-2xl font-semibold text-destructive">{assignmentSummary.overdue}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Click to filter all overdue assignments.</p>
+        </button>
+        <div className="premium-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Due within 7 days</p>
+          <p className="mt-1 text-2xl font-semibold">{assignmentSummary.dueWithin7Days}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{assignmentSummary.inProgress} in progress · {assignmentSummary.assigned} not started</p>
+        </div>
+        <div className="premium-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Oldest overdue</p>
+          <p className="mt-1 text-lg font-semibold">
+            {assignmentSummary.oldestOverdueAssignmentId ? "Needs follow-up" : "—"}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {assignmentSummary.oldestOverdueAssignmentId ? (
+              <button type="button" className="text-primary hover:underline" onClick={() => setProgressAssignmentId(assignmentSummary.oldestOverdueAssignmentId)}>
+                Open progress details
+              </button>
+            ) : "No overdue assignments on this page."}
+          </p>
+        </div>
       </div>
 
       <div className="premium-card">
@@ -438,7 +501,7 @@ export default function CourseAssignments() {
                           <StatusPill status={a.status} />
                         </td>
                         <td className="text-muted-foreground">
-                          {a.due_date ? new Date(a.due_date).toLocaleDateString() : "—"}
+                          {formatDateForDisplay(a.due_date)}
                         </td>
                         <td className="text-muted-foreground">
                           {a.completed_at ? new Date(a.completed_at).toLocaleDateString() : "—"}
@@ -543,7 +606,9 @@ export default function CourseAssignments() {
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="default">
-                      Current version{selectedCourse?.current_version_id ? "" : " (none set)"} — default
+                      {defaultVersion
+                        ? `Default: v${defaultVersion.version_number} - ${defaultVersion.title}`
+                        : "No published version available"}
                     </SelectItem>
                     {publishedVersions.map(v => (
                       <SelectItem key={v.id} value={v.id}>
@@ -605,7 +670,11 @@ export default function CourseAssignments() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAssignForm(false)}>Cancel</Button>
-            <Button onClick={handleAssign} disabled={assigning || selectedEmployeeIds.size === 0} className="shadow-sm">
+            <Button
+              onClick={handleAssign}
+              disabled={assigning || selectedEmployeeIds.size === 0 || !assignForm.courseId || !defaultVersion}
+              className="shadow-sm"
+            >
               {assigning
                 ? "Assigning..."
                 : selectedEmployeeIds.size > 0

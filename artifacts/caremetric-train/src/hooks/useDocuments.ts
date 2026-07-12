@@ -16,13 +16,15 @@ export interface ListDocumentsFilters {
   employeeId?: string;
   facilityId?: string;
   documentType?: string;
+  storageBucket?: string;
+  storagePathPrefix?: string;
   /** Match any of several document_type values (e.g. the external-certificate review queue,
    * which cares about 'certificate' | 'external_certificate' | 'transcript' at once). Takes
    * precedence over `documentType` if both are supplied. */
   documentTypes?: string[];
 }
 
-export function useListDocuments(filters: ListDocumentsFilters = {}) {
+export function useListDocuments(filters: ListDocumentsFilters = {}, enabled = true) {
   return useQuery({
     queryKey: ["documents", filters],
     queryFn: async () => {
@@ -32,12 +34,18 @@ export function useListDocuments(filters: ListDocumentsFilters = {}) {
         .order("created_at", { ascending: false });
       if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+      if (filters.storageBucket) query = query.eq("storage_bucket", filters.storageBucket);
+      if (filters.storagePathPrefix) {
+        const escapedPrefix = filters.storagePathPrefix.replace(/[\\%_]/g, "\\$&");
+        query = query.like("storage_path", `${escapedPrefix}%`);
+      }
       if (filters.documentTypes?.length) query = query.in("document_type", filters.documentTypes);
       else if (filters.documentType) query = query.eq("document_type", filters.documentType);
       const { data, error } = await query;
       if (error) throw error;
       return data as unknown as TrainingDocumentWithEmployee[];
     },
+    enabled,
   });
 }
 
@@ -55,19 +63,31 @@ export function useGetDocument(id: string | undefined) {
 
 export interface UploadDocumentInput {
   file: File;
-  bucket: "external-uploads" | "signin-sheets" | "competency-attachments";
+  bucket: "external-uploads" | "signin-sheets" | "competency-attachments" | "course-documents";
   organizationId: string;
   facilityId: string;
   employeeId?: string;
   trainingRecordId?: string;
   documentType: TrainingDocument["document_type"];
+  storagePrefix?: string;
 }
 
 export function useUploadDocument() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ file, bucket, organizationId, facilityId, employeeId, trainingRecordId, documentType }: UploadDocumentInput) => {
-      const path = `${organizationId}/${facilityId}/${crypto.randomUUID()}-${file.name}`;
+    mutationFn: async ({
+      file,
+      bucket,
+      organizationId,
+      facilityId,
+      employeeId,
+      trainingRecordId,
+      documentType,
+      storagePrefix,
+    }: UploadDocumentInput) => {
+      const path = storagePrefix
+        ? `${storagePrefix.replace(/\/?$/, "/")}${crypto.randomUUID()}-${file.name}`
+        : `${organizationId}/${facilityId}/${crypto.randomUUID()}-${file.name}`;
       const { error: uploadError } = await supabase.storage.from(bucket).upload(path, file);
       if (uploadError) throw uploadError;
 

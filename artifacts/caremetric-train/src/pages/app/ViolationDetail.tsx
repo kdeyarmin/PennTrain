@@ -32,6 +32,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
+import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
 
 function SeverityBadge({ severity }: { severity: string }) {
   const className =
@@ -168,7 +169,7 @@ export default function ViolationDetail() {
           <div>
             <h1 className="text-2xl font-bold">{violation.citation_ref ?? topicTitle ?? "Cited Violation"}</h1>
             <p className="text-muted-foreground">
-              {facilityName} · Inspected {new Date(violation.inspection_date).toLocaleDateString()}
+              {facilityName} · Inspected {formatDateForDisplay(violation.inspection_date)}
               {violation.surveyor_name ? ` · ${violation.surveyor_name}` : ""}
             </p>
           </div>
@@ -236,7 +237,7 @@ export default function ViolationDetail() {
                             </Button>
                           )}
                           {canEdit && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: new Date().toISOString().slice(0, 10) })}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: toLocalIsoDate() })}>
                               <Check className="h-3.5 w-3.5" />
                             </Button>
                           )}
