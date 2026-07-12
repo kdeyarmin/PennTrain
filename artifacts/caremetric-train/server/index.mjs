@@ -190,8 +190,9 @@ async function serveFile(filePath, req, res, { cacheable }) {
       try {
         data = await readFile(filePath + picked.suffix);
         headers["Content-Encoding"] = picked.encoding;
-      } catch {
-        // No precompressed sibling (or unreadable) -- fall back to identity.
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+        // No precompressed sibling -- fall back to identity.
       }
     }
   }
