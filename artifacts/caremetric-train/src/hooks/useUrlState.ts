@@ -25,14 +25,16 @@ export function useUrlState<T extends Record<string, string>>(defaults: T) {
 
   const setState = useCallback(
     (updates: Partial<T>) => {
-      const params = new URLSearchParams(search);
+      const currentSearch = typeof window !== "undefined" ? window.location.search : search;
+      const currentPath = typeof window !== "undefined" ? window.location.pathname : location.split("?")[0];
+      const params = new URLSearchParams(currentSearch.startsWith("?") ? currentSearch.slice(1) : currentSearch);
       for (const key of Object.keys(updates) as (keyof T)[]) {
         const value = updates[key];
         if (value === undefined || value === defaults[key]) params.delete(key as string);
         else params.set(key as string, value);
       }
       const qs = params.toString();
-      setLocation(`${location.split("?")[0]}${qs ? `?${qs}` : ""}`, { replace: true });
+      setLocation(`${currentPath}${qs ? `?${qs}` : ""}`, { replace: true });
     },
     [search, location, setLocation, defaults]
   );
