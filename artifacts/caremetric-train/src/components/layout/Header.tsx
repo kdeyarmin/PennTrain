@@ -284,10 +284,10 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-        {/* Every role but employee has at least one searchable entity type it can reach (see
-            tablesForRole in useGlobalSearch.ts); /me/* is a small personal area with nothing
-            org-wide to search, so the box would only ever say "no matches" there. */}
-        {!!user && user.role !== "employee" && <GlobalSearch />}
+        {/* Every role has something to search: staff roles reach org-wide directory entities
+            (see tablesForRole in useGlobalSearch.ts), and employees get their own pages plus a
+            title search over their assigned courses. */}
+        {!!user && <GlobalSearch />}
         {user?.role === "platform_admin" && <ViewingOrgSelector />}
         {/* platform_admin has no HelpCenter route -- it's gated to ORG_ROLES + employee in
             App.tsx, and platform_admin's equivalent is the separate /admin/help-content authoring

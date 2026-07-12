@@ -81,7 +81,9 @@ export default function MyAttestations() {
     if (!version) return;
     setLoadingPdf(true);
     try {
-      const url = await getSignedUrl(version);
+      // Longer TTL than the list-page default: the reader has to get through the whole
+      // document inside this dialog before the "read and understood" step.
+      const url = await getSignedUrl({ version, ttlSeconds: 600 });
       setPdfUrl(url);
     } catch (e) {
       toast({ variant: "destructive", title: "Couldn't load document", description: e instanceof Error ? e.message : String(e) });
@@ -147,7 +149,7 @@ export default function MyAttestations() {
       </Card>
 
       <Dialog open={!!reviewing} onOpenChange={(o) => { if (!o) setReviewing(null); }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>{reviewing ? titleFor(reviewing) : ""}</DialogTitle>
             <DialogDescription>
@@ -161,14 +163,21 @@ export default function MyAttestations() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : pdfUrl ? (
-            <a
-              href={pdfUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-2 text-sm font-medium text-primary hover:underline"
-            >
-              <ExternalLink className="h-4 w-4" /> Open document in a new tab
-            </a>
+            <div className="space-y-2">
+              <iframe
+                src={pdfUrl}
+                title={reviewing ? titleFor(reviewing) : "Policy document"}
+                className="h-[60vh] w-full rounded-md border bg-muted"
+              />
+              <a
+                href={pdfUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-primary hover:underline"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> Trouble viewing? Open in a new tab
+              </a>
+            </div>
           ) : (
             <p className="text-sm text-muted-foreground">Document unavailable.</p>
           )}

@@ -9,6 +9,7 @@ import { useListResidents } from "@/hooks/useResidents";
 import { useUrlState } from "@/hooks/useUrlState";
 import { summarizeIncidentAnalytics } from "@/lib/incidentAnalytics";
 import { Button } from "@/components/ui/button";
+import { QueryError } from "@/components/QueryState";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -117,7 +118,7 @@ export default function Incidents() {
   // that are actually a resident's id (picked via the dropdown above) back to a name for search,
   // since that column can hold either a real resident id or legacy/"Other" free text.
   const { data: allResidents } = useListResidents();
-  const { data: incidents, isLoading } = useListIncidents({
+  const { data: incidents, isLoading, isError, error, refetch } = useListIncidents({
     facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
     severity: urlState.severity !== "all" ? urlState.severity : undefined,
     status: urlState.status !== "all" ? urlState.status : undefined,
@@ -313,7 +314,11 @@ export default function Incidents() {
           </Select>
         </div>
 
-        {isLoading ? (
+        {isError ? (
+          <div className="p-6">
+            <QueryError what="incidents" error={error} onRetry={() => refetch()} />
+          </div>
+        ) : isLoading ? (
           <div className="p-6 space-y-3">
             {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>

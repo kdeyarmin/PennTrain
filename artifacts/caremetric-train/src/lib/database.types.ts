@@ -17046,6 +17046,15 @@ export type Database = {
         Args: { p_effective_to?: string; p_grant_id: string; p_reason?: string }
         Returns: undefined
       }
+      enqueue_critical_notification_delivery: {
+        Args: {
+          p_delivery_type: string
+          p_notification_id: string
+          p_organization_id: string
+          p_profile_id: string
+        }
+        Returns: number
+      }
       enqueue_integration_test_delivery: {
         Args: { p_endpoint_id: string; p_payload?: Json }
         Returns: string
