@@ -1,0 +1,29 @@
+-- Codex review on PR #33 (close_anon_execute_leaks_on_rls_helpers_and_course_ai_rpcs): that
+-- migration's `revoke all on function ... from public, anon, authenticated` on
+-- is_platform_admin()/course_version_is_published(uuid) also stripped the leftover PUBLIC grant
+-- those two functions had held since creation -- which service_role, like every role, was
+-- implicitly covered by. service_role does NOT otherwise bypass function-level EXECUTE grants
+-- (same fact already documented in grant_exclusion_matching_core_to_service_role.sql /
+-- admin_update_profile_rpc.sql / generate_certificate_pdf_rpc.sql), so removing that grant is a
+-- real regression here, not just lint hygiene.
+--
+-- Concretely: poll-heygen-video-statuses (cron-invoked, no caller JWT) updates course_blocks
+-- through a service_role client (_shared/heygenPolling.ts). That fires the unconditional
+-- `lock_published` BEFORE trigger -> lock_published_course_block(), which is SECURITY INVOKER
+-- (runs as whichever role performed the write) and unconditionally calls
+-- is_platform_admin()/course_version_is_published() before it even checks publish status. Without
+-- its own EXECUTE grant, service_role's course_blocks updates (marking a HeyGen job
+-- completed/failed) would start failing with `permission denied for function is_platform_admin`.
+-- The sibling triggers on course_versions/quizzes/quiz_questions/quiz_answers
+-- (lock_published_course_version, enforce_quiz_block_rules, lock_published_quiz_question,
+-- lock_published_quiz_answer) call the same two helpers and would have the same exposure if a
+-- service-role write ever reached those tables directly.
+--
+-- Verified this is the only regression from that migration: no other SECURITY INVOKER trigger
+-- function in this project calls any of the other 9 functions touched there, and the two RPCs
+-- among those 9 that Edge Functions call directly (create_course_from_ai_draft,
+-- replace_quiz_questions, from generate-course-curriculum/regenerate-course-block) go through the
+-- caller's own RLS-scoped client (forwarded user JWT), not a service_role client, so they still
+-- run as `authenticated`.
+grant execute on function public.is_platform_admin() to service_role;
+grant execute on function public.course_version_is_published(uuid) to service_role;

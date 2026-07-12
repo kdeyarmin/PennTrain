@@ -14,7 +14,9 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const DIST_DIR = resolve(__dirname, "..", "dist", "public");
 const DIST_DIR_WITH_SEP = DIST_DIR + sep;
 const PORT = Number(process.env.PORT) > 0 ? Number(process.env.PORT) : 8080;
-const HOST = "0.0.0.0";
+// "::" binds dual-stack (IPv6 + IPv4-mapped) -- Railway's docs recommend it so the
+// service works on both current (IPv4+IPv6) and legacy (IPv6-only) private networks.
+const HOST = process.env.HOST || "::";
 
 // Must mirror vite.config.ts's `basePath = process.env.BASE_PATH ?? "/"` exactly -- that's what
 // Vite prefixes every emitted asset URL with at build time, so this server has to strip the same
@@ -56,39 +58,61 @@ const MIME_TYPES = {
   ".txt": "text/plain; charset=utf-8",
 };
 
-function isSupabaseConfigured() {
-  return Boolean(process.env.VITE_SUPABASE_URL && process.env.VITE_SUPABASE_ANON_KEY);
+// Extensions worth compressing; server/precompress.mjs emits .br/.gz siblings for these at
+// build time (only where compression actually shrinks the file), and serveFile negotiates
+// them via Accept-Encoding. Already-compressed formats (images, woff2) are excluded.
+const COMPRESSIBLE_EXTENSIONS = new Set([
+  ".html",
+  ".js",
+  ".mjs",
+  ".css",
+  ".json",
+  ".svg",
+  ".map",
+  ".webmanifest",
+  ".txt",
+]);
+
+// Sent on every response. Railway terminates TLS, so HSTS is set with a moderate max-age and
+// without includeSubDomains/preload (safe default if a custom apex domain is ever attached).
+// The CSP deliberately contains only directives that cannot break resource loading
+// (clickjacking/base/object hardening); a full resource CSP needs testing with the Google
+// Fonts + Supabase origins first.
+const SECURITY_HEADERS = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Strict-Transport-Security": "max-age=15552000",
+  "Content-Security-Policy": "frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+};
+
+function sendText(res, status, body) {
+  res.writeHead(status, {
+    ...SECURITY_HEADERS,
+    "Content-Type": "text/plain; charset=utf-8",
+    "Content-Length": Buffer.byteLength(body),
+  });
+  res.end(body);
 }
 
-// Best-effort reachability check against Supabase Auth's public health route.
-// Never throws, never blocks the healthcheck response for long, and never
-// touches the service-role key (this process should not have it at all) --
-// only the anon key, the same key already shipped to every browser.
-async function checkSupabaseReachable() {
-  const url = process.env.VITE_SUPABASE_URL;
-  const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) return null;
-  try {
-    const response = await fetch(new URL("/auth/v1/health", url), {
-      headers: { apikey: anonKey },
-      signal: AbortSignal.timeout(2000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
+// This server never talks to Supabase itself -- the browser does, using whatever
+// VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY were baked into the currently-served bundle at
+// build time. This process's own env vars at request time can silently diverge from that
+// (no rebuild on a runtime variable change, dummy build-time values, etc.), so /health
+// intentionally does not report Supabase configuration or reachability -- doing so would
+// describe this process's environment, not the bundle actually being served, which is
+// exactly the kind of false assurance a healthcheck must not give.
 async function handleHealth(_req, res) {
-  const supabaseReachable = await checkSupabaseReachable();
   const body = JSON.stringify({
     status: "ok",
     service: "caremetric-train",
     timestamp: new Date().toISOString(),
-    supabase: isSupabaseConfigured() ? "configured" : "not_configured",
-    supabaseReachable,
   });
-  res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+  res.writeHead(200, {
+    ...SECURITY_HEADERS,
+    "Content-Type": "application/json; charset=utf-8",
+    "Content-Length": Buffer.byteLength(body),
+  });
   res.end(body);
 }
 
@@ -105,13 +129,55 @@ async function resolveStaticFile(pathname) {
   return null;
 }
 
-async function serveFile(filePath, res, { cacheable }) {
-  const data = await readFile(filePath);
-  const contentType = MIME_TYPES[extname(filePath).toLowerCase()] || "application/octet-stream";
-  res.writeHead(200, {
+// Picks the best precompressed encoding the client accepts: br over gzip, honoring q=0
+// opt-outs. Returns null when only the identity response is acceptable.
+function pickEncoding(acceptEncoding) {
+  if (!acceptEncoding) return null;
+  const accepted = new Map();
+  for (const part of acceptEncoding.split(",")) {
+    const [name, ...params] = part.trim().split(";");
+    if (!name) continue;
+    let q = 1;
+    for (const param of params) {
+      const [key, value] = param.trim().split("=");
+      if (key === "q") q = Number(value);
+    }
+    accepted.set(name.trim().toLowerCase(), Number.isNaN(q) ? 0 : q);
+  }
+  const q = (name) => accepted.get(name) ?? accepted.get("*") ?? 0;
+  if (q("br") > 0) return { encoding: "br", suffix: ".br" };
+  if (q("gzip") > 0) return { encoding: "gzip", suffix: ".gz" };
+  return null;
+}
+
+async function serveFile(filePath, req, res, { cacheable }) {
+  const ext = extname(filePath).toLowerCase();
+  const contentType = MIME_TYPES[ext] || "application/octet-stream";
+  const headers = {
+    ...SECURITY_HEADERS,
     "Content-Type": contentType,
     "Cache-Control": cacheable ? "public, max-age=31536000, immutable" : "no-cache",
-  });
+  };
+
+  let data = null;
+  if (COMPRESSIBLE_EXTENSIONS.has(ext)) {
+    // Cache correctness even when we answer with the identity body: the response
+    // still varies on Accept-Encoding.
+    headers["Vary"] = "Accept-Encoding";
+    const picked = pickEncoding(req.headers["accept-encoding"]);
+    if (picked) {
+      try {
+        data = await readFile(filePath + picked.suffix);
+        headers["Content-Encoding"] = picked.encoding;
+      } catch {
+        // No precompressed sibling (or unreadable) -- fall back to identity.
+      }
+    }
+  }
+  if (data === null) data = await readFile(filePath);
+
+  headers["Content-Length"] = data.byteLength;
+  res.writeHead(200, headers);
   res.end(data);
 }
 
@@ -120,8 +186,7 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
     if (req.method !== "GET" && req.method !== "HEAD") {
-      res.writeHead(405, { "Content-Type": "text/plain; charset=utf-8" });
-      res.end("Method Not Allowed");
+      sendText(res, 405, "Method Not Allowed");
       return;
     }
 
@@ -130,17 +195,32 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    const appPath = stripBasePath(url.pathname);
-    if (appPath === null) {
+    const strippedPath = stripBasePath(url.pathname);
+    if (strippedPath === null) {
       // Outside the configured BASE_PATH entirely -- not part of this app's routing space.
-      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
-      res.end("Not Found");
+      sendText(res, 404, "Not Found");
+      return;
+    }
+
+    // URL pathnames arrive percent-encoded; decode so files like "my file.txt" resolve.
+    // Decoding happens BEFORE the containment check in resolveStaticFile, which is what
+    // actually prevents traversal (normalize + join + startsWith(DIST_DIR + sep)) -- a
+    // decoded "../" still cannot escape. Reject malformed encodings and NUL bytes outright.
+    let appPath;
+    try {
+      appPath = decodeURIComponent(strippedPath);
+    } catch {
+      sendText(res, 400, "Bad Request");
+      return;
+    }
+    if (appPath.includes("\0")) {
+      sendText(res, 400, "Bad Request");
       return;
     }
 
     const staticFile = await resolveStaticFile(appPath);
     if (staticFile) {
-      await serveFile(staticFile, res, { cacheable: appPath.startsWith("/assets/") });
+      await serveFile(staticFile, req, res, { cacheable: appPath.startsWith("/assets/") });
       return;
     }
 
@@ -150,22 +230,60 @@ const server = createServer(async (req, res) => {
     // tab requesting a pre-redeploy chunk filename -- defeating status-code-based existence
     // checks and polluting logs/monitoring with false 200s.
     if (appPath.startsWith("/assets/") || extname(appPath)) {
-      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
-      res.end("Not Found");
+      sendText(res, 404, "Not Found");
       return;
     }
 
     // SPA fallback: client-side routing (wouter) owns everything else.
     const indexPath = join(DIST_DIR, "index.html");
-    await serveFile(indexPath, res, { cacheable: false });
+    await serveFile(indexPath, req, res, { cacheable: false });
   } catch (error) {
     console.error("Request handling error:", error);
-    res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
-    res.end("Internal Server Error");
+    if (!res.headersSent) {
+      sendText(res, 500, "Internal Server Error");
+    } else {
+      res.destroy();
+    }
   }
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`caremetric-train server listening on http://${HOST}:${PORT}`);
-  console.log(`Serving static files from ${DIST_DIR}`);
-});
+// Railway's edge proxy reuses idle upstream connections longer than Node's 5s default
+// keep-alive; if the origin closes first, reused connections surface as intermittent 502s.
+// Outlive the proxy's idle window (headersTimeout must stay > keepAliveTimeout).
+server.keepAliveTimeout = 65_000;
+server.headersTimeout = 66_000;
+
+// Bind dual-stack by default, but fall back to IPv4-only where the environment has no IPv6
+// at all (some containers/sandboxes) -- an explicit HOST is honored without fallback.
+function startListening(host, allowFallback) {
+  const onError = (error) => {
+    server.removeListener("listening", onListening);
+    if (allowFallback && (error.code === "EAFNOSUPPORT" || error.code === "EADDRNOTAVAIL")) {
+      console.warn(`IPv6 not available in this environment (${error.code} on "${host}"); falling back to 0.0.0.0`);
+      startListening("0.0.0.0", false);
+      return;
+    }
+    throw error;
+  };
+  const onListening = () => {
+    server.removeListener("error", onError);
+    const { address, port } = server.address();
+    console.log(`caremetric-train server listening on http://${address.includes(":") ? `[${address}]` : address}:${port}`);
+    console.log(`Serving static files from ${DIST_DIR}`);
+  };
+  server.once("error", onError);
+  server.once("listening", onListening);
+  server.listen(PORT, host);
+}
+startListening(HOST, !process.env.HOST);
+
+// Railway sends SIGTERM on redeploy/scale-down: stop accepting connections, let in-flight
+// requests finish, then exit -- with a forced-exit fallback so shutdown can never hang past
+// the platform's grace period.
+function shutdown(signal) {
+  console.log(`${signal} received, shutting down`);
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 10_000).unref();
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

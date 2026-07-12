@@ -1,0 +1,1 @@
+drop policy policy_attestation_campaigns_select on public.policy_attestation_campaigns;

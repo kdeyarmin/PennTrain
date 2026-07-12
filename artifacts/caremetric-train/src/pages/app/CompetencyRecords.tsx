@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { ClipboardCheck, ChevronLeft, ChevronRight, Plus, Eye } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
 
 const PAGE_SIZE = 15;
 
@@ -61,7 +62,7 @@ interface RecordFormData {
 const EMPTY_RECORD_FORM: RecordFormData = {
   employeeId: "",
   templateId: "",
-  evaluationDate: new Date().toISOString().slice(0, 10),
+  evaluationDate: toLocalIsoDate(),
   overallResult: "met",
   signNow: false,
 };
@@ -103,7 +104,7 @@ function RecordDetailDialog({ record, onClose }: { record: CompetencyRecord | nu
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Evaluation Date</p>
-                <p>{new Date(record.evaluation_date).toLocaleDateString()}</p>
+                <p>{formatDateForDisplay(record.evaluation_date)}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Evaluator</p>
@@ -279,7 +280,7 @@ export default function CompetencyRecords() {
 
   return (
     <div className="space-y-6">
-      <div className="page-header flex items-center justify-between">
+      <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Competency Records</h1>
           <p>Conduct and review employee competency evaluations against checklist templates.</p>
@@ -342,8 +343,8 @@ export default function CompetencyRecords() {
           </div>
         ) : (
           <>
-            <div className="overflow-hidden">
-              <table className="data-table">
+            <div className="overflow-x-auto">
+              <table className="data-table min-w-[720px]">
                 <thead>
                   <tr>
                     <th>Employee</th>
@@ -366,7 +367,7 @@ export default function CompetencyRecords() {
                           </span>
                         </td>
                         <td className="text-muted-foreground">{template?.name ?? `Template #${r.template_id.slice(0, 8)}`}</td>
-                        <td className="text-muted-foreground">{new Date(r.evaluation_date).toLocaleDateString()}</td>
+                        <td className="text-muted-foreground">{formatDateForDisplay(r.evaluation_date)}</td>
                         <td><ResultBadge result={r.overall_result} /></td>
                         <td className="text-muted-foreground">{r.signed_at ? "Yes" : "No"}</td>
                         <td>
@@ -409,7 +410,7 @@ export default function CompetencyRecords() {
             <DialogTitle>New Competency Evaluation</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-[13px]">Employee *</Label>
                 <Select value={form.employeeId} onValueChange={(v) => setForm((f) => ({ ...f, employeeId: v }))}>

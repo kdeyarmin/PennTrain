@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
-import { Loader2, ShieldCheck, ArrowLeft, Mail, CheckCircle2 } from "lucide-react";
+import { Loader2, ArrowLeft, Mail, CheckCircle2 } from "lucide-react";
+import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -27,8 +28,11 @@ export default function ForgotPassword() {
 
     setLoading(true);
     try {
+      // Matches App.tsx's WouterRouter/publicPaths.ts convention for combining origin + base path
+      // -- BASE_URL is "/" by default (root) but can be a subpath in non-root deployments.
+      const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
       await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/login`,
+        redirectTo: `${window.location.origin}${basePath}/reset-password`,
       });
     } catch {
       toast({
@@ -51,11 +55,11 @@ export default function ForgotPassword() {
 
       <div className="w-full max-w-[420px] space-y-8 relative z-10 px-4">
         <div className="flex flex-col items-center text-center space-y-3">
-          <div className="h-14 w-14 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
-            <ShieldCheck className="h-7 w-7 text-primary-foreground" />
-          </div>
+          <LogoMark className="h-20 w-20" />
           <div className="space-y-1.5">
-            <h1 className="text-[28px] font-bold tracking-tight text-foreground">CareMetric Train</h1>
+            <h1 className="text-[28px] font-bold tracking-tight" style={{ color: BRAND_BLUE }}>
+              <BrandName />
+            </h1>
             <p className="text-sm text-muted-foreground">Healthcare Learning &amp; Compliance Platform</p>
           </div>
         </div>
