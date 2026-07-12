@@ -1,14 +1,9 @@
-<<<<<<< HEAD
-=======
 import { formatDateForDisplay } from "./dateUtils";
 
->>>>>>> origin/main
 // Shared across ResidentDetail.tsx, Residents.tsx, and ResidentComplianceReport.tsx so the three
 // don't drift -- item-type labels and status-badge styling for the resident RASP/ASP compliance
 // registry (Tier 3.5/3.6).
 
-<<<<<<< HEAD
-=======
 
 export type StateApprovedFormInfo = {
   label: string;
@@ -30,7 +25,6 @@ const DHS_ALR_FORMS = {
 
 const DHS_FORMS_INDEX_URL = "https://www.pa.gov/agencies/dhs/resources/licensing/pch-alr-licensing/pch-alr-compliance-forms";
 
->>>>>>> origin/main
 // Day-counts dropped from these labels on purpose: PCH's initial assessment is due 15 days after
 // admission, while ALR's is normally due 30 days *before* admission (opposite direction) -- a
 // hardcoded "15-Day"/"30-Day" prefix would be actively wrong for whichever facility type it
@@ -52,8 +46,6 @@ export function getComplianceFormLabel(facilityType: string | undefined): string
   return "Resident Compliance";
 }
 
-<<<<<<< HEAD
-=======
 // Names the specific DHS-prescribed form each item type requires as evidence -- every item type
 // maps to a real state form (see documentTemplates.ts's FE-03 "Official DHS Forms Index"), so this
 // covers all six, not just the four the digital RASP/ASP editor drafts. Used by the "attach the
@@ -91,7 +83,6 @@ export function getRequiredStateFormInfo(itemType: string, facilityType: string 
   return { label: "PA DHS state-approved resident compliance form", url: DHS_FORMS_INDEX_URL, sourceLabel: "PA DHS PCH/ALR Compliance Forms index" };
 }
 
->>>>>>> origin/main
 // Lower rank = worse. Used to roll many items (one resident, or a whole facility) up into a
 // single "worst status" badge.
 const STATUS_RANK: Record<string, number> = {
@@ -119,11 +110,5 @@ export function complianceStatusBadgeClassName(status: string): string {
 // midnight, so toLocaleDateString() in a timezone west of UTC renders the previous calendar day.
 // Building the Date from local year/month/day components instead avoids the conversion entirely.
 export function formatDateOnly(value: string | null | undefined): string {
-<<<<<<< HEAD
-  if (!value) return "—";
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString();
-=======
   return formatDateForDisplay(value);
->>>>>>> origin/main
 }

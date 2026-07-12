@@ -7,8 +7,6 @@ export type ResidentAssessmentForm = Omit<Tables<"resident_assessment_forms">, "
   content: ResidentAssessmentFormContent;
 };
 
-<<<<<<< HEAD
-=======
 async function describeFunctionError(error: unknown, fallback: string): Promise<string> {
   const context = (error as { context?: unknown } | null)?.context;
   if (context instanceof Response) {
@@ -23,7 +21,6 @@ async function describeFunctionError(error: unknown, fallback: string): Promise<
   return fallback;
 }
 
->>>>>>> origin/main
 export function useListResidentAssessmentForms(residentId: string | undefined) {
   return useQuery({
     queryKey: ["resident_assessment_forms", residentId],
@@ -60,11 +57,7 @@ export function useStartResidentAssessmentForm() {
       const { data, error } = await supabase.rpc("start_resident_assessment_form", {
         p_resident_id: residentId,
         p_reason: reason,
-<<<<<<< HEAD
-        p_compliance_item_id: complianceItemId ?? null,
-=======
         p_compliance_item_id: complianceItemId,
->>>>>>> origin/main
       });
       if (error) throw error;
       return data as unknown as ResidentAssessmentForm;
@@ -90,10 +83,6 @@ export function useSaveResidentAssessmentFormDraft() {
   });
 }
 
-<<<<<<< HEAD
-async function invokeGenerateAssessmentPdf(formId: string) {
-  const { data: pdfData, error: pdfError } = await supabase.functions.invoke<{ success?: boolean; error?: string; url?: string }>(
-=======
 export interface GeneratedResidentAssessmentSummary {
   summary: string;
   suggested_additions: string[];
@@ -120,7 +109,6 @@ export function useGenerateResidentAssessmentSummary() {
 
 async function invokeGenerateAssessmentPdf(formId: string) {
   const { data: pdfData, error: pdfError } = await supabase.functions.invoke<{ success?: boolean; error?: string; url?: string; documentId?: string }>(
->>>>>>> origin/main
     "generate-resident-assessment-pdf",
     { body: { formId } },
   );
@@ -131,16 +119,9 @@ async function invokeGenerateAssessmentPdf(formId: string) {
   return pdfData;
 }
 
-<<<<<<< HEAD
-// Locks the form, marks the prior version superseded, and completes the linked
-// resident_compliance_items row (feeding Phase 2's support-plan cross-trigger) -- all server-side
-// in finalize_resident_assessment_form(). Also generates and attaches the PDF, mirroring
-// useComplianceBinder.ts's supabase.functions.invoke pattern.
-=======
 // Locks the form/lineage server-side, then generates the official PA DHS form packet. The edge
 // function stores that packet as is_state_form=true and completes the linked resident_compliance_items
 // row with that exact generated document.
->>>>>>> origin/main
 export function useFinalizeResidentAssessmentForm() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -187,11 +187,6 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
-<<<<<<< HEAD
-          { href: "/app/residents", label: "Residents", icon: BedDouble },
-          { href: "/app/resident-compliance", label: "Resident Compliance", icon: ClipboardList },
-=======
->>>>>>> origin/main
           { href: "/app/alerts", label: "Alerts", icon: Bell },
           { href: "/app/pending-approvals", label: "Pending Approvals", icon: ClipboardCheck },
         ]
@@ -278,11 +273,6 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
-<<<<<<< HEAD
-          { href: "/app/residents", label: "Residents", icon: BedDouble },
-          { href: "/app/resident-compliance", label: "Resident Compliance", icon: ClipboardList },
-=======
->>>>>>> origin/main
           { href: "/app/alerts", label: "Alerts", icon: Bell },
         ]
       },

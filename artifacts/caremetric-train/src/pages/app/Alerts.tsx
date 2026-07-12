@@ -6,10 +6,7 @@ import { useListAllIncidentNotifications } from "@/hooks/useIncidents";
 import { useListCorrectiveActions } from "@/hooks/useCorrectiveActions";
 import { useListAllInspectionEvents } from "@/hooks/useInspectionEvents";
 import { useListAllResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
-<<<<<<< HEAD
-=======
 import { useUrlState } from "@/hooks/useUrlState";
->>>>>>> origin/main
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

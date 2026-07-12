@@ -1,24 +1,9 @@
-<<<<<<< HEAD
-import { useEffect, useMemo, useRef, useState } from "react";
-=======
 import { memo, useEffect, useMemo, useRef, useState } from "react";
->>>>>>> origin/main
-import { useParams, Link, useLocation } from "wouter";
+import { useParams, Link } from "wouter";
 import { useGetResident } from "@/hooks/useResidents";
 import { useListFacilities } from "@/hooks/useFacilities";
 import {
   useGetResidentAssessmentForm, useSaveResidentAssessmentFormDraft, useFinalizeResidentAssessmentForm,
-<<<<<<< HEAD
-  useGenerateResidentAssessmentFormPdf,
-} from "@/hooks/useResidentAssessmentForms";
-import {
-  ADL_ITEMS, SENSORY_ITEMS, SOCIAL_ITEMS, behavioralItems, responsiblePartyOptions,
-  createEmptyContent, mergeContentWithDefaults,
-  CARE_DEGREE_OPTIONS, BEHAVIORAL_DEGREE_OPTIONS, FREQUENCY_OPTIONS, REASON_OPTIONS,
-  emptyDiagnosisRow, emptyParticipantRow,
-  type ResidentAssessmentFormContent, type DegreeItemAnswer, type SimpleNeedAnswer, type DiagnosisRow, type ParticipantRow,
-  type FormType, type SectionItem,
-=======
   useGenerateResidentAssessmentFormPdf, useGenerateResidentAssessmentSummary,
 } from "@/hooks/useResidentAssessmentForms";
 import { useListResidentDocuments } from "@/hooks/useResidentDocuments";
@@ -31,7 +16,6 @@ import {
   emptyDiagnosisRow, emptyParticipantRow,
   type ResidentAssessmentFormContent, type DegreeItemAnswer, type SimpleNeedAnswer, type DiagnosisRow, type ParticipantRow,
   type FormType, type SectionItem, type FacilityCareDefaults, type FormSectionKey,
->>>>>>> origin/main
 } from "@/lib/residentAssessmentFormSchema";
 import { getComplianceFormLabel } from "@/lib/residentCompliance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,25 +25,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-<<<<<<< HEAD
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Plus, Trash2, Lock } from "lucide-react";
-=======
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, ArrowRight, Plus, Trash2, Lock, CheckCircle2, AlertTriangle, Sparkles } from "lucide-react";
->>>>>>> origin/main
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
 const AUTOSAVE_DEBOUNCE_MS = 1500;
 
-<<<<<<< HEAD
-=======
 const TAB_SEQUENCE: FormSectionKey[] = ["info", "section1", "section2", "section3", "section4", "summary"];
 // "review" is a 7th tab that isn't one of the 6 FormSectionKeys getIncompleteSections()/the PDF
 // track -- it's a UI-only drill-down, not a form-content section, so it stays out of TAB_SEQUENCE
@@ -68,7 +43,6 @@ const TAB_SEQUENCE: FormSectionKey[] = ["info", "section1", "section2", "section
 type TabValue = FormSectionKey | "review";
 const ALL_TAB_VALUES: readonly string[] = [...TAB_SEQUENCE, "review"];
 
->>>>>>> origin/main
 function DegreeSelect({ formType, value, allOtherValue, onChange, onAllOtherChange, scale }: {
   formType: FormType; value: string; allOtherValue: string;
   onChange: (v: string) => void; onAllOtherChange: (v: string) => void;
@@ -102,13 +76,6 @@ function DegreeSelect({ formType, value, allOtherValue, onChange, onAllOtherChan
   );
 }
 
-<<<<<<< HEAD
-function DegreeItemEditor({ item, formType, answer, onChange, scale, readOnly }: {
-  item: SectionItem; formType: FormType; answer: DegreeItemAnswer;
-  onChange: (next: DegreeItemAnswer) => void; scale: { value: string; label: string }[]; readOnly: boolean;
-}) {
-  const partyOptions = responsiblePartyOptions(formType);
-=======
 // A Select that always resets to its placeholder after a pick -- it exists to drop a common value
 // into a plain-text field the user can still hand-edit afterward, not to represent that field's
 // current state (unlike every other Select in this file, which is bound to the field it controls).
@@ -242,7 +209,6 @@ const DegreeItemEditor = memo(function DegreeItemEditor({ item, formType, answer
   item: SectionItem; formType: FormType; answer: DegreeItemAnswer;
   onChange: (next: DegreeItemAnswer) => void; scale: { value: string; label: string }[]; readOnly: boolean;
 }) {
->>>>>>> origin/main
   return (
     <div className="border rounded-lg p-3 space-y-2">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -291,18 +257,6 @@ const DegreeItemEditor = memo(function DegreeItemEditor({ item, formType, answer
                 value={answer.planDescription}
                 onChange={(e) => onChange({ ...answer, planDescription: e.target.value })}
               />
-<<<<<<< HEAD
-              <div className="grid grid-cols-2 gap-2">
-                <Select value={answer.planFrequency} onValueChange={(v) => onChange({ ...answer, planFrequency: v })}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Frequency" /></SelectTrigger>
-                  <SelectContent>{FREQUENCY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-                </Select>
-                <Select value={answer.planResponsibleParty} onValueChange={(v) => onChange({ ...answer, planResponsibleParty: v })}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Responsible party" /></SelectTrigger>
-                  <SelectContent>{partyOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-=======
               <FrequencyPartyFields
                 formType={formType}
                 frequency={answer.planFrequency} frequencyOther={answer.planFrequencyOther}
@@ -312,21 +266,12 @@ const DegreeItemEditor = memo(function DegreeItemEditor({ item, formType, answer
                 onPartyChange={(v) => onChange({ ...answer, planResponsibleParty: v })}
                 onPartyOtherChange={(v) => onChange({ ...answer, planResponsiblePartyOther: v })}
               />
->>>>>>> origin/main
             </>
           )}
         </div>
       </fieldset>
     </div>
   );
-<<<<<<< HEAD
-}
-
-function SimpleNeedEditor({ item, formType, answer, onChange, readOnly }: {
-  item: SectionItem; formType: FormType; answer: SimpleNeedAnswer; onChange: (next: SimpleNeedAnswer) => void; readOnly: boolean;
-}) {
-  const partyOptions = responsiblePartyOptions(formType);
-=======
 });
 
 // Memoized for the same reason as DegreeItemEditor above -- callers must pass a stable per-item
@@ -334,7 +279,6 @@ function SimpleNeedEditor({ item, formType, answer, onChange, readOnly }: {
 const SimpleNeedEditor = memo(function SimpleNeedEditor({ item, formType, answer, onChange, readOnly }: {
   item: SectionItem; formType: FormType; answer: SimpleNeedAnswer; onChange: (next: SimpleNeedAnswer) => void; readOnly: boolean;
 }) {
->>>>>>> origin/main
   return (
     <div className="border rounded-lg p-3 space-y-2">
       <div className="flex items-center justify-between gap-3">
@@ -358,18 +302,6 @@ const SimpleNeedEditor = memo(function SimpleNeedEditor({ item, formType, answer
             value={answer.planDescription}
             onChange={(e) => onChange({ ...answer, planDescription: e.target.value })}
           />
-<<<<<<< HEAD
-          <div className="grid grid-cols-2 gap-2">
-            <Select value={answer.planFrequency} onValueChange={(v) => onChange({ ...answer, planFrequency: v })}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Frequency" /></SelectTrigger>
-              <SelectContent>{FREQUENCY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-            </Select>
-            <Select value={answer.planResponsibleParty} onValueChange={(v) => onChange({ ...answer, planResponsibleParty: v })}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Responsible party" /></SelectTrigger>
-              <SelectContent>{partyOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-=======
           <FrequencyPartyFields
             formType={formType}
             frequency={answer.planFrequency} frequencyOther={answer.planFrequencyOther}
@@ -379,18 +311,10 @@ const SimpleNeedEditor = memo(function SimpleNeedEditor({ item, formType, answer
             onPartyChange={(v) => onChange({ ...answer, planResponsibleParty: v })}
             onPartyOtherChange={(v) => onChange({ ...answer, planResponsiblePartyOther: v })}
           />
->>>>>>> origin/main
         </fieldset>
       )}
     </div>
   );
-<<<<<<< HEAD
-}
-
-function DiagnosisRowsEditor({ title, rows, noneChecked, onRowsChange, onNoneChange, readOnly, maxRows }: {
-  title: string; rows: DiagnosisRow[]; noneChecked: boolean;
-  onRowsChange: (rows: DiagnosisRow[]) => void; onNoneChange: (v: boolean) => void; readOnly: boolean; maxRows: number;
-=======
 });
 
 interface ReviewCheckItem {
@@ -417,7 +341,6 @@ function DiagnosisRowsEditor({ title, rows, noneChecked, onRowsChange, onNoneCha
   title: string; rows: DiagnosisRow[]; noneChecked: boolean;
   onRowsChange: (rows: DiagnosisRow[]) => void; onNoneChange: (v: boolean) => void; readOnly: boolean; maxRows: number; formType: FormType;
   planDefaults?: FacilityCareDefaults;
->>>>>>> origin/main
 }) {
   return (
     <div className="space-y-2">
@@ -430,13 +353,9 @@ function DiagnosisRowsEditor({ title, rows, noneChecked, onRowsChange, onNoneCha
       </div>
       {!noneChecked && (
         <div className="space-y-2">
-<<<<<<< HEAD
-          {rows.map((row, i) => (
-=======
           {rows.map((row, i) => {
             const updateRow = (patch: Partial<DiagnosisRow>) => onRowsChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
             return (
->>>>>>> origin/main
             <div key={i} className="border rounded-lg p-2 space-y-1.5">
               <div className="flex items-center gap-2">
                 <Input
@@ -444,11 +363,7 @@ function DiagnosisRowsEditor({ title, rows, noneChecked, onRowsChange, onNoneCha
                   className="h-8 text-xs"
                   value={row.description}
                   disabled={readOnly}
-<<<<<<< HEAD
-                  onChange={(e) => onRowsChange(rows.map((r, j) => (j === i ? { ...r, description: e.target.value } : r)))}
-=======
                   onChange={(e) => updateRow({ description: e.target.value })}
->>>>>>> origin/main
                 />
                 {!readOnly && (
                   <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => onRowsChange(rows.filter((_, j) => j !== i))}>
@@ -461,14 +376,6 @@ function DiagnosisRowsEditor({ title, rows, noneChecked, onRowsChange, onNoneCha
                 className="h-8 text-xs"
                 value={row.planDescription}
                 disabled={readOnly}
-<<<<<<< HEAD
-                onChange={(e) => onRowsChange(rows.map((r, j) => (j === i ? { ...r, planDescription: e.target.value } : r)))}
-              />
-            </div>
-          ))}
-          {!readOnly && rows.length < maxRows && (
-            <Button variant="outline" size="sm" onClick={() => onRowsChange([...rows, emptyDiagnosisRow()])}>
-=======
                 onChange={(e) => updateRow({ planDescription: e.target.value })}
               />
               <FrequencyPartyFields
@@ -492,7 +399,6 @@ function DiagnosisRowsEditor({ title, rows, noneChecked, onRowsChange, onNoneCha
                 ...(planDefaults?.frequency ? { planFrequency: planDefaults.frequency } : {}),
               }])}
             >
->>>>>>> origin/main
               <Plus className="mr-1 h-3.5 w-3.5" /> Add Row
             </Button>
           )}
@@ -504,38 +410,23 @@ function DiagnosisRowsEditor({ title, rows, noneChecked, onRowsChange, onNoneCha
 
 export default function ResidentAssessmentFormEditor() {
   const { residentId, formId } = useParams<{ residentId: string; formId: string }>();
-  const [, navigate] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
 
   const { data: resident } = useGetResident(residentId);
   const { data: facilities } = useListFacilities();
   const { data: form, isLoading } = useGetResidentAssessmentForm(formId);
-<<<<<<< HEAD
-  const saveDraft = useSaveResidentAssessmentFormDraft();
-  const finalize = useFinalizeResidentAssessmentForm();
-  const generatePdf = useGenerateResidentAssessmentFormPdf();
-=======
   const { data: residentDocuments } = useListResidentDocuments(residentId);
   const saveDraft = useSaveResidentAssessmentFormDraft();
   const finalize = useFinalizeResidentAssessmentForm();
   const generatePdf = useGenerateResidentAssessmentFormPdf();
   const generateSummary = useGenerateResidentAssessmentSummary();
->>>>>>> origin/main
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const facility = facilities?.find((f) => f.id === resident?.facility_id);
   const formLabel = getComplianceFormLabel(facility?.facility_type);
 
   const [content, setContent] = useState<ResidentAssessmentFormContent | null>(null);
-<<<<<<< HEAD
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSave = useRef<{ id: string; content: ResidentAssessmentFormContent } | null>(null);
-  const isReadOnly = !canManage || form?.status === "finalized";
-
-  useEffect(() => {
-    if (!form) return;
-=======
   const [aiSummaryAssist, setAiSummaryAssist] = useState<{ suggestedAdditions: string[]; followUpQuestions: string[] } | null>(null);
   const contentRef = useRef<ResidentAssessmentFormContent | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -598,18 +489,11 @@ export default function ResidentAssessmentFormEditor() {
   useEffect(() => {
     if (!form) return;
     flushPendingAutosave();
->>>>>>> origin/main
     // A brand-new form's content is a bare {} (see start_resident_assessment_form()'s
     // coalesce(v_prior.content, '{}'::jsonb)) -- deep-merge onto the full default shape so every
     // section, including item maps that may have grown new keys since this form's schema_version,
     // has its expected keys. A revised form's content already carries the full shape forward from
     // the prior version under the same schema_version, so the merge is a no-op for those.
-<<<<<<< HEAD
-    setContent(mergeContentWithDefaults(createEmptyContent(form.form_type as FormType), form.content));
-  }, [form?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const update = (next: ResidentAssessmentFormContent) => {
-=======
     //
     // Deliberately keyed only on form?.id, not on facility -- this must run exactly once per form.
     // The facility's default care-team fields are read from whatever's already loaded in this
@@ -634,25 +518,24 @@ export default function ResidentAssessmentFormEditor() {
 
   const update = (next: ResidentAssessmentFormContent) => {
     contentRef.current = next;
->>>>>>> origin/main
     setContent(next);
     if (isReadOnly || !formId) return;
     pendingSave.current = { id: formId, content: next };
     if (saveTimer.current) clearTimeout(saveTimer.current);
-saveTimer.current = setTimeout(() => {
-  saveTimer.current = null;
-  pendingSave.current = null;
-  saveDraft.mutate(
-    { id: formId, content: next },
-    {
-      // A failed autosave (e.g. someone else finalized this form in another tab, so RLS now
-      // rejects the update since it's no longer a draft) used to fail completely silently --
-      // the user would keep editing a form that was never actually being saved, with no
-      // indication anything was wrong until they navigated away and lost the changes.
-      onError: (e: Error) => toast({ title: "Failed to save changes", description: e.message, variant: "destructive" }),
-    },
-  );
-}, AUTOSAVE_DEBOUNCE_MS);
+    saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
+      pendingSave.current = null;
+      saveDraft.mutate(
+        { id: formId, content: next },
+        {
+          // A failed autosave (e.g. someone else finalized this form in another tab, so RLS now
+          // rejects the update since it's no longer a draft) used to fail completely silently --
+          // the user would keep editing a form that was never actually being saved, with no
+          // indication anything was wrong until they navigated away and lost the changes.
+          onError: (e: Error) => toast({ title: "Failed to save changes", description: e.message, variant: "destructive" }),
+        },
+      );
+    }, AUTOSAVE_DEBOUNCE_MS);
   };
 
   // Navigating away (e.g. "Back to Resident") within the debounce window used to just cancel the
@@ -666,10 +549,6 @@ saveTimer.current = setTimeout(() => {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-<<<<<<< HEAD
-  const behavioralList = useMemo(() => behavioralItems((form?.form_type as FormType) ?? "RASP"), [form?.form_type]);
-
-=======
   // "Latest value" refs, resynced on every render -- let the per-item handler maps below stay
   // referentially stable forever (computed once via useMemo(..., []) ) while still always reading
   // and writing the current content/update, instead of closing over whatever they were on the
@@ -803,7 +682,6 @@ ${text}` : text;
     [content?.section4.items],
   );
 
->>>>>>> origin/main
   const handleFinalize = async () => {
     if (!formId || !content) return;
     // finalize_resident_assessment_form() doesn't take content as an argument -- it finalizes
@@ -821,14 +699,10 @@ ${text}` : text;
       }
     }
     finalize.mutate(formId, {
-<<<<<<< HEAD
-      onSuccess: () => toast({ title: `${formLabel} finalized and saved as a PDF` }),
-=======
       onSuccess: () => toast({
         title: `${formLabel} finalized and saved as a PDF`,
         description: "The generated packet starts with the official PA DHS form and completes the linked checklist item.",
       }),
->>>>>>> origin/main
       onError: (e: Error) => toast({ title: "Failed to finalize", description: e.message, variant: "destructive" }),
     });
   };
@@ -844,8 +718,6 @@ ${text}` : text;
 
   const formType = form.form_type as FormType;
   const degreeScale = CARE_DEGREE_OPTIONS;
-<<<<<<< HEAD
-=======
   // Same facility defaults createEmptyContent uses for brand-new forms, reused so a diagnosis row
   // added later via "Add Row" isn't the one place in the form that comes up without them.
   const facilityPlanDefaults = { responsibleParty: facility?.default_care_responsible_party, frequency: facility?.default_care_frequency };
@@ -907,7 +779,6 @@ ${text}` : text;
     return { label: SECTION_LABELS[key], ok, detail };
   });
   const reviewIncompleteCount = incompleteSections.length;
->>>>>>> origin/main
 
   return (
     <div className="space-y-6">
@@ -932,11 +803,7 @@ ${text}` : text;
             {finalize.isPending || saveDraft.isPending ? "Finalizing..." : `Finalize ${formLabel}`}
           </Button>
         )}
-<<<<<<< HEAD
-        {canManage && form.status === "finalized" && (
-=======
         {canManage && form.status === "finalized" && !hasGeneratedPdf && (
->>>>>>> origin/main
           <Button
             variant="outline"
             disabled={generatePdf.isPending}
@@ -945,25 +812,11 @@ ${text}` : text;
               onError: (e: Error) => toast({ title: "Failed to generate PDF", description: e.message, variant: "destructive" }),
             })}
           >
-<<<<<<< HEAD
-            {generatePdf.isPending ? "Generating..." : "Regenerate PDF"}
-=======
             {generatePdf.isPending ? "Generating..." : "Generate PDF"}
->>>>>>> origin/main
           </Button>
         )}
       </div>
 
-<<<<<<< HEAD
-      <Tabs defaultValue="info">
-        <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="info">Resident &amp; Assessment Info</TabsTrigger>
-          <TabsTrigger value="section1">Personal Care, Supervision, Mobility, Meds</TabsTrigger>
-          <TabsTrigger value="section2">Medical, Dental, Dietary, Sensory</TabsTrigger>
-          <TabsTrigger value="section3">Mental / Behavioral / Cognitive</TabsTrigger>
-          <TabsTrigger value="section4">Social &amp; Recreational</TabsTrigger>
-          <TabsTrigger value="summary">Summary &amp; Participation</TabsTrigger>
-=======
       <p className="text-xs text-muted-foreground">
         CareMetric saves your entries into a generated packet that starts with the official PA DHS {formLabel} form,
         followed by a completion addendum. Finalizing creates that state-form packet and completes the linked checklist item.
@@ -995,7 +848,6 @@ ${text}` : text;
             Review
             {reviewIncompleteCount > 0 && <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">{reviewIncompleteCount}</Badge>}
           </TabsTrigger>
->>>>>>> origin/main
         </TabsList>
 
         <TabsContent value="info" className="space-y-4">
@@ -1052,10 +904,7 @@ ${text}` : text;
               </fieldset>
             </CardContent>
           </Card>
-<<<<<<< HEAD
-=======
           {nextButton("section1")}
->>>>>>> origin/main
         </TabsContent>
 
         <TabsContent value="section1" className="space-y-4">
@@ -1063,16 +912,6 @@ ${text}` : text;
             <CardHeader><CardTitle className="text-base">Supervision, Mobility, Medications</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <fieldset disabled={isReadOnly} className="grid sm:grid-cols-3 gap-4">
-<<<<<<< HEAD
-                {(["supervision", "mobility", "medications"] as const).map((key) => (
-                  <div key={key} className="space-y-1.5">
-                    <Label className="text-xs capitalize">{key}</Label>
-                    <Textarea
-                      placeholder="Level / description"
-                      className="min-h-20 text-xs"
-                      value={content.section1[key].needsDescription}
-                      onChange={(e) => update({ ...content, section1: { ...content.section1, [key]: { ...content.section1[key], needsDescription: e.target.value } } })}
-=======
                 {(["supervision", "mobility", "medications"] as const).map((key) => {
                   const s = content.section1[key];
                   const updateField = (patch: Partial<typeof s>) => update({ ...content, section1: { ...content.section1, [key]: { ...s, ...patch } } });
@@ -1088,18 +927,10 @@ ${text}` : text;
                       className="min-h-20 text-xs"
                       value={s.needsDescription}
                       onChange={(e) => updateField({ needsDescription: e.target.value })}
->>>>>>> origin/main
                     />
                     <Textarea
                       placeholder="Plan to meet the need"
                       className="min-h-20 text-xs"
-<<<<<<< HEAD
-                      value={content.section1[key].planDescription}
-                      onChange={(e) => update({ ...content, section1: { ...content.section1, [key]: { ...content.section1[key], planDescription: e.target.value } } })}
-                    />
-                  </div>
-                ))}
-=======
                       value={s.planDescription}
                       onChange={(e) => updateField({ planDescription: e.target.value })}
                     />
@@ -1114,15 +945,12 @@ ${text}` : text;
                   </div>
                   );
                 })}
->>>>>>> origin/main
               </fieldset>
             </CardContent>
           </Card>
           <Card>
             <CardHeader><CardTitle className="text-base">Personal Care Needs (22 items)</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-<<<<<<< HEAD
-=======
               {!isReadOnly && (
                 <>
                   <BulkDegreeBar
@@ -1144,24 +972,16 @@ ${text}` : text;
                   />
                 </>
               )}
->>>>>>> origin/main
               {ADL_ITEMS.map((item) => (
                 <DegreeItemEditor
                   key={item.key} item={item} formType={formType} scale={degreeScale} readOnly={isReadOnly}
                   answer={content.section1.items[item.key]}
-<<<<<<< HEAD
-                  onChange={(next) => update({ ...content, section1: { ...content.section1, items: { ...content.section1.items, [item.key]: next } } })}
-=======
                   onChange={section1ItemHandlers.get(item.key)!}
->>>>>>> origin/main
                 />
               ))}
             </CardContent>
           </Card>
-<<<<<<< HEAD
-=======
           {nextButton("section2")}
->>>>>>> origin/main
         </TabsContent>
 
         <TabsContent value="section2" className="space-y-4">
@@ -1169,31 +989,19 @@ ${text}` : text;
             <CardHeader><CardTitle className="text-base">Medical &amp; Dental &amp; Dietary Diagnoses</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <DiagnosisRowsEditor
-<<<<<<< HEAD
-                title="Physical Medical Diagnoses" maxRows={8} readOnly={isReadOnly}
-=======
                 title="Physical Medical Diagnoses" maxRows={8} readOnly={isReadOnly} formType={formType} planDefaults={facilityPlanDefaults}
->>>>>>> origin/main
                 rows={content.section2.physicalDiagnoses} noneChecked={content.section2.noPhysicalDiagnoses}
                 onRowsChange={(rows) => update({ ...content, section2: { ...content.section2, physicalDiagnoses: rows } })}
                 onNoneChange={(v) => update({ ...content, section2: { ...content.section2, noPhysicalDiagnoses: v } })}
               />
               <DiagnosisRowsEditor
-<<<<<<< HEAD
-                title="Dental Needs" maxRows={2} readOnly={isReadOnly}
-=======
                 title="Dental Needs" maxRows={2} readOnly={isReadOnly} formType={formType} planDefaults={facilityPlanDefaults}
->>>>>>> origin/main
                 rows={content.section2.dental} noneChecked={content.section2.noDental}
                 onRowsChange={(rows) => update({ ...content, section2: { ...content.section2, dental: rows } })}
                 onNoneChange={(v) => update({ ...content, section2: { ...content.section2, noDental: v } })}
               />
               <DiagnosisRowsEditor
-<<<<<<< HEAD
-                title="Dietary Needs" maxRows={2} readOnly={isReadOnly}
-=======
                 title="Dietary Needs" maxRows={2} readOnly={isReadOnly} formType={formType} planDefaults={facilityPlanDefaults}
->>>>>>> origin/main
                 rows={content.section2.dietary} noneChecked={content.section2.noDietary}
                 onRowsChange={(rows) => update({ ...content, section2: { ...content.section2, dietary: rows } })}
                 onNoneChange={(v) => update({ ...content, section2: { ...content.section2, noDietary: v } })}
@@ -1203,32 +1011,22 @@ ${text}` : text;
           <Card>
             <CardHeader><CardTitle className="text-base">Sensory Needs</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-<<<<<<< HEAD
-=======
               {!isReadOnly && (
                 <BulkPlanBar
                   formType={formType}
                   onApply={(patch) => update({ ...content, section2: { ...content.section2, sensory: applyPatchToAll(content.section2.sensory, patch) } })}
                 />
               )}
->>>>>>> origin/main
               {SENSORY_ITEMS.map((item) => (
                 <SimpleNeedEditor
                   key={item.key} item={item} formType={formType} readOnly={isReadOnly}
                   answer={content.section2.sensory[item.key]}
-<<<<<<< HEAD
-                  onChange={(next) => update({ ...content, section2: { ...content.section2, sensory: { ...content.section2.sensory, [item.key]: next } } })}
-=======
                   onChange={section2SensoryHandlers.get(item.key)!}
->>>>>>> origin/main
                 />
               ))}
             </CardContent>
           </Card>
-<<<<<<< HEAD
-=======
           {nextButton("section3")}
->>>>>>> origin/main
         </TabsContent>
 
         <TabsContent value="section3" className="space-y-4">
@@ -1236,11 +1034,7 @@ ${text}` : text;
             <CardHeader><CardTitle className="text-base">Psychological Diagnoses</CardTitle></CardHeader>
             <CardContent>
               <DiagnosisRowsEditor
-<<<<<<< HEAD
-                title="Psychological Medical Diagnoses" maxRows={8} readOnly={isReadOnly}
-=======
                 title="Psychological Medical Diagnoses" maxRows={8} readOnly={isReadOnly} formType={formType} planDefaults={facilityPlanDefaults}
->>>>>>> origin/main
                 rows={content.section3.psychologicalDiagnoses} noneChecked={content.section3.noPsychologicalDiagnoses}
                 onRowsChange={(rows) => update({ ...content, section3: { ...content.section3, psychologicalDiagnoses: rows } })}
                 onNoneChange={(v) => update({ ...content, section3: { ...content.section3, noPsychologicalDiagnoses: v } })}
@@ -1250,8 +1044,6 @@ ${text}` : text;
           <Card>
             <CardHeader><CardTitle className="text-base">Mental Health, Behavioral Health, Cognitive Functioning</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-<<<<<<< HEAD
-=======
               {!isReadOnly && (
                 <>
                   <BulkDegreeBar
@@ -1273,56 +1065,38 @@ ${text}` : text;
                   />
                 </>
               )}
->>>>>>> origin/main
               {behavioralList.map((item) => (
                 <DegreeItemEditor
                   key={item.key} item={item} formType={formType} scale={BEHAVIORAL_DEGREE_OPTIONS} readOnly={isReadOnly}
                   answer={content.section3.items[item.key]}
-<<<<<<< HEAD
-                  onChange={(next) => update({ ...content, section3: { ...content.section3, items: { ...content.section3.items, [item.key]: next } } })}
-=======
                   onChange={section3ItemHandlers.get(item.key)!}
->>>>>>> origin/main
                 />
               ))}
             </CardContent>
           </Card>
-<<<<<<< HEAD
-=======
           {nextButton("section4")}
->>>>>>> origin/main
         </TabsContent>
 
         <TabsContent value="section4" className="space-y-4">
           <Card>
             <CardHeader><CardTitle className="text-base">Social and Recreational Needs</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-<<<<<<< HEAD
-=======
               {!isReadOnly && (
                 <BulkPlanBar
                   formType={formType}
                   onApply={(patch) => update({ ...content, section4: { ...content.section4, items: applyPatchToAll(content.section4.items, patch) } })}
                 />
               )}
->>>>>>> origin/main
               {SOCIAL_ITEMS.map((item) => (
                 <SimpleNeedEditor
                   key={item.key} item={item} formType={formType} readOnly={isReadOnly}
                   answer={content.section4.items[item.key]}
-<<<<<<< HEAD
-                  onChange={(next) => update({ ...content, section4: { ...content.section4, items: { ...content.section4.items, [item.key]: next } } })}
-=======
                   onChange={section4ItemHandlers.get(item.key)!}
->>>>>>> origin/main
                 />
               ))}
             </CardContent>
           </Card>
-<<<<<<< HEAD
-=======
           {nextButton("summary")}
->>>>>>> origin/main
         </TabsContent>
 
         <TabsContent value="summary" className="space-y-4">
@@ -1330,9 +1104,6 @@ ${text}` : text;
             <CardHeader><CardTitle className="text-base">Part IV — Summary and Determination</CardTitle></CardHeader>
             <CardContent>
               <fieldset disabled={isReadOnly}>
-<<<<<<< HEAD
-                <Label className="text-xs">Summary of Resident's Overall Wellness</Label>
-=======
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <Label className="text-xs">Summary of Resident's Overall Wellness</Label>
                   {!isReadOnly && (
@@ -1348,14 +1119,11 @@ ${text}` : text;
                     </Button>
                   )}
                 </div>
->>>>>>> origin/main
                 <Textarea
                   className="min-h-28"
                   value={content.summary.overallWellness}
                   onChange={(e) => update({ ...content, summary: { overallWellness: e.target.value } })}
                 />
-<<<<<<< HEAD
-=======
                 {!isReadOnly && (
                   <p className="mt-2 text-xs text-muted-foreground">
                     AI drafts must be reviewed before finalizing. The prompt is constrained to use only saved assessment content and to omit unsupported facts.
@@ -1397,7 +1165,6 @@ ${text}` : text;
                     )}
                   </div>
                 )}
->>>>>>> origin/main
               </fieldset>
             </CardContent>
           </Card>
@@ -1406,9 +1173,6 @@ ${text}` : text;
             <CardContent className="space-y-4">
               <fieldset disabled={isReadOnly} className="grid sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
-<<<<<<< HEAD
-                  <Label className="text-xs">Assessor's Printed Name</Label>
-=======
                   <div className="flex items-center justify-between gap-2">
                     <Label className="text-xs">Assessor's Printed Name</Label>
                     {!isReadOnly && user && (
@@ -1420,21 +1184,16 @@ ${text}` : text;
                       </Button>
                     )}
                   </div>
->>>>>>> origin/main
                   <Input className="h-9" value={content.participation.assessorName}
                     onChange={(e) => update({ ...content, participation: { ...content.participation, assessorName: e.target.value } })} />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Assessor's Title</Label>
-<<<<<<< HEAD
-                  <Input className="h-9" value={content.participation.assessorTitle}
-=======
                   <QuickFillSelect
                     className="h-9" placeholder="Quick fill…" options={ASSESSOR_TITLE_OPTIONS}
                     onPick={(v) => update({ ...content, participation: { ...content.participation, assessorTitle: v } })}
                   />
                   <Input className="h-9" placeholder="Title" value={content.participation.assessorTitle}
->>>>>>> origin/main
                     onChange={(e) => update({ ...content, participation: { ...content.participation, assessorTitle: e.target.value } })} />
                 </div>
                 <div className="space-y-1.5">
@@ -1445,32 +1204,6 @@ ${text}` : text;
               </fieldset>
               <div className="space-y-2">
                 <p className="text-sm font-medium">Participants (resident, family, etc.)</p>
-<<<<<<< HEAD
-                {content.participation.participants.map((p, i) => (
-                  <div key={i} className="border rounded-lg p-2 grid sm:grid-cols-4 gap-2 items-end">
-                    <div className="space-y-1">
-                      <Label className="text-[11px]">Name</Label>
-                      <Input className="h-8 text-xs" value={p.name} disabled={isReadOnly}
-                        onChange={(e) => update({ ...content, participation: { ...content.participation, participants: content.participation.participants.map((r, j) => j === i ? { ...r, name: e.target.value } : r) } })} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[11px]">Relationship</Label>
-                      <Input className="h-8 text-xs" value={p.relationshipToResident} disabled={isReadOnly}
-                        onChange={(e) => update({ ...content, participation: { ...content.participation, participants: content.participation.participants.map((r, j) => j === i ? { ...r, relationshipToResident: e.target.value } : r) } })} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[11px]">Date Signed</Label>
-                      <Input type="date" className="h-8 text-xs" value={p.signedDate} disabled={isReadOnly}
-                        onChange={(e) => update({ ...content, participation: { ...content.participation, participants: content.participation.participants.map((r, j) => j === i ? { ...r, signedDate: e.target.value } : r) } })} />
-                    </div>
-                    {!isReadOnly && (
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => update({ ...content, participation: { ...content.participation, participants: content.participation.participants.filter((_, j) => j !== i) } })}>
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-=======
                 {content.participation.participants.map((p, i) => {
                   const updateParticipant = (patch: Partial<ParticipantRow>) => update({
                     ...content,
@@ -1538,7 +1271,6 @@ ${text}` : text;
                   </div>
                   );
                 })}
->>>>>>> origin/main
                 {!isReadOnly && (
                   <Button variant="outline" size="sm" onClick={() => update({ ...content, participation: { ...content.participation, participants: [...content.participation.participants, emptyParticipantRow()] } })}>
                     <Plus className="mr-1 h-3.5 w-3.5" /> Add Participant
@@ -1547,8 +1279,6 @@ ${text}` : text;
               </div>
             </CardContent>
           </Card>
-<<<<<<< HEAD
-=======
           {nextButton("review")}
         </TabsContent>
 
@@ -1566,7 +1296,6 @@ ${text}` : text;
               {reviewChecklist.map((item, i) => <ReviewChecklistRow key={i} item={item} />)}
             </CardContent>
           </Card>
->>>>>>> origin/main
         </TabsContent>
       </Tabs>
     </div>

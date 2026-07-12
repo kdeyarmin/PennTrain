@@ -1,19 +1,11 @@
 // Shape of resident_assessment_forms.content (jsonb) plus the data-driven section/item lists that
 // both the editor UI and PDF generation walk. Field/section structure mirrors the real DHS
-<<<<<<< HEAD
-// RASP (PCH) and ASP (ALR) forms directly -- reusing DHS's own structure is the compliance
-// argument for why a custom-rendered layout is acceptable in place of DHS's own PDF (both forms'
-// "Instructions for Use" pages state facilities may substitute their own form as long as it
-// captures every required DHS element: 55 Pa Code 2600.225(b)/227(b) for RASP, the parallel Ch.
-// 2800 clause for ASP).
-=======
 // RASP (PCH) and ASP (ALR) forms so this tool organizes the same information a preparer will put
 // on the state form. PDF generation starts with the official PA DHS RASP/ASP pages and appends a
 // CareMetric completion addendum from this schema. Documents like the RASP/ASP and DME have to be
 // on state-approved forms, no exception: complete_resident_compliance_item() enforces this
 // server-side by requiring a linked resident_documents row flagged is_state_form = true before an
 // item can be marked compliant.
->>>>>>> origin/main
 //
 // This is the one place in the app that stores real clinical/functional-assessment content -- the
 // no-EHR posture governing every other resident-compliance table does not apply here, by
@@ -76,8 +68,6 @@ export function responsiblePartyOptions(formType: FormType) {
   return formType === "ASP" ? RESPONSIBLE_PARTY_OPTIONS_ASP : RESPONSIBLE_PARTY_OPTIONS_RASP;
 }
 
-<<<<<<< HEAD
-=======
 // Part V participation record-keeping -- whether a copy of the finished assessment/support plan was
 // requested and provided, and (when no signature was collected) why.
 export const COPY_PROVIDED_OPTIONS: { value: "yes" | "no" | "na"; label: string }[] = [
@@ -117,7 +107,6 @@ export const ASSESSOR_TITLE_OPTIONS = [
   { value: "Program Director", label: "Program Director" },
 ];
 
->>>>>>> origin/main
 export interface SectionItem {
   key: string;
   label: string;
@@ -211,15 +200,12 @@ export interface DegreeItemAnswer {
   planResponsibleParty: string;
   planResponsiblePartyOther: string;
 }
-<<<<<<< HEAD
-=======
 // A degree item counts as "rated" once the assessor has actually picked a value -- both degree
 // scales include an explicit "Not Applicable" option, so an unrated item is a genuine gap in the
 // assessment, not a legitimate answer left blank on purpose.
 export function isDegreeItemRated(formType: FormType, answer: DegreeItemAnswer): boolean {
   return formType === "ASP" ? !!answer.degreePreliminary && !!answer.degreeAllOther : !!answer.degree;
 }
->>>>>>> origin/main
 export function emptyDegreeItemAnswer(): DegreeItemAnswer {
   return {
     degree: "", degreePreliminary: "", degreeAllOther: "",
@@ -248,15 +234,12 @@ export function emptySimpleNeedAnswer(): SimpleNeedAnswer {
     planResponsibleParty: "", planResponsiblePartyOther: "",
   };
 }
-<<<<<<< HEAD
-=======
 // Companion to isDegreeItemRated() for the sensory/social item shape: addressed once the assessor
 // has either described the need or marked it not applicable -- a blank description on an item still
 // marked applicable (the default) means it hasn't actually been reviewed yet.
 export function isSimpleNeedAddressed(answer: SimpleNeedAnswer): boolean {
   return !answer.applicable || !!answer.description.trim();
 }
->>>>>>> origin/main
 
 export interface DiagnosisRow {
   description: string;
@@ -285,11 +268,6 @@ export interface ParticipantRow {
   copyRequested: boolean;
   copyProvided: "yes" | "no" | "na";
   noSignatureReason: string;
-<<<<<<< HEAD
-}
-export function emptyParticipantRow(): ParticipantRow {
-  return { name: "", relationshipToResident: "", signedDate: "", copyRequested: false, copyProvided: "na", noSignatureReason: "" };
-=======
   noSignatureReasonOther: string;
 }
 export function emptyParticipantRow(): ParticipantRow {
@@ -297,7 +275,6 @@ export function emptyParticipantRow(): ParticipantRow {
     name: "", relationshipToResident: "", signedDate: "",
     copyRequested: false, copyProvided: "na", noSignatureReason: "", noSignatureReasonOther: "",
   };
->>>>>>> origin/main
 }
 
 export interface ResidentAssessmentFormContent {
@@ -354,11 +331,7 @@ function simpleItemsFor(keys: SectionItem[]): Record<string, SimpleNeedAnswer> {
 
 // Which resident_compliance_items item types the digital form applies to -- preadmission_screening
 // and medical_evaluation are separate DHS forms/processes this schema doesn't model, so they only
-<<<<<<< HEAD
-// ever get the plain "mark complete"/"upload document" paths, not "Complete in CareMetric".
-=======
 // ever get the "Mark Complete" (attach the state form) path, not "Prepare in CareMetric".
->>>>>>> origin/main
 export function isDigitalFormEligible(itemType: string): boolean {
   return ["initial_assessment_15day", "annual_reassessment", "significant_change_reassessment", "support_plan_30day"].includes(itemType);
 }
@@ -419,13 +392,6 @@ export function mergeContentWithDefaults(
       items: mergeItemMap(defaults.section4.items, saved.section4?.items),
     },
     summary: { ...defaults.summary, ...saved.summary },
-<<<<<<< HEAD
-    participation: { ...defaults.participation, ...saved.participation },
-  };
-}
-
-export function createEmptyContent(formType: FormType): ResidentAssessmentFormContent {
-=======
     participation: {
       ...defaults.participation,
       ...saved.participation,
@@ -465,36 +431,19 @@ export function createEmptyContent(formType: FormType, facilityDefaults?: Facili
   const simpleNeedPatch: Partial<SimpleNeedAnswer> = degreeItemPatch;
   const levelDefaults = responsibleParty ? { planResponsibleParty: responsibleParty } : {};
 
->>>>>>> origin/main
   return {
     residentInfo: { comments: "" },
     assessmentInfo: { lastAssessmentDate: "", lastSupportPlanDate: "", assessmentReason: "", supportPlanReason: "", changeDescription: "" },
     section1: {
-<<<<<<< HEAD
-      items: itemsFor(ADL_ITEMS),
-      supervision: { level: "", needsDescription: "", planDescription: "", planResponsibleParty: "", planResponsiblePartyOther: "" },
-      mobility: { level: "", needsDescription: "", planDescription: "", planResponsibleParty: "", planResponsiblePartyOther: "" },
-      medications: { level: "", needsDescription: "", planDescription: "", planResponsibleParty: "", planResponsiblePartyOther: "" },
-=======
       items: applyPatchToAll(itemsFor(ADL_ITEMS), degreeItemPatch),
       supervision: { level: "", needsDescription: "", planDescription: "", planResponsibleParty: "", planResponsiblePartyOther: "", ...levelDefaults },
       mobility: { level: "", needsDescription: "", planDescription: "", planResponsibleParty: "", planResponsiblePartyOther: "", ...levelDefaults },
       medications: { level: "", needsDescription: "", planDescription: "", planResponsibleParty: "", planResponsiblePartyOther: "", ...levelDefaults },
->>>>>>> origin/main
     },
     section2: {
       physicalDiagnoses: [], noPhysicalDiagnoses: false,
       dental: [], noDental: false,
       dietary: [], noDietary: false,
-<<<<<<< HEAD
-      sensory: simpleItemsFor(SENSORY_ITEMS),
-    },
-    section3: {
-      psychologicalDiagnoses: [], noPsychologicalDiagnoses: false,
-      items: itemsFor(behavioralItems(formType)),
-    },
-    section4: { items: simpleItemsFor(SOCIAL_ITEMS) },
-=======
       sensory: applyPatchToAll(simpleItemsFor(SENSORY_ITEMS), simpleNeedPatch),
     },
     section3: {
@@ -502,13 +451,10 @@ export function createEmptyContent(formType: FormType, facilityDefaults?: Facili
       items: applyPatchToAll(itemsFor(behavioralItems(formType)), degreeItemPatch),
     },
     section4: { items: applyPatchToAll(simpleItemsFor(SOCIAL_ITEMS), simpleNeedPatch) },
->>>>>>> origin/main
     summary: { overallWellness: "" },
     participation: { assessorName: "", assessorTitle: "", assessorSignedDate: "", participants: [] },
   };
 }
-<<<<<<< HEAD
-=======
 
 // Which of the editor's 6 tabs a piece of content belongs to -- used to flag unanswered sections
 // without blocking save/finalize/PDF export. A facility can still have a legitimate reason to
@@ -582,4 +528,3 @@ export function getIncompleteSections(content: ResidentAssessmentFormContent, fo
 
   return incomplete;
 }
->>>>>>> origin/main

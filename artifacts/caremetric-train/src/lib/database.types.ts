@@ -244,13 +244,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "alerts_resident_compliance_item_id_fkey"
-            columns: ["resident_compliance_item_id"]
-            isOneToOne: false
-            referencedRelation: "resident_compliance_items"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "alerts_assigned_to_profile_id_fkey"
             columns: ["assigned_to_profile_id"]
             isOneToOne: false
@@ -11876,8 +11869,6 @@ export type Database = {
           },
         ]
       }
-<<<<<<< HEAD
-=======
       regulatory_rule_fixture_runs: {
         Row: {
           actual_result_checksum_sha256: string
@@ -12760,7 +12751,6 @@ export type Database = {
           },
         ]
       }
->>>>>>> origin/main
       resident_assessment_forms: {
         Row: {
           cloned_from_id: string | null
@@ -16630,10 +16620,6 @@ export type Database = {
         Args: { p_assignment_id: string }
         Returns: undefined
       }
-<<<<<<< HEAD
-      complete_resident_compliance_item: {
-        Args: { p_item_id: string }
-=======
       complete_exclusion_source_refresh: {
         Args: { p_expected_record_count: number; p_run_id: string }
         Returns: Json
@@ -16667,7 +16653,6 @@ export type Database = {
       }
       complete_resident_compliance_item: {
         Args: { p_document_id: string; p_item_id: string }
->>>>>>> origin/main
         Returns: {
           citation_topic_id: string | null
           completed_date: string | null
@@ -16907,8 +16892,6 @@ export type Database = {
         Returns: undefined
       }
       escalate_unactioned_alerts: { Args: never; Returns: undefined }
-<<<<<<< HEAD
-=======
       evaluate_feature_access: {
         Args: {
           p_as_of?: string
@@ -16972,7 +16955,6 @@ export type Database = {
         Args: { p_error: string; p_run_id: string }
         Returns: Json
       }
->>>>>>> origin/main
       finalize_resident_assessment_form: {
         Args: { p_form_id: string }
         Returns: {
@@ -17004,8 +16986,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-<<<<<<< HEAD
-=======
       finish_certificate_pdf_job: {
         Args: {
           p_bucket?: string
@@ -17030,7 +17010,6 @@ export type Database = {
         }
         Returns: undefined
       }
->>>>>>> origin/main
       generate_class_checkin_token: {
         Args: { p_class_id: string; p_long_lived?: boolean }
         Returns: string
@@ -17430,11 +17409,7 @@ export type Database = {
         Returns: undefined
       }
       log_resident_change_of_condition: {
-<<<<<<< HEAD
-        Args: { p_notes?: string | null; p_resident_id: string }
-=======
         Args: { p_notes?: string; p_resident_id: string }
->>>>>>> origin/main
         Returns: {
           citation_topic_id: string | null
           completed_date: string | null
@@ -17971,10 +17946,6 @@ export type Database = {
         Args: { p_assignment_id: string }
         Returns: undefined
       }
-<<<<<<< HEAD
-      start_resident_assessment_form: {
-        Args: { p_compliance_item_id?: string | null; p_reason: string; p_resident_id: string }
-=======
       start_regulatory_rule_shadow: {
         Args: { p_version_id: string }
         Returns: {
@@ -18022,7 +17993,6 @@ export type Database = {
           p_reason: string
           p_resident_id: string
         }
->>>>>>> origin/main
         Returns: {
           cloned_from_id: string | null
           compliance_item_id: string | null
@@ -18052,8 +18022,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-<<<<<<< HEAD
-=======
       submit_governed_content_revision: {
         Args: { p_revision_id: string; p_validation_results: Json }
         Returns: boolean
@@ -18184,7 +18152,6 @@ export type Database = {
         Args: { p_import_run_id: string }
         Returns: Json
       }
->>>>>>> origin/main
       verify_certificate: {
         Args: { p_slug: string }
         Returns: {

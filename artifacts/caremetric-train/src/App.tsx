@@ -42,51 +42,6 @@ const AdminSupportTicketDetail = lazy(() => import("@/pages/admin/SupportTicketD
 const AdminHelpContent = lazy(() => import("@/pages/admin/HelpContent"));
 const ImprovementRoadmap = lazy(() => import("@/pages/admin/ImprovementRoadmap"));
 
-<<<<<<< HEAD
-import OrgDashboard from "@/pages/app/Dashboard";
-import Facilities from "@/pages/app/Facilities";
-import FacilityDetail from "@/pages/app/FacilityDetail";
-import Employees from "@/pages/app/Employees";
-import EmployeeDetail from "@/pages/app/EmployeeDetail";
-import TrainingMatrix from "@/pages/app/TrainingMatrix";
-import TrainingTypes from "@/pages/app/TrainingTypes";
-import Courses from "@/pages/app/Courses";
-import CourseDetail from "@/pages/app/CourseDetail";
-import QuizBuilder from "@/pages/app/QuizBuilder";
-import CourseAssignments from "@/pages/app/CourseAssignments";
-import TrainingPlans from "@/pages/app/TrainingPlans";
-import CompetencyTemplates from "@/pages/app/CompetencyTemplates";
-import CompetencyRecords from "@/pages/app/CompetencyRecords";
-import Practicums from "@/pages/app/Practicums";
-import MedAdminRoster from "@/pages/app/MedAdminRoster";
-import EmployeeCredentials from "@/pages/app/EmployeeCredentials";
-import BackgroundChecks from "@/pages/app/BackgroundChecks";
-import ExclusionScreening from "@/pages/app/ExclusionScreening";
-import AdministratorQualification from "@/pages/app/AdministratorQualification";
-import Incidents from "@/pages/app/Incidents";
-import Violations from "@/pages/app/Violations";
-import ViolationDetail from "@/pages/app/ViolationDetail";
-import Residents from "@/pages/app/Residents";
-import ResidentDetail from "@/pages/app/ResidentDetail";
-import ResidentComplianceReport from "@/pages/app/ResidentComplianceReport";
-import ResidentAssessmentFormEditor from "@/pages/app/ResidentAssessmentFormEditor";
-import IncidentDetail from "@/pages/app/IncidentDetail";
-import InspectionItems from "@/pages/app/InspectionItems";
-import InspectionItemDetail from "@/pages/app/InspectionItemDetail";
-import Alerts from "@/pages/app/Alerts";
-import Reports from "@/pages/app/Reports";
-import AuditLog from "@/pages/app/AuditLog";
-import Users from "@/pages/app/Users";
-import Documents from "@/pages/app/Documents";
-import PendingApprovals from "@/pages/app/PendingApprovals";
-import Settings from "@/pages/app/Settings";
-import ComplianceBinder from "@/pages/app/ComplianceBinder";
-import InspectionReadiness from "@/pages/app/InspectionReadiness";
-import PolicyDocuments from "@/pages/app/PolicyDocuments";
-import PolicyDocumentDetail from "@/pages/app/PolicyDocumentDetail";
-import TemplateDocuments from "@/pages/app/TemplateDocuments";
-import TemplateDocumentDetail from "@/pages/app/TemplateDocumentDetail";
-=======
 const OrgDashboard = lazy(() => import("@/pages/app/Dashboard"));
 const Facilities = lazy(() => import("@/pages/app/Facilities"));
 const FacilityDetail = lazy(() => import("@/pages/app/FacilityDetail"));
@@ -135,7 +90,6 @@ const ScheduleDetail = lazy(() => import("@/pages/app/ScheduleDetail"));
 const ScheduleSetup = lazy(() => import("@/pages/app/ScheduleSetup"));
 const HelpCenter = lazy(() => import("@/pages/app/HelpCenter"));
 const SupportTicketDetail = lazy(() => import("@/pages/app/SupportTicketDetail"));
->>>>>>> origin/main
 
 const TrainerDashboard = lazy(() => import("@/pages/trainer/TrainerDashboard"));
 const TrainerClasses = lazy(() => import("@/pages/trainer/TrainerClasses"));
@@ -528,12 +482,6 @@ function Router() {
       </Route>
       <Route path="/app/residents/:residentId/assessment-forms/:formId">
         {() => <ProtectedRoute component={ResidentAssessmentFormEditor} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
-      </Route>
-      <Route path="/app/resident-compliance">
-        {() => <ProtectedRoute component={ResidentComplianceReport} allowedRoles={RESIDENT_ROLES} />}
-      </Route>
-      <Route path="/app/residents/:residentId/assessment-forms/:formId">
-        {() => <ProtectedRoute component={ResidentAssessmentFormEditor} allowedRoles={RESIDENT_ROLES} />}
       </Route>
       <Route path="/app/inspections">
         {() => <ProtectedRoute component={InspectionItems} allowedRoles={INSPECTION_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}

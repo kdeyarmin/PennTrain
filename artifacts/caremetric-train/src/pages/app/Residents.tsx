@@ -14,11 +14,8 @@ import { BedDouble, ChevronLeft, ChevronRight, Plus, Search } from "lucide-react
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { worstComplianceStatus, complianceStatusBadgeClassName, getComplianceFormLabel, formatDateOnly } from "@/lib/residentCompliance";
-<<<<<<< HEAD
-=======
 import { summarizeResidentComplianceAnalytics } from "@/lib/residentComplianceAnalytics";
 import { toLocalIsoDate } from "@/lib/dateUtils";
->>>>>>> origin/main
 
 const PAGE_SIZE = 15;
 
@@ -46,11 +43,7 @@ interface ResidentFormData {
 
 const EMPTY_FORM: ResidentFormData = {
   facilityId: "", firstName: "", lastName: "", room: "",
-<<<<<<< HEAD
-  admissionDate: new Date().toISOString().slice(0, 10), sdcu: false, hospice: false, admissionTrack: "standard",
-=======
   admissionDate: toLocalIsoDate(), sdcu: false, hospice: false, admissionTrack: "standard",
->>>>>>> origin/main
 };
 
 const RESIDENTS_URL_DEFAULTS = { search: "", facility: "all", status: "active", page: "1" };
@@ -81,19 +74,6 @@ export default function Residents() {
 
   const { mutate: createResident, isPending: creating } = useCreateResident();
 
-<<<<<<< HEAD
-  const facilityById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
-  const complianceByResident = useMemo(() => {
-    const map = new Map<string, { worstStatus: string; openCount: number }>();
-    for (const item of complianceItems ?? []) {
-      const existing = map.get(item.resident_id);
-      const statuses = existing ? [existing.worstStatus, item.status] : [item.status];
-      const openCount = (existing?.openCount ?? 0) + (item.status === "due_soon" || item.status === "expired" || item.status === "missing" ? 1 : 0);
-      map.set(item.resident_id, { worstStatus: worstComplianceStatus(statuses), openCount });
-    }
-    return map;
-  }, [complianceItems]);
-=======
   // Debounce the free-text box before it commits to the URL (and re-filters/re-paginates below),
   // so typing doesn't replace the URL's query string on every keystroke. The commit runs through a
   // ref (refreshed every render) rather than closing over `urlState`/`setUrlState` directly --
@@ -114,7 +94,6 @@ export default function Residents() {
   useEffect(() => {
     setSearch(urlState.search);
   }, [urlState.search]);
->>>>>>> origin/main
 
   const facilityById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
   const complianceByResident = useMemo(() => {

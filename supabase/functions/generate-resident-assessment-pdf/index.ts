@@ -1,9 +1,5 @@
-<<<<<<< HEAD
-import { createClient } from "jsr:@supabase/supabase-js@2";
-=======
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
->>>>>>> origin/main
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 
 const CORS_HEADERS = {
@@ -24,8 +20,6 @@ const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
 const MARGIN = 54;
 
-<<<<<<< HEAD
-=======
 type StateAssessmentTemplate = { url: string; sourceLabel: string };
 
 const DHS_ASSESSMENT_FORM_TEMPLATES: Record<string, StateAssessmentTemplate> = {
@@ -58,7 +52,6 @@ async function fetchStateApprovedAssessmentTemplate(formType: string): Promise<{
   }
 }
 
->>>>>>> origin/main
 function humanize(value: string | null | undefined): string {
   if (!value) return "—";
   return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
@@ -103,8 +96,6 @@ const SOCIAL_ITEMS = [
   ["groupActivities", "Enjoyable Group Activities"], ["religiousAffiliation", "Religious Affiliation"],
   ["nonParticipationReason", "Reason for Non-Participation"],
 ] as const;
-<<<<<<< HEAD
-=======
 // Mirrors residentAssessmentFormSchema.ts's COPY_PROVIDED_OPTIONS/NO_SIGNATURE_REASON_OPTIONS
 // labels -- a generic humanize() of the raw code would show different wording than what the
 // assessor actually saw in the editor's dropdown (e.g. "unable" -> "Unable" instead of "Unable to
@@ -127,13 +118,10 @@ const BEHAVIORAL_DEGREE_LABELS: Record<string, string> = {
   A: "A — No Problem", B: "B — Minimal Problem", C: "C — Moderate Problem",
   D: "D — Severe Problem", E: "E — Not Applicable",
 };
->>>>>>> origin/main
 
 // deno-lint-ignore no-explicit-any
 type AnyRecord = Record<string, any>;
 
-<<<<<<< HEAD
-=======
 // Mirrors artifacts/caremetric-train/src/lib/residentAssessmentFormSchema.ts's getIncompleteSections
 // -- advisory only, never blocks finalize/PDF export (see that function's comment for why). Printed
 // on the PDF itself so a gap left at finalization stays visible on the document DHS/an auditor sees,
@@ -202,7 +190,6 @@ function getIncompleteSections(formType: string, content: AnyRecord): string[] {
   return incomplete;
 }
 
->>>>>>> origin/main
 class PdfWriter {
   doc!: PDFDocument;
   font!: PDFFont;
@@ -210,12 +197,6 @@ class PdfWriter {
   page!: PDFPage;
   y = 0;
 
-<<<<<<< HEAD
-  async init() {
-    this.doc = await PDFDocument.create();
-    this.font = await this.doc.embedFont(StandardFonts.Helvetica);
-    this.bold = await this.doc.embedFont(StandardFonts.HelveticaBold);
-=======
   async init(templateBytes?: Uint8Array) {
     this.doc = await PDFDocument.create();
     this.font = await this.doc.embedFont(StandardFonts.Helvetica);
@@ -227,7 +208,6 @@ class PdfWriter {
       for (const page of pages) this.doc.addPage(page);
     }
 
->>>>>>> origin/main
     this.newPage();
   }
 
@@ -293,51 +273,32 @@ class PdfWriter {
   }
 }
 
-<<<<<<< HEAD
-function degreeSummary(formType: string, item: AnyRecord): string {
-=======
 function degreeLabel(labels: Record<string, string>, code: string): string {
   return code ? (labels[code] ?? code) : "—";
 }
 
 function degreeSummary(formType: string, item: AnyRecord, labels: Record<string, string>): string {
->>>>>>> origin/main
   // Branch on the authoritative formType, not field truthiness: DegreeItemEditor's onChange always
   // mirrors degree into degreePreliminary (see ResidentAssessmentFormEditor.tsx's DegreeSelect), so a
   // truthy-check on degreePreliminary alone would render RASP items as "Preliminary/All Other" too,
   // when only ASP's doubled Preliminary/All-Other mechanic actually applies.
   if (formType === "ASP") {
-<<<<<<< HEAD
-    return `Preliminary: ${item.degreePreliminary || "—"}, All Other: ${item.degreeAllOther || "—"}`;
-  }
-  return item.degree || "—";
-=======
     return `Preliminary: ${degreeLabel(labels, item.degreePreliminary)}, All Other: ${degreeLabel(labels, item.degreeAllOther)}`;
   }
   return degreeLabel(labels, item.degree);
->>>>>>> origin/main
 }
 
 function planSummary(item: AnyRecord): string {
   const parts: string[] = [];
   if (item.planNotApplicable) return "Plan: N/A";
   if (item.planDescription) parts.push(item.planDescription);
-<<<<<<< HEAD
-  if (item.planFrequency) parts.push(`Frequency: ${humanize(item.planFrequency)}`);
-=======
   if (item.planFrequency) parts.push(`Frequency: ${humanize(item.planFrequency)}${item.planFrequencyOther ? ` (${item.planFrequencyOther})` : ""}`);
->>>>>>> origin/main
   if (item.planResponsibleParty) parts.push(`Responsible: ${item.planResponsibleParty}${item.planResponsiblePartyOther ? ` (${item.planResponsiblePartyOther})` : ""}`);
   return parts.length ? parts.join(" — ") : "—";
 }
 
-<<<<<<< HEAD
-function writeDegreeItem(w: PdfWriter, formType: string, label: string, item: AnyRecord) {
-  w.row(`${label} — Degree: ${degreeSummary(formType, item)}`);
-=======
 function writeDegreeItem(w: PdfWriter, formType: string, label: string, item: AnyRecord, labels: Record<string, string>) {
   w.row(`${label} — Degree: ${degreeSummary(formType, item, labels)}`);
->>>>>>> origin/main
   if (!item.serviceNeedNotApplicable && item.serviceNeedDescription) w.row(`  Need: ${item.serviceNeedDescription}`);
   w.row(`  ${planSummary(item)}`);
 }
@@ -380,14 +341,6 @@ async function buildAssessmentPdf(input: {
   designatedPersonName: string | null;
   informalSupports: { name: string; relationship: string | null; phone: string | null }[];
   content: AnyRecord;
-<<<<<<< HEAD
-}): Promise<Uint8Array> {
-  const w = new PdfWriter();
-  await w.init();
-  const content = input.content ?? {};
-
-  w.page.drawText(`Resident ${input.formType}${input.formType === "ASP" ? "" : " (Resident Assessment-Support Plan)"}`, {
-=======
 }): Promise<{ pdfBytes: Uint8Array; template: StateAssessmentTemplate }> {
   const { templateBytes, template } = await fetchStateApprovedAssessmentTemplate(input.formType);
   const w = new PdfWriter();
@@ -395,14 +348,11 @@ async function buildAssessmentPdf(input: {
   const content = input.content ?? {};
 
   w.page.drawText(`CareMetric completion addendum for PA DHS ${input.formType}${input.formType === "ASP" ? "" : " (Resident Assessment-Support Plan)"}`, {
->>>>>>> origin/main
     x: MARGIN, y: w.y, size: 17, font: w.bold, color: rgb(0.16, 0.22, 0.44),
   });
   w.y -= 20;
   w.page.drawText(`Version ${input.versionNumber} — ${humanize(input.status)}`, { x: MARGIN, y: w.y, size: 10, font: w.font, color: rgb(0.35, 0.35, 0.35) });
   w.y -= 20;
-<<<<<<< HEAD
-=======
   w.page.drawText(`DHS template source: ${template.sourceLabel}`, { x: MARGIN, y: w.y, size: 8.5, font: w.font, color: rgb(0.35, 0.35, 0.35) });
   w.y -= 12;
   w.wrapText(template.url, MARGIN, PAGE_WIDTH - (MARGIN * 2), 8);
@@ -422,7 +372,6 @@ async function buildAssessmentPdf(input: {
     w.row(`INCOMPLETE AT FINALIZATION -- sections with unanswered items: ${incompleteSections.map((k) => SECTION_LABELS[k]).join(", ")}.`);
     w.y -= 6;
   }
->>>>>>> origin/main
 
   w.heading("Facility & Preparer");
   w.field("Facility", input.facilityName);
@@ -463,20 +412,12 @@ async function buildAssessmentPdf(input: {
   for (const key of ["supervision", "mobility", "medications"] as const) {
     const s = content.section1?.[key] ?? {};
     w.subheading(humanize(key));
-<<<<<<< HEAD
-    w.row(`${s.needsDescription || "—"}`);
-    w.row(`Plan: ${s.planDescription || "—"}`);
-  }
-  for (const [key, label] of ADL_ITEMS) {
-    writeDegreeItem(w, input.formType, label, content.section1?.items?.[key] ?? {});
-=======
     w.row(`Degree: ${degreeLabel(CARE_DEGREE_LABELS, s.level)}`);
     w.row(`${s.needsDescription || "—"}`);
     w.row(`Plan: ${planSummary(s)}`);
   }
   for (const [key, label] of ADL_ITEMS) {
     writeDegreeItem(w, input.formType, label, content.section1?.items?.[key] ?? {}, CARE_DEGREE_LABELS);
->>>>>>> origin/main
   }
 
   w.heading("Section 2 — Medical, Dental, Dietary, Sensory Needs");
@@ -492,11 +433,7 @@ async function buildAssessmentPdf(input: {
   writeDiagnosisRows(w, "Psychological Diagnoses", content.section3?.psychologicalDiagnoses ?? [], !!content.section3?.noPsychologicalDiagnoses);
   const behavioralList = input.formType === "ASP" ? BEHAVIORAL_ITEMS_ASP : BEHAVIORAL_ITEMS_RASP;
   for (const [key, label] of behavioralList) {
-<<<<<<< HEAD
-    writeDegreeItem(w, input.formType, label, content.section3?.items?.[key] ?? {});
-=======
     writeDegreeItem(w, input.formType, label, content.section3?.items?.[key] ?? {}, BEHAVIORAL_DEGREE_LABELS);
->>>>>>> origin/main
   }
 
   w.heading("Section 4 — Social and Recreational Needs");
@@ -515,13 +452,6 @@ async function buildAssessmentPdf(input: {
     w.row("No participants recorded.");
   } else {
     for (const p of participants) {
-<<<<<<< HEAD
-      w.row(`${p.name || "—"} (${p.relationshipToResident || "—"}) — signed ${p.signedDate || "—"}`);
-    }
-  }
-
-  return await w.doc.save();
-=======
       const copyPart = p.copyProvided
         ? ` — Copy Provided: ${COPY_PROVIDED_LABELS[p.copyProvided] ?? humanize(p.copyProvided)}${p.copyRequested ? " (Requested)" : ""}`
         : "";
@@ -533,7 +463,6 @@ async function buildAssessmentPdf(input: {
   }
 
   return { pdfBytes: await w.doc.save(), template };
->>>>>>> origin/main
 }
 
 Deno.serve(async (req: Request) => {
@@ -547,11 +476,7 @@ Deno.serve(async (req: Request) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-<<<<<<< HEAD
-  const callerClient = createClient(supabaseUrl, anonKey, {
-=======
   const callerClient = createClient<any>(supabaseUrl, anonKey, {
->>>>>>> origin/main
     global: { headers: { Authorization: authHeader } },
   });
 
@@ -663,11 +588,7 @@ Deno.serve(async (req: Request) => {
     .order("sort_order");
   if (supportsError) return json({ error: supportsError.message }, 500);
 
-<<<<<<< HEAD
-  const pdfBytes = await buildAssessmentPdf({
-=======
   const { pdfBytes, template } = await buildAssessmentPdf({
->>>>>>> origin/main
     formType: form.form_type,
     reason: form.reason,
     versionNumber: form.version_number,
@@ -693,11 +614,7 @@ Deno.serve(async (req: Request) => {
     content: (form.content ?? {}) as AnyRecord,
   });
 
-<<<<<<< HEAD
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
-=======
   const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
->>>>>>> origin/main
   const path = `${form.organization_id}/${form.facility_id}/${form.resident_id}-${form.form_type.toLowerCase()}-v${form.version_number}-${form.id}.pdf`;
 
   const { error: uploadError } = await adminClient.storage.from(DOCUMENTS_BUCKET).upload(path, pdfBytes, {
@@ -707,29 +624,16 @@ Deno.serve(async (req: Request) => {
   if (uploadError) return json({ error: uploadError.message }, 500);
 
   // One resident_documents row per assessment-form version -- the existence check above already
-<<<<<<< HEAD
-  // guarantees no row with this document_label exists yet, so this is always a fresh insert.
-  const { error: docError } = await adminClient.from("resident_documents").insert({
-=======
   // guarantees no row with this document_label exists yet, so this is always a fresh insert. The PDF
   // starts with the official PA DHS form pages and is therefore flagged as the state form created by
   // the app; the RPC below then completes the linked compliance item with that exact document.
   const { data: insertedDocument, error: docError } = await adminClient.from("resident_documents").insert({
->>>>>>> origin/main
     organization_id: form.organization_id,
     facility_id: form.facility_id,
     resident_id: form.resident_id,
     compliance_item_id: form.compliance_item_id,
     storage_bucket: DOCUMENTS_BUCKET,
     storage_path: path,
-<<<<<<< HEAD
-    file_name: `${form.form_type} v${form.version_number}.pdf`,
-    file_type: "application/pdf",
-    document_label: documentLabel,
-    uploaded_by_profile_id: callerUser.id,
-  });
-  if (docError) return json({ error: docError.message }, 500);
-=======
     file_name: `PA DHS ${form.form_type} v${form.version_number}.pdf`,
     file_type: "application/pdf",
     document_label: documentLabel,
@@ -742,6 +646,22 @@ Deno.serve(async (req: Request) => {
     .single();
   if (docError) {
     await adminClient.storage.from(DOCUMENTS_BUCKET).remove([path]);
+    // If a concurrent request raced and inserted first (unique constraint violation on
+    // (resident_id, document_label)), treat it as idempotent and return the existing document.
+    if (docError.code === "23505") {
+      const { data: racedDoc } = await adminClient
+        .from("resident_documents")
+        .select("id, storage_path")
+        .eq("resident_id", form.resident_id)
+        .eq("document_label", documentLabel)
+        .maybeSingle();
+      if (racedDoc) {
+        return json({
+          error: "A document has already been generated for this finalized form. Contact an administrator if it needs to be replaced.",
+          documentId: racedDoc.id,
+        }, 409);
+      }
+    }
     return json({ error: docError.message }, 500);
   }
 
@@ -756,7 +676,6 @@ Deno.serve(async (req: Request) => {
       return json({ error: completeError.message }, 500);
     }
   }
->>>>>>> origin/main
 
   const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
     .from(DOCUMENTS_BUCKET)
@@ -765,9 +684,5 @@ Deno.serve(async (req: Request) => {
     return json({ error: signedUrlError?.message ?? "failed to create signed url" }, 500);
   }
 
-<<<<<<< HEAD
-  return json({ success: true, url: signedUrlData.signedUrl, path, expiresIn: SIGNED_URL_TTL_SECONDS });
-=======
   return json({ success: true, url: signedUrlData.signedUrl, path, documentId: insertedDocument?.id, expiresIn: SIGNED_URL_TTL_SECONDS });
->>>>>>> origin/main
 });
