@@ -1,6 +1,11 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
+import { CRON_SECRET_HEADER, requireCronRequest } from "../_shared/cronAuth.ts";
+
+const BINDER_JOB_KEY = "binder-export-generation";
+const BINDER_BUCKET = "binder-exports";
+const SIGNED_URL_TTL_SECONDS = 600;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -109,35 +114,32 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    console.error("Compliance binder worker is missing required Supabase environment variables");
+    return json({ error: "Service is not configured" }, 500);
+  }
+  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+
+  // Cron worker path: claim queued binder_export_jobs, render, store, finish.
+  if (req.headers.has(CRON_SECRET_HEADER)) {
+    const denied = requireCronRequest(req, CORS_HEADERS);
+    if (denied) return denied;
+    return await runWorkerBatch(req, adminClient);
+  }
+
+  // User paths (caller-authorized): enqueue an export, or fetch a finished export's URL.
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
-
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
   const callerClient = createClient<any>(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
-
   const { data: { user: callerUser }, error: callerAuthError } = await callerClient.auth.getUser();
   if (callerAuthError || !callerUser) return json({ error: "Invalid or expired session" }, 401);
 
-  const { data: callerProfile, error: callerProfileError } = await callerClient
-    .from("profiles")
-    .select("role, organization_id, is_active, first_name, last_name")
-    .eq("id", callerUser.id)
-    .single();
-  if (callerProfileError || !callerProfile || !callerProfile.is_active) {
-    return json({ error: "Caller profile not found or inactive" }, 403);
-  }
-
-  const ALLOWED_ROLES = ["platform_admin", "org_admin", "facility_manager", "auditor"];
-  if (!ALLOWED_ROLES.includes(callerProfile.role as string)) {
-    return json({ error: "not authorized to generate a compliance binder" }, 403);
-  }
-
-  let body: { organization_id?: string; facility_id?: string; facility_ids?: string[] } = {};
+  let body: { job_id?: string; organization_id?: string; facility_id?: string; facility_ids?: string[] } = {};
   if (req.headers.get("content-length") !== "0") {
     try {
       body = await req.json();
@@ -146,71 +148,203 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // Non-platform_admin callers always get their own org's binder -- organization_id in the
-  // body is only honored for platform_admin, so there is no path for org_admin/facility_manager/
-  // auditor to request a foreign org's data by passing a different id.
-  const orgId = callerProfile.role === "platform_admin" ? body.organization_id : callerProfile.organization_id;
-  if (!orgId) return json({ error: "organization_id is required" }, 400);
+  if (body.job_id) {
+    // Download path: RLS on binder_export_jobs proves the caller may see this export
+    // before the service-role client signs the stored object.
+    const { data: job, error: jobError } = await callerClient
+      .from("binder_export_jobs")
+      .select("id, status, storage_bucket, storage_path, last_error_message")
+      .eq("id", body.job_id)
+      .maybeSingle();
+    if (jobError) return json({ error: jobError.message }, 500);
+    if (!job) return json({ error: "binder export not found" }, 404);
+    if (job.status === "failed") {
+      return json({ success: false, status: "failed", error: job.last_error_message ?? "Binder generation failed" }, 200);
+    }
+    if (job.status !== "succeeded" || !job.storage_path) {
+      return json({ success: true, status: job.status }, 202);
+    }
+    const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
+      .from(job.storage_bucket ?? BINDER_BUCKET)
+      .createSignedUrl(job.storage_path, SIGNED_URL_TTL_SECONDS);
+    if (signedUrlError || !signedUrlData) {
+      return json({ error: signedUrlError?.message ?? "failed to create signed url" }, 500);
+    }
+    return json({
+      success: true,
+      status: "succeeded",
+      url: signedUrlData.signedUrl,
+      path: job.storage_path,
+      expiresIn: SIGNED_URL_TTL_SECONDS,
+    });
+  }
 
-  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+  // Enqueue path. Role checks, org resolution, and facility scoping (including the
+  // facility_manager auto-scope) are all enforced inside the SECURITY DEFINER RPC --
+  // the single source of truth shared with every caller.
+  const requestedFacilities = Array.isArray(body.facility_ids) && body.facility_ids.length > 0
+    ? body.facility_ids
+    : body.facility_id
+      ? [body.facility_id]
+      : null;
+  const { data: jobRow, error: requestError } = await callerClient.rpc("request_binder_export", {
+    p_organization_id: body.organization_id ?? null,
+    p_facility_ids: requestedFacilities,
+  });
+  if (requestError) {
+    const status = requestError.code === "42501" ? 403 : requestError.code === "22023" ? 400 : 500;
+    return json({ error: requestError.message }, status);
+  }
+  return json({ success: true, jobId: jobRow?.id ?? null, status: jobRow?.status ?? "pending" }, 202);
+});
 
+async function runWorkerBatch(req: Request, adminClient: any): Promise<Response> {
+  let batchSize = 2;
+  try {
+    const body = await req.json();
+    if (Number.isFinite(body?.batchSize)) {
+      batchSize = Math.min(5, Math.max(1, Math.floor(body.batchSize)));
+    }
+  } catch {
+    // default batch size
+  }
+
+  const { data: claimRows, error: claimError } = await adminClient.rpc("claim_system_job_execution", {
+    p_job_key: BINDER_JOB_KEY,
+    p_correlation_id: crypto.randomUUID(),
+    p_trigger_type: "scheduled",
+    p_provider_request_id: null,
+  });
+  if (claimError) return json({ error: claimError.message }, 500);
+  const run = Array.isArray(claimRows) ? claimRows[0] : claimRows;
+  if (!run?.should_execute) {
+    return json({ success: true, skipped: true, status: run?.existing_status ?? "skipped" });
+  }
+
+  const runId = run.run_id;
+  const workerId = crypto.randomUUID();
+  let attempted = 0;
+  let succeeded = 0;
+  let failed = 0;
+  let batchError: string | null = null;
+
+  try {
+    for (let i = 0; i < batchSize; i++) {
+      const { data: cancelled } = await adminClient.rpc("is_system_job_cancellation_requested", {
+        p_run_id: runId,
+      });
+      if (cancelled === true) break;
+
+      const { data: jobs, error: jobsError } = await adminClient.rpc("claim_binder_export_jobs", {
+        p_worker_id: workerId,
+        p_limit: 1,
+      });
+      if (jobsError) {
+        batchError = jobsError.message;
+        break;
+      }
+      const job = jobs?.[0];
+      if (!job) break;
+
+      attempted += 1;
+      try {
+        const scope = Array.isArray(job.facility_ids) && job.facility_ids.length > 0
+          ? job.facility_ids
+          : null;
+        const { data: requester } = await adminClient
+          .from("profiles")
+          .select("first_name, last_name, role")
+          .eq("id", job.requested_by)
+          .maybeSingle();
+        const requestedByLabel = requester
+          ? `${requester.first_name} ${requester.last_name} (${requester.role})`
+          : "CareMetric Train";
+        const pdfBytes = await buildBinderPdf(adminClient, job.organization_id, scope, requestedByLabel);
+        // The recorded checksum is what lets a finished export become an immutable
+        // evidence-room artifact (report_snapshot_artifacts requires content_sha256).
+        const contentSha256 = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", pdfBytes)))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+        // Job-id path with upsert:true keeps retries idempotent on the same object.
+        const path = `${job.organization_id}/${job.job_id}.pdf`;
+        const { error: uploadError } = await adminClient.storage
+          .from(BINDER_BUCKET)
+          .upload(path, pdfBytes, { contentType: "application/pdf", upsert: true });
+        if (uploadError) throw new Error(uploadError.message);
+
+        const { data: finished, error: finishError } = await adminClient.rpc("finish_binder_export_job", {
+          p_job_id: job.job_id,
+          p_run_id: job.run_id,
+          p_bucket: BINDER_BUCKET,
+          p_path: path,
+          p_error_code: null,
+          p_error_message: null,
+          p_content_sha256: contentSha256,
+          p_byte_size: pdfBytes.byteLength,
+        });
+        if (finishError) throw finishError;
+        if (!finished) throw new Error("Binder export job lease expired before completion");
+
+        await adminClient.from("audit_logs").insert({
+          organization_id: job.organization_id,
+          actor_profile_id: job.requested_by,
+          entity_type: "compliance_binder",
+          action: "generated",
+          new_values: { storage_path: path, binder_export_job_id: job.job_id },
+        });
+        succeeded += 1;
+      } catch (jobError) {
+        failed += 1;
+        await adminClient.rpc("finish_binder_export_job", {
+          p_job_id: job.job_id,
+          p_run_id: job.run_id,
+          p_bucket: null,
+          p_path: null,
+          p_error_code: "render_failed",
+          p_error_message: String((jobError as Error)?.message ?? "Binder generation failed").slice(0, 2000),
+        });
+      }
+
+      await adminClient.rpc("heartbeat_system_job", {
+        p_run_id: runId,
+        p_attempted_count: attempted,
+        p_succeeded_count: succeeded,
+        p_failed_count: failed,
+        p_cursor: {},
+      });
+    }
+  } finally {
+    await adminClient.rpc("finish_system_job", {
+      p_run_id: runId,
+      p_status: batchError ? "failed" : failed > 0 ? "partial" : "succeeded",
+      p_attempted_count: attempted,
+      p_succeeded_count: succeeded,
+      p_failed_count: failed,
+      p_result: {},
+      p_error_code: batchError ? "batch_error" : null,
+      p_error_message: batchError,
+    });
+  }
+
+  return json({ success: !batchError, attempted, succeeded, failed });
+}
+
+// Renders the full binder PDF for one organization (optionally scoped to specific
+// facilities -- the scope is resolved and validated at enqueue time). Runs on the
+// service-role client; throws on any data error so the worker records a retryable
+// failure on the job.
+async function buildBinderPdf(
+  adminClient: any,
+  orgId: string,
+  facilityScope: string[] | null,
+  requestedByLabel: string,
+): Promise<Uint8Array> {
   const { data: org, error: orgError } = await adminClient
     .from("organizations")
     .select("id, name")
     .eq("id", orgId)
     .single();
-  if (orgError || !org) return json({ error: "organization not found" }, 404);
-
-  // facility_manager is otherwise constrained org-wide to their assigned facilities (via
-  // facility_assignments/is_assigned_to_facility()); the queries below run on the service-role
-  // client and bypass RLS entirely, so that scoping has to be applied explicitly here too --
-  // without it a facility_manager's binder would leak every other facility's staff/compliance
-  // data in the same org.
-  let facilityScope: string[] | null = null;
-  if (callerProfile.role === "facility_manager") {
-    const { data: assignments, error: assignmentsError } = await callerClient
-      .from("facility_assignments")
-      .select("facility_id")
-      .eq("profile_id", callerUser.id);
-    if (assignmentsError) return json({ error: assignmentsError.message }, 500);
-    facilityScope = (assignments ?? []).map((a) => a.facility_id);
-    if (facilityScope.length === 0) {
-      return json({ error: "no facilities assigned to this account" }, 403);
-    }
-  }
-
-  // org_admin/auditor may optionally narrow the binder to one or more of their own org's
-  // facilities via facility_id/facility_ids -- platform_admin's scope stays governed entirely by
-  // organization_id above (no facility narrowing here), and this block only ever runs for
-  // org_admin/auditor, so it can never widen or otherwise change facility_manager's own
-  // auto-derived scope just above. Requested ids are checked against `orgId`, which is already
-  // locked to the caller's own organization for every non-platform_admin role (see the orgId
-  // computation above) -- the same "never trust the client, verify server-side" rule that block
-  // already follows for facility_manager.
-  if (callerProfile.role === "org_admin" || callerProfile.role === "auditor") {
-    const requested = Array.isArray(body.facility_ids) && body.facility_ids.length > 0
-      ? body.facility_ids
-      : body.facility_id
-        ? [body.facility_id]
-        : null;
-    if (requested) {
-      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      if (requested.some((id) => !uuidRe.test(id))) {
-        return json({ error: "invalid facility_id/facility_ids" }, 400);
-      }
-      const { data: matchedFacilities, error: facilityScopeError } = await adminClient
-        .from("facilities")
-        .select("id")
-        .eq("organization_id", orgId)
-        .in("id", requested);
-      if (facilityScopeError) return json({ error: facilityScopeError.message }, 500);
-      const validIds = new Set((matchedFacilities ?? []).map((f) => f.id));
-      if (requested.some((id) => !validIds.has(id))) {
-        return json({ error: "one or more requested facilities are not part of your organization" }, 403);
-      }
-      facilityScope = requested;
-    }
-  }
+  if (orgError || !org) throw new Error("organization not found");
 
   let facilitiesQuery = adminClient.from("facilities").select("id, name, facility_type, license_number").eq("organization_id", orgId).order("name");
   let employeesQuery = adminClient.from("employees").select("id, first_name, last_name, facility_id, status").eq("organization_id", orgId);
@@ -291,19 +425,13 @@ Deno.serve(async (req: Request) => {
     residentComplianceQuery,
   ]);
 
-  if (facilitiesRes.error) return json({ error: facilitiesRes.error.message }, 500);
-  if (employeesRes.error) return json({ error: employeesRes.error.message }, 500);
-  if (recordsRes.error) return json({ error: recordsRes.error.message }, 500);
-  if (practicumsRes.error) return json({ error: practicumsRes.error.message }, 500);
-  if (alertsRes.error) return json({ error: alertsRes.error.message }, 500);
-  if (attestationsRes.error) return json({ error: attestationsRes.error.message }, 500);
-  if (credentialsRes.error) return json({ error: credentialsRes.error.message }, 500);
-  if (incidentsRes.error) return json({ error: incidentsRes.error.message }, 500);
-  if (inspectionItemsRes.error) return json({ error: inspectionItemsRes.error.message }, 500);
-  if (correctiveActionsRes.error) return json({ error: correctiveActionsRes.error.message }, 500);
-  if (citationTopicsRes.error) return json({ error: citationTopicsRes.error.message }, 500);
-  if (residentsRes.error) return json({ error: residentsRes.error.message }, 500);
-  if (residentComplianceRes.error) return json({ error: residentComplianceRes.error.message }, 500);
+  const sectionErrors = [
+    facilitiesRes.error, employeesRes.error, recordsRes.error, practicumsRes.error,
+    alertsRes.error, attestationsRes.error, credentialsRes.error, incidentsRes.error,
+    inspectionItemsRes.error, correctiveActionsRes.error, citationTopicsRes.error,
+    residentsRes.error, residentComplianceRes.error,
+  ].filter(Boolean);
+  if (sectionErrors.length > 0) throw new Error(sectionErrors[0].message);
 
   const facilities = facilitiesRes.data ?? [];
   const employees = employeesRes.data ?? [];
@@ -435,7 +563,7 @@ Deno.serve(async (req: Request) => {
   pdf.text(org.name, { size: 20, bold: true, gap: 4 });
   pdf.text("Compliance Binder", { size: 14, gap: 16 });
   pdf.text(`Generated: ${generatedAt}`, { size: 9, color: [0.4, 0.4, 0.4] });
-  pdf.text(`Generated by: ${callerProfile.first_name} ${callerProfile.last_name} (${callerProfile.role})`, {
+  pdf.text(`Requested by: ${requestedByLabel}`, {
     size: 9,
     color: [0.4, 0.4, 0.4],
     gap: 20,
@@ -757,27 +885,5 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  const pdfBytes = await pdf.save();
-  const path = `${orgId}/${crypto.randomUUID()}.pdf`;
-
-  const { error: uploadError } = await adminClient.storage.from("binder-exports").upload(path, pdfBytes, {
-    contentType: "application/pdf",
-    upsert: false,
-  });
-  if (uploadError) return json({ error: uploadError.message }, 500);
-
-  const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
-    .from("binder-exports")
-    .createSignedUrl(path, 60 * 10);
-  if (signedUrlError || !signedUrlData) return json({ error: signedUrlError?.message ?? "failed to create signed url" }, 500);
-
-  await adminClient.from("audit_logs").insert({
-    organization_id: orgId,
-    actor_profile_id: callerUser.id,
-    entity_type: "compliance_binder",
-    action: "generated",
-    new_values: { storage_path: path },
-  });
-
-  return json({ success: true, url: signedUrlData.signedUrl, path, expiresIn: 600 });
-});
+  return await pdf.save();
+}

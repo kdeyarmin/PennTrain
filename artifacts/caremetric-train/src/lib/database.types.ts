@@ -739,6 +739,99 @@ export type Database = {
           },
         ]
       }
+      binder_export_jobs: {
+        Row: {
+          attempt_count: number
+          available_at: string
+          byte_size: number | null
+          completed_at: string | null
+          content_sha256: string | null
+          correlation_id: string
+          created_at: string
+          current_run_id: string | null
+          facility_ids: string[]
+          id: string
+          last_error_code: string | null
+          last_error_message: string | null
+          last_started_at: string | null
+          locked_at: string | null
+          max_attempts: number
+          organization_id: string
+          requested_at: string
+          requested_by: string
+          status: string
+          storage_bucket: string | null
+          storage_path: string | null
+          updated_at: string
+          worker_id: string | null
+        }
+        Insert: {
+          attempt_count?: number
+          available_at?: string
+          byte_size?: number | null
+          completed_at?: string | null
+          content_sha256?: string | null
+          correlation_id?: string
+          created_at?: string
+          current_run_id?: string | null
+          facility_ids?: string[]
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_started_at?: string | null
+          locked_at?: string | null
+          max_attempts?: number
+          organization_id: string
+          requested_at?: string
+          requested_by: string
+          status?: string
+          storage_bucket?: string | null
+          storage_path?: string | null
+          updated_at?: string
+          worker_id?: string | null
+        }
+        Update: {
+          attempt_count?: number
+          available_at?: string
+          byte_size?: number | null
+          completed_at?: string | null
+          content_sha256?: string | null
+          correlation_id?: string
+          created_at?: string
+          current_run_id?: string | null
+          facility_ids?: string[]
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_started_at?: string | null
+          locked_at?: string | null
+          max_attempts?: number
+          organization_id?: string
+          requested_at?: string
+          requested_by?: string
+          status?: string
+          storage_bucket?: string | null
+          storage_path?: string | null
+          updated_at?: string
+          worker_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "binder_export_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "binder_export_jobs_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       certificate_lifecycle_events: {
         Row: {
           certificate_id: string
@@ -2522,25 +2615,31 @@ export type Database = {
           assignment_id: string
           id: string
           last_block_id: string | null
+          learning_tools: Json
           percent_complete: number
           started_at: string | null
           updated_at: string
+          video_state: Json
         }
         Insert: {
           assignment_id: string
           id?: string
           last_block_id?: string | null
+          learning_tools?: Json
           percent_complete?: number
           started_at?: string | null
           updated_at?: string
+          video_state?: Json
         }
         Update: {
           assignment_id?: string
           id?: string
           last_block_id?: string | null
+          learning_tools?: Json
           percent_complete?: number
           started_at?: string | null
           updated_at?: string
+          video_state?: Json
         }
         Relationships: [
           {
@@ -16172,6 +16271,10 @@ export type Database = {
       }
     }
     Functions: {
+      accept_evidence_guest_terms: {
+        Args: { p_fingerprint?: string; p_token: string }
+        Returns: Json
+      }
       accept_integration_command: {
         Args: {
           p_command_type: string
@@ -16234,6 +16337,31 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "regulatory_rule_versions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_binder_export_to_evidence_collection: {
+        Args: {
+          p_binder_job_id: string
+          p_collection_id: string
+          p_display_name: string
+        }
+        Returns: {
+          added_at: string
+          added_by: string | null
+          artifact_scope: Json
+          collection_id: string
+          display_name: string
+          facility_id: string
+          id: string
+          organization_id: string
+          snapshot_artifact_id: string
+          withdrawn_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "evidence_collection_artifacts"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -16504,6 +16632,18 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      claim_binder_export_jobs: {
+        Args: { p_job_id?: string; p_limit?: number; p_worker_id: string }
+        Returns: {
+          attempt_count: number
+          correlation_id: string
+          facility_ids: string[]
+          job_id: string
+          organization_id: string
+          requested_by: string
+          run_id: string
+        }[]
+      }
       claim_certificate_pdf_jobs: {
         Args: {
           p_certificate_id?: string
@@ -16739,6 +16879,34 @@ export type Database = {
         }
         Returns: string
       }
+      create_evidence_collection: {
+        Args: {
+          p_facility_id: string
+          p_name: string
+          p_purpose: string
+          p_terms_version?: string
+        }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          facility_id: string
+          id: string
+          legal_hold: boolean
+          name: string
+          organization_id: string
+          published_at: string | null
+          purpose: string
+          status: string
+          terms_version: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "evidence_collections"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_governed_content_revision: {
         Args: {
           p_asset_id: string
@@ -16862,6 +17030,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      delete_saved_report_definition: {
+        Args: { p_definition_id: string }
+        Returns: boolean
+      }
       employee_has_active_qualification: {
         Args: {
           p_at?: string
@@ -16873,6 +17045,15 @@ export type Database = {
       end_enterprise_role_grant: {
         Args: { p_effective_to?: string; p_grant_id: string; p_reason?: string }
         Returns: undefined
+      }
+      enqueue_critical_notification_delivery: {
+        Args: {
+          p_delivery_type: string
+          p_notification_id: string
+          p_organization_id: string
+          p_profile_id: string
+        }
+        Returns: number
       }
       enqueue_integration_test_delivery: {
         Args: { p_endpoint_id: string; p_payload?: Json }
@@ -16959,6 +17140,10 @@ export type Database = {
         Args: { p_error: string; p_run_id: string }
         Returns: Json
       }
+      feature_release_active: {
+        Args: { p_feature_key: string }
+        Returns: boolean
+      }
       finalize_resident_assessment_form: {
         Args: { p_form_id: string }
         Returns: {
@@ -16989,6 +17174,19 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      finish_binder_export_job: {
+        Args: {
+          p_bucket?: string
+          p_byte_size?: number
+          p_content_sha256?: string
+          p_error_code?: string
+          p_error_message?: string
+          p_job_id: string
+          p_path?: string
+          p_run_id: string
+        }
+        Returns: boolean
       }
       finish_certificate_pdf_job: {
         Args: {
@@ -17071,6 +17269,10 @@ export type Database = {
         }[]
       }
       get_enterprise_scope_control_plane: { Args: never; Returns: Json }
+      get_evidence_guest_room: {
+        Args: { p_fingerprint?: string; p_token: string }
+        Returns: Json
+      }
       get_facility_readiness_breakdown: {
         Args: { p_facility_id: string }
         Returns: {
@@ -17115,6 +17317,7 @@ export type Database = {
         Args: { p_organization_id?: string }
         Returns: Json
       }
+      get_org_dashboard_summary: { Args: never; Returns: Json }
       get_platform_health: { Args: never; Returns: Json }
       get_qualified_workforce_control_plane: { Args: never; Returns: Json }
       get_quiz_answer_choices: {
@@ -17451,6 +17654,29 @@ export type Database = {
         Returns: string
       }
       notification_phone_key: { Args: { p_phone: string }; Returns: string }
+      open_confidential_intake_details: {
+        Args: { p_intake_id: string; p_purpose: string }
+        Returns: {
+          created_at: string
+          id: string
+          intake_id: string
+          investigation_findings: string | null
+          location_detail: string | null
+          narrative: string
+          organization_id: string
+          regulatory_deadline_at: string | null
+          resident_id: string | null
+          root_cause: string | null
+          updated_at: string
+          witness_data: Json
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "confidential_incident_details"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
       plan_audit_archive: {
         Args: { p_from: string; p_organization_id?: string; p_to: string }
@@ -17505,6 +17731,7 @@ export type Database = {
         Returns: string
       }
       publish_schedule: { Args: { p_schedule_id: string }; Returns: undefined }
+      queue_course_assignment_due_reminders: { Args: never; Returns: undefined }
       queue_course_continuation_reminders: { Args: never; Returns: undefined }
       recalculate_all_compliance: { Args: never; Returns: undefined }
       recalculate_compliance_core: {
@@ -17686,6 +17913,40 @@ export type Database = {
           run_id: string
         }[]
       }
+      request_binder_export: {
+        Args: { p_facility_ids?: string[]; p_organization_id?: string }
+        Returns: {
+          attempt_count: number
+          available_at: string
+          byte_size: number | null
+          completed_at: string | null
+          content_sha256: string | null
+          correlation_id: string
+          created_at: string
+          current_run_id: string | null
+          facility_ids: string[]
+          id: string
+          last_error_code: string | null
+          last_error_message: string | null
+          last_started_at: string | null
+          locked_at: string | null
+          max_attempts: number
+          organization_id: string
+          requested_at: string
+          requested_by: string
+          status: string
+          storage_bucket: string | null
+          storage_path: string | null
+          updated_at: string
+          worker_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "binder_export_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       request_shift_swap: {
         Args: {
           p_reason: string
@@ -17730,6 +17991,10 @@ export type Database = {
         Args: { p_delivery_id: string }
         Returns: undefined
       }
+      reveal_confidential_reporter_identity: {
+        Args: { p_intake_id: string; p_purpose: string }
+        Returns: Json
+      }
       review_credential_renewal_submission: {
         Args: {
           p_confirmed_fields: Json
@@ -17742,6 +18007,36 @@ export type Database = {
       review_governed_content_revision: {
         Args: { p_decision: string; p_reason: string; p_revision_id: string }
         Returns: boolean
+      }
+      revoke_evidence_guest_grant: {
+        Args: { p_grant_id: string; p_reason: string }
+        Returns: {
+          accepted_at: string | null
+          allowed_artifact_ids: string[]
+          collection_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          facility_id: string
+          guest_email_hash: string | null
+          guest_label: string
+          id: string
+          last_reviewed_at: string | null
+          organization_id: string
+          revocation_reason: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          step_up_required: boolean
+          step_up_verified_at: string | null
+          terms_version: string
+          token_sha256: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "evidence_guest_grants"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       revoke_identity_break_glass: {
         Args: { p_event_id: string; p_reason: string }
@@ -17790,6 +18085,35 @@ export type Database = {
         }[]
       }
       run_phase1_synthetic_checks: { Args: never; Returns: Json }
+      save_report_definition: {
+        Args: {
+          p_columns?: Json
+          p_filters?: Json
+          p_name: string
+          p_report_type: string
+          p_time_zone?: string
+        }
+        Returns: {
+          audience_roles: string[]
+          created_at: string
+          current_version_id: string | null
+          entitlement_key: string | null
+          id: string
+          name: string
+          organization_id: string
+          owner_profile_id: string | null
+          report_type: string
+          retention_days: number
+          schedule_enabled: boolean
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "saved_report_definitions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       self_enroll_course: { Args: { p_course_id: string }; Returns: string }
       send_monday_digest: { Args: never; Returns: undefined }
       send_policy_attestation_reminders: { Args: never; Returns: undefined }
@@ -17833,6 +18157,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_confidential_intake_status: {
+        Args: { p_intake_id: string; p_reason: string; p_target_status: string }
+        Returns: boolean
+      }
       set_employee_checkin_pin: {
         Args: { p_employee_id: string; p_pin: string }
         Returns: undefined
@@ -17840,6 +18168,52 @@ export type Database = {
       set_employee_qualification_state: {
         Args: { p_qualification_id: string; p_reason: string; p_state: string }
         Returns: boolean
+      }
+      set_evidence_collection_legal_hold: {
+        Args: { p_collection_id: string; p_hold: boolean }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          facility_id: string
+          id: string
+          legal_hold: boolean
+          name: string
+          organization_id: string
+          published_at: string | null
+          purpose: string
+          status: string
+          terms_version: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "evidence_collections"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_evidence_collection_status: {
+        Args: { p_collection_id: string; p_status: string }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          facility_id: string
+          id: string
+          legal_hold: boolean
+          name: string
+          organization_id: string
+          published_at: string | null
+          purpose: string
+          status: string
+          terms_version: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "evidence_collections"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       set_feature_kill_switch: {
         Args: {
@@ -18172,6 +18546,27 @@ export type Database = {
       verify_identity_domain: {
         Args: { p_domain_id: string; p_observed_challenge_sha256: string }
         Returns: boolean
+      }
+      withdraw_evidence_collection_artifact: {
+        Args: { p_artifact_id: string; p_reason: string }
+        Returns: {
+          added_at: string
+          added_by: string | null
+          artifact_scope: Json
+          collection_id: string
+          display_name: string
+          facility_id: string
+          id: string
+          organization_id: string
+          snapshot_artifact_id: string
+          withdrawn_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "evidence_collection_artifacts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       withdraw_regulatory_rule_version: {
         Args: { p_reason: string; p_version_id: string }

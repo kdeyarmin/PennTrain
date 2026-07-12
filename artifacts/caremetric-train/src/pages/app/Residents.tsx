@@ -5,6 +5,7 @@ import { useListAllResidentComplianceItems } from "@/hooks/useResidentCompliance
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
 import { Button } from "@/components/ui/button";
+import { QueryError } from "@/components/QueryState";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -64,7 +65,7 @@ export default function Residents() {
   const canManage = ["org_admin", "facility_manager"].includes(user?.role ?? "");
 
   const { data: facilities } = useListFacilities();
-  const { data: residents, isLoading } = useListResidents({
+  const { data: residents, isLoading, isError, error, refetch } = useListResidents({
     facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
     status: urlState.status !== "all" ? urlState.status : undefined,
   });
@@ -240,7 +241,11 @@ export default function Residents() {
           </Select>
         </div>
 
-        {isLoading ? (
+        {isError ? (
+          <div className="p-6">
+            <QueryError what="residents" error={error} onRetry={() => refetch()} />
+          </div>
+        ) : isLoading ? (
           <div className="p-6 space-y-3">
             {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>

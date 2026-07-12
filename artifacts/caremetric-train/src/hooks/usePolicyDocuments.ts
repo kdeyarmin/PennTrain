@@ -178,8 +178,18 @@ export function usePublishPolicyDocumentVersion() {
 
 export function usePolicyDocumentSignedUrl() {
   return useMutation({
-    mutationFn: async (version: PolicyDocumentVersion) => {
-      const { data, error } = await supabase.storage.from(version.storage_bucket).createSignedUrl(version.storage_path, 60);
+    // Accepts either a bare version (60s TTL -- list pages that immediately open a new tab)
+    // or { version, ttlSeconds } so the attestation review dialog, which embeds the PDF
+    // inline, can request a longer-lived link that outlasts the read-before-you-sign step.
+    mutationFn: async (
+      input: PolicyDocumentVersion | { version: PolicyDocumentVersion; ttlSeconds?: number },
+    ) => {
+      const isWrapped = "version" in input && !("storage_bucket" in input);
+      const version = isWrapped ? input.version : (input as PolicyDocumentVersion);
+      const ttlSeconds = isWrapped ? input.ttlSeconds ?? 60 : 60;
+      const { data, error } = await supabase.storage
+        .from(version.storage_bucket)
+        .createSignedUrl(version.storage_path, ttlSeconds);
       if (error) throw error;
       return data.signedUrl;
     },

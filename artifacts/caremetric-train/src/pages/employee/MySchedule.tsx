@@ -3,6 +3,7 @@ import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListShiftAssignments } from "@/hooks/useShiftAssignments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { QueryError } from "@/components/QueryState";
 import { CalendarDays, Clock, MapPin } from "lucide-react";
 import { formatDateLabel, formatTimeLabel, todayIso } from "@/lib/scheduleDates";
 
@@ -11,7 +12,13 @@ export default function MySchedule() {
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
   // Gate on a resolved employee id -- see useListShiftAssignments' own comment on why `enabled`,
   // not just the filter, is required to avoid an unscoped fetch-then-refetch on every page load.
-  const { data: shifts, isLoading: shiftsLoading } = useListShiftAssignments(
+  const {
+    data: shifts,
+    isLoading: shiftsLoading,
+    isError: shiftsError,
+    error: shiftsErrorDetail,
+    refetch: refetchShifts,
+  } = useListShiftAssignments(
     { employeeId: employee?.id, fromDate: todayIso() },
     { enabled: !!employee?.id },
   );
@@ -34,7 +41,9 @@ export default function MySchedule() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {shiftsError ? (
+            <QueryError what="your shifts" error={shiftsErrorDetail} onRetry={() => refetchShifts()} />
+          ) : isLoading ? (
             <div className="space-y-2">
               {[...Array(4)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded" />)}
             </div>

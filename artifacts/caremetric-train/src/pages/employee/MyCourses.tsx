@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { daysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
@@ -12,6 +12,7 @@ import {
 } from "@/hooks/useCourses";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { QueryError } from "@/components/QueryState";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GraduationCap, ChevronRight, BookOpen, Loader2 } from "lucide-react";
@@ -41,11 +42,23 @@ export default function MyCourses() {
   // there is no employees row yet, and an undefined employeeId would otherwise fetch every
   // assignment RLS allows (org-wide, or platform-wide for platform_admin) instead of none. See
   // useListCourseAssignments' own comment on why `enabled` -- not just the filter -- is required.
-  const { data: assignments, isLoading: assignmentsLoading } = useListCourseAssignments(
+  const {
+    data: assignments,
+    isLoading: assignmentsLoading,
+    isError: assignmentsError,
+    error: assignmentsErrorDetail,
+    refetch: refetchAssignments,
+  } = useListCourseAssignments(
     { employeeId: employee?.id },
     { enabled: !!employee?.id },
   );
-  const { data: courses, isLoading: coursesLoading } = useListCourses();
+  const {
+    data: courses,
+    isLoading: coursesLoading,
+    isError: coursesError,
+    error: coursesErrorDetail,
+    refetch: refetchCourses,
+  } = useListCourses();
   const currentVersionIds = useMemo(
     () => (courses ?? []).map(c => c.current_version_id).filter((id): id is string => !!id),
     [courses],
@@ -130,7 +143,9 @@ export default function MyCourses() {
             </SelectContent>
           </Select>
 
-          {isLoading ? (
+          {assignmentsError ? (
+            <QueryError what="your courses" error={assignmentsErrorDetail} onRetry={() => refetchAssignments()} />
+          ) : isLoading ? (
             <div className="space-y-2">
               {[...Array(4)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)}
             </div>
@@ -140,12 +155,23 @@ export default function MyCourses() {
             <div className="space-y-2">
               {sorted.map(a => {
                 const course = courseById.get(a.course_id);
+                // Urgency only matters while the work is still open -- a completed course's old
+                // due date shouldn't shout "overdue."
+                const dueDistance = a.status !== "completed" ? formatDueDistance(a.due_date) : null;
+                const daysLeft = daysUntil(a.due_date);
+                const dueTone =
+                  daysLeft !== null && daysLeft < 0
+                    ? "text-destructive font-medium"
+                    : daysLeft !== null && daysLeft <= 7
+                      ? "text-amber-600 dark:text-amber-500 font-medium"
+                      : "";
                 return (
                   <div key={a.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">
                     <div className="min-w-0">
                       <p className="font-medium truncate">{course?.title ?? "Course"}</p>
                       <p className="text-xs text-muted-foreground">
                         {a.due_date ? `Due ${formatDateForDisplay(a.due_date)}` : "No due date"}
+                        {dueDistance && <span className={dueTone}> · {dueDistance}</span>}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -173,7 +199,9 @@ export default function MyCourses() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {coursesReadyLoading ? (
+          {coursesError ? (
+            <QueryError what="available courses" error={coursesErrorDetail} onRetry={() => refetchCourses()} />
+          ) : coursesReadyLoading ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)}
             </div>

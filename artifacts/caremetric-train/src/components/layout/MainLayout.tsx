@@ -4,6 +4,7 @@ import { useMyOrganizationAccessible } from "@/hooks/useOrganizations";
 import { useImpersonationStatus, useStopImpersonation } from "@/hooks/useImpersonation";
 import { Sidebar, MobileSidebar } from "./Sidebar";
 import { Header } from "./Header";
+import { RouteErrorBoundary } from "@/components/ErrorBoundary";
 import { Loader2, Eye, X, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
@@ -134,7 +135,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         <Header onOpenMobileNav={() => setMobileNavOpen(true)} />
         <main className="flex-1 overflow-auto bg-background">
           <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-            {children}
+            <RouteErrorBoundary>{children}</RouteErrorBoundary>
           </div>
         </main>
       </div>

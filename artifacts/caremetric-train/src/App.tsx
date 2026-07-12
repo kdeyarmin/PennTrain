@@ -21,6 +21,7 @@ const Signup = lazy(() => import("@/pages/auth/Signup"));
 const ForgotPassword = lazy(() => import("@/pages/auth/ForgotPassword"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 const MfaSettings = lazy(() => import("@/pages/auth/MfaSettings"));
+const NotificationSettings = lazy(() => import("@/pages/auth/NotificationSettings"));
 
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
 const Organizations = lazy(() => import("@/pages/admin/Organizations"));
@@ -64,6 +65,11 @@ const BackgroundChecks = lazy(() => import("@/pages/app/BackgroundChecks"));
 const ExclusionScreening = lazy(() => import("@/pages/app/ExclusionScreening"));
 const AdministratorQualification = lazy(() => import("@/pages/app/AdministratorQualification"));
 const Incidents = lazy(() => import("@/pages/app/Incidents"));
+const ConfidentialIncidents = lazy(() => import("@/pages/app/ConfidentialIncidents"));
+const ConfidentialIncidentDetail = lazy(() => import("@/pages/app/ConfidentialIncidentDetail"));
+const EvidenceRoom = lazy(() => import("@/pages/app/EvidenceRoom"));
+const EvidenceCollectionDetail = lazy(() => import("@/pages/app/EvidenceCollectionDetail"));
+const EvidenceGuestRoom = lazy(() => import("@/pages/public/EvidenceGuestRoom"));
 const Violations = lazy(() => import("@/pages/app/Violations"));
 const ViolationDetail = lazy(() => import("@/pages/app/ViolationDetail"));
 const Residents = lazy(() => import("@/pages/app/Residents"));
@@ -203,6 +209,14 @@ const CREDENTIAL_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"
 // Matches incidents_select RLS -- trainer AND self-service are both excluded (the incident
 // itself is sensitive, not any one employee's own record).
 const INCIDENT_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
+// Matches incident_intakes_select RLS -- org_admin/auditor see every org intake,
+// facility_manager sees assigned-facility summaries only; protected-detail and identity
+// actions inside the page are further gated to org_admin (and platform_admin) by the
+// review RPCs themselves. platform_admin is included so support can reach the console
+// directly via the Viewing-as-Org selector.
+const CONFIDENTIAL_INTAKE_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
+// Matches the evidence RLS surface: managers run the room, auditors read it.
+const EVIDENCE_ROOM_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 // Matches dhs_violations_select RLS -- same no-trainer, no-self-service sensitivity model as
 // incidents (a cited DHS violation and its POC are an org-compliance matter).
 const VIOLATION_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
@@ -276,9 +290,16 @@ function Router() {
       {/* Bare, chrome-less public page intentionally left outside ProtectedRoute/MainLayout so
           signed-out visitors can open it directly after scanning a QR code. */}
       <Route path="/checkin/:token" component={CheckIn} />
+      {/* Evidence-room guest link: the token in the URL is the whole credential; the
+          server authorizes and logs every call, so no session or chrome is involved. */}
+      <Route path="/evidence-access/:token" component={EvidenceGuestRoom} />
 
       <Route path="/account/security">
         {() => <ProtectedRoute component={MfaSettings} allowedRoles={ANY_ROLE} />}
+      </Route>
+
+      <Route path="/account/notifications">
+        {() => <ProtectedRoute component={NotificationSettings} allowedRoles={ANY_ROLE} />}
       </Route>
 
       {/* Public marketing pages (nav targets from the landing page) */}
@@ -475,6 +496,18 @@ function Router() {
       </Route>
       <Route path="/app/incidents/:id">
         {() => <ProtectedRoute component={IncidentDetail} allowedRoles={INCIDENT_ROLES} />}
+      </Route>
+      <Route path="/app/confidential-incidents">
+        {() => <ProtectedRoute component={ConfidentialIncidents} allowedRoles={CONFIDENTIAL_INTAKE_ROLES} />}
+      </Route>
+      <Route path="/app/confidential-incidents/:id">
+        {() => <ProtectedRoute component={ConfidentialIncidentDetail} allowedRoles={CONFIDENTIAL_INTAKE_ROLES} />}
+      </Route>
+      <Route path="/app/evidence">
+        {() => <ProtectedRoute component={EvidenceRoom} allowedRoles={EVIDENCE_ROOM_ROLES} />}
+      </Route>
+      <Route path="/app/evidence/:id">
+        {() => <ProtectedRoute component={EvidenceCollectionDetail} allowedRoles={EVIDENCE_ROOM_ROLES} />}
       </Route>
       <Route path="/app/violations">
         {() => <ProtectedRoute component={Violations} allowedRoles={VIOLATION_ROLES} />}

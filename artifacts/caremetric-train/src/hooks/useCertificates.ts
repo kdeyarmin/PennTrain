@@ -17,7 +17,11 @@ export interface ListCertificatesFilters {
 // instead of firing twice (once unscoped, once scoped) on every page load. Mirrors
 // useCourseAssignments.ts's useListCourseAssignments. Defaults to `undefined`, which react-query
 // treats as "always enabled," so every existing caller that doesn't pass `options` is unaffected.
-export function useListCertificates(filters: ListCertificatesFilters = {}, options: { enabled?: boolean } = {}) {
+export function useListCertificates(
+  filters: ListCertificatesFilters = {},
+  options: { enabled?: boolean; refetchInterval?: (certificates: Certificate[] | undefined) => number | false } = {},
+) {
+  const { refetchInterval } = options;
   return useQuery({
     queryKey: ["certificates", filters],
     queryFn: async () => {
@@ -29,6 +33,7 @@ export function useListCertificates(filters: ListCertificatesFilters = {}, optio
       return data;
     },
     enabled: options.enabled,
+    refetchInterval: refetchInterval ? (query) => refetchInterval(query.state.data) : undefined,
   });
 }
 
@@ -80,6 +85,7 @@ interface GenerateCertificatePdfResponse extends GenerateCertificatePdfResult {
 }
 
 export function useGenerateCertificatePdf() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (certificateId: string): Promise<GenerateCertificatePdfResult> => {
       const { data, error } = await supabase.functions.invoke<GenerateCertificatePdfResponse>(
@@ -92,5 +98,7 @@ export function useGenerateCertificatePdf() {
       }
       return { url: data.url, path: data.path, expiresIn: data.expiresIn };
     },
+    // Generation flips pdf_status server-side; refresh lists so "Prepare PDF" becomes "Download".
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["certificates"] }),
   });
 }

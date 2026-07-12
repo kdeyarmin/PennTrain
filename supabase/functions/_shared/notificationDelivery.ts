@@ -172,6 +172,13 @@ export function renderProviderMessage(
       body: "Sign in to CareMetric Train to review the update securely.",
     };
   }
+  if (notificationType === "incident_reported") {
+    return {
+      subject: "A new incident report requires review",
+      body:
+        "A new incident report was submitted. Sign in to CareMetric Train to review it securely.",
+    };
+  }
 
   const subject = title?.trim() || "CareMetric Train notification";
   return { subject, body: body?.trim() || subject };

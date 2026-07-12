@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useListFacilities, useCreateFacility, useUpdateFacility, useDeleteFacility, type Facility } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
 import { Button } from "@/components/ui/button";
+import { QueryError } from "@/components/QueryState";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,7 +44,7 @@ const FACILITIES_URL_DEFAULTS = { search: "" };
 export default function Facilities() {
   const { user } = useAuth();
   const { viewingOrgId } = useViewingOrg();
-  const { data: facilities, isLoading } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
+  const { data: facilities, isLoading, isError, error, refetch } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
   const { toast } = useToast();
   const basePath = user?.role === "platform_admin" ? "/admin/facilities"
     : user?.role === "trainer" ? "/trainer/facilities"
@@ -186,7 +187,9 @@ export default function Facilities() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <QueryError what="facilities" error={error} onRetry={() => refetch()} />
+      ) : isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {[...Array(6)].map((_, i) => <div key={i} className="h-44 bg-muted animate-pulse rounded-xl" />)}
         </div>

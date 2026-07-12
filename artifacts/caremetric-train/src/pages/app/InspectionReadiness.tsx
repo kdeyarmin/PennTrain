@@ -11,7 +11,7 @@ import { useListPolicyAttestations } from "@/hooks/usePolicyAttestations";
 import { useListAdministratorProfiles } from "@/hooks/useAdministratorProfiles";
 import { useFacilityReadinessBreakdown } from "@/hooks/useCitationTopics";
 import { useListEntranceConferenceItems, type EntranceConferenceItem } from "@/hooks/useEntranceConferenceItems";
-import { useGenerateComplianceBinder } from "@/hooks/useComplianceBinder";
+import { BinderExportButton } from "@/components/reports/BinderExportButton";
 import { buildInspectionReadinessActions, type ReadinessActionChecklistItem } from "@/lib/inspectionReadiness";
 import { buildRemediationPlanDraft, remediationPlanToText } from "@/lib/remediationPlan";
 import { useToast } from "@/hooks/use-toast";
@@ -64,8 +64,6 @@ export default function InspectionReadiness() {
   const { data: policyAttestations } = useListPolicyAttestations({});
   const { data: administratorProfiles } = useListAdministratorProfiles(user?.organizationId ?? undefined);
 
-  const { mutate: generatePacket, isPending: isGeneratingPacket } = useGenerateComplianceBinder();
-  const [packetResult, setPacketResult] = useState<{ url: string; expiresIn: number } | null>(null);
 
   const overall = useMemo(() => {
     if (!breakdown) return null;
@@ -200,21 +198,6 @@ export default function InspectionReadiness() {
     }
     return Array.from(groups.entries());
   }, [checklistItems]);
-
-  const handleGeneratePacket = () => {
-    setPacketResult(null);
-    generatePacket(
-      {},
-      {
-        onSuccess: (data) => {
-          setPacketResult({ url: data.url, expiresIn: data.expiresIn });
-          toast({ title: "Entrance conference packet generated" });
-        },
-        onError: (err: Error) =>
-          toast({ title: "Failed to generate packet", description: err.message, variant: "destructive" }),
-      }
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -430,25 +413,7 @@ export default function InspectionReadiness() {
             One-click packet covering facilities, staff training, credentials, incidents, and inspection items --
             generated fresh from current data.
           </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={handleGeneratePacket} disabled={isGeneratingPacket}>
-              {isGeneratingPacket ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileArchive className="mr-2 h-4 w-4" />}
-              {isGeneratingPacket ? "Generating..." : "Generate Entrance Packet"}
-            </Button>
-            {packetResult && (
-              <Button variant="outline" asChild>
-                <a href={packetResult.url} target="_blank" rel="noopener noreferrer">
-                  <Download className="mr-2 h-4 w-4" />
-                  Download PDF
-                </a>
-              </Button>
-            )}
-          </div>
-          {packetResult && (
-            <p className="text-xs text-muted-foreground">
-              This link expires in {Math.round(packetResult.expiresIn / 60)} minutes. Generate a new packet if it expires.
-            </p>
-          )}
+          <BinderExportButton label="Generate Entrance Packet" />
         </CardContent>
       </Card>
     </div>

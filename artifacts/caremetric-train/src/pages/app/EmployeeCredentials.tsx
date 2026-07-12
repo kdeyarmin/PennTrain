@@ -12,6 +12,7 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
 import { summarizeCredentialAnalytics } from "@/lib/credentialAnalytics";
 import { Button } from "@/components/ui/button";
+import { QueryError } from "@/components/QueryState";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -214,7 +215,7 @@ export default function EmployeeCredentials() {
 
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees();
-  const { data: credentials, isLoading } = useListEmployeeCredentials({
+  const { data: credentials, isLoading, isError, error, refetch } = useListEmployeeCredentials({
     facilityId: facilityFilter !== "all" ? facilityFilter : undefined,
     employeeId: employeeFilter !== "all" ? employeeFilter : undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
@@ -425,7 +426,11 @@ export default function EmployeeCredentials() {
           </Select>
         </div>
 
-        {isLoading ? (
+        {isError ? (
+          <div className="p-6">
+            <QueryError what="credentials" error={error} onRetry={() => refetch()} />
+          </div>
+        ) : isLoading ? (
           <div className="p-6 space-y-3">
             {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>

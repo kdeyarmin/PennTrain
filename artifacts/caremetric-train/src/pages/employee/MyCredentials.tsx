@@ -3,6 +3,8 @@ import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListEmployeeCredentials, type EmployeeCredential } from "@/hooks/useEmployeeCredentials";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { QueryError } from "@/components/QueryState";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { ShieldCheck } from "lucide-react";
 
 const CREDENTIAL_TYPE_LABELS: Record<string, string> = {
@@ -25,7 +27,18 @@ function credentialTitle(c: EmployeeCredential): string {
 export default function MyCredentials() {
   const { user } = useAuth();
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
-  const { data: credentials, isLoading: credentialsLoading } = useListEmployeeCredentials({ employeeId: employee?.id });
+  // Gate on a resolved employee id -- see useListEmployeeCredentials' own comment on why
+  // `enabled`, not just the filter, is required to avoid an unscoped fetch-then-refetch.
+  const {
+    data: credentials,
+    isLoading: credentialsLoading,
+    isError: credentialsError,
+    error: credentialsErrorDetail,
+    refetch: refetchCredentials,
+  } = useListEmployeeCredentials(
+    { employeeId: employee?.id },
+    { enabled: !!employee?.id },
+  );
 
   const isLoading = employeeLoading || credentialsLoading;
 
@@ -43,7 +56,9 @@ export default function MyCredentials() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {credentialsError ? (
+            <QueryError what="your credentials" error={credentialsErrorDetail} onRetry={() => refetchCredentials()} />
+          ) : isLoading ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded" />)}
             </div>
@@ -56,7 +71,7 @@ export default function MyCredentials() {
                   <div>
                     <p className="font-medium text-sm">{credentialTitle(c)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {c.expiration_date ? `Expires ${c.expiration_date}` : "No expiration on file"}
+                      {c.expiration_date ? `Expires ${formatDateForDisplay(c.expiration_date)}` : "No expiration on file"}
                       {c.issuing_authority ? ` · ${c.issuing_authority}` : ""}
                     </p>
                   </div>

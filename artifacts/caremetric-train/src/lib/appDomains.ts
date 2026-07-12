@@ -168,6 +168,7 @@ const APP_COMMAND_ACTIONS: AppCommandAction[] = [
 
 export const APP_PAGES: AppPageDefinition[] = [
   { path: "/account/security", label: "Account security", domain: "self_service", roles: ANY_ROLE, keywords: ["mfa", "aal2", "authenticator", "two factor"] },
+  { path: "/account/notifications", label: "Notification settings", domain: "self_service", roles: ANY_ROLE, keywords: ["sms", "email", "phone", "consent", "preferences", "text", "reminders"] },
   { path: "/admin", label: "Platform dashboard", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["super admin", "command center", "health"] },
   { path: "/admin/organizations", label: "Organizations", domain: "tenant", roles: PLATFORM_ADMIN, keywords: ["tenant", "customer", "subscription"] },
   { path: "/admin/packages", label: "Packages", domain: "tenant", roles: PLATFORM_ADMIN, keywords: ["plans", "subscriptions", "billing"] },
@@ -218,12 +219,14 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/state-forms", label: "State forms", domain: "residents", roles: REPORTING_ROLES, keywords: ["rasp", "asp", "dme", "preadmission", "annual reassessment", "dhs forms", "renewals"] },
   { path: "/app/inspections", label: "Inspections & equipment", domain: "compliance", roles: INSPECTION_ROLES, keywords: ["fire drill", "equipment", "physical plant"] },
   { path: "/app/incidents", label: "Incidents & complaints", domain: "compliance", roles: REPORTING_ROLES, keywords: ["complaints", "events"] },
+  { path: "/app/confidential-incidents", label: "Confidential reports", domain: "compliance", roles: REPORTING_ROLES, keywords: ["safety report", "anonymous", "near miss", "intake", "whistleblower"] },
   { path: "/app/violations", label: "Violations & POCs", domain: "compliance", roles: REPORTING_ROLES, keywords: ["dhs", "plan of correction"] },
   { path: "/app/alerts", label: "Alerts", domain: "compliance", roles: ORG_ROLES, keywords: ["risk", "overdue"] },
   { path: "/app/pending-approvals", label: "Pending approvals", domain: "compliance", roles: PENDING_APPROVAL_ROLES, keywords: ["review", "approval", "external certificates"] },
   { path: "/app/reports", label: "Reports", domain: "documents", roles: REPORTING_ROLES, keywords: ["analytics", "exports"] },
   { path: "/app/inspection-readiness", label: "Inspection readiness", domain: "compliance", roles: REPORTING_ROLES, keywords: ["survey", "audit"] },
   { path: "/app/compliance-binder", label: "Compliance binder", domain: "documents", roles: REPORTING_ROLES, keywords: ["evidence", "packet"] },
+  { path: "/app/evidence", label: "Evidence room", domain: "compliance", roles: REPORTING_ROLES, keywords: ["survey", "auditor", "guest access", "surveyor", "artifacts", "binder", "share"] },
   { path: "/app/policy-documents", label: "Policies & procedures", domain: "documents", roles: REPORTING_ROLES, keywords: ["attestation", "campaigns"] },
   { path: "/app/template-documents", label: "Template documents", domain: "documents", roles: REPORTING_ROLES, keywords: ["forms", "reference"] },
   { path: "/app/documents", label: "Documents", domain: "documents", roles: ORG_ROLES, keywords: ["files", "uploads"] },

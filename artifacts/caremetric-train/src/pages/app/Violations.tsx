@@ -5,6 +5,7 @@ import { useListCitationTopics } from "@/hooks/useCitationTopics";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
 import { Button } from "@/components/ui/button";
+import { QueryError } from "@/components/QueryState";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -78,7 +79,7 @@ export default function Violations() {
 
   const { data: facilities } = useListFacilities();
   const { data: citationTopics } = useListCitationTopics();
-  const { data: violations, isLoading } = useListViolations({
+  const { data: violations, isLoading, isError, error, refetch } = useListViolations({
     facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
     status: urlState.status !== "all" ? urlState.status : undefined,
   });
@@ -234,7 +235,11 @@ export default function Violations() {
           </Select>
         </div>
 
-        {isLoading ? (
+        {isError ? (
+          <div className="p-6">
+            <QueryError what="violations" error={error} onRetry={() => refetch()} />
+          </div>
+        ) : isLoading ? (
           <div className="p-6 space-y-3">
             {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>

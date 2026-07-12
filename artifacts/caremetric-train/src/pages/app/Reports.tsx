@@ -38,8 +38,22 @@ import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { ReportViewer } from "@/components/reports/ReportViewer";
+import {
+  useDeleteReportView,
+  useListSavedReportViews,
+  useSaveReportView,
+} from "@/hooks/useSavedReports";
+import {
+  buildSavedViewFilters,
+  parseSavedViewFilters,
+  reportCategoryToDomain,
+  type SavedReportViewConfig,
+} from "@/lib/savedReportViews";
 import type { LucideIcon } from "lucide-react";
 import {
+  Bookmark,
+  BookmarkPlus,
+  Trash2,
   FileText,
   Users,
   Building2,
@@ -1205,6 +1219,18 @@ export default function Reports() {
   const { toast } = useToast();
   const { user } = useAuth();
 
+  // Saved report views: named, versioned report configurations stored on the Phase 5
+  // saved-reports schema and shared org-wide (RLS-scoped reads; RPC-guarded writes).
+  const [showSaveView, setShowSaveView] = useState(false);
+  const [saveViewName, setSaveViewName] = useState("");
+  const { data: savedViewDefinitions } = useListSavedReportViews();
+  const { mutate: saveView, isPending: savingView } = useSaveReportView();
+  const { mutate: deleteView } = useDeleteReportView();
+  const canManageViews = ["org_admin", "facility_manager"].includes(user?.role ?? "");
+  const savedViews = (savedViewDefinitions ?? [])
+    .map((definition) => ({ definition, config: parseSavedViewFilters(definition.current_version?.filters) }))
+    .filter((entry): entry is { definition: (typeof entry)["definition"]; config: SavedReportViewConfig } => !!entry.config);
+
   // Facilities always fetch: the facility picker below and the "Filtered to X" label are
   // page-level chrome, not tied to any single report.
   const facilitiesQuery = useListFacilities({});
@@ -1520,6 +1546,57 @@ export default function Reports() {
     exportCsv,
   ]);
 
+  const handleSaveCurrentView = () => {
+    const report = ALL_REPORTS.find((r) => r.id === selectedReportId);
+    if (!report) return;
+    saveView(
+      {
+        name: saveViewName.trim(),
+        reportType: reportCategoryToDomain(report.category),
+        filters: buildSavedViewFilters({ reportId: report.id, facilityId, dateFrom, dateTo }),
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "View saved", description: "It now appears in Saved Views for your organization." });
+          setShowSaveView(false);
+          setSaveViewName("");
+        },
+        onError: (e: Error) => toast({ title: "Couldn't save view", description: e.message, variant: "destructive" }),
+      },
+    );
+  };
+
+  const runSavedView = (config: SavedReportViewConfig) => {
+    const report = ALL_REPORTS.find((r) => r.id === config.reportId);
+    if (!report) {
+      toast({ title: "This saved view references a report that no longer exists", variant: "destructive" });
+      return;
+    }
+    setFacilityId(config.facilityId ?? "all");
+    selectReport(report.id);
+    const effFrom = config.dateFrom ?? "";
+    const effTo = config.dateTo ?? "";
+    setDateFrom(effFrom);
+    setDateTo(effTo);
+    if (report.requiresEmployee) {
+      setSelectedEmployeeId("none");
+      setPendingReport(report);
+      return;
+    }
+    if (isReportDataReady(report.id)) {
+      viewReport(report, undefined, effFrom, effTo);
+    } else {
+      setPendingAction({ report, action: "view", employeeIdOverride: undefined, dateFrom: effFrom, dateTo: effTo });
+    }
+  };
+
+  const handleDeleteView = (definitionId: string, name: string) => {
+    deleteView(definitionId, {
+      onSuccess: () => toast({ title: `Deleted saved view "${name}"` }),
+      onError: (e: Error) => toast({ title: "Couldn't delete view", description: e.message, variant: "destructive" }),
+    });
+  };
+
   const handleReportAction = (report: ReportDef, action: "view" | "csv") => {
     const isNewSelection = selectReport(report.id);
     let effFrom = isNewSelection ? "" : dateFrom;
@@ -1713,7 +1790,78 @@ export default function Reports() {
             Clear dates
           </Button>
         )}
+        {canManageViews && (
+          <Button variant="outline" size="sm" className="text-xs" onClick={() => setShowSaveView(true)}>
+            <BookmarkPlus className="mr-1.5 h-3.5 w-3.5" />
+            Save view
+          </Button>
+        )}
       </div>
+
+      {savedViews.length > 0 && (
+        <div className="rounded-xl border border-border/60 bg-card p-4">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <Bookmark className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">Saved Views</h3>
+            <span className="text-xs text-muted-foreground">
+              One-click report configurations shared with your organization.
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {savedViews.map(({ definition, config }) => (
+              <div key={definition.id} className="flex items-center gap-0.5 rounded-lg border pl-3 pr-1 py-1">
+                <button
+                  type="button"
+                  className="text-sm font-medium hover:text-primary transition-colors"
+                  onClick={() => runSavedView(config)}
+                >
+                  {definition.name}
+                </button>
+                {(user?.role === "org_admin" || definition.owner_profile_id === user?.id) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => handleDeleteView(definition.id, definition.name)}
+                    aria-label={`Delete saved view ${definition.name}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <Dialog open={showSaveView} onOpenChange={(o) => { if (!o) setShowSaveView(false); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save current view</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">
+              Saves "{ALL_REPORTS.find((r) => r.id === selectedReportId)?.title ?? "the selected report"}" with the
+              current facility and date range as a one-click view shared with your organization. Saving the same
+              name again publishes a new version of the view.
+            </p>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">View name</Label>
+              <Input
+                value={saveViewName}
+                onChange={(e) => setSaveViewName(e.target.value)}
+                placeholder="e.g. Weekly expired training"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSaveView(false)}>Cancel</Button>
+            <Button onClick={handleSaveCurrentView} disabled={savingView || saveViewName.trim().length < 3}>
+              {savingView ? "Saving..." : "Save View"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <p className="text-sm text-muted-foreground">
         {visibleReports.length} report{visibleReports.length !== 1 ? "s" : ""}{" "}

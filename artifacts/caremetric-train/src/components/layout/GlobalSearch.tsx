@@ -4,7 +4,7 @@ import { useGlobalSearch } from "@/hooks/useGlobalSearch";
 import { useAuth } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
 import { searchCommandActions, searchPages } from "@/lib/appDomains";
-import { Search, Building2, User, Users, UserRound, Compass, Zap } from "lucide-react";
+import { Search, Building2, User, Users, UserRound, Compass, Zap, BookOpen } from "lucide-react";
 
 const DEBOUNCE_MS = 250;
 
@@ -42,7 +42,7 @@ export function GlobalSearch() {
   const actionResults = searchCommandActions(debouncedQuery, user?.role);
   const pageResults = searchPages(debouncedQuery, user?.role);
   const hasResults = !!results && (
-    actionResults.length || pageResults.length || results.organizations.length || results.profiles.length || results.employees.length || results.residents.length
+    actionResults.length || pageResults.length || results.organizations.length || results.profiles.length || results.employees.length || results.residents.length || results.courses.length
   );
 
   const employeesBasePath = user?.role === "platform_admin" ? "/admin/employees"
@@ -68,7 +68,7 @@ export function GlobalSearch() {
         onKeyDown={(e) => { if (e.key === "Escape") { setQuery(""); setOpen(false); } }}
         placeholder="Search everything... (/)"
         className="h-8 pl-8 text-xs bg-muted/50 border-none focus-visible:ring-1"
-        aria-label="Search organizations, users, employees, and residents"
+        aria-label="Search pages, people, and your courses"
       />
       {open && query.trim().length >= 2 && (
         <div
@@ -170,6 +170,20 @@ export function GlobalSearch() {
                       onClick={() => go(`/app/residents/${r.id}`)}
                     >
                       <UserRound className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> {r.first_name} {r.last_name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {!!results?.courses.length && (
+                <div>
+                  <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">My Courses</p>
+                  {results.courses.map((c) => (
+                    <button
+                      key={c.assignmentId}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted text-left"
+                      onClick={() => go(`/me/courses/${c.assignmentId}`)}
+                    >
+                      <BookOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> <span className="truncate">{c.title}</span>
                     </button>
                   ))}
                 </div>

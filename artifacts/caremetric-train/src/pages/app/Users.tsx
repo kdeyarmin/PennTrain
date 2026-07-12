@@ -8,6 +8,7 @@ import { useListOrganizations } from "@/hooks/useOrganizations";
 import { useStartImpersonation } from "@/hooks/useImpersonation";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { Button } from "@/components/ui/button";
+import { QueryError } from "@/components/QueryState";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -128,7 +129,7 @@ export default function Users() {
   const [confirmRoleChange, setConfirmRoleChange] = useState<{ profile: Profile; role: string } | null>(null);
   const [confirmDeactivate, setConfirmDeactivate] = useState<Profile | null>(null);
 
-  const { data: profiles, isLoading } = useListProfiles(
+  const { data: profiles, isLoading, isError, error, refetch } = useListProfiles(
     isPlatformAdmin ? {} : { organizationId: user?.organizationId ?? undefined },
   );
   const { data: organizations } = useListOrganizations();
@@ -433,7 +434,11 @@ export default function Users() {
           )}
         </div>
 
-        {isLoading ? (
+        {isError ? (
+          <div className="p-6">
+            <QueryError what="users" error={error} onRetry={() => refetch()} />
+          </div>
+        ) : isLoading ? (
           <div className="p-6 space-y-3">
             {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>

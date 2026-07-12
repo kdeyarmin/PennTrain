@@ -61,6 +61,7 @@ import {
   Activity,
   Network,
   UserRoundCheck,
+  FolderLock,
   ScanText,
 } from "lucide-react";
 
@@ -188,6 +189,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Incidents & Alerts",
         items: [
           { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
+          { href: "/app/confidential-incidents", label: "Confidential Reports", icon: ShieldAlert },
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
           { href: "/app/pending-approvals", label: "Pending Approvals", icon: ClipboardCheck },
@@ -200,6 +202,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/closed-loop-compliance", label: "Closed-Loop Compliance", icon: Gavel },
           ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar }] : []),
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
+          { href: "/app/evidence", label: "Evidence Room", icon: FolderLock },
           { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
           { href: "/app/template-documents", label: "Template Documents", icon: FileStack },
           { href: "/app/documents", label: "Documents", icon: Files },
@@ -274,6 +277,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Incidents & Alerts",
         items: [
           { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
+          { href: "/app/confidential-incidents", label: "Confidential Reports", icon: ShieldAlert },
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
         ]
@@ -284,6 +288,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
           ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar }] : []),
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
+          { href: "/app/evidence", label: "Evidence Room", icon: FolderLock },
           { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
           { href: "/app/template-documents", label: "Template Documents", icon: FileStack },
           { href: "/app/documents", label: "Documents", icon: Files },
@@ -379,6 +384,12 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Help",
         items: [
           { href: "/me/help", label: "Help Center", icon: HelpCircle },
+        ]
+      },
+      {
+        title: "Settings",
+        items: [
+          { href: "/account/notifications", label: "Notification Settings", icon: Bell },
         ]
       }
     ];
@@ -650,6 +661,12 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
               <Link href="/account/security" className="cursor-pointer" onClick={onNavigate}>
                 <ShieldCheck className="mr-2 h-4 w-4" />
                 <span>Account security</span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/account/notifications" className="cursor-pointer" onClick={onNavigate}>
+                <Bell className="mr-2 h-4 w-4" />
+                <span>Notification settings</span>
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
