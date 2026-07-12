@@ -730,7 +730,7 @@ export default function ResidentDetail() {
             <p className="text-sm">{facilityName || "Facility not listed"}</p>
           </div>
           <div className="text-right text-xs">
-            <p>Printed {faceSheetGeneratedAt}</p>
+            <p>Generated {faceSheetGeneratedAt}</p>
             <p>Status: {humanize(resident.status)}</p>
           </div>
         </div>
