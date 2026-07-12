@@ -44,7 +44,7 @@ function ComplianceStatusBadge({ status }: { status: string }) {
 
 export default function ResidentDetail() {
   const { id } = useParams<{ id: string }>();
-  const [location, navigate] = useLocation();
+  const [location] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -83,73 +83,6 @@ export default function ResidentDetail() {
 
   const itemById = new Map((items ?? []).map((i) => [i.id, i]));
 
-  const handleLogChangeOfCondition = () => {
-    if (!resident) return;
-    logChangeOfCondition.mutate(
-      { residentId: resident.id, notes: changeNotes.trim() || undefined },
-      {
-        onSuccess: () => {
-          toast({ title: "Significant change reassessment logged" });
-          setShowChangeDialog(false);
-          setChangeNotes("");
-        },
-        onError: (e: Error) => toast({ title: "Failed to log change of condition", description: e.message, variant: "destructive" }),
-      },
-    );
-  };
-
-  const handleCompleteInCareMetric = (item: NonNullable<typeof items>[number]) => {
-    if (!resident) return;
-    // A support_plan_30day item spawned by the annual/significant-change cross-trigger should be
-    // labeled with ITS parent's reason (annual/significant_change), not "initial" -- deriveAssessmentReason
-    // only looks at the clicked item's own item_type, so resolve the triggering item first when set.
-    const triggeringItem = item.triggered_by_item_id ? itemById.get(item.triggered_by_item_id) : undefined;
-    const reason = deriveAssessmentReason(triggeringItem?.item_type ?? item.item_type);
-    startAssessmentForm.mutate(
-      { residentId: resident.id, reason, complianceItemId: item.id },
-      {
-        onSuccess: (newForm) => navigate(`${residentPathPrefix}/${resident.id}/assessment-forms/${newForm.id}`),
-        onError: (e: Error) => toast({ title: "Failed to start assessment form", description: e.message, variant: "destructive" }),
-      },
-    );
-  };
-
-  // Documents like the RASP/ASP and DME have to be on the state-approved form -- no exception --
-  // so completion always goes through this single path: upload the actual DHS form flagged
-  // is_state_form, linked to this specific item, then complete_resident_compliance_item() validates
-  // that exact document server-side. There is no "mark complete" shortcut that skips the upload.
-  //
-  // Single reset used by every way this dialog can close (Cancel, backdrop/Escape via
-  // onOpenChange, and a successful submit) so a file picked for one item can never carry over
-  // into the next item's dialog -- a stale completeFile would leave "Upload & Mark Complete"
-  // enabled and could attach the wrong item's document, which a facility_manager (no delete
-  // access on resident documents) has no way to undo themselves.
-  const closeCompleteDialog = () => {
-    setCompletingItem(null);
-    setCompleteFile(null);
-    if (completeFileInputRef.current) completeFileInputRef.current.value = "";
-  };
-
-  const handleMarkComplete = async () => {
-    if (!resident || !completingItem || !completeFile) return;
-    try {
-      const uploadedDocument = await uploadDocument.mutateAsync({
-        file: completeFile,
-        organizationId: resident.organization_id,
-        facilityId: resident.facility_id,
-        residentId: resident.id,
-        complianceItemId: completingItem.id,
-        isStateForm: true,
-        stateFormSourceLabel: completingStateForm?.sourceLabel,
-        stateFormSourceUrl: completingStateForm?.url,
-      });
-      await completeItem.mutateAsync({ item: completingItem, documentId: uploadedDocument.id });
-      toast({ title: "Marked complete" });
-      closeCompleteDialog();
-    } catch (err) {
-      toast({ title: "Failed to mark complete", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
-    }
-  };
   const facility = facilities?.find((f) => f.id === resident?.facility_id);
   const facilityName = facility?.name;
   const formLabel = getComplianceFormLabel(facility?.facility_type);
