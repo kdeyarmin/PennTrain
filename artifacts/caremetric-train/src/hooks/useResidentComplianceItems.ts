@@ -54,7 +54,9 @@ export function useListAllResidentComplianceItems(filters: ListAllResidentCompli
 export function useCompleteResidentComplianceItem() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ item, documentId }: { item: ResidentComplianceItem; documentId: string }) => {
+    // item is structurally Pick<...>, not the full row, so the State Forms Center (whose org-wide
+    // query selects a column subset) can call this with the same rows it renders.
+    mutationFn: async ({ item, documentId }: { item: Pick<ResidentComplianceItem, "id">; documentId: string }) => {
       const { data, error } = await supabase.rpc("complete_resident_compliance_item", {
         p_item_id: item.id,
         p_document_id: documentId,

@@ -1,13 +1,13 @@
 import { useRef, useState } from "react";
-import { useParams, Link, useLocation } from "wouter";
+import { useParams, Link } from "wouter";
 import { useGetResident, useUpdateResident } from "@/hooks/useResidents";
-import {
-  useListResidentComplianceItems, useCompleteResidentComplianceItem, useLogResidentChangeOfCondition,
-} from "@/hooks/useResidentComplianceItems";
+import { useListResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
 import {
   useListResidentDocuments, useUploadResidentDocument, useResidentDocumentSignedUrl, useDeleteResidentDocument,
 } from "@/hooks/useResidentDocuments";
-import { useListResidentAssessmentForms, useStartResidentAssessmentForm } from "@/hooks/useResidentAssessmentForms";
+import { useListResidentAssessmentForms } from "@/hooks/useResidentAssessmentForms";
+import { StateFormWorkflowStepper } from "@/components/residents/StateFormWorkflowStepper";
+import { LogChangeOfConditionDialog } from "@/components/residents/LogChangeOfConditionDialog";
 import {
   useListResidentInformalSupports, useUpsertResidentInformalSupport, useDeleteResidentInformalSupport,
   type ResidentInformalSupport,
@@ -25,13 +25,11 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, BedDouble, ClipboardList, FileText, Upload, Download, Trash2, Check, TriangleAlert, FilePenLine, Lock, Users, Plus, Pencil } from "lucide-react";
+import { ArrowLeft, BedDouble, ClipboardList, FileText, Upload, Download, Trash2, TriangleAlert, FilePenLine, Lock, Users, Plus, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
 import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, getComplianceFormLabel, getRequiredStateFormInfo, formatDateOnly } from "@/lib/residentCompliance";
-import { isDigitalFormEligible, deriveAssessmentReason } from "@/lib/residentAssessmentFormSchema";
 import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 
@@ -45,7 +43,6 @@ function ComplianceStatusBadge({ status }: { status: string }) {
 
 export default function ResidentDetail() {
   const { id } = useParams<{ id: string }>();
-  const [, navigate] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -60,21 +57,14 @@ export default function ResidentDetail() {
   const { data: informalSupports, isLoading: informalSupportsLoading } = useListResidentInformalSupports(id);
 
   const { mutate: updateResident, isPending: isSavingResident } = useUpdateResident();
-  const completeItem = useCompleteResidentComplianceItem();
-  const logChangeOfCondition = useLogResidentChangeOfCondition();
   const uploadDocument = useUploadResidentDocument();
   const getSignedUrl = useResidentDocumentSignedUrl();
   const deleteDocument = useDeleteResidentDocument();
-  const startAssessmentForm = useStartResidentAssessmentForm();
   const upsertSupport = useUpsertResidentInformalSupport();
   const deleteSupport = useDeleteResidentInformalSupport();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const completeFileInputRef = useRef<HTMLInputElement>(null);
   const [showChangeDialog, setShowChangeDialog] = useState(false);
-  const [changeNotes, setChangeNotes] = useState("");
-  const [completingItem, setCompletingItem] = useState<NonNullable<typeof items>[number] | null>(null);
-  const [completeFile, setCompleteFile] = useState<File | null>(null);
   const [docPendingDelete, setDocPendingDelete] = useState<NonNullable<typeof documents>[number] | null>(null);
   const [showContactsDialog, setShowContactsDialog] = useState(false);
   const [contactsForm, setContactsForm] = useState({
@@ -90,77 +80,8 @@ export default function ResidentDetail() {
 
   const itemById = new Map((items ?? []).map((i) => [i.id, i]));
 
-  const handleLogChangeOfCondition = () => {
-    if (!resident) return;
-    logChangeOfCondition.mutate(
-      { residentId: resident.id, notes: changeNotes.trim() || undefined },
-      {
-        onSuccess: () => {
-          toast({ title: "Significant change reassessment logged" });
-          setShowChangeDialog(false);
-          setChangeNotes("");
-        },
-        onError: (e: Error) => toast({ title: "Failed to log change of condition", description: e.message, variant: "destructive" }),
-      },
-    );
-  };
-
-  const handleCompleteInCareMetric = (item: NonNullable<typeof items>[number]) => {
-    if (!resident) return;
-    // A support_plan_30day item spawned by the annual/significant-change cross-trigger should be
-    // labeled with ITS parent's reason (annual/significant_change), not "initial" -- deriveAssessmentReason
-    // only looks at the clicked item's own item_type, so resolve the triggering item first when set.
-    const triggeringItem = item.triggered_by_item_id ? itemById.get(item.triggered_by_item_id) : undefined;
-    const reason = deriveAssessmentReason(triggeringItem?.item_type ?? item.item_type);
-    startAssessmentForm.mutate(
-      { residentId: resident.id, reason, complianceItemId: item.id },
-      {
-        onSuccess: (newForm) => navigate(`/app/residents/${resident.id}/assessment-forms/${newForm.id}`),
-        onError: (e: Error) => toast({ title: "Failed to start assessment form", description: e.message, variant: "destructive" }),
-      },
-    );
-  };
-
-  // Documents like the RASP/ASP and DME have to be on the state-approved form -- no exception --
-  // so completion always goes through this single path: upload the actual DHS form flagged
-  // is_state_form, linked to this specific item, then complete_resident_compliance_item() validates
-  // that exact document server-side. There is no "mark complete" shortcut that skips the upload.
-  //
-  // Single reset used by every way this dialog can close (Cancel, backdrop/Escape via
-  // onOpenChange, and a successful submit) so a file picked for one item can never carry over
-  // into the next item's dialog -- a stale completeFile would leave "Upload & Mark Complete"
-  // enabled and could attach the wrong item's document, which a facility_manager (no delete
-  // access on resident documents) has no way to undo themselves.
-  const closeCompleteDialog = () => {
-    setCompletingItem(null);
-    setCompleteFile(null);
-    if (completeFileInputRef.current) completeFileInputRef.current.value = "";
-  };
-
-  const handleMarkComplete = async () => {
-    if (!resident || !completingItem || !completeFile) return;
-    try {
-      const uploadedDocument = await uploadDocument.mutateAsync({
-        file: completeFile,
-        organizationId: resident.organization_id,
-        facilityId: resident.facility_id,
-        residentId: resident.id,
-        complianceItemId: completingItem.id,
-        isStateForm: true,
-        stateFormSourceLabel: completingStateForm?.sourceLabel,
-        stateFormSourceUrl: completingStateForm?.url,
-      });
-      await completeItem.mutateAsync({ item: completingItem, documentId: uploadedDocument.id });
-      toast({ title: "Marked complete" });
-      closeCompleteDialog();
-    } catch (err) {
-      toast({ title: "Failed to mark complete", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
-    }
-  };
-
   const facility = facilities?.find((f) => f.id === resident?.facility_id);
   const facilityName = facility?.name;
-  const completingStateForm = completingItem ? getRequiredStateFormInfo(completingItem.item_type, facility?.facility_type) : null;
   const formLabel = getComplianceFormLabel(facility?.facility_type);
   // instantiate_resident_compliance_items() only seeds rule-pack rows for PCH/ALR (Phase 5) --
   // mirror that gate here so an unsupported facility type can't get a significant_change_reassessment
@@ -502,49 +423,40 @@ export default function ResidentDetail() {
               {items.map((item) => {
                 const requiredForm = getRequiredStateFormInfo(item.item_type, facility?.facility_type);
                 return (
-                  <div key={item.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        {ITEM_TYPE_LABELS[item.item_type] ?? humanize(item.item_type)}
-                        {item.renewal_interval_days != null && (
-                          <Badge variant="outline" className="text-[10px]">Recurring</Badge>
+                  <div key={item.id} className="p-2 rounded-lg border text-sm space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          {ITEM_TYPE_LABELS[item.item_type] ?? humanize(item.item_type)}
+                          {item.renewal_interval_days != null && (
+                            <Badge variant="outline" className="text-[10px]">Recurring</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Due {item.due_date ?? "—"}{item.completed_date ? ` · Completed ${item.completed_date}` : ""}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Required DHS source: <a href={requiredForm.url} target="_blank" rel="noreferrer" className="hover:underline">{requiredForm.sourceLabel}</a>
+                        </p>
+                        {item.triggered_by_item_id && itemById.get(item.triggered_by_item_id) && (
+                          <p className="text-xs text-muted-foreground italic">
+                            → triggered by {ITEM_TYPE_LABELS[itemById.get(item.triggered_by_item_id)!.item_type]
+                              ?? humanize(itemById.get(item.triggered_by_item_id)!.item_type)} completed{" "}
+                            {itemById.get(item.triggered_by_item_id)!.completed_date}
+                          </p>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Due {item.due_date ?? "—"}{item.completed_date ? ` · Completed ${item.completed_date}` : ""}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Required DHS source: <a href={requiredForm.url} target="_blank" rel="noreferrer" className="hover:underline">{requiredForm.sourceLabel}</a>
-                      </p>
-                      {item.triggered_by_item_id && itemById.get(item.triggered_by_item_id) && (
-                        <p className="text-xs text-muted-foreground italic">
-                          → triggered by {ITEM_TYPE_LABELS[itemById.get(item.triggered_by_item_id)!.item_type]
-                            ?? humanize(itemById.get(item.triggered_by_item_id)!.item_type)} completed{" "}
-                          {itemById.get(item.triggered_by_item_id)!.completed_date}
-                        </p>
-                      )}
+                      <div className="shrink-0">
+                        <ComplianceStatusBadge status={item.status} />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <ComplianceStatusBadge status={item.status} />
-                      {canManage && item.status !== "compliant" && item.status !== "not_applicable" && (
-                        <>
-                          {isDigitalFormEligible(item.item_type) && (
-                            <Button
-                              variant="outline" size="sm" className="h-7 text-xs" disabled={startAssessmentForm.isPending}
-                              onClick={() => handleCompleteInCareMetric(item)}
-                            >
-                              <FilePenLine className="mr-1.5 h-3.5 w-3.5" /> Prepare in CareMetric
-                            </Button>
-                          )}
-                          <Button
-                            variant="outline" size="sm" className="h-7 text-xs" title="Attach the state-approved form and mark complete"
-                            onClick={() => setCompletingItem(item)}
-                          >
-                            <Check className="mr-1.5 h-3.5 w-3.5" /> Mark Complete
-                          </Button>
-                        </>
-                      )}
-                    </div>
+                    <StateFormWorkflowStepper
+                      item={item}
+                      resident={resident}
+                      facilityType={facility?.facility_type}
+                      canManage={canManage}
+                      triggeredByItemType={item.triggered_by_item_id ? itemById.get(item.triggered_by_item_id)?.item_type : undefined}
+                    />
                   </div>
                 );
               })}
@@ -553,73 +465,7 @@ export default function ResidentDetail() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!completingItem} onOpenChange={(o) => { if (!o) closeCompleteDialog(); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Mark Complete — {completingItem && (ITEM_TYPE_LABELS[completingItem.item_type] ?? humanize(completingItem.item_type))}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <p className="text-sm text-muted-foreground">
-              Attach the completed <strong>{completingStateForm?.label}</strong> form.
-              This must be the official DHS-prescribed form — a CareMetric-prepared draft or any other document
-              can't be used to satisfy this requirement, no exception.
-            </p>
-            {completingStateForm && (
-              <Button asChild variant="link" size="sm" className="h-auto p-0 text-xs">
-                <a href={completingStateForm.url} target="_blank" rel="noreferrer">
-                  Download official {completingStateForm.sourceLabel}
-                </a>
-              </Button>
-            )}
-            <input
-              ref={completeFileInputRef}
-              type="file"
-              className="hidden"
-              accept=".pdf,.jpg,.jpeg,.png"
-              onChange={(e) => setCompleteFile(e.target.files?.[0] ?? null)}
-            />
-            <Button type="button" variant="outline" size="sm" onClick={() => completeFileInputRef.current?.click()}>
-              <Upload className="mr-2 h-3.5 w-3.5" /> Choose File
-            </Button>
-            {completeFile && <p className="text-xs text-muted-foreground">{completeFile.name}</p>}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeCompleteDialog}>Cancel</Button>
-            <Button onClick={handleMarkComplete} disabled={!completeFile || uploadDocument.isPending || completeItem.isPending}>
-              {uploadDocument.isPending || completeItem.isPending ? "Saving..." : "Upload & Mark Complete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showChangeDialog} onOpenChange={(o) => { setShowChangeDialog(o); if (!o) setChangeNotes(""); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Log Change of Condition</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <p className="text-sm text-muted-foreground">
-              PA DHS requires a reassessment when a resident's condition significantly changes, but
-              specifies no exact turnaround time — this schedules it as due immediately so it stays
-              visible until completed.
-            </p>
-            <Textarea
-              placeholder="Optional note (e.g. fall, ER visit 7/3)"
-              value={changeNotes}
-              onChange={(e) => setChangeNotes(e.target.value)}
-              rows={3}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowChangeDialog(false)}>Cancel</Button>
-            <Button onClick={handleLogChangeOfCondition} disabled={logChangeOfCondition.isPending}>
-              {logChangeOfCondition.isPending ? "Logging..." : "Log Change of Condition"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <LogChangeOfConditionDialog open={showChangeDialog} onOpenChange={setShowChangeDialog} residentId={resident.id} />
 
       <Card>
         <CardHeader>
@@ -629,13 +475,13 @@ export default function ResidentDetail() {
           <p className="text-xs text-muted-foreground">
             Drafting/reference tool only — finalizing creates a PDF for staff and survey reference, but does
             not by itself satisfy the resident's compliance requirement. Attach the signed DHS-prescribed{" "}
-            {formLabel} form using "Mark Complete" on the checklist above.
+            {formLabel} form using "Upload signed form" on the checklist above.
           </p>
           {assessmentFormsLoading ? (
             <Skeleton className="h-10" />
           ) : !assessmentForms?.length ? (
             <p className="text-sm text-muted-foreground">
-              No {formLabel} prepared in CareMetric yet — use "Prepare in CareMetric" on a checklist item above to start one.
+              No {formLabel} prepared in CareMetric yet — use "Start {formLabel} prep" on a checklist item above to start one.
             </p>
           ) : (
             <div className="space-y-2">
