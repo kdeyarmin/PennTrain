@@ -178,7 +178,7 @@ export function ReportViewer({
 
         <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground print-footer">
           <p>Showing {rows.length} record{rows.length !== 1 ? "s" : ""}</p>
-          <p>PA MedTrack &middot; 55 Pa. Code Chapter 2600 Compliance Platform</p>
+          <p>CareMetric Train &middot; 55 Pa. Code Chapter 2600 Compliance Platform</p>
         </div>
       </div>
     </div>
