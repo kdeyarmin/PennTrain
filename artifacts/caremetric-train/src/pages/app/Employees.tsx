@@ -20,6 +20,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
+import { QueryError } from "@/components/QueryState";
 import { Users, Search, ChevronLeft, ChevronRight, UserPlus, Pencil, Trash2, Upload } from "lucide-react";
 import { Link, useSearch } from "wouter";
 import { useAuth } from "@/lib/auth";
@@ -102,7 +103,13 @@ export default function Employees() {
     return () => clearTimeout(t);
   }, [urlState.search]);
 
-  const { data: employeesPage, isLoading } = useListEmployeesPaginated({
+  const {
+    data: employeesPage,
+    isLoading,
+    isError: employeesError,
+    error: employeesErrorDetail,
+    refetch: refetchEmployees,
+  } = useListEmployeesPaginated({
     facilityId: facilityId !== "all" ? facilityId : undefined,
     status: status !== "all" ? status : undefined,
     organizationId: viewingOrgId ?? undefined,
@@ -316,7 +323,11 @@ export default function Employees() {
           </Select>
         </div>
 
-        {isLoading ? (
+        {employeesError ? (
+          <div className="p-6">
+            <QueryError what="employees" error={employeesErrorDetail} onRetry={() => refetchEmployees()} />
+          </div>
+        ) : isLoading ? (
           <div className="p-6 space-y-3">
             {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>

@@ -6,6 +6,7 @@ import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTraining
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { QueryError } from "@/components/QueryState";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GraduationCap } from "lucide-react";
 
@@ -16,7 +17,13 @@ export default function MyTrainings() {
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
   // Gate on a resolved employee id -- see useListTrainingRecords' own comment on why `enabled`,
   // not just the filter, is required to avoid an unscoped fetch-then-refetch on every page load.
-  const { data: records, isLoading: recordsLoading } = useListTrainingRecords(
+  const {
+    data: records,
+    isLoading: recordsLoading,
+    isError: recordsError,
+    error: recordsErrorDetail,
+    refetch: refetchRecords,
+  } = useListTrainingRecords(
     { employeeId: employee?.id },
     { enabled: !!employee?.id },
   );
@@ -67,7 +74,9 @@ export default function MyTrainings() {
             </SelectContent>
           </Select>
 
-          {isLoading ? (
+          {recordsError ? (
+            <QueryError what="your training records" error={recordsErrorDetail} onRetry={() => refetchRecords()} />
+          ) : isLoading ? (
             <div className="space-y-2">
               {[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded" />)}
             </div>

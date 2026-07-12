@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { QueryError } from "@/components/QueryState";
 import {
   GraduationCap, CheckCircle, Clock, AlertTriangle, FileText, ClipboardCheck, BookOpen,
   CalendarClock, CalendarDays, MapPin, FileCheck2, FileCheck, Files, ShieldCheck, FileSignature,
@@ -49,24 +50,33 @@ export default function EmployeeDashboard() {
   const currentYear = new Date().getFullYear();
 
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
-  // Training/practicum/competency/attestation/shift queries below are all gated on a resolved
-  // employee id -- without `enabled`, each one fires once with employeeId undefined (scoping to
-  // "no filter at all" rather than "nothing," since RLS alone doesn't stand in for a missing
-  // employee_id filter) and again once `employee` resolves, doubling every request on every
-  // dashboard load. See each hook's own comment for why `enabled`, not just the filter, is
-  // required. (useListCourseAssignments below is the one exception -- it already supports the same
-  // `enabled` option, per its own comment, but this call site predates that fix and is unchanged
-  // here.)
-  const { data: records, isLoading: recordsLoading } = useListTrainingRecords(
+  // Training/practicum/competency/attestation/shift/assignment queries below are all gated on a
+  // resolved employee id -- without `enabled`, each one fires once with employeeId undefined
+  // (scoping to "no filter at all" rather than "nothing," since RLS alone doesn't stand in for a
+  // missing employee_id filter) and again once `employee` resolves, doubling every request on
+  // every dashboard load. See each hook's own comment for why `enabled`, not just the filter, is
+  // required.
+  const {
+    data: records,
+    isLoading: recordsLoading,
+    isError: recordsError,
+    error: recordsErrorDetail,
+    refetch: refetchRecords,
+  } = useListTrainingRecords(
     { employeeId: employee?.id },
     { enabled: !!employee?.id },
   );
-  const { data: practicums, isLoading: practicumsLoading } = useListPracticums(
+  const { data: practicums, isLoading: practicumsLoading, isError: practicumsError, refetch: refetchPracticums } = useListPracticums(
     { employeeId: employee?.id, year: currentYear },
     { enabled: !!employee?.id },
   );
   const { data: trainingTypes } = useListTrainingTypes();
-  const { data: courseAssignments, isLoading: assignmentsLoading } = useListCourseAssignments({ employeeId: employee?.id });
+  const {
+    data: courseAssignments,
+    isLoading: assignmentsLoading,
+    isError: assignmentsError,
+    refetch: refetchAssignments,
+  } = useListCourseAssignments({ employeeId: employee?.id }, { enabled: !!employee?.id });
   const { data: courses } = useListCourses();
   const courseTitleById = new Map((courses ?? []).map(c => [c.id, c.title]));
 
@@ -88,7 +98,12 @@ export default function EmployeeDashboard() {
   // Attestations due -- previously had zero presence on this dashboard (see the deadlines list
   // below), so an employee with overdue policy sign-offs had no signal here at all. Title
   // resolution mirrors MyAttestations.tsx's own titleFor() (campaign -> policy_document.title).
-  const { data: attestations, isLoading: attestationsLoading } = useListPolicyAttestations(
+  const {
+    data: attestations,
+    isLoading: attestationsLoading,
+    isError: attestationsError,
+    refetch: refetchAttestations,
+  } = useListPolicyAttestations(
     { employeeId: employee?.id },
     { enabled: !!employee?.id },
   );
@@ -175,6 +190,16 @@ export default function EmployeeDashboard() {
   const upcomingDeadlines = [...courseDeadlines, ...trainingDeadlines, ...practicumDeadlines, ...attestationDeadlines]
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
     .slice(0, 8);
+
+  // The deadlines card merges four sources; if any failed the list is silently incomplete, which
+  // for a compliance to-do list is worse than saying so. Retry only re-fires what actually failed.
+  const deadlineSourcesError = recordsError || assignmentsError || practicumsError || attestationsError;
+  const retryDeadlineSources = () => {
+    if (recordsError) refetchRecords();
+    if (assignmentsError) refetchAssignments();
+    if (practicumsError) refetchPracticums();
+    if (attestationsError) refetchAttestations();
+  };
 
   return (
     <div className="space-y-6">
@@ -394,7 +419,9 @@ export default function EmployeeDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {assignmentsLoading || practicumsLoading || attestationsLoading ? (
+              {deadlineSourcesError ? (
+                <QueryError what="your upcoming deadlines" onRetry={retryDeadlineSources} />
+              ) : assignmentsLoading || practicumsLoading || attestationsLoading ? (
                 <div className="space-y-2">
                   {[...Array(3)].map((_, i) => <div key={i} className="h-10 bg-muted animate-pulse rounded" />)}
                 </div>
@@ -443,7 +470,9 @@ export default function EmployeeDashboard() {
               </Link>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
+              {recordsError ? (
+                <QueryError what="your training records" error={recordsErrorDetail} onRetry={() => refetchRecords()} />
+              ) : isLoading ? (
                 <div className="space-y-2">
                   {[...Array(4)].map((_, i) => <div key={i} className="h-10 bg-muted animate-pulse rounded" />)}
                 </div>

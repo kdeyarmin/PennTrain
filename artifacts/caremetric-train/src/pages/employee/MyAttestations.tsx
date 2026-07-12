@@ -11,6 +11,7 @@ import { useListPolicyDocuments, useListPolicyDocumentVersionsForOrg, usePolicyD
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { QueryError } from "@/components/QueryState";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { FileCheck2, ExternalLink, Loader2 } from "lucide-react";
@@ -36,7 +37,13 @@ export default function MyAttestations() {
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
   // Gate on a resolved employee id -- see useListPolicyAttestations' own comment on why `enabled`,
   // not just the filter, is required to avoid an unscoped fetch-then-refetch on every page load.
-  const { data: attestations, isLoading: attestationsLoading } = useListPolicyAttestations(
+  const {
+    data: attestations,
+    isLoading: attestationsLoading,
+    isError: attestationsError,
+    error: attestationsErrorDetail,
+    refetch: refetchAttestations,
+  } = useListPolicyAttestations(
     { employeeId: employee?.id },
     { enabled: !!employee?.id },
   );
@@ -108,7 +115,9 @@ export default function MyAttestations() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {attestationsError ? (
+            <QueryError what="your attestations" error={attestationsErrorDetail} onRetry={() => refetchAttestations()} />
+          ) : isLoading ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded" />)}
             </div>

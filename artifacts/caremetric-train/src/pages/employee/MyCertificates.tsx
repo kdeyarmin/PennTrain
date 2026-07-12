@@ -7,8 +7,14 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { QueryError } from "@/components/QueryState";
 import { Award, ExternalLink, Download, Loader2 } from "lucide-react";
 import { Link } from "wouter";
+import { formatDateForDisplay } from "@/lib/dateUtils";
+
+// Certificate PDFs render on a background job queue; while one is still pending/processing,
+// poll the list so the action button flips to "Download" without a manual refresh.
+const PDF_POLL_INTERVAL_MS = 15_000;
 
 export default function MyCertificates() {
   const { user } = useAuth();
@@ -17,9 +23,21 @@ export default function MyCertificates() {
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
   // Gate on a resolved employee id -- see useListCertificates' own comment on why `enabled`, not
   // just the filter, is required to avoid an unscoped fetch-then-refetch on every page load.
-  const { data: certificates, isLoading: certificatesLoading } = useListCertificates(
+  const {
+    data: certificates,
+    isLoading: certificatesLoading,
+    isError: certificatesError,
+    error: certificatesErrorDetail,
+    refetch: refetchCertificates,
+  } = useListCertificates(
     { employeeId: employee?.id },
-    { enabled: !!employee?.id },
+    {
+      enabled: !!employee?.id,
+      refetchInterval: (certs) =>
+        certs?.some((c) => c.pdf_status === "pending" || c.pdf_status === "processing")
+          ? PDF_POLL_INTERVAL_MS
+          : false,
+    },
   );
   const { data: courses } = useListCourses();
   const { mutateAsync: generatePdf } = useGenerateCertificatePdf();
@@ -65,7 +83,9 @@ export default function MyCertificates() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {certificatesError ? (
+            <QueryError what="your certificates" error={certificatesErrorDetail} onRetry={() => refetchCertificates()} />
+          ) : isLoading ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded" />)}
             </div>
@@ -85,9 +105,9 @@ export default function MyCertificates() {
                         {courseTitleById.get(cert.course_id) ?? `Course #${cert.course_id.slice(0, 8)}`}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Issued {new Date(cert.issued_at).toLocaleDateString()}
+                        Issued {formatDateForDisplay(cert.issued_at)}
                         {cert.expires_at && (
-                          <> &middot; {expired ? "Expired" : "Expires"} {new Date(cert.expires_at).toLocaleDateString()}</>
+                          <> &middot; {expired ? "Expired" : "Expires"} {formatDateForDisplay(cert.expires_at)}</>
                         )}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5 font-mono">

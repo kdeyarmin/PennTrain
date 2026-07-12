@@ -5,8 +5,11 @@ import type {
   ToastProps,
 } from "@/components/ui/toast"
 
-const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 1000000
+// Allow a few toasts to stack so a second error can't silently replace the first
+// (e.g. two mutations failing back-to-back). Dismissed toasts leave state shortly
+// after the exit animation instead of lingering in memory for ~16 minutes.
+const TOAST_LIMIT = 3
+const TOAST_REMOVE_DELAY = 5000
 
 type ToasterToast = ToastProps & {
   id: string
