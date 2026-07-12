@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle2, Circle, CircleDot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -38,8 +39,8 @@ interface StateFormWorkflowStepperProps {
 export function StateFormWorkflowStepper({ item, resident, facilityType, canManage, triggeredByItemType }: StateFormWorkflowStepperProps) {
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const { data: forms } = useListResidentAssessmentForms(resident.id);
-  const { data: documents } = useListResidentDocuments(resident.id);
+  const { data: forms, isLoading: formsLoading } = useListResidentAssessmentForms(resident.id);
+  const { data: documents, isLoading: documentsLoading } = useListResidentDocuments(resident.id);
 
   const startAssessmentForm = useStartResidentAssessmentForm();
   const generatePdf = useGenerateResidentAssessmentFormPdf();
@@ -48,6 +49,13 @@ export function StateFormWorkflowStepper({ item, resident, facilityType, canMana
   const getSignedUrl = useResidentDocumentSignedUrl();
 
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
+
+  // Never derive from unloaded data: treating a still-loading forms/documents list as empty
+  // would briefly render "Start prep" for an item whose draft or finalized form already exists,
+  // and a fast click in that window starts a duplicate draft instead of continuing the real one.
+  if (formsLoading || documentsLoading) {
+    return <Skeleton className="h-12" />;
+  }
 
   const workflow: StateFormWorkflowState = deriveStateFormWorkflow(item, forms ?? [], documents ?? [], facilityType);
 
