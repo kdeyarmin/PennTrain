@@ -70,8 +70,10 @@ export function useCompleteResidentComplianceItem() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["resident_compliance_items", data.resident_id] }),
-  });
+onSuccess: (data) => {
+  queryClient.invalidateQueries({ queryKey: ["resident_compliance_items", data.resident_id] });
+  queryClient.invalidateQueries({ queryKey: ["resident_compliance_items_all"] });
+},
 }
 
 // Logs a change-of-condition event: PA DHS requires a reassessment "if the resident's condition
