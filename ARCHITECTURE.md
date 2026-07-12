@@ -32,9 +32,10 @@ backend logic lives in the Supabase project (`xsqobvvreaovwibxwyvv`, "CM Train")
   `src/hooks/*.ts` (no codegen layer — the query builder is already typed via generated `database.types.ts`)
 - **Auth**: Supabase Auth (GoTrue). Every account is provisioned server-side via a trusted Edge Function: an admin
   creates or invites a user directly (`create-user`, `invite-user`), or a facility admin self-registers a
-  brand-new organization (`signup-organization`, `/signup`) and becomes its `org_admin`. Plain
-  `POST /auth/v1/signup` remains enabled at the project level but is unused by the app UI and confers no
-  organization/role either way (see the trust-boundary fix in `20260704180244_fix_handle_new_user_trust_boundary.sql`)
+  brand-new organization (`signup-organization`, `/signup`) and becomes its `org_admin` only after Turnstile,
+  rate-limit, and invite-email checks pass. Plain `POST /auth/v1/signup` should stay disabled in production and,
+  even if enabled, confers no organization/role by itself (see the trust-boundary fix in
+  `20260704180244_fix_handle_new_user_trust_boundary.sql`)
 - **Authorization**: Row-Level Security on every table, plus a handful of `SECURITY DEFINER` RPCs for atomic
   multi-row operations, plus Edge Functions for anything needing the service-role key or outbound HTTP
 
@@ -60,7 +61,7 @@ Six roles on `profiles.role`: `platform_admin`, `org_admin`, `facility_manager`,
   reached from a training record's assignment), certificates, documents
 
 Public (no auth): `/verify/:slug` — certificate verification; `/signup` — self-service organization creation
-(always grants `org_admin` on a brand-new organization, never an existing one or a different role).
+(creates a brand-new organization, then grants `org_admin` only after Turnstile/rate-limit checks and invite email).
 
 ## RLS / Authorization Model
 
@@ -119,17 +120,10 @@ bypass** -- unlike the immutability trigger above, this one applies to platform_
 platform_admin is the only role that can generate AI content. Every generation call (success or failure) is
 logged to the `course_ai_generations` audit table.
 
-## Demo Credentials (seeded)
+## Demo Access
 
-| Role | Email | Password | Organization |
-|------|-------|----------|--------------|
-| platform_admin | info@caremetrictrain.com | admin123 | — |
-| org_admin | admin@sunrisehealthcare.com | demo123 | Sunrise Healthcare Group |
-| facility_manager | manager@sunrisemanor.com | demo123 | Sunrise Healthcare Group |
-| trainer | trainer@sunrisehealthcare.com | demo123 | Sunrise Healthcare Group |
-| employee | employee@sunrisehealthcare.com | demo123 | Sunrise Healthcare Group |
-| auditor | auditor@sunrisehealthcare.com | demo123 | Sunrise Healthcare Group |
-| org_admin | admin@maplegrove.com | demo123 | Maple Grove Senior Living |
+Demo login buttons are environment-configured with `VITE_DEMO_ACCOUNTS_JSON` and are disabled when that value is
+absent or malformed. Reusable demo/platform_admin passwords are intentionally not seeded in SQL or committed to docs.
 
 ## Key Commands
 
@@ -140,10 +134,29 @@ logged to the `course_ai_generations` audit table.
   `supabase/migrations/<version>_<name>.sql` using the version number Supabase actually assigned (from
   `mcp__Supabase__list_migrations`), so the Supabase GitHub integration's preview-branch deploys stay in sync.
 
+## Scheduling
+
+Basic shift scheduling (not qualification-gated -- see ROADMAP.md's deferred-ideas table). `employee_facility_assignments`
+is an additive join table recording every facility an employee can be scheduled at, mirroring the existing
+profile-level `facility_assignments`; `employees.facility_id` remains the employee's home/primary facility and is
+kept in sync via a trigger, so every pre-existing compliance feature is unaffected. On top of that:
+`facility_units` (wings), `shift_definitions` (typical shift time templates), `employee_schedule_preferences` (each
+employee's typical recurring shift/unit pattern by day-of-week), `schedules` (a draft/published period for one
+facility), and `shift_assignments` (one employee's shift on one date). `generate_schedule_assignments` is the
+auto-fill RPC -- it populates a draft schedule from every employee's typical pattern, skipping any date an
+employee already has a shift (manual entries always win); `clear_auto_filled_assignments` is the matching undo
+(only removes untouched auto-generated rows). `publish_schedule`/`unpublish_schedule` flip a schedule's visibility
+to employees -- `shift_assignments_select`'s employee-owned branch requires the parent schedule to be
+`published`. `org_admin`/`facility_manager` manage scheduling at `/app/schedule` (`/app/schedule/setup` for
+units/shifts/patterns); employees see their own published shifts (read-only) at `/me/schedule`. One deliberate v1
+limitation: `shift_assignments` has a `unique (employee_id, shift_date)` constraint, so an employee is capped at
+one shift per calendar date across every facility -- no double shifts, no same-day float between two facilities.
+
 ## Database Schema (selected tables)
 
 Tenancy/identity: `organizations`, `organization_settings`, `facilities`, `profiles`, `facility_assignments`,
-`employees`, `packages`. Compliance core: `training_types`, `employee_training_records`,
+`employees`, `employee_facility_assignments`, `packages`. Scheduling: `facility_units`, `shift_definitions`,
+`employee_schedule_preferences`, `schedules`, `shift_assignments`. Compliance core: `training_types`, `employee_training_records`,
 `employee_training_hour_buckets`, `practicums`, `training_documents`, `alerts`, `audit_logs`, `training_classes`,
 `training_class_attendees`. LMS: `courses`, `course_versions`, `course_blocks`, `quizzes`, `quiz_questions`,
 `quiz_answers`, `course_assignments`, `course_progress`, `quiz_attempts`, `quiz_attempt_answers`,

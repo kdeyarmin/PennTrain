@@ -3,14 +3,16 @@ import { supabase } from "@/lib/supabase";
 
 export interface SignupOrganizationRequest {
   email: string;
-  password: string;
   firstName: string;
   lastName: string;
   organizationName: string;
+  turnstileToken: string;
+  redirectTo: string;
 }
 
 export interface SignupOrganizationResponse {
   success?: boolean;
+  requiresEmailVerification?: boolean;
   user?: { id: string; email: string };
   organization?: { id: string; name: string };
 }
@@ -21,10 +23,9 @@ interface EdgeFunctionErrorShape {
 }
 
 /**
- * Public, unauthenticated self-service signup: creates a brand-new organization and an
- * org_admin account for it via the signup-organization Edge Function. role/organization_id are
- * set through that function's service-role app_metadata call, the same trust boundary
- * create-user uses -- never client-controlled, unlike the plain public signup endpoint.
+ * Public, unauthenticated self-service signup: creates a brand-new organization and sends the
+ * new org_admin an invite email via the signup-organization Edge Function. The function owns
+ * Turnstile verification, rate limits, org creation, and the trusted org_admin profile update.
  */
 export function useSignupOrganization() {
   return useMutation({
@@ -34,10 +35,11 @@ export function useSignupOrganization() {
         {
           body: {
             email: payload.email,
-            password: payload.password,
             first_name: payload.firstName,
             last_name: payload.lastName,
             organization_name: payload.organizationName,
+            turnstile_token: payload.turnstileToken,
+            redirect_to: payload.redirectTo,
           },
         },
       );

@@ -8,10 +8,20 @@ import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 import { DEMO_MAILTO } from "@/components/marketing/content";
 import { MARKETING_NAV } from "@/lib/publicPaths";
 
-/** Wouter doesn't reset scroll between route changes -- do it ourselves. */
+/**
+ * Wouter doesn't reset scroll between route changes -- do it ourselves. If the
+ * new URL carries a hash (e.g. a cross-page deep link to /features#security),
+ * scroll that section into view instead of forcing back to the top.
+ */
 function ScrollToTop() {
   const [location] = useLocation();
   useEffect(() => {
+    const hash = window.location.hash;
+    const target = hash && document.getElementById(hash.slice(1));
+    if (target) {
+      target.scrollIntoView();
+      return;
+    }
     window.scrollTo(0, 0);
   }, [location]);
   return null;

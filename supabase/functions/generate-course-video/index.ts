@@ -1,4 +1,5 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+// @ts-nocheck
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -31,7 +32,7 @@ Deno.serve(async (req: Request) => {
   const heygenApiKey = Deno.env.get("HEYGEN_API_KEY");
   if (!heygenApiKey) return json({ error: "HEYGEN_API_KEY is not configured" }, 500);
 
-  const callerClient = createClient(supabaseUrl, anonKey, {
+  const callerClient = createClient<any>(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 
@@ -48,6 +49,16 @@ Deno.serve(async (req: Request) => {
   }
   if (!WRITER_ROLES.includes(callerProfile.role as string)) {
     return json({ error: "not authorized to generate course videos" }, 403);
+  }
+
+  const { data: aiVideoSetting } = await callerClient
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "ai_video_generation_enabled")
+    .maybeSingle();
+  const aiVideoGenerationEnabled = aiVideoSetting?.value !== false;
+  if (!aiVideoGenerationEnabled) {
+    return json({ error: "AI video generation is currently disabled by the platform administrator." }, 403);
   }
 
   let body: { course_block_id?: string; avatar_id?: string; voice_id?: string; script?: string; title?: string };

@@ -38,10 +38,9 @@ export default defineConfig(({ command, mode }) => {
       tailwindcss(),
       // Installable PWA course player (ROADMAP.md Tier 3.4). generateSW precaches the built app
       // shell (JS/CSS/HTML) with a default cache-first strategy for those static assets --
-      // Supabase API/storage requests are runtime-cached separately below, network-first, so a
-      // learner always gets fresh data when online and the last-seen response when they briefly
-      // drop signal, without the app claiming to work fully offline (it doesn't -- there is no
-      // queued-write/background-sync story here, just resilience against flaky mobile networks).
+      // Protected course content is deliberately excluded from Workbox runtime caches. Phase 4
+      // stores only allowlisted learner content as user/tenant-bound AES-GCM ciphertext and sends
+      // queued actions through the replay-safe server sync contract.
       //
       // devOptions.enabled is deliberately NOT set: turning on the dev-mode service worker here
       // reproduced a hard hang on every login in `npm run dev` (auth resolves, but the
@@ -59,7 +58,7 @@ export default defineConfig(({ command, mode }) => {
           theme_color: "#102a43",
           background_color: "#102a43",
           display: "standalone",
-          start_url: "/me",
+          start_url: `${basePath}me`,
           icons: [
             { src: "pwa-192x192.png", sizes: "192x192", type: "image/png" },
             { src: "pwa-512x512.png", sizes: "512x512", type: "image/png" },
@@ -67,16 +66,40 @@ export default defineConfig(({ command, mode }) => {
           ],
         },
         workbox: {
+          // App.tsx route-splits ~80 per-route chunks (admin/app/trainer/employee pages) behind
+          // React.lazy so an anonymous marketing visitor's initial load doesn't fetch them. The SW
+          // registers for every visitor (registerType: autoUpdate, default injectRegister), so
+          // without this the default generateSW glob would precache ALL of those chunks anyway --
+          // right after the landing page loads -- silently re-downloading the whole app in the
+          // background and defeating the point of the split. Scope precache to just the shared
+          // shell every route needs; per-route chunks are cached opportunistically as actually
+          // visited via the runtimeCaching rule below instead of forced upfront for every visitor.
+          // manifest.webmanifest is deliberately omitted -- vite-plugin-pwa always injects it into
+          // the precache manifest itself regardless of globPatterns, so listing it here just
+          // produces a duplicate (harmless, but noisy in the generated sw.js).
+          globPatterns: [
+            "index.html",
+            "**/index-*.js",
+            "**/router-*.js",
+            "**/query-*.js",
+            "**/radix-*.js",
+            "**/supabase-*.js",
+            "**/motion-*.js",
+            "**/icons-*.js",
+            "**/*.css",
+          ],
           runtimeCaching: [
             {
-              urlPattern: ({ url }) =>
-                url.hostname.endsWith(".supabase.co") &&
-                (url.pathname.startsWith("/rest/v1/") || url.pathname.startsWith("/storage/v1/")),
-              handler: "NetworkFirst",
+              // Per-route chunks aren't precached (see globPatterns above) -- cache them as a
+              // user actually visits each page, so repeat visits and brief signal drops on
+              // mobile still get a fast/resilient load without eagerly downloading every role's
+              // pages for every visitor.
+              urlPattern: ({ request, sameOrigin }) =>
+                sameOrigin && (request.destination === "script" || request.destination === "style"),
+              handler: "StaleWhileRevalidate",
               options: {
-                cacheName: "supabase-runtime",
-                networkTimeoutSeconds: 8,
-                expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 },
+                cacheName: "app-chunks",
+                expiration: { maxEntries: 120, maxAgeSeconds: 60 * 60 * 24 * 7 },
               },
             },
           ],
@@ -96,6 +119,7 @@ export default defineConfig(({ command, mode }) => {
       rollupOptions: {
         output: {
           manualChunks: {
+            router: ["wouter"],
             radix: [
               "@radix-ui/react-accordion",
               "@radix-ui/react-alert-dialog",
@@ -110,6 +134,9 @@ export default defineConfig(({ command, mode }) => {
               "@radix-ui/react-tooltip",
             ],
             query: ["@tanstack/react-query"],
+            supabase: ["@supabase/supabase-js"],
+            motion: ["framer-motion"],
+            icons: ["lucide-react"],
           },
         },
       },

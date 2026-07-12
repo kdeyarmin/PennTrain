@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useAuth } from "@/lib/auth";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -246,7 +247,7 @@ export default function RetrainingMonitor() {
                       {fac.nextExpiryDate && (
                         <p className="text-xs text-muted-foreground">
                           Next expiry:{" "}
-                          {new Date(fac.nextExpiryDate).toLocaleDateString("en-US", {
+                          {formatDateForDisplay(fac.nextExpiryDate, {
                             month: "short",
                             day: "numeric",
                             year: "numeric",

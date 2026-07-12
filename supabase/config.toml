@@ -13,7 +13,10 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.generate-certificate-pdf]
-verify_jwt = true
+# Serves both authenticated user downloads and the internal PDF-job cron worker. JWT
+# verification is enforced inside the function for user requests; cron requests use the
+# shared constant-time secret check used by the other internal workers.
+verify_jwt = false
 
 [functions.generate-incident-report-pdf]
 verify_jwt = true
@@ -25,6 +28,12 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.generate-poc-document]
+verify_jwt = true
+
+[functions.generate-resident-assessment-pdf]
+verify_jwt = true
+
+[functions.generate-resident-assessment-summary]
 verify_jwt = true
 
 [functions.generate-course-video]
@@ -45,25 +54,33 @@ verify_jwt = true
 [functions.invite-user]
 verify_jwt = true
 
-# Internal cron-only endpoint invoked by pg_net from a pg_cron schedule (see
-# supabase/migrations/20260705061816_notification_delivery_engine.sql) -- pg_net has no way to
-# supply a user JWT. The function takes no caller-supplied parameters and always processes the
-# same system-wide pending queue regardless of caller, so this is not a data-exposure risk.
+# Internal cron-only endpoint invoked by pg_net from a pg_cron schedule. pg_net has no user JWT,
+# so verify_jwt stays false, but the function rejects requests without X-CareMetric-Cron-Secret
+# matching the CRON_SHARED_SECRET Edge Function secret.
 [functions.dispatch-notifications]
 verify_jwt = false
 
-# Same reasoning as dispatch-notifications -- monthly pg_cron-invoked ingestion job, no
-# caller-supplied parameters, always re-ingests the same public dataset and re-scans the full
-# roster regardless of caller.
+# Public provider callbacks. Neither provider sends a Supabase JWT; each
+# function validates the provider's cryptographic signature before using a
+# service-role client. Invalid or replayed events cannot mutate delivery state.
+[functions.twilio-notification-webhook]
+verify_jwt = false
+
+[functions.sendgrid-notification-webhook]
+verify_jwt = false
+
+# Same cron-secret pattern as dispatch-notifications.
 [functions.screen-exclusions]
 verify_jwt = false
 
-# Same reasoning as dispatch-notifications -- pg_cron-invoked HeyGen status-polling job (every 5
-# minutes, see supabase/migrations/20260705211500_schedule_heygen_video_status_polling.sql), no
-# caller-supplied parameters, always re-polls the same system-wide non-terminal video job queue
-# regardless of caller.
+# Same cron-secret pattern as dispatch-notifications.
 [functions.poll-heygen-video-statuses]
 verify_jwt = false
+
+# Platform-admin recovery endpoint. Supabase validates the caller JWT and the
+# function repeats the active-role check before it can queue or dispatch work.
+[functions.run-system-job]
+verify_jwt = true
 
 # Supabase Auth's "Send Email" hook (Authentication -> Hooks) calls this over the public
 # internet with no user JWT -- authenticity is verified inside the function via the Standard
@@ -72,8 +89,55 @@ verify_jwt = false
 verify_jwt = false
 
 # Public, unauthenticated self-service signup endpoint by design -- there is no caller session
-# yet at signup time. Always creates a brand-new organization and grants org_admin on it (never
-# an existing organization or a different role), which is what keeps it safe to leave open; see
-# the comment at the top of the function itself for the full reasoning.
+# yet at signup time. The function enforces Turnstile, hashed rate limits, platform signup gates,
+# and invite-email verification before the org_admin can set a password.
 [functions.signup-organization]
+verify_jwt = false
+
+# Real session impersonation ("log in as user") for platform_admin support use. Authorization is
+# enforced inside the function itself (caller JWT must resolve to an active platform_admin
+# profile), not via verify_jwt -- verify_jwt only confirms the request carries *a* valid JWT, not
+# that its holder is platform_admin, so the function-level check is the real boundary either way.
+[functions.impersonate-user]
+verify_jwt = true
+
+# Public, unauthenticated platform-status check (maintenance banner, /signup gating) -- exposes
+# only two curated booleans, never the full platform_settings table, so there is no caller-session
+# needed and nothing sensitive to protect with verify_jwt.
+[functions.get-platform-status]
+verify_jwt = false
+
+# Organization/platform administrators create Stripe Checkout or Customer Portal sessions. The
+# gateway verifies the JWT and the function repeats the active-role, tenant, entitlement, redirect
+# origin, and idempotency checks before calling Stripe.
+[functions.create-billing-session]
+verify_jwt = true
+
+# Stripe cannot present a Supabase JWT. This endpoint authenticates the exact raw request body with
+# Stripe-Signature before its idempotent, out-of-order-safe event processor can mutate billing state.
+[functions.stripe-billing-webhook]
+verify_jwt = false
+
+# SCIM and the public integration API use tenant-bound credentials that are hashed at rest and
+# validated inside their handlers. A Supabase JWT would be the wrong authentication mechanism.
+[functions.scim-provision]
+verify_jwt = false
+
+# Active organization/platform administrator JWT plus AAL2 are enforced in the handler. The
+# handler proves control with a DNS TXT lookup, then uses service_role for the otherwise
+# service-only verification transition; interactive callers cannot self-attest domain ownership.
+[functions.verify-identity-domain]
+verify_jwt = true
+
+[functions.integration-api]
+verify_jwt = false
+
+# Public confidential intake. Turnstile, hashed IP rate limits, and server-generated
+# resume/confirmation secrets are enforced in the handler before service-role RPC use.
+[functions.submit-confidential-intake]
+verify_jwt = false
+
+# Internal cron worker. It requires X-CareMetric-Cron-Secret and signs each tenant webhook with the
+# endpoint-specific secret held in Vault; it does not accept a caller session.
+[functions.dispatch-integration-webhooks]
 verify_jwt = false

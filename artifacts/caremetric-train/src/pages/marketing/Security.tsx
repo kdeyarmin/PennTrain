@@ -1,16 +1,41 @@
-import { CheckCircle2, LockKeyhole, ShieldCheck } from "lucide-react";
+import {
+  CheckCircle2,
+  ClipboardCheck,
+  LockKeyhole,
+  ShieldCheck,
+} from "lucide-react";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
-import { PageHero, Reveal, TechGrid, TechIcon } from "@/components/marketing/primitives";
+import {
+  PageHero,
+  Reveal,
+  TechGrid,
+  TechIcon,
+} from "@/components/marketing/primitives";
 import { SECURITY_FEATURES } from "@/components/marketing/content";
+import { usePageMeta } from "@/lib/usePageMeta";
+
+const SECURITY_CHECKLIST = [
+  "Can a facility manager only access assigned-facility records?",
+  "Can an employee see their own training without seeing coworker credentials?",
+  "Can an auditor review evidence without changing it?",
+  "Can support impersonation, AI review, certificate issuance, and policy signatures be audited later?",
+];
 
 const SECURITY_PROMISES = [
   "Users are scoped by organization, facility, and role before records are shown.",
   "Private evidence files use short-lived access links instead of public buckets.",
   "Compliance-impacting actions are preserved in an audit trail for review.",
+  "A facility outside a viewer's assigned scope shows as 'Not Assigned' -- never a false all-clear.",
 ];
 
 export default function Security() {
+  usePageMeta({
+    title: "Security — CareMetric Train",
+    description:
+      "Row-level security, six enforced access roles, private signed-URL storage, and an immutable audit trail -- see how CareMetric Train protects sensitive compliance data.",
+    path: "/security",
+  });
   return (
     <MarketingLayout>
       <PageHero
@@ -27,12 +52,14 @@ export default function Security() {
               <LockKeyhole className="h-7 w-7 text-[#59b2ff]" />
             </div>
             <h2 className="mt-5 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
-              Security is part of the product workflow, not a separate promise page.
+              Security is part of the product workflow, not a separate promise
+              page.
             </h2>
             <p className="mt-4 text-white/68">
-              The same boundaries that make the app easier to use also reduce risk:
-              managers see their facilities, employees see their own assignments, and
-              auditors can review evidence without changing records.
+              The same boundaries that make the app easier to use also reduce
+              risk: managers see their facilities, employees see their own
+              assignments, and auditors can review evidence without changing
+              records.
             </p>
           </Reveal>
 
@@ -42,7 +69,9 @@ export default function Security() {
                 <div className="flex h-full gap-4 rounded-xl border border-white/10 bg-white/[0.055] p-6 backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#59b2ff]/40 hover:bg-white/[0.075]">
                   <TechIcon icon={feature.icon} />
                   <div>
-                    <h3 className="font-semibold text-white">{feature.title}</h3>
+                    <h3 className="font-semibold text-white">
+                      {feature.title}
+                    </h3>
                     <p className="mt-1.5 text-sm leading-6 text-white/62">
                       {feature.description}
                     </p>
@@ -61,18 +90,54 @@ export default function Security() {
               <ShieldCheck className="h-3.5 w-3.5" />
               Practical safeguards for survey evidence
             </div>
-            <h2 className="mt-4 text-2xl font-extrabold tracking-tight">Designed around least-privilege access</h2>
+            <h2 className="mt-4 text-2xl font-extrabold tracking-tight">
+              Designed around least-privilege access
+            </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               Compliance systems collect sensitive employee records, signatures,
-              certificates, credentials, and corrective-action evidence. CareMetric
-              Train keeps those assets organized without making them broadly visible.
+              certificates, credentials, and corrective-action evidence.
+              CareMetric Train keeps those assets organized without making them
+              broadly visible.
             </p>
           </Reveal>
           <Reveal delay={0.1} className="grid gap-3">
             {SECURITY_PROMISES.map((promise) => (
-              <div key={promise} className="flex items-start gap-3 rounded-xl border bg-card p-4 shadow-sm">
+              <div
+                key={promise}
+                className="flex items-start gap-3 rounded-xl border bg-card p-4 shadow-sm"
+              >
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                 <span className="text-sm text-foreground/85">{promise}</span>
+              </div>
+            ))}
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="border-b border-border/60 bg-background">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
+          <Reveal>
+            <div className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs font-semibold text-primary shadow-sm">
+              <ClipboardCheck className="h-3.5 w-3.5" />
+              Questions security-minded buyers ask
+            </div>
+            <h2 className="mt-4 text-2xl font-extrabold tracking-tight">
+              Trust claims are translated into verifiable product behavior
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              Instead of relying on broad promises, CareMetric Train frames
+              safeguards as practical access questions buyers can validate
+              during a demo.
+            </p>
+          </Reveal>
+          <Reveal delay={0.1} className="grid gap-3">
+            {SECURITY_CHECKLIST.map((item) => (
+              <div
+                key={item}
+                className="flex items-start gap-3 rounded-xl border bg-card p-4 shadow-sm"
+              >
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                <span className="text-sm text-foreground/85">{item}</span>
               </div>
             ))}
           </Reveal>

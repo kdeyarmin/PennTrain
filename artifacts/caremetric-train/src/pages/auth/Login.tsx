@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
-import { Loader2, ArrowRight } from "lucide-react";
+import { markExplicitPasswordSignIn } from "@/lib/auth";
+import { Loader2, ArrowRight, ShieldCheck } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 
 export default function Login() {
@@ -19,6 +20,7 @@ export default function Login() {
 
   const loginMutation = useMutation({
     mutationFn: async ({ email, password }: { email: string; password: string }) => {
+      markExplicitPasswordSignIn();
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       return data;
@@ -39,6 +41,26 @@ export default function Login() {
         variant: "destructive",
         title: "Login failed",
         description: error.message || "Please check your credentials and try again.",
+      });
+    },
+  });
+
+  const ssoMutation = useMutation({
+    mutationFn: async (address: string) => {
+      const domain = address.trim().toLowerCase().split("@")[1];
+      if (!domain) throw new Error("Enter your work email to discover your organization's SSO connection.");
+      const { data, error } = await supabase.auth.signInWithSSO({
+        domain,
+        options: { redirectTo: `${window.location.origin}/` },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Enterprise sign-in unavailable",
+        description: error.message,
       });
     },
   });
@@ -77,7 +99,9 @@ export default function Login() {
 
         <Card className="border-border/50 shadow-xl shadow-black/[0.04] backdrop-blur-sm">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg">Sign in to your account</CardTitle>
+            <CardTitle className="text-lg">
+              <h2>Sign in to your account</h2>
+            </CardTitle>
             <CardDescription>Enter your credentials to access your dashboard</CardDescription>
           </CardHeader>
           <CardContent>
@@ -126,6 +150,23 @@ export default function Login() {
                 )}
               </Button>
             </form>
+            <div className="my-4 flex items-center gap-3" aria-hidden="true">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">or</span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-10"
+              disabled={ssoMutation.isPending || loginMutation.isPending}
+              onClick={() => ssoMutation.mutate(email)}
+            >
+              {ssoMutation.isPending
+                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                : <ShieldCheck className="mr-2 h-4 w-4" />}
+              Continue with enterprise SSO
+            </Button>
             <p className="mt-4 text-center text-[13px] text-muted-foreground">
               New facility?{" "}
               <Link href="/signup" className="font-medium text-primary hover:text-primary/80">

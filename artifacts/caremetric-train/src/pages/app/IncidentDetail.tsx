@@ -4,19 +4,23 @@ import {
   useGetIncident, useUpdateIncident,
   useListIncidentStaffInvolved, useAddIncidentStaffInvolved, useRemoveIncidentStaffInvolved,
   useListIncidentNotifications, useAddIncidentNotification, useCompleteIncidentNotification,
-  useGenerateIncidentReportPdf,
+  useGenerateIncidentReportPdf, type IncidentStaffInvolved,
 } from "@/hooks/useIncidents";
 import {
   useListCorrectiveActions, useCreateCorrectiveAction, useUpdateCorrectiveAction,
 } from "@/hooks/useCorrectiveActions";
 import {
   useListIncidentDocuments, useUploadIncidentDocument, useIncidentDocumentSignedUrl, useDeleteIncidentDocument,
+  type IncidentDocument,
 } from "@/hooks/useIncidentDocuments";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListProfiles } from "@/hooks/useProfiles";
+import { useListResidents } from "@/hooks/useResidents";
 import { useListCourses } from "@/hooks/useCourses";
 import { useCreateCourseAssignment } from "@/hooks/useCourseAssignments";
+import { CorrectiveActionForm, CorrectiveActionStatusBadge } from "@/components/CorrectiveActionForm";
+import { toLocalIsoDate } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,30 +30,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   ArrowLeft, AlertTriangle, Users, Bell, ClipboardList, FileText, Upload, Download, Trash2, Check, Plus,
   FileDown, GraduationCap,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-
-function humanize(value: string): string {
-  return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-}
+import { humanize } from "@/lib/utils";
 
 function NotificationStatusBadge({ status }: { status: string }) {
   const className =
     status === "completed" ? "bg-success text-success-foreground hover:bg-success/80"
     : status === "overdue" ? "bg-destructive text-destructive-foreground hover:bg-destructive/80"
     : "bg-warning text-warning-foreground hover:bg-warning/80"; // pending
-  return <Badge className={className} variant="outline">{humanize(status)}</Badge>;
-}
-
-function CorrectiveActionStatusBadge({ status }: { status: string }) {
-  const className =
-    status === "completed" ? "bg-success text-success-foreground hover:bg-success/80"
-    : status === "overdue" ? "bg-destructive text-destructive-foreground hover:bg-destructive/80"
-    : status === "cancelled" ? "bg-muted text-muted-foreground"
-    : "bg-info text-info-foreground hover:bg-info/80"; // open/in_progress
   return <Badge className={className} variant="outline">{humanize(status)}</Badge>;
 }
 
@@ -72,6 +68,9 @@ export default function IncidentDetail() {
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees();
   const { data: profiles } = useListProfiles();
+  // Scoped to this incident's facility -- used only to resolve resident_identifier into a display
+  // name when it holds a resident id (see residentDisplay below), not to power a picker here.
+  const { data: facilityResidents } = useListResidents({ facilityId: incident?.facility_id });
   const { data: staffInvolved, isLoading: staffLoading } = useListIncidentStaffInvolved(id);
   const { data: notifications, isLoading: notificationsLoading } = useListIncidentNotifications(id);
   const { data: correctiveActions, isLoading: correctiveLoading } = useListCorrectiveActions({ incidentId: id });
@@ -80,10 +79,10 @@ export default function IncidentDetail() {
 
   const { mutate: updateIncident, isPending: updatingIncident } = useUpdateIncident();
   const { mutate: addStaff } = useAddIncidentStaffInvolved();
-  const { mutate: removeStaff } = useRemoveIncidentStaffInvolved();
+  const { mutateAsync: removeStaffAsync } = useRemoveIncidentStaffInvolved();
   const { mutate: addNotification } = useAddIncidentNotification();
   const { mutate: completeNotification, isPending: completingNotification } = useCompleteIncidentNotification();
-  const { mutate: createCorrectiveAction } = useCreateCorrectiveAction();
+  const { mutateAsync: createCorrectiveActionAsync } = useCreateCorrectiveAction();
   const { mutate: updateCorrectiveAction } = useUpdateCorrectiveAction();
   const { mutateAsync: createCourseAssignment } = useCreateCourseAssignment();
   const uploadDocument = useUploadIncidentDocument();
@@ -95,7 +94,6 @@ export default function IncidentDetail() {
   const [newStaffRole, setNewStaffRole] = useState<"involved_party" | "witness" | "first_responder" | "reporter">("witness");
   const [newNotificationType, setNewNotificationType] = useState<"state_hotline" | "family_guardian" | "law_enforcement" | "licensing_agency" | "other">("state_hotline");
   const [newNotificationHours, setNewNotificationHours] = useState("24");
-  const [newActionDescription, setNewActionDescription] = useState("");
   const [newActionDueDate, setNewActionDueDate] = useState("");
   const [assignRetraining, setAssignRetraining] = useState(false);
   const [retrainEmployeeId, setRetrainEmployeeId] = useState("");
@@ -106,11 +104,47 @@ export default function IncidentDetail() {
   const [completeRecipient, setCompleteRecipient] = useState("");
   const [completeReference, setCompleteReference] = useState("");
   const [finalReportDate, setFinalReportDate] = useState("");
+  const [staffPendingRemove, setStaffPendingRemove] = useState<IncidentStaffInvolved | null>(null);
+  const [docPendingDelete, setDocPendingDelete] = useState<IncidentDocument | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const facilityName = facilities?.find((f) => f.id === incident?.facility_id)?.name;
   const employeeById = new Map((employees ?? []).map((e) => [e.id, e]));
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+  const staffPendingRemoveEmployee = staffPendingRemove ? employeeById.get(staffPendingRemove.employee_id) : undefined;
+  // resident_identifier is a plain text column, not a resident_id FK -- when it holds a real
+  // resident's id (set via the picker on the Incidents.tsx create form) resolve it to a name
+  // instead of showing the raw uuid; legacy/free-text values that don't match any resident on
+  // file at this facility just render as-is, same as before.
+  const matchedResident = incident?.resident_identifier
+    ? facilityResidents?.find((r) => r.id === incident.resident_identifier)
+    : undefined;
+  const residentDisplay = matchedResident
+    ? `${matchedResident.last_name}, ${matchedResident.first_name}${matchedResident.room ? ` — Room ${matchedResident.room}` : ""}`
+    : incident?.resident_identifier;
+
+  const confirmRemoveStaff = async () => {
+    if (!staffPendingRemove || !incident) return;
+    try {
+      await removeStaffAsync({ id: staffPendingRemove.id, incidentId: incident.id });
+    } catch (err) {
+      toast({ title: "Failed to remove staff member", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+    } finally {
+      setStaffPendingRemove(null);
+    }
+  };
+
+  const confirmDeleteDocument = async () => {
+    if (!docPendingDelete) return;
+    try {
+      await deleteDocument.mutateAsync(docPendingDelete);
+      toast({ title: "Document deleted" });
+    } catch (err) {
+      toast({ title: "Delete failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+    } finally {
+      setDocPendingDelete(null);
+    }
+  };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -189,7 +223,7 @@ export default function IncidentDetail() {
         <CardContent className="space-y-3">
           <p className="text-sm whitespace-pre-wrap">{incident.narrative}</p>
           <div className="grid grid-cols-2 gap-3 text-sm pt-2 border-t">
-            {incident.resident_identifier && <div><p className="text-xs text-muted-foreground">Resident</p><p>{incident.resident_identifier}</p></div>}
+            {incident.resident_identifier && <div><p className="text-xs text-muted-foreground">Resident</p><p>{residentDisplay}</p></div>}
             {incident.location_detail && <div><p className="text-xs text-muted-foreground">Location</p><p>{incident.location_detail}</p></div>}
           </div>
         </CardContent>
@@ -236,7 +270,7 @@ export default function IncidentDetail() {
                   <div key={s.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
                     <span>{emp ? `${emp.last_name}, ${emp.first_name}` : "Unknown"} — {humanize(s.involvement_type)}</span>
                     {canDelete && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeStaff({ id: s.id, incidentId: incident.id })}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setStaffPendingRemove(s)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
@@ -395,7 +429,7 @@ export default function IncidentDetail() {
                     <div className="flex items-center gap-2 shrink-0">
                       <CorrectiveActionStatusBadge status={ca.status} />
                       {canManage && ca.status !== "completed" && ca.status !== "cancelled" && (
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: new Date().toISOString().slice(0, 10) })}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: toLocalIsoDate() })}>
                           <Check className="h-3.5 w-3.5" />
                         </Button>
                       )}
@@ -410,7 +444,7 @@ export default function IncidentDetail() {
               <label className="flex items-center gap-2 text-xs cursor-pointer">
                 <input
                   type="checkbox" checked={assignRetraining}
-                  onChange={(e) => { setAssignRetraining(e.target.checked); setNewActionDescription(""); }}
+                  onChange={(e) => setAssignRetraining(e.target.checked)}
                 />
                 Assign retraining to an involved staff member instead of a plain description
               </label>
@@ -443,20 +477,28 @@ export default function IncidentDetail() {
                         return;
                       }
                       setCreatingAction(true);
+                      let assignment;
                       try {
-                        const assignment = await createCourseAssignment({
+                        assignment = await createCourseAssignment({
                           employee_id: employee.id, course_id: course.id, course_version_id: course.current_version_id,
                           facility_id: incident.facility_id, organization_id: incident.organization_id,
                           assigned_by: user?.id ?? null, due_date: newActionDueDate,
                         });
-                        createCorrectiveAction({
+                      } catch (err) {
+                        toast({ title: "Failed to assign retraining", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+                        setRetrainEmployeeId(""); setRetrainCourseId(""); setNewActionDueDate(""); setAssignRetraining(false);
+                        setCreatingAction(false);
+                        return;
+                      }
+                      try {
+                        await createCorrectiveActionAsync({
                           incident_id: incident.id, description: `Complete "${course.title}" retraining — ${employee.first_name} ${employee.last_name}`,
                           due_date: newActionDueDate, course_assignment_id: assignment.id,
                           owner_profile_id: user?.id ?? null, organization_id: incident.organization_id, facility_id: incident.facility_id,
                         });
                         setRetrainEmployeeId(""); setRetrainCourseId(""); setNewActionDueDate(""); setAssignRetraining(false);
                       } catch (err) {
-                        toast({ title: "Failed to assign retraining", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+                        toast({ title: "Retraining assigned, but failed to record corrective action", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
                       } finally {
                         setCreatingAction(false);
                       }
@@ -466,24 +508,9 @@ export default function IncidentDetail() {
                   </Button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
-                  <Input value={newActionDescription} onChange={(e) => setNewActionDescription(e.target.value)} placeholder="Corrective action description" className="h-9 flex-1" />
-                  <Input type="date" value={newActionDueDate} onChange={(e) => setNewActionDueDate(e.target.value)} className="h-9 w-40" />
-                  <Button
-                    size="sm"
-                    disabled={!newActionDescription.trim() || !newActionDueDate}
-                    onClick={() => {
-                      createCorrectiveAction({
-                        incident_id: incident.id, description: newActionDescription.trim(), due_date: newActionDueDate,
-                        owner_profile_id: user?.id ?? null, organization_id: incident.organization_id, facility_id: incident.facility_id,
-                      });
-                      setNewActionDescription("");
-                      setNewActionDueDate("");
-                    }}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
+                <CorrectiveActionForm
+                  parent={{ organizationId: incident.organization_id, facilityId: incident.facility_id, incidentId: incident.id }}
+                />
               )}
             </div>
           )}
@@ -519,7 +546,7 @@ export default function IncidentDetail() {
                       <Download className="h-3.5 w-3.5" />
                     </Button>
                     {canDelete && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteDocument.mutate(doc)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDocPendingDelete(doc)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
@@ -582,6 +609,41 @@ export default function IncidentDetail() {
       </Card>
 
       {updatingIncident && <p className="text-xs text-muted-foreground">Saving...</p>}
+
+      <AlertDialog open={!!staffPendingRemove} onOpenChange={(open) => !open && setStaffPendingRemove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Staff Member</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove {staffPendingRemoveEmployee ? `${staffPendingRemoveEmployee.last_name}, ${staffPendingRemoveEmployee.first_name}` : "this person"} from
+              the staff involved in this incident? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRemoveStaff} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!docPendingDelete} onOpenChange={(open) => !open && setDocPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Document</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes "{docPendingDelete?.file_name}" and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteDocument} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

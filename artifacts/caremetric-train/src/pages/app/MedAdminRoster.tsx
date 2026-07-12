@@ -63,7 +63,7 @@ export default function MedAdminRoster() {
       // initial certification is still tracked against MED-INIT.
       const renewRecord = medRenewTypeId ? pickCurrentRecord(empRecords.filter(r => r.training_type_id === medRenewTypeId)) : undefined;
       const initRecord = medInitTypeId ? pickCurrentRecord(empRecords.filter(r => r.training_type_id === medInitTypeId)) : undefined;
-      const certRecord = renewRecord ?? initRecord;
+      const certRecord = (renewRecord && renewRecord.status !== "missing") ? renewRecord : (initRecord ?? renewRecord);
       const certStatus = certRecord?.status ?? "missing";
 
       const practicum = practicumRows.find(p => p.employee_id === emp.id);
