@@ -985,6 +985,18 @@ async function buildAssessmentPdf(input: {
   );
   w.y -= 6;
 
+  // Documents like the RASP/ASP and DME have to be on the state-approved form, no exception -- this
+  // CareMetric-rendered PDF is a drafting/reference copy only. complete_resident_compliance_item()
+  // enforces the real requirement server-side (a resident_documents row flagged is_state_form=true),
+  // but the disclaimer belongs on the artifact itself too, since this PDF can be printed, emailed, or
+  // otherwise separated from the app before anyone sees that enforcement.
+  w.row(
+    `This is a CareMetric-prepared working record for staff and survey reference. It is NOT a `
+    + `substitute for the signed, DHS-prescribed ${input.formType} form -- that form is what satisfies `
+    + `the resident's compliance requirement and must be retained/uploaded on file.`
+  );
+  w.y -= 6;
+
   const incompleteSections = getIncompleteSections(input.formType, content);
   if (incompleteSections.length > 0) {
     w.row(
@@ -1353,85 +1365,36 @@ Deno.serve(async (req: Request) => {
   if (uploadError) return json({ error: uploadError.message }, 500);
 
   // One resident_documents row per assessment-form version -- the existence check above already
-  // guarantees no row with this document_label exists yet, so this is always a fresh insert. The PDF
-  // starts with the official PA DHS form pages and is therefore flagged as the state form created by
-  // the app; the RPC below then completes the linked compliance item with that exact document.
-  const { data: insertedDocument, error: docError } = await adminClient
-    .from("resident_documents")
-    .insert({
-      organization_id: form.organization_id,
-      facility_id: form.facility_id,
-      resident_id: form.resident_id,
-      compliance_item_id: form.compliance_item_id,
-      storage_bucket: DOCUMENTS_BUCKET,
-      storage_path: path,
-      file_name: `PA DHS ${form.form_type} v${form.version_number}.pdf`,
-      file_type: "application/pdf",
-      document_label: documentLabel,
-      uploaded_by_profile_id: callerUser.id,
-      is_state_form: true,
-      state_form_source_label: template.sourceLabel,
-      state_form_source_url: template.url,
-    })
-    .select("id")
-    .single();
-  if (docError) {
-    // If a concurrent request raced and inserted first (unique constraint violation on
-    // (resident_id, document_label)), treat it as idempotent and return the existing document.
-    // Do NOT remove the storage file here: both requests use the same deterministic path with
-    // upsert:true, so the file belongs to the winner; deleting it would orphan their DB row.
-    if (docError.code === "23505") {
-      const { data: racedDoc } = await adminClient
-        .from("resident_documents")
-        .select("id, storage_path")
-        .eq("resident_id", form.resident_id)
-        .eq("document_label", documentLabel)
-        .maybeSingle();
-      if (racedDoc) {
-        return json({
-          error: "A document has already been generated for this finalized form. Contact an administrator if it needs to be replaced.",
-          documentId: racedDoc.id,
-        }, 409);
-      }
-    }
-    await adminClient.storage.from(DOCUMENTS_BUCKET).remove([path]);
-    return json({ error: docError.message }, 500);
-  }
+  // guarantees no row with this document_label exists yet, so this is always a fresh insert.
+  // is_state_form is explicitly false (matches the column default, but stated here so it can never
+  // be mistaken for an oversight): this is CareMetric's own rendered PDF, not the DHS-prescribed
+  // form, and complete_resident_compliance_item() must never treat it as satisfying that requirement.
+  const { error: docError } = await adminClient.from("resident_documents").insert({
+    organization_id: form.organization_id,
+    facility_id: form.facility_id,
+    resident_id: form.resident_id,
+    compliance_item_id: form.compliance_item_id,
+    storage_bucket: DOCUMENTS_BUCKET,
+    storage_path: path,
+    file_name: `${form.form_type} v${form.version_number}.pdf`,
+    file_type: "application/pdf",
+    document_label: documentLabel,
+    uploaded_by_profile_id: callerUser.id,
+    is_state_form: false,
+  });
+  if (docError) return json({ error: docError.message }, 500);
 
-  if (form.compliance_item_id && insertedDocument?.id) {
-    const { error: completeError } = await callerClient.rpc(
-      "complete_resident_compliance_item",
-      {
-        p_item_id: form.compliance_item_id,
-        p_document_id: insertedDocument.id,
-      },
-    );
-    if (completeError) {
-      await adminClient
-        .from("resident_documents")
-        .delete()
-        .eq("id", insertedDocument.id);
-      await adminClient.storage.from(DOCUMENTS_BUCKET).remove([path]);
-      return json({ error: completeError.message }, 500);
-    }
-  }
-
-  const { data: signedUrlData, error: signedUrlError } =
-    await adminClient.storage
-      .from(DOCUMENTS_BUCKET)
-      .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+  const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
+    .from(DOCUMENTS_BUCKET)
+    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
   if (signedUrlError || !signedUrlData) {
-    return json(
-      { error: signedUrlError?.message ?? "failed to create signed url" },
-      500,
-    );
+    return json({ error: signedUrlError?.message ?? "failed to create signed url" }, 500);
   }
 
   return json({
     success: true,
     url: signedUrlData.signedUrl,
     path,
-    documentId: insertedDocument?.id,
     expiresIn: SIGNED_URL_TTL_SECONDS,
   });
 });

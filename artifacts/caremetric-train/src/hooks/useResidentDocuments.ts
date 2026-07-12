@@ -25,10 +25,11 @@ export interface UploadResidentDocumentInput {
   complianceItemId?: string;
   documentLabel?: string;
   /**
-   * True only when `file` is the actual DHS-prescribed form evidence (RASP/ASP, DME,
-   * Preadmission Screening, etc.) -- either completed/uploaded by facility staff or generated as
-   * the app's official DHS form packet. complete_resident_compliance_item() requires a linked
-   * document with this flag set; defaults to false so generic resident uploads stay inert.
+   * True only when `file` IS the actual DHS-prescribed form (RASP/ASP, DME, Preadmission
+   * Screening, etc.) as completed by facility staff -- never set for CareMetric-generated
+   * reference PDFs. complete_resident_compliance_item() requires a linked document with this
+   * flag set; defaults to false so every other upload path (the generic Documents uploader,
+   * generate-resident-assessment-pdf) stays inert by default.
    */
   isStateForm?: boolean;
   stateFormSourceLabel?: string;

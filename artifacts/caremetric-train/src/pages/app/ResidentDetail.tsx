@@ -627,9 +627,9 @@ export default function ResidentDetail() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            State-form workflow — finalizing creates a packet that starts with the official PA DHS {formLabel} form,
-            appends the CareMetric completion addendum, and uses that generated DHS packet to complete the
-            linked checklist item.
+            Drafting/reference tool only — finalizing creates a PDF for staff and survey reference, but does
+            not by itself satisfy the resident's compliance requirement. Attach the signed DHS-prescribed{" "}
+            {formLabel} form using "Mark Complete" on the checklist above.
           </p>
           {assessmentFormsLoading ? (
             <Skeleton className="h-10" />

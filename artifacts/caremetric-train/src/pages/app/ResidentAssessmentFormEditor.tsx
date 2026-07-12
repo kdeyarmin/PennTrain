@@ -1146,18 +1146,11 @@ ${text}` : text;
       }
     }
     finalize.mutate(formId, {
-      onSuccess: () =>
-        toast({
-          title: `${formLabel} finalized and saved as a PDF`,
-          description:
-            "The generated packet starts with the official PA DHS form and completes the linked checklist item.",
-        }),
-      onError: (e: Error) =>
-        toast({
-          title: "Failed to finalize",
-          description: e.message,
-          variant: "destructive",
-        }),
+      onSuccess: () => toast({
+        title: `${formLabel} finalized and saved as a PDF`,
+        description: "This is a reference copy. Attach the signed, DHS-prescribed form on the resident's page to complete the compliance record.",
+      }),
+      onError: (e: Error) => toast({ title: "Failed to finalize", description: e.message, variant: "destructive" }),
     });
   };
 
@@ -1321,12 +1314,10 @@ ${text}` : text;
       </div>
 
       <p className="text-xs text-muted-foreground">
-        CareMetric saves your entries into a generated packet that starts with
-        the official PA DHS {formLabel} form, followed by a completion addendum.
-        Finalizing creates that state-form packet and completes the linked
-        checklist item.
+        Drafting/reference tool only — finalizing does not by itself satisfy the resident's compliance
+        requirement. Documents like the {formLabel} have to be on the state-approved form, no exception:
+        attach the signed DHS-prescribed form on the resident's page to mark the item complete.
       </p>
-
       {!isReadOnly && (
         <Alert className="border-primary/30 bg-primary/[0.03] [&>svg]:text-primary">
           <Wand2 className="h-4 w-4" />
@@ -1362,7 +1353,6 @@ ${text}` : text;
           </AlertDescription>
         </Alert>
       )}
-
       {incompleteSections.length > 0 && (
         <Alert className="border-warning/50 bg-warning/10 [&>svg]:text-warning">
           <AlertTriangle className="h-4 w-4" />
