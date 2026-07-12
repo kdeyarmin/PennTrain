@@ -1,11 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-import { Link, useLocation, useParams } from "wouter";
-import { useQuery } from "@tanstack/react-query";
-=======
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import { Link, useLocation, useParams } from "wouter";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import {
@@ -13,15 +8,6 @@ import {
   useGetCourseProgress,
   useUpsertCourseProgress,
   useCompleteCourseAssignment,
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-} from "@/hooks/useCourseAssignments";
-import { useIssueCertificate } from "@/hooks/useCertificates";
-import { useGetCourse, useListCourseBlocks, type CourseBlock } from "@/hooks/useCourses";
-import { useGetQuizByBlockId, useListQuizAttempts } from "@/hooks/useQuizzes";
-import { useDocumentSignedUrl } from "@/hooks/useDocuments";
-import { supabase } from "@/lib/supabase";
-import { useToast } from "@/hooks/use-toast";
-=======
   useStartCourseAssignment,
 } from "@/hooks/useCourseAssignments";
 import { useGetCourse, useListCourseBlocks, type CourseBlock } from "@/hooks/useCourses";
@@ -39,40 +25,10 @@ import {
   parseLearningToolsState,
   type LessonConfidence,
 } from "@/lib/courseLearningTools";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-import {
-  ArrowLeft, ArrowRight, CheckCircle2, Download, FileText, ListChecks, Video, BookOpen,
-  type LucideIcon,
-} from "lucide-react";
-
-// ---------------------------------------------------------------------------
-// useDocuments.ts (owned by the hooks agent) exposes list/upload/signed-url/
-// delete for `training_documents`, but no single-row get-by-id read. This
-// page needs to resolve a course_blocks.document_id to its row so it can
-// hand that row to the existing useDocumentSignedUrl mutation -- reused
-// as-is per the established Documents.tsx pattern, not reinvented. Rather
-// than extend that hook file out of scope, this is one small, clearly
-// scoped read that mirrors its conventions and keys its cache under the
-// same ["documents", id] shape a useGetDocument(id) would use.
-// ---------------------------------------------------------------------------
-function useGetDocument(id: string | undefined) {
-  return useQuery({
-    queryKey: ["documents", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("training_documents").select("*").eq("id", id!).single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
-}
-
-=======
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -80,7 +36,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
 function DocumentBlockLink({ documentId }: { documentId: string | null }) {
   const { data: document, isLoading } = useGetDocument(documentId ?? undefined);
   const getSignedUrl = useDocumentSignedUrl();
@@ -99,11 +54,7 @@ function DocumentBlockLink({ documentId }: { documentId: string | null }) {
   const handleOpen = async () => {
     try {
       const url = await getSignedUrl.mutateAsync(document);
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-      window.open(url, "_blank");
-=======
       window.open(url, "_blank", "noopener,noreferrer");
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
     } catch (e) {
       toast({ title: "Failed to open document", description: (e as Error).message, variant: "destructive" });
     }
@@ -125,8 +76,6 @@ const BLOCK_ICON: Record<string, LucideIcon> = {
   quiz: ListChecks,
 };
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-=======
 type ReadingComfort = "standard" | "comfortable" | "large";
 
 const READING_COMFORT_CLASS: Record<ReadingComfort, string> = {
@@ -159,15 +108,12 @@ function AssignmentStatusBadge({ status }: { status: string }) {
   return <Badge className={className} variant="outline">{status.replace(/_/g, " ")}</Badge>;
 }
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
 export default function TakeCourse() {
   const { assignmentId } = useParams<{ assignmentId: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-=======
   // Every role can reach this page now (App.tsx's ANY_ROLE), but /me/trainings and
   // /me/certificates stay employee-only routes -- routing anyone else there would just bounce
   // them straight back out via ProtectedRoute. /me/courses is the one "/me/*" destination every
@@ -176,19 +122,10 @@ export default function TakeCourse() {
   const backHref = isEmployeeRole ? "/me/trainings" : "/me/courses";
   const backLabel = isEmployeeRole ? "Back to My Trainings" : "Back to My Courses";
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
   const { data: assignment, isLoading: assignmentLoading } = useGetCourseAssignment(assignmentId);
   const { data: course } = useGetCourse(assignment?.course_id);
   const { data: blocks, isLoading: blocksLoading } = useListCourseBlocks(assignment?.course_version_id);
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-  const { data: progress } = useGetCourseProgress(assignmentId);
-  const { data: quizAttempts } = useListQuizAttempts({ assignmentId });
-
-  const upsertProgress = useUpsertCourseProgress();
-  const completeAssignment = useCompleteCourseAssignment();
-  const issueCertificate = useIssueCertificate();
-=======
   const { data: progress, isLoading: progressLoading } = useGetCourseProgress(assignmentId);
   const { data: quizAttempts } = useListQuizAttempts({ assignmentId });
 
@@ -197,13 +134,10 @@ export default function TakeCourse() {
   const completeAssignment = useCompleteCourseAssignment();
   const { data: existingFeedback } = useGetCourseFeedbackForAssignment(assignmentId);
   const createFeedback = useCreateCourseFeedback();
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
 
   const [stepIndex, setStepIndex] = useState(0);
   const [resumed, setResumed] = useState(false);
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-=======
   // Tracks the furthest lesson the learner has ever reached, so the lesson-stepper pills below can
   // allow jumping back to any already-visited lesson while still blocking a jump ahead of it. Starts
   // at 0 and only grows -- moving stepIndex backward (Previous, or a pill click) never lowers it, so
@@ -278,28 +212,16 @@ useEffect(() => {
   return () => window.clearTimeout(timeoutId);
 }, [assignmentId, lessonNotes, lessonConfidence, lessonToolsLoadedForId]);
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
   // Resume where the learner left off (course_progress.last_block_id), once,
   // as soon as blocks are loaded. If there's no progress row yet (brand new
   // assignment) or the stored block no longer exists, we simply start at 0.
   useEffect(() => {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-    if (resumed || !blocks || blocks.length === 0) return;
-=======
     if (resumed || !blocks || blocks.length === 0 || progressLoading) return;
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
     if (progress?.last_block_id) {
       const idx = blocks.findIndex(b => b.id === progress.last_block_id);
       if (idx >= 0) setStepIndex(idx);
     }
     setResumed(true);
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-  }, [resumed, blocks, progress]);
-
-  // Persist progress on navigation only (not on every render): this fires
-  // once the resumed starting step lands, and again each time stepIndex
-  // changes via Previous/Next.
-=======
   }, [resumed, blocks, progress, progressLoading]);
 
   // Persist progress on navigation only (not on every render): this fires
@@ -308,7 +230,6 @@ useEffect(() => {
   // already-loaded progress row's value if it has one) and never overwritten
   // afterward -- complete_course_assignment() uses the gap between it and
   // the completion request as a minimum-seat-time completion-integrity check.
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
   useEffect(() => {
     if (!resumed || !assignment || !blocks || blocks.length === 0) return;
     const block = blocks[stepIndex];
@@ -318,19 +239,13 @@ useEffect(() => {
       assignment_id: assignment.id,
       last_block_id: block.id,
       percent_complete: percentComplete,
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-=======
       started_at: progress?.started_at ?? new Date().toISOString(),
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
     });
     // Only re-run when the resolved step (or the assignment/blocks it's
     // scoped to) actually changes -- upsertProgress.mutate is stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumed, stepIndex, assignment?.id, blocks]);
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-  const currentBlock: CourseBlock | undefined = blocks?.[stepIndex];
-=======
   // Wires the previously-dead assigned -> in_progress transition (see ROADMAP.md Tier 3.4):
   // fires once the assignment loads if it's still in its just-assigned state. The RPC itself is
   // idempotent (only flips status when it's still 'assigned'), so a duplicate call from a fast
@@ -384,7 +299,6 @@ useEffect(() => {
   );
   const needsReviewCount = reviewBlocks.length;
   const hasStudyGuideEntries = (blocks ?? []).some(block => !!lessonNotes[block.id]?.trim() || !!lessonConfidence[block.id]);
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
   const isQuizBlock = currentBlock?.block_type === "quiz";
   const isLastBlock = !!blocks && blocks.length > 0 && stepIndex === blocks.length - 1;
 
@@ -413,8 +327,6 @@ useEffect(() => {
   // ---------------------------------------------------------------------
   const canAdvance = !isQuizBlock || currentQuizPassed;
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-=======
   const handleLessonNoteChange = (value: string) => {
     if (!currentBlock) return;
     setLessonNotes(prev => ({ ...prev, [currentBlock.id]: value }));
@@ -488,47 +400,20 @@ useEffect(() => {
   return () => window.removeEventListener("keydown", handleKeyDown);
 }, [blocks, canAdvance, currentBlock, isLastBlock, showRatingPrompt, stepIndex]);
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
   const handleComplete = () => {
     if (!assignment) return;
     completeAssignment.mutate(assignment.id, {
       onSuccess: () => {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-        issueCertificate.mutate(
-          {
-            employeeId: assignment.employee_id,
-            courseId: assignment.course_id,
-            assignmentId: assignment.id,
-          },
-          {
-            onSuccess: () => {
-              toast({ title: "Course completed", description: "Certificate issued -- nice work!" });
-              setLocation("/me/certificates");
-            },
-            onError: (e: Error) => {
-              // Completion already succeeded and is not undone by a failed certificate issuance
-              // (e.g. one was already issued for this assignment) -- still route the learner
-              // forward rather than blocking on this secondary step.
-              toast({ title: "Course completed", description: "Nice work -- this course is now marked complete." });
-              console.error("issue_certificate failed after course completion:", e.message);
-              setLocation("/me/trainings");
-            },
-          }
-        );
-=======
         // Certificate issuance is part of the same database transaction. A successful response
         // guarantees there is exactly one certificate, even after retries or concurrent clicks.
         toast({ title: "Course completed", description: "Certificate issued -- nice work!" });
         setPostCompleteDestination(isEmployeeRole ? "/me/certificates" : "/me/courses");
         setShowRatingPrompt(true);
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
       },
       onError: (e: Error) => toast({ title: "Failed to complete course", description: e.message, variant: "destructive" }),
     });
   };
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-=======
   const handleSkipRating = () => {
     setShowRatingPrompt(false);
     setLocation(postCompleteDestination);
@@ -561,7 +446,6 @@ useEffect(() => {
     );
   };
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
   if (employeeLoading || assignmentLoading) {
     return (
       <div className="space-y-6">
@@ -577,11 +461,7 @@ useEffect(() => {
       <div className="text-center py-12">
         <p className="text-muted-foreground">Course assignment not found.</p>
         <Button asChild className="mt-4" variant="outline">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-          <Link href="/me/trainings"><ArrowLeft className="mr-2 h-4 w-4" /> Back to My Trainings</Link>
-=======
           <Link href={backHref}><ArrowLeft className="mr-2 h-4 w-4" /> {backLabel}</Link>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
         </Button>
       </div>
     );
@@ -593,11 +473,7 @@ useEffect(() => {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-          <Link href="/me/trainings"><ArrowLeft className="mr-2 h-4 w-4" /> Back to My Trainings</Link>
-=======
           <Link href={backHref}><ArrowLeft className="mr-2 h-4 w-4" /> {backLabel}</Link>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
         </Button>
       </div>
 
@@ -607,19 +483,11 @@ useEffect(() => {
           {alreadyCompleted ? (
             <Badge>Completed</Badge>
           ) : (
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-            <Badge variant="secondary">{assignment.status}</Badge>
-          )}
-          {assignment.due_date && (
-            <span className="text-sm text-muted-foreground">
-              Due {new Date(assignment.due_date).toLocaleDateString()}
-=======
             <AssignmentStatusBadge status={assignment.status} />
           )}
           {assignment.due_date && (
             <span className="text-sm text-muted-foreground">
               Due {formatDateForDisplay(assignment.due_date)}
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
             </span>
           )}
         </div>
@@ -647,23 +515,6 @@ useEffect(() => {
             <Progress value={((stepIndex + 1) / blocks.length) * 100} />
           </div>
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                {(() => {
-                  const Icon = BLOCK_ICON[currentBlock?.block_type ?? "text"] ?? FileText;
-                  return <Icon className="h-5 w-5" />;
-                })()}
-                {currentBlock?.title ?? "Untitled lesson"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {currentBlock?.block_type === "text" && (
-                <p className="text-sm whitespace-pre-wrap">
-                  {(currentBlock.body as { content?: string } | null)?.content ?? "No content entered for this lesson."}
-                </p>
-=======
           <div className="grid gap-3 md:grid-cols-3">
             <Card className="md:col-span-2">
               <CardContent className="p-4">
@@ -849,7 +700,6 @@ useEffect(() => {
                     </p>
                   </div>
                 </div>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
               )}
 
               {currentBlock?.block_type === "video" && (
@@ -868,18 +718,12 @@ useEffect(() => {
 
               {currentBlock?.block_type === "quiz" && (
                 <div className="space-y-3">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-                  <p className="text-sm text-muted-foreground">
-                    This lesson has a quiz you must pass to continue.
-                  </p>
-=======
                   <div className="rounded-lg border bg-info/10 p-3 text-sm text-info-foreground">
                     <p className="font-medium">Passing this knowledge check unlocks the next lesson.</p>
                     <p className="mt-1 text-muted-foreground">
                       If you miss the passing score, revisit earlier lessons using the course map and try again.
                     </p>
                   </div>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
                   {currentQuizPassed && (
                     <div className="flex items-center gap-2 text-sm text-green-600">
                       <CheckCircle2 className="h-4 w-4" /> Passed
@@ -903,8 +747,6 @@ useEffect(() => {
                   )}
                 </div>
               )}
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-=======
 
               {currentBlock && (
                 <div className="rounded-lg border bg-background p-4">
@@ -964,7 +806,6 @@ useEffect(() => {
                   </p>
                 </div>
               )}
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
             </CardContent>
           </Card>
 
@@ -979,11 +820,6 @@ useEffect(() => {
 
             {isLastBlock ? (
               alreadyCompleted ? (
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-                <Badge className="px-3 py-1.5">
-                  <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Course Completed
-                </Badge>
-=======
                 <div className="flex items-center gap-3">
                   <Badge className="px-3 py-1.5">
                     <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Course Completed
@@ -999,7 +835,6 @@ useEffect(() => {
                     </Button>
                   )}
                 </div>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
               ) : (
                 <Button onClick={handleComplete} disabled={!canAdvance || completeAssignment.isPending}>
                   <CheckCircle2 className="mr-2 h-4 w-4" />
@@ -1007,14 +842,6 @@ useEffect(() => {
                 </Button>
               )
             ) : (
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-              <Button
-                onClick={() => setStepIndex(i => Math.min(blocks.length - 1, i + 1))}
-                disabled={!canAdvance}
-              >
-                Next <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-=======
               <div className="flex flex-wrap justify-end gap-2">
                 <Button
                   variant="outline"
@@ -1030,7 +857,6 @@ useEffect(() => {
                   Next <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
             )}
           </div>
           {!canAdvance && (
@@ -1038,10 +864,6 @@ useEffect(() => {
               Pass the quiz above to continue.
             </p>
           )}
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeCourse.tsx
-        </>
-      )}
-=======
           <p className="text-xs text-muted-foreground text-center">
             Keyboard shortcuts: ← previous · → next · R mark ready
           </p>
@@ -1088,7 +910,6 @@ useEffect(() => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeCourse.tsx
     </div>
   );
 }

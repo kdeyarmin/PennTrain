@@ -34,21 +34,6 @@ export function useListCompetencyTemplates() {
   });
 }
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCompetencies.ts
-export function useGetCompetencyTemplate(id: string | undefined) {
-  return useQuery({
-    queryKey: ["competency_templates", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("competency_templates").select("*").eq("id", id!).single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
-}
-
-=======
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCompetencies.ts
 export function useCreateCompetencyTemplate() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -162,14 +147,6 @@ export function useRemoveCompetencyTemplateItem() {
 // "self-service" create/update path here -- callers must not offer employees
 // any UI that calls useCreateCompetencyRecord.
 //
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCompetencies.ts
-// Note on facility_id: a BEFORE INSERT trigger (stamp_org_from_employee)
-// overwrites organization_id from the employee row, but it does NOT touch
-// facility_id -- unlike some other tables in this schema, competency_records
-// only auto-stamps organization_id. Whatever facility_id the caller sends is
-// the value RLS's is_assigned_to_facility(facility_id) check runs against, so
-// callers must pass the employee's real facility_id, not a placeholder.
-=======
 // Note on facility_id: a BEFORE INSERT trigger (stamp_scope_from_employee) overwrites BOTH
 // organization_id AND facility_id from the employee row (fixed in migration
 // 20260704164627_fix_codex_review_findings.sql -- it previously only stamped organization_id,
@@ -180,7 +157,6 @@ export function useRemoveCompetencyTemplateItem() {
 // 20260704180646_stamp_facility_scope_from_employee_on_writes.sql -- don't treat an *absence*
 // of this note elsewhere in the codebase as "safe to copy the old client-supplied-facility_id
 // pattern," it wasn't.
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCompetencies.ts
 // ---------------------------------------------------------------------------
 
 export interface ListCompetencyRecordsFilters {
@@ -189,9 +165,6 @@ export interface ListCompetencyRecordsFilters {
   templateId?: string;
 }
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCompetencies.ts
-export function useListCompetencyRecords(filters: ListCompetencyRecordsFilters = {}) {
-=======
 // `options.enabled` matters for callers that intend to scope by employeeId but don't have one yet
 // (e.g. an employee self-service page before its employees row has resolved) -- every filter field
 // here is applied only `if` truthy, so an absent employeeId doesn't scope to "nothing," it scopes
@@ -201,7 +174,6 @@ export function useListCompetencyRecords(filters: ListCompetencyRecordsFilters =
 // useCourseAssignments.ts's useListCourseAssignments. Defaults to `undefined`, which react-query
 // treats as "always enabled," so every existing caller that doesn't pass `options` is unaffected.
 export function useListCompetencyRecords(filters: ListCompetencyRecordsFilters = {}, options: { enabled?: boolean } = {}) {
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCompetencies.ts
   return useQuery({
     queryKey: ["competency_records", filters],
     queryFn: async () => {
@@ -213,22 +185,7 @@ export function useListCompetencyRecords(filters: ListCompetencyRecordsFilters =
       if (error) throw error;
       return data;
     },
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCompetencies.ts
-  });
-}
-
-export function useGetCompetencyRecord(id: string | undefined) {
-  return useQuery({
-    queryKey: ["competency_records", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("competency_records").select("*").eq("id", id!).single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-=======
     enabled: options.enabled,
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCompetencies.ts
   });
 }
 

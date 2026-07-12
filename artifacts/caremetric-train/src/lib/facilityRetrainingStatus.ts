@@ -72,12 +72,6 @@ export function buildFacilityRetrainingStatus(
 
     // Only active staff currently administer medications day-to-day; inactive/terminated/
     // on_leave employees shouldn't count toward a facility's retraining exposure.
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/facilityRetrainingStatus.ts
-    const staffCount = employees.filter(
-      (e) => e.facility_id === facility.id && e.status === "active" && e.administers_medications
-    ).length;
-    const facilityPracticums = practicums.filter((p) => p.facility_id === facility.id);
-=======
     const activeStaffIds = new Set(
       employees
         .filter((e) => e.facility_id === facility.id && e.status === "active" && e.administers_medications)
@@ -91,7 +85,6 @@ export function buildFacilityRetrainingStatus(
     const facilityPracticums = practicums.filter(
       (p) => p.facility_id === facility.id && activeStaffIds.has(p.employee_id)
     );
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/facilityRetrainingStatus.ts
 
     const compliantCount = facilityPracticums.filter((p) => p.status === "compliant").length;
     const dueSoonCount = facilityPracticums.filter((p) => p.status === "due_soon").length;

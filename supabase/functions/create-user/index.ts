@@ -1,9 +1,5 @@
-<<<<<<< HEAD
-import { createClient } from "jsr:@supabase/supabase-js@2";
-=======
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
->>>>>>> origin/main
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -32,11 +28,7 @@ Deno.serve(async (req: Request) => {
 
   // Caller-scoped client: identifies who is actually calling and respects RLS.
   // Never used to perform the privileged create -- only to resolve the caller's own role/org.
-<<<<<<< HEAD
-  const callerClient = createClient(supabaseUrl, anonKey, {
-=======
   const callerClient = createClient<any>(supabaseUrl, anonKey, {
->>>>>>> origin/main
     global: { headers: { Authorization: authHeader } },
   });
 
@@ -66,29 +58,22 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-<<<<<<< HEAD
-  const { email, password, first_name, last_name, role, organization_id } = body;
-=======
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : undefined;
   const password = typeof body.password === "string" ? body.password : undefined;
   const first_name = typeof body.first_name === "string" ? body.first_name.trim() : undefined;
   const last_name = typeof body.last_name === "string" ? body.last_name.trim() : undefined;
   const role = typeof body.role === "string" ? body.role : undefined;
   const organization_id = typeof body.organization_id === "string" ? body.organization_id.trim() : undefined;
->>>>>>> origin/main
 
   if (!email || !password || !first_name || !last_name || !role) {
     return json({ error: "email, password, first_name, last_name, and role are required" }, 400);
   }
-<<<<<<< HEAD
-=======
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return json({ error: "Enter a valid email address" }, 400);
   }
   if (first_name.length > 100 || last_name.length > 100) {
     return json({ error: "first_name and last_name must be 100 characters or fewer" }, 400);
   }
->>>>>>> origin/main
   if (!VALID_ROLES.includes(role)) {
     return json({ error: `role must be one of ${VALID_ROLES.join(", ")}` }, 400);
   }
@@ -125,11 +110,7 @@ Deno.serve(async (req: Request) => {
   const effectiveOrgId = callerRole === "platform_admin" ? (organization_id ?? null) : callerOrgId;
 
   // Service-role admin client: the ONLY place the service-role key is used in this function.
-<<<<<<< HEAD
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
-=======
   const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
->>>>>>> origin/main
 
   const { data: created, error: createError } = await adminClient.auth.admin.createUser({
     email,
@@ -138,15 +119,12 @@ Deno.serve(async (req: Request) => {
     user_metadata: {
       first_name,
       last_name,
-<<<<<<< HEAD
-=======
     },
     // role/organization_id go in app_metadata, not user_metadata: app_metadata can only be set
     // via this service-role Admin API call, never by a client calling the public signup
     // endpoint, which is exactly why handle_new_user() trusts it for these two RLS-determining
     // fields and defaults to role="employee"/organization_id=null otherwise.
     app_metadata: {
->>>>>>> origin/main
       role,
       organization_id: effectiveOrgId,
     },
@@ -154,10 +132,6 @@ Deno.serve(async (req: Request) => {
 
   if (createError) return json({ error: createError.message }, 400);
 
-<<<<<<< HEAD
-  // handle_new_user() trigger already populated profiles from user_metadata on insert.
-=======
   // handle_new_user() trigger already populated profiles from app_metadata on insert.
->>>>>>> origin/main
   return json({ success: true, user: { id: created.user.id, email: created.user.email } });
 });

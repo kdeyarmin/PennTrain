@@ -1,14 +1,3 @@
-<<<<<<< HEAD
-# CareMetric Train
-
-CareMetric Train is a multi-tenant healthcare compliance-training and LMS platform for personal care homes,
-assisted living facilities, and related healthcare organizations. It is built directly on Supabase: Postgres with
-Row-Level Security, Supabase Auth, Supabase Storage, and Edge Functions. There is no separate API server -- the
-React frontend talks to Supabase directly via `supabase-js`.
-
-## What's included
-
-=======
 <p align="center">
   <img src="artifacts/caremetric-train/public/logo.png" alt="CareMetric Train" width="360" />
 </p>
@@ -37,7 +26,6 @@ ROADMAP.md remains the historical product review and recommendation rationale.
 
 ## What's included
 
->>>>>>> origin/main
 - Six-role RBAC (`platform_admin`, `org_admin`, `facility_manager`, `trainer`, `employee`, `auditor`) enforced by
   Postgres Row-Level Security, not application code.
 - Core compliance tracking: organizations, facilities, employees, configurable training types, training records,
@@ -62,13 +50,6 @@ created.
 
 ```bash
 pnpm install
-<<<<<<< HEAD
-pnpm --filter @workspace/pa-medtrack dev
-```
-
-Copy `artifacts/pa-medtrack/.env.example` to `.env` and fill in your Supabase project URL and publishable
-(anon) key.
-=======
 pnpm --filter @workspace/caremetric-train dev
 ```
 
@@ -106,7 +87,6 @@ adaptive learning, offline safety, and pilot procedures are in
 Phase 5 remediation, confidential intake, move-in collaboration, historical
 reporting, evidence-room access, and pilot procedures are in
 [`PHASE5_OPERATIONS.md`](PHASE5_OPERATIONS.md).
->>>>>>> origin/main
 
 ## Database / backend setup
 
@@ -117,26 +97,6 @@ must be declared in `supabase/config.toml` to auto-deploy via the Supabase GitHu
 1. Create a Supabase project (Postgres 17+).
 2. Apply every migration under `supabase/migrations/` in filename order.
 3. Deploy the Edge Functions under `supabase/functions/`.
-<<<<<<< HEAD
-4. Seed demo users via the Supabase Admin API (`auth.admin.createUser`) -- see demo credentials below; the
-   `handle_new_user()` trigger creates the matching `profiles` row automatically.
-5. Run `mcp__Supabase__generate_typescript_types` (or `supabase gen types typescript`) to produce
-  `artifacts/pa-medtrack/src/lib/database.types.ts`.
-
-## Demo users
-
-| Role | Email | Password |
-|------|-------|----------|
-| platform_admin | admin@pamedtrack.com | admin123 |
-| org_admin | admin@sunrisehealthcare.com | demo123 |
-| facility_manager | manager@sunrisemanor.com | demo123 |
-| trainer | trainer@sunrisehealthcare.com | demo123 |
-| employee | employee@sunrisehealthcare.com | demo123 |
-| auditor | auditor@sunrisehealthcare.com | demo123 |
-| org_admin | admin@maplegrove.com | demo123 |
-
-See `replit.md` for the full architecture writeup (RLS model, storage buckets, Edge Functions, route map).
-=======
 4. Create environment-specific admin/demo users through the Supabase Admin API, `invite-user`, or
    `signup-organization`. Do not seed reusable passwords from SQL.
 5. Run `mcp__Supabase__generate_typescript_types` (or `supabase gen types typescript`) to produce
@@ -156,4 +116,3 @@ The `/demo` page is disabled unless `VITE_DEMO_ACCOUNTS_JSON` is set for that en
 platform admin passwords; create them per environment and rotate them like any other credential.
 
 See `ARCHITECTURE.md` for the full architecture writeup (RLS model, storage buckets, Edge Functions, route map).
->>>>>>> origin/main

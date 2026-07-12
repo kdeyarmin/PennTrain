@@ -214,21 +214,12 @@ export default function Packages() {
           <DialogHeader>
             <DialogTitle>{editId ? "Edit Package" : "Add Package"}</DialogTitle>
           </DialogHeader>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/admin/Packages.tsx
-          <div className="grid grid-cols-2 gap-4 py-2">
-            <div className="col-span-2 space-y-1.5">
-              <Label className="text-[13px]">Name *</Label>
-              <Input value={form.name} onChange={e => field("name", e.target.value)} placeholder="Professional" className="h-9" />
-            </div>
-            <div className="col-span-2 flex items-center justify-between rounded-lg border p-3">
-=======
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Name *</Label>
               <Input value={form.name} onChange={e => field("name", e.target.value)} placeholder="Professional" className="h-9" />
             </div>
             <div className="col-span-full flex items-center justify-between rounded-lg border p-3">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/admin/Packages.tsx
               <div>
                 <p className="text-sm font-medium">Active</p>
                 <p className="text-xs text-muted-foreground">Inactive packages are hidden from organization signup.</p>
@@ -251,11 +242,7 @@ export default function Packages() {
               <Label className="text-[13px]">Learner Limit</Label>
               <Input type="number" min="0" value={form.learnerLimit} onChange={e => field("learnerLimit", e.target.value)} placeholder="Unlimited" className="h-9" />
             </div>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/admin/Packages.tsx
-            <div className="col-span-2 space-y-1.5">
-=======
             <div className="col-span-full space-y-1.5">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/admin/Packages.tsx
               <Label className="text-[13px]">Features (JSON)</Label>
               <Textarea
                 value={form.featuresJson}

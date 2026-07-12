@@ -137,8 +137,6 @@ export function useCompleteTrainingClass() {
     },
   });
 }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useTrainingClasses.ts
-=======
 
 // ---------------------------------------------------------------------------
 // QR / kiosk check-in.
@@ -233,4 +231,3 @@ export function useGenerateClassNoticePdf() {
     },
   });
 }
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useTrainingClasses.ts

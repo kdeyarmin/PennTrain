@@ -1,20 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useAuditLogs.ts
-=======
 import { rangeFor } from "@/lib/utils";
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useAuditLogs.ts
 
 export type AuditLog = Tables<"audit_logs">;
 
 export interface ListAuditLogsFilters {
   entityType?: string;
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useAuditLogs.ts
-  limit?: number;
-}
-
-=======
   entityId?: string;
   organizationId?: string;
   limit?: number;
@@ -25,26 +17,20 @@ export interface ListAuditLogsFilters {
 // list of rows, not a counted/paginated result. For the full Audit Log page itself, which needs a
 // real total count and page navigation over a table with no practical row cap, see
 // useListAuditLogsPaginated below.
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useAuditLogs.ts
 export function useListAuditLogs(filters: ListAuditLogsFilters = {}) {
   return useQuery({
     queryKey: ["audit_logs", filters],
     queryFn: async () => {
       let query = supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(filters.limit ?? 200);
       if (filters.entityType) query = query.eq("entity_type", filters.entityType);
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useAuditLogs.ts
-=======
       if (filters.entityId) query = query.eq("entity_id", filters.entityId);
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useAuditLogs.ts
       const { data, error } = await query;
       if (error) throw error;
       return data;
     },
   });
 }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useAuditLogs.ts
-=======
 
 export interface ListAuditLogsPaginatedFilters {
   entityType?: string;
@@ -83,4 +69,3 @@ export function useListAuditLogsPaginated(filters: ListAuditLogsPaginatedFilters
     placeholderData: (previousData) => previousData,
   });
 }
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useAuditLogs.ts

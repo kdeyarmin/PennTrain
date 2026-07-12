@@ -1,8 +1,5 @@
 import { useMemo } from "react";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/trainer/TrainerDashboard.tsx
-=======
 import { formatDateForDisplay } from "@/lib/dateUtils";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/trainer/TrainerDashboard.tsx
 import { useAuth } from "@/lib/auth";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -13,10 +10,7 @@ import {
   buildFacilityRetrainingStatus,
   ORG_WIDE_VISIBILITY_ROLES,
 } from "@/lib/facilityRetrainingStatus";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/trainer/TrainerDashboard.tsx
-=======
 import { todayIso } from "@/lib/scheduleDates";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/trainer/TrainerDashboard.tsx
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -229,11 +223,7 @@ export default function TrainerDashboard() {
                         {c.class_name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/trainer/TrainerDashboard.tsx
-                        {new Date(c.class_date).toLocaleDateString()} &middot;{" "}
-=======
                         {formatDateForDisplay(c.class_date)} &middot;{" "}
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/trainer/TrainerDashboard.tsx
                         {attendeeCounts?.[c.id] ?? 0} attendee
                         {(attendeeCounts?.[c.id] ?? 0) === 1 ? "" : "s"}
                       </p>

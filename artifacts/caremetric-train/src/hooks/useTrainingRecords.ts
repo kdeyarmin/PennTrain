@@ -13,9 +13,6 @@ export interface ListTrainingRecordsFilters {
   approvalStatus?: string;
 }
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useTrainingRecords.ts
-export function useListTrainingRecords(filters: ListTrainingRecordsFilters = {}) {
-=======
 // `options.enabled` matters for callers that intend to scope by employeeId but don't have one yet
 // (e.g. an employee self-service page before its employees row has resolved) -- every filter field
 // here is applied only `if` truthy, so an absent employeeId doesn't scope to "nothing," it scopes
@@ -25,7 +22,6 @@ export function useListTrainingRecords(filters: ListTrainingRecordsFilters = {})
 // useCourseAssignments.ts's useListCourseAssignments. Defaults to `undefined`, which react-query
 // treats as "always enabled," so every existing caller that doesn't pass `options` is unaffected.
 export function useListTrainingRecords(filters: ListTrainingRecordsFilters = {}, options: { enabled?: boolean } = {}) {
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useTrainingRecords.ts
   return useQuery({
     queryKey: ["training_records", filters],
     queryFn: async () => {
@@ -38,10 +34,7 @@ export function useListTrainingRecords(filters: ListTrainingRecordsFilters = {},
       if (error) throw error;
       return data;
     },
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useTrainingRecords.ts
-=======
     enabled: options.enabled,
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useTrainingRecords.ts
   });
 }
 
@@ -69,24 +62,6 @@ export function useUpdateTrainingRecord() {
   });
 }
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useTrainingRecords.ts
-export function useDeleteTrainingRecord() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("employee_training_records").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["training_records"] }),
-  });
-}
-
-export function useRecalculateCompliance() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.rpc("recalculate_all_compliance");
-=======
 // recalculate_all_compliance() is cron-only now (no client grant at all -- see
 // 20260705141141_annual_hours_recalc_engine_and_hardening.sql); org_admin/facility_manager
 // get this org-scoped, authorization-checked RPC instead for an on-demand refresh so a newly
@@ -96,18 +71,14 @@ export function useRecalculateOrgCompliance() {
   return useMutation({
     mutationFn: async (organizationId: string) => {
       const { error } = await supabase.rpc("recalculate_org_compliance", { p_organization_id: organizationId });
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useTrainingRecords.ts
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["training_records"] });
       queryClient.invalidateQueries({ queryKey: ["practicums"] });
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useTrainingRecords.ts
-=======
       queryClient.invalidateQueries({ queryKey: ["training_hour_buckets"] });
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useTrainingRecords.ts
     },
   });
 }

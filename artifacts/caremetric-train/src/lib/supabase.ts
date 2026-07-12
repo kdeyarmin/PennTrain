@@ -9,8 +9,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/supabase.ts
-=======
 
 // Older service workers used the "supabase-runtime" cache for RLS-scoped REST responses. Current
 // builds only runtime-cache public course-video storage, but keep clearing both names on auth
@@ -22,4 +20,3 @@ export async function clearSupabaseRuntimeCache(): Promise<void> {
     caches.delete("supabase-public-storage"),
   ]);
 }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/supabase.ts

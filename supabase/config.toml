@@ -12,8 +12,6 @@ verify_jwt = true
 [functions.generate-compliance-binder]
 verify_jwt = true
 
-<<<<<<< HEAD
-=======
 [functions.generate-certificate-pdf]
 # Serves both authenticated user downloads and the internal PDF-job cron worker. JWT
 # verification is enforced inside the function for user requests; cron requests use the
@@ -38,7 +36,6 @@ verify_jwt = true
 [functions.generate-resident-assessment-summary]
 verify_jwt = true
 
->>>>>>> origin/main
 [functions.generate-course-video]
 verify_jwt = true
 
@@ -47,8 +44,6 @@ verify_jwt = true
 
 [functions.list-heygen-options]
 verify_jwt = true
-<<<<<<< HEAD
-=======
 
 [functions.generate-course-curriculum]
 verify_jwt = true
@@ -146,4 +141,3 @@ verify_jwt = false
 # endpoint-specific secret held in Vault; it does not accept a caller session.
 [functions.dispatch-integration-webhooks]
 verify_jwt = false
->>>>>>> origin/main

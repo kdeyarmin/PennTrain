@@ -1,9 +1,6 @@
 import { useMemo, useState } from "react";
 import { useListCourses, useCreateCourse, type Course } from "@/hooks/useCourses";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Courses.tsx
-=======
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Courses.tsx
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,44 +8,29 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Courses.tsx
-import { BookOpen, Search, ChevronRight, Plus } from "lucide-react";
-import { Link } from "wouter";
-import { useAuth } from "@/lib/auth";
-import { useToast } from "@/hooks/use-toast";
-=======
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BookOpen, Search, ChevronRight, Plus, Sparkles } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { courseDetailPath } from "@/lib/courseRoutes";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Courses.tsx
 
 interface CourseFormData {
   title: string;
   description: string;
   category: string;
   estimatedDurationMinutes: string;
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Courses.tsx
-}
-
-=======
   trainingTypeId: string;
 }
 
 const NO_TRAINING_TYPE = "none";
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Courses.tsx
 const EMPTY_FORM: CourseFormData = {
   title: "",
   description: "",
   category: "",
   estimatedDurationMinutes: "",
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Courses.tsx
-=======
   trainingTypeId: NO_TRAINING_TYPE,
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Courses.tsx
 };
 
 function StatusPill({ status }: { status: string }) {
@@ -84,14 +66,6 @@ export default function Courses() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Courses.tsx
-  const canCreate = user?.role === "org_admin" || user?.role === "trainer";
-
-  const { data: courses, isLoading } = useListCourses({
-    status: status !== "all" ? status : undefined,
-  });
-  const { mutate: createCourse, isPending: creating } = useCreateCourse();
-=======
   const canCreate = user?.role === "platform_admin";
 
   // platform_admin's RLS grant sees every organization's courses at once; default
@@ -106,7 +80,6 @@ export default function Courses() {
   });
   const { mutate: createCourse, isPending: creating } = useCreateCourse();
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Courses.tsx
 
   const allCourses = courses ?? [];
 
@@ -141,16 +114,12 @@ export default function Courses() {
       toast({ title: "Title is required", variant: "destructive" });
       return;
     }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Courses.tsx
-    if (!user?.organizationId) return;
-=======
     // Only platform_admin can reach this handler now (canCreate above); unlike
     // org_admin/trainer, platform_admin isn't scoped to an organization, so its
     // organizationId is expected to be null -- that's what makes the created
     // course a system-catalog course (organization_id IS NULL) rather than
     // blocking creation outright.
     if (!user) return;
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Courses.tsx
 
     const durationMinutes = form.estimatedDurationMinutes.trim()
       ? Number(form.estimatedDurationMinutes)
@@ -163,10 +132,7 @@ export default function Courses() {
         category: form.category || null,
         estimated_duration_minutes: Number.isFinite(durationMinutes) ? durationMinutes : null,
         organization_id: user.organizationId,
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Courses.tsx
-=======
         training_type_id: form.trainingTypeId === NO_TRAINING_TYPE ? null : form.trainingTypeId,
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Courses.tsx
       },
       {
         onSuccess: () => {
@@ -181,22 +147,11 @@ export default function Courses() {
 
   return (
     <div className="space-y-6">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Courses.tsx
-      <div className="page-header flex items-center justify-between">
-=======
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Courses.tsx
         <div>
           <h1>Courses</h1>
           <p>Browse the system catalog and your organization's authored training courses.</p>
         </div>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Courses.tsx
-        {canCreate && (
-          <Button onClick={openCreate} className="shadow-sm">
-            <Plus className="mr-2 h-4 w-4" /> New Course
-          </Button>
-        )}
-=======
         <div className="flex items-center gap-3">
           {user?.role === "platform_admin" && (
             <Tabs value={catalogScope} onValueChange={v => setCatalogScope(v as "system" | "all")}>
@@ -219,7 +174,6 @@ export default function Courses() {
             </>
           )}
         </div>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Courses.tsx
       </div>
 
       <div className="premium-card">
@@ -270,13 +224,8 @@ export default function Courses() {
             <p className="text-xs text-muted-foreground/60 mt-1">Try adjusting your search or filters</p>
           </div>
         ) : (
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Courses.tsx
-          <div className="overflow-hidden">
-            <table className="data-table">
-=======
           <div className="overflow-x-auto">
             <table className="data-table min-w-[720px]">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Courses.tsx
               <thead>
                 <tr>
                   <th>Course</th>
@@ -291,11 +240,7 @@ export default function Courses() {
                 {filtered.map((course: Course) => (
                   <tr key={course.id}>
                     <td>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Courses.tsx
-                      <Link href={`/app/courses/${course.id}`}>
-=======
                       <Link href={courseDetailPath(course.id, user?.role)}>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Courses.tsx
                         <div className="cursor-pointer">
                           <span className="font-medium text-foreground hover:text-primary transition-colors">
                             {course.title}
@@ -319,11 +264,7 @@ export default function Courses() {
                       )}
                     </td>
                     <td>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Courses.tsx
-                      <Link href={`/app/courses/${course.id}`}>
-=======
                       <Link href={courseDetailPath(course.id, user?.role)}>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Courses.tsx
                         <ChevronRight className="h-4 w-4 text-muted-foreground/40 cursor-pointer" />
                       </Link>
                     </td>
@@ -354,11 +295,7 @@ export default function Courses() {
               <Label className="text-[13px]">Description</Label>
               <Textarea value={form.description} onChange={e => field("description", e.target.value)} placeholder="Brief overview of what this course covers" />
             </div>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Courses.tsx
-            <div className="grid grid-cols-2 gap-4">
-=======
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Courses.tsx
               <div className="space-y-1.5">
                 <Label className="text-[13px]">Category</Label>
                 <Input value={form.category} onChange={e => field("category", e.target.value)} placeholder="Annual In-Service" className="h-9" />
@@ -375,8 +312,6 @@ export default function Courses() {
                 />
               </div>
             </div>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Courses.tsx
-=======
             <div className="space-y-1.5">
               <Label className="text-[13px]">Compliance Training Type</Label>
               <Select value={form.trainingTypeId} onValueChange={v => field("trainingTypeId", v)}>
@@ -392,7 +327,6 @@ export default function Courses() {
                 Optional. Link this course to a training requirement so completing it records the matching training record automatically.
               </p>
             </div>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Courses.tsx
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>

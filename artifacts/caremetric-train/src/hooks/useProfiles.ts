@@ -2,17 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesUpdate } from "@/lib/database.types";
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useProfiles.ts
-export type Profile = Tables<"profiles">;
-export type ProfileUpdate = TablesUpdate<"profiles">;
-=======
 export type Profile = Tables<"profiles"> & {
   preferred_notification_channel?: string;
 };
 export type ProfileUpdate = TablesUpdate<"profiles"> & {
   preferred_notification_channel?: string;
 };
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useProfiles.ts
 
 export interface ListProfilesFilters {
   organizationId?: string;
@@ -33,21 +28,6 @@ export function useListProfiles(filters: ListProfilesFilters = {}) {
   });
 }
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useProfiles.ts
-export function useGetProfile(id: string | undefined) {
-  return useQuery({
-    queryKey: ["profiles", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", id!).single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
-}
-
-=======
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useProfiles.ts
 /**
  * `profiles.role` / `organization_id` / `is_active` / `email` are protected by the
  * `protect_profile_privileged_fields()` DB trigger (see
@@ -55,12 +35,6 @@ export function useGetProfile(id: string | undefined) {
  * .../20260704050209_pin_search_path_on_trigger_functions.sql): for anyone who is not
  * platform_admin, the trigger silently reverts those four columns back to their old
  * values, so a plain client-side `.update()` on them is a silent no-op. This hook is
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useProfiles.ts
- * only for the remaining, non-protected fields; role/org/active/email changes must go
- * through `useAdminUpdateUser()` instead.
- */
-export type ProfileSelfServiceUpdate = Pick<ProfileUpdate, "first_name" | "last_name" | "phone">;
-=======
  * only for the remaining, non-protected fields; it uses the scoped
  * `update_profile_contact_preferences()` command so organization and facility
  * administrators can manage users in their authorized scope. Role/org/active/email
@@ -70,17 +44,11 @@ export type ProfileSelfServiceUpdate = Pick<
   ProfileUpdate,
   "first_name" | "last_name" | "phone" | "sms_opt_in" | "preferred_notification_channel"
 >;
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useProfiles.ts
 
 export function useUpdateProfile() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...payload }: ProfileSelfServiceUpdate & { id: string }) => {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useProfiles.ts
-      const { data, error } = await supabase.from("profiles").update(payload).eq("id", id).select().single();
-      if (error) throw error;
-      return data;
-=======
       const { data, error } = await supabase.rpc("update_profile_contact_preferences" as never, {
         p_profile_id: id,
         p_first_name: payload.first_name,
@@ -91,7 +59,6 @@ export function useUpdateProfile() {
       } as never);
       if (error) throw error;
       return (data as unknown as Profile[])[0];
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useProfiles.ts
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["profiles"] }),
   });
@@ -171,8 +138,6 @@ export function useCreateUserViaAdmin() {
 }
 
 /**
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useProfiles.ts
-=======
  * `useInviteUser()` sends an email invite instead of setting a temporary password: the
  * `invite-user` Edge Function calls `supabase.auth.admin.inviteUserByEmail()` (queuing the
  * "invite" auth email -- routed through SendGrid via the send-auth-email Send Email Hook, same
@@ -218,7 +183,6 @@ export function useInviteUser() {
 }
 
 /**
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useProfiles.ts
  * `useAdminUpdateUser()` takes a camelCase payload and translates it to the snake_case
  * wire shape the deployed `admin-update-user` Edge Function actually expects:
  *

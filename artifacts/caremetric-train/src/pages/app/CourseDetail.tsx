@@ -1,10 +1,5 @@
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-import { useEffect, useState } from "react";
-import { useParams, Link } from "wouter";
-=======
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useParams, Link, useLocation } from "wouter";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,23 +12,6 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  ArrowLeft, BookOpen, Pencil, Plus, Rocket, FileText, Video, File as FileIcon,
-  ListChecks, Trash2, Lock, Layers, Sparkles, RefreshCw, type LucideIcon,
-} from "lucide-react";
-import {
-  useGetCourse, useUpdateCourse,
-  useListCourseVersions, useCreateCourseVersion, useUpdateCourseVersion,
-  useListCourseBlocks, useCreateCourseBlock, useDeleteCourseBlock,
-  type CourseVersion, type CourseBlock, type CourseBlockInsert,
-} from "@/hooks/useCourses";
-import { useGetQuizByBlockId, useCreateQuiz } from "@/hooks/useQuizzes";
-import { useListHeygenOptions, useGenerateCourseVideo, useCheckCourseVideoStatus } from "@/hooks/useCourseVideoGeneration";
-import { useAuth } from "@/lib/auth";
-import { useToast } from "@/hooks/use-toast";
-=======
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -65,33 +43,24 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { coursesListPath, quizBuilderPath } from "@/lib/courseRoutes";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
 
 interface CourseFormState {
   title: string;
   description: string;
   category: string;
   status: string;
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-}
-
-=======
   trainingTypeId: string;
 }
 
 const NO_TRAINING_TYPE = "none";
 const NO_DOCUMENT = "none";
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
 interface BlockFormState {
   block_type: "text" | "video" | "pdf" | "scorm" | "quiz";
   title: string;
   textContent: string;
   videoUrl: string;
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-=======
   videoTranscript: string;
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
   documentId: string;
 }
 
@@ -100,11 +69,6 @@ const EMPTY_BLOCK_FORM: BlockFormState = {
   title: "",
   textContent: "",
   videoUrl: "",
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-  documentId: "",
-};
-
-=======
   videoTranscript: "",
   documentId: "",
 };
@@ -134,7 +98,6 @@ function documentDisplayName(document: Pick<TrainingDocument, "file_name" | "sto
   return document.file_name || document.storage_path.split("/").pop() || "Attached document";
 }
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
 interface QuizFormState {
   title: string;
   passingScore: string;
@@ -176,9 +139,6 @@ function BlockTypeBadge({ blockType }: { blockType: string }) {
   );
 }
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-function QuizBlockSummary({ blockId, onConfigure }: { blockId: string; onConfigure: () => void }) {
-=======
 function QuizBlockSummary({
   blockId,
   onConfigure,
@@ -190,7 +150,6 @@ function QuizBlockSummary({
   canManage: boolean;
   role: Role | undefined;
 }) {
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
   const { data: quiz, isLoading, isError } = useGetQuizByBlockId(blockId);
 
   if (isLoading) return <p className="text-xs text-muted-foreground">Loading quiz…</p>;
@@ -199,28 +158,16 @@ function QuizBlockSummary({
     return (
       <div className="flex items-center gap-2">
         <p className="text-xs text-muted-foreground italic">No quiz configured yet for this block.</p>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-        <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={onConfigure}>
-          Configure quiz
-        </Button>
-=======
         {canManage && (
           <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={onConfigure}>
             Configure quiz
           </Button>
         )}
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
       </div>
     );
   }
 
   return (
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-    <p className="text-xs text-muted-foreground">
-      "{quiz.title}" — passing score {quiz.passing_score_percent}%
-      {quiz.max_attempts ? `, max ${quiz.max_attempts} attempt${quiz.max_attempts === 1 ? "" : "s"}` : ""}
-    </p>
-=======
     <div className="flex items-center gap-2">
       <p className="text-xs text-muted-foreground">
         "{quiz.title}" — passing score {quiz.passing_score_percent}%
@@ -232,7 +179,6 @@ function QuizBlockSummary({
         </Link>
       )}
     </div>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
   );
 }
 
@@ -240,12 +186,6 @@ export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-
-  const canManage = user?.role === "org_admin" || user?.role === "trainer";
-
-  const { data: course, isLoading: courseLoading } = useGetCourse(id);
-=======
   const [, navigate] = useLocation();
 
   const canManage = user?.role === "platform_admin";
@@ -281,7 +221,6 @@ export default function CourseDetail() {
 
   const { data: courseFeedback } = useListCourseFeedback({ courseId: id });
   const feedbackSummary = summarizeCourseFeedback(courseFeedback);
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
   const { data: versions, isLoading: versionsLoading } = useListCourseVersions(id);
 
   const [selectedVersionId, setSelectedVersionId] = useState<string | undefined>(undefined);
@@ -299,16 +238,6 @@ export default function CourseDetail() {
   }, [course, versions, selectedVersionId]);
 
   const selectedVersion: CourseVersion | undefined = versions?.find(v => v.id === selectedVersionId);
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-  const isVersionLocked = selectedVersion?.status === "published";
-
-  const { data: blocks, isLoading: blocksLoading } = useListCourseBlocks(selectedVersion?.id);
-
-  // --- Course metadata edit ---
-  const [showEditCourse, setShowEditCourse] = useState(false);
-  const [courseForm, setCourseForm] = useState<CourseFormState>({ title: "", description: "", category: "", status: "draft" });
-  const { mutate: updateCourse, isPending: savingCourse } = useUpdateCourse();
-=======
   const currentVersion = useMemo(
     () => versions?.find(v => v.id === course?.current_version_id),
     [versions, course?.current_version_id],
@@ -404,7 +333,6 @@ export default function CourseDetail() {
   const [courseForm, setCourseForm] = useState<CourseFormState>({ title: "", description: "", category: "", status: "draft", trainingTypeId: NO_TRAINING_TYPE });
   const { mutate: updateCourse, isPending: savingCourse } = useUpdateCourse();
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
 
   const openEditCourse = () => {
     if (!course) return;
@@ -413,10 +341,7 @@ export default function CourseDetail() {
       description: course.description ?? "",
       category: course.category ?? "",
       status: course.status,
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-=======
       trainingTypeId: course.training_type_id ?? NO_TRAINING_TYPE,
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
     });
     setShowEditCourse(true);
   };
@@ -434,10 +359,7 @@ export default function CourseDetail() {
         description: courseForm.description || null,
         category: courseForm.category || null,
         status: courseForm.status,
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-=======
         training_type_id: courseForm.trainingTypeId === NO_TRAINING_TYPE ? null : courseForm.trainingTypeId,
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
       },
       {
         onSuccess: () => { toast({ title: "Course updated" }); setShowEditCourse(false); },
@@ -449,13 +371,9 @@ export default function CourseDetail() {
   // --- New version ---
   const [showNewVersion, setShowNewVersion] = useState(false);
   const [newVersionTitle, setNewVersionTitle] = useState("");
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-  const { mutate: createVersion, isPending: creatingVersion } = useCreateCourseVersion();
-=======
   const { mutate: cloneVersion, isPending: cloningVersion } = useCloneCourseVersion();
   const { mutate: createBlankVersion, isPending: creatingBlankVersion } = useCreateCourseVersion();
   const creatingVersion = cloningVersion || creatingBlankVersion;
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
 
   const nextVersionNumber = (versions?.reduce((max, v) => Math.max(max, v.version_number), 0) ?? 0) + 1;
 
@@ -465,20 +383,6 @@ export default function CourseDetail() {
     setShowNewVersion(true);
   };
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-  const handleCreateVersion = () => {
-    if (!course) return;
-    createVersion(
-      {
-        course_id: course.id,
-        organization_id: course.organization_id,
-        version_number: nextVersionNumber,
-        title: newVersionTitle.trim() || `Version ${nextVersionNumber}`,
-      },
-      {
-        onSuccess: (data) => {
-          toast({ title: "Draft version created" });
-=======
   // Clones whichever version is currently selected (defaults to the course's published version,
   // see the selectedVersionId effect above) rather than starting blank -- fixing one typo no
   // longer means manually rebuilding every block/quiz/question/answer from zero. A brand-new
@@ -513,7 +417,6 @@ export default function CourseDetail() {
       {
         onSuccess: (data) => {
           toast({ title: "Draft version created", description: `Copied content from v${selectedVersion.version_number}.`, variant: "success" });
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
           setShowNewVersion(false);
           setSelectedVersionId(data.id);
         },
@@ -522,50 +425,12 @@ export default function CourseDetail() {
     );
   };
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-  // --- Publish a version (two mutations: version.status + course.current_version_id) ---
-  const { mutateAsync: publishVersionAsync } = useUpdateCourseVersion();
-  const { mutateAsync: setCurrentVersionAsync } = useUpdateCourse();
-=======
   // --- Publish a version (database RPC validates readiness and sets course.current_version_id) ---
   const { mutateAsync: publishVersionAsync } = usePublishCourseVersion();
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
   const [publishingVersionId, setPublishingVersionId] = useState<string | null>(null);
 
   const handlePublish = async (version: CourseVersion) => {
     if (!course) return;
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-    setPublishingVersionId(version.id);
-    const [versionResult, courseResult] = await Promise.allSettled([
-      publishVersionAsync({ id: version.id, status: "published", published_at: new Date().toISOString() }),
-      setCurrentVersionAsync({ id: course.id, current_version_id: version.id }),
-    ]);
-    setPublishingVersionId(null);
-
-    const versionFailed = versionResult.status === "rejected";
-    const courseFailed = courseResult.status === "rejected";
-
-    if (versionFailed && courseFailed) {
-      toast({
-        title: "Failed to publish version",
-        description: `Both updates failed. Version: ${(versionResult.reason as Error)?.message}. Course: ${(courseResult.reason as Error)?.message}`,
-        variant: "destructive",
-      });
-    } else if (versionFailed) {
-      toast({
-        title: "Partially published",
-        description: `The course now points at this version, but marking it "published" failed: ${(versionResult.reason as Error)?.message}. The version is still a draft -- retry or fix and try again.`,
-        variant: "destructive",
-      });
-    } else if (courseFailed) {
-      toast({
-        title: "Partially published",
-        description: `The version was marked "published", but setting it as the course's current version failed: ${(courseResult.reason as Error)?.message}. Retry to finish publishing.`,
-        variant: "destructive",
-      });
-    } else {
-      toast({ title: "Version published" });
-=======
     if (version.id !== selectedVersionId || !studentPreviewChecked) {
       setSelectedVersionId(version.id);
       toast({
@@ -605,7 +470,6 @@ export default function CourseDetail() {
       });
     } finally {
       setPublishingVersionId(null);
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
     }
   };
 
@@ -613,11 +477,6 @@ export default function CourseDetail() {
   const [showAddBlock, setShowAddBlock] = useState(false);
   const [blockForm, setBlockForm] = useState<BlockFormState>(EMPTY_BLOCK_FORM);
   const { mutate: createBlock, isPending: creatingBlock } = useCreateCourseBlock();
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-  const { mutate: deleteBlock, isPending: deletingBlock } = useDeleteCourseBlock();
-  const [blockPendingDelete, setBlockPendingDelete] = useState<CourseBlock | null>(null);
-
-=======
   const { mutateAsync: updateBlockAsync } = useUpdateCourseBlock();
   const { mutate: deleteBlock, isPending: deletingBlock } = useDeleteCourseBlock();
   const [blockPendingDelete, setBlockPendingDelete] = useState<CourseBlock | null>(null);
@@ -653,14 +512,11 @@ export default function CourseDetail() {
   // handleRequestCloseAddBlock/handleRequestCloseVideoGen and handleConfirmDiscard below.
   const [discardConfirm, setDiscardConfirm] = useState<null | "block" | "video">(null);
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
   const openAddBlock = () => {
     setBlockForm(EMPTY_BLOCK_FORM);
     setShowAddBlock(true);
   };
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-=======
   const handleCourseDocumentUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -699,7 +555,6 @@ export default function CourseDetail() {
     }
   };
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
   const handleAddBlock = () => {
     if (!course || !selectedVersion) return;
     const nextSort = (blocks?.reduce((max, b) => Math.max(max, b.sort_order), -1) ?? -1) + 1;
@@ -709,15 +564,11 @@ export default function CourseDetail() {
       block_type: blockForm.block_type,
       sort_order: nextSort,
       title: blockForm.title || null,
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-      body: blockForm.block_type === "text" ? { content: blockForm.textContent } : null,
-=======
       body: blockForm.block_type === "text"
         ? { content: blockForm.textContent }
         : blockForm.block_type === "video" && blockForm.videoTranscript.trim()
           ? { transcript: blockForm.videoTranscript.trim() }
           : null,
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
       video_url: blockForm.block_type === "video" ? (blockForm.videoUrl || null) : null,
       document_id: (blockForm.block_type === "pdf" || blockForm.block_type === "scorm") ? (blockForm.documentId || null) : null,
     };
@@ -789,8 +640,6 @@ export default function CourseDetail() {
     setVideoGenForm({ avatarId: "", voiceId: "", script: "" });
   };
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-=======
   const handleRequestCloseVideoGen = () => {
     if (videoGenForm.avatarId || videoGenForm.voiceId || videoGenForm.script.trim()) {
       setDiscardConfirm("video");
@@ -812,7 +661,6 @@ export default function CourseDetail() {
     setDiscardConfirm(null);
   };
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
   const handleGenerateVideo = () => {
     if (!videoGenBlock) return;
     if (!videoGenForm.avatarId || !videoGenForm.voiceId || !videoGenForm.script.trim()) {
@@ -848,8 +696,6 @@ export default function CourseDetail() {
     });
   };
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-=======
   // --- Bulk "Generate All Videos": one avatar/voice pick, applied to every video block in
   // this version that doesn't have a video yet, using each block's AI-authored body.script
   // as the narration. Blocks with no script (never AI-generated/authored) are skipped rather
@@ -1002,7 +848,6 @@ export default function CourseDetail() {
     );
   };
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
   if (courseLoading) {
     return (
       <div className="space-y-6">
@@ -1018,11 +863,7 @@ export default function CourseDetail() {
       <div className="text-center py-12">
         <p className="text-muted-foreground">Course not found.</p>
         <Button asChild className="mt-4" variant="outline">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-          <Link href="/app/courses">Back to Courses</Link>
-=======
           <Link href={coursesListPath(user?.role)}>Back to Courses</Link>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
         </Button>
       </div>
     );
@@ -1032,11 +873,7 @@ export default function CourseDetail() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-          <Link href="/app/courses">
-=======
           <Link href={coursesListPath(user?.role)}>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Link>
         </Button>
@@ -1057,16 +894,6 @@ export default function CourseDetail() {
               ) : (
                 <Badge variant="secondary" className="text-[10px] font-medium">Org Course</Badge>
               )}
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-            </div>
-          </div>
-        </div>
-        {canManage && (
-          <Button variant="outline" size="sm" onClick={openEditCourse}>
-            <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
-          </Button>
-        )}
-=======
               {selectedVersion?.ai_generated && (
                 <Badge variant="outline" className="text-[10px] font-medium bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-50">
                   <Sparkles className="h-3 w-3 mr-1" /> AI-Generated
@@ -1088,7 +915,6 @@ export default function CourseDetail() {
             </Button>
           )}
         </div>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
       </div>
 
       <Card>
@@ -1108,8 +934,6 @@ export default function CourseDetail() {
             <p className="text-xs text-muted-foreground">Estimated Duration</p>
             <p className="text-sm">{course.estimated_duration_minutes ? `${course.estimated_duration_minutes} minutes` : "—"}</p>
           </div>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-=======
           <div>
             <p className="text-xs text-muted-foreground">Learner Rating</p>
             {feedbackSummary.count > 0 ? (
@@ -1124,7 +948,6 @@ export default function CourseDetail() {
               <p className="text-sm text-muted-foreground">No ratings yet.</p>
             )}
           </div>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
         </CardContent>
       </Card>
 
@@ -1172,17 +995,6 @@ export default function CourseDetail() {
                     )}
                   </div>
                   {canManage && v.status === "draft" && (
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={publishingVersionId === v.id}
-                      onClick={(e) => { e.stopPropagation(); handlePublish(v); }}
-                    >
-                      <Rocket className="mr-2 h-3.5 w-3.5" />
-                      {publishingVersionId === v.id ? "Publishing..." : "Publish"}
-                    </Button>
-=======
                     v.ai_generated && !v.ai_reviewed_at ? (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -1209,7 +1021,6 @@ export default function CourseDetail() {
                         {publishingVersionId === v.id ? "Publishing..." : "Publish"}
                       </Button>
                     )
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
                   )}
                 </div>
               ))}
@@ -1218,8 +1029,6 @@ export default function CourseDetail() {
         </CardContent>
       </Card>
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-=======
       {canManage && needsAiReview && (
         <Alert className="border-warning/40 bg-warning/10">
           <Sparkles className="h-4 w-4" />
@@ -1303,7 +1112,6 @@ export default function CourseDetail() {
         </Card>
       )}
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
       {selectedVersion && (
         <Card>
           <CardHeader>
@@ -1314,13 +1122,6 @@ export default function CourseDetail() {
                   (v{selectedVersion.version_number} — {selectedVersion.title})
                 </span>
               </CardTitle>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-              {canManage && !isVersionLocked && (
-                <Button size="sm" onClick={openAddBlock}>
-                  <Plus className="mr-2 h-3.5 w-3.5" /> Add Block
-                </Button>
-              )}
-=======
               <div className="flex items-center gap-2">
                 {canManage && (
                   <Button size="sm" variant="outline" onClick={() => setShowStudentPreview(true)} disabled={!blocks || blocks.length === 0}>
@@ -1338,7 +1139,6 @@ export default function CourseDetail() {
                   </Button>
                 )}
               </div>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
             </div>
             {isVersionLocked && (
               <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
@@ -1376,14 +1176,11 @@ export default function CourseDetail() {
                       {b.block_type === "video" && (
                         <>
                           <p className="text-xs text-muted-foreground mt-1 truncate">{b.video_url ?? "No video URL set."}</p>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-=======
                           {videoTranscriptContent(b) && (
                             <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                               Transcript: {videoTranscriptContent(b)}
                             </p>
                           )}
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
                           {(() => {
                             const job = (b.body as { heygen?: { status?: string; error?: string } } | null)?.heygen;
                             if (!job || job.status === "completed") return null;
@@ -1395,16 +1192,6 @@ export default function CourseDetail() {
                         </>
                       )}
                       {(b.block_type === "pdf" || b.block_type === "scorm") && (
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-                        <p className="text-xs text-muted-foreground mt-1">{b.document_id ? `Document: ${b.document_id}` : "No document attached."}</p>
-                      )}
-                      {b.block_type === "quiz" && (
-                        <div className="mt-1">
-                          <QuizBlockSummary blockId={b.id} onConfigure={() => openQuizPrompt(b)} />
-                        </div>
-                      )}
-                    </div>
-=======
                         <p className="text-xs text-muted-foreground mt-1">
                           {b.document_id ? `Document: ${documentDisplayName(courseDocumentById.get(b.document_id)) || b.document_id}` : "No document attached."}
                         </p>
@@ -1444,7 +1231,6 @@ export default function CourseDetail() {
                         </Button>
                       </div>
                     )}
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
                     {canManage && !isVersionLocked && b.block_type === "video" && (
                       <>
                         {(() => {
@@ -1478,8 +1264,6 @@ export default function CourseDetail() {
                       <Button
                         variant="ghost"
                         size="icon"
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-=======
                         className="h-8 w-8 text-muted-foreground shrink-0"
                         onClick={() => openRegenerateBlock(b)}
                         aria-label="Regenerate with AI"
@@ -1491,7 +1275,6 @@ export default function CourseDetail() {
                       <Button
                         variant="ghost"
                         size="icon"
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
                         className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
                         onClick={() => setBlockPendingDelete(b)}
                         aria-label="Delete block"
@@ -1520,11 +1303,7 @@ export default function CourseDetail() {
               <Label>Description</Label>
               <Textarea value={courseForm.description} onChange={e => setCourseForm(f => ({ ...f, description: e.target.value }))} />
             </div>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-            <div className="grid grid-cols-2 gap-4">
-=======
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
               <div className="space-y-1">
                 <Label>Category</Label>
                 <Input value={courseForm.category} onChange={e => setCourseForm(f => ({ ...f, category: e.target.value }))} />
@@ -1544,8 +1323,6 @@ export default function CourseDetail() {
             <p className="text-xs text-muted-foreground">
               This is the course's catalog status. It's independent of the per-version publish workflow below.
             </p>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-=======
             <div className="space-y-1">
               <Label>Compliance Training Type</Label>
               <Select value={courseForm.trainingTypeId} onValueChange={v => setCourseForm(f => ({ ...f, trainingTypeId: v }))}>
@@ -1562,7 +1339,6 @@ export default function CourseDetail() {
                 for this requirement, so their annual-hours and due-date tracking update immediately.
               </p>
             </div>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditCourse(false)}>Cancel</Button>
@@ -1577,13 +1353,9 @@ export default function CourseDetail() {
           <DialogHeader><DialogTitle>New Draft Version</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-              This creates version {nextVersionNumber} as a new draft. Existing published versions stay untouched and immutable.
-=======
               {selectedVersion
                 ? `This creates version ${nextVersionNumber} as a new draft, copying every block, quiz, question, and answer from v${selectedVersion.version_number} as a starting point. Existing published versions stay untouched and immutable.`
                 : `This creates version ${nextVersionNumber} as a new, empty draft -- this course has no existing version to copy from yet.`}
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
             </p>
             <div className="space-y-1">
               <Label>Title</Label>
@@ -1592,9 +1364,6 @@ export default function CourseDetail() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowNewVersion(false)}>Cancel</Button>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-            <Button onClick={handleCreateVersion} disabled={creatingVersion}>{creatingVersion ? "Creating..." : "Create Draft"}</Button>
-=======
             <Button onClick={handleCreateVersion} disabled={creatingVersion}>{creatingVersion ? (selectedVersion ? "Copying..." : "Creating...") : "Create Draft"}</Button>
           </DialogFooter>
         </DialogContent>
@@ -1683,17 +1452,12 @@ export default function CourseDetail() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowStudentPreview(false)}>Close</Button>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Add block */}
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-      <Dialog open={showAddBlock} onOpenChange={o => { if (!o) setShowAddBlock(false); }}>
-=======
       <Dialog open={showAddBlock} onOpenChange={o => { if (!o) handleRequestCloseAddBlock(); }}>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Add Content Block</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
@@ -1726,20 +1490,6 @@ export default function CourseDetail() {
               </div>
             )}
             {blockForm.block_type === "video" && (
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-              <div className="space-y-1">
-                <Label>Video URL</Label>
-                <Input value={blockForm.videoUrl} onChange={e => setBlockForm(f => ({ ...f, videoUrl: e.target.value }))} placeholder="https://..." />
-                <p className="text-xs text-muted-foreground">
-                  Leave blank if you plan to generate an AI avatar video after creating this block.
-                </p>
-              </div>
-            )}
-            {(blockForm.block_type === "pdf" || blockForm.block_type === "scorm") && (
-              <div className="space-y-1">
-                <Label>Document ID</Label>
-                <Input value={blockForm.documentId} onChange={e => setBlockForm(f => ({ ...f, documentId: e.target.value }))} placeholder="Optional -- link an uploaded training document" />
-=======
               <div className="space-y-3">
                 <div className="space-y-1">
                   <Label>Video URL</Label>
@@ -1810,7 +1560,6 @@ export default function CourseDetail() {
                     Uploads need a facility record to own the document metadata.
                   </p>
                 )}
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
               </div>
             )}
             {blockForm.block_type === "quiz" && (
@@ -1835,11 +1584,7 @@ export default function CourseDetail() {
               <Label>Quiz Title *</Label>
               <Input value={quizForm.title} onChange={e => setQuizForm(f => ({ ...f, title: e.target.value }))} />
             </div>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-            <div className="grid grid-cols-2 gap-4">
-=======
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
               <div className="space-y-1">
                 <Label>Passing Score (%)</Label>
                 <Input type="number" min="0" max="100" value={quizForm.passingScore} onChange={e => setQuizForm(f => ({ ...f, passingScore: e.target.value }))} />
@@ -1861,11 +1606,7 @@ export default function CourseDetail() {
       </Dialog>
 
       {/* Generate AI avatar video (HeyGen) */}
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-      <Dialog open={!!videoGenBlock} onOpenChange={o => { if (!o) setVideoGenBlock(null); }}>
-=======
       <Dialog open={!!videoGenBlock} onOpenChange={o => { if (!o) handleRequestCloseVideoGen(); }}>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Generate AI Avatar Video</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
@@ -1912,8 +1653,6 @@ export default function CourseDetail() {
         </DialogContent>
       </Dialog>
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-=======
       {/* Bulk-generate AI avatar videos for every eligible video block in this version */}
       <Dialog open={showBulkVideoGen} onOpenChange={o => { if (!o) closeBulkVideoGen(); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -2027,7 +1766,6 @@ export default function CourseDetail() {
         </DialogContent>
       </Dialog>
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
       {/* Delete block confirmation */}
       <AlertDialog open={!!blockPendingDelete} onOpenChange={o => { if (!o) setBlockPendingDelete(null); }}>
         <AlertDialogContent>
@@ -2049,8 +1787,6 @@ export default function CourseDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseDetail.tsx
-=======
 
       {/* Discard unsaved changes -- Add Block / Generate Video dialogs (see discardConfirm) */}
       <AlertDialog open={discardConfirm !== null} onOpenChange={o => { if (!o) setDiscardConfirm(null); }}>
@@ -2074,7 +1810,6 @@ export default function CourseDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseDetail.tsx
     </div>
   );
 }

@@ -60,8 +60,6 @@ export function useCreateOrganization() {
   });
 }
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useOrganizations.ts
-=======
 // Detects a suspended organization from the *inside*: current_org_id() (and therefore every RLS
 // policy shaped organization_id = current_org_id()) returns null for a suspended org's members,
 // so their own organizations row becomes unreadable -- that absence IS the suspension signal.
@@ -79,7 +77,6 @@ export function useMyOrganizationAccessible(organizationId: string | null | unde
   });
 }
 
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useOrganizations.ts
 export function useUpdateOrganization() {
   const queryClient = useQueryClient();
   return useMutation({

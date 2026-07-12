@@ -42,10 +42,7 @@ interface DashboardSummary {
   dueSoon90Count: number;
   expiredCount: number;
   missingDocumentCount: number;
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Dashboard.tsx
-=======
   totalTrackedCount: number;
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Dashboard.tsx
   compliancePercentage: number;
   totalEmployees: number;
   openAlertsCount: number;
@@ -203,10 +200,7 @@ function computeDashboardSummary({
     dueSoon90Count,
     expiredCount,
     missingDocumentCount,
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Dashboard.tsx
-=======
     totalTrackedCount: relevantCount,
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Dashboard.tsx
     compliancePercentage,
     totalEmployees,
     openAlertsCount: openAlerts.length,
@@ -396,15 +390,9 @@ export default function OrgDashboard() {
 
   const complianceColor = compliancePct >= 90 ? "text-emerald-600" : compliancePct >= 75 ? "text-amber-600" : "text-red-600";
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Dashboard.tsx
-  const totalRecords = summary.compliantCount + summary.dueSoon30Count + summary.expiredCount;
-  const dueSoonPct = totalRecords > 0 ? Math.round((summary.dueSoon30Count / totalRecords) * 100) : 0;
-  const expiredPct = totalRecords > 0 ? Math.round((summary.expiredCount / totalRecords) * 100) : 0;
-=======
   const totalTracked = summary.totalTrackedCount;
   const dueSoonPct = totalTracked > 0 ? Math.round((summary.dueSoon30Count / totalTracked) * 100) : 0;
   const expiredPct = totalTracked > 0 ? Math.round((summary.expiredCount / totalTracked) * 100) : 0;
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Dashboard.tsx
 
   const facilityComplianceMap = new Map(
     summary.facilityCompliance.map(fc => [fc.facilityId, fc]),
@@ -485,14 +473,10 @@ export default function OrgDashboard() {
           <div className="stat-card">
             <div className="flex items-start justify-between">
               <div>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Dashboard.tsx
-                <p className="stat-label">Compliant</p>
-=======
                 <StatLabel
                   label="Compliant Requirements"
                   tooltip="Training and practicum requirements (across all facilities) that currently meet Pennsylvania Chapter 2800 compliance status."
                 />
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Dashboard.tsx
                 <p className="stat-value text-emerald-600">{summary.compliantCount}</p>
               </div>
               <div className="stat-icon bg-emerald-50">
@@ -508,14 +492,10 @@ export default function OrgDashboard() {
           <div className="stat-card">
             <div className="flex items-start justify-between">
               <div>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Dashboard.tsx
-                <p className="stat-label">Due ≤30 Days</p>
-=======
                 <StatLabel
                   label="Due Within 30 Days"
                   tooltip="Training and practicum requirements with a due date in the next 30 days."
                 />
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Dashboard.tsx
                 <p className="stat-value text-amber-600">{summary.dueSoon30Count}</p>
               </div>
               <div className="stat-icon bg-amber-50">
@@ -531,14 +511,10 @@ export default function OrgDashboard() {
           <div className="stat-card">
             <div className="flex items-start justify-between">
               <div>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Dashboard.tsx
-                <p className="stat-label">Due ≤90 Days</p>
-=======
                 <StatLabel
                   label="Due Within 90 Days"
                   tooltip="Training and practicum requirements with a due date in the next 90 days -- this includes the items already counted in Due Within 30 Days."
                 />
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Dashboard.tsx
                 <p className="stat-value text-orange-600">{summary.dueSoon90Count}</p>
               </div>
               <div className="stat-icon bg-orange-50">
@@ -554,14 +530,10 @@ export default function OrgDashboard() {
           <div className="stat-card">
             <div className="flex items-start justify-between">
               <div>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Dashboard.tsx
-                <p className="stat-label">Expired</p>
-=======
                 <StatLabel
                   label="Expired Requirements"
                   tooltip="Training and practicum requirements that are past their due date and have not been renewed."
                 />
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Dashboard.tsx
                 <p className="stat-value text-red-600">{summary.expiredCount}</p>
               </div>
               <div className="stat-icon bg-red-50">
@@ -577,14 +549,10 @@ export default function OrgDashboard() {
           <div className="stat-card">
             <div className="flex items-start justify-between">
               <div>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Dashboard.tsx
-                <p className="stat-label">Trainers Due</p>
-=======
                 <StatLabel
                   label="Trainers Needing Recert"
                   tooltip="Active staff marked as trainers who have at least one training requirement that is due soon or expired, and must recertify to keep training others."
                 />
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Dashboard.tsx
                 <p className="stat-value text-purple-600">{summary.trainersDueForRecert}</p>
               </div>
               <div className="stat-icon bg-purple-50">
@@ -600,14 +568,10 @@ export default function OrgDashboard() {
           <div className="stat-card">
             <div className="flex items-start justify-between">
               <div>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Dashboard.tsx
-                <p className="stat-label">Recent Uploads</p>
-=======
                 <StatLabel
                   label="Recent Uploads"
                   tooltip="Training documents (certificates, rosters, and other supporting files) uploaded to the system in the last 14 days."
                 />
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Dashboard.tsx
                 <p className="stat-value text-blue-600">{summary.recentUploadsCount}</p>
               </div>
               <div className="stat-icon bg-blue-50">
@@ -859,15 +823,9 @@ export default function OrgDashboard() {
                       </div>
                       <div className={`absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card ${dotColor}`} />
                     </div>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Dashboard.tsx
-                    <div>
-                      <p className="text-[13px] font-semibold">{facility.name}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-=======
                     <div className="min-w-0">
                       <p className="text-[13px] font-semibold truncate">{facility.name}</p>
                       <p className="text-xs text-muted-foreground mt-0.5 truncate">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Dashboard.tsx
                         {facility.facility_type} {facility.license_number ? `· ${facility.license_number}` : ""}
                       </p>
                     </div>

@@ -15,11 +15,7 @@ import {
 } from "@/hooks/useDocuments";
 import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Documents.tsx
-import { FileText, Upload, Trash2, Download, Files } from "lucide-react";
-=======
 import { FileText, Upload, Trash2, Download, Files, UserRound } from "lucide-react";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Documents.tsx
 
 // Matches the training_documents_delete RLS policy (org_admin/facility_manager, or
 // platform_admin via is_platform_admin()) — trainer and employee can never delete a
@@ -68,15 +64,12 @@ export default function Documents() {
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees({
     facilityId: uploadFacility || undefined,
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Documents.tsx
-=======
   });
   // Scoped to the read-side Facility filter below (not uploadFacility above, which scopes the
   // upload form's own employee picker) -- narrows as that filter narrows, same as the document
   // list itself.
   const { data: filterEmployees } = useListEmployees({
     facilityId: facilityId !== "all" ? facilityId : undefined,
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Documents.tsx
   });
 
   const { data: documents, isLoading } = useListDocuments({
@@ -134,11 +127,7 @@ export default function Documents() {
   const handleDownload = async (doc: TrainingDocument) => {
     try {
       const signedUrl = await getSignedUrl.mutateAsync(doc);
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Documents.tsx
-      window.open(signedUrl, "_blank");
-=======
       window.open(signedUrl, "_blank", "noopener,noreferrer");
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Documents.tsx
     } catch (err) {
       toast({ title: "Download failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     }
@@ -244,8 +233,6 @@ export default function Documents() {
                   <SelectItem value="all">All Facilities</SelectItem>
                   {facilities?.map(f => (
                     <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Documents.tsx
-=======
                   ))}
                 </SelectContent>
               </Select>
@@ -257,7 +244,6 @@ export default function Documents() {
                   <SelectItem value="all">All Employees</SelectItem>
                   {filterEmployees?.map(e => (
                     <SelectItem key={e.id} value={e.id}>{e.first_name} {e.last_name}</SelectItem>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Documents.tsx
                   ))}
                 </SelectContent>
               </Select>
@@ -300,13 +286,10 @@ export default function Documents() {
                       <p className="font-medium text-sm truncate">{doc.file_name}</p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <Badge variant="outline" className="text-xs">{DOC_TYPE_LABELS[doc.document_type] ?? doc.document_type}</Badge>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Documents.tsx
-=======
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
                           <UserRound className="h-3 w-3" />
                           {doc.employees ? `${doc.employees.first_name} ${doc.employees.last_name}` : "Unassigned"}
                         </span>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Documents.tsx
                         <span className="text-xs text-muted-foreground">{formatFileSize(doc.file_size)}</span>
                         <span className="text-xs text-muted-foreground">{new Date(doc.created_at).toLocaleDateString()}</span>
                       </div>

@@ -1,10 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCourseAssignments.ts
-=======
 import { rangeFor } from "@/lib/utils";
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCourseAssignments.ts
 
 export type CourseAssignment = Tables<"course_assignments">;
 export type CourseAssignmentInsert = TablesInsert<"course_assignments">;
@@ -19,11 +16,6 @@ export interface ListCourseAssignmentsFilters {
   courseId?: string;
   status?: string;
   facilityId?: string;
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCourseAssignments.ts
-}
-
-export function useListCourseAssignments(filters: ListCourseAssignmentsFilters = {}) {
-=======
   trainingPlanId?: string;
 }
 
@@ -35,7 +27,6 @@ export function useListCourseAssignments(filters: ListCourseAssignmentsFilters =
 // org-wide (or platform-wide, for platform_admin) assignment," since RLS alone doesn't stand in
 // for a missing employee_id filter.
 export function useListCourseAssignments(filters: ListCourseAssignmentsFilters = {}, options: { enabled?: boolean } = {}) {
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCourseAssignments.ts
   return useQuery({
     queryKey: ["course_assignments", filters],
     queryFn: async () => {
@@ -44,16 +35,11 @@ export function useListCourseAssignments(filters: ListCourseAssignmentsFilters =
       if (filters.courseId) query = query.eq("course_id", filters.courseId);
       if (filters.status) query = query.eq("status", filters.status);
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCourseAssignments.ts
-=======
       if (filters.trainingPlanId) query = query.eq("training_plan_id", filters.trainingPlanId);
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCourseAssignments.ts
       const { data, error } = await query;
       if (error) throw error;
       return data;
     },
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCourseAssignments.ts
-=======
     enabled: options.enabled,
   });
 }
@@ -109,7 +95,6 @@ export function useListCourseAssignmentsPaginated(filters: ListCourseAssignments
       return { rows: data ?? [], count: count ?? 0 };
     },
     placeholderData: (previousData) => previousData,
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCourseAssignments.ts
   });
 }
 
@@ -137,13 +122,6 @@ export function useCreateCourseAssignment() {
   });
 }
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCourseAssignments.ts
-export function useUpdateCourseAssignment() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, ...payload }: CourseAssignmentUpdate & { id: string }) => {
-      const { data, error } = await supabase.from("course_assignments").update(payload).eq("id", id).select().single();
-=======
 // Wires the assigned -> in_progress transition (previously dead -- protect_course_assignment_fields()
 // reverts any plain client .update() of status, so this has to go through the same
 // set_config('app.privileged_write', 'on', true) RPC pattern complete_course_assignment already uses.
@@ -166,7 +144,6 @@ export function useSelfEnrollCourse() {
   return useMutation({
     mutationFn: async (courseId: string) => {
       const { data, error } = await supabase.rpc("self_enroll_course", { p_course_id: courseId });
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCourseAssignments.ts
       if (error) throw error;
       return data;
     },
@@ -185,10 +162,7 @@ export function useCompleteCourseAssignment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["course_assignments"] });
       queryClient.invalidateQueries({ queryKey: ["course_progress"] });
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCourseAssignments.ts
-=======
       queryClient.invalidateQueries({ queryKey: ["certificates"] });
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCourseAssignments.ts
     },
   });
 }

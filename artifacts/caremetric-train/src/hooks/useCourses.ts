@@ -14,8 +14,6 @@ export type CourseBlockUpdate = TablesUpdate<"course_blocks">;
 export interface ListCoursesFilters {
   organizationId?: string;
   status?: string;
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCourses.ts
-=======
   // Restricts the list to system-catalog courses (organization_id IS NULL).
   // platform_admin's RLS grant bypasses the org filter entirely, so without this
   // its unfiltered list interleaves every organization's courses -- this is the
@@ -52,7 +50,6 @@ export function useCourseVersionPublishIssues(versionId: string | undefined, ena
 // each guaranteed to fail with a destructive error toast the moment they're clicked.
 export function canEnrollInCourse(course: Pick<Course, "organization_id">, employeeOrganizationId: string | undefined): boolean {
   return course.organization_id === null || course.organization_id === employeeOrganizationId;
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCourses.ts
 }
 
 // Courses can be org-owned or system-catalog (organization_id null); RLS already
@@ -66,10 +63,7 @@ export function useListCourses(filters: ListCoursesFilters = {}) {
       let query = supabase.from("courses").select("*").order("title");
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
       if (filters.status) query = query.eq("status", filters.status);
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCourses.ts
-=======
       if (filters.systemOnly) query = query.is("organization_id", null);
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCourses.ts
       const { data, error } = await query;
       if (error) throw error;
       return data;
@@ -113,20 +107,6 @@ export function useUpdateCourse() {
   });
 }
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCourses.ts
-export function useDeleteCourse() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("courses").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["courses"] }),
-  });
-}
-
-=======
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCourses.ts
 // Course versions are scoped under the "courses" query-key namespace (rather than
 // their own top-level "course_versions" key) so that a broad invalidateQueries({
 // queryKey: ["courses"] }) -- e.g. after useUpdateCourse changes current_version_id
@@ -160,8 +140,6 @@ export function useGetCourseVersion(id: string | undefined) {
   });
 }
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCourses.ts
-=======
 export function useListCourseVersionsByIds(ids: string[]) {
   const normalizedIds = [...new Set(ids)].sort();
   return useQuery({
@@ -196,7 +174,6 @@ export function useListCourseVersionsForCourses(courseIds: string[]) {
   });
 }
 
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCourses.ts
 export function useCreateCourseVersion() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -216,8 +193,6 @@ export function useCreateCourseVersion() {
   });
 }
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCourses.ts
-=======
 export interface CloneCourseVersionPayload {
   sourceVersionId: string;
   courseId: string;
@@ -370,7 +345,6 @@ export function useCloneCourseVersion() {
   });
 }
 
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCourses.ts
 // Published versions are DB-locked immutable: a trigger rejects updates once
 // version.status === 'published', surfacing as a Postgres error via `error` above.
 // Callers should generally only offer an edit UI while version.status === 'draft',
@@ -390,8 +364,6 @@ export function useUpdateCourseVersion() {
   });
 }
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCourses.ts
-=======
 export function usePublishCourseVersion() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -407,7 +379,6 @@ export function usePublishCourseVersion() {
   });
 }
 
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCourses.ts
 export function useListCourseBlocks(courseVersionId: string | undefined) {
   return useQuery({
     queryKey: ["course_blocks", courseVersionId],
@@ -424,8 +395,6 @@ export function useListCourseBlocks(courseVersionId: string | undefined) {
   });
 }
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCourses.ts
-=======
 export function useGetCourseBlock(id: string | undefined) {
   return useQuery({
     queryKey: ["course_blocks", "single", id],
@@ -438,7 +407,6 @@ export function useGetCourseBlock(id: string | undefined) {
   });
 }
 
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCourses.ts
 export function useCreateCourseBlock() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -447,15 +415,10 @@ export function useCreateCourseBlock() {
       if (error) throw error;
       return data;
     },
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCourses.ts
-    onSuccess: (data) =>
-      queryClient.invalidateQueries({ queryKey: ["course_blocks", data.course_version_id] }),
-=======
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["course_blocks", data.course_version_id] });
       queryClient.invalidateQueries({ queryKey: ["courses", "versions", data.course_version_id, "publish-issues"] });
     },
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCourses.ts
   });
 }
 
@@ -467,15 +430,10 @@ export function useUpdateCourseBlock() {
       if (error) throw error;
       return data;
     },
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCourses.ts
-    onSuccess: (data) =>
-      queryClient.invalidateQueries({ queryKey: ["course_blocks", data.course_version_id] }),
-=======
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["course_blocks", data.course_version_id] });
       queryClient.invalidateQueries({ queryKey: ["courses", "versions", data.course_version_id, "publish-issues"] });
     },
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCourses.ts
   });
 }
 
@@ -487,14 +445,9 @@ export function useDeleteCourseBlock() {
       if (error) throw error;
       return { courseVersionId };
     },
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCourses.ts
-    onSuccess: (data) =>
-      queryClient.invalidateQueries({ queryKey: ["course_blocks", data.courseVersionId] }),
-=======
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["course_blocks", data.courseVersionId] });
       queryClient.invalidateQueries({ queryKey: ["courses", "versions", data.courseVersionId, "publish-issues"] });
     },
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCourses.ts
   });
 }

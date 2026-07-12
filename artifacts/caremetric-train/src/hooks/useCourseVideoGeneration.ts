@@ -1,12 +1,7 @@
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCourseVideoGeneration.ts
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
-=======
 import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { CourseBlock } from "@/hooks/useCourses";
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCourseVideoGeneration.ts
 
 export interface HeygenAvatar {
   id: string;
@@ -87,8 +82,6 @@ export function useCheckCourseVideoStatus() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["course_blocks"] }),
   });
 }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCourseVideoGeneration.ts
-=======
 
 // HeyGen job states that mean "done, stop polling this block" -- everything else (e.g.
 // "processing", "pending", "waiting") is treated as still in-flight.
@@ -131,4 +124,3 @@ export function useAutoCheckVideoStatuses(blocks: CourseBlock[] | undefined) {
     return () => clearInterval(intervalId);
   }, [hasPendingVideo]);
 }
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCourseVideoGeneration.ts

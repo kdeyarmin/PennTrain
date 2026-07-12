@@ -260,11 +260,7 @@ export default function CompetencyTemplates() {
 
   return (
     <div className="space-y-6">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CompetencyTemplates.tsx
-      <div className="page-header flex items-center justify-between">
-=======
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CompetencyTemplates.tsx
         <div>
           <h1>Competency Templates</h1>
           <p>Define reusable competency checklists that evaluators fill out for employees.</p>
@@ -302,13 +298,8 @@ export default function CompetencyTemplates() {
             </p>
           </div>
         ) : (
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CompetencyTemplates.tsx
-          <div className="overflow-hidden">
-            <table className="data-table">
-=======
           <div className="overflow-x-auto">
             <table className="data-table min-w-[560px]">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CompetencyTemplates.tsx
               <thead>
                 <tr>
                   <th>Template</th>
@@ -337,11 +328,7 @@ export default function CompetencyTemplates() {
                         <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground hover:text-foreground" onClick={() => setManagingTemplate(t)}>
                           <ListChecks className="mr-1.5 h-3.5 w-3.5" /> Items
                         </Button>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CompetencyTemplates.tsx
-                        {canManage && (
-=======
                         {canManage && t.organization_id !== null && (
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CompetencyTemplates.tsx
                           <>
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => openEdit(t)} aria-label={`Edit ${t.name}`}>
                               <Pencil className="h-3.5 w-3.5" />

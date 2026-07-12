@@ -1,8 +1,5 @@
 import { useMemo } from "react";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/trainer/RetrainingMonitor.tsx
-=======
 import { formatDateForDisplay } from "@/lib/dateUtils";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/trainer/RetrainingMonitor.tsx
 import { useAuth } from "@/lib/auth";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -221,11 +218,7 @@ export default function RetrainingMonitor() {
                           {compliancePercent}%
                         </span>
                       </div>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/trainer/RetrainingMonitor.tsx
-                      <div className="grid grid-cols-4 gap-3 text-center text-sm">
-=======
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-sm">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/trainer/RetrainingMonitor.tsx
                         <div className="rounded-lg bg-green-50 dark:bg-green-950/20 py-2">
                           <p className="text-lg font-bold text-green-700 dark:text-green-400">
                             {fac.compliantCount}
@@ -254,11 +247,7 @@ export default function RetrainingMonitor() {
                       {fac.nextExpiryDate && (
                         <p className="text-xs text-muted-foreground">
                           Next expiry:{" "}
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/trainer/RetrainingMonitor.tsx
-                          {new Date(fac.nextExpiryDate).toLocaleDateString("en-US", {
-=======
                           {formatDateForDisplay(fac.nextExpiryDate, {
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/trainer/RetrainingMonitor.tsx
                             month: "short",
                             day: "numeric",
                             year: "numeric",

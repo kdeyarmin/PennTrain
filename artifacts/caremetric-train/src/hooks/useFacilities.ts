@@ -10,11 +10,7 @@ export interface ListFacilitiesFilters {
   organizationId?: string;
 }
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useFacilities.ts
-export function useListFacilities(filters: ListFacilitiesFilters = {}) {
-=======
 export function useListFacilities(filters: ListFacilitiesFilters = {}, enabled = true) {
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useFacilities.ts
   return useQuery({
     queryKey: ["facilities", filters],
     queryFn: async () => {
@@ -24,10 +20,7 @@ export function useListFacilities(filters: ListFacilitiesFilters = {}, enabled =
       if (error) throw error;
       return data;
     },
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useFacilities.ts
-=======
     enabled,
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useFacilities.ts
   });
 }
 

@@ -1,10 +1,6 @@
-<<<<<<< HEAD
-import { createClient } from "jsr:@supabase/supabase-js@2";
-=======
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { pollAndResolveHeygenVideo, type HeygenJobState } from "../_shared/heygenPolling.ts";
->>>>>>> origin/main
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -18,23 +14,9 @@ function json(body: unknown, status = 200) {
   });
 }
 
-<<<<<<< HEAD
-const WRITER_ROLES = ["platform_admin", "org_admin", "trainer"];
-
-interface HeygenJobState {
-  video_id: string;
-  status: string;
-  avatar_id?: string;
-  voice_id?: string;
-  requested_at?: string;
-  completed_at?: string;
-  error?: string;
-}
-=======
 // Narrowed alongside generate-course-video/index.ts: course_blocks write RLS is now
 // platform_admin-only, so org_admin/trainer could never persist a status update here anyway.
 const WRITER_ROLES = ["platform_admin"];
->>>>>>> origin/main
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
@@ -49,11 +31,7 @@ Deno.serve(async (req: Request) => {
   const heygenApiKey = Deno.env.get("HEYGEN_API_KEY");
   if (!heygenApiKey) return json({ error: "HEYGEN_API_KEY is not configured" }, 500);
 
-<<<<<<< HEAD
-  const callerClient = createClient(supabaseUrl, anonKey, {
-=======
   const callerClient = createClient<any>(supabaseUrl, anonKey, {
->>>>>>> origin/main
     global: { headers: { Authorization: authHeader } },
   });
 
@@ -90,65 +68,6 @@ Deno.serve(async (req: Request) => {
   const job = (block.body as { heygen?: HeygenJobState } | null)?.heygen;
   if (!job?.video_id) return json({ error: "no pending video generation for this block" }, 400);
 
-<<<<<<< HEAD
-  if (job.status === "completed") {
-    return json({ success: true, status: "completed" });
-  }
-
-  const statusRes = await fetch(`https://api.heygen.com/v3/videos/${job.video_id}`, {
-    headers: { "x-api-key": heygenApiKey },
-  });
-  const statusBody = await statusRes.json().catch(() => null);
-  if (!statusRes.ok || !statusBody?.data) {
-    return json({ error: statusBody?.message ?? "failed to check HeyGen video status" }, 502);
-  }
-
-  const heygenStatus = statusBody.data.status as string;
-
-  if (heygenStatus === "failed") {
-    const failureMessage = statusBody.data.failure_message ?? "video generation failed";
-    await callerClient
-      .from("course_blocks")
-      .update({ body: { heygen: { ...job, status: "failed", error: failureMessage } } })
-      .eq("id", body.course_block_id);
-    return json({ success: true, status: "failed", error: failureMessage });
-  }
-
-  if (heygenStatus !== "completed") {
-    await callerClient
-      .from("course_blocks")
-      .update({ body: { heygen: { ...job, status: heygenStatus } } })
-      .eq("id", body.course_block_id);
-    return json({ success: true, status: heygenStatus });
-  }
-
-  const videoRes = await fetch(statusBody.data.video_url);
-  if (!videoRes.ok || !videoRes.body) {
-    return json({ error: "failed to download completed video from HeyGen" }, 502);
-  }
-  const videoBytes = new Uint8Array(await videoRes.arrayBuffer());
-
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
-  const storagePath = `${block.organization_id ?? "system"}/${block.id}.mp4`;
-  const { error: uploadError } = await adminClient.storage.from("course-videos").upload(storagePath, videoBytes, {
-    contentType: "video/mp4",
-    upsert: true,
-  });
-  if (uploadError) return json({ error: uploadError.message }, 500);
-
-  const { data: publicUrlData } = adminClient.storage.from("course-videos").getPublicUrl(storagePath);
-
-  const { error: updateError } = await callerClient
-    .from("course_blocks")
-    .update({
-      video_url: publicUrlData.publicUrl,
-      body: { heygen: { ...job, status: "completed", completed_at: new Date().toISOString() } },
-    })
-    .eq("id", body.course_block_id);
-  if (updateError) return json({ error: updateError.message }, 500);
-
-  return json({ success: true, status: "completed", video_url: publicUrlData.publicUrl });
-=======
   // Only the storage upload step needs service-role privileges (writing into the course-videos
   // bucket); all course_blocks writes still go through the caller's own RLS-scoped client, same
   // as before this was extracted into the shared module.
@@ -171,5 +90,4 @@ Deno.serve(async (req: Request) => {
     return json({ success: true, status: "failed", error: result.error });
   }
   return json({ success: true, status: result.status });
->>>>>>> origin/main
 });

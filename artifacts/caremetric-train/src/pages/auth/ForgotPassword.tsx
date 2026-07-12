@@ -6,12 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/auth/ForgotPassword.tsx
-import { Loader2, ShieldCheck, ArrowLeft, Mail, CheckCircle2 } from "lucide-react";
-=======
 import { Loader2, ArrowLeft, Mail, CheckCircle2 } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/auth/ForgotPassword.tsx
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -32,16 +28,11 @@ export default function ForgotPassword() {
 
     setLoading(true);
     try {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/auth/ForgotPassword.tsx
-      await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/login`,
-=======
       // Matches App.tsx's WouterRouter/publicPaths.ts convention for combining origin + base path
       // -- BASE_URL is "/" by default (root) but can be a subpath in non-root deployments.
       const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
       await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}${basePath}/reset-password`,
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/auth/ForgotPassword.tsx
       });
     } catch {
       toast({
@@ -66,13 +57,9 @@ export default function ForgotPassword() {
         <div className="flex flex-col items-center text-center space-y-3">
           <LogoMark className="h-20 w-20" />
           <div className="space-y-1.5">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/auth/ForgotPassword.tsx
-            <h1 className="text-[28px] font-bold tracking-tight text-foreground">CareMetric Train</h1>
-=======
             <h1 className="text-[28px] font-bold tracking-tight" style={{ color: BRAND_BLUE }}>
               <BrandName />
             </h1>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/auth/ForgotPassword.tsx
             <p className="text-sm text-muted-foreground">Healthcare Learning &amp; Compliance Platform</p>
           </div>
         </div>

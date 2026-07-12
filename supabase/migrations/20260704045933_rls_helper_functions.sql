@@ -27,8 +27,4 @@ $$;
 grant execute on function public.current_role() to authenticated;
 grant execute on function public.current_org_id() to authenticated;
 grant execute on function public.is_platform_admin() to authenticated;
-<<<<<<< HEAD
 grant execute on function public.is_assigned_to_facility(uuid) to authenticated;
-=======
-grant execute on function public.is_assigned_to_facility(uuid) to authenticated;
->>>>>>> origin/main

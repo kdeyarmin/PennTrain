@@ -149,8 +149,4 @@ create policy employees_update on public.employees for update to authenticated u
 );
 create policy employees_delete on public.employees for delete to authenticated using (
   public.is_platform_admin() or (organization_id = (select public.current_org_id()) and (select public.current_role()) = 'org_admin')
-<<<<<<< HEAD
 );
-=======
-);
->>>>>>> origin/main

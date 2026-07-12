@@ -9,9 +9,6 @@ export interface ListCertificatesFilters {
   courseId?: string;
 }
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCertificates.ts
-export function useListCertificates(filters: ListCertificatesFilters = {}) {
-=======
 // `options.enabled` matters for callers that intend to scope by employeeId but don't have one yet
 // (e.g. an employee self-service page before its employees row has resolved) -- every filter field
 // here is applied only `if` truthy, so an absent employeeId doesn't scope to "nothing," it scopes
@@ -21,7 +18,6 @@ export function useListCertificates(filters: ListCertificatesFilters = {}) {
 // useCourseAssignments.ts's useListCourseAssignments. Defaults to `undefined`, which react-query
 // treats as "always enabled," so every existing caller that doesn't pass `options` is unaffected.
 export function useListCertificates(filters: ListCertificatesFilters = {}, options: { enabled?: boolean } = {}) {
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCertificates.ts
   return useQuery({
     queryKey: ["certificates", filters],
     queryFn: async () => {
@@ -32,22 +28,7 @@ export function useListCertificates(filters: ListCertificatesFilters = {}, optio
       if (error) throw error;
       return data;
     },
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCertificates.ts
-  });
-}
-
-export function useGetCertificate(id: string | undefined) {
-  return useQuery({
-    queryKey: ["certificates", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("certificates").select("*").eq("id", id!).single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-=======
     enabled: options.enabled,
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCertificates.ts
   });
 }
 
@@ -86,8 +67,6 @@ export function useVerifyCertificate(slug: string | undefined) {
     enabled: !!slug,
   });
 }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useCertificates.ts
-=======
 
 export interface GenerateCertificatePdfResult {
   url: string;
@@ -115,4 +94,3 @@ export function useGenerateCertificatePdf() {
     },
   });
 }
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useCertificates.ts

@@ -1,11 +1,6 @@
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Facilities.tsx
-import { useState } from "react";
-import { useListFacilities, useCreateFacility, useUpdateFacility, useDeleteFacility, type Facility } from "@/hooks/useFacilities";
-=======
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useListFacilities, useCreateFacility, useUpdateFacility, useDeleteFacility, type Facility } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Facilities.tsx
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -16,11 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from "@/components/ui/alert-dialog";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Facilities.tsx
-import { Building2, ChevronRight, MapPin, Phone, Plus, Pencil, Trash2 } from "lucide-react";
-=======
 import { Building2, ChevronRight, MapPin, Phone, Plus, Pencil, Trash2, Search } from "lucide-react";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Facilities.tsx
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
@@ -54,13 +45,9 @@ export default function Facilities() {
   const { viewingOrgId } = useViewingOrg();
   const { data: facilities, isLoading } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
   const { toast } = useToast();
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Facilities.tsx
-  const basePath = user?.role === "platform_admin" ? "/admin/facilities" : "/app/facilities";
-=======
   const basePath = user?.role === "platform_admin" ? "/admin/facilities"
     : user?.role === "trainer" ? "/trainer/facilities"
     : "/app/facilities";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Facilities.tsx
 
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -115,11 +102,7 @@ export default function Facilities() {
     setEditId(facility.id);
     setForm({
       name: facility.name,
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Facilities.tsx
-      facilityType: (facility.facility_type as "PCH" | "ALR") ?? "PCH",
-=======
       facilityType: (facility.facility_type as FacilityType) ?? "PCH",
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Facilities.tsx
       licenseNumber: facility.license_number ?? "",
       address: facility.address ?? "",
       city: facility.city ?? "",
@@ -240,15 +223,7 @@ export default function Facilities() {
                 <h3 className="font-semibold text-[15px] text-foreground mb-2">{facility.name}</h3>
 
                 <div className="flex items-center gap-2 mb-3">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/Facilities.tsx
-                  <Badge variant="outline" className={`text-[10px] font-medium ${
-                    facility.facility_type === "ALR"
-                      ? "border-violet-200 text-violet-700 bg-violet-50"
-                      : "border-blue-200 text-blue-700 bg-blue-50"
-                  }`}>
-=======
                   <Badge variant="outline" className={`text-[10px] font-medium ${facilityTypeBadgeClass(facility.facility_type)}`}>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/Facilities.tsx
                     {facility.facility_type}
                   </Badge>
                   <Badge variant="outline" className={`text-[10px] font-medium ${

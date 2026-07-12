@@ -1,23 +1,12 @@
 import { useMemo, useState } from "react";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-import {
-  useListCourseAssignments,
-=======
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import {
   useListCourseAssignmentsPaginated,
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
   useCreateCourseAssignment,
   useCompleteCourseAssignment,
   useGetCourseProgress,
   type CourseAssignment,
 } from "@/hooks/useCourseAssignments";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-import { useListEmployees } from "@/hooks/useEmployees";
-import { useListCourses, useListCourseVersions } from "@/hooks/useCourses";
-import { useListFacilities } from "@/hooks/useFacilities";
-import { useIssueCertificate } from "@/hooks/useCertificates";
-=======
 import { useListEmployees, type Employee } from "@/hooks/useEmployees";
 import {
   useListCourses,
@@ -28,22 +17,15 @@ import {
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListCertificates, useGenerateCertificatePdf } from "@/hooks/useCertificates";
 import { summarizeCourseAssignmentAnalytics } from "@/lib/courseAssignmentAnalytics";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { ClipboardList, Search, ChevronLeft, ChevronRight, UserPlus, CheckCircle2 } from "lucide-react";
-=======
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ClipboardList, Search, ChevronLeft, ChevronRight, UserPlus, CheckCircle2, Download, Loader2 } from "lucide-react";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -72,10 +54,6 @@ function StatusPill({ status }: { status: string }) {
 }
 
 interface AssignFormData {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-  employeeId: string;
-=======
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
   courseId: string;
   /** "" means "use the course's current_version_id" -- see handleAssign. */
   courseVersionId: string;
@@ -83,10 +61,6 @@ interface AssignFormData {
 }
 
 const EMPTY_ASSIGN_FORM: AssignFormData = {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-  employeeId: "",
-=======
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
   courseId: "",
   courseVersionId: "",
   dueDate: "",
@@ -96,17 +70,6 @@ const EMPTY_ASSIGN_FORM: AssignFormData = {
 // Progress design note
 //
 // course_assignments can run into the thousands for a mid-size org (employees
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-// x courses x renewal cycles), and this list -- like Employees.tsx and
-// TrainingMatrix.tsx -- fetches the full filtered set and paginates it
-// client-side. Firing one useGetCourseProgress query per visible row would
-// re-fan-out on every filter/page change for a query that most rows don't
-// need looked at. So the main table only shows `status` and `due_date`,
-// which already answers "is this done, and by when" for the common case.
-// Detailed percent-complete is available on demand: clicking "Progress" opens
-// a small dialog that fetches course_progress for just that one
-// assignment_id, so at most one extra query is in flight at a time.
-=======
 // x courses x renewal cycles), so this list is fetched one page at a time via
 // useListCourseAssignmentsPaginated's server-side .range() (see
 // useCourseAssignments.ts) rather than downloading the full filtered set.
@@ -117,7 +80,6 @@ const EMPTY_ASSIGN_FORM: AssignFormData = {
 // available on demand: clicking "Progress" opens a small dialog that fetches
 // course_progress for just that one assignment_id, so at most one extra
 // query is in flight at a time.
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
 // ---------------------------------------------------------------------------
 function ProgressDialog({ assignmentId, onClose }: { assignmentId: string | null; onClose: () => void }) {
   const { data: progress, isLoading } = useGetCourseProgress(assignmentId ?? undefined);
@@ -161,17 +123,12 @@ export default function CourseAssignments() {
   const [page, setPage] = useState(1);
   const [showAssignForm, setShowAssignForm] = useState(false);
   const [assignForm, setAssignForm] = useState<AssignFormData>(EMPTY_ASSIGN_FORM);
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-  const [progressAssignmentId, setProgressAssignmentId] = useState<string | null>(null);
-  const [completingId, setCompletingId] = useState<string | null>(null);
-=======
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set());
   const [assignFacilityFilter, setAssignFacilityFilter] = useState<string>("all");
   const [assigning, setAssigning] = useState(false);
   const [progressAssignmentId, setProgressAssignmentId] = useState<string | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [downloadingCertId, setDownloadingCertId] = useState<string | null>(null);
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
 
   // RLS also lets an employee complete their own assignment, but that
   // self-service path lives on the learner-facing page -- this admin view
@@ -181,20 +138,6 @@ export default function CourseAssignments() {
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees();
   const { data: courses } = useListCourses();
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-  const { data: assignments, isLoading } = useListCourseAssignments({
-    facilityId: facilityId !== "all" ? facilityId : undefined,
-    status: statusFilter !== "all" ? statusFilter : undefined,
-  });
-  const { data: courseVersions } = useListCourseVersions(assignForm.courseId || undefined);
-
-  const { mutate: createAssignment, isPending: assigning } = useCreateCourseAssignment();
-  const { mutate: completeAssignment, isPending: completing } = useCompleteCourseAssignment();
-  const { mutate: issueCertificate } = useIssueCertificate();
-
-  const employeeById = useMemo(() => new Map((employees ?? []).map(e => [e.id, e])), [employees]);
-  const courseById = useMemo(() => new Map((courses ?? []).map(c => [c.id, c])), [courses]);
-=======
   const courseIds = useMemo(() => (courses ?? []).map(c => c.id), [courses]);
   const { data: allCourseVersions } = useListCourseVersionsForCourses(courseIds);
   const { data: courseVersions } = useListCourseVersions(assignForm.courseId || undefined);
@@ -217,7 +160,6 @@ export default function CourseAssignments() {
     () => new Map((certificates ?? []).filter(c => c.course_assignment_id).map(c => [c.course_assignment_id as string, c])),
     [certificates],
   );
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
 
   const activeEmployees = useMemo(
     () =>
@@ -226,12 +168,6 @@ export default function CourseAssignments() {
         .sort((a, b) => `${a.last_name}${a.first_name}`.localeCompare(`${b.last_name}${b.first_name}`)),
     [employees],
   );
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-  // Only published courses have content worth assigning; course_blocks/quizzes
-  // are locked once a version is published, so a draft course has nothing for
-  // an employee to actually take yet.
-  const publishedCourses = useMemo(() => (courses ?? []).filter(c => c.status === "published"), [courses]);
-=======
   const learnerReadyVersionsByCourseId = useMemo(() => {
     type CourseVersionRows = NonNullable<typeof allCourseVersions>;
     const map = new Map<string, CourseVersionRows>();
@@ -254,40 +190,12 @@ export default function CourseAssignments() {
       ),
     [courses, learnerReadyVersionsByCourseId],
   );
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
 
   const selectedCourse = assignForm.courseId ? courseById.get(assignForm.courseId) : undefined;
   // Assignments pin to a specific published version. Only offer the picker when
   // more than one published version exists; otherwise silently default to
   // current_version_id in handleAssign.
   const publishedVersions = useMemo(
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-    () => (courseVersions ?? []).filter(v => v.status === "published"),
-    [courseVersions],
-  );
-  const showVersionPicker = publishedVersions.length > 1;
-
-  const allAssignments = assignments ?? [];
-
-  const filtered = allAssignments.filter(a => {
-    if (!search.trim()) return true;
-    const emp = employeeById.get(a.employee_id);
-    const course = courseById.get(a.course_id);
-    const q = search.toLowerCase();
-    const empName = emp ? `${emp.first_name} ${emp.last_name}`.toLowerCase() : "";
-    const courseTitle = course?.title.toLowerCase() ?? "";
-    return empName.includes(q) || courseTitle.includes(q);
-  });
-
-  // Most recently assigned first -- what an admin scanning this list usually wants.
-  const sorted = [...filtered].sort((a, b) => (b.assigned_at ?? "").localeCompare(a.assigned_at ?? ""));
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  const openAssign = () => {
-    setAssignForm(EMPTY_ASSIGN_FORM);
-=======
     () => (courseVersions ?? []).filter(isCourseVersionLearnerReady),
     [courseVersions],
   );
@@ -372,7 +280,6 @@ export default function CourseAssignments() {
     setAssignForm(EMPTY_ASSIGN_FORM);
     setSelectedEmployeeIds(new Set());
     setAssignFacilityFilter("all");
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
     setShowAssignForm(true);
   };
 
@@ -382,18 +289,6 @@ export default function CourseAssignments() {
 
   const field = (k: keyof AssignFormData, v: string) => setAssignForm(f => ({ ...f, [k]: v }));
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-  const handleAssign = () => {
-    if (!assignForm.employeeId || !assignForm.courseId) {
-      toast({ title: "Employee and course are required", variant: "destructive" });
-      return;
-    }
-    const employee = employeeById.get(assignForm.employeeId);
-    const course = courseById.get(assignForm.courseId);
-    if (!employee || !course || !user?.organizationId) return;
-
-    const versionId = assignForm.courseVersionId || course.current_version_id;
-=======
   // Assigns the selected course to every selected employee in one batch via Promise.allSettled
   // (mirrors CourseDetail.tsx's handleGenerateAllVideos bulk pattern) so one employee's failure
   // doesn't stop the rest, then reports one summary toast instead of one per employee.
@@ -411,33 +306,10 @@ export default function CourseAssignments() {
     if (!course || !organizationId || !assignedBy) return;
 
     const versionId = assignForm.courseVersionId || defaultVersion?.id;
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
     if (!versionId) {
       toast({ title: "This course has no published version to assign", variant: "destructive" });
       return;
     }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-
-    createAssignment(
-      {
-        employee_id: employee.id,
-        course_id: course.id,
-        course_version_id: versionId,
-        facility_id: employee.facility_id,
-        organization_id: user.organizationId,
-        due_date: assignForm.dueDate || null,
-        assigned_by: user.id,
-      },
-      {
-        onSuccess: () => {
-          toast({ title: "Course assigned" });
-          setShowAssignForm(false);
-          setAssignForm(EMPTY_ASSIGN_FORM);
-        },
-        onError: (e: Error) => toast({ title: "Failed to assign course", description: e.message, variant: "destructive" }),
-      },
-    );
-=======
     const courseId = course.id;
 
     const targetEmployees = [...selectedEmployeeIds]
@@ -475,40 +347,21 @@ export default function CourseAssignments() {
       setAssignForm(EMPTY_ASSIGN_FORM);
       setSelectedEmployeeIds(new Set());
     }
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
   };
 
   const handleComplete = (assignment: CourseAssignment) => {
     setCompletingId(assignment.id);
     completeAssignment(assignment.id, {
       onSuccess: () => {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-        toast({ title: "Marked complete" });
-        issueCertificate(
-          { employeeId: assignment.employee_id, courseId: assignment.course_id, assignmentId: assignment.id },
-          {
-            onError: (e: Error) =>
-              // Completion already succeeded; a failed issuance (e.g. one already exists for this
-              // assignment) shouldn't read as a failure of the "Mark Complete" action itself.
-              console.error("issue_certificate failed after marking assignment complete:", e.message),
-          }
-        );
-=======
         // The completion RPC now commits the assignment, compliance evidence, certificate,
         // lifecycle event, and PDF job together. There is deliberately no second issuance call.
         toast({ title: "Marked complete", description: "Certificate issued and PDF preparation queued." });
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
       },
       onError: (e: Error) => toast({ title: "Failed to mark complete", description: e.message, variant: "destructive" }),
       onSettled: () => setCompletingId(null),
     });
   };
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-  return (
-    <div className="space-y-6">
-      <div className="page-header flex items-center justify-between">
-=======
   const handleDownloadCertificate = async (certificateId: string) => {
     setDownloadingCertId(certificateId);
     try {
@@ -528,7 +381,6 @@ export default function CourseAssignments() {
   return (
     <div className="space-y-6">
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
         <div>
           <h1>Course Assignments</h1>
           <p>Assign courses to employees and track completion.</p>
@@ -540,8 +392,6 @@ export default function CourseAssignments() {
         )}
       </div>
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-=======
       <div className="grid gap-4 md:grid-cols-4">
         <div className="premium-card p-4">
           <p className="text-xs font-medium text-muted-foreground">Visible completion</p>
@@ -573,7 +423,6 @@ export default function CourseAssignments() {
         </div>
       </div>
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
       <div className="premium-card">
         <div className="filter-bar">
           <div className="relative flex-1 min-w-48">
@@ -621,13 +470,8 @@ export default function CourseAssignments() {
           </div>
         ) : (
           <>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-            <div className="overflow-hidden">
-              <table className="data-table">
-=======
             <div className="overflow-x-auto">
               <table className="data-table min-w-[720px]">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
                 <thead>
                   <tr>
                     <th>Employee</th>
@@ -642,10 +486,7 @@ export default function CourseAssignments() {
                   {paginated.map(a => {
                     const emp = employeeById.get(a.employee_id);
                     const course = courseById.get(a.course_id);
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-=======
                     const cert = certificateByAssignmentId.get(a.id);
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
                     return (
                       <tr key={a.id}>
                         <td>
@@ -660,11 +501,7 @@ export default function CourseAssignments() {
                           <StatusPill status={a.status} />
                         </td>
                         <td className="text-muted-foreground">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-                          {a.due_date ? new Date(a.due_date).toLocaleDateString() : "—"}
-=======
                           {formatDateForDisplay(a.due_date)}
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
                         </td>
                         <td className="text-muted-foreground">
                           {a.completed_at ? new Date(a.completed_at).toLocaleDateString() : "—"}
@@ -679,8 +516,6 @@ export default function CourseAssignments() {
                             >
                               Progress
                             </Button>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-=======
                             {cert && (
                               <Button
                                 variant="ghost"
@@ -697,7 +532,6 @@ export default function CourseAssignments() {
                                 {downloadingCertId === cert.id ? "Preparing..." : "Certificate"}
                               </Button>
                             )}
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
                             {canManage && a.status !== "completed" && (
                               <Button
                                 variant="ghost"
@@ -722,15 +556,9 @@ export default function CourseAssignments() {
               <p className="text-[13px] text-muted-foreground">
                 Showing{" "}
                 <span className="font-medium text-foreground">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-                  {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)}
-                </span>{" "}
-                of {sorted.length}
-=======
                   {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)}
                 </span>{" "}
                 of {totalCount}
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
               </p>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" className="h-8" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
@@ -748,11 +576,7 @@ export default function CourseAssignments() {
 
       <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
         <ClipboardList className="h-4 w-4" />
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-        <span>{filtered.length} assignment{filtered.length !== 1 ? "s" : ""} total</span>
-=======
         <span>{totalCount} assignment{totalCount !== 1 ? "s" : ""} total</span>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
       </div>
 
       <Dialog open={showAssignForm} onOpenChange={o => { if (!o) setShowAssignForm(false); }}>
@@ -762,20 +586,6 @@ export default function CourseAssignments() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-              <Label className="text-[13px]">Employee *</Label>
-              <Select value={assignForm.employeeId} onValueChange={v => field("employeeId", v)}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Select employee" /></SelectTrigger>
-                <SelectContent>
-                  {activeEmployees.map(e => (
-                    <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-=======
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
               <Label className="text-[13px]">Course *</Label>
               <Select value={assignForm.courseId} onValueChange={handleCourseChange}>
                 <SelectTrigger className="h-9"><SelectValue placeholder="Select course" /></SelectTrigger>
@@ -796,13 +606,9 @@ export default function CourseAssignments() {
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="default">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-                      Current version{selectedCourse?.current_version_id ? "" : " (none set)"} — default
-=======
                       {defaultVersion
                         ? `Default: v${defaultVersion.version_number} - ${defaultVersion.title}`
                         : "No published version available"}
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
                     </SelectItem>
                     {publishedVersions.map(v => (
                       <SelectItem key={v.id} value={v.id}>
@@ -817,13 +623,6 @@ export default function CourseAssignments() {
               <Label className="text-[13px]">Due Date</Label>
               <Input type="date" value={assignForm.dueDate} onChange={e => field("dueDate", e.target.value)} className="h-9" />
             </div>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CourseAssignments.tsx
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAssignForm(false)}>Cancel</Button>
-            <Button onClick={handleAssign} disabled={assigning} className="shadow-sm">
-              {assigning ? "Assigning..." : "Assign Course"}
-=======
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
                 <Label className="text-[13px]">Employees * ({selectedEmployeeIds.size} selected)</Label>
@@ -881,7 +680,6 @@ export default function CourseAssignments() {
                 : selectedEmployeeIds.size > 0
                   ? `Assign to ${selectedEmployeeIds.size} Employee${selectedEmployeeIds.size === 1 ? "" : "s"}`
                   : "Assign Course"}
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CourseAssignments.tsx
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -3,10 +3,7 @@ import { useVerifyCertificate } from "@/hooks/useCertificates";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ShieldCheck, ShieldX, XCircle } from "lucide-react";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/VerifyCertificate.tsx
-=======
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/VerifyCertificate.tsx
 
 export default function VerifyCertificate() {
   const { slug } = useParams<{ slug: string }>();
@@ -20,19 +17,11 @@ export default function VerifyCertificate() {
 
       <div className="w-full max-w-[480px] space-y-8 relative z-10 px-4">
         <div className="flex flex-col items-center text-center space-y-3">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/VerifyCertificate.tsx
-          <div className="h-14 w-14 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
-            <ShieldCheck className="h-7 w-7 text-primary-foreground" />
-          </div>
-          <div className="space-y-1.5">
-            <h1 className="text-[28px] font-bold tracking-tight text-foreground">CareMetric Train</h1>
-=======
           <LogoMark className="h-20 w-20" />
           <div className="space-y-1.5">
             <h1 className="text-[28px] font-bold tracking-tight" style={{ color: BRAND_BLUE }}>
               <BrandName />
             </h1>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/VerifyCertificate.tsx
             <p className="text-sm text-muted-foreground">Certificate Verification</p>
           </div>
         </div>
@@ -109,11 +98,7 @@ export default function VerifyCertificate() {
         </Card>
 
         <p className="text-center text-[11px] text-muted-foreground/60">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/VerifyCertificate.tsx
-          28 Pa. Code Chapter 2600 Compliance Platform
-=======
           55 Pa. Code Chapter 2600 Compliance Platform
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/VerifyCertificate.tsx
         </p>
       </div>
     </div>

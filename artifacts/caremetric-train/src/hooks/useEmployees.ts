@@ -1,10 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useEmployees.ts
-=======
 import { escapeOrValue, rangeFor } from "@/lib/utils";
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useEmployees.ts
 
 export type Employee = Tables<"employees">;
 export type EmployeeInsert = TablesInsert<"employees">;
@@ -16,9 +13,6 @@ export interface ListEmployeesFilters {
   organizationId?: string;
 }
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useEmployees.ts
-export function useListEmployees(filters: ListEmployeesFilters = {}) {
-=======
 // Unbounded by design -- used for dropdowns/rosters/matrices elsewhere in the app that need the
 // complete filtered set, not a page of it. For the paginated roster table, see
 // useListEmployeesPaginated below.
@@ -33,7 +27,6 @@ export function useListEmployees(filters: ListEmployeesFilters = {}) {
 // to `undefined`, which react-query treats as "always enabled," so every existing caller that
 // doesn't pass `options` is unaffected.
 export function useListEmployees(filters: ListEmployeesFilters = {}, options: { enabled?: boolean } = {}) {
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useEmployees.ts
   return useQuery({
     queryKey: ["employees", filters],
     queryFn: async () => {
@@ -45,8 +38,6 @@ export function useListEmployees(filters: ListEmployeesFilters = {}, options: { 
       if (error) throw error;
       return data;
     },
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useEmployees.ts
-=======
     enabled: options.enabled,
   });
 }
@@ -101,7 +92,6 @@ export function useListEmployeesPaginated(filters: ListEmployeesPaginatedFilters
       return { rows: data ?? [], count: count ?? 0 };
     },
     placeholderData: (previousData) => previousData,
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useEmployees.ts
   });
 }
 
@@ -121,16 +111,12 @@ export function useGetEmployeeByProfileId(profileId: string | undefined) {
   return useQuery({
     queryKey: ["employees", "by-profile", profileId],
     queryFn: async () => {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useEmployees.ts
-      const { data, error } = await supabase.from("employees").select("*").eq("profile_id", profileId!).single();
-=======
       // maybeSingle(), not single(): now that every role (not just employee) can reach pages that
       // use this hook, "no employees row yet" (org_admin/auditor/platform_admin pre-self-enroll)
       // is a normal, expected result, not an error condition -- single() would instead throw on
       // zero rows, and react-query's default retry: 3 would retry that "error" with backoff for
       // several seconds before finally giving up and settling `data` to undefined anyway.
       const { data, error } = await supabase.from("employees").select("*").eq("profile_id", profileId!).maybeSingle();
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useEmployees.ts
       if (error) throw error;
       return data;
     },

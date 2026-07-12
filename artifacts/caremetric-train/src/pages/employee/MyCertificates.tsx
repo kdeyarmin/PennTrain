@@ -1,13 +1,3 @@
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/MyCertificates.tsx
-import { useMemo } from "react";
-import { useAuth } from "@/lib/auth";
-import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
-import { useListCertificates } from "@/hooks/useCertificates";
-import { useListCourses } from "@/hooks/useCourses";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Award, ExternalLink } from "lucide-react";
-=======
 import { useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
@@ -18,17 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Award, ExternalLink, Download, Loader2 } from "lucide-react";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/MyCertificates.tsx
 import { Link } from "wouter";
 
 export default function MyCertificates() {
   const { user } = useAuth();
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/MyCertificates.tsx
-
-  const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
-  const { data: certificates, isLoading: certificatesLoading } = useListCertificates({ employeeId: employee?.id });
-  const { data: courses } = useListCourses();
-=======
   const { toast } = useToast();
 
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
@@ -41,7 +24,6 @@ export default function MyCertificates() {
   const { data: courses } = useListCourses();
   const { mutateAsync: generatePdf } = useGenerateCertificatePdf();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/MyCertificates.tsx
 
   const courseTitleById = useMemo(() => new Map((courses ?? []).map(c => [c.id, c.title])), [courses]);
 
@@ -52,8 +34,6 @@ export default function MyCertificates() {
     return !!expiresAt && new Date(expiresAt).getTime() < Date.now();
   }
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/MyCertificates.tsx
-=======
   const handleDownload = async (certificateId: string) => {
     setDownloadingId(certificateId);
     try {
@@ -70,7 +50,6 @@ export default function MyCertificates() {
     }
   };
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/MyCertificates.tsx
   return (
     <div className="space-y-6">
       <div>
@@ -111,8 +90,6 @@ export default function MyCertificates() {
                           <> &middot; {expired ? "Expired" : "Expires"} {new Date(cert.expires_at).toLocaleDateString()}</>
                         )}
                       </p>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/MyCertificates.tsx
-=======
                       <p className="text-xs text-muted-foreground mt-0.5 font-mono">
                         {cert.credential_number}
                       </p>
@@ -121,14 +98,11 @@ export default function MyCertificates() {
                           PDF {cert.pdf_status === "failed" ? "needs another attempt" : "is being prepared"}
                         </p>
                       )}
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/MyCertificates.tsx
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <Badge variant={expired ? "destructive" : "default"}>
                         {expired ? "Expired" : "Valid"}
                       </Badge>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/MyCertificates.tsx
-=======
                       <Button
                         variant="outline"
                         disabled={downloadingId === cert.id}
@@ -147,7 +121,6 @@ export default function MyCertificates() {
                               ? "Retry PDF"
                               : "Prepare PDF"}
                       </Button>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/MyCertificates.tsx
                       <Link
                         href={`/verify/${cert.slug}`}
                         className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary/80 transition-colors"

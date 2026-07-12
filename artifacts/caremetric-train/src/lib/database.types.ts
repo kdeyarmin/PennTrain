@@ -7,15 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
-  public: {
-    Tables: {
-=======
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -172,23 +163,12 @@ export type Database = {
           },
         ]
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       alerts: {
         Row: {
           alert_type: string
           assigned_to_profile_id: string | null
           certificate_id: string | null
           competency_record_id: string | null
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-          course_assignment_id: string | null
-          created_at: string
-          employee_id: string | null
-          facility_id: string | null
-          id: string
-          message: string
-          organization_id: string
-          practicum_id: string | null
-=======
           corrective_action_id: string | null
           course_assignment_id: string | null
           created_at: string
@@ -204,7 +184,6 @@ export type Database = {
           organization_id: string
           practicum_id: string | null
           resident_compliance_item_id: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           resolved_at: string | null
           severity: string
           status: string
@@ -216,16 +195,6 @@ export type Database = {
           assigned_to_profile_id?: string | null
           certificate_id?: string | null
           competency_record_id?: string | null
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-          course_assignment_id?: string | null
-          created_at?: string
-          employee_id?: string | null
-          facility_id?: string | null
-          id?: string
-          message: string
-          organization_id: string
-          practicum_id?: string | null
-=======
           corrective_action_id?: string | null
           course_assignment_id?: string | null
           created_at?: string
@@ -241,7 +210,6 @@ export type Database = {
           organization_id: string
           practicum_id?: string | null
           resident_compliance_item_id?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           resolved_at?: string | null
           severity?: string
           status?: string
@@ -253,16 +221,6 @@ export type Database = {
           assigned_to_profile_id?: string | null
           certificate_id?: string | null
           competency_record_id?: string | null
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-          course_assignment_id?: string | null
-          created_at?: string
-          employee_id?: string | null
-          facility_id?: string | null
-          id?: string
-          message?: string
-          organization_id?: string
-          practicum_id?: string | null
-=======
           corrective_action_id?: string | null
           course_assignment_id?: string | null
           created_at?: string
@@ -278,7 +236,6 @@ export type Database = {
           organization_id?: string
           practicum_id?: string | null
           resident_compliance_item_id?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           resolved_at?: string | null
           severity?: string
           status?: string
@@ -294,8 +251,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
             foreignKeyName: "alerts_corrective_action_id_fkey"
             columns: ["corrective_action_id"]
             isOneToOne: false
@@ -310,7 +265,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
             foreignKeyName: "alerts_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
@@ -318,8 +272,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
             foreignKeyName: "alerts_exclusion_screening_match_id_fkey"
             columns: ["exclusion_screening_match_id"]
             isOneToOne: false
@@ -327,7 +279,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
             foreignKeyName: "alerts_facility_id_fkey"
             columns: ["facility_id"]
             isOneToOne: false
@@ -335,8 +286,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
             foreignKeyName: "alerts_incident_notification_id_fkey"
             columns: ["incident_notification_id"]
             isOneToOne: false
@@ -351,7 +300,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
             foreignKeyName: "alerts_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -366,8 +314,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
             foreignKeyName: "alerts_resident_compliance_item_id_fkey"
             columns: ["resident_compliance_item_id"]
             isOneToOne: false
@@ -375,7 +321,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
             foreignKeyName: "alerts_training_record_id_fkey"
             columns: ["training_record_id"]
             isOneToOne: false
@@ -384,8 +329,6 @@ export type Database = {
           },
         ]
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
       assessor_qualifications: {
         Row: {
           approved_by: string
@@ -451,21 +394,10 @@ export type Database = {
           },
         ]
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       audit_logs: {
         Row: {
           action: string
           actor_profile_id: string | null
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-          created_at: string
-          entity_id: string | null
-          entity_type: string
-          id: string
-          ip_address: string | null
-          new_values: Json | null
-          old_values: Json | null
-          organization_id: string | null
-=======
           actor_subject_id: string | null
           correlation_id: string
           created_at: string
@@ -483,21 +415,10 @@ export type Database = {
           reason: string | null
           request_id: string
           source: string
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
         }
         Insert: {
           action: string
           actor_profile_id?: string | null
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-          created_at?: string
-          entity_id?: string | null
-          entity_type: string
-          id?: string
-          ip_address?: string | null
-          new_values?: Json | null
-          old_values?: Json | null
-          organization_id?: string | null
-=======
           actor_subject_id?: string | null
           correlation_id: string
           created_at?: string
@@ -515,21 +436,10 @@ export type Database = {
           reason?: string | null
           request_id: string
           source: string
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
         }
         Update: {
           action?: string
           actor_profile_id?: string | null
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-          created_at?: string
-          entity_id?: string | null
-          entity_type?: string
-          id?: string
-          ip_address?: string | null
-          new_values?: Json | null
-          old_values?: Json | null
-          organization_id?: string | null
-=======
           actor_subject_id?: string | null
           correlation_id?: string
           created_at?: string
@@ -547,7 +457,6 @@ export type Database = {
           reason?: string | null
           request_id?: string
           source?: string
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
         }
         Relationships: [
           {
@@ -566,8 +475,6 @@ export type Database = {
           },
         ]
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
       billing_accounts: {
         Row: {
           billing_state: string
@@ -982,30 +889,23 @@ export type Database = {
           },
         ]
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       certificates: {
         Row: {
           course_assignment_id: string | null
           course_id: string
           created_at: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           credential_number: string
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           employee_id: string
           expires_at: string | null
           facility_id: string
           id: string
           issued_at: string
           organization_id: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           pdf_attempt_count: number
           pdf_last_attempt_at: string | null
           pdf_last_error: string | null
           pdf_ready_at: string | null
           pdf_status: string
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           pdf_storage_bucket: string | null
           pdf_storage_path: string | null
           slug: string
@@ -1015,24 +915,18 @@ export type Database = {
           course_assignment_id?: string | null
           course_id: string
           created_at?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           credential_number?: string
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           employee_id: string
           expires_at?: string | null
           facility_id: string
           id?: string
           issued_at?: string
           organization_id: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           pdf_attempt_count?: number
           pdf_last_attempt_at?: string | null
           pdf_last_error?: string | null
           pdf_ready_at?: string | null
           pdf_status?: string
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           pdf_storage_bucket?: string | null
           pdf_storage_path?: string | null
           slug?: string
@@ -1042,24 +936,18 @@ export type Database = {
           course_assignment_id?: string | null
           course_id?: string
           created_at?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           credential_number?: string
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           employee_id?: string
           expires_at?: string | null
           facility_id?: string
           id?: string
           issued_at?: string
           organization_id?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           pdf_attempt_count?: number
           pdf_last_attempt_at?: string | null
           pdf_last_error?: string | null
           pdf_ready_at?: string | null
           pdf_status?: string
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           pdf_storage_bucket?: string | null
           pdf_storage_path?: string | null
           slug?: string
@@ -1103,8 +991,6 @@ export type Database = {
           },
         ]
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
       certification_attempt_items: {
         Row: {
           certification_attempt_id: string
@@ -1453,7 +1339,6 @@ export type Database = {
           },
         ]
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       competency_record_items: {
         Row: {
           competency_record_id: string
@@ -1641,8 +1526,6 @@ export type Database = {
           },
         ]
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
       compliance_profile_definitions: {
         Row: {
           code: string
@@ -2381,16 +2264,12 @@ export type Database = {
           },
         ]
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       course_assignments: {
         Row: {
           assigned_at: string
           assigned_by: string | null
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           canceled_at: string | null
           cancellation_reason: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           completed_at: string | null
           course_id: string
           course_version_id: string
@@ -2398,10 +2277,6 @@ export type Database = {
           employee_id: string
           facility_id: string
           id: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-          organization_id: string
-          status: string
-=======
           lifecycle_disposition: string | null
           lifecycle_event_id: string | null
           lifecycle_previous_status: string | null
@@ -2409,17 +2284,13 @@ export type Database = {
           status: string
           training_plan_id: string | null
           training_plan_item_id: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           updated_at: string
         }
         Insert: {
           assigned_at?: string
           assigned_by?: string | null
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           canceled_at?: string | null
           cancellation_reason?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           completed_at?: string | null
           course_id: string
           course_version_id: string
@@ -2427,10 +2298,6 @@ export type Database = {
           employee_id: string
           facility_id: string
           id?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-          organization_id: string
-          status?: string
-=======
           lifecycle_disposition?: string | null
           lifecycle_event_id?: string | null
           lifecycle_previous_status?: string | null
@@ -2438,17 +2305,13 @@ export type Database = {
           status?: string
           training_plan_id?: string | null
           training_plan_item_id?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           updated_at?: string
         }
         Update: {
           assigned_at?: string
           assigned_by?: string | null
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           canceled_at?: string | null
           cancellation_reason?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           completed_at?: string | null
           course_id?: string
           course_version_id?: string
@@ -2456,10 +2319,6 @@ export type Database = {
           employee_id?: string
           facility_id?: string
           id?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-          organization_id?: string
-          status?: string
-=======
           lifecycle_disposition?: string | null
           lifecycle_event_id?: string | null
           lifecycle_previous_status?: string | null
@@ -2467,7 +2326,6 @@ export type Database = {
           status?: string
           training_plan_id?: string | null
           training_plan_item_id?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           updated_at?: string
         }
         Relationships: [
@@ -2507,8 +2365,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
             foreignKeyName: "course_assignments_lifecycle_event_id_fkey"
             columns: ["lifecycle_event_id"]
             isOneToOne: false
@@ -2516,15 +2372,12 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
             foreignKeyName: "course_assignments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           {
             foreignKeyName: "course_assignments_training_plan_id_fkey"
             columns: ["training_plan_id"]
@@ -2539,7 +2392,6 @@ export type Database = {
             referencedRelation: "training_plan_items"
             referencedColumns: ["id"]
           },
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
         ]
       }
       course_blocks: {
@@ -2603,8 +2455,6 @@ export type Database = {
           },
         ]
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
       course_feedback: {
         Row: {
           comment: string | null
@@ -2667,7 +2517,6 @@ export type Database = {
           },
         ]
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       course_progress: {
         Row: {
           assignment_id: string
@@ -2712,12 +2561,9 @@ export type Database = {
       }
       course_versions: {
         Row: {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           ai_generated: boolean
           ai_reviewed_at: string | null
           ai_reviewed_by: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           course_id: string
           created_at: string
           description: string | null
@@ -2729,12 +2575,9 @@ export type Database = {
           version_number: number
         }
         Insert: {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           ai_generated?: boolean
           ai_reviewed_at?: string | null
           ai_reviewed_by?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           course_id: string
           created_at?: string
           description?: string | null
@@ -2746,12 +2589,9 @@ export type Database = {
           version_number: number
         }
         Update: {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           ai_generated?: boolean
           ai_reviewed_at?: string | null
           ai_reviewed_by?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           course_id?: string
           created_at?: string
           description?: string | null
@@ -2764,8 +2604,6 @@ export type Database = {
         }
         Relationships: [
           {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
             foreignKeyName: "course_versions_ai_reviewed_by_fkey"
             columns: ["ai_reviewed_by"]
             isOneToOne: false
@@ -2773,7 +2611,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
             foreignKeyName: "course_versions_course_id_fkey"
             columns: ["course_id"]
             isOneToOne: false
@@ -2801,10 +2638,7 @@ export type Database = {
           organization_id: string | null
           status: string
           title: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           training_type_id: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           updated_at: string
         }
         Insert: {
@@ -2818,10 +2652,7 @@ export type Database = {
           organization_id?: string | null
           status?: string
           title: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           training_type_id?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           updated_at?: string
         }
         Update: {
@@ -2835,10 +2666,7 @@ export type Database = {
           organization_id?: string | null
           status?: string
           title?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           training_type_id?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           updated_at?: string
         }
         Relationships: [
@@ -2863,8 +2691,6 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           {
             foreignKeyName: "courses_training_type_id_fkey"
             columns: ["training_type_id"]
@@ -4074,24 +3900,17 @@ export type Database = {
             referencedRelation: "facility_units"
             referencedColumns: ["id"]
           },
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
         ]
       }
       employee_training_hour_buckets: {
         Row: {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           bucket_type: string
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           completed_hours: number
           created_at: string
           employee_id: string
           facility_id: string
           id: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           ojt_hours: number
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           organization_id: string
           required_hours: number
           status: string
@@ -4099,19 +3918,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           bucket_type?: string
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           completed_hours?: number
           created_at?: string
           employee_id: string
           facility_id: string
           id?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           ojt_hours?: number
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           organization_id: string
           required_hours?: number
           status?: string
@@ -4119,19 +3932,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           bucket_type?: string
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           completed_hours?: number
           created_at?: string
           employee_id?: string
           facility_id?: string
           id?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           ojt_hours?: number
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           organization_id?: string
           required_hours?: number
           status?: string
@@ -4289,11 +4096,8 @@ export type Database = {
       employees: {
         Row: {
           administers_medications: boolean
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           checkin_pin_hash: string | null
           cleared_for_unsupervised_duty: boolean
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           created_at: string
           department: string | null
           email: string | null
@@ -4308,26 +4112,17 @@ export type Database = {
           organization_id: string
           phone: string | null
           profile_id: string | null
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           scheduled_hours_per_week: number | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           status: string
           termination_date: string | null
           trainer_status: boolean
           updated_at: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-        }
-        Insert: {
-          administers_medications?: boolean
-=======
           worker_type: string
         }
         Insert: {
           administers_medications?: boolean
           checkin_pin_hash?: string | null
           cleared_for_unsupervised_duty?: boolean
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           created_at?: string
           department?: string | null
           email?: string | null
@@ -4342,26 +4137,17 @@ export type Database = {
           organization_id: string
           phone?: string | null
           profile_id?: string | null
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           scheduled_hours_per_week?: number | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           status?: string
           termination_date?: string | null
           trainer_status?: boolean
           updated_at?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-        }
-        Update: {
-          administers_medications?: boolean
-=======
           worker_type?: string
         }
         Update: {
           administers_medications?: boolean
           checkin_pin_hash?: string | null
           cleared_for_unsupervised_duty?: boolean
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           created_at?: string
           department?: string | null
           email?: string | null
@@ -4376,18 +4162,12 @@ export type Database = {
           organization_id?: string
           phone?: string | null
           profile_id?: string | null
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           scheduled_hours_per_week?: number | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           status?: string
           termination_date?: string | null
           trainer_status?: boolean
           updated_at?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           worker_type?: string
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
         }
         Relationships: [
           {
@@ -4413,8 +4193,6 @@ export type Database = {
           },
         ]
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
       employment_episodes: {
         Row: {
           created_at: string
@@ -5764,7 +5542,6 @@ export type Database = {
           },
         ]
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       facilities: {
         Row: {
           address: string | null
@@ -5772,11 +5549,8 @@ export type Database = {
           administrator_name: string | null
           city: string | null
           created_at: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           default_care_frequency: string | null
           default_care_responsible_party: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           facility_type: string
           id: string
           is_active: boolean
@@ -5794,11 +5568,8 @@ export type Database = {
           administrator_name?: string | null
           city?: string | null
           created_at?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           default_care_frequency?: string | null
           default_care_responsible_party?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           facility_type: string
           id?: string
           is_active?: boolean
@@ -5816,11 +5587,8 @@ export type Database = {
           administrator_name?: string | null
           city?: string | null
           created_at?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           default_care_frequency?: string | null
           default_care_responsible_party?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           facility_type?: string
           id?: string
           is_active?: boolean
@@ -5878,8 +5646,6 @@ export type Database = {
           },
         ]
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
       facility_units: {
         Row: {
           created_at: string
@@ -10577,7 +10343,6 @@ export type Database = {
           },
         ]
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       organization_settings: {
         Row: {
           branding_accent_color: string | null
@@ -10587,11 +10352,8 @@ export type Database = {
           default_warning_days: Json | null
           email_notifications_enabled: boolean
           id: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           oapsa_provisional_days_nonresident: number
           oapsa_provisional_days_resident: number
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           organization_id: string
           sms_notifications_enabled: boolean
           updated_at: string
@@ -10604,11 +10366,8 @@ export type Database = {
           default_warning_days?: Json | null
           email_notifications_enabled?: boolean
           id?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           oapsa_provisional_days_nonresident?: number
           oapsa_provisional_days_resident?: number
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           organization_id: string
           sms_notifications_enabled?: boolean
           updated_at?: string
@@ -10621,11 +10380,8 @@ export type Database = {
           default_warning_days?: Json | null
           email_notifications_enabled?: boolean
           id?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           oapsa_provisional_days_nonresident?: number
           oapsa_provisional_days_resident?: number
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           organization_id?: string
           sms_notifications_enabled?: boolean
           updated_at?: string
@@ -10640,8 +10396,6 @@ export type Database = {
           },
         ]
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
       organization_sso_connections: {
         Row: {
           created_at: string
@@ -10721,7 +10475,6 @@ export type Database = {
           },
         ]
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       organizations: {
         Row: {
           address: string | null
@@ -10739,10 +10492,7 @@ export type Database = {
           slug: string
           state: string | null
           subscription_status: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           trial_ends_at: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           updated_at: string
           zip: string | null
         }
@@ -10762,10 +10512,7 @@ export type Database = {
           slug: string
           state?: string | null
           subscription_status?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           trial_ends_at?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           updated_at?: string
           zip?: string | null
         }
@@ -10785,10 +10532,7 @@ export type Database = {
           slug?: string
           state?: string | null
           subscription_status?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           trial_ends_at?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           updated_at?: string
           zip?: string | null
         }
@@ -10802,8 +10546,6 @@ export type Database = {
           },
         ]
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
       package_billing_prices: {
         Row: {
           created_at: string
@@ -10927,7 +10669,6 @@ export type Database = {
           },
         ]
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       packages: {
         Row: {
           created_at: string
@@ -10967,8 +10708,6 @@ export type Database = {
         }
         Relationships: []
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
       permission_definitions: {
         Row: {
           created_at: string
@@ -11514,7 +11253,6 @@ export type Database = {
           },
         ]
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       practicums: {
         Row: {
           certificate_document_id: string | null
@@ -11538,8 +11276,6 @@ export type Database = {
           updated_at: string
           verified_at: string | null
           verified_by_profile_id: string | null
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           window1_evidence_document_id: string | null
           window1_mar_review_by: string | null
           window1_mar_review_date: string | null
@@ -11550,7 +11286,6 @@ export type Database = {
           window2_mar_review_date: string | null
           window2_observation_by: string | null
           window2_observation_date: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
         }
         Insert: {
           certificate_document_id?: string | null
@@ -11574,8 +11309,6 @@ export type Database = {
           updated_at?: string
           verified_at?: string | null
           verified_by_profile_id?: string | null
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           window1_evidence_document_id?: string | null
           window1_mar_review_by?: string | null
           window1_mar_review_date?: string | null
@@ -11586,7 +11319,6 @@ export type Database = {
           window2_mar_review_date?: string | null
           window2_observation_by?: string | null
           window2_observation_date?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
         }
         Update: {
           certificate_document_id?: string | null
@@ -11610,8 +11342,6 @@ export type Database = {
           updated_at?: string
           verified_at?: string | null
           verified_by_profile_id?: string | null
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           window1_evidence_document_id?: string | null
           window1_mar_review_by?: string | null
           window1_mar_review_date?: string | null
@@ -11622,7 +11352,6 @@ export type Database = {
           window2_mar_review_date?: string | null
           window2_observation_by?: string | null
           window2_observation_date?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
         }
         Relationships: [
           {
@@ -11667,8 +11396,6 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           {
             foreignKeyName: "practicums_window1_evidence_document_id_fkey"
             columns: ["window1_evidence_document_id"]
@@ -11711,27 +11438,18 @@ export type Database = {
             referencedRelation: "employees"
             referencedColumns: ["id"]
           },
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
         ]
       }
       profiles: {
         Row: {
           created_at: string
           email: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           email_opt_out: boolean
           email_opt_out_at: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           first_name: string
           id: string
           is_active: boolean
           last_name: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-          organization_id: string | null
-          phone: string | null
-          role: string
-=======
           notification_timezone: string
           organization_id: string | null
           phone: string | null
@@ -11740,26 +11458,17 @@ export type Database = {
           sms_consent_at: string | null
           sms_opt_in: boolean
           sms_opt_out_at: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           updated_at: string
         }
         Insert: {
           created_at?: string
           email: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           email_opt_out?: boolean
           email_opt_out_at?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           first_name?: string
           id: string
           is_active?: boolean
           last_name?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-          organization_id?: string | null
-          phone?: string | null
-          role?: string
-=======
           notification_timezone?: string
           organization_id?: string | null
           phone?: string | null
@@ -11768,26 +11477,17 @@ export type Database = {
           sms_consent_at?: string | null
           sms_opt_in?: boolean
           sms_opt_out_at?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           updated_at?: string
         }
         Update: {
           created_at?: string
           email?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           email_opt_out?: boolean
           email_opt_out_at?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           first_name?: string
           id?: string
           is_active?: boolean
           last_name?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-          organization_id?: string | null
-          phone?: string | null
-          role?: string
-=======
           notification_timezone?: string
           organization_id?: string | null
           phone?: string | null
@@ -11796,7 +11496,6 @@ export type Database = {
           sms_consent_at?: string | null
           sms_opt_in?: boolean
           sms_opt_out_at?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           updated_at?: string
         }
         Relationships: [
@@ -11809,8 +11508,6 @@ export type Database = {
           },
         ]
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
       qualification_lifecycle_events: {
         Row: {
           actor_profile_id: string | null
@@ -11872,7 +11569,6 @@ export type Database = {
           },
         ]
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       quiz_answers: {
         Row: {
           answer_text: string
@@ -12041,8 +11737,6 @@ export type Database = {
           },
         ]
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
       quiz_question_explanations: {
         Row: {
           created_at: string
@@ -12082,7 +11776,6 @@ export type Database = {
           },
         ]
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       quiz_questions: {
         Row: {
           created_at: string
@@ -12176,11 +11869,6 @@ export type Database = {
           },
         ]
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-      training_class_attendees: {
-        Row: {
-          attended: boolean
-=======
       regulatory_rule_fixture_runs: {
         Row: {
           actual_result_checksum_sha256: string
@@ -14975,60 +14663,44 @@ export type Database = {
           checked_in_at: string | null
           checked_out_at: string | null
           checkin_method: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           class_id: string
           created_at: string
           employee_id: string
           id: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           lifecycle_disposition: string
           lifecycle_dispositioned_at: string | null
           lifecycle_event_id: string | null
           lifecycle_reason: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           training_record_id: string | null
         }
         Insert: {
           attended?: boolean
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           checked_in_at?: string | null
           checked_out_at?: string | null
           checkin_method?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           class_id: string
           created_at?: string
           employee_id: string
           id?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           lifecycle_disposition?: string
           lifecycle_dispositioned_at?: string | null
           lifecycle_event_id?: string | null
           lifecycle_reason?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           training_record_id?: string | null
         }
         Update: {
           attended?: boolean
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           checked_in_at?: string | null
           checked_out_at?: string | null
           checkin_method?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           class_id?: string
           created_at?: string
           employee_id?: string
           id?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           lifecycle_disposition?: string
           lifecycle_dispositioned_at?: string | null
           lifecycle_event_id?: string | null
           lifecycle_reason?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           training_record_id?: string | null
         }
         Relationships: [
@@ -15047,8 +14719,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
             foreignKeyName: "training_class_attendees_lifecycle_event_id_fkey"
             columns: ["lifecycle_event_id"]
             isOneToOne: false
@@ -15056,7 +14726,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
             foreignKeyName: "training_class_attendees_training_record_id_fkey"
             columns: ["training_record_id"]
             isOneToOne: false
@@ -15067,18 +14736,6 @@ export type Database = {
       }
       training_classes: {
         Row: {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-          class_date: string
-          class_name: string
-          created_at: string
-          duration_hours: number
-          facility_id: string | null
-          id: string
-          location: string | null
-          notes: string | null
-          organization_id: string
-          roster_document_id: string | null
-=======
           cancellation_reason: string | null
           capacity: number
           class_date: string
@@ -15100,25 +14757,12 @@ export type Database = {
           room_name: string | null
           roster_document_id: string | null
           starts_at: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           status: string
           trainer_profile_id: string
           training_type_id: string
           updated_at: string
         }
         Insert: {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-          class_date: string
-          class_name: string
-          created_at?: string
-          duration_hours?: number
-          facility_id?: string | null
-          id?: string
-          location?: string | null
-          notes?: string | null
-          organization_id: string
-          roster_document_id?: string | null
-=======
           cancellation_reason?: string | null
           capacity?: number
           class_date: string
@@ -15140,25 +14784,12 @@ export type Database = {
           room_name?: string | null
           roster_document_id?: string | null
           starts_at?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           status?: string
           trainer_profile_id: string
           training_type_id: string
           updated_at?: string
         }
         Update: {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-          class_date?: string
-          class_name?: string
-          created_at?: string
-          duration_hours?: number
-          facility_id?: string | null
-          id?: string
-          location?: string | null
-          notes?: string | null
-          organization_id?: string
-          roster_document_id?: string | null
-=======
           cancellation_reason?: string | null
           capacity?: number
           class_date?: string
@@ -15180,7 +14811,6 @@ export type Database = {
           room_name?: string | null
           roster_document_id?: string | null
           starts_at?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           status?: string
           trainer_profile_id?: string
           training_type_id?: string
@@ -15188,8 +14818,6 @@ export type Database = {
         }
         Relationships: [
           {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
             foreignKeyName: "training_classes_completion_approved_by_fkey"
             columns: ["completion_approved_by"]
             isOneToOne: false
@@ -15197,7 +14825,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
             foreignKeyName: "training_classes_facility_id_fkey"
             columns: ["facility_id"]
             isOneToOne: false
@@ -15205,8 +14832,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
             foreignKeyName: "training_classes_makeup_of_class_id_fkey"
             columns: ["makeup_of_class_id"]
             isOneToOne: false
@@ -15214,7 +14839,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
             foreignKeyName: "training_classes_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -15222,8 +14846,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
             foreignKeyName: "training_classes_rescheduled_to_class_id_fkey"
             columns: ["rescheduled_to_class_id"]
             isOneToOne: false
@@ -15231,7 +14853,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
             foreignKeyName: "training_classes_roster_document_id_fkey"
             columns: ["roster_document_id"]
             isOneToOne: false
@@ -15264,10 +14885,7 @@ export type Database = {
           file_size: number | null
           file_type: string
           id: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           inspection_event_id: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           organization_id: string
           storage_bucket: string
           storage_path: string
@@ -15283,10 +14901,7 @@ export type Database = {
           file_size?: number | null
           file_type: string
           id?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           inspection_event_id?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           organization_id: string
           storage_bucket: string
           storage_path: string
@@ -15302,10 +14917,7 @@ export type Database = {
           file_size?: number | null
           file_type?: string
           id?: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           inspection_event_id?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           organization_id?: string
           storage_bucket?: string
           storage_path?: string
@@ -15328,8 +14940,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
             foreignKeyName: "training_documents_inspection_event_id_fkey"
             columns: ["inspection_event_id"]
             isOneToOne: false
@@ -15337,7 +14947,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
             foreignKeyName: "training_documents_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -15457,8 +15066,6 @@ export type Database = {
           },
         ]
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
       training_session_completion_receipts: {
         Row: {
           approved_at: string
@@ -15614,7 +15221,6 @@ export type Database = {
           },
         ]
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       training_types: {
         Row: {
           accepted_evidence_types: Json | null
@@ -15624,18 +15230,12 @@ export type Database = {
           applies_to_trainers: boolean | null
           category: string
           citation_note: string | null
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           citation_topic_id: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           code: string
           created_at: string
           description: string | null
           document_required: boolean
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           hour_bucket: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           id: string
           is_active: boolean
           is_system_default: boolean
@@ -15645,10 +15245,7 @@ export type Database = {
           required_hours: number | null
           required_roles_text: string | null
           sort_order: number
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           state: string
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           updated_at: string
           warning_days_default: number
         }
@@ -15660,18 +15257,12 @@ export type Database = {
           applies_to_trainers?: boolean | null
           category: string
           citation_note?: string | null
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           citation_topic_id?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           code: string
           created_at?: string
           description?: string | null
           document_required?: boolean
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           hour_bucket?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           id?: string
           is_active?: boolean
           is_system_default?: boolean
@@ -15681,10 +15272,7 @@ export type Database = {
           required_hours?: number | null
           required_roles_text?: string | null
           sort_order?: number
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           state?: string
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           updated_at?: string
           warning_days_default?: number
         }
@@ -15696,18 +15284,12 @@ export type Database = {
           applies_to_trainers?: boolean | null
           category?: string
           citation_note?: string | null
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           citation_topic_id?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           code?: string
           created_at?: string
           description?: string | null
           document_required?: boolean
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           hour_bucket?: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           id?: string
           is_active?: boolean
           is_system_default?: boolean
@@ -15717,17 +15299,12 @@ export type Database = {
           required_hours?: number | null
           required_roles_text?: string | null
           sort_order?: number
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           state?: string
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           updated_at?: string
           warning_days_default?: number
         }
         Relationships: [
           {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
             foreignKeyName: "training_types_citation_topic_id_fkey"
             columns: ["citation_topic_id"]
             isOneToOne: false
@@ -15735,7 +15312,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
             foreignKeyName: "training_types_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -15744,13 +15320,6 @@ export type Database = {
           },
         ]
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-=======
       violation_documents: {
         Row: {
           created_at: string
@@ -16677,7 +16246,6 @@ export type Database = {
         }
         Returns: undefined
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       admin_update_profile: {
         Args: {
           p_email?: string
@@ -16691,20 +16259,12 @@ export type Database = {
         Returns: {
           created_at: string
           email: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
           email_opt_out: boolean
           email_opt_out_at: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           first_name: string
           id: string
           is_active: boolean
           last_name: string
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-          organization_id: string | null
-          phone: string | null
-          role: string
-=======
           notification_timezone: string
           organization_id: string | null
           phone: string | null
@@ -16713,7 +16273,6 @@ export type Database = {
           sms_consent_at: string | null
           sms_opt_in: boolean
           sms_opt_out_at: string | null
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
           updated_at: string
         }
         SetofOptions: {
@@ -16723,8 +16282,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
       apply_employee_lifecycle_transition: {
         Args: {
           p_effective_on?: string
@@ -17059,13 +16616,10 @@ export type Database = {
         }
         Returns: string
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       complete_course_assignment: {
         Args: { p_assignment_id: string }
         Returns: undefined
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
       complete_exclusion_source_refresh: {
         Args: { p_expected_record_count: number; p_run_id: string }
         Returns: Json
@@ -17124,13 +16678,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       complete_training_class: {
         Args: { p_class_id: string }
         Returns: undefined
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
       consume_integration_rate_limit: {
         Args: { p_cost?: number; p_credential_id: string }
         Returns: {
@@ -17139,15 +16690,10 @@ export type Database = {
           reset_at: string
         }[]
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       course_version_is_published: {
         Args: { p_version_id: string }
         Returns: boolean
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-      current_org_id: { Args: never; Returns: string }
-      current_role: { Args: never; Returns: string }
-=======
       create_audit_legal_hold: {
         Args: {
           p_ends_at?: string
@@ -17567,7 +17113,6 @@ export type Database = {
       }
       get_platform_health: { Args: never; Returns: Json }
       get_qualified_workforce_control_plane: { Args: never; Returns: Json }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       get_quiz_answer_choices: {
         Args: { p_quiz_id: string }
         Returns: {
@@ -17577,9 +17122,6 @@ export type Database = {
           sort_order: number
         }[]
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-      grade_quiz_attempt: { Args: { p_attempt_id: string }; Returns: undefined }
-=======
       get_quiz_review: {
         Args: { p_attempt_id: string }
         Returns: {
@@ -17780,14 +17322,10 @@ export type Database = {
         Args: { p_resident_id: string }
         Returns: undefined
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       is_assigned_to_facility: {
         Args: { target_facility_id: string }
         Returns: boolean
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-      is_platform_admin: { Args: never; Returns: boolean }
-=======
       is_employee_access_active: {
         Args: { p_at?: string; p_employee_id: string }
         Returns: boolean
@@ -17805,7 +17343,6 @@ export type Database = {
         Args: { p_run_id: string }
         Returns: boolean
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       issue_certificate: {
         Args: {
           p_course_assignment_id?: string
@@ -17815,10 +17352,6 @@ export type Database = {
         }
         Returns: string
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-      owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
-      recalculate_all_compliance: { Args: never; Returns: undefined }
-=======
       issue_evidence_guest_grant: {
         Args: {
           p_allowed_artifact_ids: string[]
@@ -18619,7 +18152,6 @@ export type Database = {
         Args: { p_import_run_id: string }
         Returns: Json
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
       verify_certificate: {
         Args: { p_slug: string }
         Returns: {
@@ -18631,8 +18163,6 @@ export type Database = {
           organization_name: string
         }[]
       }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
       verify_identity_domain: {
         Args: { p_domain_id: string; p_observed_challenge_sha256: string }
         Returns: boolean
@@ -18682,7 +18212,6 @@ export type Database = {
         Args: { p_block_id: string; p_body: Json; p_video_url?: string }
         Returns: undefined
       }
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
     }
     Enums: {
       [_ in never]: never
@@ -18811,17 +18340,10 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
   graphql_public: {
     Enums: {},
   },
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts
   public: {
     Enums: {},
   },
 } as const
-<<<<<<< HEAD:artifacts/pa-medtrack/src/lib/database.types.ts
-=======
-
->>>>>>> origin/main:artifacts/caremetric-train/src/lib/database.types.ts

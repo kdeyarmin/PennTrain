@@ -1,9 +1,5 @@
-<<<<<<< HEAD
-import { createClient } from "jsr:@supabase/supabase-js@2";
-=======
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
->>>>>>> origin/main
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 
 const CORS_HEADERS = {
@@ -120,11 +116,7 @@ Deno.serve(async (req: Request) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-<<<<<<< HEAD
-  const callerClient = createClient(supabaseUrl, anonKey, {
-=======
   const callerClient = createClient<any>(supabaseUrl, anonKey, {
->>>>>>> origin/main
     global: { headers: { Authorization: authHeader } },
   });
 
@@ -145,11 +137,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: "not authorized to generate a compliance binder" }, 403);
   }
 
-<<<<<<< HEAD
-  let body: { organization_id?: string } = {};
-=======
   let body: { organization_id?: string; facility_id?: string; facility_ids?: string[] } = {};
->>>>>>> origin/main
   if (req.headers.get("content-length") !== "0") {
     try {
       body = await req.json();
@@ -164,11 +152,7 @@ Deno.serve(async (req: Request) => {
   const orgId = callerProfile.role === "platform_admin" ? body.organization_id : callerProfile.organization_id;
   if (!orgId) return json({ error: "organization_id is required" }, 400);
 
-<<<<<<< HEAD
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
-=======
   const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
->>>>>>> origin/main
 
   const { data: org, error: orgError } = await adminClient
     .from("organizations")
@@ -195,8 +179,6 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-<<<<<<< HEAD
-=======
   // org_admin/auditor may optionally narrow the binder to one or more of their own org's
   // facilities via facility_id/facility_ids -- platform_admin's scope stays governed entirely by
   // organization_id above (no facility narrowing here), and this block only ever runs for
@@ -230,22 +212,15 @@ Deno.serve(async (req: Request) => {
     }
   }
 
->>>>>>> origin/main
   let facilitiesQuery = adminClient.from("facilities").select("id, name, facility_type, license_number").eq("organization_id", orgId).order("name");
   let employeesQuery = adminClient.from("employees").select("id, first_name, last_name, facility_id, status").eq("organization_id", orgId);
   let recordsQuery = adminClient
     .from("employee_training_records")
-<<<<<<< HEAD
-    .select("status, due_date, employee_id, facility_id, training_types(name)")
-=======
     .select("status, due_date, employee_id, facility_id, training_types(name, citation_topic_id)")
->>>>>>> origin/main
     .eq("organization_id", orgId);
   let practicumsQuery = adminClient.from("practicums").select("status, due_date, employee_id, facility_id").eq("organization_id", orgId);
   let certCountQuery = adminClient.from("certificates").select("id", { count: "exact", head: true }).eq("organization_id", orgId);
   let alertsQuery = adminClient.from("alerts").select("severity, title, created_at").eq("organization_id", orgId).eq("status", "open").order("severity");
-<<<<<<< HEAD
-=======
   let attestationsQuery = adminClient
     .from("policy_attestations")
     .select(
@@ -278,7 +253,6 @@ Deno.serve(async (req: Request) => {
     .select("status, item_type, due_date, resident_id, facility_id, citation_topic_id")
     .eq("organization_id", orgId);
   const citationTopicsQuery = adminClient.from("dhs_citation_topics").select("id, chapter, citation_ref, category, title, frequency_weight").order("sort_order");
->>>>>>> origin/main
 
   if (facilityScope) {
     facilitiesQuery = facilitiesQuery.in("id", facilityScope);
@@ -287,11 +261,6 @@ Deno.serve(async (req: Request) => {
     practicumsQuery = practicumsQuery.in("facility_id", facilityScope);
     certCountQuery = certCountQuery.in("facility_id", facilityScope);
     alertsQuery = alertsQuery.in("facility_id", facilityScope);
-<<<<<<< HEAD
-  }
-
-  const [facilitiesRes, employeesRes, recordsRes, practicumsRes, certCountRes, alertsRes] = await Promise.all([
-=======
     attestationsQuery = attestationsQuery.in("facility_id", facilityScope);
     credentialsQuery = credentialsQuery.in("facility_id", facilityScope);
     incidentsQuery = incidentsQuery.in("facility_id", facilityScope);
@@ -306,15 +275,12 @@ Deno.serve(async (req: Request) => {
     credentialsRes, incidentsRes, inspectionItemsRes, correctiveActionsRes, citationTopicsRes,
     residentsRes, residentComplianceRes,
   ] = await Promise.all([
->>>>>>> origin/main
     facilitiesQuery,
     employeesQuery,
     recordsQuery,
     practicumsQuery,
     certCountQuery,
     alertsQuery,
-<<<<<<< HEAD
-=======
     attestationsQuery,
     credentialsQuery,
     incidentsQuery,
@@ -323,7 +289,6 @@ Deno.serve(async (req: Request) => {
     citationTopicsQuery,
     residentsQuery,
     residentComplianceQuery,
->>>>>>> origin/main
   ]);
 
   if (facilitiesRes.error) return json({ error: facilitiesRes.error.message }, 500);
@@ -331,8 +296,6 @@ Deno.serve(async (req: Request) => {
   if (recordsRes.error) return json({ error: recordsRes.error.message }, 500);
   if (practicumsRes.error) return json({ error: practicumsRes.error.message }, 500);
   if (alertsRes.error) return json({ error: alertsRes.error.message }, 500);
-<<<<<<< HEAD
-=======
   if (attestationsRes.error) return json({ error: attestationsRes.error.message }, 500);
   if (credentialsRes.error) return json({ error: credentialsRes.error.message }, 500);
   if (incidentsRes.error) return json({ error: incidentsRes.error.message }, 500);
@@ -341,16 +304,12 @@ Deno.serve(async (req: Request) => {
   if (citationTopicsRes.error) return json({ error: citationTopicsRes.error.message }, 500);
   if (residentsRes.error) return json({ error: residentsRes.error.message }, 500);
   if (residentComplianceRes.error) return json({ error: residentComplianceRes.error.message }, 500);
->>>>>>> origin/main
 
   const facilities = facilitiesRes.data ?? [];
   const employees = employeesRes.data ?? [];
   const records = recordsRes.data ?? [];
   const practicums = practicumsRes.data ?? [];
   const certCount = certCountRes.count ?? 0;
-<<<<<<< HEAD
-  const alerts = alertsRes.data ?? [];
-=======
   const credentials = credentialsRes.data ?? [];
   const incidents = incidentsRes.data ?? [];
   const inspectionItems = inspectionItemsRes.data ?? [];
@@ -360,7 +319,6 @@ Deno.serve(async (req: Request) => {
   const attestations = attestationsRes.data ?? [];
   const residents = residentsRes.data ?? [];
   const residentCompliance = residentComplianceRes.data ?? [];
->>>>>>> origin/main
 
   const facilityMap = new Map(facilities.map((f) => [f.id, f]));
   const employeeMap = new Map(employees.map((e) => [e.id, e]));
@@ -372,8 +330,6 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-<<<<<<< HEAD
-=======
   // Resident census -- the census is the first thing a DHS entrance conference asks for
   // (ROADMAP.md Tier 3.5), so it belongs at the top of the binder alongside facility/staff counts.
   const activeResidents = residents.filter((r) => r.status === "active");
@@ -393,7 +349,6 @@ Deno.serve(async (req: Request) => {
     .sort((a, b) => (a.due_date ?? "").localeCompare(b.due_date ?? ""));
   const residentById = new Map(residents.map((r) => [r.id, r]));
 
->>>>>>> origin/main
   const recordStatusCounts = new Map<string, number>();
   for (const r of records) recordStatusCounts.set(r.status, (recordStatusCounts.get(r.status) ?? 0) + 1);
   const nonCompliantRecords = records
@@ -409,8 +364,6 @@ Deno.serve(async (req: Request) => {
   const alertSeverityCounts = new Map<string, number>();
   for (const a of alerts) alertSeverityCounts.set(a.severity, (alertSeverityCounts.get(a.severity) ?? 0) + 1);
 
-<<<<<<< HEAD
-=======
   const today = new Date().toISOString().slice(0, 10);
   const attestedCount = attestations.filter((a) => a.status === "attested").length;
   const overdueAttestations = attestations.filter((a) => a.status === "pending" && a.due_date && a.due_date < today);
@@ -476,7 +429,6 @@ Deno.serve(async (req: Request) => {
   }
   const overallReadinessPct = weightedTotal > 0 ? Math.round((weightedCompliant / weightedTotal) * 100) : null;
 
->>>>>>> origin/main
   const pdf = await PdfWriter.create();
   const generatedAt = new Date().toISOString();
 
@@ -489,13 +441,6 @@ Deno.serve(async (req: Request) => {
     gap: 20,
   });
 
-<<<<<<< HEAD
-  pdf.heading("Facilities");
-  pdf.table(
-    ["Facility", "Type", "License #", "Active Staff"],
-    facilities.map((f) => [f.name, f.facility_type, f.license_number ?? "—", String(activeCountByFacility.get(f.id) ?? 0)]),
-    [220, 80, 120, 90],
-=======
   pdf.heading("Citation-Weighted Readiness Summary (Entrance Conference View)");
   pdf.text(
     "Ordered by DHS citation topic rather than by product area -- the reg-by-reg view a surveyor works from. " +
@@ -532,7 +477,6 @@ Deno.serve(async (req: Request) => {
       ];
     }),
     [150, 70, 90, 70, 60, 50, 60],
->>>>>>> origin/main
   );
 
   pdf.heading("Staff Training Compliance Summary");
@@ -614,8 +558,6 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-<<<<<<< HEAD
-=======
   pdf.heading("Policy Attestation Compliance Summary");
   pdf.table(
     ["Status", "Count"],
@@ -815,7 +757,6 @@ Deno.serve(async (req: Request) => {
     }
   }
 
->>>>>>> origin/main
   const pdfBytes = await pdf.save();
   const path = `${orgId}/${crypto.randomUUID()}.pdf`;
 

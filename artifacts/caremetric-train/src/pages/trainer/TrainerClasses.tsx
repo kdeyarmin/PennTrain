@@ -3,12 +3,6 @@ import {
   useListTrainingClasses,
   useCreateTrainingClass,
   useClassAttendeeCounts,
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/trainer/TrainerClasses.tsx
-} from "@/hooks/useTrainingClasses";
-import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
-import { useListFacilities } from "@/hooks/useFacilities";
-import { useAuth } from "@/lib/auth";
-=======
   type TrainingClass,
 } from "@/hooks/useTrainingClasses";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
@@ -16,7 +10,6 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useListProfiles } from "@/hooks/useProfiles";
 import { useAuth } from "@/lib/auth";
 import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/trainer/TrainerClasses.tsx
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -67,15 +60,11 @@ export default function TrainerClasses() {
   // at that instead of implying every field is blank.
   const [duplicateSourceName, setDuplicateSourceName] = useState<string | null>(null);
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/trainer/TrainerClasses.tsx
-  const { data: classes, isLoading } = useListTrainingClasses({});
-=======
   // Facility filtering happens server-side (useListTrainingClasses already supports facilityId) --
   // search/status stay client-side filters over that already-narrowed result set below.
   const { data: classes, isLoading } = useListTrainingClasses({
     facilityId: facilityFilter !== "all" ? facilityFilter : undefined,
   });
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/trainer/TrainerClasses.tsx
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
   const { data: facilities } = useListFacilities();
   const { data: attendeeCounts } = useClassAttendeeCounts();
@@ -90,11 +79,7 @@ export default function TrainerClasses() {
   const [form, setForm] = useState({
     className: "",
     trainingTypeId: "",
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/trainer/TrainerClasses.tsx
-    classDate: new Date().toISOString().slice(0, 10),
-=======
     classDate: toLocalIsoDate(),
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/trainer/TrainerClasses.tsx
     facilityId: "none",
     location: "",
     durationHours: "1",
@@ -134,18 +119,11 @@ export default function TrainerClasses() {
     setForm({
       className: "",
       trainingTypeId: "",
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/trainer/TrainerClasses.tsx
-      classDate: new Date().toISOString().slice(0, 10),
-=======
       classDate: toLocalIsoDate(),
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/trainer/TrainerClasses.tsx
       facilityId: "none",
       location: "",
       durationHours: "1",
       notes: "",
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/trainer/TrainerClasses.tsx
-    });
-=======
       instructorProfileId: "",
     });
     setDuplicateSourceName(null);
@@ -168,7 +146,6 @@ export default function TrainerClasses() {
     });
     setDuplicateSourceName(cls.class_name);
     setShowCreate(true);
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/trainer/TrainerClasses.tsx
   }
 
   function handleCreate() {
@@ -176,13 +153,10 @@ export default function TrainerClasses() {
       toast({ title: "Please fill required fields", variant: "destructive" });
       return;
     }
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/trainer/TrainerClasses.tsx
-=======
     if (!isTrainer && !form.instructorProfileId) {
       toast({ title: "Select who's running this session", variant: "destructive" });
       return;
     }
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/trainer/TrainerClasses.tsx
     if (!user?.organizationId || !user?.id) return;
     createClass.mutate(
       {
@@ -194,11 +168,7 @@ export default function TrainerClasses() {
         duration_hours: Number(form.durationHours) || 1,
         notes: form.notes.trim() || null,
         organization_id: user.organizationId,
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/trainer/TrainerClasses.tsx
-        trainer_profile_id: user.id,
-=======
         trainer_profile_id: isTrainer ? user.id : form.instructorProfileId,
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/trainer/TrainerClasses.tsx
       },
       {
         onSuccess: () => {
@@ -210,8 +180,6 @@ export default function TrainerClasses() {
           toast({ title: "Failed to create class", description: e.message, variant: "destructive" }),
       }
     );
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/trainer/TrainerClasses.tsx
-=======
   }
 
   function handleExportCalendar() {
@@ -235,7 +203,6 @@ export default function TrainerClasses() {
     link.remove();
     URL.revokeObjectURL(url);
     toast({ title: `Exported ${filtered.length} class${filtered.length === 1 ? "" : "es"} to calendar` });
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/trainer/TrainerClasses.tsx
   }
 
   const statusColor = (s: string) => {
@@ -513,11 +480,7 @@ export default function TrainerClasses() {
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Calendar className="h-3.5 w-3.5" />
                   <span>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/trainer/TrainerClasses.tsx
-                    {new Date(cls.class_date).toLocaleDateString("en-US", {
-=======
                     {formatDateForDisplay(cls.class_date, {
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/trainer/TrainerClasses.tsx
                       weekday: "short",
                       month: "short",
                       day: "numeric",

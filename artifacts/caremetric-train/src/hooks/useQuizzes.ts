@@ -26,8 +26,6 @@ export type QuizQuestion = Tables<"quiz_questions">;
 export type QuizQuestionInsert = TablesInsert<"quiz_questions">;
 export type QuizQuestionUpdate = TablesUpdate<"quiz_questions">;
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useQuizzes.ts
-=======
 // explanation lives in its own quiz_question_explanations table (RLS-restricted to
 // org_admin/trainer/auditor, unlike the rest of quiz_questions) rather than as a plain
 // column, so it isn't readable by a learner before they've taken the quiz. The hooks
@@ -36,7 +34,6 @@ export type QuizQuestionWithExplanation = QuizQuestion & { explanation: string |
 export type QuizQuestionCreatePayload = QuizQuestionInsert & { explanation?: string | null };
 export type QuizQuestionUpdatePayload = QuizQuestionUpdate & { id: string; explanation?: string | null };
 
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useQuizzes.ts
 /** Author-side shape -- includes is_correct. See boundary note at the top of this file. */
 export type QuizAnswer = Tables<"quiz_answers">;
 export type QuizAnswerInsert = TablesInsert<"quiz_answers">;
@@ -91,8 +88,6 @@ export function useCreateQuiz() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["quizzes", "by-block", data.course_block_id] });
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useQuizzes.ts
-=======
       queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
     },
   });
@@ -110,7 +105,6 @@ export function useUpdateQuiz() {
       queryClient.invalidateQueries({ queryKey: ["quizzes", data.id] });
       queryClient.invalidateQueries({ queryKey: ["quizzes", "by-block", data.course_block_id] });
       queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useQuizzes.ts
     },
   });
 }
@@ -125,13 +119,6 @@ export function useListQuizQuestions(quizId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quiz_questions")
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useQuizzes.ts
-        .select("*")
-        .eq("quiz_id", quizId!)
-        .order("sort_order");
-      if (error) throw error;
-      return data;
-=======
         .select("*, quiz_question_explanations(explanation)")
         .eq("quiz_id", quizId!)
         .order("sort_order");
@@ -140,7 +127,6 @@ export function useListQuizQuestions(quizId: string | undefined) {
         ...q,
         explanation: quiz_question_explanations?.explanation ?? null,
       })) as QuizQuestionWithExplanation[];
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useQuizzes.ts
     },
     enabled: !!quizId,
   });
@@ -152,14 +138,6 @@ export function useListQuizQuestions(quizId: string | undefined) {
 export function useCreateQuizQuestion() {
   const queryClient = useQueryClient();
   return useMutation({
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useQuizzes.ts
-    mutationFn: async (payload: QuizQuestionInsert) => {
-      const { data, error } = await supabase.from("quiz_questions").insert(payload).select().single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["quiz_questions", data.quiz_id] }),
-=======
     mutationFn: async ({ explanation, ...payload }: QuizQuestionCreatePayload) => {
       const { data, error } = await supabase.from("quiz_questions").insert(payload).select().single();
       if (error) throw error;
@@ -179,21 +157,12 @@ export function useCreateQuizQuestion() {
       queryClient.invalidateQueries({ queryKey: ["quiz_questions", data.quiz_id] });
       queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
     },
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useQuizzes.ts
   });
 }
 
 export function useUpdateQuizQuestion() {
   const queryClient = useQueryClient();
   return useMutation({
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useQuizzes.ts
-    mutationFn: async ({ id, ...payload }: QuizQuestionUpdate & { id: string }) => {
-      const { data, error } = await supabase.from("quiz_questions").update(payload).eq("id", id).select().single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["quiz_questions", data.quiz_id] }),
-=======
     mutationFn: async ({ id, explanation, ...payload }: QuizQuestionUpdatePayload) => {
       const { data, error } = await supabase.from("quiz_questions").update(payload).eq("id", id).select().single();
       if (error) throw error;
@@ -226,7 +195,6 @@ export function useUpdateQuizQuestion() {
       queryClient.invalidateQueries({ queryKey: ["quiz_questions", data.quiz_id] });
       queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
     },
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useQuizzes.ts
   });
 }
 
@@ -240,15 +208,10 @@ export function useDeleteQuizQuestion() {
       const { error } = await supabase.from("quiz_questions").delete().eq("id", id);
       if (error) throw error;
     },
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useQuizzes.ts
-    onSuccess: (_data, variables) =>
-      queryClient.invalidateQueries({ queryKey: ["quiz_questions", variables.quizId] }),
-=======
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["quiz_questions", variables.quizId] });
       queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
     },
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useQuizzes.ts
   });
 }
 
@@ -275,8 +238,6 @@ export function useListQuizAnswers(questionId: string | undefined) {
   });
 }
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useQuizzes.ts
-=======
 // Batches every answer for a whole quiz's questions into one request instead of each question
 // card firing its own useListQuizAnswers -- mirrors useQuizQuestionStats' .in("question_id", ids)
 // pattern below, grouping the flat result by question_id client-side. QuizBuilder.tsx calls this
@@ -308,7 +269,6 @@ export function useQuizAnswersByQuestionIds(questionIds: string[]) {
 // which a single question_id-scoped invalidation would never match. Broadening to the bare prefix
 // keeps both the single-question and batched caches correct after any answer add/edit/delete.
 
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useQuizzes.ts
 export function useCreateQuizAnswer() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -317,14 +277,10 @@ export function useCreateQuizAnswer() {
       if (error) throw error;
       return data;
     },
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useQuizzes.ts
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["quiz_answers", data.question_id] }),
-=======
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quiz_answers"] });
       queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
     },
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useQuizzes.ts
   });
 }
 
@@ -336,40 +292,27 @@ export function useUpdateQuizAnswer() {
       if (error) throw error;
       return data;
     },
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useQuizzes.ts
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["quiz_answers", data.question_id] }),
-=======
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quiz_answers"] });
       queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
     },
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useQuizzes.ts
   });
 }
 
 export function useDeleteQuizAnswer() {
   const queryClient = useQueryClient();
   return useMutation({
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useQuizzes.ts
-    // questionId is passed in for the same reason as useDeleteQuizQuestion above.
-=======
     // questionId is still accepted for callers that want it (and for symmetry with
     // useDeleteQuizQuestion above), even though invalidation itself is now broad -- see the
     // comment above useCreateQuizAnswer.
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useQuizzes.ts
     mutationFn: async ({ id }: { id: string; questionId: string }) => {
       const { error } = await supabase.from("quiz_answers").delete().eq("id", id);
       if (error) throw error;
     },
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useQuizzes.ts
-    onSuccess: (_data, variables) =>
-      queryClient.invalidateQueries({ queryKey: ["quiz_answers", variables.questionId] }),
-=======
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quiz_answers"] });
       queryClient.invalidateQueries({ queryKey: ["courses", "versions"] });
     },
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useQuizzes.ts
   });
 }
 
@@ -391,8 +334,6 @@ export function useQuizAnswerChoices(quizId: string | undefined) {
 }
 
 // ---------------------------------------------------------------------------
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useQuizzes.ts
-=======
 // Post-grading review (correct answer + explanation) -- calls get_quiz_review,
 // which only returns rows once the given attempt has submitted_at set. Never
 // substitute this for useQuizAnswerChoices while a quiz is still in progress.
@@ -460,7 +401,6 @@ export function useQuizQuestionStats(questionIds: string[]) {
 }
 
 // ---------------------------------------------------------------------------
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useQuizzes.ts
 // quiz_attempts / quiz_attempt_answers
 // ---------------------------------------------------------------------------
 

@@ -25,14 +25,11 @@ export function useListAlerts(filters: ListAlertsFilters = {}) {
       if (error) throw error;
       return data;
     },
-<<<<<<< HEAD:artifacts/pa-medtrack/src/hooks/useAlerts.ts
-=======
     // Alerts are time-sensitive (e.g. another user just resolved one this tab hasn't seen yet) --
     // opt out of the app-wide 60s staleTime/refetchOnWindowFocus:false default in queryClient.ts
     // so this list refetches on every mount and every tab refocus, same as it always did.
     staleTime: 0,
     refetchOnWindowFocus: true,
->>>>>>> origin/main:artifacts/caremetric-train/src/hooks/useAlerts.ts
   });
 }
 

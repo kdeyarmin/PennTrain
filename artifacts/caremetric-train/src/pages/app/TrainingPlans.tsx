@@ -16,10 +16,7 @@ import {
 import { useListCourses } from "@/hooks/useCourses";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useListEmployees } from "@/hooks/useEmployees";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/TrainingPlans.tsx
-=======
 import { useListCourseAssignments, type CourseAssignment } from "@/hooks/useCourseAssignments";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/TrainingPlans.tsx
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -146,25 +143,16 @@ function ApplyPlanDialog({
     let succeededEmployees = 0;
     let failedEmployees = 0;
     let totalAssigned = 0;
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/TrainingPlans.tsx
-    let totalSkipped = 0;
-=======
     let totalRequirementsEnsured = 0;
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/TrainingPlans.tsx
     const issues: string[] = [];
 
     settled.forEach((result) => {
       if (result.status === "fulfilled") {
         succeededEmployees++;
         totalAssigned += result.value.assigned;
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/TrainingPlans.tsx
-        totalSkipped += result.value.skipped;
-        result.value.failed.forEach((f) => issues.push(`${f.courseTitle ?? "a course"}: ${f.message}`));
-=======
         totalRequirementsEnsured += result.value.requirementsEnsured;
         result.value.failed.forEach((f) => issues.push(`${f.itemLabel ?? "an item"}: ${f.message}`));
         if (result.value.alertWarning) issues.push(result.value.alertWarning);
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/TrainingPlans.tsx
       } else {
         failedEmployees++;
         issues.push(result.reason instanceof Error ? result.reason.message : String(result.reason));
@@ -175,13 +163,8 @@ function ApplyPlanDialog({
     if (failedEmployees > 0) titleParts.push(`${failedEmployees} failed`);
 
     let description = `${totalAssigned} course assignment${totalAssigned !== 1 ? "s" : ""} created.`;
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/TrainingPlans.tsx
-    if (totalSkipped > 0) {
-      description += ` ${totalSkipped} legacy training-type item${totalSkipped !== 1 ? "s" : ""} skipped -- record completion manually once finished.`;
-=======
     if (totalRequirementsEnsured > 0) {
       description += ` ${totalRequirementsEnsured} training requirement${totalRequirementsEnsured !== 1 ? "s" : ""} now tracked as pending.`;
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/TrainingPlans.tsx
     }
     if (issues.length > 0) {
       description += ` Issues: ${issues.slice(0, 3).join("; ")}${issues.length > 3 ? "…" : ""}`;
@@ -202,14 +185,8 @@ function ApplyPlanDialog({
         <DialogHeader>
           <DialogTitle>Apply "{plan.name}" to Employees</DialogTitle>
           <DialogDescription>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/TrainingPlans.tsx
-            Creates a course assignment for every course in this plan, for each employee selected below.
-            Legacy training-type items aren't assigned ahead of time -- they're recorded as completed
-            after the fact on the employee's training record.
-=======
             Creates a course assignment for every course in this plan, and tracks every training-type
             item as a pending requirement, for each employee selected below.
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/TrainingPlans.tsx
           </DialogDescription>
         </DialogHeader>
         <div className="relative">
@@ -252,8 +229,6 @@ function ApplyPlanDialog({
 }
 
 // ---------------------------------------------------------------------------
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/TrainingPlans.tsx
-=======
 // Per-employee progress against this plan, once it's been applied to anyone.
 // course_assignments.training_plan_id links a fanned-out assignment back to
 // the plan that created it -- previously nothing surfaced that link, so an
@@ -319,7 +294,6 @@ function PlanProgressSection({ plan }: { plan: TrainingPlan }) {
 }
 
 // ---------------------------------------------------------------------------
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/TrainingPlans.tsx
 // Expanded plan detail: items list + add/remove/reorder + apply action.
 // ---------------------------------------------------------------------------
 function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canManage: boolean }) {
@@ -475,14 +449,11 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
         </div>
       )}
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/TrainingPlans.tsx
-=======
       <div className="pt-2 border-t">
         <h3 className="text-sm font-semibold text-foreground mb-2">Applied To</h3>
         <PlanProgressSection plan={plan} />
       </div>
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/TrainingPlans.tsx
       <Dialog open={showAddItem} onOpenChange={(o) => { if (!o) setShowAddItem(false); }}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Add Plan Item</DialogTitle></DialogHeader>
@@ -495,11 +466,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
               >
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/TrainingPlans.tsx
-                  <SelectItem value="course">Course (LMS)</SelectItem>
-=======
                   <SelectItem value="course">Course (online)</SelectItem>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/TrainingPlans.tsx
                   <SelectItem value="training_type">Training Type (legacy)</SelectItem>
                 </SelectContent>
               </Select>
@@ -658,11 +625,7 @@ export default function TrainingPlans() {
 
   return (
     <div className="space-y-6">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/TrainingPlans.tsx
-      <div className="page-header flex items-center justify-between">
-=======
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/TrainingPlans.tsx
         <div>
           <h1>Training Plans</h1>
           <p>Bundle courses and training types into reusable curricula, then apply them to employees.</p>
@@ -700,13 +663,8 @@ export default function TrainingPlans() {
             </p>
           </div>
         ) : (
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/TrainingPlans.tsx
-          <div className="overflow-hidden">
-            <table className="data-table">
-=======
           <div className="overflow-x-auto">
             <table className="data-table min-w-[640px]">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/TrainingPlans.tsx
               <thead>
                 <tr>
                   <th className="w-8" />

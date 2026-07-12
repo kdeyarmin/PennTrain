@@ -22,10 +22,7 @@ import {
   useGradeQuizAttempt,
   useListQuizAttempts,
   useGetQuizAttempt,
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeQuiz.tsx
-=======
   useGetQuizReview,
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeQuiz.tsx
 } from "@/hooks/useQuizzes";
 
 export default function TakeQuiz() {
@@ -102,15 +99,6 @@ export default function TakeQuiz() {
     return map;
   }, [choices]);
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeQuiz.tsx
-  const isCorrectByQuestion = useMemo(() => {
-    const map = new Map<string, boolean | null>();
-    for (const a of attemptAnswers ?? []) map.set(a.question_id, a.is_correct);
-    return map;
-  }, [attemptAnswers]);
-
-=======
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeQuiz.tsx
   const { mutate: startAttempt, isPending: starting } = useStartQuizAttempt();
   const { mutate: saveAnswer } = useSubmitQuizAttemptAnswer();
   const { mutate: gradeAttempt, isPending: grading } = useGradeQuizAttempt();
@@ -184,11 +172,7 @@ export default function TakeQuiz() {
       <div className="space-y-4">
         <p className="text-muted-foreground text-sm">Assignment not found.</p>
         <Button asChild variant="outline" size="sm">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeQuiz.tsx
-          <Link href="/me"><ArrowLeft className="mr-2 h-4 w-4" /> Back to dashboard</Link>
-=======
           <Link href="/me/courses"><ArrowLeft className="mr-2 h-4 w-4" /> Back to My Courses</Link>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeQuiz.tsx
         </Button>
       </div>
     );
@@ -199,11 +183,7 @@ export default function TakeQuiz() {
       <div className="space-y-4">
         <p className="text-muted-foreground text-sm">This assignment does not belong to you.</p>
         <Button asChild variant="outline" size="sm">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeQuiz.tsx
-          <Link href="/me"><ArrowLeft className="mr-2 h-4 w-4" /> Back to dashboard</Link>
-=======
           <Link href="/me/courses"><ArrowLeft className="mr-2 h-4 w-4" /> Back to My Courses</Link>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeQuiz.tsx
         </Button>
       </div>
     );
@@ -241,28 +221,20 @@ export default function TakeQuiz() {
   const isGraded = !!activeAttemptId && activeAttempt && activeAttempt.submitted_at !== null;
 
   function ResultCard({
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeQuiz.tsx
-=======
     attemptId,
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeQuiz.tsx
     scorePercent,
     passed,
     attemptNumber,
     showRetake,
     exhausted,
   }: {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeQuiz.tsx
-=======
     attemptId: string;
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeQuiz.tsx
     scorePercent: number | null;
     passed: boolean | null;
     attemptNumber: number;
     showRetake: boolean;
     exhausted: boolean;
   }) {
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeQuiz.tsx
-=======
     const { data: reviewAnswers } = useListQuizAttemptAnswers(attemptId);
     const isCorrectById = useMemo(() => {
       const map = new Map<string, boolean | null>();
@@ -288,7 +260,6 @@ export default function TakeQuiz() {
       return map;
     }, [reviewChoices]);
 
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeQuiz.tsx
     return (
       <Card>
         <CardHeader>
@@ -321,22 +292,6 @@ export default function TakeQuiz() {
             </div>
           )}
 
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeQuiz.tsx
-          {attemptAnswers && attemptAnswers.length > 0 && activeAttemptId && isGraded && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Question Review</p>
-              {allQuestions.map((q, idx) => {
-                const correct = isCorrectByQuestion.get(q.id);
-                return (
-                  <div key={q.id} className="flex items-center justify-between gap-3 py-2 border-b last:border-0 text-sm">
-                    <span className="min-w-0 truncate">#{idx + 1}. {q.question_text}</span>
-                    {correct === true ? (
-                      <Badge variant="default" className="shrink-0"><CheckCircle2 className="h-3 w-3 mr-1" /> Correct</Badge>
-                    ) : correct === false ? (
-                      <Badge variant="destructive" className="shrink-0"><XCircle className="h-3 w-3 mr-1" /> Incorrect</Badge>
-                    ) : (
-                      <Badge variant="secondary" className="shrink-0">Not answered</Badge>
-=======
           {reviewAnswers && reviewAnswers.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Question Review</p>
@@ -360,19 +315,15 @@ export default function TakeQuiz() {
                     )}
                     {canRevealAnswers && review?.explanation && (
                       <p className="text-xs text-muted-foreground italic">{review.explanation}</p>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeQuiz.tsx
                     )}
                   </div>
                 );
               })}
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeQuiz.tsx
-=======
               {!canRevealAnswers && (
                 <p className="text-xs text-muted-foreground/70">
                   Correct answers and explanations unlock once you pass or use up your attempts.
                 </p>
               )}
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeQuiz.tsx
             </div>
           )}
 
@@ -407,10 +358,7 @@ export default function TakeQuiz() {
 
       {isGraded && activeAttempt ? (
         <ResultCard
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeQuiz.tsx
-=======
           attemptId={activeAttempt.id}
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeQuiz.tsx
           scorePercent={activeAttempt.score_percent}
           passed={activeAttempt.passed}
           attemptNumber={activeAttempt.attempt_number}
@@ -496,10 +444,7 @@ export default function TakeQuiz() {
         // progress right now: passed already, or failed with attempts left,
         // or failed with attempts exhausted.
         <ResultCard
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/employee/TakeQuiz.tsx
-=======
           attemptId={lastGraded.id}
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/employee/TakeQuiz.tsx
           scorePercent={lastGraded.score_percent}
           passed={lastGraded.passed}
           attemptNumber={lastGraded.attempt_number}

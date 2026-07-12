@@ -1,9 +1,5 @@
-<<<<<<< HEAD
-import { createClient } from "jsr:@supabase/supabase-js@2";
-=======
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
->>>>>>> origin/main
 import { parse } from "jsr:@std/csv/parse";
 
 const CORS_HEADERS = {
@@ -19,17 +15,12 @@ function json(body: unknown, status = 200) {
 }
 
 // job_title has no default in the employees table -- required. hire_date/email/etc are nullable
-<<<<<<< HEAD
-// with defaults, so left optional.
-const REQUIRED_COLUMNS = ["first_name", "last_name", "job_title", "facility_id"];
-=======
 // with defaults, so left optional. A facility column is also required, but it may arrive as either
 // facility_name (the documented, primary path -- resolved case-insensitively against this org's
 // facilities below, since a raw facility_id UUID is never shown anywhere else in the UI) or
 // facility_id (a raw UUID, still accepted for already-integrated callers) -- checked separately
 // below rather than listed here, since exactly one of the two is required, not both.
 const REQUIRED_COLUMNS = ["first_name", "last_name", "job_title"];
->>>>>>> origin/main
 
 interface ImportRowResult {
   row: number;
@@ -53,11 +44,7 @@ Deno.serve(async (req: Request) => {
   // gates who may insert employees and into which facility; there is no privilege-escalation need
   // here, only CSV-parsing/batch-reporting convenience that a plain client-side loop would also be
   // capable of, just less conveniently.
-<<<<<<< HEAD
-  const callerClient = createClient(supabaseUrl, anonKey, {
-=======
   const callerClient = createClient<any>(supabaseUrl, anonKey, {
->>>>>>> origin/main
     global: { headers: { Authorization: authHeader } },
   });
 
@@ -103,8 +90,6 @@ Deno.serve(async (req: Request) => {
   if (missingCols.length > 0) {
     return json({ error: `CSV is missing required columns: ${missingCols.join(", ")}` }, 400);
   }
-<<<<<<< HEAD
-=======
   if (!("facility_name" in rows[0]) && !("facility_id" in rows[0])) {
     return json({ error: "CSV is missing required columns: facility_name (or facility_id)" }, 400);
   }
@@ -121,7 +106,6 @@ Deno.serve(async (req: Request) => {
     .eq("organization_id", effectiveOrgId);
   if (facilitiesError) return json({ error: `Failed to load facilities: ${facilitiesError.message}` }, 500);
   const facilityIdByName = new Map((orgFacilities ?? []).map((f) => [f.name.trim().toLowerCase(), f.id as string]));
->>>>>>> origin/main
 
   const results: ImportRowResult[] = [];
 
@@ -131,15 +115,6 @@ Deno.serve(async (req: Request) => {
     const first_name = row.first_name?.trim();
     const last_name = row.last_name?.trim();
     const job_title = row.job_title?.trim();
-<<<<<<< HEAD
-    const facility_id = row.facility_id?.trim();
-
-    if (!first_name || !last_name || !job_title || !facility_id) {
-      results.push({ row: rowNumber, success: false, error: "missing required field(s): first_name, last_name, job_title, facility_id" });
-      continue;
-    }
-
-=======
     const rawFacilityId = row.facility_id?.trim();
     const rawFacilityName = row.facility_name?.trim();
 
@@ -163,7 +138,6 @@ Deno.serve(async (req: Request) => {
       facility_id = resolved;
     }
 
->>>>>>> origin/main
     const { data, error } = await callerClient
       .from("employees")
       .insert({

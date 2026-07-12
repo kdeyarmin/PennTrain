@@ -1,17 +1,4 @@
 import { useState } from "react";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/ComplianceBinder.tsx
-import { useGenerateComplianceBinder } from "@/hooks/useComplianceBinder";
-import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { FileArchive, Download, Loader2 } from "lucide-react";
-
-export default function ComplianceBinder() {
-  const { toast } = useToast();
-  const [result, setResult] = useState<{ url: string; expiresIn: number } | null>(null);
-
-  const { mutate: generateBinder, isPending } = useGenerateComplianceBinder();
-=======
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
@@ -70,24 +57,15 @@ export default function ComplianceBinder() {
       return { url: data.url, expiresIn: data.expiresIn };
     },
   });
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/ComplianceBinder.tsx
 
   const handleGenerate = () => {
     setResult(null);
     generateBinder(
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/ComplianceBinder.tsx
-      {},
-      {
-        onSuccess: (data) => {
-          setResult({ url: data.url, expiresIn: data.expiresIn });
-          toast({ title: "Compliance binder generated" });
-=======
       { facilityId: canScopeFacility && facilityId !== FACILITY_ALL ? facilityId : undefined },
       {
         onSuccess: (data) => {
           setResult({ url: data.url, expiresIn: data.expiresIn });
           toast({ title: "Compliance binder generated", variant: "success" });
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/ComplianceBinder.tsx
         },
         onError: (err: Error) =>
           toast({ title: "Failed to generate binder", description: err.message, variant: "destructive" }),
@@ -111,12 +89,6 @@ export default function ComplianceBinder() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/ComplianceBinder.tsx
-            Includes facility roster, staff training compliance status, overdue/due-soon training records and
-            practicums, certificates issued, and open alerts -- generated fresh from current data each time.
-          </p>
-          <div className="flex items-center gap-3">
-=======
             Generates a single PDF, rebuilt from live data every time, covering roughly a dozen compliance areas:
             a citation-weighted DHS readiness summary, the facility roster and resident census (including resident
             names and other PII), staff training and practicum compliance with overdue detail, certificates
@@ -149,7 +121,6 @@ export default function ComplianceBinder() {
             </div>
           )}
           <div className="flex flex-wrap items-center gap-3">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/ComplianceBinder.tsx
             <Button onClick={handleGenerate} disabled={isPending}>
               {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileArchive className="mr-2 h-4 w-4" />}
               {isPending ? "Generating..." : "Generate Binder PDF"}

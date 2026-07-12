@@ -21,10 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { ClipboardCheck, ChevronLeft, ChevronRight, Plus, Eye } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CompetencyRecords.tsx
-=======
 import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CompetencyRecords.tsx
 
 const PAGE_SIZE = 15;
 
@@ -65,11 +62,7 @@ interface RecordFormData {
 const EMPTY_RECORD_FORM: RecordFormData = {
   employeeId: "",
   templateId: "",
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CompetencyRecords.tsx
-  evaluationDate: new Date().toISOString().slice(0, 10),
-=======
   evaluationDate: toLocalIsoDate(),
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CompetencyRecords.tsx
   overallResult: "met",
   signNow: false,
 };
@@ -111,11 +104,7 @@ function RecordDetailDialog({ record, onClose }: { record: CompetencyRecord | nu
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Evaluation Date</p>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CompetencyRecords.tsx
-                <p>{new Date(record.evaluation_date).toLocaleDateString()}</p>
-=======
                 <p>{formatDateForDisplay(record.evaluation_date)}</p>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CompetencyRecords.tsx
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Evaluator</p>
@@ -291,11 +280,7 @@ export default function CompetencyRecords() {
 
   return (
     <div className="space-y-6">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CompetencyRecords.tsx
-      <div className="page-header flex items-center justify-between">
-=======
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CompetencyRecords.tsx
         <div>
           <h1>Competency Records</h1>
           <p>Conduct and review employee competency evaluations against checklist templates.</p>
@@ -358,13 +343,8 @@ export default function CompetencyRecords() {
           </div>
         ) : (
           <>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CompetencyRecords.tsx
-            <div className="overflow-hidden">
-              <table className="data-table">
-=======
             <div className="overflow-x-auto">
               <table className="data-table min-w-[720px]">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CompetencyRecords.tsx
                 <thead>
                   <tr>
                     <th>Employee</th>
@@ -387,11 +367,7 @@ export default function CompetencyRecords() {
                           </span>
                         </td>
                         <td className="text-muted-foreground">{template?.name ?? `Template #${r.template_id.slice(0, 8)}`}</td>
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CompetencyRecords.tsx
-                        <td className="text-muted-foreground">{new Date(r.evaluation_date).toLocaleDateString()}</td>
-=======
                         <td className="text-muted-foreground">{formatDateForDisplay(r.evaluation_date)}</td>
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CompetencyRecords.tsx
                         <td><ResultBadge result={r.overall_result} /></td>
                         <td className="text-muted-foreground">{r.signed_at ? "Yes" : "No"}</td>
                         <td>
@@ -434,11 +410,7 @@ export default function CompetencyRecords() {
             <DialogTitle>New Competency Evaluation</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-<<<<<<< HEAD:artifacts/pa-medtrack/src/pages/app/CompetencyRecords.tsx
-            <div className="grid grid-cols-2 gap-4">
-=======
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
->>>>>>> origin/main:artifacts/caremetric-train/src/pages/app/CompetencyRecords.tsx
               <div className="space-y-1.5">
                 <Label className="text-[13px]">Employee *</Label>
                 <Select value={form.employeeId} onValueChange={(v) => setForm((f) => ({ ...f, employeeId: v }))}>
