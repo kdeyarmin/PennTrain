@@ -24,6 +24,7 @@ explicitly excluded from that program.
 
 ROADMAP.md remains the historical product review and recommendation rationale.
 
+
 ## What's included
 
 - Six-role RBAC (`platform_admin`, `org_admin`, `facility_manager`, `trainer`, `employee`, `auditor`) enforced by
