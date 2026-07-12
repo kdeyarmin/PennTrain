@@ -36,6 +36,9 @@ verify_jwt = true
 [functions.generate-resident-assessment-summary]
 verify_jwt = true
 
+[functions.generate-state-form-prefill]
+verify_jwt = true
+
 [functions.generate-course-video]
 verify_jwt = true
 

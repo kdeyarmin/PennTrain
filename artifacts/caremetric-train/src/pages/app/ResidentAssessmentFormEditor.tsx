@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { useGetResident } from "@/hooks/useResidents";
 import { useListFacilities } from "@/hooks/useFacilities";
 import {
@@ -46,6 +46,7 @@ import {
   type FormSectionKey,
 } from "@/lib/residentAssessmentFormSchema";
 import { getComplianceFormLabel } from "@/lib/residentCompliance";
+import { assessmentFormDocumentLabel } from "@/lib/stateFormWorkflow";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -716,8 +717,10 @@ function DiagnosisRowsEditor({
 
 export default function ResidentAssessmentFormEditor() {
   const { residentId, formId } = useParams<{ residentId: string; formId: string }>();
+  const [location] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
+  const residentPathPrefix = location.startsWith("/admin/") ? "/admin/residents" : "/app/residents";
 
   const { data: resident } = useGetResident(residentId);
   const { data: facilities } = useListFacilities();
@@ -1146,18 +1149,11 @@ ${text}` : text;
       }
     }
     finalize.mutate(formId, {
-      onSuccess: () =>
-        toast({
-          title: `${formLabel} finalized and saved as a PDF`,
-          description:
-            "The generated packet starts with the official PA DHS form and completes the linked checklist item.",
-        }),
-      onError: (e: Error) =>
-        toast({
-          title: "Failed to finalize",
-          description: e.message,
-          variant: "destructive",
-        }),
+      onSuccess: () => toast({
+        title: `${formLabel} finalized and saved as a PDF`,
+        description: "This is a reference copy. Attach the signed, DHS-prescribed form on the resident's page to complete the compliance record.",
+      }),
+      onError: (e: Error) => toast({ title: "Failed to finalize", description: e.message, variant: "destructive" }),
     });
   };
 
@@ -1183,7 +1179,7 @@ ${text}` : text;
   // retry, not a true regenerate. Only offer the button while that row is still missing, otherwise
   // it's guaranteed to fail.
   const hasGeneratedPdf = (residentDocuments ?? []).some(
-    (d) => d.document_label === `resident_assessment_form:${form.id}`,
+    (d) => d.document_label === assessmentFormDocumentLabel(form.id),
   );
   // Advisory only -- see getIncompleteSections' comment. Recomputed on every render off `content`
   // instead of memoized: the item-list walk is small (well under 100 items) and content already
@@ -1268,7 +1264,7 @@ ${text}` : text;
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Button asChild variant="ghost" size="sm">
-            <Link href={`/app/residents/${residentId}`}>
+            <Link href={`${residentPathPrefix}/${residentId}`}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Back to Resident
             </Link>
           </Button>
@@ -1321,12 +1317,10 @@ ${text}` : text;
       </div>
 
       <p className="text-xs text-muted-foreground">
-        CareMetric saves your entries into a generated packet that starts with
-        the official PA DHS {formLabel} form, followed by a completion addendum.
-        Finalizing creates that state-form packet and completes the linked
-        checklist item.
+        Drafting/reference tool only — finalizing does not by itself satisfy the resident's compliance
+        requirement. Documents like the {formLabel} have to be on the state-approved form, no exception:
+        attach the signed DHS-prescribed form on the resident's page to mark the item complete.
       </p>
-
       {!isReadOnly && (
         <Alert className="border-primary/30 bg-primary/[0.03] [&>svg]:text-primary">
           <Wand2 className="h-4 w-4" />
@@ -1362,7 +1356,6 @@ ${text}` : text;
           </AlertDescription>
         </Alert>
       )}
-
       {incompleteSections.length > 0 && (
         <Alert className="border-warning/50 bg-warning/10 [&>svg]:text-warning">
           <AlertTriangle className="h-4 w-4" />

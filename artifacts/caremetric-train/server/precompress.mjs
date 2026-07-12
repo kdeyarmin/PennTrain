@@ -30,7 +30,7 @@ const COMPRESSIBLE_EXTENSIONS = new Set([
 
 const files = (await readdir(DIST_DIR, { recursive: true, withFileTypes: true }))
   .filter((entry) => entry.isFile() && COMPRESSIBLE_EXTENSIONS.has(extname(entry.name).toLowerCase()))
-  .map((entry) => join(entry.parentPath, entry.name));
+  .map((entry) => join(entry.parentPath ?? entry.path, entry.name));
 
 let written = 0;
 for (const file of files) {

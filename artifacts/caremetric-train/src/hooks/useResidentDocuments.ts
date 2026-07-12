@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
+import { describeFunctionError } from "./useResidentAssessmentForms";
 
 export type ResidentDocument = Tables<"resident_documents">;
 
@@ -25,10 +26,11 @@ export interface UploadResidentDocumentInput {
   complianceItemId?: string;
   documentLabel?: string;
   /**
-   * True only when `file` is the actual DHS-prescribed form evidence (RASP/ASP, DME,
-   * Preadmission Screening, etc.) -- either completed/uploaded by facility staff or generated as
-   * the app's official DHS form packet. complete_resident_compliance_item() requires a linked
-   * document with this flag set; defaults to false so generic resident uploads stay inert.
+   * True only when `file` IS the actual DHS-prescribed form (RASP/ASP, DME, Preadmission
+   * Screening, etc.) as completed by facility staff -- never set for CareMetric-generated
+   * reference PDFs. complete_resident_compliance_item() requires a linked document with this
+   * flag set; defaults to false so every other upload path (the generic Documents uploader,
+   * generate-resident-assessment-pdf) stays inert by default.
    */
   isStateForm?: boolean;
   stateFormSourceLabel?: string;
@@ -70,6 +72,36 @@ export function useUploadResidentDocument() {
       return data;
     },
     onSuccess: (_data, variables) => queryClient.invalidateQueries({ queryKey: ["resident_documents", variables.residentId] }),
+  });
+}
+
+export interface GeneratedStateFormPrefill {
+  success?: boolean;
+  error?: string;
+  url?: string;
+  documentId?: string;
+  fieldsFilled?: number;
+}
+
+// Downloads the official DHS PDF for an upload-only item (preadmission screening / DME) with the
+// resident's demographics prefilled -- a "start from this" drafting aid stored is_state_form=false,
+// never completion evidence. Idempotent server-side: a second call returns the existing document.
+export function useGenerateStateFormPrefill() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    // residentId is only consumed by onSettled's targeted invalidation.
+    mutationFn: async ({ complianceItemId }: { complianceItemId: string; residentId: string }) => {
+      const { data, error } = await supabase.functions.invoke<GeneratedStateFormPrefill>(
+        "generate-state-form-prefill",
+        { body: { complianceItemId } },
+      );
+      if (error) throw new Error(await describeFunctionError(error, "Failed to generate the prefilled form"));
+      if (!data || data.success === false) throw new Error(data?.error ?? "Failed to generate the prefilled form");
+      return data;
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["resident_documents", variables.residentId] });
+    },
   });
 }
 

@@ -19,6 +19,23 @@ export interface ScheduleAnalyticsSummary {
   employeesOver40Hours: { employeeId: string; name: string; hours: number }[];
 }
 
+export interface StaffingRatioSummary {
+  residentsInHouse: number;
+  days: number;
+  scheduledCareHours: number;
+  ppd: number;
+  targetPpd: number;
+  targetHours: number;
+  targetHoursPerDay: number;
+  hoursGap: number;
+  hoursGapPerDay: number;
+  suggestedEightHourShifts: number;
+  isBelowTarget: boolean;
+  averageResidentsPerScheduledStaff: number | null;
+  minimumStaffPerDay: number;
+  daysBelowMinimumStaffing: { date: string; scheduledStaff: number; minimumStaff: number }[];
+}
+
 function timeToMinutes(time: string): number {
   const [h = "0", m = "0"] = time.split(":");
   return Number(h) * 60 + Number(m);
@@ -83,5 +100,81 @@ export function summarizeScheduleAnalytics({
       .filter(([, row]) => row.hours > 40)
       .map(([employeeId, row]) => ({ employeeId, name: row.name, hours: Math.round(row.hours * 10) / 10 }))
       .sort((a, b) => b.hours - a.hours),
+  };
+}
+
+
+export function summarizeStaffingRatios({
+  assignments,
+  dates,
+  residentsInHouse,
+  targetPpd,
+  minimumStaffPerDay,
+}: {
+  assignments: ScheduleAnalyticsAssignment[];
+  dates: string[];
+  residentsInHouse: number;
+  targetPpd: number;
+  minimumStaffPerDay: number;
+}): StaffingRatioSummary {
+  const residentCount = Math.max(0, residentsInHouse);
+  const safeTargetPpd = Math.max(0, targetPpd);
+  const safeMinimumStaff = Math.max(0, Math.floor(minimumStaffPerDay));
+  const scheduleDays = dates.length;
+
+  if (scheduleDays === 0) {
+    return {
+      residentsInHouse: residentCount,
+      days: 0,
+      scheduledCareHours: 0,
+      ppd: 0,
+      targetPpd: safeTargetPpd,
+      targetHours: 0,
+      targetHoursPerDay: 0,
+      hoursGap: 0,
+      hoursGapPerDay: 0,
+      suggestedEightHourShifts: 0,
+      isBelowTarget: false,
+      averageResidentsPerScheduledStaff: null,
+      minimumStaffPerDay: safeMinimumStaff,
+      daysBelowMinimumStaffing: [],
+    };
+  }
+
+  const dateSet = new Set(dates);
+  const activeAssignments = assignments.filter((a) => dateSet.has(a.shift_date) && a.status !== "called_off" && a.status !== "no_show");
+  const scheduledCareHours = activeAssignments.reduce((total, assignment) => total + shiftDurationHours(assignment.start_time, assignment.end_time), 0);
+  const targetHours = residentCount * scheduleDays * safeTargetPpd;
+  const roundedScheduledCareHours = Math.round(scheduledCareHours * 10) / 10;
+  const roundedTargetHours = Math.round(targetHours * 10) / 10;
+  const roundedHoursGap = Math.max(0, Math.round((targetHours - scheduledCareHours) * 10) / 10);
+  const staffByDate = new Map<string, Set<string>>();
+  for (const date of dates) staffByDate.set(date, new Set());
+  for (const assignment of activeAssignments) {
+    const staff = staffByDate.get(assignment.shift_date);
+    if (staff) staff.add(assignment.employee_id);
+  }
+
+  const daysBelowMinimumStaffing = dates
+    .map((date) => ({ date, scheduledStaff: staffByDate.get(date)?.size ?? 0, minimumStaff: safeMinimumStaff }))
+    .filter((row) => row.scheduledStaff < row.minimumStaff);
+
+  const totalScheduledStaffDays = [...staffByDate.values()].reduce((total, staff) => total + staff.size, 0);
+
+  return {
+    residentsInHouse: residentCount,
+    days: scheduleDays,
+    scheduledCareHours: roundedScheduledCareHours,
+    ppd: residentCount > 0 ? Math.round((scheduledCareHours / residentCount / scheduleDays) * 100) / 100 : 0,
+    targetPpd: safeTargetPpd,
+    targetHours: roundedTargetHours,
+    targetHoursPerDay: Math.round((roundedTargetHours / scheduleDays) * 10) / 10,
+    hoursGap: roundedHoursGap,
+    hoursGapPerDay: Math.round((roundedHoursGap / scheduleDays) * 10) / 10,
+    suggestedEightHourShifts: Math.ceil(roundedHoursGap / 8),
+    isBelowTarget: residentCount > 0 && roundedHoursGap > 0,
+    averageResidentsPerScheduledStaff: totalScheduledStaffDays > 0 ? Math.round((residentCount / (totalScheduledStaffDays / scheduleDays)) * 10) / 10 : null,
+    minimumStaffPerDay: safeMinimumStaff,
+    daysBelowMinimumStaffing,
   };
 }

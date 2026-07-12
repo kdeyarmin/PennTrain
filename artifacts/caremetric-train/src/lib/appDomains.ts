@@ -129,6 +129,15 @@ const APP_COMMAND_ACTIONS: AppCommandAction[] = [
     keywords: ["generate course", "course builder", "curriculum", "ai"],
   },
   {
+    id: "state-form-document-analyzer",
+    label: "Analyze state form PDFs",
+    description: "Upload old PDFs, map handwritten data into current state forms, and review AI suggestions.",
+    path: "/admin/document-analyzer",
+    domain: "documents",
+    roles: PLATFORM_ADMIN,
+    keywords: ["pdf", "state forms", "handwriting", "ocr", "backlog", "ai"],
+  },
+  {
     id: "review-failed-notifications",
     label: "Review failed notifications",
     description: "Open notification delivery filtered to failed messages.",
@@ -169,6 +178,8 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/admin/courses", label: "Course catalog", domain: "training", roles: PLATFORM_ADMIN, keywords: ["training", "content"] },
   { path: "/admin/courses/new-ai", label: "AI course builder", domain: "training", roles: PLATFORM_ADMIN, keywords: ["generate", "curriculum", "authoring"] },
   { path: "/admin/ai-generations", label: "AI generation log", domain: "training", roles: PLATFORM_ADMIN, keywords: ["ai", "failures", "cost"] },
+  { path: "/admin/document-analyzer", label: "State form document analyzer", domain: "documents", roles: PLATFORM_ADMIN, keywords: ["pdf", "forms", "handwriting", "ocr", "state", "backlog", "ai"] },
+  { path: "/admin/residents/:id", label: "Resident chart", domain: "residents", roles: PLATFORM_ADMIN, keywords: ["resident", "chart", "assessment", "state form"] },
   { path: "/admin/alerts", label: "Platform alerts", domain: "compliance", roles: PLATFORM_ADMIN, keywords: ["risk", "overdue"] },
   { path: "/admin/audit", label: "Platform audit log", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["governance", "activity"] },
   { path: "/admin/notifications", label: "Notification delivery", domain: "support", roles: PLATFORM_ADMIN, keywords: ["email", "sms", "failed"] },
@@ -205,6 +216,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/trainer/retraining", label: "Retraining monitor", domain: "training", roles: TRAINER_ONLY, keywords: ["med admin", "recertification"] },
   { path: "/app/residents", label: "Residents", domain: "residents", roles: REPORTING_ROLES, keywords: ["resident records", "assessment"] },
   { path: "/app/resident-compliance", label: "Resident compliance", domain: "residents", roles: REPORTING_ROLES, keywords: ["assessments", "care"] },
+  { path: "/app/state-forms", label: "State forms", domain: "residents", roles: REPORTING_ROLES, keywords: ["rasp", "asp", "dme", "preadmission", "annual reassessment", "dhs forms", "renewals"] },
   { path: "/app/inspections", label: "Inspections & equipment", domain: "compliance", roles: INSPECTION_ROLES, keywords: ["fire drill", "equipment", "physical plant"] },
   { path: "/app/incidents", label: "Incidents & complaints", domain: "compliance", roles: REPORTING_ROLES, keywords: ["complaints", "events"] },
   { path: "/app/confidential-incidents", label: "Confidential reports", domain: "compliance", roles: REPORTING_ROLES, keywords: ["safety report", "anonymous", "near miss", "intake", "whistleblower"] },
@@ -317,6 +329,7 @@ export function searchPages(query: string, role: Role | undefined): AppPageDefin
   const q = query.trim().toLowerCase();
   if (!q || !role) return [];
   return pagesForRole(role)
+    .filter((page) => !page.path.includes(":"))
     .filter((page) =>
       [page.label, page.domain, page.path, ...page.keywords].some((value) => value.toLowerCase().includes(q)),
     )

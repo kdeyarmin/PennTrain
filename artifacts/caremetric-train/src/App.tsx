@@ -42,6 +42,7 @@ const AdminSupportTickets = lazy(() => import("@/pages/admin/SupportTickets"));
 const AdminSupportTicketDetail = lazy(() => import("@/pages/admin/SupportTicketDetail"));
 const AdminHelpContent = lazy(() => import("@/pages/admin/HelpContent"));
 const ImprovementRoadmap = lazy(() => import("@/pages/admin/ImprovementRoadmap"));
+const DocumentAnalyzer = lazy(() => import("@/pages/admin/DocumentAnalyzer"));
 
 const OrgDashboard = lazy(() => import("@/pages/app/Dashboard"));
 const Facilities = lazy(() => import("@/pages/app/Facilities"));
@@ -74,6 +75,7 @@ const ViolationDetail = lazy(() => import("@/pages/app/ViolationDetail"));
 const Residents = lazy(() => import("@/pages/app/Residents"));
 const ResidentDetail = lazy(() => import("@/pages/app/ResidentDetail"));
 const ResidentComplianceReport = lazy(() => import("@/pages/app/ResidentComplianceReport"));
+const StateFormsCenter = lazy(() => import("@/pages/app/StateFormsCenter"));
 const ResidentAssessmentFormEditor = lazy(() => import("@/pages/app/ResidentAssessmentFormEditor"));
 const IncidentDetail = lazy(() => import("@/pages/app/IncidentDetail"));
 const InspectionItems = lazy(() => import("@/pages/app/InspectionItems"));
@@ -344,6 +346,12 @@ function Router() {
       <Route path="/admin/inspections/:id">
         {() => <ProtectedRoute component={InspectionItemDetail} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
+      <Route path="/admin/residents/:id">
+        {() => <ProtectedRoute component={ResidentDetail} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/residents/:residentId/assessment-forms/:formId">
+        {() => <ProtectedRoute component={ResidentAssessmentFormEditor} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
       <Route path="/admin/packages">
         {() => <ProtectedRoute component={Packages} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
@@ -399,6 +407,9 @@ function Router() {
       </Route>
       <Route path="/admin/help-content">
         {() => <ProtectedRoute component={AdminHelpContent} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/document-analyzer">
+        {() => <ProtectedRoute component={DocumentAnalyzer} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
       <Route path="/admin/roadmap">
         {() => <ProtectedRoute component={ImprovementRoadmap} allowedRoles={PLATFORM_ADMIN} />}
@@ -510,8 +521,12 @@ function Router() {
       <Route path="/app/residents/:id">
         {() => <ProtectedRoute component={ResidentDetail} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
+      {/* Kept alongside /app/state-forms: older notification rows and bookmarks link here. */}
       <Route path="/app/resident-compliance">
         {() => <ProtectedRoute component={ResidentComplianceReport} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/state-forms">
+        {() => <ProtectedRoute component={StateFormsCenter} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/residents/:residentId/assessment-forms/:formId">
         {() => <ProtectedRoute component={ResidentAssessmentFormEditor} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
