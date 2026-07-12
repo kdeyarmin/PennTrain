@@ -1,10 +1,13 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import {
   useListIncidents, useCreateIncident, type IncidentInsert,
 } from "@/hooks/useIncidents";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useListResidents } from "@/hooks/useResidents";
+import { useUrlState } from "@/hooks/useUrlState";
+import { summarizeIncidentAnalytics } from "@/lib/incidentAnalytics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Plus, Search, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -29,6 +32,11 @@ const NOTIFICATION_TYPE_OPTIONS = [
 
 function humanize(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+}
+
+function toLocalDatetimeInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function SeverityBadge({ severity }: { severity: string }) {
@@ -48,35 +56,50 @@ function StatusPill({ status }: { status: string }) {
   return <Badge className={className} variant="outline">{humanize(status)}</Badge>;
 }
 
+// Sentinel for the "Other / not listed" option in the resident Select below -- Radix SelectItem
+// values can't be "", and this also has to be distinguishable from a real resident uuid.
+const RESIDENT_OTHER = "__other__";
+
 interface IncidentFormData {
   facilityId: string;
   incidentType: (typeof INCIDENT_TYPE_OPTIONS)[number];
   occurredAt: string;
-  residentIdentifier: string;
+  // "" (none picked yet), a real residents.id, or RESIDENT_OTHER (free-text fallback below applies).
+  residentId: string;
+  // Free text, only meaningful when residentId === RESIDENT_OTHER -- covers facilities that
+  // haven't onboarded resident records yet, or a resident who genuinely isn't in the system.
+  residentIdentifierOther: string;
   locationDetail: string;
   narrative: string;
   severity: "minor" | "moderate" | "major" | "critical";
 }
 
-const EMPTY_FORM: IncidentFormData = {
-  facilityId: "", incidentType: "other", occurredAt: new Date().toISOString().slice(0, 16),
-  residentIdentifier: "", locationDetail: "", narrative: "", severity: "moderate",
-};
+// A function, not a frozen constant: occurredAt must reflect "now" at the moment a form is
+// actually opened/reset, not the moment this module was first loaded -- a tab left open for
+// hours (or a second incident reported after the first) would otherwise keep prefilling a
+// long-stale timestamp instead of the current time.
+function emptyForm(): IncidentFormData {
+  return {
+    facilityId: "", incidentType: "other", occurredAt: toLocalDatetimeInputValue(new Date()),
+    residentId: "", residentIdentifierOther: "", locationDetail: "", narrative: "", severity: "moderate",
+  };
+}
 
 interface StaffRow { employeeId: string; involvementType: "involved_party" | "witness" | "first_responder" | "reporter" }
 interface NotificationRow { notificationType: (typeof NOTIFICATION_TYPE_OPTIONS)[number]; dueInHours: string }
+
+const INCIDENTS_URL_DEFAULTS = { search: "", facility: "all", severity: "all", status: "all", page: "1" };
 
 export default function Incidents() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [facilityFilter, setFacilityFilter] = useState("all");
-  const [severityFilter, setSeverityFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [page, setPage] = useState(1);
+  const [urlState, setUrlState] = useUrlState(INCIDENTS_URL_DEFAULTS);
+  const [search, setSearch] = useState(urlState.search);
+  const page = Math.max(1, Number(urlState.page) || 1);
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<IncidentFormData>(EMPTY_FORM);
+  const [form, setForm] = useState<IncidentFormData>(emptyForm);
   const [staffRows, setStaffRows] = useState<StaffRow[]>([]);
   const [notificationRows, setNotificationRows] = useState<NotificationRow[]>([]);
 
@@ -87,23 +110,86 @@ export default function Incidents() {
 
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees();
+  // Scoped to whichever facility is currently selected in the create form (not the page's own
+  // facility filter above) -- powers the Resident picker on that form only.
+  const { data: formFacilityResidents } = useListResidents(form.facilityId ? { facilityId: form.facilityId } : {});
+  // Unfiltered (RLS already scopes to the caller's org) -- resolves resident_identifier values
+  // that are actually a resident's id (picked via the dropdown above) back to a name for search,
+  // since that column can hold either a real resident id or legacy/"Other" free text.
+  const { data: allResidents } = useListResidents();
   const { data: incidents, isLoading } = useListIncidents({
-    facilityId: facilityFilter !== "all" ? facilityFilter : undefined,
-    severity: severityFilter !== "all" ? severityFilter : undefined,
-    status: statusFilter !== "all" ? statusFilter : undefined,
+    facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
+    severity: urlState.severity !== "all" ? urlState.severity : undefined,
+    status: urlState.status !== "all" ? urlState.status : undefined,
   });
 
   const { mutate: createIncident, isPending: creating } = useCreateIncident();
 
+  // Debounce the free-text box before it commits to the URL (and re-filters/re-paginates below),
+  // so typing doesn't replace the URL's query string on every keystroke. The commit runs through a
+  // ref (refreshed every render) rather than closing over `urlState`/`setUrlState` directly --
+  // setUrlState's snapshot of the URL is only as fresh as the render that created it, so a plain
+  // `[search]`-keyed effect could fire 300ms later still holding a stale pre-update URL and wipe
+  // out any other filter change made in the meantime.
+  const commitSearchRef = useRef(() => {});
+  commitSearchRef.current = () => {
+    if (search !== urlState.search) setUrlState({ search, page: "1" });
+  };
+  useEffect(() => {
+    const t = setTimeout(() => commitSearchRef.current(), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+  // Resyncs the input's local mirror when urlState.search changes for a reason other than the
+  // commit above (browser Back/Forward, a bookmarked/deep link) -- otherwise the box shows a
+  // stale value that the debounce would then commit right back over the state just navigated to.
+  useEffect(() => {
+    setSearch(urlState.search);
+  }, [urlState.search]);
+
   const facilityById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
+  const residentById = useMemo(() => new Map((allResidents ?? []).map((r) => [r.id, r])), [allResidents]);
 
-  const allIncidents = incidents ?? [];
-  const totalPages = Math.max(1, Math.ceil(allIncidents.length / PAGE_SIZE));
-  const paginated = allIncidents.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // resident_identifier holds either a real residents.id (picked via the dropdown) or legacy/
+  // "Other" free text -- resolve the former to a searchable name so picker-created incidents don't
+  // silently drop out of a name search just because the stored value is a UUID.
+  const residentSearchText = (identifier: string | null) => {
+    if (!identifier) return "";
+    const resident = residentById.get(identifier);
+    return resident ? `${resident.last_name} ${resident.first_name}`.toLowerCase() : identifier.toLowerCase();
+  };
+
+  const searched = useMemo(() => {
+    const q = urlState.search.trim().toLowerCase();
+    if (!q) return incidents ?? [];
+    return (incidents ?? []).filter((i) =>
+      i.narrative.toLowerCase().includes(q) || residentSearchText(i.resident_identifier).includes(q)
+    );
+  }, [incidents, urlState.search, residentById]);
+  const incidentSummary = useMemo(() => summarizeIncidentAnalytics(
+    (incidents ?? []).map((i) => ({
+      id: i.id,
+      incident_type: i.incident_type,
+      severity: i.severity,
+      status: i.status,
+      occurred_at: i.occurred_at,
+    })),
+    new Date().toISOString().slice(0, 10),
+  ), [incidents]);
+
+  const totalPages = Math.max(1, Math.ceil(searched.length / PAGE_SIZE));
+  const paginated = searched.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Auto-fill the create dialog's Facility field when the user is scoped to exactly one facility
+  // (e.g. a facility_manager) -- saves a needless click every time; a no-op for multi-facility orgs.
+  useEffect(() => {
+    if (!showForm || facilities?.length !== 1) return;
+    const soleId = facilities[0].id;
+    setForm((f) => (f.facilityId ? f : { ...f, facilityId: soleId }));
+  }, [showForm, facilities]);
 
   const openCreate = () => {
-    setForm(EMPTY_FORM);
+    setForm(emptyForm());
     setStaffRows([]);
     setNotificationRows([]);
     setShowForm(true);
@@ -117,12 +203,19 @@ export default function Incidents() {
     const facility = facilityById.get(form.facilityId);
     if (!facility) return;
 
+    // resident_identifier is a plain text column (no resident_id FK) -- storing the resident's
+    // actual id when one was picked still lets IncidentDetail.tsx resolve it back to a name, while
+    // staying compatible with the free-text fallback for facilities with no resident records yet.
+    const residentIdentifier =
+      form.residentId === RESIDENT_OTHER ? (form.residentIdentifierOther.trim() || null)
+      : form.residentId || null;
+
     const payload: IncidentInsert = {
       organization_id: facility.organization_id,
       facility_id: facility.id,
       incident_type: form.incidentType,
       occurred_at: new Date(form.occurredAt).toISOString(),
-      resident_identifier: form.residentIdentifier || null,
+      resident_identifier: residentIdentifier,
       location_detail: form.locationDetail || null,
       narrative: form.narrative.trim(),
       severity: form.severity,
@@ -147,7 +240,7 @@ export default function Incidents() {
 
   return (
     <div className="space-y-6">
-      <div className="page-header flex items-center justify-between">
+      <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Incidents &amp; Complaints</h1>
           <p>Log and track reportable incidents, required notifications, and investigations.</p>
@@ -159,23 +252,59 @@ export default function Incidents() {
         )}
       </div>
 
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className="premium-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Open incidents</p>
+          <p className="mt-1 text-2xl font-semibold">{incidentSummary.open}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{incidentSummary.criticalOpen} critical remain open.</p>
+        </div>
+        <button type="button" className="premium-card p-4 text-left hover:border-destructive/40" onClick={() => setUrlState({ severity: "critical", page: "1" })}>
+          <p className="text-xs font-medium text-muted-foreground">Major / critical</p>
+          <p className="mt-1 text-2xl font-semibold text-destructive">{incidentSummary.majorOrCritical}</p>
+          <p className="mt-1 text-xs text-muted-foreground">High-severity events in this view.</p>
+        </button>
+        <div className="premium-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Recent volume</p>
+          <p className="mt-1 text-2xl font-semibold">{incidentSummary.reportedLast7Days}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{incidentSummary.reportedLast30Days} reported in 30 days.</p>
+        </div>
+        <div className="premium-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Most common type</p>
+          <p className="mt-1 text-lg font-semibold">{incidentSummary.topIncidentType ? humanize(incidentSummary.topIncidentType) : "—"}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {incidentSummary.oldestOpenIncidentId ? (
+              <Link href={`/app/incidents/${incidentSummary.oldestOpenIncidentId}`} className="text-primary hover:underline">Review oldest open incident</Link>
+            ) : "No open incidents in this view."}
+          </p>
+        </div>
+      </div>
+
       <div className="premium-card">
         <div className="filter-bar">
-          <Select value={facilityFilter} onValueChange={(v) => { setFacilityFilter(v); setPage(1); }}>
+          <div className="relative flex-1 min-w-48">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search incidents..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 h-9 bg-card"
+            />
+          </div>
+          <Select value={urlState.facility} onValueChange={(v) => setUrlState({ facility: v, page: "1" })}>
             <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Facilities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
               {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={severityFilter} onValueChange={(v) => { setSeverityFilter(v); setPage(1); }}>
+          <Select value={urlState.severity} onValueChange={(v) => setUrlState({ severity: v, page: "1" })}>
             <SelectTrigger className="w-40 h-9 bg-card"><SelectValue placeholder="All Severities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Severities</SelectItem>
               {["minor", "moderate", "major", "critical"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+          <Select value={urlState.status} onValueChange={(v) => setUrlState({ status: v, page: "1" })}>
             <SelectTrigger className="w-40 h-9 bg-card"><SelectValue placeholder="All Statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
@@ -198,8 +327,8 @@ export default function Incidents() {
           </div>
         ) : (
           <>
-            <div className="overflow-hidden">
-              <table className="data-table">
+            <div className="overflow-x-auto">
+              <table className="data-table min-w-[720px]">
                 <thead>
                   <tr>
                     <th>Occurred</th>
@@ -228,14 +357,14 @@ export default function Incidents() {
             </div>
             <div className="flex items-center justify-between px-5 py-4 border-t border-border/60">
               <p className="text-[13px] text-muted-foreground">
-                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, allIncidents.length)}</span> of {allIncidents.length}
+                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, searched.length)}</span> of {searched.length}
               </p>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="text-[13px] text-muted-foreground px-2">Page {page} of {totalPages}</span>
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.min(totalPages, page + 1)) })} disabled={page === totalPages}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
@@ -248,10 +377,16 @@ export default function Incidents() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Report Incident</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-[13px]">Facility *</Label>
-                <Select value={form.facilityId} onValueChange={(v) => setForm((f) => ({ ...f, facilityId: v }))}>
+                <Select
+                  value={form.facilityId}
+                  // Resets the resident picker -- a resident id chosen under the old facility
+                  // wouldn't belong to the new one, and formFacilityResidents itself re-scopes as
+                  // soon as facilityId changes.
+                  onValueChange={(v) => setForm((f) => ({ ...f, facilityId: v, residentId: "", residentIdentifierOther: "" }))}
+                >
                   <SelectTrigger className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
                   <SelectContent>
                     {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
@@ -281,14 +416,49 @@ export default function Incidents() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Resident Identifier</Label>
-                <Input value={form.residentIdentifier} onChange={(e) => setForm((f) => ({ ...f, residentIdentifier: e.target.value }))} placeholder="Name or room number" className="h-9" />
+                <Label className="text-[13px]">Resident</Label>
+                {form.residentId === RESIDENT_OTHER ? (
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      value={form.residentIdentifierOther}
+                      onChange={(e) => setForm((f) => ({ ...f, residentIdentifierOther: e.target.value }))}
+                      placeholder="Name or room number"
+                      className="h-9"
+                      autoFocus
+                    />
+                    <Button
+                      type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0"
+                      title="Choose from resident list instead"
+                      onClick={() => setForm((f) => ({ ...f, residentId: "", residentIdentifierOther: "" }))}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Select
+                    value={form.residentId}
+                    onValueChange={(v) => setForm((f) => ({ ...f, residentId: v, residentIdentifierOther: "" }))}
+                    disabled={!form.facilityId}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder={form.facilityId ? "Select resident (optional)" : "Select a facility first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {formFacilityResidents?.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>{r.last_name}, {r.first_name}{r.room ? ` — Room ${r.room}` : ""}</SelectItem>
+                      ))}
+                      {/* Graceful fallback for a facility with no resident records onboarded yet, or a
+                          resident who genuinely isn't in the system -- reveals the old free-text field. */}
+                      <SelectItem value={RESIDENT_OTHER}>Other / not listed…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[13px]">Location</Label>
                 <Input value={form.locationDetail} onChange={(e) => setForm((f) => ({ ...f, locationDetail: e.target.value }))} className="h-9" />
               </div>
-              <div className="col-span-2 space-y-1.5">
+              <div className="col-span-full space-y-1.5">
                 <Label className="text-[13px]">Narrative *</Label>
                 <Textarea value={form.narrative} onChange={(e) => setForm((f) => ({ ...f, narrative: e.target.value }))} placeholder="What happened, what was done immediately" rows={4} />
               </div>
@@ -324,8 +494,13 @@ export default function Incidents() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-[13px]">Required Notifications</Label>
-                <Button variant="outline" size="sm" onClick={() => setNotificationRows((r) => [...r, { notificationType: "state_hotline", dueInHours: "24" }])}>
+                <div>
+                  <Label className="text-[13px]">Additional Notifications</Label>
+                  <p className="text-xs text-muted-foreground">
+                    The state-hotline/law-enforcement notification this incident type requires is added automatically on save. Add any others here (e.g. family/guardian).
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setNotificationRows((r) => [...r, { notificationType: "family_guardian", dueInHours: "24" }])}>
                   <Plus className="mr-1 h-3.5 w-3.5" /> Add
                 </Button>
               </div>
