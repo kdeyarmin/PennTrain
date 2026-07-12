@@ -17231,6 +17231,7 @@ export type Database = {
         Args: { p_organization_id?: string }
         Returns: Json
       }
+      get_org_dashboard_summary: { Args: never; Returns: Json }
       get_platform_health: { Args: never; Returns: Json }
       get_qualified_workforce_control_plane: { Args: never; Returns: Json }
       get_quiz_answer_choices: {
