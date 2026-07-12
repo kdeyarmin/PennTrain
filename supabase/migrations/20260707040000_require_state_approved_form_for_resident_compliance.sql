@@ -20,8 +20,7 @@ comment on column public.resident_documents.is_state_form is
 -- Signature change (uuid) -> (uuid, uuid): drop the old 1-arg version outright rather than leaving
 -- it callable alongside the new one -- an old cached PostgREST/client call routing to the
 -- no-document version would be exactly the bypass this migration exists to close.
-drop function if exists public.complete_resident_compliance_item(uuid);
-
+drop function if exists public.complete_resident_compliance_item(uuid) cascade;
 create or replace function public.complete_resident_compliance_item(p_item_id uuid, p_document_id uuid)
 returns public.resident_compliance_items
 language plpgsql security definer set search_path to 'public' as $$
