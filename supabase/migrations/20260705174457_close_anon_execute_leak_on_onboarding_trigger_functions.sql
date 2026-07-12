@@ -1,0 +1,2 @@
+revoke all on function public.trigger_instantiate_onboarding_on_employee_insert() from public, anon, authenticated;
+revoke all on function public.recompute_cleared_for_unsupervised_duty() from public, anon, authenticated;

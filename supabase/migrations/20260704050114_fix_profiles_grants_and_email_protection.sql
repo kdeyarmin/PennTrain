@@ -17,4 +17,8 @@ begin
   end if;
   return new;
 end;
+<<<<<<< HEAD
 $$;
+=======
+$$;
+>>>>>>> origin/main

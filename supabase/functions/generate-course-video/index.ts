@@ -1,4 +1,9 @@
+<<<<<<< HEAD
 import { createClient } from "jsr:@supabase/supabase-js@2";
+=======
+// @ts-nocheck
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+>>>>>>> origin/main
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -12,7 +17,16 @@ function json(body: unknown, status = 200) {
   });
 }
 
+<<<<<<< HEAD
 const WRITER_ROLES = ["platform_admin", "org_admin", "trainer"];
+=======
+// Narrowed from the historical ["platform_admin", "org_admin", "trainer"]: course_blocks write
+// RLS is now platform_admin-only (see the restrict_course_authoring_to_platform_admin migration).
+// Leaving org_admin/trainer in this allowlist let them kick off a real, billed HeyGen job and only
+// then discover (via a 403 on the DB write below) that they could never have persisted its result
+// -- an orphaned external job for no benefit. Reject before calling HeyGen at all instead.
+const WRITER_ROLES = ["platform_admin"];
+>>>>>>> origin/main
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
@@ -26,7 +40,11 @@ Deno.serve(async (req: Request) => {
   const heygenApiKey = Deno.env.get("HEYGEN_API_KEY");
   if (!heygenApiKey) return json({ error: "HEYGEN_API_KEY is not configured" }, 500);
 
+<<<<<<< HEAD
   const callerClient = createClient(supabaseUrl, anonKey, {
+=======
+  const callerClient = createClient<any>(supabaseUrl, anonKey, {
+>>>>>>> origin/main
     global: { headers: { Authorization: authHeader } },
   });
 
@@ -45,6 +63,19 @@ Deno.serve(async (req: Request) => {
     return json({ error: "not authorized to generate course videos" }, 403);
   }
 
+<<<<<<< HEAD
+=======
+  const { data: aiVideoSetting } = await callerClient
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "ai_video_generation_enabled")
+    .maybeSingle();
+  const aiVideoGenerationEnabled = aiVideoSetting?.value !== false;
+  if (!aiVideoGenerationEnabled) {
+    return json({ error: "AI video generation is currently disabled by the platform administrator." }, 403);
+  }
+
+>>>>>>> origin/main
   let body: { course_block_id?: string; avatar_id?: string; voice_id?: string; script?: string; title?: string };
   try {
     body = await req.json();
@@ -59,7 +90,11 @@ Deno.serve(async (req: Request) => {
 
   const { data: block, error: blockError } = await callerClient
     .from("course_blocks")
+<<<<<<< HEAD
     .select("id, block_type")
+=======
+    .select("id, block_type, body")
+>>>>>>> origin/main
     .eq("id", course_block_id)
     .single();
   if (blockError || !block) return json({ error: "course block not found" }, 404);
@@ -87,7 +122,16 @@ Deno.serve(async (req: Request) => {
     .from("course_blocks")
     .update({
       video_url: null,
+<<<<<<< HEAD
       body: {
+=======
+      // Merge with the existing body (Copilot review finding): this block's body.script -- the
+      // AI-authored narration used to build the `script` variable above -- would otherwise be
+      // silently erased the moment a job starts, since `body: { heygen: {...} }` alone replaces
+      // the whole jsonb column rather than patching one key of it.
+      body: {
+        ...(block.body as Record<string, unknown> | null),
+>>>>>>> origin/main
         heygen: {
           video_id: heygenVideoId,
           status: "processing",

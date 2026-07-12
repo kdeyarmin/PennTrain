@@ -38,6 +38,7 @@ select o.id, 'Maple Grove Residence', 'PCH', '50 Maple Grove Way', 'Pittsburgh',
 from public.organizations o where o.slug = 'maple-grove'
 and not exists (select 1 from public.facilities f where f.organization_id = o.id and f.name = 'Maple Grove Residence');
 
+<<<<<<< HEAD
 -- Demo Supabase Auth users (password matches the historical PA MedTrack demo credential table).
 -- Inserted directly into auth.users/auth.identities (rather than via the Admin API) since this
 -- script runs in contexts with no service-role key available; mirrors Supabase's documented
@@ -184,3 +185,8 @@ begin
     from public.organizations o, public.facilities f where o.slug = 'sunrise-healthcare' and f.name = 'Sunrise Manor';
   end if;
 end $$;
+=======
+-- Auth users are intentionally not seeded here. Never ship reusable platform_admin or demo
+-- passwords in source-controlled SQL; create environment-specific users via Supabase Admin API,
+-- invite-user, or signup-organization so credentials are generated and rotated per environment.
+>>>>>>> origin/main

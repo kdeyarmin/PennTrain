@@ -1,7 +1,10 @@
 -- SECTION 4 — quiz_answers.is_correct READ SHIELD (security-barrier view)
+<<<<<<< HEAD
 -- NOTE: this view was superseded by migration 20260704073531_replace_quiz_answer_choices_view_with_function
 -- after get_advisors flagged it as an ERROR-level "Security Definer View". Kept as its own migration
 -- file (rather than squashed) so the local migration history matches what was actually applied.
+=======
+>>>>>>> origin/main
 create view public.quiz_answer_choices with (security_barrier = true) as
   select a.id, a.question_id, a.answer_text, a.sort_order
   from public.quiz_answers a

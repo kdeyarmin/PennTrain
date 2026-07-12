@@ -1,4 +1,10 @@
+<<<<<<< HEAD
 import { createClient } from "jsr:@supabase/supabase-js@2";
+=======
+// @ts-nocheck
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { pollAndResolveHeygenVideo, type HeygenJobState } from "../_shared/heygenPolling.ts";
+>>>>>>> origin/main
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +18,7 @@ function json(body: unknown, status = 200) {
   });
 }
 
+<<<<<<< HEAD
 const WRITER_ROLES = ["platform_admin", "org_admin", "trainer"];
 
 interface HeygenJobState {
@@ -23,6 +30,11 @@ interface HeygenJobState {
   completed_at?: string;
   error?: string;
 }
+=======
+// Narrowed alongside generate-course-video/index.ts: course_blocks write RLS is now
+// platform_admin-only, so org_admin/trainer could never persist a status update here anyway.
+const WRITER_ROLES = ["platform_admin"];
+>>>>>>> origin/main
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
@@ -37,7 +49,11 @@ Deno.serve(async (req: Request) => {
   const heygenApiKey = Deno.env.get("HEYGEN_API_KEY");
   if (!heygenApiKey) return json({ error: "HEYGEN_API_KEY is not configured" }, 500);
 
+<<<<<<< HEAD
   const callerClient = createClient(supabaseUrl, anonKey, {
+=======
+  const callerClient = createClient<any>(supabaseUrl, anonKey, {
+>>>>>>> origin/main
     global: { headers: { Authorization: authHeader } },
   });
 
@@ -74,6 +90,7 @@ Deno.serve(async (req: Request) => {
   const job = (block.body as { heygen?: HeygenJobState } | null)?.heygen;
   if (!job?.video_id) return json({ error: "no pending video generation for this block" }, 400);
 
+<<<<<<< HEAD
   if (job.status === "completed") {
     return json({ success: true, status: "completed" });
   }
@@ -131,4 +148,28 @@ Deno.serve(async (req: Request) => {
   if (updateError) return json({ error: updateError.message }, 500);
 
   return json({ success: true, status: "completed", video_url: publicUrlData.publicUrl });
+=======
+  // Only the storage upload step needs service-role privileges (writing into the course-videos
+  // bucket); all course_blocks writes still go through the caller's own RLS-scoped client, same
+  // as before this was extracted into the shared module.
+  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+
+  const result = await pollAndResolveHeygenVideo(callerClient, adminClient, block, heygenApiKey);
+
+  if (result.status === "error") {
+    return json({ error: result.error ?? "failed to check HeyGen video status" }, 502);
+  }
+  if (result.status === "no_job") {
+    return json({ error: result.error ?? "no pending video generation for this block" }, 400);
+  }
+  if (result.status === "completed") {
+    return result.video_url
+      ? json({ success: true, status: "completed", video_url: result.video_url })
+      : json({ success: true, status: "completed" });
+  }
+  if (result.status === "failed") {
+    return json({ success: true, status: "failed", error: result.error });
+  }
+  return json({ success: true, status: result.status });
+>>>>>>> origin/main
 });
