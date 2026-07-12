@@ -742,9 +742,7 @@ export default function ResidentDetail() {
           <div className="border border-black p-2"><span className="font-semibold">Admission Date:</span> {formatDateOnly(resident.admission_date)}</div>
           <div className="border border-black p-2"><span className="font-semibold">Admission Track:</span> {humanize(resident.admission_track)}</div>
           <div className="border border-black p-2"><span className="font-semibold">Discharge Date:</span> {formatDateOnly(resident.discharge_date)}</div>
-          <div className="border border-black p-2"><span className="font-semibold">SDCU:</span> {resident.sdcu ? "Yes" : "No"}</div>
-          <div className="border border-black p-2"><span className="font-semibold">Hospice:</span> {resident.hospice ? "Yes" : "No"}</div>
-          <div className="border border-black p-2"><span className="font-semibold">Facility Type:</span> {facility?.facility_type || "—"}</div>
+          <div className="border border-black p-2"><span className="font-semibold">Facility Type:</span> {facility?.facility_type === "ALR" ? "Assisted Living Facility (ALF)" : facility?.facility_type || "—"}</div>
         </div>
 
         <div className="mb-4 grid grid-cols-2 gap-3 text-xs">
