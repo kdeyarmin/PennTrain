@@ -33,12 +33,10 @@ export function useListAllResidentComplianceItems(filters: ListAllResidentCompli
   return useQuery({
     queryKey: ["resident_compliance_items_all", filters],
     queryFn: async () => {
-      let query = supabase.from("resident_compliance_items").select("*").order("due_date");
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.status?.length) query = query.in("status", filters.status);
-      if (filters.itemType) query = query.eq("item_type", filters.itemType);
-      const { data, error } = await query;
-      if (error) throw error;
+let query = supabase
+  .from("resident_compliance_items")
+  .select("id,resident_id,facility_id,item_type,due_date,status")
+  .order("due_date");
       return data;
     },
   });
