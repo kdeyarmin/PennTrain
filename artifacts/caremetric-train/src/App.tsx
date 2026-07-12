@@ -66,6 +66,9 @@ const AdministratorQualification = lazy(() => import("@/pages/app/AdministratorQ
 const Incidents = lazy(() => import("@/pages/app/Incidents"));
 const ConfidentialIncidents = lazy(() => import("@/pages/app/ConfidentialIncidents"));
 const ConfidentialIncidentDetail = lazy(() => import("@/pages/app/ConfidentialIncidentDetail"));
+const EvidenceRoom = lazy(() => import("@/pages/app/EvidenceRoom"));
+const EvidenceCollectionDetail = lazy(() => import("@/pages/app/EvidenceCollectionDetail"));
+const EvidenceGuestRoom = lazy(() => import("@/pages/public/EvidenceGuestRoom"));
 const Violations = lazy(() => import("@/pages/app/Violations"));
 const ViolationDetail = lazy(() => import("@/pages/app/ViolationDetail"));
 const Residents = lazy(() => import("@/pages/app/Residents"));
@@ -210,6 +213,8 @@ const INCIDENT_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
 // review RPCs themselves. platform_admin is included so support can reach the console
 // directly via the Viewing-as-Org selector.
 const CONFIDENTIAL_INTAKE_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
+// Matches the evidence RLS surface: managers run the room, auditors read it.
+const EVIDENCE_ROOM_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 // Matches dhs_violations_select RLS -- same no-trainer, no-self-service sensitivity model as
 // incidents (a cited DHS violation and its POC are an org-compliance matter).
 const VIOLATION_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
@@ -283,6 +288,9 @@ function Router() {
       {/* Bare, chrome-less public page intentionally left outside ProtectedRoute/MainLayout so
           signed-out visitors can open it directly after scanning a QR code. */}
       <Route path="/checkin/:token" component={CheckIn} />
+      {/* Evidence-room guest link: the token in the URL is the whole credential; the
+          server authorizes and logs every call, so no session or chrome is involved. */}
+      <Route path="/evidence-access/:token" component={EvidenceGuestRoom} />
 
       <Route path="/account/security">
         {() => <ProtectedRoute component={MfaSettings} allowedRoles={ANY_ROLE} />}
@@ -483,6 +491,12 @@ function Router() {
       </Route>
       <Route path="/app/confidential-incidents/:id">
         {() => <ProtectedRoute component={ConfidentialIncidentDetail} allowedRoles={CONFIDENTIAL_INTAKE_ROLES} />}
+      </Route>
+      <Route path="/app/evidence">
+        {() => <ProtectedRoute component={EvidenceRoom} allowedRoles={EVIDENCE_ROOM_ROLES} />}
+      </Route>
+      <Route path="/app/evidence/:id">
+        {() => <ProtectedRoute component={EvidenceCollectionDetail} allowedRoles={EVIDENCE_ROOM_ROLES} />}
       </Route>
       <Route path="/app/violations">
         {() => <ProtectedRoute component={Violations} allowedRoles={VIOLATION_ROLES} />}

@@ -260,6 +260,11 @@ async function runWorkerBatch(req: Request, adminClient: any): Promise<Response>
           ? `${requester.first_name} ${requester.last_name} (${requester.role})`
           : "CareMetric Train";
         const pdfBytes = await buildBinderPdf(adminClient, job.organization_id, scope, requestedByLabel);
+        // The recorded checksum is what lets a finished export become an immutable
+        // evidence-room artifact (report_snapshot_artifacts requires content_sha256).
+        const contentSha256 = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", pdfBytes)))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
         // Job-id path with upsert:true keeps retries idempotent on the same object.
         const path = `${job.organization_id}/${job.job_id}.pdf`;
         const { error: uploadError } = await adminClient.storage
@@ -274,6 +279,8 @@ async function runWorkerBatch(req: Request, adminClient: any): Promise<Response>
           p_path: path,
           p_error_code: null,
           p_error_message: null,
+          p_content_sha256: contentSha256,
+          p_byte_size: pdfBytes.byteLength,
         });
         if (finishError) throw finishError;
         if (!finished) throw new Error("Binder export job lease expired before completion");

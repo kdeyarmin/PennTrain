@@ -743,7 +743,9 @@ export type Database = {
         Row: {
           attempt_count: number
           available_at: string
+          byte_size: number | null
           completed_at: string | null
+          content_sha256: string | null
           correlation_id: string
           created_at: string
           current_run_id: string | null
@@ -766,7 +768,9 @@ export type Database = {
         Insert: {
           attempt_count?: number
           available_at?: string
+          byte_size?: number | null
           completed_at?: string | null
+          content_sha256?: string | null
           correlation_id?: string
           created_at?: string
           current_run_id?: string | null
@@ -789,7 +793,9 @@ export type Database = {
         Update: {
           attempt_count?: number
           available_at?: string
+          byte_size?: number | null
           completed_at?: string | null
+          content_sha256?: string | null
           correlation_id?: string
           created_at?: string
           current_run_id?: string | null
@@ -16262,6 +16268,10 @@ export type Database = {
       }
     }
     Functions: {
+      accept_evidence_guest_terms: {
+        Args: { p_fingerprint?: string; p_token: string }
+        Returns: Json
+      }
       accept_integration_command: {
         Args: {
           p_command_type: string
@@ -16324,6 +16334,31 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "regulatory_rule_versions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_binder_export_to_evidence_collection: {
+        Args: {
+          p_binder_job_id: string
+          p_collection_id: string
+          p_display_name: string
+        }
+        Returns: {
+          added_at: string
+          added_by: string | null
+          artifact_scope: Json
+          collection_id: string
+          display_name: string
+          facility_id: string
+          id: string
+          organization_id: string
+          snapshot_artifact_id: string
+          withdrawn_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "evidence_collection_artifacts"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -16840,6 +16875,34 @@ export type Database = {
         }
         Returns: string
       }
+      create_evidence_collection: {
+        Args: {
+          p_facility_id: string
+          p_name: string
+          p_purpose: string
+          p_terms_version?: string
+        }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          facility_id: string
+          id: string
+          legal_hold: boolean
+          name: string
+          organization_id: string
+          published_at: string | null
+          purpose: string
+          status: string
+          terms_version: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "evidence_collections"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_governed_content_revision: {
         Args: {
           p_asset_id: string
@@ -17102,6 +17165,8 @@ export type Database = {
       finish_binder_export_job: {
         Args: {
           p_bucket?: string
+          p_byte_size?: number
+          p_content_sha256?: string
           p_error_code?: string
           p_error_message?: string
           p_job_id: string
@@ -17191,6 +17256,10 @@ export type Database = {
         }[]
       }
       get_enterprise_scope_control_plane: { Args: never; Returns: Json }
+      get_evidence_guest_room: {
+        Args: { p_fingerprint?: string; p_token: string }
+        Returns: Json
+      }
       get_facility_readiness_breakdown: {
         Args: { p_facility_id: string }
         Returns: {
@@ -17835,7 +17904,9 @@ export type Database = {
         Returns: {
           attempt_count: number
           available_at: string
+          byte_size: number | null
           completed_at: string | null
+          content_sha256: string | null
           correlation_id: string
           created_at: string
           current_run_id: string | null
@@ -17922,6 +17993,36 @@ export type Database = {
       review_governed_content_revision: {
         Args: { p_decision: string; p_reason: string; p_revision_id: string }
         Returns: boolean
+      }
+      revoke_evidence_guest_grant: {
+        Args: { p_grant_id: string; p_reason: string }
+        Returns: {
+          accepted_at: string | null
+          allowed_artifact_ids: string[]
+          collection_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          facility_id: string
+          guest_email_hash: string | null
+          guest_label: string
+          id: string
+          last_reviewed_at: string | null
+          organization_id: string
+          revocation_reason: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          step_up_required: boolean
+          step_up_verified_at: string | null
+          terms_version: string
+          token_sha256: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "evidence_guest_grants"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       revoke_identity_break_glass: {
         Args: { p_event_id: string; p_reason: string }
@@ -18052,6 +18153,52 @@ export type Database = {
       set_employee_qualification_state: {
         Args: { p_qualification_id: string; p_reason: string; p_state: string }
         Returns: boolean
+      }
+      set_evidence_collection_legal_hold: {
+        Args: { p_collection_id: string; p_hold: boolean }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          facility_id: string
+          id: string
+          legal_hold: boolean
+          name: string
+          organization_id: string
+          published_at: string | null
+          purpose: string
+          status: string
+          terms_version: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "evidence_collections"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_evidence_collection_status: {
+        Args: { p_collection_id: string; p_status: string }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          facility_id: string
+          id: string
+          legal_hold: boolean
+          name: string
+          organization_id: string
+          published_at: string | null
+          purpose: string
+          status: string
+          terms_version: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "evidence_collections"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       set_feature_kill_switch: {
         Args: {
@@ -18384,6 +18531,27 @@ export type Database = {
       verify_identity_domain: {
         Args: { p_domain_id: string; p_observed_challenge_sha256: string }
         Returns: boolean
+      }
+      withdraw_evidence_collection_artifact: {
+        Args: { p_artifact_id: string; p_reason: string }
+        Returns: {
+          added_at: string
+          added_by: string | null
+          artifact_scope: Json
+          collection_id: string
+          display_name: string
+          facility_id: string
+          id: string
+          organization_id: string
+          snapshot_artifact_id: string
+          withdrawn_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "evidence_collection_artifacts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       withdraw_regulatory_rule_version: {
         Args: { p_reason: string; p_version_id: string }

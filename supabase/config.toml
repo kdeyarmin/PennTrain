@@ -141,3 +141,9 @@ verify_jwt = false
 # endpoint-specific secret held in Vault; it does not accept a caller session.
 [functions.dispatch-integration-webhooks]
 verify_jwt = false
+
+# Public evidence-room guest downloads. Guests have no session; the grant token is the
+# credential, and authorize_evidence_guest_artifact re-checks every fail-closed condition
+# and logs the access before a short-lived signed URL is minted.
+[functions.evidence-guest-download]
+verify_jwt = false
