@@ -286,13 +286,6 @@ function Router() {
       <Route path="/how-it-works" component={HowItWorks} />
       <Route path="/faq" component={Faq} />
 
-      {/* Public marketing pages (nav targets from the landing page) */}
-      <Route path="/features" component={Features} />
-      <Route path="/who-its-for" component={WhoItsFor} />
-      <Route path="/security" component={Security} />
-      <Route path="/how-it-works" component={HowItWorks} />
-      <Route path="/faq" component={Faq} />
-
       {/* Platform Admin routes */}
       <Route path="/admin">
         {() => <ProtectedRoute component={AdminDashboard} allowedRoles={PLATFORM_ADMIN} />}
