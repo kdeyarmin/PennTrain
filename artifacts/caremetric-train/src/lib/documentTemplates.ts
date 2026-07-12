@@ -16,7 +16,7 @@ export type TemplateBody =
 export interface DocumentTemplate {
   code: string;
   title: string;
-  category: string;
+  category: TemplateCategory;
   description: string;
   headerFields?: string[];
   body: TemplateBody;
@@ -909,6 +909,10 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
 
 export function getTemplateByCode(code: string): DocumentTemplate | undefined {
   return DOCUMENT_TEMPLATES.find((t) => t.code === code);
+}
+
+export function getTemplatesByCategory(category: TemplateCategory): DocumentTemplate[] {
+  return DOCUMENT_TEMPLATES.filter((t) => t.category === category);
 }
 
 export function searchTemplates(query: string): DocumentTemplate[] {
