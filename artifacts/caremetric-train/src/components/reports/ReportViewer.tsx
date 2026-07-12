@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Printer, Download, X } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 
 interface ReportViewerProps {
   title: string;
@@ -215,11 +216,9 @@ function isDateCell(value: string): boolean {
 }
 
 function formatDate(value: string): string {
-  try {
-    return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  } catch {
-    return value;
-  }
+  const formatted = formatDateForDisplay(value, { month: "short", day: "numeric", year: "numeric" });
+  // Fall back to raw value if parsing failed, to avoid hiding potentially useful data.
+  return formatted === "—" ? value : formatted;
 }
 
 function formatCellValue(value: string): string {

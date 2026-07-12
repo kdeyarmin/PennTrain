@@ -25,6 +25,21 @@ export function useListViolations(filters: ListViolationsFilters = {}) {
   });
 }
 
+// Lets InspectionItemDetail.tsx show "View Violation" instead of "Create Violation" for a finding
+// that's already been turned into one, so the same fail/deficiency_noted event can't spawn duplicates.
+export function useListViolationsBySourceInspectionEvents(eventIds: string[]) {
+  return useQuery({
+    queryKey: ["dhs_violations", "by_source_event", eventIds],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("dhs_violations").select("*").in("source_inspection_event_id", eventIds);
+      if (error) throw error;
+      return data;
+    },
+    enabled: eventIds.length > 0,
+  });
+}
+
 export function useGetViolation(id: string | undefined) {
   return useQuery({
     queryKey: ["dhs_violations", id],

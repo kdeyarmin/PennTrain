@@ -22,7 +22,11 @@ export function useListEmployeeFacilityAssignments(filters: ListEmployeeFacility
     queryFn: async () => {
       let query = supabase
         .from("employee_facility_assignments")
-        .select("*, employees(id, first_name, last_name, job_title, status)");
+        .select("*, employees(id, first_name, last_name, job_title, status)")
+        // Alphabetized by the joined employee's last name, matching useListEmployees elsewhere --
+        // "employees(last_name)" (rather than .order("last_name", { referencedTable: "employees" }))
+        // is required to make a to-one embed reorder the *parent* rows instead of a no-op.
+        .order("employees(last_name)");
       if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
       const { data, error } = await query;
