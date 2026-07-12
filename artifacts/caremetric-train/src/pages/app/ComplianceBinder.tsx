@@ -1,76 +1,57 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth, type Role } from "@/lib/auth";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useBinderDownloadUrl, useListBinderExports } from "@/hooks/useComplianceBinder";
+import { BinderExportButton } from "@/components/reports/BinderExportButton";
+import { QueryError } from "@/components/QueryState";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileArchive, Download, Loader2 } from "lucide-react";
-
-interface GenerateBinderResult {
-  url: string;
-  expiresIn: number;
-}
-
-interface GenerateBinderResponse extends GenerateBinderResult {
-  success?: boolean;
-  path?: string;
-  error?: string;
-}
+import { Download, FileArchive, History, Loader2 } from "lucide-react";
 
 const FACILITY_ALL = "all";
 
-// Matches generate-compliance-binder/index.ts's own role gate: facility_manager already gets an
-// auto-derived facility scope from facility_assignments server-side (that file's `facilityScope`
-// block), which this picker must never override, so facility_manager isn't offered the control at
-// all. platform_admin doesn't reach this page (see REPORTS_VIEW_ROLES in App.tsx) -- the edge
-// function's facility_id/facility_ids handling is org_admin/auditor only to match.
+// Matches request_binder_export()'s own role model: facility_manager gets an auto-derived
+// facility scope from facility_assignments server-side, which this picker must never
+// override, so facility_manager isn't offered the control at all. platform_admin doesn't
+// reach this page (see REPORTS_VIEW_ROLES in App.tsx).
 const FACILITY_PICKER_ROLES: Role[] = ["org_admin", "auditor"];
+
+const EXPORT_STATUS_STYLE: Record<string, string> = {
+  pending: "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200",
+  processing: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
+  succeeded: "bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-200",
+  failed: "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200",
+};
 
 export default function ComplianceBinder() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [result, setResult] = useState<{ url: string; expiresIn: number } | null>(null);
   const [facilityId, setFacilityId] = useState<string>(FACILITY_ALL);
 
   const canScopeFacility = !!user && FACILITY_PICKER_ROLES.includes(user.role);
   const { data: facilities } = useListFacilities({}, canScopeFacility);
+  const { data: exports, isError: exportsError, error: exportsErrorDetail, refetch: refetchExports } = useListBinderExports();
+  const { mutate: fetchDownload, isPending: downloading, variables: downloadingJobId } = useBinderDownloadUrl();
 
-  // Calls the edge function directly rather than the shared useGenerateComplianceBinder hook in
-  // useComplianceBinder.ts (also used by OrganizationDetail.tsx/InspectionReadiness.tsx for their
-  // own org-wide-only binder/packet requests) since this page is the one caller that also needs to
-  // pass an optional facility_id.
-  const { mutate: generateBinder, isPending } = useMutation({
-    mutationFn: async (payload: { facilityId?: string }): Promise<GenerateBinderResult> => {
-      const body: { facility_id?: string } = {};
-      if (payload.facilityId) body.facility_id = payload.facilityId;
-      const { data, error } = await supabase.functions.invoke<GenerateBinderResponse>(
-        "generate-compliance-binder",
-        { body },
-      );
-      if (error) throw error;
-      if (!data || data.success === false || !data.url) {
-        throw new Error(data?.error ?? "Failed to generate compliance binder");
-      }
-      return { url: data.url, expiresIn: data.expiresIn };
-    },
-  });
-
-  const handleGenerate = () => {
-    setResult(null);
-    generateBinder(
-      { facilityId: canScopeFacility && facilityId !== FACILITY_ALL ? facilityId : undefined },
-      {
-        onSuccess: (data) => {
-          setResult({ url: data.url, expiresIn: data.expiresIn });
-          toast({ title: "Compliance binder generated", variant: "success" });
-        },
-        onError: (err: Error) =>
-          toast({ title: "Failed to generate binder", description: err.message, variant: "destructive" }),
+  const handleDownloadExisting = (jobId: string) => {
+    fetchDownload(jobId, {
+      onSuccess: (result) => {
+        if (result.url) window.open(result.url, "_blank", "noopener,noreferrer");
       },
-    );
+      onError: (e: Error) =>
+        toast({ title: "Couldn't download binder", description: e.message, variant: "destructive" }),
+    });
+  };
+
+  const scopeLabel = (ids: string[]) => {
+    if (!ids || ids.length === 0) return "Org-wide";
+    if (ids.length === 1) {
+      return facilities?.find(f => f.id === ids[0])?.name ?? "1 facility";
+    }
+    return `${ids.length} facilities`;
   };
 
   return (
@@ -94,7 +75,8 @@ export default function ComplianceBinder() {
             names and other PII), staff training and practicum compliance with overdue detail, certificates
             issued, open alerts, policy attestation status with a signed ESIGN/UETA audit trail (who signed what,
             when, and from where), employee credentials &amp; clearances, a reportable incidents log, inspection
-            items/equipment with open corrective actions, and resident RASP compliance.
+            items/equipment with open corrective actions, and resident RASP compliance. Exports prepare in the
+            background -- large organizations no longer risk a timeout, and you can leave the page while it runs.
           </p>
           <p className="text-xs text-muted-foreground">
             Because it includes resident-identifying information, confirm who it's being shared with before
@@ -120,24 +102,62 @@ export default function ComplianceBinder() {
               </p>
             </div>
           )}
-          <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={handleGenerate} disabled={isPending}>
-              {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileArchive className="mr-2 h-4 w-4" />}
-              {isPending ? "Generating..." : "Generate Binder PDF"}
-            </Button>
-            {result && (
-              <Button variant="outline" asChild>
-                <a href={result.url} target="_blank" rel="noopener noreferrer">
-                  <Download className="mr-2 h-4 w-4" />
-                  Download PDF
-                </a>
-              </Button>
-            )}
-          </div>
-          {result && (
-            <p className="text-xs text-muted-foreground">
-              This link expires in {Math.round(result.expiresIn / 60)} minutes. Generate a new binder if it expires.
-            </p>
+          <BinderExportButton
+            facilityIds={canScopeFacility && facilityId !== FACILITY_ALL ? [facilityId] : undefined}
+            label="Export Binder PDF"
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" /> Recent Exports
+          </CardTitle>
+          <CardDescription>
+            Exports from across your organization. Download links are generated fresh and expire after 10 minutes.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {exportsError ? (
+            <QueryError what="recent binder exports" error={exportsErrorDetail} onRetry={() => refetchExports()} />
+          ) : !exports?.length ? (
+            <p className="text-sm text-muted-foreground text-center py-6">No binder exports yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {exports.map(job => (
+                <div key={job.id} className="flex items-center justify-between gap-3 py-2 border-b last:border-0 text-sm">
+                  <div className="min-w-0">
+                    <p className="font-medium">
+                      {scopeLabel(job.facility_ids)}
+                      <span className="text-muted-foreground font-normal">
+                        {" "}· {new Date(job.requested_at).toLocaleString()}
+                      </span>
+                    </p>
+                    {job.status === "failed" && job.last_error_message && (
+                      <p className="text-xs text-destructive truncate">{job.last_error_message}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant="outline" className={`border-0 font-medium capitalize ${EXPORT_STATUS_STYLE[job.status] ?? ""}`}>
+                      {job.status}
+                    </Badge>
+                    {job.status === "succeeded" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={downloading && downloadingJobId === job.id}
+                        onClick={() => handleDownloadExisting(job.id)}
+                      >
+                        {downloading && downloadingJobId === job.id
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <Download className="h-3.5 w-3.5" />}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>

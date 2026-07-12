@@ -332,8 +332,8 @@ select is(
 
 select is(
   (select count(*)::bigint from public.get_system_job_control_plane()),
-  16::bigint,
-  'the control plane registers every Phase 1 job, the Phase 2 integration dispatcher, and the assignment due-reminder job'
+  17::bigint,
+  'the control plane registers every Phase 1 job, the Phase 2 integration dispatcher, and the reminder/binder workers'
 );
 
 create temporary table phase1_hold_ids as

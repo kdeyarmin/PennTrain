@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useGetOrganization, useGetOrganizationStats, useUpdateOrganization } from "@/hooks/useOrganizations";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useGetPackage, useListPackages } from "@/hooks/usePackages";
-import { useGenerateComplianceBinder } from "@/hooks/useComplianceBinder";
+import { BinderExportButton } from "@/components/reports/BinderExportButton";
 import { useToast } from "@/hooks/use-toast";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { facilityTypeBadgeClass } from "@/lib/facilityTypes";
@@ -30,26 +30,9 @@ export default function OrganizationDetail() {
   const { data: currentPackage } = useGetPackage(org?.package_id);
   const { data: packages } = useListPackages();
   const { mutate: updateOrganization, isPending: updatingPackage } = useUpdateOrganization();
-  const { mutate: generateBinder, isPending: generatingBinder } = useGenerateComplianceBinder();
-  const [binderResult, setBinderResult] = useState<{ url: string; expiresIn: number } | null>(null);
   const [confirmSuspend, setConfirmSuspend] = useState(false);
 
   const isLoading = orgLoading || statsLoading;
-
-  const handleGenerateBinder = () => {
-    if (!id) return;
-    setBinderResult(null);
-    generateBinder(
-      { organizationId: id },
-      {
-        onSuccess: (data) => {
-          setBinderResult({ url: data.url, expiresIn: data.expiresIn });
-          toast({ title: "Compliance binder generated" });
-        },
-        onError: (e: Error) => toast({ title: "Failed to generate binder", description: e.message, variant: "destructive" }),
-      },
-    );
-  };
 
   const handlePackageChange = (value: string) => {
     if (!id) return;
@@ -319,25 +302,7 @@ export default function OrganizationDetail() {
             Generate a compliance summary PDF for {org.name} -- facility roster, staff training compliance,
             overdue practicums, certificates issued, and open alerts.
           </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={handleGenerateBinder} disabled={generatingBinder}>
-              {generatingBinder ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileArchive className="mr-2 h-4 w-4" />}
-              {generatingBinder ? "Generating..." : "Generate Binder PDF"}
-            </Button>
-            {binderResult && (
-              <Button variant="outline" asChild>
-                <a href={binderResult.url} target="_blank" rel="noopener noreferrer">
-                  <Download className="mr-2 h-4 w-4" />
-                  Download PDF
-                </a>
-              </Button>
-            )}
-          </div>
-          {binderResult && (
-            <p className="text-xs text-muted-foreground">
-              This link expires in {Math.round(binderResult.expiresIn / 60)} minutes.
-            </p>
-          )}
+          <BinderExportButton organizationId={id} label="Generate Binder PDF" />
         </CardContent>
       </Card>
 

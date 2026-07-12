@@ -739,6 +739,93 @@ export type Database = {
           },
         ]
       }
+      binder_export_jobs: {
+        Row: {
+          attempt_count: number
+          available_at: string
+          completed_at: string | null
+          correlation_id: string
+          created_at: string
+          current_run_id: string | null
+          facility_ids: string[]
+          id: string
+          last_error_code: string | null
+          last_error_message: string | null
+          last_started_at: string | null
+          locked_at: string | null
+          max_attempts: number
+          organization_id: string
+          requested_at: string
+          requested_by: string
+          status: string
+          storage_bucket: string | null
+          storage_path: string | null
+          updated_at: string
+          worker_id: string | null
+        }
+        Insert: {
+          attempt_count?: number
+          available_at?: string
+          completed_at?: string | null
+          correlation_id?: string
+          created_at?: string
+          current_run_id?: string | null
+          facility_ids?: string[]
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_started_at?: string | null
+          locked_at?: string | null
+          max_attempts?: number
+          organization_id: string
+          requested_at?: string
+          requested_by: string
+          status?: string
+          storage_bucket?: string | null
+          storage_path?: string | null
+          updated_at?: string
+          worker_id?: string | null
+        }
+        Update: {
+          attempt_count?: number
+          available_at?: string
+          completed_at?: string | null
+          correlation_id?: string
+          created_at?: string
+          current_run_id?: string | null
+          facility_ids?: string[]
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_started_at?: string | null
+          locked_at?: string | null
+          max_attempts?: number
+          organization_id?: string
+          requested_at?: string
+          requested_by?: string
+          status?: string
+          storage_bucket?: string | null
+          storage_path?: string | null
+          updated_at?: string
+          worker_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "binder_export_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "binder_export_jobs_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       certificate_lifecycle_events: {
         Row: {
           certificate_id: string
@@ -16507,6 +16594,18 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      claim_binder_export_jobs: {
+        Args: { p_job_id?: string; p_limit?: number; p_worker_id: string }
+        Returns: {
+          attempt_count: number
+          correlation_id: string
+          facility_ids: string[]
+          job_id: string
+          organization_id: string
+          requested_by: string
+          run_id: string
+        }[]
+      }
       claim_certificate_pdf_jobs: {
         Args: {
           p_certificate_id?: string
@@ -16995,6 +17094,17 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      finish_binder_export_job: {
+        Args: {
+          p_bucket?: string
+          p_error_code?: string
+          p_error_message?: string
+          p_job_id: string
+          p_path?: string
+          p_run_id: string
+        }
+        Returns: boolean
       }
       finish_certificate_pdf_job: {
         Args: {
@@ -17714,6 +17824,38 @@ export type Database = {
           correlation_id: string
           run_id: string
         }[]
+      }
+      request_binder_export: {
+        Args: { p_facility_ids?: string[]; p_organization_id?: string }
+        Returns: {
+          attempt_count: number
+          available_at: string
+          completed_at: string | null
+          correlation_id: string
+          created_at: string
+          current_run_id: string | null
+          facility_ids: string[]
+          id: string
+          last_error_code: string | null
+          last_error_message: string | null
+          last_started_at: string | null
+          locked_at: string | null
+          max_attempts: number
+          organization_id: string
+          requested_at: string
+          requested_by: string
+          status: string
+          storage_bucket: string | null
+          storage_path: string | null
+          updated_at: string
+          worker_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "binder_export_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       request_shift_swap: {
         Args: {
