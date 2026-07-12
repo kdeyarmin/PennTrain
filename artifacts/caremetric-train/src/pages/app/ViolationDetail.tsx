@@ -2,7 +2,11 @@ import { useRef, useState } from "react";
 import { useParams, Link } from "wouter";
 import { useGetViolation, useUpdateViolation, useGeneratePocDocument } from "@/hooks/useViolations";
 import {
+<<<<<<< HEAD
   useListCorrectiveActions, useCreateCorrectiveAction, useUpdateCorrectiveAction,
+=======
+  useListCorrectiveActions, useUpdateCorrectiveAction,
+>>>>>>> origin/main
   useDeleteCorrectiveAction, useCreateViolationRetrainingAction, type CorrectiveAction,
 } from "@/hooks/useCorrectiveActions";
 import {
@@ -14,6 +18,10 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useListCitationTopics } from "@/hooks/useCitationTopics";
 import { useListCourses } from "@/hooks/useCourses";
 import { StatusPill } from "./Violations";
+<<<<<<< HEAD
+=======
+import { CorrectiveActionForm, CorrectiveActionStatusBadge } from "@/components/CorrectiveActionForm";
+>>>>>>> origin/main
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,10 +38,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-
-function humanize(value: string): string {
-  return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-}
+import { humanize } from "@/lib/utils";
+import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
 
 function SeverityBadge({ severity }: { severity: string }) {
   const className =
@@ -41,15 +47,6 @@ function SeverityBadge({ severity }: { severity: string }) {
     : severity === "moderate" ? "bg-warning text-warning-foreground hover:bg-warning/80"
     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"; // low
   return <Badge className={className} variant="outline">{humanize(severity)}</Badge>;
-}
-
-function CorrectiveActionStatusBadge({ status }: { status: string }) {
-  const className =
-    status === "completed" ? "bg-success text-success-foreground hover:bg-success/80"
-    : status === "overdue" ? "bg-destructive text-destructive-foreground hover:bg-destructive/80"
-    : status === "cancelled" ? "bg-muted text-muted-foreground"
-    : "bg-info text-info-foreground hover:bg-info/80"; // open/in_progress
-  return <Badge className={className} variant="outline">{humanize(status)}</Badge>;
 }
 
 export default function ViolationDetail() {
@@ -69,7 +66,10 @@ export default function ViolationDetail() {
   const { data: documents, isLoading: documentsLoading } = useListViolationDocuments(id);
 
   const { mutate: updateViolation, isPending: updatingViolation } = useUpdateViolation();
+<<<<<<< HEAD
   const { mutate: createCorrectiveAction } = useCreateCorrectiveAction();
+=======
+>>>>>>> origin/main
   const { mutate: updateCorrectiveAction } = useUpdateCorrectiveAction();
   const deleteCorrectiveAction = useDeleteCorrectiveAction();
   const createRetrainingAction = useCreateViolationRetrainingAction();
@@ -78,7 +78,6 @@ export default function ViolationDetail() {
   const deleteDocument = useDeleteViolationDocument();
   const generatePocDocument = useGeneratePocDocument();
 
-  const [newActionDescription, setNewActionDescription] = useState("");
   const [newActionDueDate, setNewActionDueDate] = useState("");
   const [assignedEmployeeId, setAssignedEmployeeId] = useState("");
   const [assignRetraining, setAssignRetraining] = useState(false);
@@ -86,8 +85,11 @@ export default function ViolationDetail() {
   const [retrainCourseId, setRetrainCourseId] = useState("");
   const [creatingAction, setCreatingAction] = useState(false);
   const [editingActionId, setEditingActionId] = useState<string | null>(null);
+<<<<<<< HEAD
   const [editDescription, setEditDescription] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
+=======
+>>>>>>> origin/main
   const [actionPendingDelete, setActionPendingDelete] = useState<CorrectiveAction | null>(null);
   const [docPendingDelete, setDocPendingDelete] = useState<ViolationDocument | null>(null);
   const [uploadLabel, setUploadLabel] = useState("");
@@ -184,7 +186,7 @@ export default function ViolationDetail() {
           <div>
             <h1 className="text-2xl font-bold">{violation.citation_ref ?? topicTitle ?? "Cited Violation"}</h1>
             <p className="text-muted-foreground">
-              {facilityName} · Inspected {new Date(violation.inspection_date).toLocaleDateString()}
+              {facilityName} · Inspected {formatDateForDisplay(violation.inspection_date)}
               {violation.surveyor_name ? ` · ${violation.surveyor_name}` : ""}
             </p>
           </div>
@@ -222,6 +224,7 @@ export default function ViolationDetail() {
                 return (
                   <div key={ca.id} className="p-2 rounded-lg border text-sm">
                     {editingActionId === ca.id ? (
+<<<<<<< HEAD
                       <div className="flex items-center gap-2">
                         <Input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="h-9 flex-1" />
                         <Input type="date" value={editDueDate} onChange={(e) => setEditDueDate(e.target.value)} className="h-9 w-40" />
@@ -242,6 +245,14 @@ export default function ViolationDetail() {
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => setEditingActionId(null)}>Cancel</Button>
                       </div>
+=======
+                      <CorrectiveActionForm
+                        parent={{ organizationId: violation.organization_id, facilityId: violation.facility_id, violationId: violation.id }}
+                        editing={ca}
+                        onDone={() => setEditingActionId(null)}
+                        onCancelEdit={() => setEditingActionId(null)}
+                      />
+>>>>>>> origin/main
                     ) : (
                       <div className="flex items-center justify-between">
                         <div>
@@ -260,13 +271,21 @@ export default function ViolationDetail() {
                           {canEdit && (
                             <Button
                               variant="ghost" size="icon" className="h-7 w-7"
+<<<<<<< HEAD
                               onClick={() => { setEditingActionId(ca.id); setEditDescription(ca.description); setEditDueDate(ca.due_date); }}
+=======
+                              onClick={() => setEditingActionId(ca.id)}
+>>>>>>> origin/main
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                           )}
                           {canEdit && (
+<<<<<<< HEAD
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: new Date().toISOString().slice(0, 10) })}>
+=======
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: toLocalIsoDate() })}>
+>>>>>>> origin/main
                               <Check className="h-3.5 w-3.5" />
                             </Button>
                           )}
@@ -296,7 +315,7 @@ export default function ViolationDetail() {
               <label className="flex items-center gap-2 text-xs cursor-pointer">
                 <input
                   type="checkbox" checked={assignRetraining}
-                  onChange={(e) => { setAssignRetraining(e.target.checked); setNewActionDescription(""); }}
+                  onChange={(e) => setAssignRetraining(e.target.checked)}
                 />
                 Assign retraining to a staff member instead of a plain description
               </label>
@@ -346,6 +365,7 @@ export default function ViolationDetail() {
                   </Button>
                 </div>
               ) : (
+<<<<<<< HEAD
                 <div className="flex items-center gap-2">
                   <Input value={newActionDescription} onChange={(e) => setNewActionDescription(e.target.value)} placeholder="Corrective task description" className="h-9 flex-1" />
                   <Select value={assignedEmployeeId} onValueChange={setAssignedEmployeeId}>
@@ -383,6 +403,11 @@ export default function ViolationDetail() {
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
+=======
+                <CorrectiveActionForm
+                  parent={{ organizationId: violation.organization_id, facilityId: violation.facility_id, violationId: violation.id }}
+                />
+>>>>>>> origin/main
               )}
             </div>
           )}

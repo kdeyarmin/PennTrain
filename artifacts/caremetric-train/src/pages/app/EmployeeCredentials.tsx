@@ -5,9 +5,12 @@ import {
 } from "@/hooks/useEmployeeCredentials";
 import {
   useListCredentialDocuments, useUploadCredentialDocument, useCredentialDocumentSignedUrl, useDeleteCredentialDocument,
+  type CredentialDocument,
 } from "@/hooks/useCredentialDocuments";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useUrlState } from "@/hooks/useUrlState";
+import { summarizeCredentialAnalytics } from "@/lib/credentialAnalytics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +22,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { ShieldCheck, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Upload, Download } from "lucide-react";
+import { AlertTriangle, ShieldCheck, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Upload, Download } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -75,6 +78,16 @@ const EMPTY_FORM: CredentialFormData = {
   verificationMethod: "", lastVerifiedDate: "",
 };
 
+// Synced into the URL query string via useUrlState so navigating away from this page (or just
+// reloading/sharing the link) and coming back preserves the filtered/paged view instead of
+// resetting to these defaults.
+const CREDENTIALS_FILTER_DEFAULTS = {
+  facilityFilter: "all",
+  employeeFilter: "all",
+  statusFilter: "all",
+  page: "1",
+};
+
 function CredentialDocuments({ credential, canManage, canDelete }: { credential: EmployeeCredential; canManage: boolean; canDelete: boolean }) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -82,6 +95,7 @@ function CredentialDocuments({ credential, canManage, canDelete }: { credential:
   const uploadDocument = useUploadCredentialDocument();
   const getSignedUrl = useCredentialDocumentSignedUrl();
   const deleteDocument = useDeleteCredentialDocument();
+  const [deleteTarget, setDeleteTarget] = useState<CredentialDocument | null>(null);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -111,6 +125,14 @@ function CredentialDocuments({ credential, canManage, canDelete }: { credential:
     }
   };
 
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) return;
+    deleteDocument.mutate(deleteTarget, {
+      onSuccess: () => { toast({ title: "Document deleted", variant: "success" }); setDeleteTarget(null); },
+      onError: (err: Error) => toast({ title: "Failed to delete document", description: err.message, variant: "destructive" }),
+    });
+  };
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -138,7 +160,7 @@ function CredentialDocuments({ credential, canManage, canDelete }: { credential:
                   <Download className="h-3.5 w-3.5" />
                 </Button>
                 {canDelete && (
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteDocument.mutate(doc)} aria-label="Delete document">
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteTarget(doc)} aria-label="Delete document">
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 )}
@@ -147,6 +169,24 @@ function CredentialDocuments({ credential, canManage, canDelete }: { credential:
           ))}
         </div>
       )}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Evidence Document</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently destroy "{deleteTarget?.file_name}" as compliance evidence for this credential.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} disabled={deleteDocument.isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleteDocument.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -155,10 +195,9 @@ export default function EmployeeCredentials() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [facilityFilter, setFacilityFilter] = useState("all");
-  const [employeeFilter, setEmployeeFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [page, setPage] = useState(1);
+  const [filters, setFilters] = useUrlState(CREDENTIALS_FILTER_DEFAULTS);
+  const { facilityFilter, employeeFilter, statusFilter } = filters;
+  const page = Math.max(1, Number(filters.page) || 1);
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<EmployeeCredential | null>(null);
@@ -192,6 +231,23 @@ export default function EmployeeCredentials() {
   );
 
   const allCredentials = credentials ?? [];
+  const credentialSummary = useMemo(() => summarizeCredentialAnalytics(
+    allCredentials.map((c) => ({
+      id: c.id,
+      employee_id: c.employee_id,
+      credential_type: c.credential_type,
+      credential_label: c.credential_label,
+      status: c.status,
+      expiration_date: c.expiration_date,
+      warning_days: c.warning_days,
+      last_verified_date: c.last_verified_date,
+    })),
+    new Date().toISOString().slice(0, 10),
+  ), [allCredentials]);
+  const credentialById = useMemo(() => new Map(allCredentials.map((c) => [c.id, c])), [allCredentials]);
+  const topRiskCredentials = credentialSummary.topRiskCredentialIds
+    .map((id) => credentialById.get(id))
+    .filter((c): c is EmployeeCredential => !!c);
   const sorted = [...allCredentials].sort((a, b) => (a.expiration_date ?? "9999").localeCompare(b.expiration_date ?? "9999"));
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -295,23 +351,70 @@ export default function EmployeeCredentials() {
         )}
       </div>
 
+      <div className="grid gap-4 md:grid-cols-4">
+        <button type="button" className="premium-card p-4 text-left hover:border-destructive/40" onClick={() => setFilters({ statusFilter: "expired", page: "1" })}>
+          <p className="text-xs font-medium text-muted-foreground">Expired</p>
+          <p className="mt-1 text-2xl font-semibold text-destructive">{credentialSummary.expired}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Require immediate remediation.</p>
+        </button>
+        <button type="button" className="premium-card p-4 text-left hover:border-warning/40" onClick={() => setFilters({ statusFilter: "due_soon", page: "1" })}>
+          <p className="text-xs font-medium text-muted-foreground">Due soon</p>
+          <p className="mt-1 text-2xl font-semibold">{credentialSummary.dueSoon}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{credentialSummary.expiringWithin30Days} expire within 30 days.</p>
+        </button>
+        <button type="button" className="premium-card p-4 text-left hover:border-border" onClick={() => setFilters({ statusFilter: "missing", page: "1" })}>
+          <p className="text-xs font-medium text-muted-foreground">Missing</p>
+          <p className="mt-1 text-2xl font-semibold">{credentialSummary.missing}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Evidence has not been recorded.</p>
+        </button>
+        <div className="premium-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Employees with gaps</p>
+          <p className="mt-1 text-2xl font-semibold">{credentialSummary.employeesWithGaps}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{credentialSummary.unverified} active records lack verification date.</p>
+        </div>
+      </div>
+
+      {topRiskCredentials.length > 0 && (
+        <div className="premium-card p-4">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <h2 className="text-sm font-semibold">Credential Risk Queue</h2>
+          </div>
+          <div className="mt-3 grid gap-2 lg:grid-cols-2">
+            {topRiskCredentials.map((credential) => {
+              const emp = employeeById.get(credential.employee_id);
+              return (
+                <button key={credential.id} type="button" className="rounded-lg border p-3 text-left hover:bg-muted/40" onClick={() => openEdit(credential)}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{emp ? `${emp.last_name}, ${emp.first_name}` : `Employee #${credential.employee_id.slice(0, 8)}`}</span>
+                    <StatusBadge status={credential.status} type="training" />
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">{credential.credential_label || credentialTypeLabel(credential.credential_type)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Expiration: {credential.expiration_date ?? "No expiration"} · Last verified: {credential.last_verified_date ?? "Not recorded"}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="premium-card">
         <div className="filter-bar">
-          <Select value={facilityFilter} onValueChange={(v) => { setFacilityFilter(v); setPage(1); }}>
+          <Select value={facilityFilter} onValueChange={(v) => setFilters({ facilityFilter: v, page: "1" })}>
             <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Facilities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
               {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={employeeFilter} onValueChange={(v) => { setEmployeeFilter(v); setPage(1); }}>
+          <Select value={employeeFilter} onValueChange={(v) => setFilters({ employeeFilter: v, page: "1" })}>
             <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Employees" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Employees</SelectItem>
               {(employees ?? []).map((e) => <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+          <Select value={statusFilter} onValueChange={(v) => setFilters({ statusFilter: v, page: "1" })}>
             <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
@@ -389,11 +492,11 @@ export default function EmployeeCredentials() {
                 Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)}</span> of {sorted.length}
               </p>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setFilters({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="text-[13px] text-muted-foreground px-2">Page {page} of {totalPages}</span>
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setFilters({ page: String(Math.min(totalPages, page + 1)) })} disabled={page === totalPages}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>

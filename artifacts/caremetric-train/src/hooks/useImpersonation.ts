@@ -61,6 +61,9 @@ export function useStartImpersonation() {
         body: { action: "start", target_user_id: vars.targetUserId, reason: vars.reason },
       });
       if (error) throw error;
+      if (!data?.token_hash || !data?.target?.id) {
+        throw new Error("The impersonation service returned an incomplete session response");
+      }
 
       const record: ImpersonationRecord = {
         originSession: {
@@ -74,7 +77,13 @@ export function useStartImpersonation() {
 
       // Swaps the live session to the target user via their one-time magic-link token.
       const { error: otpError } = await supabase.auth.verifyOtp({ token_hash: data.token_hash, type: "magiclink" });
-      if (otpError) throw otpError;
+      if (otpError) {
+        // The origin tokens are persisted before the swap so they cannot be lost if verifyOtp
+        // succeeds. If the swap fails, remove that provisional record or a refresh will falsely
+        // present the still-admin session as an active impersonation session.
+        sessionStorage.removeItem(STORAGE_KEY);
+        throw otpError;
+      }
 
       window.dispatchEvent(new Event(CHANGE_EVENT));
       // Full clear, not just ["profile"] -- queries with keys unscoped by user/org (e.g.

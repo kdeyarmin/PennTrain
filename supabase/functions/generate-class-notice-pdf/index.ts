@@ -1,4 +1,5 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+// @ts-nocheck
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 import QRCode from "npm:qrcode@1.5.4";
 
@@ -87,7 +88,7 @@ Deno.serve(async (req: Request) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-  const callerClient = createClient(supabaseUrl, anonKey, {
+  const callerClient = createClient<any>(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 
@@ -194,7 +195,7 @@ Deno.serve(async (req: Request) => {
   const pdfBytes = await pdf.save();
   const path = `${cls.organization_id}/${classId}.pdf`;
 
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
   const { error: uploadError } = await adminClient.storage.from(NOTICES_BUCKET).upload(path, pdfBytes, {
     contentType: "application/pdf",
     upsert: true,

@@ -1,8 +1,13 @@
+<<<<<<< HEAD
 import { useEffect, useMemo, useState } from "react";
+=======
+import { useEffect, useMemo, useRef, useState } from "react";
+>>>>>>> origin/main
 import { Link, useSearch } from "wouter";
 import { useListViolations, useCreateViolation, type ViolationInsert } from "@/hooks/useViolations";
 import { useListCitationTopics } from "@/hooks/useCitationTopics";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useUrlState } from "@/hooks/useUrlState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,9 +15,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { ShieldAlert, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ShieldAlert, ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
 
 const PAGE_SIZE = 15;
 
@@ -50,17 +56,19 @@ interface ViolationFormData {
 
 const EMPTY_FORM: ViolationFormData = {
   facilityId: "", citationTopicId: "", citationRef: "",
-  inspectionDate: new Date().toISOString().slice(0, 10), surveyorName: "",
+  inspectionDate: toLocalIsoDate(), surveyorName: "",
   description: "", severity: "moderate", pocDueDate: "",
 };
+
+const VIOLATIONS_URL_DEFAULTS = { search: "", facility: "all", status: "all", page: "1" };
 
 export default function Violations() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [facilityFilter, setFacilityFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [page, setPage] = useState(1);
+  const [urlState, setUrlState] = useUrlState(VIOLATIONS_URL_DEFAULTS);
+  const [search, setSearch] = useState(urlState.search);
+  const page = Math.max(1, Number(urlState.page) || 1);
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<ViolationFormData>(EMPTY_FORM);
@@ -75,18 +83,56 @@ export default function Violations() {
   const { data: facilities } = useListFacilities();
   const { data: citationTopics } = useListCitationTopics();
   const { data: violations, isLoading } = useListViolations({
-    facilityId: facilityFilter !== "all" ? facilityFilter : undefined,
-    status: statusFilter !== "all" ? statusFilter : undefined,
+    facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
+    status: urlState.status !== "all" ? urlState.status : undefined,
   });
 
   const { mutate: createViolation, isPending: creating } = useCreateViolation();
 
+  // Debounce the free-text box before it commits to the URL (and re-filters/re-paginates below),
+  // so typing doesn't replace the URL's query string on every keystroke. The commit runs through a
+  // ref (refreshed every render) rather than closing over `urlState`/`setUrlState` directly --
+  // setUrlState's snapshot of the URL is only as fresh as the render that created it, so a plain
+  // `[search]`-keyed effect could fire 300ms later still holding a stale pre-update URL and wipe
+  // out any other filter change made in the meantime.
+  const commitSearchRef = useRef(() => {});
+  commitSearchRef.current = () => {
+    if (search !== urlState.search) setUrlState({ search, page: "1" });
+  };
+  useEffect(() => {
+    const t = setTimeout(() => commitSearchRef.current(), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+  // Resyncs the input's local mirror when urlState.search changes for a reason other than the
+  // commit above (browser Back/Forward, a bookmarked/deep link) -- otherwise the box shows a
+  // stale value that the debounce would then commit right back over the state just navigated to.
+  useEffect(() => {
+    setSearch(urlState.search);
+  }, [urlState.search]);
+
   const facilityById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
   const topicById = useMemo(() => new Map((citationTopics ?? []).map((t) => [t.id, t])), [citationTopics]);
 
-  const allViolations = violations ?? [];
-  const totalPages = Math.max(1, Math.ceil(allViolations.length / PAGE_SIZE));
-  const paginated = allViolations.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const searched = useMemo(() => {
+    const q = urlState.search.trim().toLowerCase();
+    if (!q) return violations ?? [];
+    return (violations ?? []).filter((v) => {
+      const citationText = v.citation_ref ?? topicById.get(v.citation_topic_id ?? "")?.title ?? "";
+      return v.description.toLowerCase().includes(q) || citationText.toLowerCase().includes(q);
+    });
+  }, [violations, urlState.search, topicById]);
+
+  const totalPages = Math.max(1, Math.ceil(searched.length / PAGE_SIZE));
+  const paginated = searched.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Auto-fill the create dialog's Facility field when the user is scoped to exactly one facility
+  // (e.g. a facility_manager) -- saves a needless click every time; a no-op for multi-facility orgs,
+  // and never overrides a facility already set (manually, or via the deep-link prefill below).
+  useEffect(() => {
+    if (!showForm || facilities?.length !== 1) return;
+    const soleId = facilities[0].id;
+    setForm((f) => (f.facilityId ? f : { ...f, facilityId: soleId }));
+  }, [showForm, facilities]);
 
   const openCreate = () => {
     setForm(EMPTY_FORM);
@@ -167,14 +213,23 @@ export default function Violations() {
 
       <div className="premium-card">
         <div className="filter-bar">
-          <Select value={facilityFilter} onValueChange={(v) => { setFacilityFilter(v); setPage(1); }}>
+          <div className="relative flex-1 min-w-48">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search violations..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 h-9 bg-card"
+            />
+          </div>
+          <Select value={urlState.facility} onValueChange={(v) => setUrlState({ facility: v, page: "1" })}>
             <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Facilities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
               {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+          <Select value={urlState.status} onValueChange={(v) => setUrlState({ status: v, page: "1" })}>
             <SelectTrigger className="w-44 h-9 bg-card"><SelectValue placeholder="All Statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
@@ -212,7 +267,7 @@ export default function Violations() {
                 <tbody>
                   {paginated.map((v) => (
                     <tr key={v.id}>
-                      <td className="text-muted-foreground">{new Date(v.inspection_date).toLocaleDateString()}</td>
+                      <td className="text-muted-foreground">{formatDateForDisplay(v.inspection_date)}</td>
                       <td className="font-medium text-foreground">{facilityById.get(v.facility_id)?.name ?? "—"}</td>
                       <td className="text-muted-foreground">
                         {v.citation_ref ?? topicById.get(v.citation_topic_id ?? "")?.title ?? "—"}
@@ -229,14 +284,14 @@ export default function Violations() {
             </div>
             <div className="flex items-center justify-between px-5 py-4 border-t border-border/60">
               <p className="text-[13px] text-muted-foreground">
-                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, allViolations.length)}</span> of {allViolations.length}
+                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, searched.length)}</span> of {searched.length}
               </p>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="text-[13px] text-muted-foreground px-2">Page {page} of {totalPages}</span>
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.min(totalPages, page + 1)) })} disabled={page === totalPages}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
