@@ -1,5 +1,7 @@
+import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import type { CourseBlock } from "@/hooks/useCourses";
 
 export interface HeygenAvatar {
   id: string;
@@ -79,4 +81,46 @@ export function useCheckCourseVideoStatus() {
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["course_blocks"] }),
   });
+}
+
+// HeyGen job states that mean "done, stop polling this block" -- everything else (e.g.
+// "processing", "pending", "waiting") is treated as still in-flight.
+const TERMINAL_HEYGEN_STATUSES = new Set(["completed", "failed"]);
+
+/**
+ * Client-side snappiness on top of the server-side poll-heygen-video-statuses cron backstop
+ * (which runs every 5 minutes): while any block in `blocks` has a non-terminal
+ * `body.heygen.status`, re-checks every in-flight block every ~15s via the existing
+ * useCheckCourseVideoStatus() mutation, so an admin watching the page sees a status flip to
+ * "completed"/"failed" live without clicking the manual refresh button -- whichever of the
+ * cron job or this poll gets there first. The interval is only created while at least one
+ * such block is present and is cleared the moment none remain (or on unmount).
+ */
+export function useAutoCheckVideoStatuses(blocks: CourseBlock[] | undefined) {
+  const { mutate: checkVideoStatus } = useCheckCourseVideoStatus();
+
+  // Refs so the interval tick always reads the latest blocks/mutate function without having
+  // to tear down and recreate the interval every time they change identity.
+  const blocksRef = useRef(blocks);
+  blocksRef.current = blocks;
+  const checkVideoStatusRef = useRef(checkVideoStatus);
+  checkVideoStatusRef.current = checkVideoStatus;
+
+  const hasPendingVideo = (blocks ?? []).some((b) => {
+    const status = (b.body as { heygen?: { status?: string } } | null)?.heygen?.status;
+    return !!status && !TERMINAL_HEYGEN_STATUSES.has(status);
+  });
+
+  useEffect(() => {
+    if (!hasPendingVideo) return;
+    const intervalId = setInterval(() => {
+      for (const block of blocksRef.current ?? []) {
+        const status = (block.body as { heygen?: { status?: string } } | null)?.heygen?.status;
+        if (status && !TERMINAL_HEYGEN_STATUSES.has(status)) {
+          checkVideoStatusRef.current(block.id);
+        }
+      }
+    }, 15_000);
+    return () => clearInterval(intervalId);
+  }, [hasPendingVideo]);
 }

@@ -4,13 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "hello": "tsx ./src/hello.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "doctor": "tsx ./src/doctor.ts",
-    "doctor:network": "tsx ./src/doctor.ts --network"
+    "doctor:network": "tsx ./src/doctor.ts --network",
+    "generate:manual": "tsx src/generate-help-center-manual.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "pdf-lib": "1.17.1",
     "tsx": "catalog:"
   }
 }

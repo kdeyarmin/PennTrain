@@ -137,3 +137,97 @@ export function useCompleteTrainingClass() {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// QR / kiosk check-in.
+//
+// The QR code encodes a short-lived token (not the class id directly) --
+// generate_class_checkin_token() rotates it every ~30s (see the polling
+// interval in ClassDetail.tsx) so a photographed or shoulder-surfed QR stops
+// working within seconds. checkin_via_token()/checkin_via_kiosk_pin() both
+// toggle: first call sets checked_in_at, a second call (once already checked
+// in) sets checked_out_at -- the "scan to check in, scan again to check out"
+// convention used throughout this feature.
+// ---------------------------------------------------------------------------
+
+export function useGenerateClassCheckinToken() {
+  return useMutation({
+    mutationFn: async (classId: string) => {
+      const { data, error } = await supabase.rpc("generate_class_checkin_token", { p_class_id: classId });
+      if (error) throw error;
+      return data as string;
+    },
+  });
+}
+
+export function useCheckinViaToken() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (token: string) => {
+      const { data, error } = await supabase.rpc("checkin_via_token", { p_token: token });
+      if (error) throw error;
+      return data as TrainingClassAttendee;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["training_class_attendees", data.class_id] });
+      queryClient.invalidateQueries({ queryKey: ["training_class_attendees", "all-counts"] });
+    },
+  });
+}
+
+export function useCheckinViaKioskPin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ classId, employeeId, pin }: { classId: string; employeeId: string; pin: string }) => {
+      const { data, error } = await supabase.rpc("checkin_via_kiosk_pin", {
+        p_class_id: classId, p_employee_id: employeeId, p_pin: pin,
+      });
+      if (error) throw error;
+      return data as TrainingClassAttendee;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["training_class_attendees", data.class_id] });
+      queryClient.invalidateQueries({ queryKey: ["training_class_attendees", "all-counts"] });
+    },
+  });
+}
+
+export function useSetEmployeeCheckinPin() {
+  return useMutation({
+    mutationFn: async ({ employeeId, pin }: { employeeId: string; pin: string }) => {
+      const { error } = await supabase.rpc("set_employee_checkin_pin", { p_employee_id: employeeId, p_pin: pin });
+      if (error) throw error;
+    },
+  });
+}
+
+export interface GenerateClassNoticePdfResult {
+  url: string;
+  path: string;
+  expiresIn: number;
+}
+
+interface GenerateClassNoticePdfResponse extends GenerateClassNoticePdfResult {
+  success?: boolean;
+  error?: string;
+}
+
+// Always regenerates (no client-visible caching) -- a printed notice should reflect the latest
+// class details/QR token each time an admin reprints it, matching the always-regenerate
+// convention generate-incident-report-pdf already uses (as opposed to generate-certificate-pdf's
+// cache-once behavior for an immutable issued certificate).
+export function useGenerateClassNoticePdf() {
+  return useMutation({
+    mutationFn: async (classId: string): Promise<GenerateClassNoticePdfResult> => {
+      const { data, error } = await supabase.functions.invoke<GenerateClassNoticePdfResponse>(
+        "generate-class-notice-pdf",
+        { body: { classId, baseUrl: window.location.origin } },
+      );
+      if (error) throw error;
+      if (!data || data.success === false || !data.url) {
+        throw new Error(data?.error ?? "Failed to generate meeting notice PDF");
+      }
+      return { url: data.url, path: data.path, expiresIn: data.expiresIn };
+    },
+  });
+}

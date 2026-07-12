@@ -143,15 +143,15 @@ function ApplyPlanDialog({
     let succeededEmployees = 0;
     let failedEmployees = 0;
     let totalAssigned = 0;
-    let totalSkipped = 0;
+    let totalRequirementsEnsured = 0;
     const issues: string[] = [];
 
     settled.forEach((result) => {
       if (result.status === "fulfilled") {
         succeededEmployees++;
         totalAssigned += result.value.assigned;
-        totalSkipped += result.value.skipped;
-        result.value.failed.forEach((f) => issues.push(`${f.courseTitle ?? "a course"}: ${f.message}`));
+        totalRequirementsEnsured += result.value.requirementsEnsured;
+        result.value.failed.forEach((f) => issues.push(`${f.itemLabel ?? "an item"}: ${f.message}`));
         if (result.value.alertWarning) issues.push(result.value.alertWarning);
       } else {
         failedEmployees++;
@@ -163,8 +163,8 @@ function ApplyPlanDialog({
     if (failedEmployees > 0) titleParts.push(`${failedEmployees} failed`);
 
     let description = `${totalAssigned} course assignment${totalAssigned !== 1 ? "s" : ""} created.`;
-    if (totalSkipped > 0) {
-      description += ` ${totalSkipped} legacy training-type item${totalSkipped !== 1 ? "s" : ""} skipped -- record completion manually once finished.`;
+    if (totalRequirementsEnsured > 0) {
+      description += ` ${totalRequirementsEnsured} training requirement${totalRequirementsEnsured !== 1 ? "s" : ""} now tracked as pending.`;
     }
     if (issues.length > 0) {
       description += ` Issues: ${issues.slice(0, 3).join("; ")}${issues.length > 3 ? "…" : ""}`;
@@ -185,9 +185,8 @@ function ApplyPlanDialog({
         <DialogHeader>
           <DialogTitle>Apply "{plan.name}" to Employees</DialogTitle>
           <DialogDescription>
-            Creates a course assignment for every course in this plan, for each employee selected below.
-            Legacy training-type items aren't assigned ahead of time -- they're recorded as completed
-            after the fact on the employee's training record.
+            Creates a course assignment for every course in this plan, and tracks every training-type
+            item as a pending requirement, for each employee selected below.
           </DialogDescription>
         </DialogHeader>
         <div className="relative">
@@ -467,7 +466,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
               >
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="course">Course (LMS)</SelectItem>
+                  <SelectItem value="course">Course (online)</SelectItem>
                   <SelectItem value="training_type">Training Type (legacy)</SelectItem>
                 </SelectContent>
               </Select>
@@ -626,7 +625,7 @@ export default function TrainingPlans() {
 
   return (
     <div className="space-y-6">
-      <div className="page-header flex items-center justify-between">
+      <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Training Plans</h1>
           <p>Bundle courses and training types into reusable curricula, then apply them to employees.</p>
@@ -664,8 +663,8 @@ export default function TrainingPlans() {
             </p>
           </div>
         ) : (
-          <div className="overflow-hidden">
-            <table className="data-table">
+          <div className="overflow-x-auto">
+            <table className="data-table min-w-[640px]">
               <thead>
                 <tr>
                   <th className="w-8" />

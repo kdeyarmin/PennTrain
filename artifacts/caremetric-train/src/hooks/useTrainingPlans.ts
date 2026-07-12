@@ -26,18 +26,6 @@ export function useListTrainingPlans() {
   });
 }
 
-export function useGetTrainingPlan(id: string | undefined) {
-  return useQuery({
-    queryKey: ["training_plans", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("training_plans").select("*").eq("id", id!).single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
-}
-
 export function useCreateTrainingPlan() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -191,18 +179,16 @@ export function useRemoveTrainingPlanItem() {
 // Applying a plan to an employee
 //
 // A training plan can mix two kinds of items:
-//   - course-type items (course_id set)         -> a real, trackable unit of
-//     LMS work an employee can be assigned and complete.
-//   - training_type-type items (training_type_id set) -> a legacy/manual
-//     compliance category. There is no "assign a training_type ahead of
-//     time" concept anywhere in this codebase: training_type compliance is
-//     recorded after the fact via employee_training_records, normally
-//     created by staff when they log actual completed training (see
-//     useTrainingRecords.ts). So "applying" a plan to an employee only ever
-//     produces course_assignments rows for the plan's course-type items;
-//     training_type-type items are intentionally skipped here and reported
-//     back as `skipped` so the calling UI can say so rather than silently
-//     dropping them.
+//   - course-type items (course_id set) -> a real, trackable unit of LMS
+//     work an employee can be assigned and complete, via course_assignments.
+//   - training_type-type items (training_type_id set) -> there's no LMS
+//     content to assign, but applying the plan still needs to do *something*
+//     other than silently no-op: it ensures a 'missing' employee_training_records
+//     shell exists for that (employee, training_type) pair via the
+//     ensure_training_requirement_record() RPC (the same auto-assignment
+//     engine used on hire/role-change), so the requirement shows up as a real
+//     compliance gap instead of not existing at all until someone happens to
+//     log a completion for it.
 //
 // Design note on fan-out (see task write-up in the PR/report as well):
 // this hook composes useCreateCourseAssignment() -- calling that hook here,
@@ -233,16 +219,16 @@ export interface ApplyTrainingPlanParams {
 
 export interface ApplyTrainingPlanItemFailure {
   itemId: string;
-  courseTitle: string | null;
+  itemLabel: string | null;
   message: string;
 }
 
 export interface ApplyTrainingPlanResult {
   /** Number of course_assignments successfully created. */
   assigned: number;
-  /** Number of training_type-type items intentionally not assigned (see note above). */
-  skipped: number;
-  /** Course-type items that failed to assign (e.g. course has no published version). */
+  /** Number of training_type-type items that got (or already had) a training-record shell ensured. */
+  requirementsEnsured: number;
+  /** Course-type or training_type-type items that failed (e.g. course has no published version). */
   failed: ApplyTrainingPlanItemFailure[];
   /**
    * Set if the (non-fatal, best-effort) admin-facing "training plan assigned"
@@ -269,24 +255,32 @@ export function useApplyTrainingPlanToEmployee() {
       const courseItems = allItems.filter(
         (item): item is TrainingPlanItem & { course_id: string } => item.course_id !== null,
       );
-      const skipped = allItems.length - courseItems.length;
+      const trainingTypeItems = allItems.filter(
+        (item): item is TrainingPlanItem & { training_type_id: string } => item.training_type_id !== null,
+      );
 
-      if (courseItems.length === 0) {
-        return { assigned: 0, skipped, failed: [] };
+      if (allItems.length === 0) {
+        return { assigned: 0, requirementsEnsured: 0, failed: [] };
       }
 
       // Flat select + client-side Map join, matching this codebase's usual
       // convention (see courseById/employeeById in CourseAssignments.tsx)
       // rather than a Postgres embedded-resource select.
       const courseIds = [...new Set(courseItems.map((item) => item.course_id))];
-      const { data: courses, error: coursesError } = await supabase
-        .from("courses")
-        .select("id, title, current_version_id")
-        .in("id", courseIds);
+      const { data: courses, error: coursesError } = courseIds.length
+        ? await supabase.from("courses").select("id, title, current_version_id").in("id", courseIds)
+        : { data: [], error: null };
       if (coursesError) throw coursesError;
       const courseById = new Map((courses ?? []).map((c) => [c.id, c]));
 
-      const results = await Promise.allSettled(
+      const trainingTypeIds = [...new Set(trainingTypeItems.map((item) => item.training_type_id))];
+      const { data: trainingTypes, error: trainingTypesError } = trainingTypeIds.length
+        ? await supabase.from("training_types").select("id, name").in("id", trainingTypeIds)
+        : { data: [], error: null };
+      if (trainingTypesError) throw trainingTypesError;
+      const trainingTypeById = new Map((trainingTypes ?? []).map((t) => [t.id, t]));
+
+      const courseResults = await Promise.allSettled(
         courseItems.map((item) => {
           const course = courseById.get(item.course_id);
           if (!course) throw new Error("Course not found");
@@ -307,9 +301,23 @@ export function useApplyTrainingPlanToEmployee() {
         }),
       );
 
+      const requirementResults = await Promise.allSettled(
+        trainingTypeItems.map((item) =>
+          supabase
+            .rpc("ensure_training_requirement_record", {
+              p_employee_id: params.employeeId,
+              p_training_type_id: item.training_type_id,
+            })
+            .then(({ error }) => {
+              if (error) throw error;
+            }),
+        ),
+      );
+
       let assigned = 0;
+      let requirementsEnsured = 0;
       const failed: ApplyTrainingPlanItemFailure[] = [];
-      results.forEach((result, idx) => {
+      courseResults.forEach((result, idx) => {
         if (result.status === "fulfilled") {
           assigned++;
           return;
@@ -317,7 +325,19 @@ export function useApplyTrainingPlanToEmployee() {
         const item = courseItems[idx];
         failed.push({
           itemId: item.id,
-          courseTitle: courseById.get(item.course_id)?.title ?? null,
+          itemLabel: courseById.get(item.course_id)?.title ?? null,
+          message: result.reason instanceof Error ? result.reason.message : String(result.reason),
+        });
+      });
+      requirementResults.forEach((result, idx) => {
+        if (result.status === "fulfilled") {
+          requirementsEnsured++;
+          return;
+        }
+        const item = trainingTypeItems[idx];
+        failed.push({
+          itemId: item.id,
+          itemLabel: trainingTypeById.get(item.training_type_id)?.name ?? null,
           message: result.reason instanceof Error ? result.reason.message : String(result.reason),
         });
       });
@@ -329,7 +349,7 @@ export function useApplyTrainingPlanToEmployee() {
       // are not undone if this fails, but the failure must still be surfaced
       // to the caller rather than silently swallowed.
       let alertWarning: string | undefined;
-      if (assigned > 0) {
+      if (assigned > 0 || requirementsEnsured > 0) {
         const { data: plan, error: planError } = await supabase
           .from("training_plans")
           .select("name")
@@ -338,13 +358,17 @@ export function useApplyTrainingPlanToEmployee() {
         if (planError) {
           alertWarning = `Assignments succeeded, but couldn't record the "plan assigned" alert: ${planError.message}`;
         } else {
+          const summary = [
+            assigned > 0 ? `${assigned} course${assigned === 1 ? "" : "s"} assigned` : null,
+            requirementsEnsured > 0 ? `${requirementsEnsured} requirement${requirementsEnsured === 1 ? "" : "s"} tracked` : null,
+          ].filter(Boolean).join(", ");
           const { error: alertError } = await supabase.from("alerts").insert({
             organization_id: params.organizationId,
             facility_id: params.facilityId,
             employee_id: params.employeeId,
             alert_type: "training_plan_assigned",
             title: `Training plan assigned — ${plan?.name ?? "Training Plan"}`,
-            message: `${plan?.name ?? "A training plan"} was applied (${assigned} course${assigned === 1 ? "" : "s"} assigned).`,
+            message: `${plan?.name ?? "A training plan"} was applied (${summary}).`,
             severity: "info",
           });
           if (alertError) {
@@ -353,10 +377,11 @@ export function useApplyTrainingPlanToEmployee() {
         }
       }
 
-      return { assigned, skipped, failed, alertWarning };
+      return { assigned, requirementsEnsured, failed, alertWarning };
     },
     onSuccess: (result) => {
       if (result.assigned > 0) queryClient.invalidateQueries({ queryKey: ["alerts"] });
+      if (result.requirementsEnsured > 0) queryClient.invalidateQueries({ queryKey: ["training_records"] });
     },
   });
 }

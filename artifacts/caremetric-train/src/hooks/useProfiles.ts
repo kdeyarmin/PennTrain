@@ -2,8 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesUpdate } from "@/lib/database.types";
 
-export type Profile = Tables<"profiles">;
-export type ProfileUpdate = TablesUpdate<"profiles">;
+export type Profile = Tables<"profiles"> & {
+  preferred_notification_channel?: string;
+};
+export type ProfileUpdate = TablesUpdate<"profiles"> & {
+  preferred_notification_channel?: string;
+};
 
 export interface ListProfilesFilters {
   organizationId?: string;
@@ -24,18 +28,6 @@ export function useListProfiles(filters: ListProfilesFilters = {}) {
   });
 }
 
-export function useGetProfile(id: string | undefined) {
-  return useQuery({
-    queryKey: ["profiles", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", id!).single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
-}
-
 /**
  * `profiles.role` / `organization_id` / `is_active` / `email` are protected by the
  * `protect_profile_privileged_fields()` DB trigger (see
@@ -43,18 +35,30 @@ export function useGetProfile(id: string | undefined) {
  * .../20260704050209_pin_search_path_on_trigger_functions.sql): for anyone who is not
  * platform_admin, the trigger silently reverts those four columns back to their old
  * values, so a plain client-side `.update()` on them is a silent no-op. This hook is
- * only for the remaining, non-protected fields; role/org/active/email changes must go
- * through `useAdminUpdateUser()` instead.
+ * only for the remaining, non-protected fields; it uses the scoped
+ * `update_profile_contact_preferences()` command so organization and facility
+ * administrators can manage users in their authorized scope. Role/org/active/email
+ * changes must go through `useAdminUpdateUser()` instead.
  */
-export type ProfileSelfServiceUpdate = Pick<ProfileUpdate, "first_name" | "last_name" | "phone">;
+export type ProfileSelfServiceUpdate = Pick<
+  ProfileUpdate,
+  "first_name" | "last_name" | "phone" | "sms_opt_in" | "preferred_notification_channel"
+>;
 
 export function useUpdateProfile() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...payload }: ProfileSelfServiceUpdate & { id: string }) => {
-      const { data, error } = await supabase.from("profiles").update(payload).eq("id", id).select().single();
+      const { data, error } = await supabase.rpc("update_profile_contact_preferences" as never, {
+        p_profile_id: id,
+        p_first_name: payload.first_name,
+        p_last_name: payload.last_name,
+        p_phone: payload.phone,
+        p_sms_opt_in: payload.sms_opt_in,
+        p_preferred_notification_channel: payload.preferred_notification_channel,
+      } as never);
       if (error) throw error;
-      return data;
+      return (data as unknown as Profile[])[0];
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["profiles"] }),
   });
@@ -128,6 +132,51 @@ export function useCreateUserViaAdmin() {
         last_name: lastName,
         role,
         organization_id: organizationId,
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["profiles"] }),
+  });
+}
+
+/**
+ * `useInviteUser()` sends an email invite instead of setting a temporary password: the
+ * `invite-user` Edge Function calls `supabase.auth.admin.inviteUserByEmail()` (queuing the
+ * "invite" auth email -- routed through SendGrid via the send-auth-email Send Email Hook, same
+ * as password-reset mail) then `admin_update_profile()` to apply the real role/organization_id,
+ * since `handle_new_user()` has no app_metadata to read yet at invite time and only ever
+ * defaults to role="employee"/organization_id=null. Authorization matrix matches
+ * `useCreateUserViaAdmin()`. `redirectTo` should point at `/reset-password` (the same page
+ * password-reset links use) -- accepting an invite establishes a session the same way a
+ * recovery link does, and that page already handles either.
+ *
+ * On success: 2xx with `{ success: true, user: { id, email }, profile: {...} }`. On failure:
+ * non-2xx with `{ error: string }`.
+ */
+export interface InviteUserRequest {
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  organizationId: string | null;
+  redirectTo: string;
+}
+
+export interface InviteUserResponse {
+  success?: boolean;
+  user?: { id: string; email: string };
+  profile?: Profile;
+}
+
+export function useInviteUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ email, firstName, lastName, role, organizationId, redirectTo }: InviteUserRequest) =>
+      invokeEdgeFunction<InviteUserResponse>("invite-user", {
+        email,
+        first_name: firstName,
+        last_name: lastName,
+        role,
+        organization_id: organizationId,
+        redirect_to: redirectTo,
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["profiles"] }),
   });

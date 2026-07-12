@@ -1,0 +1,21 @@
+-- Forward-fix (review finding): stamp_scope_from_resident() only ever fired "before insert" on
+-- resident_compliance_items, so organization_id/facility_id are derived from resident_id exactly
+-- once, at creation. resident_compliance_items_update authorizes purely off the row's OWN
+-- organization_id/facility_id/status -- it never re-validates that resident_id still points at a
+-- resident actually in that facility. A facility_manager assigned only to facility A could PATCH an
+-- existing item's resident_id to point at a resident in facility B (or a different organization
+-- entirely -- the FK only checks existence, not tenant), leaving facility_id/organization_id
+-- unchanged at A, then call complete_resident_compliance_item() to mark the hijacked item
+-- "compliant" -- fabricating a compliant RASP/ASP record against a resident outside the caller's
+-- facility (or another tenant's data) without ever having write access to that resident directly.
+-- Since resident_id is `on delete cascade`, the other org discharging/deleting that resident would
+-- also silently cascade-delete this row out from under the owning facility.
+--
+-- This is the exact bug class already fixed for the two sibling tables that share this same
+-- trigger function: resident_assessment_forms (20260706100800_backfill_existing_compliance_items_
+-- and_restamp_form_scope.sql, "Finding X") and resident_informal_supports (20260706100900_backfill_
+-- renewal_rows_and_restamp_informal_supports.sql, "Finding Z") -- but resident_compliance_items,
+-- the module's own central table, was never patched. resident_documents has no UPDATE policy at
+-- all, so it isn't exploitable the same way and needs no equivalent trigger.
+create trigger stamp_scope_on_resident_change before update of resident_id on public.resident_compliance_items
+  for each row execute function public.stamp_scope_from_resident();

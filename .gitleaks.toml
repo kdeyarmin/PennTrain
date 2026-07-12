@@ -1,0 +1,14 @@
+title = "PennTrain Gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "Ignore the non-secret Phase 2 entitlement key used in database tests"
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^phase2\.contract$''']
+paths = ['''^supabase/tests/database/phase2_billing_integration\.test\.sql$''']
