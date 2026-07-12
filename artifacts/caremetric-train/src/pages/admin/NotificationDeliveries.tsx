@@ -59,7 +59,8 @@ function formatUsdMicros(micros: number | null | undefined): string {
 }
 
 function templateVariables(subject: string, body: string): string[] {
-  const matches = `${subject}\n${body}`.matchAll(/\{\{([a-z][a-z0-9_]*)\}\}/g);
+  const matches = `${subject}
+${body}`.matchAll(/\{\{([a-z][a-z0-9_]*)\}\}/g);
   return Array.from(new Set(Array.from(matches, (match) => match[1])));
 }
 

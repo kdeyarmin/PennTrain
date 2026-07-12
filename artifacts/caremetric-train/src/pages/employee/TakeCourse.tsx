@@ -149,9 +149,10 @@ export default function TakeCourse() {
     setFurthestIndex(f => Math.max(f, stepIndex));
   }, [stepIndex]);
 
-  // Post-completion rating prompt state. A newly completed employee course goes to the
-  // atomically-issued certificate; someone rating an older completion can still return to
-  // training, and non-employee self-learners return to the role-safe course list.
+  // Post-completion rating prompt state. postCompleteDestination tracks where to navigate once
+  // the learner submits or skips the rating: newly completed employee courses go to the issued
+  // certificate, someone rating an older completion can still return to trainings, and non-
+  // employee self-learners return to the role-safe course list.
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
   const [postCompleteDestination, setPostCompleteDestination] = useState<"/me/certificates" | "/me/trainings" | "/me/courses">(
     isEmployeeRole ? "/me/certificates" : "/me/courses",
