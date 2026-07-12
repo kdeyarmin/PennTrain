@@ -33,13 +33,6 @@ function stripBase(path: string): string {
 
 /** True for any path a signed-out visitor may view without being sent to /login. */
 export function isPublicPath(path: string): boolean {
-<<<<<<< HEAD
-  const p = stripBase(path);
-  return (
-    p === "/" ||
-    p === "/login" ||
-    p === "/forgot-password" ||
-=======
   const stripped = stripBase(path);
   // Normalize a trailing slash (e.g. "/demo/") so copied/shared links and CDN
   // rewrites still match the exact-string comparisons below.
@@ -52,7 +45,6 @@ export function isPublicPath(path: string): boolean {
     p === "/forgot-password" ||
     p === "/reset-password" ||
     p === "/report-safety" ||
->>>>>>> origin/main
     p.startsWith("/verify/") ||
     MARKETING_PATHS.includes(p)
   );

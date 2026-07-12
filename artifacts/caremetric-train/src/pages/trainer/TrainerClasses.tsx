@@ -281,8 +281,6 @@ export default function TrainerClasses() {
                   />
                 </div>
               </div>
-<<<<<<< HEAD
-=======
               {!isTrainer && (
                 <div className="space-y-2">
                   <Label htmlFor="instructor">Instructor *</Label>
@@ -305,7 +303,6 @@ export default function TrainerClasses() {
                   </Select>
                 </div>
               )}
->>>>>>> origin/main
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="facility">Facility</Label>

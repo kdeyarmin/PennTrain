@@ -20,8 +20,6 @@ import {
   ListChecks,
   BarChart3,
   FolderLock,
-<<<<<<< HEAD
-=======
   SlidersHorizontal,
   LayoutGrid,
   Sparkles,
@@ -51,7 +49,6 @@ import {
   Eye,
   Fingerprint,
   KeyRound,
->>>>>>> origin/main
   type LucideIcon,
 } from "lucide-react";
 
@@ -72,26 +69,6 @@ export type IconItem = {
   description: string;
 };
 
-<<<<<<< HEAD
-export const SETTINGS: (IconItem & { code: string })[] = [
-  {
-    icon: Building2,
-    code: "12 HRS / YR",
-    title: "Personal Care Homes",
-    description:
-      "12 hours of yearly in-service per direct care worker (up to 6 may be supervised on-the-job training), plus 6 more for staff on a secured dementia unit -- 55 Pa. Code Section 2600.65, tracked automatically per employee.",
-  },
-  {
-    icon: HeartHandshake,
-    code: "16 HRS / YR",
-    title: "Assisted Living Residences",
-    description:
-      "16 hours of yearly in-service per direct care worker, plus dementia-specific training at hire and 2 hours every year after -- 55 Pa. Code Section 2800.65/.69, all tracked against the clock automatically.",
-  },
-  {
-    icon: Accessibility,
-    code: "24 / 12 HRS / YR",
-=======
 export const SETTINGS: IconItem[] = [
   {
     icon: Building2,
@@ -107,117 +84,30 @@ export const SETTINGS: IconItem[] = [
   },
   {
     icon: Accessibility,
->>>>>>> origin/main
     title: "Group Homes",
     description:
       "24 hours of yearly training for direct service workers and their supervisors, 12 hours for every other staff role -- 55 Pa. Code Section 6400.52, each role's requirement tracked separately and automatically.",
   },
   {
     icon: BedDouble,
-<<<<<<< HEAD
-    code: "12 HRS / YR",
-=======
->>>>>>> origin/main
     title: "Nursing Homes",
     description:
       "12 hours of yearly in-service per nurse aide under federal OBRA rules (42 CFR 483.95), targeted to each employee's most recent performance review -- not just a generic annual class.",
   },
   {
     icon: HomeIcon,
-<<<<<<< HEAD
-    code: "12 HRS / YR",
-=======
->>>>>>> origin/main
     title: "Home Health Agencies",
     description:
       "12 hours of yearly in-service per home health aide, RN-supervised and documented under 42 CFR 484.80 -- tracked automatically across your whole field staff.",
   },
   {
     icon: Stethoscope,
-<<<<<<< HEAD
-    code: "12 HRS / YR",
-=======
->>>>>>> origin/main
     title: "Hospice Agencies",
     description:
       "12 hours of yearly in-service per hospice aide, RN-supervised and documented under 42 CFR 418.76, across every discipline on your interdisciplinary team.",
   },
 ];
 
-<<<<<<< HEAD
-export const FEATURES: IconItem[] = [
-  {
-    icon: ShieldCheck,
-    title: "Compliance Tracking",
-    description:
-      "Yearly in-services, training records, certifications, and medication practicums in one system of record, with automatic alerts before anything lapses.",
-  },
-  {
-    icon: GraduationCap,
-    title: "Built-in Course Builder",
-    description:
-      "Author courses, quizzes with server-side grading, and issue certificates -- no separate training vendor required.",
-  },
-  {
-    icon: ClipboardCheck,
-    title: "Competency Checklists",
-    description:
-      "Configurable competency templates and training plans so every role gets the right requirements, automatically.",
-  },
-  {
-    icon: FileStack,
-    title: "One-Click Compliance Binder",
-    description:
-      "Generate a real, survey-ready compliance binder PDF for any facility in seconds -- no more print-to-PDF workarounds.",
-  },
-  {
-    icon: BellRing,
-    title: "Alerts & Retraining Reminders",
-    description:
-      "Get ahead of expiring certifications and overdue retraining before a surveyor finds them first.",
-  },
-  {
-    icon: FileCheck,
-    title: "Public Certificate Verification",
-    description:
-      "Every certificate ships with a public, tamper-evident verification link for surveyors and employers.",
-  },
-  {
-    icon: Users,
-    title: "Role-Based Access",
-    description:
-      "Six built-in roles -- from platform admin down to employee -- enforced at the database layer, not just the UI.",
-  },
-  {
-    icon: UploadCloud,
-    title: "Bulk Employee Import",
-    description:
-      "Onboard an entire facility roster in minutes with CSV import instead of one-by-one data entry.",
-  },
-  {
-    icon: CalendarCheck,
-    title: "Live Class Scheduling & Sign-In",
-    description:
-      "Trainers schedule instructor-led classes and capture digital attendee sign-in, so in-person sessions count toward compliance right alongside online courses.",
-  },
-  {
-    icon: ListChecks,
-    title: "Training Plans, Built Per Role",
-    description:
-      "Assign the right training plan to each role once, and CareMetric Train tracks every employee's progress against it automatically.",
-  },
-  {
-    icon: BarChart3,
-    title: "Compliance Reporting Center",
-    description:
-      "Roll up training compliance, certifications, and practicums by facility, training type, or employee -- scoped to what each role is allowed to see.",
-  },
-  {
-    icon: FolderLock,
-    title: "Audit-Ready Document Storage",
-    description:
-      "Training documents, sign-in sheets, and competency attachments live in private storage, accessed only through short-lived signed links tied to the employee and facility they belong to.",
-=======
 export type FeatureCategory = {
   /** Stable, URL-safe id for deep-linking (e.g. /features#resident-care). */
   id: string;
@@ -510,30 +400,11 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
           "The employee course player installs to a phone's home screen like a native app, with the app shell precached for fast loads and course data falling back gracefully when a facility's WiFi or cell signal drops mid-lesson.",
       },
     ],
->>>>>>> origin/main
   },
 ];
 
 export const STEPS = [
   {
-<<<<<<< HEAD
-    step: "01",
-    title: "Set up your organization",
-    description:
-      "Add your facilities, import your employee roster, and configure the training types your state requires.",
-  },
-  {
-    step: "02",
-    title: "Assign training & practicums",
-    description:
-      "Build training plans and course assignments once, and let CareMetric Train track completion for every employee.",
-  },
-  {
-    step: "03",
-    title: "Stay survey-ready",
-    description:
-      "Alerts flag what's expiring, reports show where you stand, and the compliance binder is always one click away.",
-=======
     title: "Set up your organization",
     description:
       "Sign up and add your facilities, import your employee roster via CSV, and configure the training types, resident assessment requirements, and shift patterns your state and facility type require.",
@@ -547,7 +418,6 @@ export const STEPS = [
     title: "Stay survey-ready",
     description:
       "Alerts flag what's expiring by email, text, and in-app; resident assessments, incidents, and inspection items stay current; and the citation-weighted compliance binder is always one click away.",
->>>>>>> origin/main
   },
 ];
 
@@ -558,11 +428,8 @@ export const OLD_WAY = [
   "Building a compliance binder means a night of printing and hole-punching",
   "No single view of where every facility actually stands",
   "Re-checking each employee's hours against their license type's rules by hand, every renewal cycle",
-<<<<<<< HEAD
-=======
   "Resident assessments, incident reports, and inspection findings living in separate binders with no link to a plan of correction",
   "Building a new course from scratch, or paying a vendor, every time a policy or regulation changes",
->>>>>>> origin/main
 ];
 
 export const NEW_WAY = [
@@ -572,11 +439,8 @@ export const NEW_WAY = [
   "A survey-ready compliance binder PDF generated in seconds",
   "Real-time compliance dashboards across every facility, org-wide",
   "Training types configured once per organization -- hours, renewal windows, and which facility types they apply to -- instead of re-explained to every new hire",
-<<<<<<< HEAD
-=======
   "Resident assessments, incidents, and DHS-cited violations tracked to a corrective action and a survey-ready plan of correction",
   "AI-drafted courses from your own source material, reviewed and approved by a real person before anyone sees them",
->>>>>>> origin/main
 ];
 
 export const SECURITY_FEATURES: IconItem[] = [
@@ -604,8 +468,6 @@ export const SECURITY_FEATURES: IconItem[] = [
     description:
       "Compliance-determining actions -- quiz grading, certificate issuance, course publishing -- are logged and can't be altered after the fact.",
   },
-<<<<<<< HEAD
-=======
   {
     icon: UserCheck,
     title: "Human Review Gate on AI Content",
@@ -630,18 +492,13 @@ export const SECURITY_FEATURES: IconItem[] = [
     description:
       "Class check-in PINs are bcrypt-hashed at rest and verified inside the database itself -- the plaintext value is never stored, and only an authorized admin, manager, or trainer can set one for an employee.",
   },
->>>>>>> origin/main
 ];
 
 export const FAQS = [
   {
     question: "What is CareMetric Train?",
     answer:
-<<<<<<< HEAD
-      "CareMetric Train is a multi-tenant compliance-training platform and learning management system built for personal care homes, assisted living residences, group homes, nursing homes, home health, and hospice agencies. It replaces spreadsheets and paper binders with one system for yearly in-services, training records, certifications, medication practicums, and survey-ready reporting.",
-=======
       "CareMetric Train is a multi-tenant compliance-training platform and learning management system built for personal care homes, assisted living facilities, group homes, nursing homes, home health, and hospice agencies. It replaces spreadsheets and paper binders with one system for yearly in-services, training records, certifications, medication practicums, resident assessments, incidents, and survey-ready reporting.",
->>>>>>> origin/main
   },
   {
     question: "How does CareMetric Train track our staff's yearly in-services?",
@@ -651,38 +508,22 @@ export const FAQS = [
   {
     question: "How many yearly in-service hours does my type of provider actually need?",
     answer:
-<<<<<<< HEAD
-      "It depends on your license type, and CareMetric Train already knows the difference: personal care homes need 12 hours per direct care worker per year (55 Pa. Code Section 2600.65), plus 6 more for staff on a secured dementia unit. Assisted living residences need 16 hours (Section 2800.65/.69), plus dementia-specific training at hire and 2 hours annually after that. Group homes need 24 hours for direct service workers and their supervisors, and 12 for every other role (Section 6400.52). Nursing homes, home health agencies, and hospice agencies each require 12 hours per aide per year under federal rules (42 CFR 483.95, 484.80, and 418.76). Set your organization's license type once, and every employee's training plan is built to the right number automatically.",
-=======
       "It depends on your license type, and CareMetric Train already knows the difference: personal care homes need 12 hours per direct care worker per year (55 Pa. Code Section 2600.65), plus 6 more for staff on a secured dementia unit. Assisted living facilities need 16 hours (Section 2800.65/.69), plus dementia-specific training at hire and 2 hours annually after that. Group homes need 24 hours for direct service workers and their supervisors, and 12 for every other role (Section 6400.52). Nursing homes, home health agencies, and hospice agencies each require 12 hours per aide per year under federal rules (42 CFR 483.95, 484.80, and 418.76). Set your organization's license type once, and every employee's training plan is built to the right number automatically.",
->>>>>>> origin/main
   },
   {
     question: "Which regulations does it help us comply with?",
     answer:
-<<<<<<< HEAD
-      "CareMetric Train grew out of Pennsylvania's 55 Pa. Code Chapter 2600 personal care home, Chapter 2800 assisted living, and Chapter 6400 group home training requirements, and every training type, competency checklist, and practicum is configurable -- so your organization can model the specific requirements your state and license type require, whether that's a personal care home, assisted living residence, group home, nursing home, home health, or hospice agency.",
-=======
       "CareMetric Train grew out of Pennsylvania's 55 Pa. Code Chapter 2600 personal care home, Chapter 2800 assisted living facility, and Chapter 6400 group home requirements -- training hours, resident assessments (RASP/ASP), fire drills and emergency preparedness, medication administration, and reportable incidents -- and every training type, competency checklist, and practicum is configurable, so your organization can model the specific requirements your state and license type require.",
->>>>>>> origin/main
   },
   {
     question: "Do our employees need to install anything?",
     answer:
-<<<<<<< HEAD
-      "No. CareMetric Train runs in the browser on any device. Employees sign in to a course center to complete assigned training, take quizzes, and download their own certificates -- no app install required.",
-=======
       "No. CareMetric Train runs in the browser on any device, and the employee course player can also be installed to a phone's home screen as a lightweight app for faster access. Employees sign in to a course center to complete assigned training, take quizzes, and download their own certificates -- no app store required.",
->>>>>>> origin/main
   },
   {
     question: "How does the compliance binder actually work?",
     answer:
-<<<<<<< HEAD
-      "One click generates a real PDF -- not a print-to-PDF workaround -- pulling each facility's current training compliance, practicums, certificates, and alerts into a survey-ready binder, delivered through a short-lived secure link.",
-=======
       "One click generates a real PDF -- not a print-to-PDF workaround -- pulling each facility's current training compliance, practicums, certificates, resident assessments, incidents, inspection items, and a citation-weighted readiness score into a survey-ready binder, delivered through a short-lived secure link.",
->>>>>>> origin/main
   },
   {
     question: "Can our auditor or surveyor get read-only access?",
@@ -697,11 +538,7 @@ export const FAQS = [
   {
     question: "Do you support in-person, instructor-led training, or only online courses?",
     answer:
-<<<<<<< HEAD
-      "Both. Trainers can schedule live classes and capture digital attendee sign-in, so instructor-led sessions count toward each employee's in-service hours right alongside their online course progress -- no separate paper sign-in sheet to reconcile later.",
-=======
       "Both. Trainers can schedule live classes and capture attendance with a rotating QR code, a shared-device kiosk mode, or a printed sign-in sheet -- so instructor-led sessions count toward each employee's in-service hours right alongside their online course progress.",
->>>>>>> origin/main
   },
   {
     question: "Can one organization manage more than one facility?",
@@ -713,8 +550,6 @@ export const FAQS = [
     answer:
       "Yes. The report center rolls up training compliance, certifications, and practicums by facility, training type, or employee, and it respects the same role-based scoping as the rest of the app -- an org admin sees every facility, a facility manager sees their own.",
   },
-<<<<<<< HEAD
-=======
   {
     question: "Does CareMetric Train track resident-level compliance, not just staff training?",
     answer:
@@ -755,5 +590,4 @@ export const FAQS = [
     answer:
       "Yes. A facility can create its own organization at sign-up with just a name, admin contact, and password -- no sales call required -- and start entering employees and training records immediately under a trial period.",
   },
->>>>>>> origin/main
 ];

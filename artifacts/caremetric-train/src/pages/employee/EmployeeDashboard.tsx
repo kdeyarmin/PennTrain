@@ -451,11 +451,7 @@ export default function EmployeeDashboard() {
                 <p className="text-muted-foreground text-sm text-center py-6">No training records found.</p>
               ) : (
                 <div className="space-y-2">
-<<<<<<< HEAD
-                  {allRecords.map(r => (
-=======
                   {recentRecords.map(r => (
->>>>>>> origin/main
                     <div key={r.id} className="flex items-center justify-between gap-2 py-2 border-b last:border-0 text-sm">
                       <span className="font-medium min-w-0 truncate">{trainingTypeName(r)}</span>
                       <div className="flex items-center gap-2 shrink-0">

@@ -1,15 +1,8 @@
-<<<<<<< HEAD
-=======
 import { CheckCircle2, LockKeyhole, ShieldCheck } from "lucide-react";
->>>>>>> origin/main
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { PageHero, Reveal, TechGrid, TechIcon } from "@/components/marketing/primitives";
 import { SECURITY_FEATURES } from "@/components/marketing/content";
-<<<<<<< HEAD
-
-export default function Security() {
-=======
 import { usePageMeta } from "@/lib/usePageMeta";
 
 const SECURITY_PROMISES = [
@@ -26,30 +19,10 @@ export default function Security() {
       "Row-level security, six enforced access roles, private signed-URL storage, and an immutable audit trail -- see how CareMetric Train protects sensitive compliance data.",
     path: "/security",
   });
->>>>>>> origin/main
   return (
     <MarketingLayout>
       <PageHero
         title="Enterprise-grade security, built in"
-<<<<<<< HEAD
-        subtitle="Your training and compliance data is sensitive. It's protected at the database layer, not bolted on as an afterthought."
-      />
-
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#0a1a2e] via-[#102a43] to-[#16324f] text-white">
-        <TechGrid />
-        <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-          <div className="grid gap-6 sm:grid-cols-2">
-            {SECURITY_FEATURES.map((feature, i) => (
-              <Reveal key={feature.title} delay={(i % 2) * 0.08}>
-                <div className="relative flex h-full gap-4 rounded-xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-sm transition-colors hover:border-[#59b2ff]/40">
-                  <span className="absolute right-4 top-4 font-mono text-[10px] tabular-nums text-white/30">
-                    CTRL-{String(i + 1).padStart(2, "0")}
-                  </span>
-                  <TechIcon icon={feature.icon} />
-                  <div>
-                    <h3 className="font-semibold text-white">{feature.title}</h3>
-                    <p className="mt-1.5 text-sm text-white/60">
-=======
         subtitle="Your training and compliance data is sensitive. CareMetric Train protects it with role-aware workflows, private evidence storage, and database-enforced access boundaries."
       />
 
@@ -79,7 +52,6 @@ export default function Security() {
                   <div>
                     <h3 className="font-semibold text-white">{feature.title}</h3>
                     <p className="mt-1.5 text-sm leading-6 text-white/62">
->>>>>>> origin/main
                       {feature.description}
                     </p>
                   </div>
@@ -90,8 +62,6 @@ export default function Security() {
         </div>
       </section>
 
-<<<<<<< HEAD
-=======
       <section className="border-b border-border/60 bg-muted/30">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8">
           <Reveal>
@@ -117,7 +87,6 @@ export default function Security() {
         </div>
       </section>
 
->>>>>>> origin/main
       <CtaBanner />
     </MarketingLayout>
   );

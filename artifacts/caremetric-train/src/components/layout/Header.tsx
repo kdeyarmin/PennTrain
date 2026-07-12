@@ -12,12 +12,8 @@ import {
 } from "@/hooks/useNotifications";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-<<<<<<< HEAD
-import { LogOut, Bell, Building2, CheckCheck, Menu } from "lucide-react";
-=======
 import { Input } from "@/components/ui/input";
 import { LogOut, Bell, Building2, CheckCheck, Menu, HelpCircle, ChevronDown } from "lucide-react";
->>>>>>> origin/main
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -82,18 +78,6 @@ function ViewingOrgSelector() {
         aria-expanded={open}
         className="flex items-center gap-1.5 h-8 max-w-[140px] sm:max-w-[200px] px-2 rounded-md bg-muted/50 hover:bg-muted text-xs text-foreground"
       >
-<<<<<<< HEAD
-        <SelectTrigger className="h-8 w-[140px] sm:w-[200px] text-xs border-none bg-muted/50 focus:ring-0" aria-label="Viewing as organization">
-          <SelectValue placeholder="All Organizations" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Organizations</SelectItem>
-          {organizations?.map((org) => (
-            <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-=======
         <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
         <span className="truncate">{selectedOrgName ?? "All Organizations"}</span>
         <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
@@ -145,7 +129,6 @@ function ViewingOrgSelector() {
           </div>
         </div>
       )}
->>>>>>> origin/main
     </div>
   );
 }
@@ -301,13 +284,10 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-<<<<<<< HEAD
-=======
         {/* Every role but employee has at least one searchable entity type it can reach (see
             tablesForRole in useGlobalSearch.ts); /me/* is a small personal area with nothing
             org-wide to search, so the box would only ever say "no matches" there. */}
         {!!user && user.role !== "employee" && <GlobalSearch />}
->>>>>>> origin/main
         {user?.role === "platform_admin" && <ViewingOrgSelector />}
         {/* platform_admin has no HelpCenter route -- it's gated to ORG_ROLES + employee in
             App.tsx, and platform_admin's equivalent is the separate /admin/help-content authoring

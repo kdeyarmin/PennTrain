@@ -1,12 +1,7 @@
-<<<<<<< HEAD
-import { useState } from "react";
-import { useAuth } from "@/lib/auth";
-=======
 import { useEffect, useState } from "react";
 import { useAuth, useSignOut } from "@/lib/auth";
 import { useMyOrganizationAccessible } from "@/hooks/useOrganizations";
 import { useImpersonationStatus, useStopImpersonation } from "@/hooks/useImpersonation";
->>>>>>> origin/main
 import { Sidebar, MobileSidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { Loader2, Eye, X, ShieldAlert } from "lucide-react";
@@ -50,13 +45,9 @@ function ImpersonationBanner() {
     <div className="bg-amber-500 text-amber-950 px-4 sm:px-6 py-2.5 flex items-center justify-between gap-2 text-sm font-medium">
       <div className="flex items-center gap-2 min-w-0">
         <Eye className="h-4 w-4 shrink-0" />
-<<<<<<< HEAD
-        <span className="truncate">Viewing as: <strong>{status.organizationName}</strong></span>
-=======
         <span className="truncate">
           Impersonating <strong>{target.firstName} {target.lastName}</strong> ({target.email})
         </span>
->>>>>>> origin/main
       </div>
       <Button
         variant="ghost"
@@ -92,10 +83,6 @@ function SuspendedScreen() {
 }
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
-<<<<<<< HEAD
-  const { isLoading, isAuthenticated } = useAuth();
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
-=======
   const { user, isLoading, isAuthenticated } = useAuth();
   const { isImpersonating } = useImpersonationStatus();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -105,7 +92,6 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   // member from reading their own organizations row -- that absence is the suspension signal.
   const checkSuspension = isAuthenticated && !!user && user.role !== "platform_admin" && !!user.organizationId;
   const { data: orgAccessible, isLoading: suspensionLoading } = useMyOrganizationAccessible(user?.organizationId, checkSuspension);
->>>>>>> origin/main
 
   if (isLoading) {
     return (

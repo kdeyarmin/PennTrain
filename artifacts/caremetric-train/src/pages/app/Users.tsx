@@ -576,8 +576,6 @@ export default function Users() {
             <DialogTitle>{inviteMode ? "Invite User" : "Add User"}</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
-<<<<<<< HEAD
-=======
             <div className="col-span-full flex items-start gap-2 rounded-md border p-3">
               <Switch checked={inviteMode} onCheckedChange={setInviteMode} id="invite-mode" />
               <label htmlFor="invite-mode" className="text-[13px] cursor-pointer">
@@ -588,7 +586,6 @@ export default function Users() {
                 </p>
               </label>
             </div>
->>>>>>> origin/main
             <div className="space-y-1.5">
               <Label className="text-[13px]">First Name *</Label>
               <Input value={createForm.firstName} onChange={e => createField("firstName", e.target.value)} placeholder="Jane" className="h-9" />
@@ -601,15 +598,6 @@ export default function Users() {
               <Label className="text-[13px]">Email *</Label>
               <Input type="email" value={createForm.email} onChange={e => createField("email", e.target.value)} placeholder="jane@example.com" className="h-9" />
             </div>
-<<<<<<< HEAD
-            <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Temporary Password *</Label>
-              <div className="flex gap-2">
-                <Input value={createForm.password} onChange={e => createField("password", e.target.value)} className="h-9 font-mono" />
-                <Button type="button" variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => createField("password", randomPassword())} aria-label="Generate a new temporary password">
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-=======
             {!inviteMode && (
               <div className="col-span-full space-y-1.5">
                 <Label className="text-[13px]">Temporary Password *</Label>
@@ -622,7 +610,6 @@ export default function Users() {
                 <p className="text-[11px] text-muted-foreground">
                   Share this with the user securely. They sign in with it and should change it right after.
                 </p>
->>>>>>> origin/main
               </div>
             )}
             <div className="space-y-1.5">
@@ -678,8 +665,6 @@ export default function Users() {
               <Label className="text-[13px]">Phone</Label>
               <Input value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} placeholder="(215) 555-0100" className="h-9" />
             </div>
-<<<<<<< HEAD
-=======
             <div className="col-span-full flex items-start gap-2 rounded-md border p-3">
               <input
                 type="checkbox" id="sms-opt-in" checked={editForm.smsOptIn}
@@ -720,7 +705,6 @@ export default function Users() {
                 A permanent provider failure can use the configured alternate-channel fallback.
               </p>
             </div>
->>>>>>> origin/main
             <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Email</Label>
               <Input value={editProfile?.email ?? ""} disabled className="h-9" />

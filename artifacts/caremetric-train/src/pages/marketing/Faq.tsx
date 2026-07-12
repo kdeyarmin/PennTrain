@@ -1,21 +1,10 @@
-<<<<<<< HEAD
-=======
 import { HelpCircle, Mail, MessageSquareText } from "lucide-react";
->>>>>>> origin/main
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-<<<<<<< HEAD
-import { MarketingLayout } from "@/components/marketing/MarketingLayout";
-import { CtaBanner } from "@/components/marketing/CtaBanner";
-import { PageHero } from "@/components/marketing/primitives";
-import { FAQS } from "@/components/marketing/content";
-
-export default function Faq() {
-=======
 import { Button } from "@/components/ui/button";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
@@ -49,7 +38,6 @@ export default function Faq() {
     path: "/faq",
   });
   useJsonLd("faq-jsonld", FAQ_JSON_LD);
->>>>>>> origin/main
   return (
     <MarketingLayout>
       <PageHero
@@ -57,21 +45,6 @@ export default function Faq() {
         subtitle="What CareMetric Train does, who it's for, and how it keeps your facility survey-ready."
       />
 
-<<<<<<< HEAD
-      <section className="mx-auto max-w-3xl px-4 py-20 sm:px-6 lg:px-8">
-        <Accordion type="single" collapsible>
-          {FAQS.map((faq, i) => (
-            <AccordionItem key={faq.question} value={`item-${i}`}>
-              <AccordionTrigger className="gap-4 text-left text-base font-semibold">
-                <span className="flex items-baseline gap-3">
-                  <span className="font-mono text-xs tabular-nums text-muted-foreground/50">
-                    Q{String(i + 1).padStart(2, "0")}
-                  </span>
-                  {faq.question}
-                </span>
-              </AccordionTrigger>
-              <AccordionContent className="text-sm text-muted-foreground">
-=======
       <section className="border-b border-border/60 bg-muted/30">
         <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
           <Reveal className="mx-auto max-w-3xl text-center">
@@ -114,14 +87,11 @@ export default function Faq() {
                 {faq.question}
               </AccordionTrigger>
               <AccordionContent className="text-sm leading-6 text-muted-foreground">
->>>>>>> origin/main
                 {faq.answer}
               </AccordionContent>
             </AccordionItem>
           ))}
         </Accordion>
-<<<<<<< HEAD
-=======
 
         <Reveal className="mt-10 rounded-2xl border border-primary/20 bg-primary/[0.03] p-6 text-center">
           <h3 className="text-lg font-semibold">Have a requirement we did not cover?</h3>
@@ -136,7 +106,6 @@ export default function Faq() {
             </a>
           </Button>
         </Reveal>
->>>>>>> origin/main
       </section>
 
       <CtaBanner />

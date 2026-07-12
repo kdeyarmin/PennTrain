@@ -1,16 +1,6 @@
 import { Link } from "wouter";
 import {
   ArrowRight,
-<<<<<<< HEAD
-  CheckCircle2,
-  XCircle,
-  FileStack,
-  GraduationCap,
-  Building2,
-  Lock,
-  ListChecks,
-  HelpCircle,
-=======
   BedDouble,
   BellRing,
   BookOpenCheck,
@@ -32,7 +22,6 @@ import {
   Sparkles,
   UploadCloud,
   XCircle,
->>>>>>> origin/main
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -47,64 +36,33 @@ import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { LogoMark } from "@/components/brand/Logo";
 import { OLD_WAY, NEW_WAY } from "@/components/marketing/content";
-<<<<<<< HEAD
-
-/** Landing-page teasers -- each links out to its dedicated marketing page. */
-=======
 import { usePageMeta } from "@/lib/usePageMeta";
 
->>>>>>> origin/main
 const HIGHLIGHTS: { href: string; icon: LucideIcon; title: string; blurb: string }[] = [
   {
     href: "/features",
     icon: GraduationCap,
-<<<<<<< HEAD
-    title: "Features",
-    blurb:
-      "Compliance tracking, a built-in course builder, one-click compliance binders, and more -- the full toolkit.",
-=======
     title: "Train staff online, in person, or from outside records",
     blurb:
       "Courses, quizzes, certificates, live classes, AI-drafted content, and annual requirements all reconcile to one employee training record.",
->>>>>>> origin/main
   },
   {
     href: "/who-its-for",
     icon: Building2,
-<<<<<<< HEAD
-    title: "Who It's For",
-    blurb:
-      "Personal care, assisted living, group homes, nursing homes, home health, and hospice -- each configured to its own rules.",
-=======
     title: "Configured for care providers",
     blurb:
       "Personal care, assisted living, group homes, nursing homes, home health, and hospice each get rules matched to their setting.",
->>>>>>> origin/main
   },
   {
     href: "/security",
     icon: Lock,
-<<<<<<< HEAD
-    title: "Security",
-    blurb:
-      "Row-level security, six enforced access levels, private signed-URL storage, and an immutable audit trail.",
-=======
     title: "Protected by role and facility",
     blurb:
       "Admins, managers, trainers, employees, and auditors see the exact records they should -- enforced by database policies.",
->>>>>>> origin/main
   },
   {
     href: "/how-it-works",
     icon: ListChecks,
-<<<<<<< HEAD
-    title: "How It Works",
-    blurb:
-      "Set up your organization, assign training and practicums, and stay survey-ready -- in three steps.",
-  },
-];
-
-=======
     title: "From roster to survey binder",
     blurb:
       "Import staff, assign role-based plans, track resident assessments and incidents, and generate a survey-ready binder without assembling PDFs by hand.",
@@ -181,7 +139,6 @@ const PLATFORM_STATS = [
   { value: "6", label: "roles enforced by database policy" },
 ];
 
->>>>>>> origin/main
 export default function Landing() {
   usePageMeta({
     title: "CareMetric Train — Compliance Training Platform",
@@ -191,18 +148,10 @@ export default function Landing() {
   });
   return (
     <MarketingLayout>
-<<<<<<< HEAD
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#0a1a2e] via-[#102a43] to-[#16324f] text-white">
-        <TechGrid />
-        <div className="absolute top-0 right-0 h-[560px] w-[560px] -translate-y-1/3 translate-x-1/4 rounded-full bg-[#59b2ff]/[0.10] blur-3xl" />
-        <div className="absolute bottom-0 left-0 h-[360px] w-[360px] translate-y-1/3 -translate-x-1/4 rounded-full bg-[#59b2ff]/[0.06] blur-3xl" />
-=======
       <section className="relative overflow-hidden bg-gradient-to-br from-[#071626] via-[#0d2742] to-[#143a5c] text-white">
         <TechGrid />
         <div className="absolute left-1/2 top-0 h-[680px] w-[680px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#59b2ff]/15 blur-3xl" />
         <div className="absolute bottom-0 right-0 h-[420px] w-[420px] translate-x-1/4 translate-y-1/3 rounded-full bg-orange-400/10 blur-3xl" />
->>>>>>> origin/main
 
         <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24">
           <div className="grid items-center gap-12 lg:grid-cols-[1.02fr_0.98fr]">
@@ -397,17 +346,6 @@ export default function Landing() {
         </div>
       </section>
 
-<<<<<<< HEAD
-      {/* Highlights -- teasers linking to the dedicated pages */}
-      <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-        <Reveal className="mx-auto max-w-2xl text-center">
-          <h2 className="text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
-            Everything you need to stay survey-ready
-          </h2>
-          <p className="mt-4 text-muted-foreground">
-            A quick tour of what CareMetric Train does. Dive into any area for the
-            full picture.
-=======
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <Reveal className="mx-auto max-w-3xl text-center">
           <h2 className="text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
@@ -417,7 +355,6 @@ export default function Landing() {
             CareMetric Train combines learning management, compliance tracking, secure
             document storage, and role-based reporting so every stakeholder works from
             the same source of truth.
->>>>>>> origin/main
           </p>
         </Reveal>
 
@@ -425,26 +362,6 @@ export default function Landing() {
           {HIGHLIGHTS.map((item, i) => (
             <Reveal key={item.href} delay={(i % 2) * 0.08}>
               <Link href={item.href} className="group block h-full" data-testid={`link-highlight-${item.href.slice(1)}`}>
-<<<<<<< HEAD
-                <Card className="flex h-full flex-col border-border/60 transition-colors group-hover:border-primary/40">
-                  <CardHeader>
-                    <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
-                      <item.icon className="h-5 w-5 text-primary" />
-                    </div>
-                    <CardTitle className="flex items-center justify-between text-lg">
-                      {item.title}
-                      <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-                    </CardTitle>
-                    <p className="mt-1.5 text-sm text-muted-foreground">{item.blurb}</p>
-                  </CardHeader>
-                </Card>
-              </Link>
-            </Reveal>
-          ))}
-        </div>
-
-        <Reveal className="mt-8 text-center">
-=======
                 <Card className="flex h-full flex-col overflow-hidden border-border/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
                   <CardHeader>
                     <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 ring-8 ring-primary/[0.03]">
@@ -529,7 +446,6 @@ export default function Landing() {
 
       <section className="mx-auto max-w-7xl px-4 py-16 text-center sm:px-6 lg:px-8">
         <Reveal>
->>>>>>> origin/main
           <Link
             href="/faq"
             className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"

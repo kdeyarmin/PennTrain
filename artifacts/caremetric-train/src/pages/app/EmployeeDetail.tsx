@@ -740,41 +740,6 @@ export default function EmployeeDetail() {
       <Dialog open={showEditEmp} onOpenChange={o => { if (!o) setShowEditEmp(false); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit Employee</DialogTitle></DialogHeader>
-<<<<<<< HEAD
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
-            <div className="space-y-1">
-              <Label>First Name *</Label>
-              <Input value={empForm.firstName} onChange={e => field("firstName", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Last Name *</Label>
-              <Input value={empForm.lastName} onChange={e => field("lastName", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Email</Label>
-              <Input type="email" value={empForm.email} onChange={e => field("email", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Phone</Label>
-              <Input value={empForm.phone} onChange={e => field("phone", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Job Title</Label>
-              <Input value={empForm.jobTitle} onChange={e => field("jobTitle", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Department</Label>
-              <Input value={empForm.department} onChange={e => field("department", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Employee Number</Label>
-              <Input value={empForm.employeeNumber} onChange={e => field("employeeNumber", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Facility</Label>
-              <Select value={empForm.facilityId} onValueChange={v => field("facilityId", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-=======
           <EmployeeFormFields form={empForm} onChange={field} facilities={facilities} facilityFieldMode="edit-fixed" />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditEmp(false)}>Cancel</Button>
@@ -796,7 +761,6 @@ export default function EmployeeDetail() {
                 onValueChange={v => setTrainingForm(f => ({ ...f, trainingTypeId: v }))}
               >
                 <SelectTrigger className="h-9"><SelectValue placeholder="Select training type" /></SelectTrigger>
->>>>>>> origin/main
                 <SelectContent>
                   {trainingTypes?.map(t => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
@@ -852,26 +816,6 @@ export default function EmployeeDetail() {
                 Designated trainers only -- choose "Other" for an outside vendor or instructor.
               </p>
             </div>
-<<<<<<< HEAD
-            <div className="space-y-1">
-              <Label>Hire Date</Label>
-              <Input type="date" value={empForm.hireDate} onChange={e => field("hireDate", e.target.value)} />
-            </div>
-            <div className="col-span-full flex gap-6">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={empForm.administersMedications} onChange={e => field("administersMedications", e.target.checked)} className="h-4 w-4" />
-                <span className="text-sm">Administers Medications</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={empForm.trainerStatus} onChange={e => field("trainerStatus", e.target.checked)} className="h-4 w-4" />
-                <span className="text-sm">Designated Trainer</span>
-              </label>
-            </div>
-            <div className="col-span-full space-y-1">
-              <Label>Notes</Label>
-              <Textarea value={empForm.notes} onChange={e => field("notes", e.target.value)} placeholder="Optional notes" />
-            </div>
-=======
             {!!documents?.length && (
               <div className="col-span-2 space-y-1.5">
                 <Label className="text-[13px]">Evidence Document</Label>
@@ -892,7 +836,6 @@ export default function EmployeeDetail() {
                 </p>
               </div>
             )}
->>>>>>> origin/main
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowRecordTraining(false)}>Cancel</Button>

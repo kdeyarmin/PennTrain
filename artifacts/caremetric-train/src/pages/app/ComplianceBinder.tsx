@@ -96,8 +96,6 @@ export default function ComplianceBinder() {
             when, and from where), employee credentials &amp; clearances, a reportable incidents log, inspection
             items/equipment with open corrective actions, and resident RASP compliance.
           </p>
-<<<<<<< HEAD
-=======
           <p className="text-xs text-muted-foreground">
             Because it includes resident-identifying information, confirm who it's being shared with before
             handing a copy to a surveyor.
@@ -122,7 +120,6 @@ export default function ComplianceBinder() {
               </p>
             </div>
           )}
->>>>>>> origin/main
           <div className="flex flex-wrap items-center gap-3">
             <Button onClick={handleGenerate} disabled={isPending}>
               {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileArchive className="mr-2 h-4 w-4" />}

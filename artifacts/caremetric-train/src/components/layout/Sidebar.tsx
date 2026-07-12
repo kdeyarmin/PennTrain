@@ -2,12 +2,9 @@ import React, { useEffect, useState } from "react";
 import { useAuth, useSignOut } from "@/lib/auth";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-<<<<<<< HEAD
-=======
 import { canViewPage } from "@/lib/appDomains";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { PCH_ALR_ONLY_FACILITY_TYPES, hasAnyFacilityType } from "@/lib/facilityTypes";
->>>>>>> origin/main
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { AuthUser } from "@/lib/auth";
 import { LogoMark, BrandName } from "@/components/brand/Logo";
@@ -69,11 +66,7 @@ import {
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 type NavSection = { title?: string; items: NavItem[] };
 
-<<<<<<< HEAD
-function getNavSections(role: AuthUser["role"]): NavSection[] {
-=======
 function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): NavSection[] {
->>>>>>> origin/main
   if (role === "platform_admin") {
     return [
       {
@@ -137,52 +130,6 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
     ];
   } else if (role === "org_admin" || role === "facility_manager") {
     return [
-<<<<<<< HEAD
-      {
-        items: [
-          { href: "/app", label: "Dashboard", icon: LayoutDashboard },
-        ]
-      },
-      {
-        title: "Operations",
-        items: [
-          { href: "/app/facilities", label: "Facilities", icon: Building2 },
-          { href: "/app/employees", label: "Employees", icon: Users },
-          { href: "/app/training-matrix", label: "Training Matrix", icon: Grid },
-          { href: "/app/courses", label: "Courses", icon: GraduationCap },
-          { href: "/app/course-assignments", label: "Course Assignments", icon: FileCheck },
-          { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
-          { href: "/app/competency-templates", label: "Competency Templates", icon: ClipboardList },
-          { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
-          { href: "/app/practicums", label: "Practicums", icon: FileCheck },
-          { href: "/app/credentials", label: "Credentials & Clearances", icon: ShieldCheck },
-          { href: "/app/inspections", label: "Inspections & Equipment", icon: Flame },
-        ]
-      },
-      {
-        title: "Compliance",
-        items: [
-          { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
-          { href: "/app/alerts", label: "Alerts", icon: Bell },
-          { href: "/app/pending-approvals", label: "Pending Approvals", icon: ClipboardCheck },
-          { href: "/app/reports", label: "Reports", icon: BarChart3 },
-          { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
-          { href: "/app/documents", label: "Documents", icon: Files },
-        ]
-      },
-      {
-        title: "Settings",
-        items: [
-          { href: "/app/users", label: "Users", icon: Users },
-          { href: "/app/settings", label: "Settings", icon: Settings },
-          { href: "/app/audit", label: "Audit Log", icon: ShieldAlert },
-        ]
-      }
-    ];
-  } else if (role === "auditor") {
-    return [
-=======
->>>>>>> origin/main
       {
         items: [
           { href: "/app", label: "Dashboard", icon: LayoutDashboard },
@@ -437,10 +384,6 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
   return [];
 }
 
-<<<<<<< HEAD
-/**
- * The sidebar's inner content (logo, nav sections, user footer). Shared by the
-=======
 function isNavItemActive(item: NavItem, location: string): boolean {
   return location === item.href || (item.href !== "/admin" && item.href !== "/app" && item.href !== "/trainer" && item.href !== "/me" && location.startsWith(`${item.href}/`));
 }
@@ -491,19 +434,12 @@ function savePinnedPages(userId: string, hrefs: Set<string>): void {
 
 /**
  * The sidebar's inner content (logo, filter, nav sections, user footer). Shared by the
->>>>>>> origin/main
  * desktop `<aside>` and the mobile drawer. `onNavigate` lets the mobile drawer
  * close itself when a link is tapped.
  */
 function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const { user } = useAuth();
   const [location] = useLocation();
-<<<<<<< HEAD
-
-  if (!user) return null;
-
-  const navSections = getNavSections(user.role);
-=======
   const handleLogout = useSignOut();
   const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
   const [filter, setFilter] = useState("");
@@ -577,7 +513,6 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
       }))
       .filter((section) => section.items.length > 0),
   ];
->>>>>>> origin/main
 
   return (
     <>
@@ -617,45 +552,6 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <div className="flex-1 overflow-y-auto py-3 px-3">
-<<<<<<< HEAD
-        {navSections.map((section, si) => (
-          <div key={si} className={cn(si > 0 && "mt-6")}>
-            {section.title && (
-              <div className="px-3 mb-2">
-                <span className="text-[11px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">
-                  {section.title}
-                </span>
-              </div>
-            )}
-            <div className="space-y-0.5">
-              {section.items.map((item) => {
-                const isActive = location === item.href || (item.href !== "/admin" && item.href !== "/app" && item.href !== "/trainer" && item.href !== "/me" && location.startsWith(`${item.href}/`));
-                const isExactActive = location === item.href;
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={onNavigate}
-                    className={cn(
-                      "group flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 text-[13px] font-medium relative",
-                      (isActive || isExactActive)
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
-                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
-                    )}
-                  >
-                    <Icon className={cn(
-                      "h-[18px] w-[18px] shrink-0 transition-colors",
-                      (isActive || isExactActive) ? "text-sidebar-primary" : "text-sidebar-foreground/40 group-hover:text-sidebar-foreground/60"
-                    )} />
-                    <span className="flex-1">{item.label}</span>
-                    {(isActive || isExactActive) && (
-                      <ChevronRight className="h-3.5 w-3.5 text-sidebar-foreground/30" />
-                    )}
-                  </Link>
-                );
-              })}
-=======
         {visibleSections.length === 0 && (
           <p className="px-3 py-6 text-[13px] text-sidebar-foreground/40 text-center">No pages match "{filter.trim()}"</p>
         )}
@@ -712,7 +608,6 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                   })}
                 </div>
               )}
->>>>>>> origin/main
             </div>
           );
         })}

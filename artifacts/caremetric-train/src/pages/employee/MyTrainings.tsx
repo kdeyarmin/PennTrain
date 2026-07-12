@@ -74,61 +74,6 @@ export default function MyTrainings() {
           ) : sorted.length === 0 ? (
             <p className="text-muted-foreground text-sm text-center py-8">No training records found.</p>
           ) : (
-<<<<<<< HEAD
-            <>
-              <div className="rounded-md border overflow-x-auto">
-                <table className="w-full text-sm min-w-[520px]">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="text-left p-3 cursor-pointer hover:bg-muted" onClick={() => toggleSort("trainingTypeName")}>
-                        Training Type{sortIndicator("trainingTypeName")}
-                      </th>
-                      <th className="text-left p-3 cursor-pointer hover:bg-muted" onClick={() => toggleSort("status")}>
-                        Status{sortIndicator("status")}
-                      </th>
-                      <th className="text-left p-3 cursor-pointer hover:bg-muted" onClick={() => toggleSort("dueDate")}>
-                        Due Date{sortIndicator("dueDate")}
-                      </th>
-                      <th className="text-left p-3">Completed</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginated.map(r => (
-                      <tr key={r.id} className="border-t hover:bg-muted/30">
-                        <td className="p-3 font-medium">{trainingTypeName(r)}</td>
-                        <td className="p-3">
-                          <Badge variant={
-                            r.status === "compliant" ? "default" :
-                            r.status === "expired" ? "destructive" :
-                            "secondary"
-                          }>
-                            {r.status === "due_soon" ? "Due Soon" : r.status}
-                          </Badge>
-                        </td>
-                        <td className="p-3 text-muted-foreground">
-                          {r.due_date ? new Date(r.due_date).toLocaleDateString() : "—"}
-                        </td>
-                        <td className="p-3 text-muted-foreground">
-                          {r.completion_date ? new Date(r.completion_date).toLocaleDateString() : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-sm text-muted-foreground">
-                  Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)} of {sorted.length}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-sm">Page {page} of {totalPages}</span>
-                  <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-=======
             <div className="space-y-2">
               {sorted.map(r => (
                 <div key={r.id} className="flex items-center justify-between gap-4 p-3 rounded-lg border">
@@ -141,7 +86,6 @@ export default function MyTrainings() {
                     </div>
                   </div>
                   <StatusBadge status={r.status} className="shrink-0" />
->>>>>>> origin/main
                 </div>
               ))}
             </div>

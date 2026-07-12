@@ -551,8 +551,6 @@ export default function EmployeeCredentials() {
               <Label className="text-[13px]">Warning Days</Label>
               <Input type="number" min={1} value={form.warningDays} onChange={(e) => field("warningDays", e.target.value)} className="h-9" />
             </div>
-<<<<<<< HEAD
-=======
             <div className="space-y-1.5">
               <Label className="text-[13px]">Verification Method</Label>
               <Select value={form.verificationMethod || "none"} onValueChange={(v) => field("verificationMethod", v === "none" ? "" : v)}>
@@ -567,7 +565,6 @@ export default function EmployeeCredentials() {
               <Label className="text-[13px]">Last Verified Date</Label>
               <Input type="date" value={form.lastVerifiedDate} onChange={(e) => field("lastVerifiedDate", e.target.value)} className="h-9" />
             </div>
->>>>>>> origin/main
             <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Status</Label>
               <Select value={form.status} onValueChange={(v) => field("status", v as CredentialFormData["status"])}>

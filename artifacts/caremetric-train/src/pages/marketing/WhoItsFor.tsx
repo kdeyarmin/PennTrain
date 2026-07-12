@@ -1,8 +1,5 @@
-<<<<<<< HEAD
-=======
 import { ArrowRight, CheckCircle2, FilePenLine } from "lucide-react";
 import { Link } from "wouter";
->>>>>>> origin/main
 import {
   Card,
   CardDescription,
@@ -13,10 +10,6 @@ import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { PageHero, Reveal } from "@/components/marketing/primitives";
 import { SETTINGS } from "@/components/marketing/content";
-<<<<<<< HEAD
-
-export default function WhoItsFor() {
-=======
 import { usePageMeta } from "@/lib/usePageMeta";
 
 const RESIDENT_CARE_POINTS = [
@@ -38,16 +31,10 @@ export default function WhoItsFor() {
       "CareMetric Train adapts to personal care homes, assisted living facilities, group homes, nursing homes, home health, and hospice agencies -- each with rules matched to their setting.",
     path: "/who-its-for",
   });
->>>>>>> origin/main
   return (
     <MarketingLayout>
       <PageHero
         title="Built for every care setting"
-<<<<<<< HEAD
-        subtitle="One multi-tenant platform, configured for the training and documentation rules your organization actually has to follow."
-      />
-
-=======
         subtitle="One multi-tenant platform, configured for the training, competency, and documentation rules your organization actually has to follow."
       />
 
@@ -72,23 +59,10 @@ export default function WhoItsFor() {
         </div>
       </section>
 
->>>>>>> origin/main
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {SETTINGS.map((setting, i) => (
             <Reveal key={setting.title} delay={(i % 3) * 0.06}>
-<<<<<<< HEAD
-              <Card className="relative h-full border-border/60">
-                <span className="absolute right-4 top-4 font-mono text-[10px] tracking-wide text-muted-foreground/40">
-                  {setting.code}
-                </span>
-                <CardHeader>
-                  <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
-                    <setting.icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <CardTitle className="text-base">{setting.title}</CardTitle>
-                  <CardDescription>{setting.description}</CardDescription>
-=======
               <Card className="group h-full overflow-hidden border-border/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
                 <CardHeader>
                   <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 ring-8 ring-primary/[0.03]">
@@ -96,7 +70,6 @@ export default function WhoItsFor() {
                   </div>
                   <CardTitle className="text-base">{setting.title}</CardTitle>
                   <CardDescription className="leading-6">{setting.description}</CardDescription>
->>>>>>> origin/main
                 </CardHeader>
               </Card>
             </Reveal>
@@ -104,8 +77,6 @@ export default function WhoItsFor() {
         </div>
       </section>
 
-<<<<<<< HEAD
-=======
       <section className="border-b border-border/60 bg-background">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8">
           <Reveal>
@@ -157,7 +128,6 @@ export default function WhoItsFor() {
         </div>
       </section>
 
->>>>>>> origin/main
       <CtaBanner />
     </MarketingLayout>
   );

@@ -14,12 +14,6 @@ import WhoItsFor from "@/pages/marketing/WhoItsFor";
 import Security from "@/pages/marketing/Security";
 import HowItWorks from "@/pages/marketing/HowItWorks";
 import Faq from "@/pages/marketing/Faq";
-<<<<<<< HEAD
-
-import Login from "@/pages/auth/Login";
-import ForgotPassword from "@/pages/auth/ForgotPassword";
-=======
->>>>>>> origin/main
 
 const Login = lazy(() => import("@/pages/auth/Login"));
 const Demo = lazy(() => import("@/pages/auth/Demo"));

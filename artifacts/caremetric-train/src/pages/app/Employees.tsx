@@ -449,93 +449,12 @@ export default function Employees() {
           <DialogHeader>
             <DialogTitle>{editEmp ? "Edit Employee" : "Add Employee"}</DialogTitle>
           </DialogHeader>
-<<<<<<< HEAD
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">First Name *</Label>
-              <Input value={form.firstName} onChange={e => field("firstName", e.target.value)} placeholder="Jane" className="h-9" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Last Name *</Label>
-              <Input value={form.lastName} onChange={e => field("lastName", e.target.value)} placeholder="Smith" className="h-9" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Email</Label>
-              <Input type="email" value={form.email} onChange={e => field("email", e.target.value)} placeholder="jane@example.com" className="h-9" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Phone</Label>
-              <Input value={form.phone} onChange={e => field("phone", e.target.value)} placeholder="(215) 555-0100" className="h-9" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Job Title</Label>
-              <Input value={form.jobTitle} onChange={e => field("jobTitle", e.target.value)} placeholder="Medication Aide" className="h-9" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Department</Label>
-              <Input value={form.department} onChange={e => field("department", e.target.value)} placeholder="Nursing" className="h-9" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Employee Number</Label>
-              <Input value={form.employeeNumber} onChange={e => field("employeeNumber", e.target.value)} placeholder="EMP-001" className="h-9" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Facility{!editEmp && " *"}</Label>
-              <Select value={form.facilityId} onValueChange={v => field("facilityId", v)}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
-                <SelectContent>
-                  {editEmp && <SelectItem value="none">Keep current</SelectItem>}
-                  {facilities?.map(f => (
-                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Hire Date</Label>
-              <Input type="date" value={form.hireDate} onChange={e => field("hireDate", e.target.value)} className="h-9" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Status</Label>
-              <Select value={form.status} onValueChange={v => field("status", v as EmpFormData["status"])}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                  <SelectItem value="terminated">Terminated</SelectItem>
-                  <SelectItem value="on_leave">On Leave</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="col-span-full flex gap-6 pt-1">
-              <label className="flex items-center gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.administersMedications}
-                  onChange={e => field("administersMedications", e.target.checked)}
-                  className="h-4 w-4 rounded border-border"
-                />
-                <span className="text-[13px]">Administers Medications</span>
-              </label>
-              <label className="flex items-center gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.trainerStatus}
-                  onChange={e => field("trainerStatus", e.target.checked)}
-                  className="h-4 w-4 rounded border-border"
-                />
-                <span className="text-[13px]">Designated Trainer</span>
-              </label>
-            </div>
-          </div>
-=======
           <EmployeeFormFields
             form={form}
             onChange={field}
             facilities={facilities}
             facilityFieldMode={editEmp ? "edit-keep-current" : "create"}
           />
->>>>>>> origin/main
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowForm(false); setEditEmp(null); }}>Cancel</Button>
             <Button onClick={handleSubmit} disabled={creating || updating} className="shadow-sm">

@@ -2,16 +2,11 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
 import { useLocation } from "wouter";
-<<<<<<< HEAD
-import { supabase } from "./supabase";
-import { isPublicPath } from "./publicPaths";
-=======
 import { supabase, clearSupabaseRuntimeCache } from "./supabase";
 import { queryClient } from "./queryClient";
 import { isPublicPath } from "./publicPaths";
 import { useToast } from "@/hooks/use-toast";
 import { STORAGE_KEY as IMPERSONATION_STORAGE_KEY, CHANGE_EVENT as IMPERSONATION_CHANGE_EVENT } from "@/hooks/useImpersonation";
->>>>>>> origin/main
 
 export type Role = "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee" | "auditor";
 
