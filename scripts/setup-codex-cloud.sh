@@ -24,9 +24,16 @@ if ! command -v deno >/dev/null 2>&1; then
   echo "Installing Deno ${DENO_VERSION} into ${DENO_INSTALL}"
   mkdir -p "${DENO_INSTALL}/bin"
 
-  if command -v apt-get >/dev/null 2>&1 && apt-cache show deno >/dev/null 2>&1; then
-    sudo apt-get update
-    sudo apt-get install -y deno
+  if command -v apt-get >/dev/null 2>&1 \
+    && apt-cache show deno >/dev/null 2>&1 \
+    && (command -v sudo >/dev/null 2>&1 || [ "$(id -u)" -eq 0 ]); then
+    if [ "$(id -u)" -eq 0 ]; then
+      apt-get update
+      apt-get install -y deno
+    else
+      sudo apt-get update
+      sudo apt-get install -y deno
+    fi
   elif ! curl -fsSL "${DENO_INSTALLER_URL}" | DENO_INSTALL="${DENO_INSTALL}" sh -s -- "${DENO_VERSION}"; then
     echo "${DENO_INSTALLER_URL} unavailable; falling back to ${DENO_DOWNLOAD_URL}"
     if ! install_deno_from_archive "${DENO_DOWNLOAD_URL}"; then
