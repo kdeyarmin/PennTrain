@@ -239,7 +239,7 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    const staticFile = await resolveStaticFile(appPath);
+    const staticFile = await resolveStaticFile(appPath.replace(/^\/+/, ""));
     if (staticFile) {
       await serveFile(staticFile, req, res, { cacheable: appPath.startsWith("/assets/") });
       return;
