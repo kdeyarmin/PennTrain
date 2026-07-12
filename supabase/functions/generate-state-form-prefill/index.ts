@@ -172,14 +172,19 @@ Deno.serve(async (req: Request) => {
       .eq("document_label", documentLabel)
       .maybeSingle();
     if (!existing) return null;
-    const { data: signed } = await adminClient.storage
+    const { data: signed, error: signedError } = await adminClient.storage
       .from(DOCUMENTS_BUCKET)
       .createSignedUrl(existing.storage_path, SIGNED_URL_TTL_SECONDS);
+    // A real error, not a silent success-without-url: the document row exists but its file can't
+    // be served right now, and the caller needs something actionable to surface.
+    if (signedError || !signed) {
+      return json({ error: signedError?.message ?? "failed to create signed url" }, 500);
+    }
     return json({
       success: true,
       existing: true,
       documentId: existing.id,
-      url: signed?.signedUrl,
+      url: signed.signedUrl,
       expiresIn: SIGNED_URL_TTL_SECONDS,
     });
   };

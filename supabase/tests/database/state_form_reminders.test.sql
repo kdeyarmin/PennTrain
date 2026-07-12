@@ -8,7 +8,7 @@
 -- the app," same as any newly-written test.
 
 begin;
-select plan(8);
+select plan(9);
 
 select has_column(
   'public', 'resident_compliance_items', 'reminder_sent_at',
@@ -66,6 +66,24 @@ select ok(
   'resident insert auto-instantiates rule-pack compliance items'
 );
 
+-- Org B: same shape but with NO active org_admin and no assigned facility_manager -- its items
+-- have zero possible recipients, and the sweep must not stamp them (stamping would silently
+-- suppress their reminders for a week even though nobody was ever notified).
+insert into public.organizations (id, name, slug) values
+  ('77000000-0000-0000-0000-000000000011', 'State Forms Reminders B', 'state-forms-reminders-b');
+insert into public.organization_settings (organization_id) values
+  ('77000000-0000-0000-0000-000000000011')
+on conflict do nothing;
+insert into public.facilities (id, organization_id, name, facility_type) values
+  ('77000000-0000-0000-0000-000000000012', '77000000-0000-0000-0000-000000000011', 'No Admin Home', 'PCH');
+insert into public.residents (id, organization_id, facility_id, first_name, last_name, admission_date, status) values
+  ('77000000-0000-0000-0000-000000000014', '77000000-0000-0000-0000-000000000011',
+   '77000000-0000-0000-0000-000000000012', 'Unheard', 'Resident', current_date - 30, 'active');
+update public.resident_compliance_items
+set status = 'due_soon', reminder_sent_at = null
+where resident_id = '77000000-0000-0000-0000-000000000014'
+  and item_type = 'annual_reassessment';
+
 -- ---------------------------------------------------------------------------
 -- Weekly sweep: one AGGREGATED notification per recipient, stamped, no re-fire
 -- inside the 7-day window.
@@ -76,6 +94,13 @@ where resident_id = '77000000-0000-0000-0000-000000000004'
   and item_type = 'annual_reassessment';
 
 select public.send_resident_compliance_reminders();
+
+select ok(
+  (select reminder_sent_at is null from public.resident_compliance_items
+   where resident_id = '77000000-0000-0000-0000-000000000014'
+     and item_type = 'annual_reassessment'),
+  'the sweep never stamps items that had no possible recipient'
+);
 
 select is(
   (select count(*)::int from public.notifications

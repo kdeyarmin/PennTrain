@@ -33,7 +33,9 @@ alter table public.resident_compliance_items
 -- pointing at this function; no trigger changes.
 create or replace function public.notify_resident_compliance_alert()
 returns trigger language plpgsql security definer set search_path to 'public' as $function$
-declare v_profile_id uuid;
+declare
+  v_profile_id uuid;
+  v_notified boolean := false;
 begin
   for v_profile_id in
     select p.id
@@ -56,13 +58,18 @@ begin
       new.message,
       '/app/state-forms'
     );
+    v_notified := true;
   end loop;
 
   -- The alert-open notification IS the first reminder for this item -- stamp it so the weekly
-  -- sweep below can't double-fire inside the same window.
-  update public.resident_compliance_items
-  set reminder_sent_at = now()
-  where id = new.resident_compliance_item_id;
+  -- sweep below can't double-fire inside the same window. Only when someone was actually
+  -- notified: stamping with zero recipients would suppress the sweep for a week for an item
+  -- nobody ever heard about.
+  if v_notified then
+    update public.resident_compliance_items
+    set reminder_sent_at = now()
+    where id = new.resident_compliance_item_id;
+  end if;
 
   return new;
 end;
@@ -117,13 +124,30 @@ begin
   -- Stamp swept items once, after every recipient was evaluated against the same eligibility
   -- window -- stamping inside the recipient loop would hide items from every recipient after the
   -- first. Discharged residents' items are never stamped or counted: they aren't actionable work.
+  -- Only items someone could actually have been notified about are stamped: an org with no active
+  -- org_admin whose item sits in a facility with no assigned active facility_manager had zero
+  -- recipients this sweep, and stamping it would silently suppress its reminder for a week.
   update public.resident_compliance_items i
   set reminder_sent_at = now()
   from public.residents r
   where r.id = i.resident_id
     and r.status = 'active'
     and i.status in ('due_soon', 'expired')
-    and (i.reminder_sent_at is null or i.reminder_sent_at < now() - interval '7 days');
+    and (i.reminder_sent_at is null or i.reminder_sent_at < now() - interval '7 days')
+    and (
+      exists (
+        select 1 from public.profiles p
+        where p.organization_id = i.organization_id
+          and p.is_active and p.role = 'org_admin'
+      )
+      or exists (
+        select 1
+        from public.facility_assignments fa
+        join public.profiles p on p.id = fa.profile_id
+        where fa.facility_id = i.facility_id
+          and p.is_active and p.role = 'facility_manager'
+      )
+    );
 end;
 $function$;
 revoke all on function public.send_resident_compliance_reminders()
