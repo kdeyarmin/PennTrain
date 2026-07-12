@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, Link, useLocation } from "wouter";
+import { useParams, Link } from "wouter";
 import { useGetResident } from "@/hooks/useResidents";
 import { useListFacilities } from "@/hooks/useFacilities";
 import {
@@ -710,11 +710,7 @@ function DiagnosisRowsEditor({
 }
 
 export default function ResidentAssessmentFormEditor() {
-  const { residentId, formId } = useParams<{
-    residentId: string;
-    formId: string;
-  }>();
-  const [, navigate] = useLocation();
+  const { residentId, formId } = useParams<{ residentId: string; formId: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -847,6 +843,7 @@ export default function ResidentAssessmentFormEditor() {
     pendingSave.current = { id: formId, content: next };
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
       pendingSave.current = null;
       saveDraft.mutate(
         { id: formId, content: next },
@@ -880,6 +877,12 @@ export default function ResidentAssessmentFormEditor() {
     [],
   ); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // "Latest value" refs, resynced on every render -- let the per-item handler maps below stay
+  // referentially stable forever (computed once via useMemo(..., []) ) while still always reading
+  // and writing the current content/update, instead of closing over whatever they were on the
+  // render that created them. This is what makes DegreeItemEditor/SimpleNeedEditor's React.memo
+  // actually skip re-rendering untouched items: a fresh inline arrow function passed as onChange
+  // on every keystroke would defeat memo() no matter how stable `answer` itself is.
   contentRef.current = content;
   const updateRef = useRef(update);
   updateRef.current = update;
@@ -967,7 +970,9 @@ export default function ResidentAssessmentFormEditor() {
     const latestContent = contentRef.current;
     if (!latestContent) return;
     const currentSummary = latestContent.summary.overallWellness.trim();
-    const nextSummary = currentSummary ? `${currentSummary}\n\n${text}` : text;
+    const nextSummary = currentSummary ? `${currentSummary}
+
+${text}` : text;
     update({ ...latestContent, summary: { overallWellness: nextSummary } });
   };
 

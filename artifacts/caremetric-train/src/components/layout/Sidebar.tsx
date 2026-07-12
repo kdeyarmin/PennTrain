@@ -44,6 +44,7 @@ import {
   Radar,
   Gavel,
   BookOpen,
+  BookCheck,
   BedDouble,
   FileStack,
   Sparkles,
@@ -58,6 +59,8 @@ import {
   Rocket,
   Star,
   Activity,
+  Network,
+  UserRoundCheck,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -108,6 +111,10 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/admin/audit", label: "Audit Log", icon: ShieldAlert },
           { href: "/admin/notifications", label: "Notification Delivery", icon: Send },
           { href: "/admin/system-jobs", label: "System Jobs", icon: Activity },
+          { href: "/admin/enterprise", label: "Enterprise Foundation", icon: Network },
+          { href: "/admin/qualified-workforce", label: "Qualified Workforce", icon: UserRoundCheck },
+          { href: "/admin/governed-learning", label: "Governed Learning", icon: BookCheck },
+          { href: "/admin/closed-loop-compliance", label: "Closed-Loop Compliance", icon: Gavel },
           { href: "/admin/exclusion-screening", label: "Exclusion Screening", icon: ShieldAlert },
           { href: "/admin/security", label: "Security & Governance", icon: Eye },
           { href: "/admin/support-tickets", label: "Support Tickets", icon: LifeBuoy },
@@ -134,6 +141,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/facilities", label: "Facilities", icon: Building2 },
           { href: "/app/employees", label: "Employees", icon: Users },
           { href: "/app/schedule", label: "Schedule", icon: CalendarDays },
+          { href: "/app/workforce-operations", label: "Workforce Operations", icon: UserRoundCheck },
           ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & Equipment", icon: Flame }] : []),
         ]
       },
@@ -145,6 +153,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/course-assignments", label: "Course Assignments", icon: FileCheck },
           { href: "/trainer/classes", label: "In-Service Classes", icon: GraduationCap },
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
+          { href: "/app/governed-learning", label: "Governed Learning", icon: BookCheck },
           { href: "/me/courses", label: "My Courses", icon: BookOpen },
         ]
       },
@@ -186,6 +195,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Reporting & Documents",
         items: [
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
+          { href: "/app/closed-loop-compliance", label: "Closed-Loop Compliance", icon: Gavel },
           ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar }] : []),
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
           { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
@@ -199,6 +209,9 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/users", label: "Users", icon: Users },
           { href: "/app/training-types", label: "Training Types", icon: ListChecks },
           { href: "/app/settings", label: "Settings", icon: Settings },
+          ...(role === "org_admin"
+            ? [{ href: "/app/enterprise", label: "Enterprise Foundation", icon: Network }]
+            : []),
           // Phase 1 audit evidence carries facility scope, so managers see only their assigned
           // facilities while org administrators retain organization-wide visibility.
           ...(["org_admin", "facility_manager"].includes(role ?? "")
@@ -378,11 +391,11 @@ function isNavItemActive(item: NavItem, location: string): boolean {
 // Persisted per-user so each person's choice of which groups to keep collapsed sticks across
 // visits, without needing a backend round-trip for what's purely a display preference.
 function collapsedSectionsStorageKey(userId: string): string {
-  return `caremetric.sidebar.collapsedSections.${userId}`;
+  return `cmtrain.sidebar.collapsedSections.${userId}`;
 }
 
 function pinnedPagesStorageKey(userId: string): string {
-  return `caremetric.sidebar.pinnedPages.${userId}`;
+  return `cmtrain.sidebar.pinnedPages.${userId}`;
 }
 
 function loadCollapsedSections(userId: string): Set<string> {
@@ -431,11 +444,18 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
   const [filter, setFilter] = useState("");
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => (user ? loadCollapsedSections(user.id) : new Set()));
+  const [collapsedSectionsUserId, setCollapsedSectionsUserId] = useState<string | null>(() => user?.id ?? null);
   const [pinnedPages, setPinnedPages] = useState<Set<string>>(() => (user ? loadPinnedPages(user.id) : new Set()));
 
   useEffect(() => {
-    if (user) saveCollapsedSections(user.id, collapsedSections);
-  }, [user, collapsedSections]);
+    if (!user) return;
+    if (collapsedSectionsUserId !== user.id) {
+      setCollapsedSections(loadCollapsedSections(user.id));
+      setCollapsedSectionsUserId(user.id);
+      return;
+    }
+    saveCollapsedSections(user.id, collapsedSections);
+  }, [user, collapsedSections, collapsedSectionsUserId]);
 
   useEffect(() => {
     if (user) savePinnedPages(user.id, pinnedPages);
@@ -623,6 +643,13 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
               <span className="text-sm font-medium leading-tight">{user.firstName} {user.lastName}</span>
               <span className="text-xs font-normal text-muted-foreground leading-tight">{user.email}</span>
             </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/account/security" className="cursor-pointer" onClick={onNavigate}>
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                <span>Account security</span>
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive cursor-pointer">
               <LogOut className="mr-2 h-4 w-4" />

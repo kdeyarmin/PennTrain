@@ -20,7 +20,10 @@ export default function ClassKiosk() {
   // same-named employee from a different site get checked in by mistake at a live kiosk with
   // people waiting. Cross-facility classes (facility_id null) fall back to an org-wide search,
   // which is why facility name is still surfaced per row below.
-  const { data: facilityEmployees } = useListEmployees({ status: "active", facilityId: cls?.facility_id ?? undefined });
+  const { data: facilityEmployees } = useListEmployees(
+    { status: "active", facilityId: cls?.facility_id ?? undefined },
+    { enabled: !!cls?.facility_id },
+  );
   // ClassDetail's Add Attendees dialog isn't facility-restricted, so a class can legitimately have
   // an attendee whose home facility differs from the class's own -- without this, that person could
   // never be found by the facility-scoped search above and could never check in. Merged in below,

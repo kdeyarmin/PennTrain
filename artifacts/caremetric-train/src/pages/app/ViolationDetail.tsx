@@ -68,6 +68,7 @@ export default function ViolationDetail() {
   const generatePocDocument = useGeneratePocDocument();
 
   const [newActionDueDate, setNewActionDueDate] = useState("");
+  const [assignedEmployeeId, setAssignedEmployeeId] = useState("");
   const [assignRetraining, setAssignRetraining] = useState(false);
   const [retrainEmployeeId, setRetrainEmployeeId] = useState("");
   const [retrainCourseId, setRetrainCourseId] = useState("");

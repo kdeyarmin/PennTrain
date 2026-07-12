@@ -9,9 +9,11 @@
 --
 -- Splits explanation into its own table with the same row-level restriction as quiz_answers, so
 -- get_quiz_review() remains the only sanctioned way for a learner to see it (already correctly
--- gated on submitted_at + passed/attempts-exhausted). No frontend code reads or writes
--- quiz_questions.explanation today -- this backend-only feature was never wired to any UI -- so
--- there is no client code to update alongside this migration.
+-- gated on submitted_at + passed/attempts-exhausted). At the time this migration was written, no
+-- frontend code read or wrote quiz_questions.explanation; the QuizBuilder authoring UI and its
+-- useQuizzes.ts hooks (useListQuizQuestions/useCreateQuizQuestion/useUpdateQuizQuestion) were
+-- added later by a separately-merged PR and have since been updated to join/upsert/delete against
+-- quiz_question_explanations instead of a plain column.
 
 create table public.quiz_question_explanations (
   question_id     uuid primary key references public.quiz_questions(id) on delete cascade,
@@ -33,31 +35,72 @@ create trigger set_updated_at before update on public.quiz_question_explanations
 
 alter table public.quiz_question_explanations enable row level security;
 
+-- Every policy below checks the *owning question's* organization_id, not just the value the
+-- caller put in the new/existing explanation row -- otherwise an org_admin/trainer could insert
+-- an explanation row for any question_id they can merely see (including a null-org system-catalog
+-- question, or one they simply guessed) by setting the row's own organization_id to their own
+-- org. Since question_id is this table's primary key (one explanation per question, globally),
+-- that row would then be joined into get_quiz_review for every tenant reviewing that question --
+-- a cross-tenant leak/poisoning vector column-level organization_id checks alone don't catch.
 create policy quiz_question_explanations_select on public.quiz_question_explanations for select to authenticated using (
   (select is_platform_admin())
-  or (organization_id = (select current_org_id())
-      and (select "current_role"()) in ('org_admin', 'trainer', 'auditor'))
+  or (
+    (select "current_role"()) in ('org_admin', 'trainer', 'auditor')
+    and exists (
+      select 1 from public.quiz_questions qq
+      where qq.id = quiz_question_explanations.question_id
+        and qq.organization_id = (select current_org_id())
+    )
+  )
 );
 create policy quiz_question_explanations_insert on public.quiz_question_explanations for insert to authenticated with check (
   (select is_platform_admin())
-  or (organization_id = (select current_org_id())
-      and (select "current_role"()) in ('org_admin', 'trainer'))
+  or (
+    (select "current_role"()) in ('org_admin', 'trainer')
+    and organization_id = (select current_org_id())
+    and exists (
+      select 1 from public.quiz_questions qq
+      where qq.id = quiz_question_explanations.question_id
+        and qq.organization_id = (select current_org_id())
+    )
+  )
 );
 create policy quiz_question_explanations_update on public.quiz_question_explanations for update to authenticated
 using (
   (select is_platform_admin())
-  or (organization_id = (select current_org_id())
-      and (select "current_role"()) in ('org_admin', 'trainer'))
+  or (
+    (select "current_role"()) in ('org_admin', 'trainer')
+    and organization_id = (select current_org_id())
+    and exists (
+      select 1 from public.quiz_questions qq
+      where qq.id = quiz_question_explanations.question_id
+        and qq.organization_id = (select current_org_id())
+    )
+  )
 )
 with check (
   (select is_platform_admin())
-  or (organization_id = (select current_org_id())
-      and (select "current_role"()) in ('org_admin', 'trainer'))
+  or (
+    (select "current_role"()) in ('org_admin', 'trainer')
+    and organization_id = (select current_org_id())
+    and exists (
+      select 1 from public.quiz_questions qq
+      where qq.id = quiz_question_explanations.question_id
+        and qq.organization_id = (select current_org_id())
+    )
+  )
 );
 create policy quiz_question_explanations_delete on public.quiz_question_explanations for delete to authenticated using (
   (select is_platform_admin())
-  or (organization_id = (select current_org_id())
-      and (select "current_role"()) in ('org_admin', 'trainer'))
+  or (
+    (select "current_role"()) in ('org_admin', 'trainer')
+    and organization_id = (select current_org_id())
+    and exists (
+      select 1 from public.quiz_questions qq
+      where qq.id = quiz_question_explanations.question_id
+        and qq.organization_id = (select current_org_id())
+    )
+  )
 );
 
 -- Same immutable-once-published governance as quiz_questions/quiz_answers.

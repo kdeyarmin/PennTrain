@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { markExplicitPasswordSignIn } from "@/lib/auth";
-import { Loader2, ArrowRight } from "lucide-react";
+import { Loader2, ArrowRight, ShieldCheck } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 
 export default function Login() {
@@ -41,6 +41,26 @@ export default function Login() {
         variant: "destructive",
         title: "Login failed",
         description: error.message || "Please check your credentials and try again.",
+      });
+    },
+  });
+
+  const ssoMutation = useMutation({
+    mutationFn: async (address: string) => {
+      const domain = address.trim().toLowerCase().split("@")[1];
+      if (!domain) throw new Error("Enter your work email to discover your organization's SSO connection.");
+      const { data, error } = await supabase.auth.signInWithSSO({
+        domain,
+        options: { redirectTo: `${window.location.origin}/` },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Enterprise sign-in unavailable",
+        description: error.message,
       });
     },
   });
@@ -130,6 +150,23 @@ export default function Login() {
                 )}
               </Button>
             </form>
+            <div className="my-4 flex items-center gap-3" aria-hidden="true">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">or</span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-10"
+              disabled={ssoMutation.isPending || loginMutation.isPending}
+              onClick={() => ssoMutation.mutate(email)}
+            >
+              {ssoMutation.isPending
+                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                : <ShieldCheck className="mr-2 h-4 w-4" />}
+              Continue with enterprise SSO
+            </Button>
             <p className="mt-4 text-center text-[13px] text-muted-foreground">
               New facility?{" "}
               <Link href="/signup" className="font-medium text-primary hover:text-primary/80">

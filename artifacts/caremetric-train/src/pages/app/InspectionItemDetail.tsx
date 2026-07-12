@@ -104,7 +104,8 @@ export default function InspectionItemDetail() {
   const { mutate: updateItem } = useUpdateInspectionItem();
   const { mutate: createEvent, isPending: creatingEvent } = useCreateInspectionEvent();
   const nonPassEventIds = (events ?? []).filter((e) => e.result !== "pass").map((e) => e.id);
-  const { data: sourcedViolations } = useListViolationsBySourceInspectionEvents(nonPassEventIds);
+  const violationLookupEventIds = (user?.role === "platform_admin" || canCreateViolation || canViewViolation) ? nonPassEventIds : [];
+  const { data: sourcedViolations } = useListViolationsBySourceInspectionEvents(violationLookupEventIds);
   const violationByEventId = new Map((sourcedViolations ?? []).map((v) => [v.source_inspection_event_id, v]));
 
   const [showEventForm, setShowEventForm] = useState(false);

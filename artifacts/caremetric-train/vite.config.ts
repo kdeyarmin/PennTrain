@@ -38,9 +38,9 @@ export default defineConfig(({ command, mode }) => {
       tailwindcss(),
       // Installable PWA course player (ROADMAP.md Tier 3.4). generateSW precaches the built app
       // shell (JS/CSS/HTML) with a default cache-first strategy for those static assets --
-      // Public course-video storage requests are runtime-cached separately below, network-first,
-      // so a learner gets resilience for media without caching RLS-protected REST responses by URL.
-      // There is no queued-write/background-sync story here.
+      // Protected course content is deliberately excluded from Workbox runtime caches. Phase 4
+      // stores only allowlisted learner content as user/tenant-bound AES-GCM ciphertext and sends
+      // queued actions through the replay-safe server sync contract.
       //
       // devOptions.enabled is deliberately NOT set: turning on the dev-mode service worker here
       // reproduced a hard hang on every login in `npm run dev` (auth resolves, but the
@@ -89,17 +89,6 @@ export default defineConfig(({ command, mode }) => {
             "**/*.css",
           ],
           runtimeCaching: [
-            {
-              urlPattern: ({ url }) =>
-                url.hostname.endsWith(".supabase.co") &&
-                url.pathname.startsWith("/storage/v1/object/public/course-videos/"),
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "supabase-public-storage",
-                networkTimeoutSeconds: 8,
-                expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 },
-              },
-            },
             {
               // Per-route chunks aren't precached (see globPatterns above) -- cache them as a
               // user actually visits each page, so repeat visits and brief signal drops on

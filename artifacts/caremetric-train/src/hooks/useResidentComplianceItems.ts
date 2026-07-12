@@ -33,7 +33,7 @@ export function useListAllResidentComplianceItems(filters: ListAllResidentCompli
   return useQuery({
     queryKey: ["resident_compliance_items_all", filters],
     queryFn: async () => {
-      let query = supabase.from("resident_compliance_items").select("*").order("due_date");
+      let query = supabase.from("resident_compliance_items").select("id,resident_id,facility_id,item_type,due_date,status").order("due_date");
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
       if (filters.status?.length) query = query.in("status", filters.status);
       if (filters.itemType) query = query.eq("item_type", filters.itemType);
@@ -62,7 +62,10 @@ export function useCompleteResidentComplianceItem() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["resident_compliance_items", data.resident_id] }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["resident_compliance_items", data.resident_id] });
+      queryClient.invalidateQueries({ queryKey: ["resident_compliance_items_all"] });
+    },
   });
 }
 
@@ -81,6 +84,9 @@ export function useLogResidentChangeOfCondition() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["resident_compliance_items", data.resident_id] }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["resident_compliance_items", data.resident_id] });
+      queryClient.invalidateQueries({ queryKey: ["resident_compliance_items_all"] });
+    },
   });
 }

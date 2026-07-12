@@ -137,7 +137,7 @@ export default function TrainerClasses() {
     setForm({
       className: cls.class_name,
       trainingTypeId: cls.training_type_id,
-      classDate: cls.class_date,
+      classDate: toLocalIsoDate(),
       facilityId: cls.facility_id ?? "none",
       location: cls.location ?? "",
       durationHours: String(cls.duration_hours),
