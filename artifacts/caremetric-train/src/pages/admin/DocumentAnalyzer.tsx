@@ -185,7 +185,7 @@ export default function DocumentAnalyzer() {
         room: null,
         sdcu: false,
         hospice: false,
-        admission_track: selectedFacility.facility_type === "ALR" ? "standard" : "standard",
+        admission_track: "standard",
       },
       {
         onSuccess: (resident) => {
