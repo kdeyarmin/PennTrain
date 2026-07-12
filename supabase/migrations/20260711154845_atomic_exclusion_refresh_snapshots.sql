@@ -199,6 +199,13 @@ insert into public.exclusion_source_state (source)
 values ('oig_leie'), ('sam_exclusions')
 on conflict (source) do nothing;
 
+-- The backfill above inserts into exclusion_refresh_runs and exclusion_source_snapshots under
+-- their circular deferrable FKs, queueing deferred constraint-trigger events until commit --
+-- and CREATE INDEX / ALTER TABLE on a table with pending trigger events fails (55006). Flush
+-- the queue here; on a database with no pre-existing entries the backfill loop never runs and
+-- this is a no-op.
+set constraints all immediate;
+
 alter table public.exclusion_list_entries
   alter column snapshot_id set not null,
   alter column source_record_key set not null,
