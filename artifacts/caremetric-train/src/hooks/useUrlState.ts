@@ -4,7 +4,7 @@ import { useLocation, useSearch } from "wouter";
 // Keeps a set of string filter/sort/page values synced into the URL query string, so navigating
 // away (opening a row) and back preserves what the user had selected instead of resetting to
 // defaults on every remount. Values are read from the current URL on every render (not just
-// mount) so browser Back/Forward between two filtered states of the same page also works, and
+// mount) so Back/Forward navigation that changes the URL restores the same filter state, and
 // written back via `replace: true` so adjusting a filter doesn't pile up back-stack entries.
 //
 // A value equal to its default is omitted from the URL entirely, keeping links to the "default"
