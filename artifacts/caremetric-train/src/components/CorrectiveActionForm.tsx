@@ -180,7 +180,7 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
         type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
         className={`${inputCls} ${size === "sm" ? "w-32" : "w-40"} shrink-0`}
       />
-      <Button size="sm" className={buttonCls} disabled={submitting} onClick={handleSubmit}>
+      <Button size="sm" className={buttonCls} disabled={submitting} onClick={handleSubmit} aria-label={isEdit ? "Save corrective action" : "Add corrective action"}>
         {isEdit ? (submitting ? "Saving..." : "Save") : submitting ? "Saving..." : <Plus className={iconCls} />}
       </Button>
       {isEdit && (
