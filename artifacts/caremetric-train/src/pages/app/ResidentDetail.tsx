@@ -45,12 +45,13 @@ function ComplianceStatusBadge({ status }: { status: string }) {
 
 export default function ResidentDetail() {
   const { id } = useParams<{ id: string }>();
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
+  const residentPathPrefix = location.startsWith("/admin/") ? "/admin/residents" : "/app/residents";
 
   const { data: resident, isLoading } = useGetResident(id);
   const { data: facilities } = useListFacilities();
@@ -115,7 +116,7 @@ export default function ResidentDetail() {
     startAssessmentForm.mutate(
       { residentId: resident.id, reason, complianceItemId: item.id },
       {
-        onSuccess: (newForm) => navigate(`/app/residents/${resident.id}/assessment-forms/${newForm.id}`),
+        onSuccess: (newForm) => navigate(`${residentPathPrefix}/${resident.id}/assessment-forms/${newForm.id}`),
         onError: (e: Error) => toast({ title: "Failed to start assessment form", description: e.message, variant: "destructive" }),
       },
     );
@@ -298,7 +299,7 @@ export default function ResidentDetail() {
       <div className="text-center py-12">
         <p className="text-muted-foreground">Resident not found.</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href="/app/residents">Back to Residents</Link>
+          <Link href={residentPathPrefix}>Back to Residents</Link>
         </Button>
       </div>
     );
@@ -308,7 +309,7 @@ export default function ResidentDetail() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-          <Link href="/app/residents"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
+          <Link href={residentPathPrefix}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
         </Button>
       </div>
 
@@ -652,7 +653,7 @@ export default function ResidentDetail() {
                       {f.status === "finalized" ? `Finalized ${new Date(f.finalized_at!).toLocaleDateString()}` : `Prepared by ${f.prepared_by_name || "—"}`}
                     </p>
                   </div>
-                  <Link href={`/app/residents/${id}/assessment-forms/${f.id}`} className="text-sm text-primary hover:underline">
+                  <Link href={`${residentPathPrefix}/${id}/assessment-forms/${f.id}`} className="text-sm text-primary hover:underline">
                     {f.status === "finalized" ? "View" : "Continue"}
                   </Link>
                 </div>

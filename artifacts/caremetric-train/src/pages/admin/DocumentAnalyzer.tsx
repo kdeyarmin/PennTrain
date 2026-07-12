@@ -169,12 +169,17 @@ export default function DocumentAnalyzer() {
       toast({ title: "Choose a facility first", description: "Select where this resident should be created before adding them to the system.", variant: "destructive" });
       return;
     }
+    const residentName = selectedJob.residentName.trim();
+    if (!residentName) {
+      toast({ title: "Resident name required", description: "Enter the resident name extracted from the form before creating the resident chart.", variant: "destructive" });
+      return;
+    }
     if (!selectedJob.admissionDate.trim()) {
       toast({ title: "Admission date required", description: "Enter the admission date extracted from the form before creating the resident chart.", variant: "destructive" });
       return;
     }
 
-    const { firstName, lastName } = splitResidentName(selectedJob.residentName);
+    const { firstName, lastName } = splitResidentName(residentName);
     createResident(
       {
         organization_id: selectedFacility.organization_id,
@@ -352,7 +357,7 @@ export default function DocumentAnalyzer() {
                 )}
                 {selectedJob.chartCreationStatus === "declined" && <Badge variant="secondary">Skipped for this form</Badge>}
                 <div className="flex flex-wrap gap-2">
-                  <Button onClick={createResidentChart} disabled={isCreatingResident || !!possibleDuplicateResident || !selectedJob.facilityId || !selectedJob.admissionDate || selectedJob.chartCreationStatus === "declined"}>
+                  <Button onClick={createResidentChart} disabled={isCreatingResident || !!possibleDuplicateResident || !selectedJob.facilityId || !selectedJob.admissionDate || !selectedJob.residentName.trim() || selectedJob.chartCreationStatus === "declined"}>
                     {isCreatingResident ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} Yes, create resident
                   </Button>
                   <Button variant="outline" onClick={declineResidentChart} disabled={selectedJob.chartCreationStatus === "declined"}>Not now</Button>

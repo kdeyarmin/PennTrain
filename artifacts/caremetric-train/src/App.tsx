@@ -327,6 +327,9 @@ function Router() {
       <Route path="/admin/residents/:id">
         {() => <ProtectedRoute component={ResidentDetail} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
+      <Route path="/admin/residents/:residentId/assessment-forms/:formId">
+        {() => <ProtectedRoute component={ResidentAssessmentFormEditor} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
       <Route path="/admin/packages">
         {() => <ProtectedRoute component={Packages} allowedRoles={PLATFORM_ADMIN} />}
       </Route>

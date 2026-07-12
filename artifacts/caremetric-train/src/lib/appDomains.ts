@@ -325,6 +325,7 @@ export function searchPages(query: string, role: Role | undefined): AppPageDefin
   const q = query.trim().toLowerCase();
   if (!q || !role) return [];
   return pagesForRole(role)
+    .filter((page) => !page.path.includes(":"))
     .filter((page) =>
       [page.label, page.domain, page.path, ...page.keywords].some((value) => value.toLowerCase().includes(q)),
     )
