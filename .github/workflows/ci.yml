@@ -92,7 +92,19 @@ jobs:
       - name: Verify generated database types
         shell: bash
         run: |
-          node scripts/check-database-types.mjs
+          supabase gen types typescript --local > /tmp/database.types.ts
+          python - <<'PY'
+          from pathlib import Path
+
+          paths = [
+            ("artifacts/caremetric-train/src/lib/database.types.ts", "/tmp/database.types.repo.ts"),
+            ("/tmp/database.types.ts", "/tmp/database.types.generated.ts"),
+          ]
+          for source, destination in paths:
+            normalized =             Path(source).read_text().rstrip("\n") + "\n"
+            Path(destination).write_text(normalized)
+          PY
+          diff -u /tmp/database.types.repo.ts /tmp/database.types.generated.ts
 
       - name: Export local Supabase browser-test environment
         shell: bash

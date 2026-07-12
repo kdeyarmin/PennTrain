@@ -278,7 +278,10 @@ function FrequencyPartyFields({
       <div className="space-y-1">
         <Select
           value={frequency}
-          onValueChange={onFrequencyChange}
+          onValueChange={(v) => {
+            onFrequencyChange(v);
+            if (v !== "other") onFrequencyOtherChange("");
+          }}
           disabled={disabled}
         >
           <SelectTrigger className="h-8 text-xs">
@@ -305,7 +308,10 @@ function FrequencyPartyFields({
       <div className="space-y-1">
         <Select
           value={responsibleParty}
-          onValueChange={onPartyChange}
+          onValueChange={(v) => {
+            onPartyChange(v);
+            if (v !== "O") onPartyOtherChange("");
+          }}
           disabled={disabled}
         >
           <SelectTrigger className="h-8 text-xs">
@@ -571,7 +577,6 @@ interface ReviewCheckItem {
   ok: boolean;
   detail?: string;
 }
-
 function ReviewChecklistRow({ item }: { item: ReviewCheckItem }) {
   return (
     <div className="flex items-start gap-2 py-2">
@@ -1056,7 +1061,6 @@ ${text}` : text;
     }
     return map;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Memoized on the specific item maps (not the whole `content` object, which changes on every
   // keystroke anywhere in the form) so typing in an unrelated field doesn't re-filter these lists;
   // rated counts (below, after the loading guard) are derived from these unrated lists rather than
@@ -2302,7 +2306,12 @@ ${text}` : text;
                             <Select
                               value={p.noSignatureReason || ""}
                               onValueChange={(v) =>
-                                updateParticipant({ noSignatureReason: v })
+                                updateParticipant({
+                                  noSignatureReason: v,
+                                  ...(v === "other"
+                                    ? {}
+                                    : { noSignatureReasonOther: "" }),
+                                })
                               }
                             >
                               <SelectTrigger className="h-8 text-xs">
