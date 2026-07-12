@@ -63,7 +63,11 @@ Deno.serve(async (req: Request) => {
     return json({ error: "not authorized to import employees" }, 403);
   }
 
-  let body: { csv?: string; organization_id?: string };
+  // offset/limit let the client import in small chunks with live progress: it sends the
+  // SAME full CSV each call and asks for one slice at a time, so no single request has
+  // to process (or time out on) a thousand rows. Omitting them processes everything in
+  // one call, which keeps older callers working unchanged.
+  let body: { csv?: string; organization_id?: string; offset?: number; limit?: number };
   try {
     body = await req.json();
   } catch {
@@ -72,6 +76,8 @@ Deno.serve(async (req: Request) => {
 
   const { csv, organization_id } = body;
   if (!csv || typeof csv !== "string") return json({ error: "csv (string) is required" }, 400);
+  const offset = Number.isFinite(body.offset) ? Math.max(0, Math.floor(body.offset as number)) : 0;
+  const limit = Number.isFinite(body.limit) ? Math.max(1, Math.min(200, Math.floor(body.limit as number))) : null;
 
   const effectiveOrgId = callerProfile.role === "platform_admin" ? organization_id : callerProfile.organization_id;
   if (!effectiveOrgId) return json({ error: "organization_id is required" }, 400);
@@ -107,9 +113,14 @@ Deno.serve(async (req: Request) => {
   if (facilitiesError) return json({ error: `Failed to load facilities: ${facilitiesError.message}` }, 500);
   const facilityIdByName = new Map((orgFacilities ?? []).map((f) => [f.name.trim().toLowerCase(), f.id as string]));
 
+  const endIndex = limit === null ? rows.length : Math.min(offset + limit, rows.length);
+  if (offset >= rows.length) {
+    return json({ success: true, total: 0, succeeded: 0, failed: 0, results: [], totalRows: rows.length, offset, nextOffset: null });
+  }
+
   const results: ImportRowResult[] = [];
 
-  for (let i = 0; i < rows.length; i++) {
+  for (let i = offset; i < endIndex; i++) {
     const row = rows[i];
     const rowNumber = i + 2; // +1 for 0-index, +1 for the header row already stripped
     const first_name = row.first_name?.trim();
@@ -168,5 +179,14 @@ Deno.serve(async (req: Request) => {
   const succeeded = results.filter((r) => r.success).length;
   const failed = results.length - succeeded;
 
-  return json({ success: true, total: results.length, succeeded, failed, results });
+  return json({
+    success: true,
+    total: results.length,
+    succeeded,
+    failed,
+    results,
+    totalRows: rows.length,
+    offset,
+    nextOffset: endIndex < rows.length ? endIndex : null,
+  });
 });

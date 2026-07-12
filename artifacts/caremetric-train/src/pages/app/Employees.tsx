@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -18,6 +18,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { QueryError } from "@/components/QueryState";
@@ -45,7 +46,21 @@ interface BulkImportResponse {
   succeeded: number;
   failed: number;
   results: BulkImportRowResult[];
+  // Chunked-import protocol: the client resends the same CSV with an offset/limit and
+  // the function reports the slice it processed plus where to continue.
+  totalRows?: number;
+  offset?: number;
+  nextOffset?: number | null;
 }
+
+interface BulkImportProgress {
+  processed: number;
+  total: number;
+  succeeded: number;
+  failed: number;
+}
+
+const BULK_IMPORT_CHUNK_SIZE = 50;
 
 // Defaults for useUrlState -- every value must be a string, so page/sortField/sortDir round-trip
 // as text and get parsed/cast back where they're used below. A value matching its default here is
@@ -80,6 +95,8 @@ export default function Employees() {
   const [bulkImporting, setBulkImporting] = useState(false);
   const [bulkResult, setBulkResult] = useState<BulkImportResponse | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkProgress, setBulkProgress] = useState<BulkImportProgress | null>(null);
+  const bulkCancelRef = useRef(false);
 
   const { user } = useAuth();
   const { viewingOrgId } = useViewingOrg();
@@ -223,6 +240,10 @@ export default function Employees() {
     setShowBulkImport(true);
   };
 
+  // Imports run in chunks of BULK_IMPORT_CHUNK_SIZE rows: the same CSV is sent each call
+  // with an offset, so no single request has to survive a thousand row inserts, the
+  // progress bar advances as each slice lands, and Cancel takes effect between chunks
+  // (rows already imported stay imported -- each row is independent).
   const handleBulkImport = async () => {
     if (!bulkFile) {
       toast({ title: "Choose a CSV file first", variant: "destructive" });
@@ -231,40 +252,72 @@ export default function Employees() {
     setBulkImporting(true);
     setBulkResult(null);
     setBulkError(null);
+    setBulkProgress(null);
+    bulkCancelRef.current = false;
+    const aggregate: BulkImportResponse = { success: true, total: 0, succeeded: 0, failed: 0, results: [] };
+    let anySucceeded = false;
     try {
       const csv = await bulkFile.text();
-      const body: { csv: string; organization_id?: string } = { csv };
-      // organization_id is only read by the function when the caller is platform_admin --
-      // every other role's own profile.organization_id is used server-side automatically.
-      if (user?.role === "platform_admin" && viewingOrgId) {
-        body.organization_id = viewingOrgId;
-      }
-      const { data, error } = await supabase.functions.invoke<BulkImportResponse>("bulk-import-employees", { body });
-      if (error) {
-        let message = error.message ?? "Bulk import failed";
-        if (error instanceof FunctionsHttpError) {
-          try {
-            const errBody = await error.context.json();
-            if (errBody && typeof errBody.error === "string") message = errBody.error;
-          } catch {
-            // Response body wasn't JSON -- fall back to the generic error message above.
-          }
+      let offset = 0;
+      let totalRows: number | null = null;
+      for (;;) {
+        const body: { csv: string; organization_id?: string; offset: number; limit: number } = {
+          csv,
+          offset,
+          limit: BULK_IMPORT_CHUNK_SIZE,
+        };
+        // organization_id is only read by the function when the caller is platform_admin --
+        // every other role's own profile.organization_id is used server-side automatically.
+        if (user?.role === "platform_admin" && viewingOrgId) {
+          body.organization_id = viewingOrgId;
         }
-        setBulkError(message);
-        return;
+        const { data, error } = await supabase.functions.invoke<BulkImportResponse>("bulk-import-employees", { body });
+        if (error) {
+          let message = error.message ?? "Bulk import failed";
+          if (error instanceof FunctionsHttpError) {
+            try {
+              const errBody = await error.context.json();
+              if (errBody && typeof errBody.error === "string") message = errBody.error;
+            } catch {
+              // Response body wasn't JSON -- fall back to the generic error message above.
+            }
+          }
+          setBulkError(aggregate.total > 0 ? `${message} (stopped after ${aggregate.total} rows)` : message);
+          if (aggregate.total > 0) setBulkResult({ ...aggregate });
+          return;
+        }
+        if (!data) {
+          setBulkError("The import function returned no data.");
+          return;
+        }
+        aggregate.total += data.total;
+        aggregate.succeeded += data.succeeded;
+        aggregate.failed += data.failed;
+        aggregate.results = aggregate.results.concat(data.results);
+        anySucceeded = anySucceeded || data.succeeded > 0;
+        totalRows = data.totalRows ?? totalRows ?? data.total;
+        setBulkProgress({
+          processed: aggregate.total,
+          total: totalRows ?? aggregate.total,
+          succeeded: aggregate.succeeded,
+          failed: aggregate.failed,
+        });
+        if (data.nextOffset === null || data.nextOffset === undefined) break;
+        offset = data.nextOffset;
+        if (bulkCancelRef.current) {
+          setBulkError(`Import cancelled after ${aggregate.total} of ${totalRows ?? "?"} rows. Rows already imported were kept.`);
+          break;
+        }
       }
-      if (!data) {
-        setBulkError("The import function returned no data.");
-        return;
-      }
-      setBulkResult(data);
-      if (data.succeeded > 0) {
-        queryClient.invalidateQueries({ queryKey: ["employees"] });
-      }
+      setBulkResult({ ...aggregate });
     } catch (err) {
       setBulkError(err instanceof Error ? err.message : String(err));
     } finally {
+      if (anySucceeded) {
+        queryClient.invalidateQueries({ queryKey: ["employees"] });
+      }
       setBulkImporting(false);
+      setBulkProgress(null);
     }
   };
 
@@ -499,6 +552,16 @@ export default function Employees() {
               />
             </div>
 
+            {bulkImporting && bulkProgress && (
+              <div className="space-y-1.5">
+                <Progress value={bulkProgress.total > 0 ? (bulkProgress.processed / bulkProgress.total) * 100 : 0} />
+                <p className="text-[12px] text-muted-foreground">
+                  Imported {bulkProgress.processed} of {bulkProgress.total} rows
+                  {" "}({bulkProgress.succeeded} succeeded{bulkProgress.failed > 0 ? `, ${bulkProgress.failed} failed` : ""})...
+                </p>
+              </div>
+            )}
+
             {bulkError && (
               <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-[13px] text-destructive">
                 {bulkError}
@@ -537,8 +600,14 @@ export default function Employees() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowBulkImport(false)}>
-              {bulkResult ? "Close" : "Cancel"}
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (bulkImporting) bulkCancelRef.current = true;
+                else setShowBulkImport(false);
+              }}
+            >
+              {bulkImporting ? "Stop Import" : bulkResult ? "Close" : "Cancel"}
             </Button>
             <Button onClick={handleBulkImport} disabled={bulkImporting || !bulkFile} className="shadow-sm">
               {bulkImporting ? "Importing..." : "Import"}
