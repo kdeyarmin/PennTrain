@@ -44,6 +44,7 @@ const MAINTENANCE_ROLES: Role[] = ["platform_admin", "org_admin", "facility_mana
 const AUDIT_LOG_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
 const PENDING_APPROVAL_ROLES: Role[] = ["org_admin", "facility_manager", "trainer"];
 const WORK_QUEUE_ROLES: Role[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
+const EMERGENCY_ROLES: Role[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 const TRAINER_ONLY: Role[] = ["trainer"];
 const EMPLOYEE_ONLY: Role[] = ["employee"];
 const ANY_ROLE: Role[] = ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"];
@@ -230,6 +231,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/dietary-operations", label: "Dietary & food-safety operations", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["diet", "nutrition", "allergy", "texture", "hydration", "meal intake", "weight", "menu", "temperature", "sanitation", "kitchen", "food service"] },
   { path: "/app/resident-services-calendar", label: "Resident services calendar", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["appointment", "medical", "dental", "behavioral health", "laboratory", "therapy", "transportation", "driver", "vehicle", "family visit", "community service", "activity", "return instructions"] },
   { path: "/app/qapi", label: "QAPI & quality management", domain: "compliance", roles: WORK_QUEUE_ROLES, keywords: ["quality", "performance improvement", "five whys", "fishbone", "measurements", "audit sample", "sustainment"] },
+  { path: "/app/emergency", label: "Emergency operations", domain: "compliance", roles: EMERGENCY_ROLES, keywords: ["evacuation", "accountability", "outage", "emergency plan", "relocation", "generator fuel", "mass notification", "after action"] },
   { path: "/app/inspections", label: "Inspections & equipment", domain: "compliance", roles: INSPECTION_ROLES, keywords: ["fire drill", "equipment", "physical plant"] },
   { path: "/app/maintenance", label: "Maintenance & work orders", domain: "compliance", roles: MAINTENANCE_ROLES, keywords: ["repair", "work order", "preventive maintenance", "vendor", "downtime", "qr code"] },
   { path: "/app/incidents", label: "Incidents", domain: "compliance", roles: REPORTING_ROLES, keywords: ["reportable events", "safety"] },
@@ -316,6 +318,7 @@ const NESTED_PAGE_OWNER_PATHS = new Set([
   "/app/admissions",
   "/app/change-of-condition",
   "/app/qapi",
+  "/app/emergency",
   "/app/inspections",
   "/app/maintenance",
   "/app/help",

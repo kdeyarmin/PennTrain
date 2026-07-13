@@ -25,6 +25,7 @@ const budgets = {
   // meeting notes, RCA, and print-optimized workspace); raised 2600 -> 2700 for the
   // environmental work-order, QR-location, evidence, and preventive-maintenance routes,
   // the complaint/grievance case workflow (intake, investigation, corrective actions,
+<<<<<<< HEAD
   // nonretaliation monitoring, incident escalation, and closure approval), and
   // qualification-aware scheduling previews, bounded overrides, and service workload;
   // raised 2700 -> 2710 after merging qualification-visibility updates alongside the
@@ -39,6 +40,20 @@ const budgets = {
   // 2810 -> 2840 for the lazy resident-services calendar and transportation workflows.
   // These changes keep the initial-shell and per-load limits flat.
   totalJavaScript: 2840 * 1024,
+=======
+  // nonretaliation monitoring, incident escalation, and closure approval), the complete
+  // emergency-operations domain (readiness, accountability, communications, and after-action),
+  // and qualification-aware scheduling (previews, bounded overrides, and service workload);
+  // raised 2700 -> 2710 after merging all features together (environmental work orders,
+  // emergency operations, complaints/grievances, and qualification-aware scheduling).
+  // The new pages remain lazy routes and do not increase the initial-shell budget.
+  // raised 2710 -> 2760 after the emergency-operations and environmental-work-orders
+  // branches were both merged into main; measured combined bundle is 2755.7 KiB.
+  // raised 2760 -> 2790 after the resident administrative master workspace (identity,
+  // contacts, legal, payer, directives, rights, contracts, history) merged in and the
+  // measured combined bundle reached 2787.2 KiB while the per-load budgets stayed flat.
+  totalJavaScript: 2790 * 1024,
+>>>>>>> origin/main
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };

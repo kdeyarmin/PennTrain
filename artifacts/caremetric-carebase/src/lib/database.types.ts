@@ -3709,6 +3709,7 @@ export type Database = {
           },
         ]
       }
+<<<<<<< HEAD
       dietary_exception_patterns: {
         Row: {
           facility_id: string
@@ -3749,19 +3750,98 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "dietary_exception_patterns_facility_id_fkey"
+=======
+      emergency_after_action_reviews: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          corrective_action_plan: string | null
+          created_at: string
+          emergency_event_id: string
+          facility_id: string
+          gaps_identified: string | null
+          id: string
+          lessons_learned: string | null
+          organization_id: string
+          response_summary: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          strengths: string | null
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          corrective_action_plan?: string | null
+          created_at?: string
+          emergency_event_id: string
+          facility_id: string
+          gaps_identified?: string | null
+          id?: string
+          lessons_learned?: string | null
+          organization_id: string
+          response_summary: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          strengths?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          corrective_action_plan?: string | null
+          created_at?: string
+          emergency_event_id?: string
+          facility_id?: string
+          gaps_identified?: string | null
+          id?: string
+          lessons_learned?: string | null
+          organization_id?: string
+          response_summary?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          strengths?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emergency_after_action_reviews_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_after_action_reviews_emergency_event_id_fkey"
+            columns: ["emergency_event_id"]
+            isOneToOne: true
+            referencedRelation: "emergency_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_after_action_reviews_facility_id_fkey"
+>>>>>>> origin/main
             columns: ["facility_id"]
             isOneToOne: false
             referencedRelation: "facilities"
             referencedColumns: ["id"]
           },
           {
+<<<<<<< HEAD
             foreignKeyName: "dietary_exception_patterns_organization_id_fkey"
+=======
+            foreignKeyName: "emergency_after_action_reviews_organization_id_fkey"
+>>>>>>> origin/main
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
+<<<<<<< HEAD
             foreignKeyName: "dietary_exception_patterns_qapi_project_id_fkey"
             columns: ["qapi_project_id"]
             isOneToOne: false
@@ -3770,6 +3850,109 @@ export type Database = {
           },
           {
             foreignKeyName: "dietary_exception_patterns_resident_id_fkey"
+=======
+            foreignKeyName: "emergency_after_action_reviews_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      emergency_communications: {
+        Row: {
+          audience: string
+          batch_id: string | null
+          channel: string
+          created_at: string
+          delivery_status: string
+          emergency_event_id: string
+          facility_id: string
+          id: string
+          informal_support_id: string | null
+          message: string
+          occurred_at: string
+          organization_id: string
+          recipient_contact_snapshot: string | null
+          recipient_name_snapshot: string | null
+          recorded_by: string | null
+          resident_id: string | null
+        }
+        Insert: {
+          audience: string
+          batch_id?: string | null
+          channel: string
+          created_at?: string
+          delivery_status: string
+          emergency_event_id: string
+          facility_id: string
+          id?: string
+          informal_support_id?: string | null
+          message: string
+          occurred_at?: string
+          organization_id: string
+          recipient_contact_snapshot?: string | null
+          recipient_name_snapshot?: string | null
+          recorded_by?: string | null
+          resident_id?: string | null
+        }
+        Update: {
+          audience?: string
+          batch_id?: string | null
+          channel?: string
+          created_at?: string
+          delivery_status?: string
+          emergency_event_id?: string
+          facility_id?: string
+          id?: string
+          informal_support_id?: string | null
+          message?: string
+          occurred_at?: string
+          organization_id?: string
+          recipient_contact_snapshot?: string | null
+          recipient_name_snapshot?: string | null
+          recorded_by?: string | null
+          resident_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emergency_communications_emergency_event_id_fkey"
+            columns: ["emergency_event_id"]
+            isOneToOne: false
+            referencedRelation: "emergency_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_communications_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_communications_informal_support_id_fkey"
+            columns: ["informal_support_id"]
+            isOneToOne: false
+            referencedRelation: "resident_informal_supports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_communications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_communications_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_communications_resident_id_fkey"
+>>>>>>> origin/main
             columns: ["resident_id"]
             isOneToOne: false
             referencedRelation: "residents"
@@ -3777,6 +3960,7 @@ export type Database = {
           },
         ]
       }
+<<<<<<< HEAD
       dietary_menu_cycles: {
         Row: {
           created_at: string
@@ -3789,11 +3973,631 @@ export type Database = {
           organization_id: string
           starts_on: string
           status: string
+=======
+      emergency_event_actions: {
+        Row: {
+          created_at: string
+          emergency_event_id: string
+          facility_id: string
+          id: string
+          organization_id: string
+          work_item_id: string
+        }
+        Insert: {
+          created_at?: string
+          emergency_event_id: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          work_item_id: string
+        }
+        Update: {
+          created_at?: string
+          emergency_event_id?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          work_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emergency_event_actions_emergency_event_id_fkey"
+            columns: ["emergency_event_id"]
+            isOneToOne: false
+            referencedRelation: "emergency_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_event_actions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_event_actions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_event_actions_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      emergency_event_residents: {
+        Row: {
+          accountability_status: string
+          accounted_at: string | null
+          accounted_by: string | null
+          assigned_employee_id: string | null
+          assistance_level_snapshot: string
+          created_at: string
+          emergency_event_id: string
+          evacuation_method_snapshot: string | null
+          facility_id: string
+          id: string
+          mobility_needs_snapshot: string | null
+          notes: string | null
+          organization_id: string
+          relocation_site_id: string | null
+          required_equipment_snapshot: string | null
+          resident_id: string
+          resident_name_snapshot: string
+          room_snapshot: string | null
+          transportation_needs_snapshot: string | null
+          updated_at: string
+        }
+        Insert: {
+          accountability_status?: string
+          accounted_at?: string | null
+          accounted_by?: string | null
+          assigned_employee_id?: string | null
+          assistance_level_snapshot: string
+          created_at?: string
+          emergency_event_id: string
+          evacuation_method_snapshot?: string | null
+          facility_id: string
+          id?: string
+          mobility_needs_snapshot?: string | null
+          notes?: string | null
+          organization_id: string
+          relocation_site_id?: string | null
+          required_equipment_snapshot?: string | null
+          resident_id: string
+          resident_name_snapshot: string
+          room_snapshot?: string | null
+          transportation_needs_snapshot?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accountability_status?: string
+          accounted_at?: string | null
+          accounted_by?: string | null
+          assigned_employee_id?: string | null
+          assistance_level_snapshot?: string
+          created_at?: string
+          emergency_event_id?: string
+          evacuation_method_snapshot?: string | null
+          facility_id?: string
+          id?: string
+          mobility_needs_snapshot?: string | null
+          notes?: string | null
+          organization_id?: string
+          relocation_site_id?: string | null
+          required_equipment_snapshot?: string | null
+          resident_id?: string
+          resident_name_snapshot?: string
+          room_snapshot?: string | null
+          transportation_needs_snapshot?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emergency_event_residents_accounted_by_fkey"
+            columns: ["accounted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_event_residents_assigned_employee_id_fkey"
+            columns: ["assigned_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_event_residents_emergency_event_id_fkey"
+            columns: ["emergency_event_id"]
+            isOneToOne: false
+            referencedRelation: "emergency_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_event_residents_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_event_residents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_event_residents_relocation_site_id_fkey"
+            columns: ["relocation_site_id"]
+            isOneToOne: false
+            referencedRelation: "emergency_resources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_event_residents_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      emergency_event_staff: {
+        Row: {
+          accountability_status: string
+          accounted_at: string | null
+          accounted_by: string | null
+          created_at: string
+          emergency_event_id: string
+          employee_id: string
+          employee_name_snapshot: string
+          facility_id: string
+          id: string
+          job_title_snapshot: string | null
+          notes: string | null
+          organization_id: string
+          responsibility_snapshot: string | null
+          roster_source: string
+          updated_at: string
+        }
+        Insert: {
+          accountability_status?: string
+          accounted_at?: string | null
+          accounted_by?: string | null
+          created_at?: string
+          emergency_event_id: string
+          employee_id: string
+          employee_name_snapshot: string
+          facility_id: string
+          id?: string
+          job_title_snapshot?: string | null
+          notes?: string | null
+          organization_id: string
+          responsibility_snapshot?: string | null
+          roster_source: string
+          updated_at?: string
+        }
+        Update: {
+          accountability_status?: string
+          accounted_at?: string | null
+          accounted_by?: string | null
+          created_at?: string
+          emergency_event_id?: string
+          employee_id?: string
+          employee_name_snapshot?: string
+          facility_id?: string
+          id?: string
+          job_title_snapshot?: string | null
+          notes?: string | null
+          organization_id?: string
+          responsibility_snapshot?: string | null
+          roster_source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emergency_event_staff_accounted_by_fkey"
+            columns: ["accounted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_event_staff_emergency_event_id_fkey"
+            columns: ["emergency_event_id"]
+            isOneToOne: false
+            referencedRelation: "emergency_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_event_staff_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_event_staff_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_event_staff_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      emergency_event_timeline: {
+        Row: {
+          created_at: string
+          description: string
+          emergency_event_id: string
+          event_type: string
+          facility_id: string
+          id: string
+          metadata: Json
+          occurred_at: string
+          organization_id: string
+          recorded_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          emergency_event_id: string
+          event_type: string
+          facility_id: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          organization_id: string
+          recorded_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          emergency_event_id?: string
+          event_type?: string
+          facility_id?: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          organization_id?: string
+          recorded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emergency_event_timeline_emergency_event_id_fkey"
+            columns: ["emergency_event_id"]
+            isOneToOne: false
+            referencedRelation: "emergency_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_event_timeline_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_event_timeline_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_event_timeline_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      emergency_events: {
+        Row: {
+          assembly_point: string | null
+          created_at: string
+          declared_by: string | null
+          ended_at: string | null
+          event_mode: string
+          event_number: string
+          event_type: string
+          facility_id: string
+          id: string
+          incident_commander_profile_id: string | null
+          incident_id: string | null
+          inspection_event_id: string | null
+          location_description: string | null
+          organization_id: string
+          plan_version_id: string
+          started_at: string
+          status: string
+          summary: string
+          updated_at: string
+        }
+        Insert: {
+          assembly_point?: string | null
+          created_at?: string
+          declared_by?: string | null
+          ended_at?: string | null
+          event_mode: string
+          event_number: string
+          event_type: string
+          facility_id: string
+          id?: string
+          incident_commander_profile_id?: string | null
+          incident_id?: string | null
+          inspection_event_id?: string | null
+          location_description?: string | null
+          organization_id: string
+          plan_version_id: string
+          started_at: string
+          status?: string
+          summary: string
+          updated_at?: string
+        }
+        Update: {
+          assembly_point?: string | null
+          created_at?: string
+          declared_by?: string | null
+          ended_at?: string | null
+          event_mode?: string
+          event_number?: string
+          event_type?: string
+          facility_id?: string
+          id?: string
+          incident_commander_profile_id?: string | null
+          incident_id?: string | null
+          inspection_event_id?: string | null
+          location_description?: string | null
+          organization_id?: string
+          plan_version_id?: string
+          started_at?: string
+          status?: string
+          summary?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emergency_events_declared_by_fkey"
+            columns: ["declared_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_events_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_events_incident_commander_profile_id_fkey"
+            columns: ["incident_commander_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_events_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_events_inspection_event_id_fkey"
+            columns: ["inspection_event_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_events_plan_version_id_fkey"
+            columns: ["plan_version_id"]
+            isOneToOne: false
+            referencedRelation: "emergency_plan_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      emergency_inventory_items: {
+        Row: {
+          checked_at: string
+          checked_by: string | null
+          created_at: string
+          expiration_date: string | null
+          facility_id: string
+          id: string
+          inventory_type: string
+          item_name: string
+          location: string | null
+          minimum_quantity: number
+          notes: string | null
+          organization_id: string
+          quantity: number
+          status: string
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          checked_at?: string
+          checked_by?: string | null
+          created_at?: string
+          expiration_date?: string | null
+          facility_id: string
+          id?: string
+          inventory_type: string
+          item_name: string
+          location?: string | null
+          minimum_quantity?: number
+          notes?: string | null
+          organization_id: string
+          quantity?: number
+          status?: string
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          checked_at?: string
+          checked_by?: string | null
+          created_at?: string
+          expiration_date?: string | null
+          facility_id?: string
+          id?: string
+          inventory_type?: string
+          item_name?: string
+          location?: string | null
+          minimum_quantity?: number
+          notes?: string | null
+          organization_id?: string
+          quantity?: number
+          status?: string
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emergency_inventory_items_checked_by_fkey"
+            columns: ["checked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_inventory_items_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_inventory_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      emergency_plan_versions: {
+        Row: {
+          approved_at: string
+          approved_by: string
+          change_summary: string
+          created_at: string
+          effective_date: string
+          facility_id: string
+          file_name: string | null
+          id: string
+          organization_id: string
+          plan_id: string
+          plan_snapshot: Json
+          storage_bucket: string | null
+          storage_path: string | null
+          version_number: number
+        }
+        Insert: {
+          approved_at?: string
+          approved_by: string
+          change_summary: string
+          created_at?: string
+          effective_date: string
+          facility_id: string
+          file_name?: string | null
+          id?: string
+          organization_id: string
+          plan_id: string
+          plan_snapshot?: Json
+          storage_bucket?: string | null
+          storage_path?: string | null
+          version_number: number
+        }
+        Update: {
+          approved_at?: string
+          approved_by?: string
+          change_summary?: string
+          created_at?: string
+          effective_date?: string
+          facility_id?: string
+          file_name?: string | null
+          id?: string
+          organization_id?: string
+          plan_id?: string
+          plan_snapshot?: Json
+          storage_bucket?: string | null
+          storage_path?: string | null
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emergency_plan_versions_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_plan_versions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_plan_versions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_plan_versions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "emergency_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      emergency_plans: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          current_version_id: string | null
+          facility_id: string
+          id: string
+          organization_id: string
+          title: string
+>>>>>>> origin/main
           updated_at: string
         }
         Insert: {
           created_at?: string
           created_by?: string | null
+<<<<<<< HEAD
           cycle_length_days: number
           ends_on?: string | null
           facility_id: string
@@ -3802,11 +4606,19 @@ export type Database = {
           organization_id: string
           starts_on: string
           status?: string
+=======
+          current_version_id?: string | null
+          facility_id: string
+          id?: string
+          organization_id: string
+          title: string
+>>>>>>> origin/main
           updated_at?: string
         }
         Update: {
           created_at?: string
           created_by?: string | null
+<<<<<<< HEAD
           cycle_length_days?: number
           ends_on?: string | null
           facility_id?: string
@@ -3815,25 +4627,53 @@ export type Database = {
           organization_id?: string
           starts_on?: string
           status?: string
+=======
+          current_version_id?: string | null
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          title?: string
+>>>>>>> origin/main
           updated_at?: string
         }
         Relationships: [
           {
+<<<<<<< HEAD
             foreignKeyName: "dietary_menu_cycles_created_by_fkey"
+=======
+            foreignKeyName: "emergency_plans_created_by_fkey"
+>>>>>>> origin/main
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
+<<<<<<< HEAD
             foreignKeyName: "dietary_menu_cycles_facility_id_fkey"
             columns: ["facility_id"]
             isOneToOne: false
+=======
+            foreignKeyName: "emergency_plans_current_version_fkey"
+            columns: ["current_version_id"]
+            isOneToOne: false
+            referencedRelation: "emergency_plan_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_plans_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: true
+>>>>>>> origin/main
             referencedRelation: "facilities"
             referencedColumns: ["id"]
           },
           {
+<<<<<<< HEAD
             foreignKeyName: "dietary_menu_cycles_organization_id_fkey"
+=======
+            foreignKeyName: "emergency_plans_organization_id_fkey"
+>>>>>>> origin/main
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -3841,6 +4681,7 @@ export type Database = {
           },
         ]
       }
+<<<<<<< HEAD
       dietary_menu_entries: {
         Row: {
           created_at: string
@@ -3949,29 +4790,173 @@ export type Database = {
           {
             foreignKeyName: "dietary_operations_history_actor_profile_id_fkey"
             columns: ["actor_profile_id"]
+=======
+      emergency_resources: {
+        Row: {
+          address: string | null
+          availability_notes: string | null
+          capacity: number | null
+          contact_name: string | null
+          contract_reference: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          facility_id: string
+          id: string
+          is_active: boolean
+          last_verified_at: string | null
+          name: string
+          organization_id: string
+          phone: string | null
+          resource_type: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          availability_notes?: string | null
+          capacity?: number | null
+          contact_name?: string | null
+          contract_reference?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          facility_id: string
+          id?: string
+          is_active?: boolean
+          last_verified_at?: string | null
+          name: string
+          organization_id: string
+          phone?: string | null
+          resource_type: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          availability_notes?: string | null
+          capacity?: number | null
+          contact_name?: string | null
+          contract_reference?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          facility_id?: string
+          id?: string
+          is_active?: boolean
+          last_verified_at?: string | null
+          name?: string
+          organization_id?: string
+          phone?: string | null
+          resource_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emergency_resources_created_by_fkey"
+            columns: ["created_by"]
+>>>>>>> origin/main
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
+<<<<<<< HEAD
             foreignKeyName: "dietary_operations_history_facility_id_fkey"
+=======
+            foreignKeyName: "emergency_resources_facility_id_fkey"
+>>>>>>> origin/main
             columns: ["facility_id"]
             isOneToOne: false
             referencedRelation: "facilities"
             referencedColumns: ["id"]
           },
           {
+<<<<<<< HEAD
             foreignKeyName: "dietary_operations_history_organization_id_fkey"
+=======
+            foreignKeyName: "emergency_resources_organization_id_fkey"
+>>>>>>> origin/main
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
+<<<<<<< HEAD
           {
             foreignKeyName: "dietary_operations_history_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
             referencedRelation: "residents"
+=======
+        ]
+      }
+      emergency_staff_assignments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          emergency_role: string
+          employee_id: string
+          facility_id: string
+          id: string
+          is_active: boolean
+          is_backup: boolean
+          organization_id: string
+          responsibility: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          emergency_role: string
+          employee_id: string
+          facility_id: string
+          id?: string
+          is_active?: boolean
+          is_backup?: boolean
+          organization_id: string
+          responsibility: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          emergency_role?: string
+          employee_id?: string
+          facility_id?: string
+          id?: string
+          is_active?: boolean
+          is_backup?: boolean
+          organization_id?: string
+          responsibility?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emergency_staff_assignments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_staff_assignments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_staff_assignments_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_staff_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+>>>>>>> origin/main
             referencedColumns: ["id"]
           },
         ]
@@ -17057,6 +18042,7 @@ export type Database = {
           },
         ]
       }
+<<<<<<< HEAD
       resident_hydration_rounds: {
         Row: {
           consumed_ml: number
@@ -17106,19 +18092,84 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "resident_hydration_rounds_facility_id_fkey"
+=======
+      resident_evacuation_profiles: {
+        Row: {
+          assistance_level: string
+          communication_needs: string | null
+          created_at: string
+          evacuation_method: string | null
+          facility_id: string
+          id: string
+          last_reviewed_at: string
+          mobility_needs: string | null
+          notes: string | null
+          organization_id: string
+          preferred_relocation_notes: string | null
+          required_equipment: string | null
+          resident_id: string
+          reviewed_by: string | null
+          transportation_needs: string | null
+          updated_at: string
+        }
+        Insert: {
+          assistance_level: string
+          communication_needs?: string | null
+          created_at?: string
+          evacuation_method?: string | null
+          facility_id: string
+          id?: string
+          last_reviewed_at?: string
+          mobility_needs?: string | null
+          notes?: string | null
+          organization_id: string
+          preferred_relocation_notes?: string | null
+          required_equipment?: string | null
+          resident_id: string
+          reviewed_by?: string | null
+          transportation_needs?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assistance_level?: string
+          communication_needs?: string | null
+          created_at?: string
+          evacuation_method?: string | null
+          facility_id?: string
+          id?: string
+          last_reviewed_at?: string
+          mobility_needs?: string | null
+          notes?: string | null
+          organization_id?: string
+          preferred_relocation_notes?: string | null
+          required_equipment?: string | null
+          resident_id?: string
+          reviewed_by?: string | null
+          transportation_needs?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_evacuation_profiles_facility_id_fkey"
+>>>>>>> origin/main
             columns: ["facility_id"]
             isOneToOne: false
             referencedRelation: "facilities"
             referencedColumns: ["id"]
           },
           {
+<<<<<<< HEAD
             foreignKeyName: "resident_hydration_rounds_organization_id_fkey"
+=======
+            foreignKeyName: "resident_evacuation_profiles_organization_id_fkey"
+>>>>>>> origin/main
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
+<<<<<<< HEAD
             foreignKeyName: "resident_hydration_rounds_recorded_by_fkey"
             columns: ["recorded_by"]
             isOneToOne: false
@@ -17129,14 +18180,26 @@ export type Database = {
             foreignKeyName: "resident_hydration_rounds_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+=======
+            foreignKeyName: "resident_evacuation_profiles_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: true
+>>>>>>> origin/main
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
           {
+<<<<<<< HEAD
             foreignKeyName: "resident_hydration_rounds_work_item_id_fkey"
             columns: ["work_item_id"]
             isOneToOne: false
             referencedRelation: "work_items"
+=======
+            foreignKeyName: "resident_evacuation_profiles_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+>>>>>>> origin/main
             referencedColumns: ["id"]
           },
         ]
@@ -22157,6 +23220,27 @@ export type Database = {
         }
         Returns: string
       }
+      add_emergency_corrective_action: {
+        Args: {
+          p_description: string
+          p_due_at: string
+          p_emergency_event_id: string
+          p_owner_profile_id: string
+          p_priority: string
+          p_title: string
+        }
+        Returns: string
+      }
+      add_emergency_timeline_entry: {
+        Args: {
+          p_description: string
+          p_emergency_event_id: string
+          p_event_type: string
+          p_metadata?: Json
+          p_occurred_at: string
+        }
+        Returns: string
+      }
       add_qapi_action: {
         Args: {
           p_action_type: string
@@ -22820,6 +23904,7 @@ export type Database = {
         }
         Returns: string
       }
+<<<<<<< HEAD
       create_dietary_menu_cycle: {
         Args: {
           p_cycle_length_days: number
@@ -22828,6 +23913,17 @@ export type Database = {
           p_name: string
           p_starts_on: string
           p_status: string
+=======
+      create_emergency_plan_version: {
+        Args: {
+          p_change_summary: string
+          p_effective_date: string
+          p_facility_id: string
+          p_file_name?: string
+          p_plan_snapshot?: Json
+          p_storage_path?: string
+          p_title: string
+>>>>>>> origin/main
         }
         Returns: string
       }
@@ -23780,6 +24876,22 @@ export type Database = {
         Args: { p_document_id: string; p_document_table: string }
         Returns: undefined
       }
+      log_emergency_communication: {
+        Args: {
+          p_audience: string
+          p_batch_id?: string
+          p_channel: string
+          p_delivery_status: string
+          p_emergency_event_id: string
+          p_informal_support_id: string
+          p_message: string
+          p_occurred_at?: string
+          p_recipient_contact: string
+          p_recipient_name: string
+          p_resident_id: string
+        }
+        Returns: string
+      }
       log_maintenance_document_access: {
         Args: { p_document_id: string }
         Returns: undefined
@@ -23938,6 +25050,14 @@ export type Database = {
       publish_schedule: { Args: { p_schedule_id: string }; Returns: undefined }
       queue_course_assignment_due_reminders: { Args: never; Returns: undefined }
       queue_course_continuation_reminders: { Args: never; Returns: undefined }
+      queue_designated_person_notifications: {
+        Args: {
+          p_channel?: string
+          p_emergency_event_id: string
+          p_message: string
+        }
+        Returns: Json
+      }
       recalculate_all_compliance: { Args: never; Returns: undefined }
       recalculate_compliance_core: {
         Args: { p_organization_id?: string }
@@ -24006,6 +25126,7 @@ export type Database = {
         }
         Returns: boolean
       }
+<<<<<<< HEAD
       record_food_safety_log: {
         Args: {
           p_checklist: Json
@@ -24018,6 +25139,19 @@ export type Database = {
           p_result: string
         }
         Returns: string
+=======
+      record_emergency_accountability: {
+        Args: {
+          p_assigned_employee_id?: string
+          p_emergency_event_id: string
+          p_notes?: string
+          p_relocation_site_id?: string
+          p_status: string
+          p_subject_id: string
+          p_subject_type: string
+        }
+        Returns: boolean
+>>>>>>> origin/main
       }
       record_notification_consent_event: {
         Args: {
@@ -24513,6 +25647,18 @@ export type Database = {
         }[]
       }
       run_phase1_synthetic_checks: { Args: never; Returns: Json }
+      save_emergency_after_action: {
+        Args: {
+          p_corrective_action_plan: string
+          p_emergency_event_id: string
+          p_gaps_identified: string
+          p_lessons_learned: string
+          p_response_summary: string
+          p_status: string
+          p_strengths: string
+        }
+        Returns: string
+      }
       save_report_definition: {
         Args: {
           p_columns?: Json
@@ -24782,6 +25928,21 @@ export type Database = {
         Args: { p_assignment_id: string }
         Returns: undefined
       }
+      start_emergency_event: {
+        Args: {
+          p_assembly_point: string
+          p_event_mode: string
+          p_event_type: string
+          p_facility_id: string
+          p_incident_commander: string
+          p_incident_id?: string
+          p_inspection_event_id?: string
+          p_location_description: string
+          p_started_at: string
+          p_summary: string
+        }
+        Returns: string
+      }
       start_move_in_workspace: {
         Args: { p_prospect_id: string }
         Returns: string
@@ -24930,6 +26091,14 @@ export type Database = {
           p_payload: Json
         }
         Returns: Json
+      }
+      transition_emergency_event: {
+        Args: {
+          p_emergency_event_id: string
+          p_reason: string
+          p_target_status: string
+        }
+        Returns: boolean
       }
       transition_resident_census: {
         Args: {
@@ -25124,6 +26293,7 @@ export type Database = {
         }
         Returns: string
       }
+<<<<<<< HEAD
       upsert_facility_transport_vehicle: {
         Args: {
           p_capacity: number
@@ -25172,6 +26342,19 @@ export type Database = {
           p_change_reason: string
           p_profile: Json
           p_resident_id: string
+=======
+      upsert_resident_evacuation_profile: {
+        Args: {
+          p_assistance_level: string
+          p_communication_needs: string
+          p_evacuation_method: string
+          p_mobility_needs: string
+          p_notes: string
+          p_preferred_relocation_notes: string
+          p_required_equipment: string
+          p_resident_id: string
+          p_transportation_needs: string
+>>>>>>> origin/main
         }
         Returns: string
       }
