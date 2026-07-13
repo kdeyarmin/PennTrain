@@ -71,7 +71,7 @@ create table public.resident_agreement_guest_grants (
   expires_at timestamptz not null,
   terms_version text not null,
   accepted_at timestamptz,
-  accepted_device_hash text,
+  accepted_device_hash text check (accepted_device_hash is null or accepted_device_hash ~ '^[0-9a-f]{64}$'),
   revoked_at timestamptz,
   revocation_reason text,
   created_by uuid references public.profiles(id),
