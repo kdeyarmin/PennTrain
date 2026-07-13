@@ -25,6 +25,7 @@ import { useLocation } from "wouter";
 import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { todayISO, addDaysISO, computeDueDate, computeStatus } from "@/lib/complianceDates";
+import { QueryError, QueryLoading } from "@/components/QueryState";
 
 // Matches employee_training_records_insert/_update RLS.
 const TRAINING_RECORD_MANAGE_ROLES: Role[] = ["org_admin", "facility_manager", "trainer"];
@@ -116,8 +117,10 @@ function StatusDot({ entry, onClick }: { entry: MatrixCell | undefined; onClick?
       onClick={onClick}
       className="inline-flex items-center justify-center w-6 h-6 rounded-full hover:ring-2 hover:ring-offset-1 hover:ring-primary/50 transition-all focus:outline-none focus:ring-2 focus:ring-primary"
       title={getStatusLabel(entry?.status)}
+      aria-label={getStatusLabel(entry?.status)}
     >
       <span
+        aria-hidden="true"
         style={{
           display: "inline-block",
           width: 12,
@@ -691,15 +694,25 @@ export default function TrainingMatrix() {
   const { user } = useAuth();
   const canManage = !!user && TRAINING_RECORD_MANAGE_ROLES.includes(user.role);
 
-  const { data: facilities } = useListFacilities({});
-  const { data: employees } = useListEmployees({
+  const facilitiesQuery = useListFacilities({});
+  const employeesQuery = useListEmployees({
     facilityId: facilityId !== "all" ? facilityId : undefined,
     status: "active",
   });
-  const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
-  const { data: trainingRecords } = useListTrainingRecords({
+  const trainingTypesQuery = useListTrainingTypes({ isActive: true });
+  const trainingRecordsQuery = useListTrainingRecords({
     facilityId: facilityId !== "all" ? facilityId : undefined,
   });
+  const facilities = facilitiesQuery.data;
+  const employees = employeesQuery.data;
+  const trainingTypes = trainingTypesQuery.data;
+  const trainingRecords = trainingRecordsQuery.data;
+  const matrixQueries = [facilitiesQuery, employeesQuery, trainingTypesQuery, trainingRecordsQuery];
+  const matrixLoading = matrixQueries.some((query) => query.isLoading);
+  const matrixError = matrixQueries.find((query) => query.isError)?.error;
+  const refetchMatrix = () => {
+    void Promise.all(matrixQueries.map((query) => query.refetch()));
+  };
 
   const matrixTrainingTypes: MatrixTrainingType[] = useMemo(
     () => [...(trainingTypes ?? [])].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)),
@@ -871,9 +884,9 @@ export default function TrainingMatrix() {
         <p className="text-muted-foreground">View compliance status across all employees and training types.</p>
       </div>
 
-      <div className="flex flex-wrap gap-3 items-center">
+      <div className="flex flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center" aria-label="Training matrix filters">
         <Select value={facilityId} onValueChange={v => setUrlState({ facilityId: v, page: "1" })}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="All Facilities" />
           </SelectTrigger>
           <SelectContent>
@@ -885,7 +898,7 @@ export default function TrainingMatrix() {
         </Select>
 
         <Select value={statusFilter} onValueChange={v => setUrlState({ statusFilter: v, page: "1" })}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-full sm:w-40">
             <SelectValue placeholder="All Statuses" />
           </SelectTrigger>
           <SelectContent>
@@ -898,7 +911,7 @@ export default function TrainingMatrix() {
         </Select>
 
         <Select value={dueWindow} onValueChange={v => setUrlState({ dueWindow: v, page: "1" })}>
-          <SelectTrigger className="w-44">
+          <SelectTrigger className="w-full sm:w-44">
             <SelectValue placeholder="Due Within" />
           </SelectTrigger>
           <SelectContent>
@@ -913,10 +926,10 @@ export default function TrainingMatrix() {
           placeholder="Search by name or job title..."
           value={search}
           onChange={e => { setSearchInput(e.target.value); setUrlState({ page: "1" }); }}
-          className="w-64"
+          className="w-full sm:w-64"
         />
 
-        <div className="flex items-center gap-4 border rounded-md px-3 py-2 bg-background">
+        <div className="flex w-full flex-col gap-3 rounded-md border bg-background px-3 py-2 sm:w-auto sm:flex-row sm:items-center sm:gap-4">
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <Checkbox
               checked={trainerOnly}
@@ -934,12 +947,12 @@ export default function TrainingMatrix() {
         </div>
 
         {canManage && (
-          <Button size="sm" onClick={() => setShowBatchDialog(true)} className="ml-auto">
+          <Button size="sm" onClick={() => setShowBatchDialog(true)} className="w-full sm:ml-auto sm:w-auto">
             <Users className="w-4 h-4 mr-2" />
             Record for Multiple
           </Button>
         )}
-        <Button variant="outline" size="sm" onClick={handleExportCSV} className={canManage ? "" : "ml-auto"}>
+        <Button variant="outline" size="sm" onClick={handleExportCSV} className={`w-full sm:w-auto ${canManage ? "" : "sm:ml-auto"}`}>
           <Download className="w-4 h-4 mr-2" />
           Export CSV
         </Button>
@@ -956,26 +969,30 @@ export default function TrainingMatrix() {
             </CardTitle>
             <div className="flex items-center gap-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1.5">
-                <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", backgroundColor: "#22c55e" }} />
+                <span aria-hidden="true" style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", backgroundColor: "#22c55e" }} />
                 Compliant
               </span>
               <span className="flex items-center gap-1.5">
-                <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", backgroundColor: "#f59e0b" }} />
+                <span aria-hidden="true" style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", backgroundColor: "#f59e0b" }} />
                 Due Soon
               </span>
               <span className="flex items-center gap-1.5">
-                <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", backgroundColor: "#ef4444" }} />
+                <span aria-hidden="true" style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", backgroundColor: "#ef4444" }} />
                 Expired
               </span>
               <span className="flex items-center gap-1.5">
-                <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", backgroundColor: "#94a3b8" }} />
+                <span aria-hidden="true" style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", backgroundColor: "#94a3b8" }} />
                 No Record
               </span>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {pageRows.length === 0 ? (
+          {matrixError ? (
+            <QueryError what="the training matrix" error={matrixError} onRetry={refetchMatrix} />
+          ) : matrixLoading ? (
+            <QueryLoading what="the training matrix" />
+          ) : pageRows.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Users className="w-16 h-16 text-muted-foreground/40 mb-4" />
               <h3 className="text-lg font-semibold mb-1">No matching employees</h3>
@@ -983,7 +1000,50 @@ export default function TrainingMatrix() {
               <Button variant="outline" size="sm" onClick={clearFilters}>Clear Filters</Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="space-y-3 md:hidden">
+                {pageRows.map((row) => (
+                  <article key={row.employee.id} className="rounded-lg border p-4">
+                    <div className="mb-3">
+                      <h3 className="font-medium">{row.employee.first_name} {row.employee.last_name}</h3>
+                      <p className="text-xs text-muted-foreground">{row.employee.job_title || "No role listed"}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {matrixTrainingTypes.map((tt) => {
+                        const cell = row.cells.find((candidate) => candidate.trainingTypeId === tt.id);
+                        const fullTrainingType = trainingTypes?.find((type) => type.id === tt.id);
+                        return (
+                          <button
+                            key={tt.id}
+                            type="button"
+                            className="flex min-h-11 items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-2 text-left text-xs"
+                            aria-label={`${tt.name}: ${getStatusLabel(cell?.status)}`}
+                            onClick={() => {
+                              if (!fullTrainingType) return;
+                              setSelectedCell({
+                                entry: cell ?? { trainingTypeId: tt.id, trainingRecordId: null, status: "missing", completionDate: null, dueDate: null, trainerName: null, hours: null },
+                                trainingType: fullTrainingType,
+                                employee: row.employee,
+                              });
+                            }}
+                          >
+                            <span className="truncate font-medium">{tt.code}</span>
+                            <span className="flex items-center gap-1.5 text-muted-foreground">
+                              <span
+                                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                style={{ backgroundColor: getStatusColor(cell?.status) }}
+                                aria-hidden="true"
+                              />
+                              {getStatusLabel(cell?.status)}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b" style={{ position: "sticky", top: 0, zIndex: 10 }}>
@@ -1044,10 +1104,11 @@ export default function TrainingMatrix() {
                   </tr>
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
 
-          {totalPages > 1 && (
+          {!matrixError && !matrixLoading && totalPages > 1 && (
             <div className="flex items-center justify-between mt-4 pt-4 border-t">
               <span className="text-sm text-muted-foreground">
                 Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, filteredRows.length)} of {filteredRows.length}

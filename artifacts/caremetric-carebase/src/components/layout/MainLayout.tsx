@@ -96,9 +96,9 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-background">
+      <div className="min-h-screen w-full flex items-center justify-center bg-background" role="status" aria-live="polite">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
           <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
@@ -111,8 +111,9 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
   if (checkSuspension && suspensionLoading) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="min-h-screen w-full flex items-center justify-center bg-background" role="status" aria-live="polite">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
+        <span className="sr-only">Loading organization access…</span>
       </div>
     );
   }

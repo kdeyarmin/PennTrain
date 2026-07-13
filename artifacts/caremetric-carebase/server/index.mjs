@@ -6,7 +6,7 @@
 // with SPA fallback routing, and (b) expose GET /health for Railway's
 // healthcheck, since `vite preview` cannot do either safely in production.
 import { createServer } from "node:http";
-import { readFile, stat } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -14,6 +14,10 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const DIST_DIR = resolve(__dirname, "..", "dist", "public");
 const DIST_DIR_WITH_SEP = DIST_DIR + sep;
 const PORT = Number(process.env.PORT) > 0 ? Number(process.env.PORT) : 8080;
+const ASSET_ARCHIVE_DIR = process.env.ASSET_ARCHIVE_DIR
+  ? resolve(process.env.ASSET_ARCHIVE_DIR)
+  : null;
+const ASSET_ARCHIVE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 // "::" binds dual-stack (IPv6 + IPv4-mapped) -- Railway's docs recommend it so the
 // service works on both current (IPv4+IPv6) and legacy (IPv6-only) private networks.
 const HOST = process.env.HOST || "::";
@@ -91,6 +95,9 @@ function sendText(res, status, body) {
     ...SECURITY_HEADERS,
     "Content-Type": "text/plain; charset=utf-8",
     "Content-Length": Buffer.byteLength(body),
+    // Error responses must never outlive a deploy at the browser or CDN. A cached 404 for a
+    // content-hashed chunk can keep a repaired release broken for hours.
+    "Cache-Control": "no-store",
   });
   res.end(body);
 }
@@ -127,6 +134,44 @@ async function resolveStaticFile(pathname) {
     // fall through to null
   }
   return null;
+}
+
+async function resolveArchivedAsset(pathname) {
+  if (!ASSET_ARCHIVE_DIR || !pathname.startsWith("assets/")) return null;
+  const relativeAssetPath = pathname.slice("assets/".length);
+  const archivePrefix = ASSET_ARCHIVE_DIR + sep;
+  const archivePath = resolve(ASSET_ARCHIVE_DIR, normalize(relativeAssetPath));
+  if (archivePath !== ASSET_ARCHIVE_DIR && !archivePath.startsWith(archivePrefix)) return null;
+  try {
+    const info = await stat(archivePath);
+    return info.isFile() ? archivePath : null;
+  } catch {
+    return null;
+  }
+}
+
+async function prepareAssetArchive() {
+  if (!ASSET_ARCHIVE_DIR) return;
+  try {
+    await mkdir(ASSET_ARCHIVE_DIR, { recursive: true });
+    await cp(join(DIST_DIR, "assets"), ASSET_ARCHIVE_DIR, {
+      recursive: true,
+      force: false,
+      errorOnExist: false,
+    });
+
+    const cutoff = Date.now() - ASSET_ARCHIVE_MAX_AGE_MS;
+    const entries = await readdir(ASSET_ARCHIVE_DIR, { withFileTypes: true });
+    await Promise.all(entries.map(async (entry) => {
+      if (!entry.isFile()) return;
+      const filePath = join(ASSET_ARCHIVE_DIR, entry.name);
+      const info = await stat(filePath);
+      if (info.mtimeMs < cutoff) await rm(filePath, { force: true });
+    }));
+    console.log(`Preserving release assets in ${ASSET_ARCHIVE_DIR}`);
+  } catch (error) {
+    console.warn(`Asset archive disabled (failed to prepare ${ASSET_ARCHIVE_DIR})`, error);
+  }
 }
 
 // Picks the best precompressed encoding the client accepts: br over gzip, honoring q=0
@@ -221,7 +266,10 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    const staticFile = await resolveStaticFile(appPath.replace(/^\/+/, ""));
+    const requestedPath = appPath.replace(/^\/+/, "");
+    const staticFile =
+      await resolveStaticFile(requestedPath) ??
+      await resolveArchivedAsset(requestedPath);
     if (staticFile) {
       await serveFile(staticFile, req, res, { cacheable: appPath.startsWith("/assets/") });
       return;
@@ -278,6 +326,7 @@ function startListening(host, allowFallback) {
   server.once("listening", onListening);
   server.listen(PORT, host);
 }
+await prepareAssetArchive();
 startListening(HOST, !process.env.HOST);
 
 // Railway sends SIGTERM on redeploy/scale-down: stop accepting connections, let in-flight

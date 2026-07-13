@@ -91,7 +91,9 @@ export default function Users() {
   const isPlatformAdmin = user?.role === "platform_admin";
   const assignableRoles = ASSIGNABLE_ROLES[(user?.role as Role) ?? "employee"] ?? [];
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(
+    () => new URLSearchParams(window.location.search).get("search") ?? "",
+  );
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [orgFilter, setOrgFilter] = useState<string>(() => viewingOrgId ?? "all");
 

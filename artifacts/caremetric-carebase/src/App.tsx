@@ -119,6 +119,7 @@ const VerifyCertificate = lazy(() => import("@/pages/VerifyCertificate"));
 const CheckIn = lazy(() => import("@/pages/CheckIn"));
 
 import { MainLayout } from "@/components/layout/MainLayout";
+import { KioskLayout } from "@/components/layout/KioskLayout";
 import MaintenanceBanner from "@/components/layout/MaintenanceBanner";
 import { useAuth } from "@/lib/auth";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
@@ -129,13 +130,24 @@ import type { ComponentType } from "react";
 
 type UserRole = "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee" | "auditor";
 
+function FullPageLoading({ label = "Loading CareBase" }: { label?: string }) {
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center bg-background" role="status" aria-live="polite">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
+      <span className="sr-only">{label}…</span>
+    </div>
+  );
+}
+
 function ProtectedRoute({
   component: Component,
   allowedRoles,
   requireFacilityTypes,
+  chrome = "default",
 }: {
   component: ComponentType;
   allowedRoles?: UserRole[];
+  chrome?: "default" | "kiosk";
   // When set, the route is only reachable if the user has at least one facility of one of these
   // types (see useVisibleFacilityTypes) -- the route-level mirror of Sidebar.tsx hiding the nav
   // item, so directly navigating to the URL doesn't reach a page with nothing in it either.
@@ -145,11 +157,7 @@ function ProtectedRoute({
   const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <FullPageLoading />;
   }
 
   if (!isAuthenticated) {
@@ -166,11 +174,7 @@ function ProtectedRoute({
 
   if (requireFacilityTypes && user) {
     if (facilityTypesLoading) {
-      return (
-        <div className="min-h-screen w-full flex items-center justify-center bg-background">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      );
+      return <FullPageLoading label="Loading facility access" />;
     }
     // Only redirect on a confirmed non-match -- a query error isn't "confirmed no", and should
     // fail open (render the page) rather than silently bounce the user away with no explanation.
@@ -180,11 +184,10 @@ function ProtectedRoute({
     }
   }
 
-  return (
-    <MainLayout>
-      <Component />
-    </MainLayout>
-  );
+  const content = <Component />;
+  return chrome === "kiosk"
+    ? <KioskLayout>{content}</KioskLayout>
+    : <MainLayout>{content}</MainLayout>;
 }
 
 const PLATFORM_ADMIN: UserRole[] = ["platform_admin"];
@@ -264,15 +267,13 @@ function Router() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen w-full flex items-center justify-center bg-background">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
+        <FullPageLoading />
       }
     >
     <Switch>
       <Route path="/">
         {() => {
-          if (isLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+          if (isLoading) return <FullPageLoading />;
           if (!isAuthenticated) return <Landing />;
           if (user?.role === "platform_admin") return <Redirect to="/admin" />;
           if (user?.role === "trainer") return <Redirect to="/trainer" />;
@@ -611,7 +612,7 @@ function Router() {
         {() => <ProtectedRoute component={ClassDetail} allowedRoles={CLASS_SCHEDULING_ROLES} />}
       </Route>
       <Route path="/trainer/classes/:id/kiosk">
-        {() => <ProtectedRoute component={ClassKiosk} allowedRoles={CLASS_SCHEDULING_ROLES} />}
+        {() => <ProtectedRoute component={ClassKiosk} allowedRoles={CLASS_SCHEDULING_ROLES} chrome="kiosk" />}
       </Route>
       <Route path="/trainer/retraining">
         {() => <ProtectedRoute component={RetrainingMonitor} allowedRoles={["trainer"]} />}
