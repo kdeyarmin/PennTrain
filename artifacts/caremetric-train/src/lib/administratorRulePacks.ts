@@ -89,7 +89,7 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
 
   requirements.push({
     id: isAlr ? "alr-approved-course-test" : "pch-administrator-qualification",
-    label: isAlr ? "ALR approved administrator course and competency test" : "PCH administrator qualification evidence",
+    label: isAlr ? "ALF approved administrator course and competency test" : "PCH administrator qualification evidence",
     citation: commonCitation,
     facilityTypes: [facilityType],
     binderDestination: "Administrator Qualifications / Qualification Path",
