@@ -31,7 +31,7 @@ create table if not exists public.service_workload_profiles (
   unique nulls not distinct (facility_id, unit_id, shift_definition_id)
 );
 
-create index service_workload_profiles_scope_idx
+create index if not exists service_workload_profiles_scope_idx
   on public.service_workload_profiles(facility_id, unit_id, shift_definition_id);
 create trigger set_updated_at before update on public.service_workload_profiles
 for each row execute function public.set_updated_at();
