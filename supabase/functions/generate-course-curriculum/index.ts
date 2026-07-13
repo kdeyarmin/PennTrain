@@ -408,6 +408,7 @@ Deno.serve(async (req: Request) => {
         .single();
       if (rpcError || !rpcResult) {
         const msg = rpcError?.message ?? "create_course_from_ai_draft RPC failed";
+        await callerClient.from("course_ai_generations").delete().eq("id", childGeneration.id);
         await callerClient.from("training_plans").delete().eq("id", plan.id);
         for (const c of createdCourses) await callerClient.from("courses").delete().eq("id", c.course_id);
         await markFailed(msg);
