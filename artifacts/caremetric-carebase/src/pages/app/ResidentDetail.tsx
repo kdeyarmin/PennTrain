@@ -54,8 +54,8 @@ export default function ResidentDetail() {
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
   const isPlatformRoute = location.startsWith("/admin/");
-  // Platform admins reach resident charts from Alerts; there is no /admin/residents list route.
-  // The prefix remains useful for valid nested chart/form links, while Back returns to Alerts.
+  // Platform-admin resident charts are reachable via multiple entry points (e.g. Alerts, Document Analyzer).
+  // There is no /admin/residents list route; keep nested links working, but return "Back" to a valid origin.
   const residentPathPrefix = isPlatformRoute ? "/admin/residents" : "/app/residents";
   const backDestination = isPlatformRoute
     ? { href: "/admin/alerts", label: "Alerts" }
