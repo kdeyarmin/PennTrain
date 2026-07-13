@@ -88,7 +88,7 @@ function TemplateList({ templates }: { templates: typeof DOCUMENT_TEMPLATES }) {
               </div>
               <p className="text-xs text-muted-foreground truncate mt-0.5">{t.description}</p>
               <div className="mt-2 flex flex-wrap gap-1">
-                {metadata.facilityTypes.map((facilityType) => <Badge key={facilityType} variant="secondary" className="text-[10px]">{facilityType}</Badge>)}
+                {metadata.facilityTypes.map((facilityType) => <Badge key={facilityType} variant="secondary" className="text-[10px]">{facilityType === "ALR" ? "ALF" : facilityType}</Badge>)}
                 <Badge variant="outline" className="text-[10px]">{metadata.binderSection}</Badge>
                 <Badge variant="outline" className="text-[10px]">{metadata.reviewCadence}</Badge>
               </div>
