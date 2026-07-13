@@ -91,8 +91,7 @@ Deno.serve(async (req: Request) => {
   const first_name = typeof body.first_name === "string" ? body.first_name.trim() : undefined;
   const last_name = typeof body.last_name === "string" ? body.last_name.trim() : undefined;
   const role = typeof body.role === "string" ? body.role : undefined;
-  const organization_id = typeof body.organization_id === "string" ? body.organization_id.trim() : undefined;
-  const redirect_to = typeof body.redirect_to === "string" ? body.redirect_to : undefined;
+const redirect_to = typeof body.redirect_to === "string" ? body.redirect_to.trim() : undefined;
   if (!email || !first_name || !last_name || !role) {
     return json({ error: "email, first_name, last_name, and role are required" }, 400);
   }
