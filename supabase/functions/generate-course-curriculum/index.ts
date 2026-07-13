@@ -266,7 +266,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: "organization_id is required when generating a training plan" }, 400);
   }
   if (!title_hint?.trim() && !source_material?.trim() && !notes?.trim() && !plan_name?.trim()) {
-    return json({ error: "at least one of title_hint, source_material, or notes is required" }, 400);
+    return json({ error: "at least one of plan_name, title_hint, source_material, or notes is required" }, 400);
   }
 
   // Best-effort: pull the training type's own name/description/citation_note (if any) into the
