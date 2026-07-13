@@ -719,10 +719,7 @@ for all to authenticated using (
 create policy work_orders_select on public.work_orders
 for select to authenticated using (
   public.is_platform_admin()
-  or exists (
-    select 1 from public.employees e
-    where e.id = work_orders.assigned_employee_id and e.profile_id = (select auth.uid())
-  )
+  or public.owns_employee(work_orders.assigned_employee_id)
   or (
     organization_id = (select public.current_org_id())
     and ((select public.current_role()) in ('org_admin','auditor')
