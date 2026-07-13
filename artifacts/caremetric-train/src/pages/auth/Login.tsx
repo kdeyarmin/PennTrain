@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation, Link } from "wouter";
+import { useLocation, useSearch, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,11 +10,13 @@ import { supabase } from "@/lib/supabase";
 import { markExplicitPasswordSignIn } from "@/lib/auth";
 import { Loader2, ArrowRight, ShieldCheck } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
+import { loginRedirectTarget } from "@/lib/loginRedirect";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [, setLocation] = useLocation();
+  const search = useSearch();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -31,10 +33,9 @@ export default function Login() {
         title: "Login successful",
         description: "Welcome back to CareMetric CareBase",
       });
-      // Land on "/" and let Router's role redirect (driven by the profiles-table-backed
-      // useAuth().user.role, not the client-writable auth user_metadata) send the user to
-      // their actual home once the profile query resolves.
-      setLocation("/");
+      // Preserve protected deep links such as QR check-in. When no safe destination was
+      // requested, "/" lets Router's profiles-table-backed role redirect select the home page.
+      setLocation(loginRedirectTarget(search));
     },
     onError: (error: Error) => {
       toast({

@@ -1,6 +1,14 @@
 import { useCallback, useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
 
+export function stripRouterBase(path: string, baseUrl = import.meta.env.BASE_URL): string {
+  const base = baseUrl.replace(/\/$/, "");
+  if (base && (path === base || path.startsWith(`${base}/`))) {
+    return path.slice(base.length) || "/";
+  }
+  return path;
+}
+
 // Keeps a set of string filter/sort/page values synced into the URL query string, so navigating
 // away (opening a row) and back preserves what the user had selected instead of resetting to
 // defaults on every remount. Values are read from the current URL on every render (not just
@@ -26,7 +34,10 @@ export function useUrlState<T extends Record<string, string>>(defaults: T) {
   const setState = useCallback(
     (updates: Partial<T>) => {
       const currentSearch = typeof window !== "undefined" ? window.location.search : search;
-      const currentPath = typeof window !== "undefined" ? window.location.pathname : location.split("?")[0];
+      const currentPath =
+        typeof window !== "undefined"
+          ? stripRouterBase(window.location.pathname)
+          : location.split("?")[0];
       const params = new URLSearchParams(currentSearch.startsWith("?") ? currentSearch.slice(1) : currentSearch);
       for (const key of Object.keys(updates) as (keyof T)[]) {
         const value = updates[key];

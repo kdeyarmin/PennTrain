@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 
 type SubmissionResult = {
   intakeNumber?: unknown;
@@ -15,6 +16,7 @@ type SubmissionResult = {
 };
 
 export default function SafetyReport() {
+  const { toast } = useToast();
   const [facility, setFacility] = useState("");
   const [summary, setSummary] = useState("");
   const [narrative, setNarrative] = useState("");
@@ -82,6 +84,14 @@ export default function SafetyReport() {
       });
       if (error) throw error;
       setResult((data?.data ?? null) as SubmissionResult | null);
+    } catch (error) {
+      setToken("");
+      if (widget.current && window.turnstile) window.turnstile.reset(widget.current);
+      toast({
+        variant: "destructive",
+        title: "Report could not be submitted",
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
     } finally {
       setPending(false);
     }
@@ -137,6 +147,11 @@ export default function SafetyReport() {
                 <Switch id="danger" checked={urgent} onCheckedChange={setUrgent} />
               </div>
               <div ref={container} />
+              {!siteKey && (
+                <p role="alert" className="text-sm text-destructive">
+                  Safety report verification is not configured. Please contact support.
+                </p>
+              )}
               <Button
                 className="w-full"
                 onClick={() => void submit()}

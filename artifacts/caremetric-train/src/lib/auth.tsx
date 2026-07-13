@@ -4,7 +4,7 @@ import type { Session } from "@supabase/supabase-js";
 import { useLocation } from "wouter";
 import { supabase, clearSupabaseRuntimeCache } from "./supabase";
 import { queryClient } from "./queryClient";
-import { isPublicPath } from "./publicPaths";
+import { isPublicPath, stripBase } from "./publicPaths";
 import { useToast } from "@/hooks/use-toast";
 import { STORAGE_KEY as IMPERSONATION_STORAGE_KEY, CHANGE_EVENT as IMPERSONATION_CHANGE_EVENT } from "@/hooks/useImpersonation";
 
@@ -248,10 +248,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isLoading && !session && !isError) {
       if (!isPublicPath(window.location.pathname)) {
-        setLocation("/login");
+        const returnTo = `${stripBase(window.location.pathname)}${window.location.search}`;
+        setLocation(`/login?redirect=${encodeURIComponent(returnTo)}`);
       }
     }
   }, [isLoading, session, isError, setLocation]);
+
+  // A valid Auth session without a readable profile cannot be authorized by the app. End the
+  // session explicitly instead of leaving the visitor in a half-signed-in landing/login loop.
+  useEffect(() => {
+    if (!session || !isError) return;
+    (async () => {
+      await supabase.auth.signOut();
+      queryClient.clear();
+      toast({
+        variant: "destructive",
+        title: "Account could not be loaded",
+        description: "Please sign in again. Contact your administrator if the problem continues.",
+      });
+      setLocation("/login");
+    })();
+  }, [session, isError, queryClient, toast, setLocation]);
 
   // A deactivated profile still has a valid Supabase session -- isAuthenticated above already
   // treats that as signed out, but the session itself needs to be torn down too, or the very
