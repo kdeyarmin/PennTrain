@@ -4,7 +4,7 @@
 
 # CareMetric CareBase
 
-**[Cmcarebase.com](https://cmcarebase.com)**
+**[cmcarebase.com](https://cmcarebase.com)**
 
 CareMetric CareBase is a multi-tenant healthcare compliance-training and LMS platform for personal care homes,
 assisted living facilities, and related healthcare organizations. It is built directly on Supabase: Postgres with
