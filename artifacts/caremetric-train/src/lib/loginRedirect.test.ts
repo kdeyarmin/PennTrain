@@ -29,5 +29,7 @@ describe("post-login redirects", () => {
     expect(absolutePostLoginRedirect("https://care.example", "/app/reports", "/train")).toBe("https://care.example/train/app/reports");
     expect(absolutePostLoginRedirect("https://care.example", "/", "/train")).toBe("https://care.example/train/");
     expect(absolutePostLoginRedirect("https://care.example", "https://evil.example", "/train")).toBe("https://care.example/train/");
+
+    expect(postLoginPathFromSearch("?next=%2Ftrain%2Fapp%2Freports%3Fq%3Dabc", "/train")).toBe("/app/reports?q=abc");
   });
 });
