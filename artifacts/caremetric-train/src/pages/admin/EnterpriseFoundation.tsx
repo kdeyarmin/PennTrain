@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { toLocalIsoDate } from "@/lib/dateUtils";
 import { Link } from "wouter";
 import {
   Building2,
@@ -126,7 +127,7 @@ function LifecycleCommand() {
   const applyCommand = useEnterpriseRpcCommand();
   const [employeeId, setEmployeeId] = useState("");
   const [transition, setTransition] = useState("leave");
-  const [effectiveDate, setEffectiveDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [effectiveDate, setEffectiveDate] = useState(() => toLocalIsoDate());
   const [targetFacilityId, setTargetFacilityId] = useState("");
   const [reason, setReason] = useState("");
   const [preview, setPreview] = useState<EnterpriseJson | null>(null);

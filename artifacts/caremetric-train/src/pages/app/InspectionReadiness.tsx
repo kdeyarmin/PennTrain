@@ -157,7 +157,7 @@ export default function InspectionReadiness() {
       }
       case "administrator": {
         if (!activeFacility || !(activeFacility.facility_type === "PCH" || activeFacility.facility_type === "ALR")) {
-          return { level: "unknown", detail: "not a PCH/ALR facility" };
+          return { level: "unknown", detail: "not a PCH/ALF facility" };
         }
         const rulePack = buildAdministratorRulePack(activeFacility.facility_type, {
           profile: (administratorProfiles ?? [])[0] ?? null,

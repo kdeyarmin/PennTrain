@@ -119,7 +119,7 @@ export default function Residents() {
       status: item.status,
       due_date: item.due_date,
     })),
-    new Date().toISOString().slice(0, 10),
+    toLocalIsoDate(),
   ), [residents, complianceItems]);
 
   const searched = useMemo(() => {

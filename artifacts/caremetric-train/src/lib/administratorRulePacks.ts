@@ -41,14 +41,14 @@ const CE_WINDOW_DAYS = 365;
 const DUE_SOON_DAYS = 30;
 
 function addDays(iso: string, days: number): string {
-  const date = new Date(`${iso}T00:00:00`);
-  date.setDate(date.getDate() + days);
+  const date = new Date(`${iso}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }
 
 function daysBetween(startIso: string, endIso: string): number {
-  const start = new Date(`${startIso}T00:00:00`).getTime();
-  const end = new Date(`${endIso}T00:00:00`).getTime();
+  const start = new Date(`${startIso}T00:00:00Z`).getTime();
+  const end = new Date(`${endIso}T00:00:00Z`).getTime();
   return Math.ceil((end - start) / 86_400_000);
 }
 
