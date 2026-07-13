@@ -26,9 +26,11 @@ const budgets = {
   // nonretaliation monitoring, incident escalation, and closure approval). The new
   // pages remain lazy routes and do not increase the initial-shell budget; raised
   // 2660 -> 2690 for the resident administrative master workspace; raised
-  // 2690 -> 2700 for resident agreement versioning and external e-signatures.
-  // Both changes keep the per-load limits flat.
-  totalJavaScript: 2700 * 1024,
+  // 2690 -> 2700 for resident agreement versioning and external e-signatures;
+  // raised 2700 -> 2750 for the lazy dietary, hydration, nutrition, menu-cycle,
+  // food-safety, and food-service qualification operations workspace. These
+  // changes keep the initial-shell and per-load limits flat.
+  totalJavaScript: 2750 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };

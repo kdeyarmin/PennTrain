@@ -3709,6 +3709,273 @@ export type Database = {
           },
         ]
       }
+      dietary_exception_patterns: {
+        Row: {
+          facility_id: string
+          id: string
+          last_occurrence_at: string
+          occurrence_count: number
+          organization_id: string
+          pattern_key: string
+          pattern_kind: string
+          qapi_project_id: string | null
+          resident_id: string | null
+          window_started_at: string
+        }
+        Insert: {
+          facility_id: string
+          id?: string
+          last_occurrence_at?: string
+          occurrence_count?: number
+          organization_id: string
+          pattern_key: string
+          pattern_kind: string
+          qapi_project_id?: string | null
+          resident_id?: string | null
+          window_started_at?: string
+        }
+        Update: {
+          facility_id?: string
+          id?: string
+          last_occurrence_at?: string
+          occurrence_count?: number
+          organization_id?: string
+          pattern_key?: string
+          pattern_kind?: string
+          qapi_project_id?: string | null
+          resident_id?: string | null
+          window_started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dietary_exception_patterns_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dietary_exception_patterns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dietary_exception_patterns_qapi_project_id_fkey"
+            columns: ["qapi_project_id"]
+            isOneToOne: false
+            referencedRelation: "qapi_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dietary_exception_patterns_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dietary_menu_cycles: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          cycle_length_days: number
+          ends_on: string | null
+          facility_id: string
+          id: string
+          name: string
+          organization_id: string
+          starts_on: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          cycle_length_days: number
+          ends_on?: string | null
+          facility_id: string
+          id?: string
+          name: string
+          organization_id: string
+          starts_on: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          cycle_length_days?: number
+          ends_on?: string | null
+          facility_id?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          starts_on?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dietary_menu_cycles_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dietary_menu_cycles_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dietary_menu_cycles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dietary_menu_entries: {
+        Row: {
+          created_at: string
+          day_number: number
+          declared_allergens: string[]
+          facility_id: string
+          id: string
+          meal_period: string
+          menu_cycle_id: string
+          menu_description: string
+          organization_id: string
+          substitutions: string | null
+          texture_alternatives: Json
+        }
+        Insert: {
+          created_at?: string
+          day_number: number
+          declared_allergens?: string[]
+          facility_id: string
+          id?: string
+          meal_period: string
+          menu_cycle_id: string
+          menu_description: string
+          organization_id: string
+          substitutions?: string | null
+          texture_alternatives?: Json
+        }
+        Update: {
+          created_at?: string
+          day_number?: number
+          declared_allergens?: string[]
+          facility_id?: string
+          id?: string
+          meal_period?: string
+          menu_cycle_id?: string
+          menu_description?: string
+          organization_id?: string
+          substitutions?: string | null
+          texture_alternatives?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dietary_menu_entries_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dietary_menu_entries_menu_cycle_id_fkey"
+            columns: ["menu_cycle_id"]
+            isOneToOne: false
+            referencedRelation: "dietary_menu_cycles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dietary_menu_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dietary_operations_history: {
+        Row: {
+          actor_profile_id: string | null
+          entity_id: string
+          entity_type: string
+          event_type: string
+          evidence: Json
+          facility_id: string
+          id: string
+          occurred_at: string
+          organization_id: string
+          resident_id: string | null
+          summary: string
+        }
+        Insert: {
+          actor_profile_id?: string | null
+          entity_id: string
+          entity_type: string
+          event_type: string
+          evidence?: Json
+          facility_id: string
+          id?: string
+          occurred_at?: string
+          organization_id: string
+          resident_id?: string | null
+          summary: string
+        }
+        Update: {
+          actor_profile_id?: string | null
+          entity_id?: string
+          entity_type?: string
+          event_type?: string
+          evidence?: Json
+          facility_id?: string
+          id?: string
+          occurred_at?: string
+          organization_id?: string
+          resident_id?: string | null
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dietary_operations_history_actor_profile_id_fkey"
+            columns: ["actor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dietary_operations_history_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dietary_operations_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dietary_operations_history_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_access_suspensions: {
         Row: {
           created_at: string
@@ -6751,6 +7018,274 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      food_safety_control_points: {
+        Row: {
+          active: boolean
+          control_type: string
+          created_at: string
+          created_by: string | null
+          facility_id: string
+          frequency: string
+          id: string
+          label: string
+          location_detail: string
+          maximum_value: number | null
+          measurement_unit: string
+          minimum_value: number | null
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          control_type: string
+          created_at?: string
+          created_by?: string | null
+          facility_id: string
+          frequency: string
+          id?: string
+          label: string
+          location_detail: string
+          maximum_value?: number | null
+          measurement_unit?: string
+          minimum_value?: number | null
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          control_type?: string
+          created_at?: string
+          created_by?: string | null
+          facility_id?: string
+          frequency?: string
+          id?: string
+          label?: string
+          location_detail?: string
+          maximum_value?: number | null
+          measurement_unit?: string
+          minimum_value?: number | null
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "food_safety_control_points_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "food_safety_control_points_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "food_safety_control_points_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      food_safety_logs: {
+        Row: {
+          checklist: Json
+          control_point_id: string
+          corrected_at: string | null
+          corrective_action: string | null
+          equipment_reference: string | null
+          facility_id: string
+          id: string
+          immediate_action: string | null
+          observation: string | null
+          observed_at: string
+          observed_value: number | null
+          organization_id: string
+          recorded_at: string
+          recorded_by: string | null
+          result: string
+          verification_notes: string | null
+          verified_at: string | null
+          verified_by: string | null
+          work_item_id: string | null
+        }
+        Insert: {
+          checklist?: Json
+          control_point_id: string
+          corrected_at?: string | null
+          corrective_action?: string | null
+          equipment_reference?: string | null
+          facility_id: string
+          id?: string
+          immediate_action?: string | null
+          observation?: string | null
+          observed_at: string
+          observed_value?: number | null
+          organization_id: string
+          recorded_at?: string
+          recorded_by?: string | null
+          result: string
+          verification_notes?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+          work_item_id?: string | null
+        }
+        Update: {
+          checklist?: Json
+          control_point_id?: string
+          corrected_at?: string | null
+          corrective_action?: string | null
+          equipment_reference?: string | null
+          facility_id?: string
+          id?: string
+          immediate_action?: string | null
+          observation?: string | null
+          observed_at?: string
+          observed_value?: number | null
+          organization_id?: string
+          recorded_at?: string
+          recorded_by?: string | null
+          result?: string
+          verification_notes?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+          work_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "food_safety_logs_control_point_id_fkey"
+            columns: ["control_point_id"]
+            isOneToOne: false
+            referencedRelation: "food_safety_control_points"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "food_safety_logs_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "food_safety_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "food_safety_logs_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "food_safety_logs_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "food_safety_logs_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      food_service_employee_qualifications: {
+        Row: {
+          created_at: string
+          employee_id: string
+          evidence_reference: string | null
+          expires_on: string | null
+          facility_id: string
+          id: string
+          issued_on: string | null
+          issuing_authority: string | null
+          notes: string | null
+          organization_id: string
+          qualification_label: string | null
+          qualification_type: string
+          status: string
+          updated_at: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          evidence_reference?: string | null
+          expires_on?: string | null
+          facility_id: string
+          id?: string
+          issued_on?: string | null
+          issuing_authority?: string | null
+          notes?: string | null
+          organization_id: string
+          qualification_label?: string | null
+          qualification_type: string
+          status: string
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          evidence_reference?: string | null
+          expires_on?: string | null
+          facility_id?: string
+          id?: string
+          issued_on?: string | null
+          issuing_authority?: string | null
+          notes?: string | null
+          organization_id?: string
+          qualification_label?: string | null
+          qualification_type?: string
+          status?: string
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "food_service_employee_qualifications_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "food_service_employee_qualifications_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "food_service_employee_qualifications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "food_service_employee_qualifications_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -10676,6 +11211,99 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nutrition_risk_reviews: {
+        Row: {
+          action_plan: string | null
+          completed_at: string | null
+          created_at: string
+          facility_id: string
+          findings: string
+          follow_up_due_date: string | null
+          id: string
+          organization_id: string
+          referral_recipient: string | null
+          referral_status: string | null
+          referral_type: string | null
+          resident_id: string
+          reviewed_at: string
+          reviewed_by: string | null
+          risk_level: string
+          work_item_id: string | null
+        }
+        Insert: {
+          action_plan?: string | null
+          completed_at?: string | null
+          created_at?: string
+          facility_id: string
+          findings: string
+          follow_up_due_date?: string | null
+          id?: string
+          organization_id: string
+          referral_recipient?: string | null
+          referral_status?: string | null
+          referral_type?: string | null
+          resident_id: string
+          reviewed_at: string
+          reviewed_by?: string | null
+          risk_level: string
+          work_item_id?: string | null
+        }
+        Update: {
+          action_plan?: string | null
+          completed_at?: string | null
+          created_at?: string
+          facility_id?: string
+          findings?: string
+          follow_up_due_date?: string | null
+          id?: string
+          organization_id?: string
+          referral_recipient?: string | null
+          referral_status?: string | null
+          referral_type?: string | null
+          resident_id?: string
+          reviewed_at?: string
+          reviewed_by?: string | null
+          risk_level?: string
+          work_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nutrition_risk_reviews_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nutrition_risk_reviews_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nutrition_risk_reviews_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nutrition_risk_reviews_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nutrition_risk_reviews_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
             referencedColumns: ["id"]
           },
         ]
@@ -15800,6 +16428,207 @@ export type Database = {
           },
         ]
       }
+      resident_dietary_profile_history: {
+        Row: {
+          change_reason: string
+          changed_at: string
+          changed_by: string | null
+          facility_id: string
+          id: string
+          organization_id: string
+          profile_id: string
+          resident_id: string
+          snapshot: Json
+          version: number
+        }
+        Insert: {
+          change_reason: string
+          changed_at?: string
+          changed_by?: string | null
+          facility_id: string
+          id?: string
+          organization_id: string
+          profile_id: string
+          resident_id: string
+          snapshot: Json
+          version: number
+        }
+        Update: {
+          change_reason?: string
+          changed_at?: string
+          changed_by?: string | null
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          profile_id?: string
+          resident_id?: string
+          snapshot?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_dietary_profile_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dietary_profile_history_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dietary_profile_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dietary_profile_history_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "resident_dietary_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dietary_profile_history_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_dietary_profiles: {
+        Row: {
+          adaptive_equipment: string[]
+          created_at: string
+          created_by: string | null
+          cultural_religious_preferences: string | null
+          diet_order: string | null
+          effective_date: string
+          facility_id: string
+          feeding_assistance: string
+          fluid_plan_type: string
+          fluid_target_ml: number | null
+          food_allergies: string[]
+          id: string
+          liquid_consistency: string
+          notes: string | null
+          nutrition_risk: string
+          ordered_at: string | null
+          ordered_by_name: string | null
+          organization_id: string
+          prescribed_diet: string | null
+          resident_id: string
+          resident_preferences: string | null
+          review_due_date: string | null
+          risk_factors: string[]
+          texture_consistency: string
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          adaptive_equipment?: string[]
+          created_at?: string
+          created_by?: string | null
+          cultural_religious_preferences?: string | null
+          diet_order?: string | null
+          effective_date?: string
+          facility_id: string
+          feeding_assistance?: string
+          fluid_plan_type?: string
+          fluid_target_ml?: number | null
+          food_allergies?: string[]
+          id?: string
+          liquid_consistency?: string
+          notes?: string | null
+          nutrition_risk?: string
+          ordered_at?: string | null
+          ordered_by_name?: string | null
+          organization_id: string
+          prescribed_diet?: string | null
+          resident_id: string
+          resident_preferences?: string | null
+          review_due_date?: string | null
+          risk_factors?: string[]
+          texture_consistency?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          adaptive_equipment?: string[]
+          created_at?: string
+          created_by?: string | null
+          cultural_religious_preferences?: string | null
+          diet_order?: string | null
+          effective_date?: string
+          facility_id?: string
+          feeding_assistance?: string
+          fluid_plan_type?: string
+          fluid_target_ml?: number | null
+          food_allergies?: string[]
+          id?: string
+          liquid_consistency?: string
+          notes?: string | null
+          nutrition_risk?: string
+          ordered_at?: string | null
+          ordered_by_name?: string | null
+          organization_id?: string
+          prescribed_diet?: string | null
+          resident_id?: string
+          resident_preferences?: string | null
+          review_due_date?: string | null
+          risk_factors?: string[]
+          texture_consistency?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_dietary_profiles_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dietary_profiles_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dietary_profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dietary_profiles_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: true
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dietary_profiles_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resident_documents: {
         Row: {
           compliance_item_id: string | null
@@ -15889,6 +16718,90 @@ export type Database = {
             columns: ["uploaded_by_profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_hydration_rounds: {
+        Row: {
+          consumed_ml: number
+          exception_reason: string | null
+          exception_recorded: boolean
+          facility_id: string
+          id: string
+          offered_ml: number
+          organization_id: string
+          outcome: string
+          recorded_at: string
+          recorded_by: string | null
+          resident_id: string
+          scheduled_at: string
+          work_item_id: string | null
+        }
+        Insert: {
+          consumed_ml: number
+          exception_reason?: string | null
+          exception_recorded?: boolean
+          facility_id: string
+          id?: string
+          offered_ml: number
+          organization_id: string
+          outcome: string
+          recorded_at?: string
+          recorded_by?: string | null
+          resident_id: string
+          scheduled_at: string
+          work_item_id?: string | null
+        }
+        Update: {
+          consumed_ml?: number
+          exception_reason?: string | null
+          exception_recorded?: boolean
+          facility_id?: string
+          id?: string
+          offered_ml?: number
+          organization_id?: string
+          outcome?: string
+          recorded_at?: string
+          recorded_by?: string | null
+          resident_id?: string
+          scheduled_at?: string
+          work_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_hydration_rounds_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_hydration_rounds_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_hydration_rounds_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_hydration_rounds_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_hydration_rounds_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
             referencedColumns: ["id"]
           },
         ]
@@ -16043,6 +16956,109 @@ export type Database = {
             columns: ["resident_id"]
             isOneToOne: false
             referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_meal_records: {
+        Row: {
+          assistance_provided: string | null
+          attendance: string
+          exception_reason: string | null
+          exception_type: string | null
+          facility_id: string
+          id: string
+          intake_percent: number | null
+          meal_period: string
+          menu_entry_id: string | null
+          organization_id: string
+          outcome: string
+          recorded_at: string
+          recorded_by: string | null
+          resident_id: string
+          served_at: string
+          substitution: string | null
+          work_item_id: string | null
+        }
+        Insert: {
+          assistance_provided?: string | null
+          attendance: string
+          exception_reason?: string | null
+          exception_type?: string | null
+          facility_id: string
+          id?: string
+          intake_percent?: number | null
+          meal_period: string
+          menu_entry_id?: string | null
+          organization_id: string
+          outcome: string
+          recorded_at?: string
+          recorded_by?: string | null
+          resident_id: string
+          served_at: string
+          substitution?: string | null
+          work_item_id?: string | null
+        }
+        Update: {
+          assistance_provided?: string | null
+          attendance?: string
+          exception_reason?: string | null
+          exception_type?: string | null
+          facility_id?: string
+          id?: string
+          intake_percent?: number | null
+          meal_period?: string
+          menu_entry_id?: string | null
+          organization_id?: string
+          outcome?: string
+          recorded_at?: string
+          recorded_by?: string | null
+          resident_id?: string
+          served_at?: string
+          substitution?: string | null
+          work_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_meal_records_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_meal_records_menu_entry_id_fkey"
+            columns: ["menu_entry_id"]
+            isOneToOne: false
+            referencedRelation: "dietary_menu_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_meal_records_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_meal_records_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_meal_records_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_meal_records_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
             referencedColumns: ["id"]
           },
         ]
@@ -16414,6 +17430,100 @@ export type Database = {
             columns: ["unit_id"]
             isOneToOne: false
             referencedRelation: "facility_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_weight_readings: {
+        Row: {
+          assignment_id: string | null
+          change_lbs: number | null
+          facility_id: string
+          id: string
+          measured_at: string
+          notes: string | null
+          organization_id: string
+          prior_weight_lbs: number | null
+          recorded_at: string
+          recorded_by: string | null
+          resident_id: string
+          review_required: boolean
+          weight_lbs: number
+          work_item_id: string | null
+        }
+        Insert: {
+          assignment_id?: string | null
+          change_lbs?: number | null
+          facility_id: string
+          id?: string
+          measured_at: string
+          notes?: string | null
+          organization_id: string
+          prior_weight_lbs?: number | null
+          recorded_at?: string
+          recorded_by?: string | null
+          resident_id: string
+          review_required?: boolean
+          weight_lbs: number
+          work_item_id?: string | null
+        }
+        Update: {
+          assignment_id?: string | null
+          change_lbs?: number | null
+          facility_id?: string
+          id?: string
+          measured_at?: string
+          notes?: string | null
+          organization_id?: string
+          prior_weight_lbs?: number | null
+          recorded_at?: string
+          recorded_by?: string | null
+          resident_id?: string
+          review_required?: boolean
+          weight_lbs?: number
+          work_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_weight_readings_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "weight_monitoring_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_weight_readings_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_weight_readings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_weight_readings_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_weight_readings_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_weight_readings_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
             referencedColumns: ["id"]
           },
         ]
@@ -18976,6 +20086,90 @@ export type Database = {
           },
         ]
       }
+      weight_monitoring_assignments: {
+        Row: {
+          active: boolean
+          assigned_profile_id: string | null
+          change_threshold_lbs: number
+          created_at: string
+          created_by: string | null
+          facility_id: string
+          frequency: string
+          id: string
+          next_due_date: string
+          organization_id: string
+          reason: string
+          resident_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          assigned_profile_id?: string | null
+          change_threshold_lbs?: number
+          created_at?: string
+          created_by?: string | null
+          facility_id: string
+          frequency: string
+          id?: string
+          next_due_date: string
+          organization_id: string
+          reason: string
+          resident_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          assigned_profile_id?: string | null
+          change_threshold_lbs?: number
+          created_at?: string
+          created_by?: string | null
+          facility_id?: string
+          frequency?: string
+          id?: string
+          next_due_date?: string
+          organization_id?: string
+          reason?: string
+          resident_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weight_monitoring_assignments_assigned_profile_id_fkey"
+            columns: ["assigned_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weight_monitoring_assignments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weight_monitoring_assignments_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weight_monitoring_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weight_monitoring_assignments_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       work_item_comments: {
         Row: {
           author_profile_id: string | null
@@ -20090,6 +21284,17 @@ export type Database = {
         Args: { p_employee_id: string; p_task_id: string }
         Returns: boolean
       }
+      assign_resident_weight_monitoring: {
+        Args: {
+          p_assigned_profile_id: string
+          p_change_threshold_lbs: number
+          p_frequency: string
+          p_next_due_date: string
+          p_reason: string
+          p_resident_id: string
+        }
+        Returns: string
+      }
       authenticate_integration_api_credential: {
         Args: {
           p_correlation_id?: string
@@ -20507,6 +21712,17 @@ export type Database = {
           p_source_type: string
           p_template_key: string
           p_title: string
+        }
+        Returns: string
+      }
+      create_dietary_menu_cycle: {
+        Args: {
+          p_cycle_length_days: number
+          p_entries: Json
+          p_facility_id: string
+          p_name: string
+          p_starts_on: string
+          p_status: string
         }
         Returns: string
       }
@@ -21104,6 +22320,10 @@ export type Database = {
         Args: { p_resident_id: string }
         Returns: Json
       }
+      get_resident_administrative_packet_before_dietary: {
+        Args: { p_resident_id: string }
+        Returns: Json
+      }
       get_resident_agreement_guest_workspace: {
         Args: { p_token: string }
         Returns: Json
@@ -21620,6 +22840,19 @@ export type Database = {
         }
         Returns: boolean
       }
+      record_food_safety_log: {
+        Args: {
+          p_checklist: Json
+          p_control_point_id: string
+          p_equipment_reference: string
+          p_immediate_action: string
+          p_observation: string
+          p_observed_at: string
+          p_observed_value: number
+          p_result: string
+        }
+        Returns: string
+      }
       record_notification_consent_event: {
         Args: {
           p_action: string
@@ -21655,6 +22888,20 @@ export type Database = {
       record_notification_provider_events: {
         Args: { p_events: Json }
         Returns: number
+      }
+      record_nutrition_risk_review: {
+        Args: {
+          p_action_plan: string
+          p_findings: string
+          p_follow_up_due_date: string
+          p_referral_recipient: string
+          p_referral_status: string
+          p_referral_type: string
+          p_resident_id: string
+          p_reviewed_at: string
+          p_risk_level: string
+        }
+        Returns: string
       }
       record_qapi_measurement: {
         Args: {
@@ -21726,6 +22973,33 @@ export type Database = {
         }
         Returns: string
       }
+      record_resident_hydration_round: {
+        Args: {
+          p_consumed_ml: number
+          p_exception_reason: string
+          p_exception_recorded: boolean
+          p_offered_ml: number
+          p_outcome: string
+          p_resident_id: string
+          p_scheduled_at: string
+        }
+        Returns: string
+      }
+      record_resident_meal: {
+        Args: {
+          p_assistance_provided: string
+          p_attendance: string
+          p_exception_reason: string
+          p_intake_percent: number
+          p_meal_period: string
+          p_menu_entry_id?: string
+          p_outcome: string
+          p_resident_id: string
+          p_served_at: string
+          p_substitution: string
+        }
+        Returns: string
+      }
       record_resident_service_task: {
         Args: {
           p_note?: string
@@ -21765,6 +23039,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      record_resident_weight: {
+        Args: {
+          p_assignment_id: string
+          p_measured_at: string
+          p_notes: string
+          p_weight_lbs: number
+        }
+        Returns: string
       }
       record_training_attendance: {
         Args: {
@@ -22626,6 +23909,43 @@ export type Database = {
         }
         Returns: string
       }
+      upsert_food_safety_control_point: {
+        Args: {
+          p_active: boolean
+          p_control_id: string
+          p_control_type: string
+          p_facility_id: string
+          p_frequency: string
+          p_label: string
+          p_location_detail: string
+          p_maximum_value: number
+          p_measurement_unit: string
+          p_minimum_value: number
+        }
+        Returns: string
+      }
+      upsert_food_service_qualification: {
+        Args: {
+          p_employee_id: string
+          p_evidence_reference: string
+          p_expires_on: string
+          p_issued_on: string
+          p_issuing_authority: string
+          p_notes: string
+          p_qualification_label: string
+          p_qualification_type: string
+          p_status: string
+        }
+        Returns: string
+      }
+      upsert_resident_dietary_profile: {
+        Args: {
+          p_change_reason: string
+          p_profile: Json
+          p_resident_id: string
+        }
+        Returns: string
+      }
       upsert_resident_legal_record: {
         Args: {
           p_acknowledged_at?: string
@@ -22685,6 +24005,15 @@ export type Database = {
           issued_at: string
           organization_name: string
         }[]
+      }
+      verify_food_safety_log: {
+        Args: {
+          p_corrected_at: string
+          p_corrective_action: string
+          p_log_id: string
+          p_verification_notes: string
+        }
+        Returns: boolean
       }
       verify_identity_domain: {
         Args: { p_domain_id: string; p_observed_challenge_sha256: string }
