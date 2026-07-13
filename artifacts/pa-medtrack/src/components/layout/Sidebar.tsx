@@ -182,7 +182,7 @@ export function Sidebar() {
           <ShieldCheck className="h-5 w-5 text-sidebar-primary-foreground" />
         </div>
         <div className="flex flex-col">
-          <span className="font-bold text-[15px] text-sidebar-foreground leading-tight">CareMetric Train</span>
+          <span className="font-bold text-[15px] text-sidebar-foreground leading-tight">CareMetric CareBase</span>
           <span className="text-[11px] text-sidebar-foreground/50 font-medium">Compliance Platform</span>
         </div>
       </div>

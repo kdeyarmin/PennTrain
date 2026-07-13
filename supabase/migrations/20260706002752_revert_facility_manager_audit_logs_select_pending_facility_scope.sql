@@ -1,5 +1,5 @@
 -- Reverts 20260705234657_grant_facility_manager_audit_logs_select.sql. Automated PR review
--- (kdeyarmin/PennTrain#34) correctly flagged that audit_logs has no facility_id column, so granting
+-- (kdeyarmin/CareBase#34) correctly flagged that audit_logs has no facility_id column, so granting
 -- facility_manager here (unlike every other facility_manager grant in this schema, which is scoped
 -- via is_assigned_to_facility(facility_id)) gave every facility manager unrestricted read access to
 -- every other facility's audit trail in their org -- including full old_values/new_values JSON of

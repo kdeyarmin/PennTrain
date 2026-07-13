@@ -1,6 +1,6 @@
 import { constantTimeEqualHex, sha256Hex } from "./phase2IdentitySecurity.ts";
 
-export const DOMAIN_VERIFICATION_PREFIX = "_caremetric-train-verification";
+export const DOMAIN_VERIFICATION_PREFIX = "_caremetric-carebase-verification";
 
 export function normalizeDomain(value: string): string | null {
   const domain = value.trim().toLowerCase().replace(/\.$/, "");

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">CareMetric CareBase mark</title>
+  <desc id="desc">Blue technology badge with nurse, stethoscope, and home symbols.</desc>
+  <defs><linearGradient id="markBg" x1="55" x2="457" y1="55" y2="457" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#0a8ff0"/><stop offset="0.5" stop-color="#064ed4"/><stop offset="1" stop-color="#0b238f"/></linearGradient></defs>
+  <rect width="512" height="512" fill="none"/>
+  <rect x="37" y="37" width="438" height="438" rx="78" fill="url(#markBg)"/>
+  <rect x="55" y="55" width="402" height="402" rx="63" fill="none" stroke="#65d6ff" stroke-width="4" opacity="0.78"/>
+  <g opacity="0.4" stroke="#6fd6ff" stroke-width="3" fill="none" stroke-linecap="round"><path d="M265 38v71l38 37v58"/><path d="M288 38v62l40 40v65"/><path d="M312 38v50l37 37v78"/><path d="M335 38v43l36 36v84"/><path d="M73 368h84m28 0h91m35 0h118"/><path d="M88 126h98"/><circle cx="399" cy="119" r="5" fill="#6fd6ff"/><circle cx="365" cy="219" r="5" fill="#6fd6ff"/><circle cx="422" cy="318" r="5" fill="#6fd6ff"/></g>
+  <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"><path d="M123 92c38-14 86-14 124 0l-13 76H137z" fill="#fff" stroke-width="12"/><path d="M168 104h35M185.5 84v40" stroke="#075bd7" stroke-width="13"/><circle cx="185" cy="188" r="57" stroke-width="16"/><path d="M112 405V299c0-32 24-58 53-58 27 0 38 31 60 49 19 16 38 16 55 0" stroke-width="16"/><path d="M274 231l88-79 98 89" stroke-width="16"/><path d="M299 210v138h125V246" stroke-width="16"/><path d="M358 348v-72h45v72" stroke-width="16"/><path d="M146 361h270" stroke-width="15"/><circle cx="146" cy="361" r="27" stroke-width="15" fill="#0b56c9"/><path d="M416 361c30 0 45-15 45-45" stroke-width="15"/></g>
+</svg>

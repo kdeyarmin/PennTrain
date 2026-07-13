@@ -8,4 +8,4 @@ Disallow: /reset-password
 Disallow: /forgot-password
 Disallow: /checkin/
 
-Sitemap: https://caremetrictrain.com/sitemap.xml
+Sitemap: https://cmcarebase.com/sitemap.xml

@@ -39,7 +39,7 @@ insert into public.training_types (
 );
 
 -- Real, published courses covering the required yearly in-service topics for
--- every care setting CareMetric Train supports. organization_id = NULL puts
+-- every care setting CareMetric CareBase supports. organization_id = NULL puts
 -- these in the system catalog, visible/assignable to every organization
 -- regardless of facility type.
 do $$

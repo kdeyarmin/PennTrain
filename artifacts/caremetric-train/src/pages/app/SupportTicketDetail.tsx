@@ -153,7 +153,7 @@ export default function SupportTicketDetail() {
                   key={m.id}
                   className={cn("rounded-lg p-3 max-w-[85%]", m.is_admin_reply ? "bg-muted mr-auto" : "bg-primary/10 ml-auto")}
                 >
-                  <p className="text-xs font-semibold mb-1">{m.is_admin_reply ? "CareMetric Train Support" : "You"}</p>
+                  <p className="text-xs font-semibold mb-1">{m.is_admin_reply ? "CareMetric CareBase Support" : "You"}</p>
                   <p className="text-sm whitespace-pre-wrap">{m.body}</p>
                   <MessageAttachment message={m} />
                   <p className="text-[11px] text-muted-foreground mt-1.5">{new Date(m.created_at).toLocaleString()}</p>

@@ -1,13 +1,13 @@
 # Deployment: Railway + Supabase
 
-CareMetric Train's backend (Postgres, Auth, Storage, RLS, Edge Functions) already lives entirely in
+CareMetric CareBase's backend (Postgres, Auth, Storage, RLS, Edge Functions) already lives entirely in
 Supabase -- see `ARCHITECTURE.md` and `README.md` for the architecture. This document covers the piece that
 was missing: running the frontend in production on **Railway**, and how the two systems fit together.
 
-> **Production URLs**: the public domain is **https://caremetrictrain.com**, a custom domain
+> **Production URLs**: the public domain is **https://cmcarebase.com**, a custom domain
 > attached to the Railway service, which is also reachable at its Railway-provided domain
-> **https://penntrain-production.up.railway.app**. Wherever this doc says `<your-domain>` or
-> `your-app.up.railway.app`, use `caremetrictrain.com` for the current production environment.
+> **https://carebase-production.up.railway.app**. Wherever this doc says `<your-domain>` or
+> `your-app.up.railway.app`, use `cmcarebase.com` for the current production environment.
 > Because the app answers on *both* origins, Supabase Auth's Redirect URL allowlist must contain
 > both (see step 1.5 below).
 
@@ -25,7 +25,7 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
   compress for you), sends baseline security headers (nosniff, frame denial, HSTS,
   Referrer-Policy), binds dual-stack `::`, tunes keep-alive above the proxy's idle window, and
   drains in-flight requests on SIGTERM.
-- **Supabase** ("CM Train" project) is the source of truth for everything else: schema, migrations,
+- **Supabase** ("CM CareBase" project) is the source of truth for everything else: schema, migrations,
   RLS policies, Auth (GoTrue), Storage buckets, and Edge Functions (`create-user`,
   `admin-update-user`, `bulk-import-employees`, `generate-compliance-binder`,
   `generate-course-video`, `check-course-video-status`, `list-heygen-options`).
@@ -34,7 +34,7 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
 
 ## 1. Supabase project setup
 
-1. You already have a Supabase project for this app (project ref `xsqobvvreaovwibxwyvv`, "CM Train",
+1. You already have a Supabase project for this app (project ref `xsqobvvreaovwibxwyvv`, "CM CareBase",
    Postgres 17, region `us-west-2`). For a new environment (e.g. a staging project), create a project
    at https://supabase.com/dashboard and note its project ref, URL, and API keys.
 2. Apply every migration in `supabase/migrations/` in filename order:
@@ -61,13 +61,13 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    npx supabase secrets set HEYGEN_API_KEY=... \
      ANTHROPIC_API_KEY=... \
      SENDGRID_API_KEY=... \
-     NOTIFICATION_FROM_EMAIL='CareMetric Train <notifications@caremetrictrain.com>' \
+     NOTIFICATION_FROM_EMAIL='CareMetric CareBase <notifications@cmcarebase.com>' \
      TWILIO_ACCOUNT_SID=... TWILIO_AUTH_TOKEN=... TWILIO_FROM_NUMBER=... \
      CRON_SHARED_SECRET=... \
      TURNSTILE_SECRET_KEY=... \
      SIGNUP_RATE_LIMIT_PEPPER=... \
-     SIGNUP_REDIRECT_ORIGINS='https://caremetrictrain.com,https://penntrain-production.up.railway.app' \
-     PUBLIC_APP_URL='https://caremetrictrain.com'
+     SIGNUP_REDIRECT_ORIGINS='https://cmcarebase.com,https://carebase-production.up.railway.app' \
+     PUBLIC_APP_URL='https://cmcarebase.com'
    ```
    Store the same `CRON_SHARED_SECRET` in Supabase Vault before the cron-hardening migration runs:
    ```sql
@@ -83,10 +83,10 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    verified domain) in the SendGrid dashboard first -- SendGrid rejects sends from an unverified
    `from` address.
 5. **Auth URL configuration** (Authentication -> URL Configuration in the dashboard): set **Site URL**
-   to the public domain (production: `https://caremetrictrain.com`) and add a **Redirect URL** for
+   to the public domain (production: `https://cmcarebase.com`) and add a **Redirect URL** for
    every origin the app is served from -- production needs both
-   `https://caremetrictrain.com/reset-password` and
-   `https://penntrain-production.up.railway.app/reset-password`. `ForgotPassword.tsx` calls
+   `https://cmcarebase.com/reset-password` and
+   `https://carebase-production.up.railway.app/reset-password`. `ForgotPassword.tsx` calls
    `supabase.auth.resetPasswordForEmail` with `redirectTo: window.location.origin + basePath +
    "/reset-password"` (not `/login`), and Supabase Auth silently falls back to the bare Site URL --
    no error shown anywhere -- when `redirect_to` isn't an allowlisted match, which strands the user on
@@ -139,7 +139,7 @@ real tenant data outside the scope of this task.
 
 ## 2. Railway deployment
 
-The repo root is a pnpm workspace; the deployable app is the `@workspace/caremetric-train` package. Keep
+The repo root is a pnpm workspace; the deployable app is the `@workspace/caremetric-carebase` package. Keep
 Railway's **Root Directory** setting at the repo root (not `artifacts/caremetric-train`) so `pnpm --filter`
 can see the whole workspace and lockfile.
 
@@ -148,11 +148,11 @@ can see the whole workspace and lockfile.
    - Builder: **Railpack** (Railway's current default builder; Nixpacks is deprecated on Railway
      and its hosted version cannot provision Node 24 -- it silently falls back to Node 18, which
      breaks the Vite 7 build. Do not switch this service back to Nixpacks.)
-   - Build: `corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-train run typecheck && pnpm --filter @workspace/caremetric-train run build`
+   - Build: `corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-carebase run typecheck && pnpm --filter @workspace/caremetric-carebase run build`
     (Railpack also runs its own install beforehand; the explicit one is a harmless belt-and-braces
     step, and the typecheck is the deploy's static gate; GitHub Actions runs the broader
     `check:all`-style workflow on pushes/PRs)
-   - Start: `corepack enable && pnpm --filter @workspace/caremetric-train run start`
+   - Start: `corepack enable && pnpm --filter @workspace/caremetric-carebase run start`
    - Healthcheck: `GET /health`
    - Watch paths: only changes under `artifacts/caremetric-train/` and the root toolchain/config files
      trigger a deploy, so pushes touching e.g. `artifacts/mockup-sandbox` or `scripts/` don't
@@ -177,15 +177,15 @@ can see the whole workspace and lockfile.
    change them later, trigger a redeploy (which rebuilds) -- merely restarting the service ships
    the old bundle, and `/health` has no way to detect that (see step 5 below).
 4. Deploy. Railway assigns a `*.up.railway.app` domain -- for this project it assigned
-   `penntrain-production.up.railway.app` -- and the production custom domain
-   (`caremetrictrain.com`) is attached under Service -> Settings -> Networking. Every domain the
+   `carebase-production.up.railway.app` -- and the production custom domain
+   (`cmcarebase.com`) is attached under Service -> Settings -> Networking. Every domain the
    app answers on must be listed in step 1.5 above (Supabase Auth redirect URLs); update that
    list and re-deploy whenever a domain is added.
-5. Verify `GET https://caremetrictrain.com/health` returns:
+5. Verify `GET https://cmcarebase.com/health` returns:
    ```json
    {
      "status": "ok",
-     "service": "caremetric-train",
+     "service": "caremetric-carebase",
      "timestamp": "2026-07-04T12:00:00.000Z"
    }
    ```
@@ -232,15 +232,15 @@ and `TWILIO_*` (see step 4 below) -- none of these are Railway variables.
 ```bash
 pnpm install
 cp artifacts/caremetric-train/.env.example artifacts/caremetric-train/.env   # fill in your Supabase URL/anon key
-pnpm run dev          # -> pnpm --filter @workspace/caremetric-train run dev, http://localhost:5173
+pnpm run dev          # -> pnpm --filter @workspace/caremetric-carebase run dev, http://localhost:5173
 ```
 
 To exercise the production build path locally (the build fails fast if the `VITE_` vars are
 missing from your `.env`/environment -- that's the `vite.config.ts` guard doing its job):
 
 ```bash
-pnpm --filter @workspace/caremetric-train run build   # vite build + server/precompress.mjs (.br/.gz)
-pnpm --filter @workspace/caremetric-train run start   # node server/index.mjs, http://localhost:8080
+pnpm --filter @workspace/caremetric-carebase run build   # vite build + server/precompress.mjs (.br/.gz)
+pnpm --filter @workspace/caremetric-carebase run start   # node server/index.mjs, http://localhost:8080
 curl http://localhost:8080/health
 ```
 
@@ -397,9 +397,9 @@ policy at all, so it was never exploitable there, but the trigger was extended f
 ## 8. Verifying the deployment
 
 ```bash
-curl -s https://caremetrictrain.com/health | jq
+curl -s https://cmcarebase.com/health | jq
 # same app on the Railway-provided domain:
-curl -s https://penntrain-production.up.railway.app/health | jq
+curl -s https://carebase-production.up.railway.app/health | jq
 ```
 
 Expect `status: "ok"` -- that only confirms the Node process is up and serving requests, nothing
@@ -419,8 +419,8 @@ at build time** -- after changing `VITE_` variables, redeploy (rebuild); don't t
 - Railway project creation, GitHub connection, and env var entry must be done in the Railway
   dashboard -- not scriptable from this repo.
 - Supabase Auth redirect URL and Site URL configuration must be set in the Supabase dashboard.
-  The production values: Site URL `https://caremetrictrain.com`; Redirect URLs
-  `https://caremetrictrain.com/login` and `https://penntrain-production.up.railway.app/login`.
+  The production values: Site URL `https://cmcarebase.com`; Redirect URLs
+  `https://cmcarebase.com/login` and `https://carebase-production.up.railway.app/login`.
 - Leaked password protection (Authentication -> Policies) is still disabled and must be toggled on
   manually in the dashboard -- it's an Auth config setting, not something a SQL migration can flip.
 - Keep plain Supabase email signup disabled in Authentication -> Providers. Self-service signup

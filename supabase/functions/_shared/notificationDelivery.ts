@@ -161,26 +161,26 @@ export function renderProviderMessage(
   // notifications are intentionally generic and direct the user to the app.
   if (notificationType === "resident_compliance_due") {
     return {
-      subject: "CareMetric Train compliance action required",
+      subject: "CareMetric CareBase compliance action required",
       body:
-        "A compliance item requires attention. Sign in to CareMetric Train to review it securely.",
+        "A compliance item requires attention. Sign in to CareMetric CareBase to review it securely.",
     };
   }
   if (notificationType === "support_ticket_update") {
     return {
-      subject: "Your CareMetric Train support ticket has an update",
-      body: "Sign in to CareMetric Train to review the update securely.",
+      subject: "Your CareMetric CareBase support ticket has an update",
+      body: "Sign in to CareMetric CareBase to review the update securely.",
     };
   }
   if (notificationType === "incident_reported") {
     return {
       subject: "A new incident report requires review",
       body:
-        "A new incident report was submitted. Sign in to CareMetric Train to review it securely.",
+        "A new incident report was submitted. Sign in to CareMetric CareBase to review it securely.",
     };
   }
 
-  const subject = title?.trim() || "CareMetric Train notification";
+  const subject = title?.trim() || "CareMetric CareBase notification";
   return { subject, body: body?.trim() || subject };
 }
 

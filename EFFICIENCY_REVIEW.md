@@ -1,4 +1,4 @@
-# CareMetric Train — Efficiency & Usability Review
+# CareMetric CareBase — Efficiency & Usability Review
 
 *July 2026. A follow-up to `ROADMAP.md`'s full-codebase review — that review covered feature completeness,
 correctness, and security, and its entire Tier 1–3 backlog has since shipped. This review assumes every feature

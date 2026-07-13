@@ -31,11 +31,11 @@ interface HookUser {
 
 const SUBJECTS: Record<string, string> = {
   signup: "Confirm your email address",
-  invite: "You've been invited to CareMetric Train",
-  magiclink: "Your CareMetric Train sign-in link",
-  recovery: "Reset your CareMetric Train password",
+  invite: "You've been invited to CareMetric CareBase",
+  magiclink: "Your CareMetric CareBase sign-in link",
+  recovery: "Reset your CareMetric CareBase password",
   email_change: "Confirm your new email address",
-  reauthentication: "Your CareMetric Train verification code",
+  reauthentication: "Your CareMetric CareBase verification code",
 };
 
 function buildVerifyUrl(supabaseUrl: string, emailData: EmailData): string {
@@ -56,7 +56,7 @@ function errorResponse(status: number, message: string): Response {
 
 function buildEmail(user: HookUser, emailData: EmailData, supabaseUrl: string): { to: string; subject: string; html: string } {
   const actionType = emailData.email_action_type;
-  const subject = SUBJECTS[actionType] ?? "CareMetric Train notification";
+  const subject = SUBJECTS[actionType] ?? "CareMetric CareBase notification";
 
   if (actionType === "reauthentication") {
     return {
@@ -69,7 +69,7 @@ function buildEmail(user: HookUser, emailData: EmailData, supabaseUrl: string): 
   const verifyUrl = buildVerifyUrl(supabaseUrl, emailData);
   const bodies: Record<string, string> = {
     signup: `<p>Follow the link below to confirm your email address and finish signing up.</p><p><a href="${verifyUrl}">Confirm email address</a></p>`,
-    invite: `<p>You've been invited to create a CareMetric Train account.</p><p><a href="${verifyUrl}">Accept invitation</a></p>`,
+    invite: `<p>You've been invited to create a CareMetric CareBase account.</p><p><a href="${verifyUrl}">Accept invitation</a></p>`,
     magiclink: `<p>Follow the link below to sign in. This link expires shortly and can only be used once.</p><p><a href="${verifyUrl}">Sign in</a></p>`,
     recovery: `<p>We received a request to reset your password.</p><p><a href="${verifyUrl}">Reset password</a></p><p>If you didn't request this, you can safely ignore this email.</p>`,
     email_change: `<p>Follow the link below to confirm ${user.new_email ?? "your new email address"} as your new email address.</p><p><a href="${verifyUrl}">Confirm new email address</a></p><p>If you didn't request this change, you can safely ignore this email.</p>`,
@@ -86,7 +86,7 @@ async function sendViaSendGrid(to: string, subject: string, html: string): Promi
   const apiKey = Deno.env.get("SENDGRID_API_KEY");
   if (!apiKey) throw new Error("SENDGRID_API_KEY is not set -- auth email delivery is not configured for this deployment.");
 
-  const fromRaw = Deno.env.get("NOTIFICATION_FROM_EMAIL") || "CareMetric Train <notifications@caremetrictrain.com>";
+  const fromRaw = Deno.env.get("NOTIFICATION_FROM_EMAIL") || "CareMetric CareBase <notifications@cmcarebase.com>";
   const match = fromRaw.match(/^(.*)<([^<>]+)>\s*$/);
   const from = match
     ? { email: match[2].trim(), name: match[1].trim().replace(/^"|"$/g, "") || undefined }

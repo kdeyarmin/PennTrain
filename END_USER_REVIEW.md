@@ -1,4 +1,4 @@
-# CareMetric Train — End-User Experience Review
+# CareMetric CareBase — End-User Experience Review
 
 *July 2026. A whole-codebase review asking one question: what would most improve this app for the
 people who use it — org admins, facility managers, trainers, employees taking training, and

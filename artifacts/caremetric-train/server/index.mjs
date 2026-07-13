@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Production static file server for the CareMetric Train SPA, deployed to Railway.
+// Production static file server for the CareMetric CareBase SPA, deployed to Railway.
 //
 // This app has no backend of its own -- the browser talks to Supabase directly
 // via supabase-js. This server exists only to (a) serve the built Vite bundle
@@ -105,7 +105,7 @@ function sendText(res, status, body) {
 async function handleHealth(_req, res) {
   const body = JSON.stringify({
     status: "ok",
-    service: "caremetric-train",
+    service: "caremetric-carebase",
     timestamp: new Date().toISOString(),
   });
   res.writeHead(200, {
@@ -271,7 +271,7 @@ function startListening(host, allowFallback) {
   const onListening = () => {
     server.removeListener("error", onError);
     const { address, port } = server.address();
-    console.log(`caremetric-train server listening on http://${address.includes(":") ? `[${address}]` : address}:${port}`);
+    console.log(`caremetric-carebase server listening on http://${address.includes(":") ? `[${address}]` : address}:${port}`);
     console.log(`Serving static files from ${DIST_DIR}`);
   };
   server.once("error", onError);

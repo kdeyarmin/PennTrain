@@ -458,7 +458,7 @@ function IdentityDomainCommand() {
         domainId,
         domain: normalizedDomain,
         token,
-        recordName: `_caremetric-train-verification.${normalizedDomain}`,
+        recordName: `_caremetric-carebase-verification.${normalizedDomain}`,
       });
       toast({ title: "Identity domain registered", description: "Publish the TXT proof before verification." });
     } catch (error) {

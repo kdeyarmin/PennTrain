@@ -5,8 +5,8 @@
   "scripts": {
     "preinstall": "node scripts/enforce-pnpm.cjs",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
-    "start": "pnpm --filter @workspace/caremetric-train run start",
-    "dev": "pnpm --filter @workspace/caremetric-train run dev",
+    "start": "pnpm --filter @workspace/caremetric-carebase run start",
+    "dev": "pnpm --filter @workspace/caremetric-carebase run dev",
     "test": "pnpm -r --if-present run test",
     "typecheck": "pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
     "doctor": "pnpm --filter @workspace/scripts run doctor",
@@ -17,7 +17,7 @@
     "check:dependencies": "pnpm audit --audit-level high",
     "check:release": "pnpm run check:dependencies && pnpm run check:all && pnpm run check:database",
     "check:edge-functions": "node scripts/check-edge-functions.mjs",
-    "check:all": "pnpm run typecheck && pnpm run test && pnpm run check:edge-functions && pnpm --filter @workspace/caremetric-train run build && pnpm run check:bundle"
+    "check:all": "pnpm run typecheck && pnpm run test && pnpm run check:edge-functions && pnpm --filter @workspace/caremetric-carebase run build && pnpm run check:bundle"
   },
   "private": true,
   "devDependencies": {
