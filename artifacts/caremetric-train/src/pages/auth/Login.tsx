@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { markExplicitPasswordSignIn } from "@/lib/auth";
+import { absolutePostLoginRedirect, postLoginPathFromSearch } from "@/lib/loginRedirect";
 import { Loader2, ArrowRight, ShieldCheck } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 
@@ -17,6 +18,7 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const postLoginPath = postLoginPathFromSearch(window.location.search);
 
   const loginMutation = useMutation({
     mutationFn: async ({ email, password }: { email: string; password: string }) => {
@@ -31,10 +33,11 @@ export default function Login() {
         title: "Login successful",
         description: "Welcome back to CareMetric CareBase",
       });
-      // Land on "/" and let Router's role redirect (driven by the profiles-table-backed
-      // useAuth().user.role, not the client-writable auth user_metadata) send the user to
-      // their actual home once the profile query resolves.
-      setLocation("/");
+      // If auth redirected here from a deep link (class QR, notification, etc.), return there
+      // after sign-in. Otherwise land on "/" and let Router's role redirect (driven by the
+      // profiles-table-backed useAuth().user.role, not client-writable auth metadata) send the
+      // user to their actual home once the profile query resolves.
+      setLocation(postLoginPath);
     },
     onError: (error: Error) => {
       toast({
@@ -51,7 +54,7 @@ export default function Login() {
       if (!domain) throw new Error("Enter your work email to discover your organization's SSO connection.");
       const { data, error } = await supabase.auth.signInWithSSO({
         domain,
-        options: { redirectTo: `${window.location.origin}/` },
+        options: { redirectTo: absolutePostLoginRedirect(window.location.origin, postLoginPath) },
       });
       if (error) throw error;
       return data;

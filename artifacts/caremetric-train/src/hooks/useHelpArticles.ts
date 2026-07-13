@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
+import { viewablePathForRole } from "@/lib/appDomains";
+import type { Role } from "@/lib/auth";
 
 export type HelpArticle = Tables<"help_articles">;
 export type HelpArticleInsert = TablesInsert<"help_articles">;
@@ -38,13 +40,16 @@ export const LAST_VISITED_ROUTE_KEY = "caremetric.help.lastVisitedRoute";
 // `route` nested under it (e.g. an aide for "/app/employees" also matches "/app/employees/123").
 // FAQ articles never have a relatedRoute (see FaqContent above), so only job_aide articles can
 // ever match; callers pass whichever article list they already have loaded.
-export function findArticleForRoute(articles: HelpArticle[], route: string | null | undefined): HelpArticle | undefined {
+export function findArticleForRoute(articles: HelpArticle[], route: string | null | undefined, role?: Role): HelpArticle | undefined {
   if (!route) return undefined;
+  const routePath = route.match(/^([^?#]*)/)?.[1] ?? route;
   return articles.find((a) => {
     const href = (a.content as unknown as JobAideContent).relatedRoute?.href;
     if (!href) return false;
-    const normalizedHref = href.length > 1 ? href.replace(/\/+$/, "") : href;
-    return route === normalizedHref || route.startsWith(`${normalizedHref}/`);
+    const viewableHref = role ? viewablePathForRole(href, role) : href;
+    if (!viewableHref) return false;
+    const normalizedHref = viewableHref.length > 1 ? viewableHref.replace(/\/+$/, "") : viewableHref;
+    return routePath === normalizedHref || routePath.startsWith(`${normalizedHref}/`);
   });
 }
 
