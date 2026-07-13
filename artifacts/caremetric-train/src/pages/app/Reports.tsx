@@ -1678,7 +1678,7 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
             Compliance Reports
@@ -1689,7 +1689,7 @@ export default function Reports() {
           </p>
         </div>
         <Select value={facilityId} onValueChange={setFacilityId}>
-          <SelectTrigger className="w-52">
+          <SelectTrigger className="w-full sm:w-52">
             <SelectValue placeholder="All Facilities" />
           </SelectTrigger>
           <SelectContent>
@@ -1703,14 +1703,15 @@ export default function Reports() {
         </Select>
       </div>
 
-      <div className="flex gap-3 flex-wrap items-center">
-        <div className="relative flex-1 min-w-48">
+      <div className="rounded-xl border border-border/60 bg-card p-3 shadow-sm sm:p-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center">
+          <div className="relative sm:col-span-2 lg:min-w-64 lg:flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search reports..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="h-10 pl-9"
           />
         </div>
         <Tabs
@@ -1731,7 +1732,7 @@ export default function Reports() {
           onValueChange={setCategory}
           defaultValue="All"
         >
-          <SelectTrigger className="w-40 md:hidden">
+          <SelectTrigger className="h-10 w-full md:hidden">
             <SelectValue placeholder="Category" />
           </SelectTrigger>
           <SelectContent>
@@ -1742,8 +1743,8 @@ export default function Reports() {
             ))}
           </SelectContent>
         </Select>
-        <div className="flex items-center gap-1.5">
-          <Label htmlFor="report-date-from" className="text-xs text-muted-foreground whitespace-nowrap">
+        <div className="grid gap-1.5">
+          <Label htmlFor="report-date-from" className="text-xs text-muted-foreground">
             From
           </Label>
           <Input
@@ -1752,11 +1753,11 @@ export default function Reports() {
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
             disabled={!dateFieldLabel}
-            className="w-40"
+            className="h-10 w-full lg:w-40"
           />
         </div>
-        <div className="flex items-center gap-1.5">
-          <Label htmlFor="report-date-to" className="text-xs text-muted-foreground whitespace-nowrap">
+        <div className="grid gap-1.5">
+          <Label htmlFor="report-date-to" className="text-xs text-muted-foreground">
             To
           </Label>
           <Input
@@ -1765,15 +1766,15 @@ export default function Reports() {
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
             disabled={!dateFieldLabel}
-            className="w-40"
+            className="h-10 w-full lg:w-40"
           />
         </div>
         {dateFieldLabel ? (
-          <span className="text-xs text-muted-foreground whitespace-nowrap">
+          <span className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-1">
             Filtering by: <strong className="font-medium text-foreground">{dateFieldLabel}</strong>
           </span>
         ) : (
-          <span className="text-xs text-muted-foreground italic whitespace-nowrap">
+          <span className="text-xs italic text-muted-foreground sm:col-span-2 lg:col-span-1">
             {selectedReportForLabel?.title ?? "This report"} doesn't support date filtering
           </span>
         )}
@@ -1781,7 +1782,7 @@ export default function Reports() {
           <Button
             variant="ghost"
             size="sm"
-            className="text-xs text-muted-foreground"
+            className="h-10 justify-center text-xs text-muted-foreground"
             onClick={() => {
               setDateFrom("");
               setDateTo("");
@@ -1791,11 +1792,12 @@ export default function Reports() {
           </Button>
         )}
         {canManageViews && (
-          <Button variant="outline" size="sm" className="text-xs" onClick={() => setShowSaveView(true)}>
+          <Button variant="outline" size="sm" className="h-10 justify-center text-xs sm:col-span-2 lg:col-span-1" onClick={() => setShowSaveView(true)}>
             <BookmarkPlus className="mr-1.5 h-3.5 w-3.5" />
             Save view
           </Button>
         )}
+        </div>
       </div>
 
       {savedViews.length > 0 && (
@@ -1807,12 +1809,12 @@ export default function Reports() {
               One-click report configurations shared with your organization.
             </span>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid gap-2 sm:flex sm:flex-wrap">
             {savedViews.map(({ definition, config }) => (
-              <div key={definition.id} className="flex items-center gap-0.5 rounded-lg border pl-3 pr-1 py-1">
+              <div key={definition.id} className="flex items-center justify-between gap-2 rounded-lg border py-2 pl-3 pr-1">
                 <button
                   type="button"
-                  className="text-sm font-medium hover:text-primary transition-colors"
+                  className="min-w-0 truncate text-left text-sm font-medium transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={() => runSavedView(config)}
                 >
                   {definition.name}
@@ -1821,7 +1823,7 @@ export default function Reports() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                    className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-destructive"
                     onClick={() => handleDeleteView(definition.id, definition.name)}
                     aria-label={`Delete saved view ${definition.name}`}
                   >
@@ -1905,8 +1907,17 @@ export default function Reports() {
           return (
             <Card
               key={report.id}
+              tabIndex={0}
+              aria-current={isSelected ? "true" : undefined}
+              aria-label={`Select ${report.title} report`}
               onClick={() => selectReport(report.id)}
-              className={`group hover:shadow-md transition-shadow flex flex-col border-l-4 ${colors.border} cursor-pointer ${isSelected ? "ring-2 ring-primary" : ""}`}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  selectReport(report.id);
+                }
+              }}
+              className={`group flex cursor-pointer flex-col border-l-4 ${colors.border} transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isSelected ? "ring-2 ring-primary" : ""}`}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-start gap-3">
@@ -1917,7 +1928,7 @@ export default function Reports() {
                     <CardTitle className="text-sm leading-tight">
                       {report.title}
                     </CardTitle>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
                       <Badge variant="outline" className="text-[10px]">
                         {report.category}
                       </Badge>
@@ -1932,7 +1943,7 @@ export default function Reports() {
                 <p className="text-xs text-muted-foreground mb-4 flex-1">
                   {report.description}
                 </p>
-                <div className="flex items-center gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
                   <Button
                     size="sm"
                     variant="default"

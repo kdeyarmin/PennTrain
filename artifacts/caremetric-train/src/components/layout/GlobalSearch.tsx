@@ -8,7 +8,7 @@ import { Search, Building2, User, Users, UserRound, Compass, Zap, BookOpen } fro
 
 const DEBOUNCE_MS = 250;
 
-export function GlobalSearch() {
+export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: boolean; onNavigate?: () => void } = {}) {
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const [query, setQuery] = useState("");
@@ -16,6 +16,10 @@ export function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const blurTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query), DEBOUNCE_MS);
@@ -54,10 +58,11 @@ export function GlobalSearch() {
     setQuery("");
     setOpen(false);
     navigate(path);
+    onNavigate?.();
   };
 
   return (
-    <div className="relative w-40 sm:w-56">
+    <div className="relative w-full sm:w-56">
       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
       <Input
         ref={inputRef}
@@ -72,7 +77,7 @@ export function GlobalSearch() {
       />
       {open && query.trim().length >= 2 && (
         <div
-          className="absolute top-full mt-1 right-0 w-72 max-h-96 overflow-y-auto rounded-lg border bg-popover shadow-lg z-50"
+          className="absolute right-0 top-full z-50 mt-1 max-h-96 w-[min(18rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border bg-popover shadow-lg sm:w-72"
           onMouseDown={(e) => { e.preventDefault(); if (blurTimeout.current) clearTimeout(blurTimeout.current); }}
         >
           {isFetching && !hasResults ? (
