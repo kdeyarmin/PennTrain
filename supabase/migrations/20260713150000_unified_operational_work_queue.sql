@@ -726,10 +726,13 @@ set search_path = ''
 as $$
 declare
   v_new jsonb := to_jsonb(new);
+  v_org_id uuid := (v_new->>'organization_id')::uuid;
+  v_facility_id uuid := (v_new->>'facility_id')::uuid;
+  v_id uuid := (v_new->>'id')::uuid;
 begin
   if tg_table_name = 'incidents' then
     perform app_private.create_automatic_work_item(
-      new.organization_id, new.facility_id, 'incident.followup', 'incident', new.id,
+      v_org_id, v_facility_id, 'incident.followup', 'incident', v_id,
       'Investigate ' || replace(v_new->>'incident_type', '_', ' '),
       v_new->>'narrative',
       case when v_new->>'severity' = 'critical' then 'urgent'
@@ -738,7 +741,7 @@ begin
     );
   elsif tg_table_name = 'dhs_violations' then
     perform app_private.create_automatic_work_item(
-      new.organization_id, new.facility_id, 'violation.remediation', 'violation', new.id,
+      v_org_id, v_facility_id, 'violation.remediation', 'violation', v_id,
       'Remediate citation ' || coalesce(v_new->>'citation_ref', 'finding'),
       v_new->>'description',
       case when v_new->>'severity' = 'high' then 'urgent' else 'high' end,
@@ -749,7 +752,7 @@ begin
     or coalesce((v_new->>'follow_up_required')::boolean, false)
   ) then
     perform app_private.create_automatic_work_item(
-      new.organization_id, new.facility_id, 'inspection.deficiency', 'inspection', new.id,
+      v_org_id, v_facility_id, 'inspection.deficiency', 'inspection', v_id,
       'Resolve inspection deficiency',
       coalesce(v_new->>'deficiency_notes', v_new->>'notes', 'Inspection follow-up required'),
       case when v_new->>'result' = 'fail' then 'urgent' else 'high' end,
@@ -757,7 +760,7 @@ begin
     );
   elsif tg_table_name = 'employee_credentials' and v_new->>'status' in ('expired', 'missing') then
     perform app_private.create_automatic_work_item(
-      new.organization_id, new.facility_id, 'credential.remediation', 'credential', new.id,
+      v_org_id, v_facility_id, 'credential.remediation', 'credential', v_id,
       'Resolve ' || replace(v_new->>'credential_type', '_', ' ') || ' credential',
       coalesce(v_new->>'notes', 'Credential evidence or renewal is required'),
       case when v_new->>'status' = 'expired' then 'urgent' else 'high' end,
@@ -765,7 +768,7 @@ begin
     );
   elsif tg_table_name = 'residents' then
     perform app_private.create_automatic_work_item(
-      new.organization_id, new.facility_id, 'move_in.readiness', 'move_in', new.id,
+      v_org_id, v_facility_id, 'move_in.readiness', 'move_in', v_id,
       'Complete move-in readiness for ' || (v_new->>'first_name') || ' ' || (v_new->>'last_name'),
       'Coordinate required documents, approvals, room readiness, and admission tasks.',
       'normal',
