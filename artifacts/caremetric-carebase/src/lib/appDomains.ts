@@ -40,6 +40,7 @@ const ORG_MANAGERS: Role[] = ["org_admin", "facility_manager"];
 const REPORTING_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
 const CREDENTIAL_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
 const INSPECTION_ROLES: Role[] = ["org_admin", "facility_manager", "trainer", "auditor"];
+const MAINTENANCE_ROLES: Role[] = ["platform_admin", "org_admin", "facility_manager", "trainer", "auditor"];
 const AUDIT_LOG_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
 const PENDING_APPROVAL_ROLES: Role[] = ["org_admin", "facility_manager", "trainer"];
 const WORK_QUEUE_ROLES: Role[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
@@ -230,6 +231,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/qapi", label: "QAPI & quality management", domain: "compliance", roles: WORK_QUEUE_ROLES, keywords: ["quality", "performance improvement", "five whys", "fishbone", "measurements", "audit sample", "sustainment"] },
   { path: "/app/emergency", label: "Emergency operations", domain: "compliance", roles: EMERGENCY_ROLES, keywords: ["evacuation", "accountability", "outage", "emergency plan", "relocation", "generator fuel", "mass notification", "after action"] },
   { path: "/app/inspections", label: "Inspections & equipment", domain: "compliance", roles: INSPECTION_ROLES, keywords: ["fire drill", "equipment", "physical plant"] },
+  { path: "/app/maintenance", label: "Maintenance & work orders", domain: "compliance", roles: MAINTENANCE_ROLES, keywords: ["repair", "work order", "preventive maintenance", "vendor", "downtime", "qr code"] },
   { path: "/app/incidents", label: "Incidents", domain: "compliance", roles: REPORTING_ROLES, keywords: ["reportable events", "safety"] },
   { path: "/app/complaints", label: "Complaints, grievances & resident rights", domain: "compliance", roles: REPORTING_ROLES, keywords: ["complaint", "grievance", "ombudsman", "resident rights", "nonretaliation", "appeal"] },
   { path: "/app/confidential-incidents", label: "Confidential reports", domain: "compliance", roles: REPORTING_ROLES, keywords: ["safety report", "anonymous", "near miss", "intake", "whistleblower"] },
@@ -314,6 +316,7 @@ const NESTED_PAGE_OWNER_PATHS = new Set([
   "/app/qapi",
   "/app/emergency",
   "/app/inspections",
+  "/app/maintenance",
   "/app/help",
   "/app/schedule",
   "/trainer/classes",
