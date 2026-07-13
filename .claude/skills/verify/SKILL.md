@@ -1,11 +1,11 @@
 ---
 name: verify
-description: Build, run, and probe the caremetric-train production server the way Railway does. Use when verifying changes to artifacts/caremetric-train (server, vite config, build) or the Railway deploy config.
+description: Build, run, and probe the caremetric-carebase production server the way Railway does. Use when verifying changes to artifacts/caremetric-carebase (server, vite config, build) or the Railway deploy config.
 ---
 
-# Verify caremetric-train / Railway deploy path
+# Verify caremetric-carebase / Railway deploy path
 
-The deployable surface is the Node static server (`artifacts/caremetric-train/server/index.mjs`)
+The deployable surface is the Node static server (`artifacts/caremetric-carebase/server/index.mjs`)
 serving the Vite build. Verify by running the exact Railway commands and probing the socket.
 
 ## Build (Railway's buildCommand)
@@ -23,7 +23,7 @@ pnpm install --frozen-lockfile --prod=false \
 ## Run + probe
 
 ```bash
-cd artifacts/caremetric-train && PORT=8090 node server/index.mjs &   # capture $! for later kill
+cd artifacts/caremetric-carebase && PORT=8090 node server/index.mjs &   # capture $! for later kill
 ```
 
 Worth probing (all against `http://127.0.0.1:8090`):

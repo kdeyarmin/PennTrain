@@ -4,7 +4,7 @@
     "builder": "RAILPACK",
     "buildCommand": "pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-carebase run typecheck && pnpm --filter @workspace/caremetric-carebase run build",
     "watchPatterns": [
-      "artifacts/caremetric-train/**",
+      "artifacts/caremetric-carebase/**",
       "package.json",
       "pnpm-lock.yaml",
       "pnpm-workspace.yaml",

@@ -43,8 +43,8 @@ jobs:
       - name: Publish immutable application artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: caremetric-train-${{ github.sha }}
-          path: artifacts/caremetric-train/dist/public
+          name: caremetric-carebase-${{ github.sha }}
+          path: artifacts/caremetric-carebase/dist/public
           if-no-files-found: error
           retention-days: 14
 
@@ -100,7 +100,7 @@ jobs:
           from pathlib import Path
 
           paths = [
-            ("artifacts/caremetric-train/src/lib/database.types.ts", "/tmp/database.types.repo.ts"),
+            ("artifacts/caremetric-carebase/src/lib/database.types.ts", "/tmp/database.types.repo.ts"),
             ("/tmp/database.types.ts", "/tmp/database.types.generated.ts"),
           ]
           for source, destination in paths:

@@ -1,4 +1,4 @@
-# CareMetric Train — App Review & Improvement Roadmap
+# CareMetric CareBase — App Review & Improvement Roadmap
 
 *July 2026. Produced from a full codebase review (every page, hook, migration, and edge function) plus market and
 regulatory research: 55 Pa. Code Chapters 2600/2800, PA DHS BHSL enforcement data, competitor scans of the
@@ -27,7 +27,7 @@ engineer who knows this stack — then merged and stress-tested for completeness
 - **Operational primitives no training-only competitor has.** The credential, incident, and inspection modules are complete
   CRUD with evidence documents, corrective actions, and alert wiring. Pure training vendors (Relias, CareAcademy,
   MedTrainer) do not own incidents/inspections; ops platforms (ECP, ALIS, August Health) do not own training.
-  CareMetric Train already holds both sides' primitives — that is the strategic position to press.
+  CareMetric CareBase already holds both sides' primitives — that is the strategic position to press.
 - **Audit posture.** Audit-log triggers across write paths plus document-access logging give unusually strong
   survey-defensibility bones.
 
@@ -160,7 +160,7 @@ progress — both cheap wedges. CareAcademy and Relias both ship full **Spanish*
 anchor purchase for 5–50-bed operators is eMAR with pharmacy integration (ECP's 850+ pharmacy network is a
 multi-year moat — do not chase it), then assessments→care plans, then incident reporting. August Health proved
 "digitize the worst paperwork moment" (move-ins) as a wedge. **None of the eight embeds staff compliance training** —
-the training layer is always a separate vendor. The whitespace CareMetric Train occupies is real, and it runs both
+the training layer is always a separate vendor. The whitespace CareMetric CareBase occupies is real, and it runs both
 directions.
 
 ### Operator pain points (2025–2026)
@@ -369,7 +369,7 @@ citation-frequency leaders) → **attestations, background checks, admin CE, QR 
 **readiness dashboard + POC workflow** (the renewal-driving differentiator), then onboarding, mobile, and the
 resident registry.
 
-The through-line: CareMetric Train's defensible position is **"the system of record for staff compliance in PA
+The through-line: CareMetric CareBase's defensible position is **"the system of record for staff compliance in PA
 personal care homes and assisted living residences — inspection-ready every day."** Every recommended feature
 either makes the existing promise true (Tiers 1–2) or makes the surveyor-facing story undeniable (Tier 3);
 everything that drifts toward being an EHR, a scheduler, or an engagement suite is explicitly out.

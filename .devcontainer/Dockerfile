@@ -35,6 +35,6 @@ RUN corepack enable \
     && chown -R node:node /home/node
 
 USER node
-WORKDIR /workspace
+WORKDIR /workspace/CareMetricCareBase
 
 CMD ["bash"]
