@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
+import { reportClientError } from "@/lib/clientErrorReporting";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -29,6 +30,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught application error:", error, errorInfo);
+    reportClientError(error, "react-boundary", errorInfo.componentStack ?? undefined);
   }
 
   componentDidUpdate(prevProps: ErrorBoundaryProps) {
