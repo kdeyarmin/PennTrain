@@ -91,7 +91,7 @@ export function ResidentAgreementWorkspace({
     setAgreementForm({
       agreementId: agreement.id, agreementType: agreement.agreement_type, title: agreement.title,
       versionLabel: `${version.version_number + 1}.0`, contentText: version.content_text,
-      effectiveAt: new Date().toISOString().slice(0, 16), documentId: version.document_id ?? "none",
+      effectiveAt: toDateTimeLocal(), documentId: version.document_id ?? "none",
       residentRequired: version.required_signer_roles.includes("resident"),
       designatedRequired: version.required_signer_roles.includes("designated_person"), amendmentReason: "",
     });
