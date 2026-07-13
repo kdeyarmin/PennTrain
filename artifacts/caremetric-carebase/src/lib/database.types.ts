@@ -8384,9 +8384,12 @@ export type Database = {
           next_due_date: string | null
           notes: string | null
           organization_id: string
+          qr_token: string
           serial_number: string | null
+          service_contract_expires_on: string | null
           status: string
           updated_at: string
+          warranty_expires_on: string | null
         }
         Insert: {
           citation_topic_id?: string | null
@@ -8406,9 +8409,12 @@ export type Database = {
           next_due_date?: string | null
           notes?: string | null
           organization_id: string
+          qr_token?: string
           serial_number?: string | null
+          service_contract_expires_on?: string | null
           status?: string
           updated_at?: string
+          warranty_expires_on?: string | null
         }
         Update: {
           citation_topic_id?: string | null
@@ -8428,9 +8434,12 @@ export type Database = {
           next_due_date?: string | null
           notes?: string | null
           organization_id?: string
+          qr_token?: string
           serial_number?: string | null
+          service_contract_expires_on?: string | null
           status?: string
           updated_at?: string
+          warranty_expires_on?: string | null
         }
         Relationships: [
           {
@@ -9548,6 +9557,147 @@ export type Database = {
           },
           {
             foreignKeyName: "lti_tool_registrations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_documents: {
+        Row: {
+          created_at: string
+          document_label: string | null
+          document_type: string
+          facility_id: string
+          file_name: string
+          file_size: number | null
+          file_type: string
+          id: string
+          inspection_item_id: string | null
+          organization_id: string
+          storage_bucket: string
+          storage_path: string
+          uploaded_by_profile_id: string | null
+          work_order_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          document_label?: string | null
+          document_type: string
+          facility_id: string
+          file_name: string
+          file_size?: number | null
+          file_type: string
+          id?: string
+          inspection_item_id?: string | null
+          organization_id: string
+          storage_bucket?: string
+          storage_path: string
+          uploaded_by_profile_id?: string | null
+          work_order_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          document_label?: string | null
+          document_type?: string
+          facility_id?: string
+          file_name?: string
+          file_size?: number | null
+          file_type?: string
+          id?: string
+          inspection_item_id?: string | null
+          organization_id?: string
+          storage_bucket?: string
+          storage_path?: string
+          uploaded_by_profile_id?: string | null
+          work_order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_documents_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_documents_inspection_item_id_fkey"
+            columns: ["inspection_item_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_documents_uploaded_by_profile_id_fkey"
+            columns: ["uploaded_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_documents_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_locations: {
+        Row: {
+          created_at: string
+          facility_id: string
+          id: string
+          is_active: boolean
+          label: string
+          location_detail: string | null
+          organization_id: string
+          qr_token: string
+          room_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          facility_id: string
+          id?: string
+          is_active?: boolean
+          label: string
+          location_detail?: string | null
+          organization_id: string
+          qr_token?: string
+          room_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          facility_id?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          location_detail?: string | null
+          organization_id?: string
+          qr_token?: string
+          room_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_locations_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_locations_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -12465,6 +12615,121 @@ export type Database = {
             columns: ["window2_observation_by"]
             isOneToOne: false
             referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      preventive_maintenance_schedules: {
+        Row: {
+          assigned_employee_id: string | null
+          created_at: string
+          created_by_profile_id: string | null
+          default_priority: string
+          description: string
+          estimated_cost: number | null
+          estimated_duration_minutes: number | null
+          external_vendor: string | null
+          facility_id: string
+          frequency_interval: number
+          frequency_unit: string
+          id: string
+          inspection_item_id: string | null
+          is_active: boolean
+          last_generated_on: string | null
+          maintenance_location_id: string | null
+          next_due_date: string
+          organization_id: string
+          parts_needed: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_employee_id?: string | null
+          created_at?: string
+          created_by_profile_id?: string | null
+          default_priority?: string
+          description: string
+          estimated_cost?: number | null
+          estimated_duration_minutes?: number | null
+          external_vendor?: string | null
+          facility_id: string
+          frequency_interval?: number
+          frequency_unit: string
+          id?: string
+          inspection_item_id?: string | null
+          is_active?: boolean
+          last_generated_on?: string | null
+          maintenance_location_id?: string | null
+          next_due_date: string
+          organization_id: string
+          parts_needed?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_employee_id?: string | null
+          created_at?: string
+          created_by_profile_id?: string | null
+          default_priority?: string
+          description?: string
+          estimated_cost?: number | null
+          estimated_duration_minutes?: number | null
+          external_vendor?: string | null
+          facility_id?: string
+          frequency_interval?: number
+          frequency_unit?: string
+          id?: string
+          inspection_item_id?: string | null
+          is_active?: boolean
+          last_generated_on?: string | null
+          maintenance_location_id?: string | null
+          next_due_date?: string
+          organization_id?: string
+          parts_needed?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "preventive_maintenance_schedules_assigned_employee_id_fkey"
+            columns: ["assigned_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "preventive_maintenance_schedules_created_by_profile_id_fkey"
+            columns: ["created_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "preventive_maintenance_schedules_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "preventive_maintenance_schedules_inspection_item_id_fkey"
+            columns: ["inspection_item_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "preventive_maintenance_schedules_maintenance_location_id_fkey"
+            columns: ["maintenance_location_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "preventive_maintenance_schedules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -19572,6 +19837,259 @@ export type Database = {
           },
         ]
       }
+      work_order_history: {
+        Row: {
+          actor_profile_id: string | null
+          created_at: string
+          event_type: string
+          facility_id: string
+          id: number
+          metadata: Json
+          notes: string | null
+          organization_id: string
+          prior_status: string | null
+          resulting_status: string | null
+          work_order_id: string
+        }
+        Insert: {
+          actor_profile_id?: string | null
+          created_at?: string
+          event_type: string
+          facility_id: string
+          id?: never
+          metadata?: Json
+          notes?: string | null
+          organization_id: string
+          prior_status?: string | null
+          resulting_status?: string | null
+          work_order_id: string
+        }
+        Update: {
+          actor_profile_id?: string | null
+          created_at?: string
+          event_type?: string
+          facility_id?: string
+          id?: never
+          metadata?: Json
+          notes?: string | null
+          organization_id?: string
+          prior_status?: string | null
+          resulting_status?: string | null
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_order_history_actor_profile_id_fkey"
+            columns: ["actor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_history_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_history_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      work_orders: {
+        Row: {
+          actual_cost: number | null
+          assigned_employee_id: string | null
+          canceled_at: string | null
+          completed_at: string | null
+          completed_by_profile_id: string | null
+          created_at: string
+          created_by_profile_id: string | null
+          downtime_ended_at: string | null
+          downtime_started_at: string | null
+          estimated_cost: number | null
+          external_vendor: string | null
+          facility_id: string
+          id: string
+          inspection_item_id: string | null
+          location_detail: string | null
+          maintenance_location_id: string | null
+          organization_id: string
+          parts_needed: string | null
+          preventive_maintenance_schedule_id: string | null
+          priority: string
+          problem_description: string
+          repair_notes: string | null
+          resident_impact: string | null
+          room_number: string | null
+          safety_risk: string
+          source_inspection_event_id: string | null
+          status: string
+          target_completion_at: string | null
+          temporary_protective_action: string | null
+          updated_at: string
+          verification_notes: string | null
+          verified_at: string | null
+          verified_by_profile_id: string | null
+          work_order_number: string
+        }
+        Insert: {
+          actual_cost?: number | null
+          assigned_employee_id?: string | null
+          canceled_at?: string | null
+          completed_at?: string | null
+          completed_by_profile_id?: string | null
+          created_at?: string
+          created_by_profile_id?: string | null
+          downtime_ended_at?: string | null
+          downtime_started_at?: string | null
+          estimated_cost?: number | null
+          external_vendor?: string | null
+          facility_id: string
+          id?: string
+          inspection_item_id?: string | null
+          location_detail?: string | null
+          maintenance_location_id?: string | null
+          organization_id: string
+          parts_needed?: string | null
+          preventive_maintenance_schedule_id?: string | null
+          priority?: string
+          problem_description: string
+          repair_notes?: string | null
+          resident_impact?: string | null
+          room_number?: string | null
+          safety_risk?: string
+          source_inspection_event_id?: string | null
+          status?: string
+          target_completion_at?: string | null
+          temporary_protective_action?: string | null
+          updated_at?: string
+          verification_notes?: string | null
+          verified_at?: string | null
+          verified_by_profile_id?: string | null
+          work_order_number: string
+        }
+        Update: {
+          actual_cost?: number | null
+          assigned_employee_id?: string | null
+          canceled_at?: string | null
+          completed_at?: string | null
+          completed_by_profile_id?: string | null
+          created_at?: string
+          created_by_profile_id?: string | null
+          downtime_ended_at?: string | null
+          downtime_started_at?: string | null
+          estimated_cost?: number | null
+          external_vendor?: string | null
+          facility_id?: string
+          id?: string
+          inspection_item_id?: string | null
+          location_detail?: string | null
+          maintenance_location_id?: string | null
+          organization_id?: string
+          parts_needed?: string | null
+          preventive_maintenance_schedule_id?: string | null
+          priority?: string
+          problem_description?: string
+          repair_notes?: string | null
+          resident_impact?: string | null
+          room_number?: string | null
+          safety_risk?: string
+          source_inspection_event_id?: string | null
+          status?: string
+          target_completion_at?: string | null
+          temporary_protective_action?: string | null
+          updated_at?: string
+          verification_notes?: string | null
+          verified_at?: string | null
+          verified_by_profile_id?: string | null
+          work_order_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_orders_assigned_employee_id_fkey"
+            columns: ["assigned_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_completed_by_profile_id_fkey"
+            columns: ["completed_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_created_by_profile_id_fkey"
+            columns: ["created_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_inspection_item_id_fkey"
+            columns: ["inspection_item_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_maintenance_location_id_fkey"
+            columns: ["maintenance_location_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_preventive_maintenance_schedule_id_fkey"
+            columns: ["preventive_maintenance_schedule_id"]
+            isOneToOne: false
+            referencedRelation: "preventive_maintenance_schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_source_inspection_event_id_fkey"
+            columns: ["source_inspection_event_id"]
+            isOneToOne: true
+            referencedRelation: "inspection_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_verified_by_profile_id_fkey"
+            columns: ["verified_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workforce_backfill_exceptions: {
         Row: {
           created_at: string
@@ -20853,6 +21371,26 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_work_order: {
+        Args: {
+          p_assigned_employee_id?: string
+          p_estimated_cost?: number
+          p_external_vendor?: string
+          p_facility_id: string
+          p_inspection_item_id?: string
+          p_location_detail?: string
+          p_maintenance_location_id?: string
+          p_parts_needed?: string
+          p_priority?: string
+          p_problem_description: string
+          p_resident_impact?: string
+          p_room_number?: string
+          p_safety_risk?: string
+          p_target_completion_at?: string
+          p_temporary_protective_action?: string
+        }
+        Returns: string
+      }
       current_org_id: { Args: never; Returns: string }
       current_profile_active: { Args: never; Returns: boolean }
       current_role: { Args: never; Returns: string }
@@ -21067,6 +21605,10 @@ export type Database = {
       generate_class_checkin_token: {
         Args: { p_class_id: string; p_long_lived?: boolean }
         Returns: string
+      }
+      generate_due_preventive_maintenance_work_orders: {
+        Args: { p_as_of?: string }
+        Returns: number
       }
       generate_resident_service_tasks: {
         Args: { p_from?: string; p_requirement_id?: string; p_through?: string }
@@ -21564,6 +22106,10 @@ export type Database = {
       }
       log_document_access: {
         Args: { p_document_id: string; p_document_table: string }
+        Returns: undefined
+      }
+      log_maintenance_document_access: {
+        Args: { p_document_id: string }
         Returns: undefined
       }
       log_resident_change_of_condition: {
@@ -22646,6 +23192,17 @@ export type Database = {
         }
         Returns: boolean
       }
+      transition_work_order: {
+        Args: {
+          p_actual_cost?: number
+          p_downtime_ended_at?: string
+          p_downtime_started_at?: string
+          p_notes: string
+          p_target_status: string
+          p_work_order_id: string
+        }
+        Returns: boolean
+      }
       unpublish_schedule: {
         Args: { p_schedule_id: string }
         Returns: undefined
@@ -22773,6 +23330,23 @@ export type Database = {
         }
         Returns: boolean
       }
+      update_work_order_details: {
+        Args: {
+          p_assigned_employee_id: string
+          p_estimated_cost: number
+          p_external_vendor: string
+          p_location_detail: string
+          p_parts_needed: string
+          p_priority: string
+          p_resident_impact: string
+          p_room_number: string
+          p_safety_risk: string
+          p_target_completion_at: string
+          p_temporary_protective_action: string
+          p_work_order_id: string
+        }
+        Returns: boolean
+      }
       upsert_compliance_profile_assignment: {
         Args: {
           p_effective_from?: string
@@ -22856,6 +23430,14 @@ export type Database = {
       }
       verify_identity_domain: {
         Args: { p_domain_id: string; p_observed_challenge_sha256: string }
+        Returns: boolean
+      }
+      verify_work_order: {
+        Args: {
+          p_decision: string
+          p_verification_notes: string
+          p_work_order_id: string
+        }
         Returns: boolean
       }
       withdraw_evidence_collection_artifact: {
