@@ -47,7 +47,7 @@ create table public.resident_service_calendar_events (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   facility_id uuid not null references public.facilities(id) on delete restrict,
-  resident_id uuid not null references public.residents(id) on delete cascade,
+  resident_id uuid not null references public.residents(id) on delete restrict,
   event_type text not null check (event_type in (
     'medical_appointment', 'dental_appointment', 'behavioral_health_appointment',
     'laboratory_visit', 'therapy', 'community_service', 'family_visit',
