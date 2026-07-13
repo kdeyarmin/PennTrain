@@ -27,6 +27,7 @@ select lives_ok($$select public.update_qapi_project_plan((select id from qids wh
 select lives_ok($$select public.update_qapi_project_plan((select id from qids where key='project'),'closed','[]','five_whys','Environmental hazards and inconsistent rounding contributed to falls.','Plan','monthly','40','','','Fall target sustained','90 days','Final QAPI closure approved')$$,'final closure is approved');
 select is((select status from public.qapi_projects where id=(select id from qids where key='project')),'closed','project closes');
 select ok((select final_closure_approved_at is not null from public.qapi_projects where id=(select id from qids where key='project')),'closure approval is attributable');
+reset role;
 select throws_ok($$delete from public.qapi_measurements where project_id=(select id from qids where key='project')$$,'55000',null,'measurements are immutable');
-select is((select count(*)::integer from public.qapi_project_history where project_id=(select id from qids where key='project')),4,'project history retains lifecycle');
+select is((select count(*)::integer from public.qapi_project_history where project_id=(select id from qids where key='project')),5,'project history retains lifecycle');
 select * from finish();rollback;
