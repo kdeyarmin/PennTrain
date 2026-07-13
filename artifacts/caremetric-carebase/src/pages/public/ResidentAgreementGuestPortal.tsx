@@ -43,7 +43,7 @@ export default function ResidentAgreementGuestPortal() {
       onSuccess: () => { setSelected(null); setResponse(blankResponse()); },
     });
   };
-  const needsTerms = !acceptedLocally && workspace.isError;
+  const needsTerms = !acceptedLocally && workspace.isError && !accept.isError;
 
   return <div className="min-h-screen bg-muted/30 px-4 py-10"><div className="mx-auto max-w-3xl space-y-6">
     <div className="text-center"><LockKeyhole className="mx-auto mb-3 h-10 w-10 text-primary" /><h1 className="text-2xl font-bold">Secure resident agreement review</h1><p className="text-muted-foreground">This expiring link exposes only the exact agreement versions selected for you.</p></div>
