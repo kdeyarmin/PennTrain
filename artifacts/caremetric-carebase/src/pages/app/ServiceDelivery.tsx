@@ -29,7 +29,9 @@ import {
   type ResidentServiceTaskQueueRow,
   type ServiceRequirementWithRelations,
   type ServiceExceptionRule,
+  type ServiceTaskAlertWithRelations,
 } from "@/hooks/useResidentServiceTasks";
+import { LogChangeOfConditionDialog } from "@/components/residents/LogChangeOfConditionDialog";
 import { QueryError } from "@/components/QueryState";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -247,6 +249,7 @@ export default function ServiceDelivery() {
   const [search, setSearch] = useState("");
   const [selectedTask, setSelectedTask] = useState<ResidentServiceTaskQueueRow | null>(null);
   const [selectedRequirement, setSelectedRequirement] = useState<ServiceRequirementWithRelations | null>(null);
+  const [changeReviewAlert, setChangeReviewAlert] = useState<ServiceTaskAlertWithRelations | null>(null);
   const [outcome, setOutcome] = useState("completed");
   const [note, setNote] = useState("");
   const [supervisorNotified, setSupervisorNotified] = useState(false);
@@ -499,7 +502,7 @@ export default function ServiceDelivery() {
                           <p className="mt-1 text-sm">{item.resident ? `${item.resident.first_name} ${item.resident.last_name}` : "Resident"} · {item.task?.service_name}</p>
                           <p className="text-sm text-muted-foreground">{item.message}</p>
                         </div>
-                        {isManager && <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => resolveAlert.mutate({ alertId: item.id, status: "acknowledged" })}>Acknowledge</Button><Button size="sm" onClick={() => resolveAlert.mutate({ alertId: item.id, status: "resolved" })}>Resolve</Button></div>}
+                        {isManager && <div className="flex gap-2">{item.alert_type === "change_of_condition_review" && <Button size="sm" onClick={() => setChangeReviewAlert(item)}>Start change review</Button>}<Button size="sm" variant="outline" onClick={() => resolveAlert.mutate({ alertId: item.id, status: "acknowledged" })}>Acknowledge</Button><Button size="sm" variant="outline" onClick={() => resolveAlert.mutate({ alertId: item.id, status: "resolved" })}>Resolve</Button></div>}
                       </div>
                     ))}
                   </div>
@@ -561,6 +564,12 @@ export default function ServiceDelivery() {
       </Dialog>
 
       <RequirementDialog requirement={selectedRequirement} onClose={() => setSelectedRequirement(null)} />
+      <LogChangeOfConditionDialog
+        open={!!changeReviewAlert}
+        onOpenChange={open => !open && setChangeReviewAlert(null)}
+        residentId={changeReviewAlert?.resident_id}
+        sourceServiceAlertId={changeReviewAlert?.id}
+      />
     </div>
   );
 }

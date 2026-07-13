@@ -82,6 +82,8 @@ const ServiceDelivery = lazy(() => import("@/pages/app/ServiceDelivery"));
 const AdmissionOperations = lazy(() => import("@/pages/app/AdmissionOperations"));
 const MoveInWorkspaceDetail = lazy(() => import("@/pages/app/MoveInWorkspaceDetail"));
 const MoveInGuestPortal = lazy(() => import("@/pages/public/MoveInGuestPortal"));
+const ChangeOfConditionQueue = lazy(() => import("@/pages/app/ChangeOfConditionQueue"));
+const ChangeOfConditionDetail = lazy(() => import("@/pages/app/ChangeOfConditionDetail"));
 const ResidentAssessmentFormEditor = lazy(() => import("@/pages/app/ResidentAssessmentFormEditor"));
 const IncidentDetail = lazy(() => import("@/pages/app/IncidentDetail"));
 const InspectionItems = lazy(() => import("@/pages/app/InspectionItems"));
@@ -259,6 +261,7 @@ const SCHEDULE_MANAGE_ROLES: UserRole[] = ["org_admin", "facility_manager"];
 const WORK_QUEUE_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 const SERVICE_DELIVERY_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 const ADMISSION_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
+const CHANGE_EVENT_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 
 function SupportTicketRoute({ prefix }: { prefix: "/app" | "/me" }) {
   const { user, isLoading, isAuthenticated } = useAuth();
@@ -567,6 +570,12 @@ function Router() {
       <Route path="/app/admissions/move-ins/:id">
         {() => <ProtectedRoute component={MoveInWorkspaceDetail} allowedRoles={ADMISSION_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
+      <Route path="/app/change-of-condition">
+        {() => <ProtectedRoute component={ChangeOfConditionQueue} allowedRoles={CHANGE_EVENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/change-of-condition/:id">
+        {() => <ProtectedRoute component={ChangeOfConditionDetail} allowedRoles={CHANGE_EVENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
       <Route path="/app/residents/:residentId/assessment-forms/:formId">
         {() => <ProtectedRoute component={ResidentAssessmentFormEditor} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
@@ -672,6 +681,12 @@ function Router() {
       </Route>
       <Route path="/me/services">
         {() => <ProtectedRoute component={ServiceDelivery} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/change-of-condition">
+        {() => <ProtectedRoute component={ChangeOfConditionQueue} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/change-of-condition/:id">
+        {() => <ProtectedRoute component={ChangeOfConditionDetail} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/schedule">
         {() => <ProtectedRoute component={MySchedule} allowedRoles={["employee"]} />}

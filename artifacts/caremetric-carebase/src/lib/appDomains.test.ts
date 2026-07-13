@@ -19,6 +19,7 @@ describe("role-based page visibility", () => {
       "/me",
       "/me/schedule",
       "/me/services",
+      "/me/change-of-condition",
       "/me/courses",
       "/me/trainings",
       "/me/work",
@@ -144,6 +145,17 @@ describe("role-based page visibility", () => {
     expect(canViewPage("/app/admissions", "auditor")).toBe(true);
     expect(canViewPage("/app/admissions", "employee")).toBe(false);
     expect(canViewPath("/app/admissions/move-ins/workspace-1", "org_admin")).toBe(true);
+  });
+
+  it("separates manager change oversight from assigned employee follow-up", () => {
+    expect(canViewPage("/app/change-of-condition", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/change-of-condition", "org_admin")).toBe(true);
+    expect(canViewPage("/app/change-of-condition", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/change-of-condition", "auditor")).toBe(true);
+    expect(canViewPage("/app/change-of-condition", "employee")).toBe(false);
+    expect(canViewPage("/me/change-of-condition", "employee")).toBe(true);
+    expect(canViewPath("/me/change-of-condition/event-1", "employee")).toBe(true);
+    expect(canViewPath("/app/change-of-condition/event-1", "auditor")).toBe(true);
   });
 
   it("makes account MFA settings available to every authenticated role", () => {

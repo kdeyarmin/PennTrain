@@ -433,6 +433,39 @@ begin
 end;
 $$;
 
+create or replace function public.get_change_event_resident_options()
+returns table (id uuid, first_name text, last_name text, room text, facility_id uuid)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_role text := public.current_role();
+  v_employee public.employees%rowtype;
+begin
+  if auth.uid() is null then raise exception 'Authentication required' using errcode = '42501'; end if;
+  select * into v_employee from public.employees e
+  where e.profile_id = auth.uid() and e.status = 'active';
+  return query
+  select r.id, r.first_name, r.last_name, r.room, r.facility_id
+  from public.residents r
+  where r.status in ('active', 'temporarily_out', 'hospital_leave')
+    and (
+      public.is_platform_admin()
+      or (
+        r.organization_id = public.current_org_id()
+        and (
+          v_role in ('org_admin', 'auditor')
+          or (v_role = 'facility_manager' and public.is_assigned_to_facility(r.facility_id))
+          or (v_role = 'employee' and r.facility_id = v_employee.facility_id)
+        )
+      )
+    )
+  order by r.last_name, r.first_name;
+end;
+$$;
+
 create or replace function public.record_change_event_notification(
   p_event_id uuid,
   p_party text,
@@ -724,6 +757,7 @@ revoke all on function public.create_resident_change_event(
 ), public.complete_change_event_follow_up(
   uuid, text, timestamptz, uuid
 ), public.close_resident_change_event(uuid, text)
+  , public.get_change_event_resident_options()
 from public, anon, authenticated, service_role;
 grant execute on function public.create_resident_change_event(
   uuid, text, timestamptz, text, text, text, text, boolean, text,
@@ -735,6 +769,7 @@ grant execute on function public.create_resident_change_event(
 ), public.complete_change_event_follow_up(
   uuid, text, timestamptz, uuid
 ), public.close_resident_change_event(uuid, text)
+  , public.get_change_event_resident_options()
 to authenticated;
 revoke all on function public.log_resident_change_of_condition(uuid, text)
   from public, anon, authenticated, service_role;
