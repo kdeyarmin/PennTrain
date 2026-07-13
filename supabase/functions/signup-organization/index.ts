@@ -12,10 +12,10 @@ const CORS_HEADERS = {
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const DEFAULT_APP_ORIGIN = "https://caremetrictrain.com";
+const DEFAULT_APP_ORIGIN = "https://cmcarebase.com";
 const DEFAULT_ALLOWED_APP_ORIGINS = new Set([
-  "https://caremetrictrain.com",
-  "https://penntrain-production.up.railway.app",
+  "https://cmcarebase.com",
+  "https://carebase-production.up.railway.app",
 ]);
 
 class HttpError extends Error {

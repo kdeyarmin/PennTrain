@@ -251,12 +251,12 @@ function ManualTab() {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground max-w-2xl">
-          A complete PDF walkthrough of every module in CareMetric Train -- roles and permissions, facilities and
+          A complete PDF walkthrough of every module in CareMetric CareBase -- roles and permissions, facilities and
           employees, scheduling, courses and certificates, compliance tracking, reports, and more. Download it to
           keep on hand or share with a new team member during onboarding.
         </p>
         <Button asChild>
-          <a href="/CareMetric-Train-User-Manual.pdf" target="_blank" rel="noopener noreferrer" download>
+          <a href="/CareMetric-CareBase-User-Manual.pdf" target="_blank" rel="noopener noreferrer" download>
             <FileDown className="mr-2 h-4 w-4" /> Download User Manual (PDF)
           </a>
         </Button>

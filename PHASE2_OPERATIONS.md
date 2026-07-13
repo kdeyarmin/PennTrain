@@ -131,7 +131,7 @@ snapshot used at calculation time.
 
 Only a tenant-owned, verified domain can be attached to an enabled SAML
 connection. Registering a domain produces a one-time proof to publish at
-`_caremetric-train-verification.<domain>` as a TXT record. The authenticated
+`_caremetric-carebase-verification.<domain>` as a TXT record. The authenticated
 `verify-identity-domain` Edge Function requires AAL2, resolves that public DNS
 record, compares its complete SHA-256 digest, and alone may call the
 service-only verification transition. An interactive administrator cannot
@@ -193,7 +193,7 @@ variance as blocking.
 
 Tenant API credentials have explicit scopes and expiry and are shown only on
 issuance or rotation. Clients authenticate with
-`Authorization: Bearer cmt_live_<prefix>.<secret>`. Commands require
+`Authorization: Bearer ccb_live_<prefix>.<secret>`. Commands require
 `Idempotency-Key`; consumers should also preserve `X-Correlation-Id` and
 `X-Request-Id`. Responses publish API version and rate-limit headers.
 

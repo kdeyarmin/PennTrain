@@ -197,7 +197,7 @@ export default function TrainerClasses() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "caremetric-training-classes.ics";
+    link.download = "caremetric-carebaseing-classes.ics";
     document.body.appendChild(link);
     link.click();
     link.remove();

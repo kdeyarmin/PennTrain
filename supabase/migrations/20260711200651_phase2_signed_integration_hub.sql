@@ -462,7 +462,7 @@ begin
   if p_expires_at is null or p_expires_at <= now() or p_expires_at > now() + interval '2 years' then
     raise exception 'Credential expiry must be within the next two years' using errcode = '22023';
   end if;
-  v_plaintext := 'cmt_live_' || v_prefix || '.' || encode(extensions.gen_random_bytes(32), 'hex');
+  v_plaintext := 'ccb_live_' || v_prefix || '.' || encode(extensions.gen_random_bytes(32), 'hex');
   insert into public.integration_api_credentials (
     id, organization_id, name, key_prefix, scopes, expires_at,
     rate_limit_per_minute, created_by
@@ -518,7 +518,7 @@ begin
   if v_expiry <= now() or v_expiry > now() + interval '2 years' then
     raise exception 'Credential expiry must be within the next two years' using errcode = '22023';
   end if;
-  v_plaintext := 'cmt_live_' || v_prefix || '.' || encode(extensions.gen_random_bytes(32), 'hex');
+  v_plaintext := 'ccb_live_' || v_prefix || '.' || encode(extensions.gen_random_bytes(32), 'hex');
   insert into public.integration_api_credentials (
     id, organization_id, name, key_prefix, scopes, expires_at,
     rate_limit_per_minute, rotated_from_id, created_by
@@ -839,7 +839,7 @@ begin
   end if;
   select vault.create_secret(
     v_secret, 'integration_webhook_' || v_endpoint_id,
-    'CareMetric Train tenant webhook signing secret'
+    'CareMetric CareBase tenant webhook signing secret'
   ) into v_vault_id;
   insert into public.integration_webhook_endpoints (
     id, organization_id, name, description, destination_url, created_by
@@ -884,7 +884,7 @@ begin
   v_version := v_endpoint.secret_version + 1;
   select vault.create_secret(
     v_secret, 'integration_webhook_' || p_endpoint_id || '_v' || v_version,
-    'Rotated CareMetric Train tenant webhook signing secret'
+    'Rotated CareMetric CareBase tenant webhook signing secret'
   ) into v_vault_id;
   update app_private.integration_endpoint_secrets s
   set previous_vault_secret_id = vault_secret_id,

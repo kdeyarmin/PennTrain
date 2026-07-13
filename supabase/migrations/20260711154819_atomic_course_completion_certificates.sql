@@ -387,7 +387,7 @@ begin
         set completion_date = current_date,
             status = 'compliant',
             completion_method = 'online',
-            training_provider = 'CareMetric Train LMS',
+            training_provider = 'CareMetric CareBase LMS',
             hours = round(coalesce(v_course.estimated_duration_minutes, 0) / 60.0, 2),
             notes = 'Auto-recorded on completion of course "' || v_course.title || '".'
         where id = v_record_id;
@@ -405,7 +405,7 @@ begin
           'compliant',
           round(coalesce(v_course.estimated_duration_minutes, 0) / 60.0, 2),
           'online',
-          'CareMetric Train LMS',
+          'CareMetric CareBase LMS',
           'Auto-recorded on completion of course "' || v_course.title || '".'
         );
       end if;

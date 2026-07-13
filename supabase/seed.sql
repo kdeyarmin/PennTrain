@@ -1,4 +1,4 @@
--- Demo/seed data for CareMetric Train.
+-- Demo/seed data for CareMetric CareBase.
 -- Safe to re-run: every insert is guarded by ON CONFLICT DO NOTHING or a WHERE NOT EXISTS-style
 -- subquery keyed on a unique natural key (slug, name, email).
 

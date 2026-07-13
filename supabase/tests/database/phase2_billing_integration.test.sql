@@ -296,7 +296,7 @@ select * from public.issue_integration_api_credential(
 );
 reset role;
 select ok(
-  (select plaintext_key ~ '^cmt_live_[0-9a-f]{12}[.][0-9a-f]{64}$' from phase2_issued)
+  (select plaintext_key ~ '^ccb_live_[0-9a-f]{12}[.][0-9a-f]{64}$' from phase2_issued)
   and (select h.secret_sha256 <> i.plaintext_key
        from phase2_issued i join app_private.integration_api_credential_hashes h
          on h.credential_id = i.credential_id),

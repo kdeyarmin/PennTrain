@@ -22,9 +22,9 @@ const DELIVERABLES = [
 
 export default function HowItWorks() {
   usePageMeta({
-    title: "How It Works — CareMetric Train",
+    title: "How It Works — CareMetric CareBase",
     description:
-      "From roster import to a survey-ready compliance binder in three steps -- see how CareMetric Train keeps your facility inspection-ready year round.",
+      "From roster import to a survey-ready compliance binder in three steps -- see how CareMetric CareBase keeps your facility inspection-ready year round.",
     path: "/how-it-works",
   });
   return (
@@ -66,7 +66,7 @@ export default function HowItWorks() {
               A launch plan your team can understand
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              CareMetric Train explains the implementation path in plain terms,
+              CareMetric CareBase explains the implementation path in plain terms,
               so prospects can picture how they move from scattered records to a
               live compliance workspace without a vague transformation project.
             </p>

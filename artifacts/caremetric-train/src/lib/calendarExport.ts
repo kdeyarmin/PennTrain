@@ -32,7 +32,7 @@ export function buildTrainingClassesIcs(events: TrainingClassCalendarEvent[], no
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//CareMetric Train//Training Classes//EN",
+    "PRODID:-//CareMetric CareBase//Training Classes//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
   ];
@@ -47,7 +47,7 @@ export function buildTrainingClassesIcs(events: TrainingClassCalendarEvent[], no
 
     lines.push(
       "BEGIN:VEVENT",
-      `UID:training-class-${event.id}@caremetric-train`,
+      `UID:training-class-${event.id}@caremetric-carebase`,
       `DTSTAMP:${stamp}`,
       `DTSTART;VALUE=DATE:${dateToIcsDate(event.classDate)}`,
       `DTEND;VALUE=DATE:${dateToIcsDate(addOneDay(event.classDate))}`,

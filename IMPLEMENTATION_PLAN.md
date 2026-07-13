@@ -1,4 +1,4 @@
-# CareMetric Train — Five-Phase Implementation Plan
+# CareMetric CareBase — Five-Phase Implementation Plan
 
 - **Status:** Canonical program plan
 - **Baseline:** main at 2874ee2, reviewed July 11, 2026
@@ -59,7 +59,7 @@ the feature.
 The following primitives prevent each phase from inventing its own state
 machines, retry logic, or tenant checks.
 
-Keep PennTrain as a Supabase modular monolith. Direct client reads remain
+Keep CareBase as a Supabase modular monolith. Direct client reads remain
 appropriate where RLS fully expresses access, but every compliance-determining
 write must pass through a transactional RPC or an authenticated Edge Function.
 Do not create new microservices merely to separate domains.

@@ -96,7 +96,7 @@ begin
       set completion_date = current_date,
           status = 'compliant',
           completion_method = 'online',
-          training_provider = 'CareMetric Train LMS',
+          training_provider = 'CareMetric CareBase LMS',
           hours = round(coalesce(v_course.estimated_duration_minutes, 0) / 60.0, 2),
           notes = 'Auto-recorded on completion of course "' || v_course.title || '".'
       where id = v_record_id;
@@ -107,7 +107,7 @@ begin
       )
       select v_org, e.facility_id, v_emp, v_course.training_type_id,
         current_date, 'compliant', round(coalesce(v_course.estimated_duration_minutes, 0) / 60.0, 2),
-        'online', 'CareMetric Train LMS', 'Auto-recorded on completion of course "' || v_course.title || '".'
+        'online', 'CareMetric CareBase LMS', 'Auto-recorded on completion of course "' || v_course.title || '".'
       from public.employees e where e.id = v_emp;
     end if;
   end if;

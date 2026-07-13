@@ -148,7 +148,7 @@ export function useListAllIncidentNotifications() {
 }
 
 // Full (RLS-scoped) rows across every incident -- used by Reports.tsx's incident notification
-// register, the reconciliation view an inspector uses to diff CareMetric Train's log against the
+// register, the reconciliation view an inspector uses to diff CareMetric CareBase's log against the
 // regional office's own. useListAllIncidentNotifications() above stays minimal (id, incident_id
 // only) for its existing deep-link-resolution use.
 export function useListAllIncidentNotificationsDetailed() {

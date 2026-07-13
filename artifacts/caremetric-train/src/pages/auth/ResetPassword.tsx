@@ -105,7 +105,7 @@ export default function ResetPassword() {
             <ShieldCheck className="h-7 w-7 text-primary-foreground" />
           </div>
           <div className="space-y-1.5">
-            <h1 className="text-[28px] font-bold tracking-tight text-foreground">CareMetric Train</h1>
+            <h1 className="text-[28px] font-bold tracking-tight text-foreground">CareMetric CareBase</h1>
             <p className="text-sm text-muted-foreground">Healthcare Learning &amp; Compliance Platform</p>
           </div>
         </div>

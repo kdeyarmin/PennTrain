@@ -16,7 +16,7 @@ describe("buildTrainingClassesIcs", () => {
     ], new Date("2026-07-01T12:00:00Z"));
 
     expect(ics).toContain("BEGIN:VCALENDAR");
-    expect(ics).toContain("UID:training-class-class-1@caremetric-train");
+    expect(ics).toContain("UID:training-class-class-1@caremetric-carebase");
     expect(ics).toContain("DTSTART;VALUE=DATE:20260710");
     expect(ics).toContain("DTEND;VALUE=DATE:20260711");
     expect(ics).toContain("SUMMARY:Med Admin\\, Annual\\; Refresher");

@@ -49,10 +49,10 @@ begin
     -- organizations_slug_key's unique constraint instead of just reusing the winner's row.
     perform pg_advisory_xact_lock(hashtext('ensure_employee_record:internal-org-bootstrap'));
 
-    select id into v_org_id from public.organizations where slug = 'caremetric-train-internal';
+    select id into v_org_id from public.organizations where slug = 'caremetric-carebase-internal';
     if v_org_id is null then
       insert into public.organizations (name, slug, subscription_status)
-      values ('CareMetric Train (Internal)', 'caremetric-train-internal', 'active')
+      values ('CareMetric CareBase (Internal)', 'caremetric-carebase-internal', 'active')
       returning id into v_org_id;
     end if;
 
