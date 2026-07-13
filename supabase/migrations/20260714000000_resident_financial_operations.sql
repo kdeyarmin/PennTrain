@@ -474,7 +474,7 @@ begin
       into v_delinquent_since from public.resident_financial_statements
       where financial_account_id = v_account.id;
   end if;
-  v_number := 'ST-' || upper(left(replace(gen_random_uuid()::text, '-', ''), 12));
+  v_number := 'ST-' || upper(left(replace(extensions.gen_random_uuid()::text, '-', ''), 12));
   v_snapshot := jsonb_build_object(
     'accountNumber', v_account.account_number, 'residentId', v_resident.id,
     'residentName', v_resident.first_name || ' ' || v_resident.last_name,
