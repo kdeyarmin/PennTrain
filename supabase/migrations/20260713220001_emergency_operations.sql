@@ -6,7 +6,8 @@ alter table public.work_item_templates add constraint work_item_templates_source
   check (source_type in (
     'violation', 'inspection', 'incident', 'near_miss', 'training_gap',
     'exclusion_match', 'credential', 'policy', 'rule_exception', 'move_in',
-    'complaint', 'support_plan', 'qapi', 'change_of_condition', 'emergency'
+    'complaint', 'support_plan', 'qapi', 'change_of_condition',
+    'dietary_exception', 'food_safety', 'emergency'
   ));
 
 insert into public.work_item_templates (
