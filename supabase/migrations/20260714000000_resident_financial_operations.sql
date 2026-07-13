@@ -612,7 +612,7 @@ begin
     opened_on, beginning_balance, created_by
   ) values (
     v_resident.organization_id, v_resident.facility_id, v_resident.id,
-    'PF-' || upper(left(replace(gen_random_uuid()::text, '-', ''), 12)),
+    'PF-' || upper(left(replace(extensions.gen_random_uuid()::text, '-', ''), 12)),
     p_opened_on, round(p_beginning_balance,2), auth.uid()
   ) returning id into v_account_id;
   if p_beginning_balance > 0 then
