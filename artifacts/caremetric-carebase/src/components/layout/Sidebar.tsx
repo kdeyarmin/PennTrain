@@ -100,7 +100,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/admin/courses/new-ai", label: "AI Course Builder", icon: Sparkles },
           { href: "/admin/training-plans", label: "Training Plans", icon: ListChecks },
           { href: "/admin/ai-generations", label: "AI Generation Log", icon: BarChart3 },
-          { href: "/admin/document-analyzer", label: "Document Analyzer", icon: ScanText },
+          { href: "/admin/document-analyzer", label: "Document Analyzer (Prototype)", icon: ScanText },
           { href: "/admin/help-content", label: "Help Center Content", icon: HelpCircle },
         ]
       },
@@ -140,6 +140,16 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/app", label: "Dashboard", icon: LayoutDashboard },
         ]
+      },
+      {
+        title: "Guided Workflows",
+        items: [
+          { href: "/app/employees?action=add", label: "Onboard Employee", icon: Users },
+          ...(showPchAlrModules
+            ? [{ href: "/app/inspection-readiness", label: "Prepare for Inspection", icon: Radar }]
+            : []),
+          { href: "/app/alerts", label: "Resolve Compliance Risks", icon: ShieldAlert },
+        ],
       },
       {
         title: "Directory",

@@ -7,6 +7,7 @@ import { queryClient } from "./queryClient";
 import { isPublicPath } from "./publicPaths";
 import { postLoginPathFromLocation } from "./loginRedirect";
 import { useToast } from "@/hooks/use-toast";
+import { AuthProfileError } from "@/components/AuthProfileError";
 import { STORAGE_KEY as IMPERSONATION_STORAGE_KEY, CHANGE_EVENT as IMPERSONATION_CHANGE_EVENT } from "@/hooks/useImpersonation";
 
 export type Role = "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee" | "auditor";
@@ -216,7 +217,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.subscription.unsubscribe();
   }, [queryClient]);
 
-  const { data: profile, isLoading: profileLoading, isError } = useQuery({
+  const {
+    data: profile,
+    error: profileError,
+    isLoading: profileLoading,
+    isFetching: profileFetching,
+    isError,
+    refetch: refetchProfile,
+  } = useQuery({
     queryKey: ["profile", session?.user.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -272,6 +280,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLocation("/login");
     })();
   }, [profile, queryClient, toast, setLocation]);
+
+  if (session && !profileLoading && isError) {
+    return (
+      <AuthProfileError
+        error={profileError}
+        retrying={profileFetching}
+        onRetry={() => { void refetchProfile(); }}
+        onSignOut={() => {
+          void (async () => {
+            await supabase.auth.signOut();
+            queryClient.clear();
+            await clearSupabaseRuntimeCache();
+            setLocation("/login");
+          })();
+        }}
+      />
+    );
+  }
 
   return (
     <AuthContext.Provider

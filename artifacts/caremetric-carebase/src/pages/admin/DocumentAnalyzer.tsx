@@ -216,10 +216,10 @@ export default function DocumentAnalyzer() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
-          <Badge variant="outline" className="w-fit gap-1"><Sparkles className="h-3.5 w-3.5" /> Super admin only</Badge>
-          <h1 className="text-3xl font-bold tracking-tight">State Form Document Analyzer</h1>
+          <Badge variant="secondary" className="w-fit gap-1"><Sparkles className="h-3.5 w-3.5" /> Prototype · Super admin only</Badge>
+          <h1 className="text-3xl font-bold tracking-tight">State Form Document Analyzer Prototype</h1>
           <p className="max-w-3xl text-muted-foreground">
-            Batch upload old state form PDFs, let AI asynchronously extract typed and handwritten information, map each record into the current state template, and notify the super admin when forms are ready for final review.
+            Preview the proposed review workflow for converting historical state forms into current templates.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -228,11 +228,12 @@ export default function DocumentAnalyzer() {
         </div>
       </div>
 
-      <Alert>
+      <Alert variant="destructive">
         <BellRing className="h-4 w-4" />
-        <AlertTitle>Asynchronous backlog processing</AlertTitle>
+        <AlertTitle>Simulation only — do not upload resident records</AlertTitle>
         <AlertDescription>
-          Large batches can keep processing after upload. When the queue finishes, the super admin receives a completion notification and can review any flagged forms before exporting or printing.
+          Files stay in this browser session and extraction results are generated sample data. No OCR,
+          durable storage, background processing, notifications, exports, or resident-chart updates occur.
         </AlertDescription>
       </Alert>
 

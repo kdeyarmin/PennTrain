@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useOrgDashboardSummary } from "@/hooks/useDashboardSummary";
-import { QueryError } from "@/components/QueryState";
+import { QueryError, QueryLoading } from "@/components/QueryState";
 import { useListAllResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
 import { useListResidents } from "@/hooks/useResidents";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
@@ -131,8 +131,13 @@ function DonutChart({ percentage, size = 140, strokeWidth = 12 }: { percentage: 
   const bgColor = percentage >= 90 ? "#d1fae5" : percentage >= 75 ? "#fef3c7" : "#fee2e2";
 
   return (
-    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
+    <div
+      className="relative inline-flex items-center justify-center"
+      style={{ width: size, height: size }}
+      role="img"
+      aria-label={`Overall compliance: ${percentage} percent`}
+    >
+      <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -300,16 +305,24 @@ export default function OrgDashboard() {
     setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
+  if (isError) {
+    return (
+      <div className="space-y-8">
+        <div className="page-header">
+          <h1>Compliance Dashboard</h1>
+          <p>Welcome back, {user?.firstName}. Here's your compliance overview.</p>
+        </div>
+        <QueryError what="your compliance overview" error={error} onRetry={() => refetch()} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div className="page-header">
         <h1>Compliance Dashboard</h1>
         <p>Welcome back, {user?.firstName}. Here's your compliance overview.</p>
       </div>
-
-      {isError && (
-        <QueryError what="your compliance overview" error={error} onRetry={() => refetch()} />
-      )}
 
       {criticalAlertsCount > 0 && (
         <div className="rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 p-5 flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -352,14 +365,16 @@ export default function OrgDashboard() {
       )}
 
       {summaryLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          <StatCardSkeleton />
-          <StatCardSkeleton />
-          <StatCardSkeleton />
-          <StatCardSkeleton />
-          <StatCardSkeleton />
-          <StatCardSkeleton />
-        </div>
+        <QueryLoading what="compliance summary">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+          </div>
+        </QueryLoading>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <div className="stat-card">

@@ -14,6 +14,7 @@ import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { courseDetailPath } from "@/lib/courseRoutes";
+import { QueryError, QueryLoading } from "@/components/QueryState";
 
 interface CourseFormData {
   title: string;
@@ -74,7 +75,7 @@ export default function Courses() {
   const [catalogScope, setCatalogScope] = useState<"system" | "all">("system");
   const systemOnly = user?.role === "platform_admin" && catalogScope === "system";
 
-  const { data: courses, isLoading } = useListCourses({
+  const { data: courses, isLoading, isError, error, refetch } = useListCourses({
     status: status !== "all" ? status : undefined,
     systemOnly,
   });
@@ -213,10 +214,16 @@ export default function Courses() {
           )}
         </div>
 
-        {isLoading ? (
-          <div className="p-6 space-y-3">
-            {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
+        {isError ? (
+          <div className="p-6">
+            <QueryError what="training content" error={error} onRetry={() => { void refetch(); }} />
           </div>
+        ) : isLoading ? (
+          <QueryLoading what="training content" className="p-6">
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
+            </div>
+          </QueryLoading>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
             <BookOpen className="h-10 w-10 text-muted-foreground/30 mb-3" />

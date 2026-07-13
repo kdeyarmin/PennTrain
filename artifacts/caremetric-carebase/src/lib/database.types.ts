@@ -18447,6 +18447,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      search_workspace: {
+        Args: { p_query: string }
+        Returns: Json
+      }
       sync_offline_learning_action: {
         Args: {
           p_action_type: string
