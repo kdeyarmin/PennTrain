@@ -143,7 +143,7 @@ Deno.serve(async (req: Request) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "User-Agent": "CareMetric-Train-Integration-Webhooks/1.0",
+          "User-Agent": "CareMetric-CareBase-Integration-Webhooks/1.0",
           "Webhook-Id": delivery.event_id,
           "Webhook-Timestamp": String(timestamp),
           "Webhook-Signature": `v1=${signature}`,

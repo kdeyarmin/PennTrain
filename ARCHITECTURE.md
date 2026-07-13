@@ -1,20 +1,20 @@
-# CareMetric Train — Workspace
+# CareMetric CareBase — Workspace
 
 ## Overview
 
-CareMetric Train (formerly "PA MedTrack") is a multi-tenant SaaS management platform for personal care homes, assisted living residences, and adjacent long-term-care providers. It tracks facility operations, employee compliance, resident assessments, incidents, inspections, scheduling, credentials, medication administration training, annual practicums, training hours, documents, alerts, audit evidence, and survey-ready compliance reporting, plus an integrated training layer for training content, quizzes, certificates, training plans, live classes, and competency checklists.
+CareMetric CareBase (formerly "PA MedTrack") is a multi-tenant SaaS management platform for personal care homes, assisted living residences, and adjacent long-term-care providers. It tracks facility operations, employee compliance, resident assessments, incidents, inspections, scheduling, credentials, medication administration training, annual practicums, training hours, documents, alerts, audit evidence, and survey-ready compliance reporting, plus an integrated training layer for training content, quizzes, certificates, training plans, live classes, and competency checklists.
 
 The app is built directly on Supabase: Postgres + Row-Level Security, Supabase Auth, Supabase Storage, and Edge
 Functions. There is no separate backend API server — the React frontend talks to Supabase directly via `supabase-js`.
 
 ## Architecture
 
-pnpm workspace monorepo. Single frontend package (`artifacts/caremetric-train`) plus a design mockup sandbox; all
-backend logic lives in the Supabase project (`xsqobvvreaovwibxwyvv`, "CM Train").
+pnpm workspace monorepo. Single frontend package (`artifacts/caremetric-carebase`) plus a design mockup sandbox; all
+backend logic lives in the Supabase project (`xsqobvvreaovwibxwyvv`, "CM CareBase").
 
 ### Packages
 
-- `artifacts/caremetric-train` — React + Vite frontend, talks to Supabase directly (no API server)
+- `artifacts/caremetric-carebase` — React + Vite frontend, talks to Supabase directly (no API server)
 - `artifacts/mockup-sandbox` — Canvas/design mockup sandbox
 - `supabase/migrations/` — every schema/RLS/function/storage change, applied in order
 - `supabase/functions/` — Edge Functions (Deno)
@@ -123,8 +123,8 @@ absent or malformed. Reusable demo/platform_admin passwords are intentionally no
 
 ## Key Commands
 
-- `pnpm --filter @workspace/caremetric-train run dev` — run the frontend dev server
-- `pnpm --filter @workspace/caremetric-train run build` — production build
+- `pnpm --filter @workspace/caremetric-carebase run dev` — run the frontend dev server
+- `pnpm --filter @workspace/caremetric-carebase run build` — production build
 - `pnpm run typecheck` — typecheck all workspace packages
 - Schema changes go through `mcp__Supabase__apply_migration`, then the exact same SQL is written to
   `supabase/migrations/<version>_<name>.sql` using the version number Supabase actually assigned (from
@@ -162,12 +162,12 @@ Tenancy/identity: `organizations`, `organization_settings`, `facilities`, `profi
 
 ## Important Files
 
-- `artifacts/caremetric-train/src/lib/supabase.ts` — Supabase client setup
-- `artifacts/caremetric-train/src/lib/auth.tsx` — auth context (Supabase session + profile)
-- `artifacts/caremetric-train/src/lib/viewingOrg.tsx` — platform_admin "Viewing as Org X" UX-only context
-- `artifacts/caremetric-train/src/App.tsx` — frontend router with role-based access
-- `artifacts/caremetric-train/src/components/layout/Sidebar.tsx` — role-aware navigation sidebar
-- `artifacts/caremetric-train/src/hooks/*.ts` — one hand-written TanStack Query hook module per domain
-- `artifacts/caremetric-train/src/lib/database.types.ts` — generated Supabase types (`mcp__Supabase__generate_typescript_types`)
+- `artifacts/caremetric-carebase/src/lib/supabase.ts` — Supabase client setup
+- `artifacts/caremetric-carebase/src/lib/auth.tsx` — auth context (Supabase session + profile)
+- `artifacts/caremetric-carebase/src/lib/viewingOrg.tsx` — platform_admin "Viewing as Org X" UX-only context
+- `artifacts/caremetric-carebase/src/App.tsx` — frontend router with role-based access
+- `artifacts/caremetric-carebase/src/components/layout/Sidebar.tsx` — role-aware navigation sidebar
+- `artifacts/caremetric-carebase/src/hooks/*.ts` — one hand-written TanStack Query hook module per domain
+- `artifacts/caremetric-carebase/src/lib/database.types.ts` — generated Supabase types (`mcp__Supabase__generate_typescript_types`)
 - `supabase/migrations/` — full schema/RLS/function/storage history, source of truth for the database
 - `supabase/functions/*/index.ts` — Edge Function source

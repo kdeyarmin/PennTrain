@@ -32,9 +32,9 @@ const FAQ_JSON_LD = {
 
 export default function Faq() {
   usePageMeta({
-    title: "FAQ — CareMetric Train",
+    title: "FAQ — CareMetric CareBase",
     description:
-      "Answers to common questions about CareMetric Train: facility operations, regulations covered, in-service hours by facility type, resident assessments, AI training-content generation, scheduling, and more.",
+      "Answers to common questions about CareMetric CareBase: facility operations, regulations covered, in-service hours by facility type, resident assessments, AI training-content generation, scheduling, and more.",
     path: "/faq",
   });
   useJsonLd("faq-jsonld", FAQ_JSON_LD);
@@ -42,7 +42,7 @@ export default function Faq() {
     <MarketingLayout>
       <PageHero
         title="Frequently asked questions"
-        subtitle="What CareMetric Train does, who it's for, and how it keeps your facility survey-ready."
+        subtitle="What CareMetric CareBase does, who it's for, and how it keeps your facility survey-ready."
       />
 
       <section className="border-b border-border/60 bg-muted/30">
@@ -54,7 +54,7 @@ export default function Faq() {
             <h2 className="mt-4 text-2xl font-extrabold tracking-tight">Start with the questions teams ask first</h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               If you are replacing spreadsheets, paper binders, shared drives, or a disconnected training tool,
-              these answers explain where CareMetric Train fits and what it manages.
+              these answers explain where CareMetric CareBase fits and what it manages.
             </p>
           </Reveal>
           <div className="mt-10 grid gap-4 lg:grid-cols-3">
@@ -97,7 +97,7 @@ export default function Faq() {
           <h3 className="text-lg font-semibold">Have a requirement we did not cover?</h3>
           <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
             Send your facility type, state, and current training workflow. We can walk
-            through how CareMetric Train would model it.
+            through how CareMetric CareBase would model it.
           </p>
           <Button asChild className="mt-5 gap-2">
             <a href={DEMO_MAILTO}>

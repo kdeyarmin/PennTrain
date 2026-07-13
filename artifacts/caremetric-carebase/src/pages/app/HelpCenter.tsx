@@ -256,7 +256,7 @@ function ManualTab() {
           keep on hand or share with a new team member during onboarding.
         </p>
         <Button asChild>
-          <a href="/CareMetric-Train-User-Manual.pdf" target="_blank" rel="noopener noreferrer" download>
+          <a href="/CareMetric-CareBase-User-Manual.pdf" target="_blank" rel="noopener noreferrer" download>
             <FileDown className="mr-2 h-4 w-4" /> Download User Manual (PDF)
           </a>
         </Button>

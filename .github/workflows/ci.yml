@@ -42,8 +42,8 @@ jobs:
       - name: Publish immutable application artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: caremetric-train-${{ github.sha }}
-          path: artifacts/caremetric-train/dist/public
+          name: caremetric-carebase-${{ github.sha }}
+          path: artifacts/caremetric-carebase/dist/public
           if-no-files-found: error
           retention-days: 14
 
@@ -97,7 +97,7 @@ jobs:
           from pathlib import Path
 
           paths = [
-            ("artifacts/caremetric-train/src/lib/database.types.ts", "/tmp/database.types.repo.ts"),
+            ("artifacts/caremetric-carebase/src/lib/database.types.ts", "/tmp/database.types.repo.ts"),
             ("/tmp/database.types.ts", "/tmp/database.types.generated.ts"),
           ]
           for source, destination in paths:
@@ -119,13 +119,13 @@ jobs:
           echo "VITE_DEMO_ACCOUNTS_JSON=[{\"label\":\"Guest auditor\",\"email\":\"phase1-guest@test.local\",\"password\":\"$e2e_password\",\"color\":\"bg-blue-500\"}]" >> "$GITHUB_ENV"
 
       - name: Build browser-test application
-        run: pnpm --filter @workspace/caremetric-train run build
+        run: pnpm --filter @workspace/caremetric-carebase run build
 
       - name: Install Chromium
-        run: pnpm --filter @workspace/caremetric-train exec playwright install --with-deps chromium
+        run: pnpm --filter @workspace/caremetric-carebase exec playwright install --with-deps chromium
 
       - name: Role, public, guest, and accessibility browser journeys
-        run: pnpm --filter @workspace/caremetric-train run test:e2e
+        run: pnpm --filter @workspace/caremetric-carebase run test:e2e
 
       - name: Stop local Supabase stack
         if: always()

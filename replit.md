@@ -1,8 +1,8 @@
-# CareMetric Train — Workspace
+# CareMetric CareBase — Workspace
 
 ## Overview
 
-CareMetric Train (formerly "PA MedTrack") is a multi-tenant SaaS management platform for personal care homes, assisted living residences, and adjacent long-term-care providers. It tracks facility operations, employee compliance, resident assessments, incidents, inspections, scheduling, credentials, medication administration training, annual practicums, training hours, documents, alerts, audit evidence, and survey-ready compliance reporting, plus an integrated training layer for training content, quizzes, certificates, training plans, live classes, and competency checklists.
+CareMetric CareBase (formerly "PA MedTrack") is a multi-tenant SaaS management platform for personal care homes, assisted living residences, and adjacent long-term-care providers. It tracks facility operations, employee compliance, resident assessments, incidents, inspections, scheduling, credentials, medication administration training, annual practicums, training hours, documents, alerts, audit evidence, and survey-ready compliance reporting, plus an integrated training layer for training content, quizzes, certificates, training plans, live classes, and competency checklists.
 
 The app is built directly on Supabase: Postgres + Row-Level Security, Supabase Auth, Supabase Storage, and Edge
 Functions. There is no separate backend API server — the React frontend talks to Supabase directly via `supabase-js`.
@@ -10,7 +10,7 @@ Functions. There is no separate backend API server — the React frontend talks 
 ## Architecture
 
 pnpm workspace monorepo. Single frontend package (`artifacts/pa-medtrack`) plus a design mockup sandbox; all
-backend logic lives in the Supabase project (`xsqobvvreaovwibxwyvv`, "CM Train").
+backend logic lives in the Supabase project (`xsqobvvreaovwibxwyvv`, "CM CareBase").
 
 ### Packages
 

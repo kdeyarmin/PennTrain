@@ -24,7 +24,7 @@ export default defineConfig(({ command, mode }) => {
     if (missing.length > 0) {
       throw new Error(
         `Missing required build-time env var(s): ${missing.join(", ")}. ` +
-          "Set them as Railway service variables (or in artifacts/caremetric-train/.env for local " +
+          "Set them as Railway service variables (or in artifacts/caremetric-carebase/.env for local " +
           "builds) BEFORE building -- Vite inlines them into the bundle, so a bundle built " +
           "without them ships a broken app even if the vars are added to the runtime later.",
       );

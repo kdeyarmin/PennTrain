@@ -67,7 +67,7 @@ function formatContact(name: string | null, phone: string | null): string {
   return phone ? `${name} (${phone})` : name;
 }
 
-// Mirrors artifacts/caremetric-train/src/lib/residentAssessmentFormSchema.ts's item lists --
+// Mirrors artifacts/caremetric-carebase/src/lib/residentAssessmentFormSchema.ts's item lists --
 // duplicated here (a Deno edge function can't import from the frontend package) and must stay in
 // sync if that file's item lists ever change.
 const ADL_ITEMS = [
@@ -165,7 +165,7 @@ const BEHAVIORAL_DEGREE_LABELS: Record<string, string> = {
 // deno-lint-ignore no-explicit-any
 type AnyRecord = Record<string, any>;
 
-// Mirrors artifacts/caremetric-train/src/lib/residentAssessmentFormSchema.ts's getIncompleteSections
+// Mirrors artifacts/caremetric-carebase/src/lib/residentAssessmentFormSchema.ts's getIncompleteSections
 // -- advisory only, never blocks finalize/PDF export (see that function's comment for why). Printed
 // on the PDF itself so a gap left at finalization stays visible on the document DHS/an auditor sees,
 // not just in the CareMetric editor.

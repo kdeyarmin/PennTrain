@@ -31,16 +31,16 @@ const SECURITY_PROMISES = [
 
 export default function Security() {
   usePageMeta({
-    title: "Security — CareMetric Train",
+    title: "Security — CareMetric CareBase",
     description:
-      "Row-level security, six enforced access roles, private signed-URL storage, and an immutable audit trail -- see how CareMetric Train protects sensitive compliance data.",
+      "Row-level security, six enforced access roles, private signed-URL storage, and an immutable audit trail -- see how CareMetric CareBase protects sensitive compliance data.",
     path: "/security",
   });
   return (
     <MarketingLayout>
       <PageHero
         title="Enterprise-grade security, built in"
-        subtitle="Your facility, resident, staff, training, and compliance data is sensitive. CareMetric Train protects it with role-aware workflows, private evidence storage, and database-enforced access boundaries."
+        subtitle="Your facility, resident, staff, training, and compliance data is sensitive. CareMetric CareBase protects it with role-aware workflows, private evidence storage, and database-enforced access boundaries."
       />
 
       <section className="relative overflow-hidden bg-gradient-to-br from-[#071626] via-[#0d2742] to-[#143a5c] text-white">
@@ -96,7 +96,7 @@ export default function Security() {
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               Compliance systems collect sensitive employee records, signatures,
               certificates, credentials, and corrective-action evidence.
-              CareMetric Train keeps those assets organized without making them
+              CareMetric CareBase keeps those assets organized without making them
               broadly visible.
             </p>
           </Reveal>
@@ -125,7 +125,7 @@ export default function Security() {
               Trust claims are translated into verifiable product behavior
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Instead of relying on broad promises, CareMetric Train frames
+              Instead of relying on broad promises, CareMetric CareBase frames
               safeguards as practical access questions buyers can validate
               during a demo.
             </p>
