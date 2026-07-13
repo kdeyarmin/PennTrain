@@ -425,7 +425,7 @@ begin
   where (organization_id = v.organization_id or organization_id is null)
     and template_key = 'resident_calendar.followup' and is_active
   order by organization_id nulls last limit 1;
-  for v_follow in select value from jsonb_array_elements(coalesce(p_follow_ups, '[]'::jsonb)) loop
+  if v_template_id is null then raise exception 'Work item template not found' using errcode = 'P0002'; end if;
     begin
       v_due := (v_follow->>'dueAt')::timestamptz;
       v_owner := nullif(v_follow->>'ownerProfileId', '')::uuid;
