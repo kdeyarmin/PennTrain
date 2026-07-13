@@ -95,6 +95,7 @@ export function useGenerateScheduleAssignments() {
     onSuccess: (_data, scheduleId) => {
       queryClient.invalidateQueries({ queryKey: ["shift_assignments"] });
       queryClient.invalidateQueries({ queryKey: ["shift_assignments", "by-schedule", scheduleId] });
+      queryClient.invalidateQueries({ queryKey: ["schedule-service-workload", scheduleId] });
     },
   });
 }
@@ -110,6 +111,7 @@ export function useClearAutoFilledAssignments() {
     onSuccess: (_data, scheduleId) => {
       queryClient.invalidateQueries({ queryKey: ["shift_assignments"] });
       queryClient.invalidateQueries({ queryKey: ["shift_assignments", "by-schedule", scheduleId] });
+      queryClient.invalidateQueries({ queryKey: ["schedule-service-workload", scheduleId] });
     },
   });
 }
