@@ -111,7 +111,7 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
       binderDestination: "Administrator Qualifications / Orientation and Dementia Training",
       dueDate: null,
       status: profile?.hundred_hour_course_completed_date || profile?.nha_license_number ? "compliant" : "missing",
-      detail: "Track ALR orientation, approved-course, competency, and dementia-specific administrator evidence together.",
+      detail: "Track ALF orientation, approved-course, competency, and dementia-specific administrator evidence together.",
     });
   }
 
