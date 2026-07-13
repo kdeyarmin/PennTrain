@@ -1,3 +1,8 @@
+// Shared default models used by all Anthropic-backed edge functions.
+// Changing them here propagates to every function automatically.
+export const DEFAULT_PRIMARY_MODEL = "claude-fable-5";
+export const DEFAULT_FALLBACK_MODELS = ["claude-opus-4-8", "claude-sonnet-5", "claude-sonnet-4-5-20250929"] as const;
+
 export function parseModelList(raw: string | undefined | null): string[] {
   return (raw ?? "")
     .split(",")
@@ -5,16 +10,14 @@ export function parseModelList(raw: string | undefined | null): string[] {
     .filter(Boolean);
 }
 
-export function getAnthropicModelCandidates(opts: {
-  primaryEnv: string;
-  fallbackEnv: string;
-  defaultPrimary: string;
-  defaultFallbacks: readonly string[];
-}): string[] {
-  const primary = Deno.env.get(opts.primaryEnv)?.trim() || opts.defaultPrimary;
+export function getAnthropicModelCandidates(
+  primaryModelEnv: string,
+  fallbackModelsEnv: string,
+): string[] {
+  const primary = Deno.env.get(primaryModelEnv)?.trim() || DEFAULT_PRIMARY_MODEL;
   return Array.from(new Set([
     primary,
-    ...parseModelList(Deno.env.get(opts.fallbackEnv)),
-    ...opts.defaultFallbacks,
+    ...parseModelList(Deno.env.get(fallbackModelsEnv)),
+    ...DEFAULT_FALLBACK_MODELS,
   ]));
 }

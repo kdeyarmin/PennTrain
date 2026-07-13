@@ -20,10 +20,6 @@ const ALLOWED_ROLES = ["platform_admin"];
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
-// Prefer Anthropic's highest-capability generally available model for precise, grounded edits,
-// while keeping model selection overrideable without a redeploy if availability or cost changes.
-const DEFAULT_PRIMARY_MODEL = "claude-fable-5";
-const DEFAULT_FALLBACK_MODELS = ["claude-opus-4-8", "claude-sonnet-5", "claude-sonnet-4-5-20250929"] as const;
 const PRIMARY_MODEL_ENV = "ANTHROPIC_COURSE_REGENERATION_MODEL";
 const FALLBACK_MODELS_ENV = "ANTHROPIC_COURSE_REGENERATION_FALLBACK_MODELS";
 
@@ -254,7 +250,7 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  const modelCandidates = getAnthropicModelCandidates({ primaryEnv: PRIMARY_MODEL_ENV, fallbackEnv: FALLBACK_MODELS_ENV, defaultPrimary: DEFAULT_PRIMARY_MODEL, defaultFallbacks: DEFAULT_FALLBACK_MODELS });
+  const modelCandidates = getAnthropicModelCandidates(PRIMARY_MODEL_ENV, FALLBACK_MODELS_ENV);
   const requestedModel = modelCandidates[0];
 
   const { data: generationRow, error: generationInsertError } = await callerClient
