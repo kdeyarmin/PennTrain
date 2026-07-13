@@ -1,8 +1,12 @@
 -- Keep the stored facility_type code "ALR", but use the organization's ALF terminology in
 -- customer-facing seeded content.
+select set_config('app.privileged_write', 'on', true);
+
 update public.courses
 set category = 'Assisted Living Facilities'
 where category = 'Assisted Living Residences';
+
+select set_config('app.privileged_write', '', true);
 
 update public.help_articles
 set content = jsonb_set(
