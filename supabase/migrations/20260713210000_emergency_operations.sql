@@ -797,8 +797,8 @@ $$;
 create or replace function public.log_emergency_communication(
   p_emergency_event_id uuid,
   p_audience text,
-  p_resident_id uuid default null,
-  p_informal_support_id uuid default null,
+  p_resident_id uuid,
+  p_informal_support_id uuid,
   p_recipient_name text,
   p_recipient_contact text,
   p_channel text,
