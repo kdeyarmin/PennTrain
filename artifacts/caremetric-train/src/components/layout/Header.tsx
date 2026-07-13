@@ -358,7 +358,7 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
       </div>
       </div>
       {mobileSearchOpen && (
-        <div className="border-t border-border/60 py-2 sm:hidden">
+        <div id="mobile-search-panel" className="border-t border-border/60 py-2 sm:hidden">
           <GlobalSearch autoFocus onNavigate={() => setMobileSearchOpen(false)} />
         </div>
       )}
