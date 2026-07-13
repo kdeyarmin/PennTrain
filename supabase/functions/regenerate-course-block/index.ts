@@ -19,8 +19,28 @@ const ALLOWED_ROLES = ["platform_admin"];
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
-const PRIMARY_MODEL = "claude-sonnet-5";
-const FALLBACK_MODEL = "claude-sonnet-4-5-20250929";
+// Prefer Anthropic's highest-capability generally available model for precise, grounded edits,
+// while keeping model selection overrideable without a redeploy if availability or cost changes.
+const DEFAULT_PRIMARY_MODEL = "claude-fable-5";
+const DEFAULT_FALLBACK_MODELS = ["claude-opus-4-8", "claude-sonnet-5", "claude-sonnet-4-5-20250929"] as const;
+const PRIMARY_MODEL_ENV = "ANTHROPIC_COURSE_REGENERATION_MODEL";
+const FALLBACK_MODELS_ENV = "ANTHROPIC_COURSE_REGENERATION_FALLBACK_MODELS";
+
+function parseModelList(raw: string | undefined | null): string[] {
+  return (raw ?? "")
+    .split(",")
+    .map((model) => model.trim())
+    .filter(Boolean);
+}
+
+function getAnthropicModelCandidates(): string[] {
+  const primary = Deno.env.get(PRIMARY_MODEL_ENV)?.trim() || DEFAULT_PRIMARY_MODEL;
+  return Array.from(new Set([
+    primary,
+    ...parseModelList(Deno.env.get(FALLBACK_MODELS_ENV)),
+    ...DEFAULT_FALLBACK_MODELS,
+  ]));
+}
 // Matches the headroom bump in generate-course-curriculum -- a quiz-question regeneration with
 // many questions/answers/explanations can also exceed a tight token budget.
 const ANTHROPIC_TIMEOUT_MS = 90_000;
@@ -81,8 +101,8 @@ async function callAnthropicWithFallback(
   toolName: string,
   inputSchema: Record<string, unknown>,
   signal: AbortSignal,
+  candidates: string[],
 ): Promise<AnthropicCallResult> {
-  const candidates = [PRIMARY_MODEL, FALLBACK_MODEL];
   let last: AnthropicCallResult | null = null;
 
   for (const model of candidates) {
@@ -107,9 +127,9 @@ async function callAnthropicWithFallback(
     if (res.ok) return { ok: true, model, status: res.status, body: bodyJson };
 
     const errorMessage = typeof bodyJson?.error?.message === "string" ? bodyJson.error.message : "";
-    const looksLikeModelError = res.status === 404 || (res.status === 400 && /model/i.test(errorMessage));
+    const canFallback = res.status === 404 || res.status === 429 || res.status >= 500 || (res.status === 400 && /model/i.test(errorMessage));
     last = { ok: false, model, status: res.status, body: bodyJson };
-    if (!looksLikeModelError) return last;
+    if (!canFallback) return last;
   }
   return last!;
 }
@@ -248,6 +268,9 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  const modelCandidates = getAnthropicModelCandidates();
+  const requestedModel = modelCandidates[0];
+
   const { data: generationRow, error: generationInsertError } = await callerClient
     .from("course_ai_generations")
     .insert({
@@ -256,7 +279,7 @@ Deno.serve(async (req: Request) => {
       course_version_id: block.course_version_id,
       course_block_id,
       requested_by: callerUser.id,
-      model: PRIMARY_MODEL,
+      model: requestedModel,
       request_params: body,
       status: "pending",
     })
@@ -301,7 +324,15 @@ Deno.serve(async (req: Request) => {
 
   let result: AnthropicCallResult;
   try {
-    result = await callAnthropicWithFallback(anthropicApiKey, systemPrompt, userPrompt, toolName, inputSchema, controller.signal);
+    result = await callAnthropicWithFallback(
+      anthropicApiKey,
+      systemPrompt,
+      userPrompt,
+      toolName,
+      inputSchema,
+      controller.signal,
+      modelCandidates,
+    );
   } catch (e) {
     clearTimeout(timeoutId);
     if (e instanceof Error && e.name === "AbortError") {
@@ -314,7 +345,7 @@ Deno.serve(async (req: Request) => {
   }
   clearTimeout(timeoutId);
 
-  if (result.model !== PRIMARY_MODEL) {
+  if (result.model !== requestedModel) {
     await callerClient.from("course_ai_generations").update({ model: result.model }).eq("id", generationId);
   }
 

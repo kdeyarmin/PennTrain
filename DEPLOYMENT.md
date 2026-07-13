@@ -69,6 +69,14 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
      SIGNUP_REDIRECT_ORIGINS='https://cmcarebase.com,https://carebase-production.up.railway.app' \
      PUBLIC_APP_URL='https://cmcarebase.com'
    ```
+   The AI Edge Functions default to the highest-capability generally available Claude model and
+   then fall back through current strong models. If Anthropic changes availability, cost, or account
+   entitlements, override model selection without a code deploy by setting comma-separated fallback
+   secrets:
+   - `ANTHROPIC_COURSE_DRAFT_MODEL` / `ANTHROPIC_COURSE_DRAFT_FALLBACK_MODELS`
+   - `ANTHROPIC_COURSE_REGENERATION_MODEL` / `ANTHROPIC_COURSE_REGENERATION_FALLBACK_MODELS`
+   - `ANTHROPIC_RESIDENT_SUMMARY_MODEL` / `ANTHROPIC_RESIDENT_SUMMARY_FALLBACK_MODELS`
+
    Store the same `CRON_SHARED_SECRET` in Supabase Vault before the cron-hardening migration runs:
    ```sql
    select vault.create_secret('<same random value>', 'cron_shared_secret');
