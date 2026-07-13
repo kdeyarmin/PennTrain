@@ -20,7 +20,7 @@ const block = (overrides: Partial<LearningToolBlock>): LearningToolBlock => ({
 });
 
 describe("course learning tools", () => {
-  it("labels known course block types for learners", () => {
+  it("labels known course block types for employees", () => {
     expect(getBlockLabel("text")).toBe("Reading");
     expect(getBlockLabel("video")).toBe("Video");
     expect(getBlockLabel("pdf")).toBe("Document");

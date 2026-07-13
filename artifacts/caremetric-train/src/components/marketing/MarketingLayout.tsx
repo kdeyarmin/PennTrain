@@ -47,7 +47,7 @@ function MarketingHeader() {
               style={{ color: BRAND_BLUE }}
             />
             <span className="hidden whitespace-nowrap text-[11px] font-medium text-muted-foreground sm:block">
-              Compliance Training Platform
+              Facility Management Platform
             </span>
           </div>
         </Link>
@@ -158,8 +158,8 @@ function MarketingFooter() {
               <BrandName className="text-sm font-bold" style={{ color: BRAND_BLUE }} />
             </Link>
             <p className="mt-3 text-sm text-muted-foreground">
-              Compliance training platform for personal care homes, assisted living,
-              group homes, nursing homes, home health, and hospice agencies.
+              Facility management software for personal care homes, assisted living,
+              and adjacent long-term-care providers.
             </p>
           </div>
 

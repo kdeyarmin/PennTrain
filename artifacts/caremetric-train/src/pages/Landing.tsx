@@ -48,7 +48,7 @@ const HIGHLIGHTS: {
     icon: GraduationCap,
     title: "Train staff online, in person, or from outside records",
     blurb:
-      "Courses, quizzes, certificates, live classes, AI-drafted content, and annual requirements all reconcile to one employee training record.",
+      "Training modules, quizzes, certificates, live classes, AI-drafted content, and annual requirements all reconcile to one employee training record.",
   },
   {
     href: "/who-its-for",
@@ -78,7 +78,7 @@ const BEYOND_TRAINING: { icon: LucideIcon; title: string; blurb: string }[] = [
     icon: BedDouble,
     title: "Resident Assessment Compliance",
     blurb:
-      "RASP/ASP preadmission screening, initial assessment, and reassessments tracked with their own due dates -- resident-level compliance, not just staff training.",
+      "RASP/ASP preadmission screening, initial assessment, and reassessments tracked with their own due dates -- resident-level compliance, not just staff requirements.",
   },
   {
     icon: Gauge,
@@ -144,22 +144,22 @@ const ROLE_VIEWS = [
   "Org admins see compliance across every facility, including resident assessments where required.",
   "Facility managers focus on assigned sites, overdue staff, and shift coverage.",
   "Trainers schedule classes with QR/kiosk check-in, draft AI-assisted courses, and monitor retraining.",
-  "Employees complete courses, quizzes, certificates, policy attestations, and uploads in self-service.",
+  "Employees complete training content, quizzes, certificates, policy attestations, and uploads in self-service.",
   "Auditors get read-only evidence without changing records.",
 ];
 
 const BUYER_PROMISES: { icon: LucideIcon; title: string; blurb: string }[] = [
   {
     icon: Target,
-    title: "Built around inspection risk, not generic e-learning",
+    title: "Built around facility operations and inspection risk",
     blurb:
-      "CareMetric CareBase connects training, resident assessments, incidents, credentials, policies, and life-safety evidence to the questions surveyors actually ask.",
+      "CareMetric Train connects training, resident assessments, incidents, credentials, policies, and life-safety evidence to the questions surveyors actually ask.",
   },
   {
     icon: FolderCheck,
     title: "Proof is collected as work happens",
     blurb:
-      "Certificates, sign-ins, course versions, policy signatures, documents, and audit events are attached to the right person, facility, deadline, and requirement from day one.",
+      "Certificates, sign-ins, training content versions, policy signatures, documents, and audit events are attached to the right person, facility, deadline, and requirement from day one.",
   },
   {
     icon: UsersRound,
@@ -170,7 +170,7 @@ const BUYER_PROMISES: { icon: LucideIcon; title: string; blurb: string }[] = [
 ];
 
 const DECISION_SIGNALS = [
-  "You need more than an LMS: training hours, competencies, credentials, resident compliance, incidents, inspections, policy signatures, and survey binders must agree.",
+  "You need more than a training portal or spreadsheet: training hours, competencies, credentials, resident compliance, incidents, inspections, schedules, policy signatures, and survey binders must agree.",
   "You operate across multiple facility types or sites and need one source of truth without overexposing sensitive records.",
   "You want managers to fix risk before an inspection instead of discovering missing evidence after a surveyor requests it.",
 ];
@@ -179,7 +179,7 @@ const DASHBOARD_ROWS = [
   { label: "Annual in-service hours", value: 92, status: "On track" },
   { label: "Medication practicums", value: 88, status: "12 due" },
   { label: "Expiring credentials", value: 74, status: "Review" },
-  { label: "Completed course assignments", value: 96, status: "Strong" },
+  { label: "Completed staff assignments", value: 96, status: "Strong" },
 ];
 
 const PLATFORM_STATS = [
@@ -191,9 +191,9 @@ const PLATFORM_STATS = [
 
 export default function Landing() {
   usePageMeta({
-    title: "CareMetric CareBase — Compliance Training Platform",
+    title: "CareMetric Train — Facility Management Software",
     description:
-      "CareMetric CareBase is the compliance-training platform for personal care homes, assisted living facilities, group homes, nursing homes, home health, and hospice agencies -- yearly in-services, resident assessments, incidents, and survey-ready compliance binders tracked automatically in one system.",
+      "CareMetric Train is personal care home and assisted living facility management software -- staff compliance, resident assessments, incidents, inspections, scheduling, documents, training, and survey-ready binders tracked in one system.",
     path: "/",
   });
   return (
@@ -214,8 +214,7 @@ export default function Landing() {
                 Know who is trained, what is due, and where the proof lives.
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-white/74">
-                CareMetric CareBase is a compliance training platform and command center for care
-                providers. It turns required in-services, credentials, practicums,
+                CareMetric Train is facility management software and a compliance command center for personal care homes, assisted living residences, and care providers. It turns required in-services, credentials, practicums,
                 live classes, resident assessments, incidents, and certificates
                 into a single survey-ready record for every employee, resident,
                 and facility.
@@ -265,7 +264,7 @@ export default function Landing() {
                   <span className="h-2.5 w-2.5 rounded-full bg-warning/40" />
                   <span className="h-2.5 w-2.5 rounded-full bg-success/40" />
                   <span className="ml-2 font-mono text-[10px] tracking-wide text-muted-foreground/70">
-                    CareMetric CareBase / Compliance Command Center
+                    CareMetric Train / Facility Command Center
                   </span>
                 </div>
                 <CardHeader className="border-b border-border/60 py-5">
@@ -391,10 +390,10 @@ export default function Landing() {
               day.
             </h2>
             <p className="mt-4 text-muted-foreground">
-              CareMetric CareBase gives operators one place to see risk, assign the
+              CareMetric Train gives operators one place to see risk, assign the
               work, capture evidence, and hand a defensible record to leadership
-              or an auditor. It is not a course library with a dashboard bolted
-              on -- it is the workflow that keeps daily training, resident
+              or an auditor. It is not a training catalog with a dashboard bolted
+              on -- it is the workflow that keeps daily operations, resident
               documentation, and survey evidence aligned.
             </p>
           </Reveal>
@@ -419,7 +418,7 @@ export default function Landing() {
 
           <Reveal className="mt-10 rounded-2xl border border-primary/20 bg-primary/[0.03] p-6">
             <h3 className="text-lg font-semibold">
-              CareMetric CareBase is strongest when...
+              CareMetric Train is strongest when...
             </h3>
             <div className="mt-4 grid gap-3 lg:grid-cols-3">
               {DECISION_SIGNALS.map((signal) => (
@@ -476,7 +475,7 @@ export default function Landing() {
               <Card className="h-full border-primary/30 bg-primary/[0.03] shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-base text-primary">
-                    With CareMetric CareBase
+                    With CareMetric Train
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -502,9 +501,10 @@ export default function Landing() {
             What the app actually does
           </h2>
           <p className="mt-4 text-muted-foreground">
-            CareMetric CareBase combines learning management, compliance tracking,
-            secure document storage, and role-based reporting so every
-            stakeholder works from the same source of truth.
+            CareMetric Train combines facility operations, staff compliance, resident tracking,
+            incident and inspection workflows, scheduling, secure document storage,
+            integrated training, and role-based reporting so every stakeholder works
+            from the same source of truth.
           </p>
         </Reveal>
 
@@ -540,12 +540,12 @@ export default function Landing() {
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
           <Reveal className="mx-auto max-w-3xl text-center">
             <h2 className="text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
-              Beyond staff training: a complete survey-readiness platform
+              Facility management, compliance, and survey readiness in one platform
             </h2>
             <p className="mt-4 text-muted-foreground">
-              Recent releases layered resident care, incident and inspection
-              management, AI-assisted content, and workforce scheduling on top of
-              the core training platform.
+              CareMetric Train now brings resident care tracking, incident and inspection
+              management, AI-assisted training, documents, evidence, and workforce scheduling into
+              the same operational system.
             </p>
           </Reveal>
 
@@ -587,13 +587,13 @@ export default function Landing() {
               Role-aware from login to report export
             </div>
             <h2 className="mt-5 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
-              Built for the people who manage, deliver, complete, and inspect
-              training.
+              Built for the people who manage facilities, staff, residents, evidence,
+              training, and inspections.
             </h2>
             <p className="mt-4 text-white/68">
-              The app is not just a public course catalog. It is a multi-role
-              workflow where each person gets the screens, actions, and evidence
-              they need.
+              The app is not just a training portal or content catalog. It is a
+              multi-role facility workflow where each person gets the screens,
+              actions, and evidence they need.
             </p>
           </Reveal>
           <Reveal delay={0.1} className="grid gap-3">

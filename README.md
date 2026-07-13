@@ -1,18 +1,17 @@
 <p align="center">
-  <img src="artifacts/caremetric-train/public/logo.svg" alt="CareMetric CareBase" width="360" />
+  <img src="artifacts/caremetric-train/public/logo.png" alt="CareMetric Train" width="360" />
 </p>
 
-# CareMetric CareBase
+# CareMetric Train
 
-**[cmcarebase.com](https://cmcarebase.com)**
+**[CareMetricTrain.com](https://caremetrictrain.com)**
 
-CareMetric CareBase is a multi-tenant healthcare compliance-training and LMS platform for personal care homes,
-assisted living facilities, and related healthcare organizations. It is built directly on Supabase: Postgres with
+CareMetric Train is a multi-tenant personal care home and assisted living facility management platform for operators that need one system for staff compliance, resident assessments, incidents, inspections, documents, scheduling, and training. It is built directly on Supabase: Postgres with
 Row-Level Security, Supabase Auth, Supabase Storage, and Edge Functions. There is no separate API server -- the
 React frontend talks to Supabase directly via `supabase-js`.
 
-**Production**: https://cmcarebase.com (Railway-hosted, service domain
-`carebase-production.up.railway.app`; see `DEPLOYMENT.md`).
+**Production**: https://caremetrictrain.com (Railway-hosted, service domain
+`penntrain-production.up.railway.app`; see `DEPLOYMENT.md`).
 
 ## Implementation roadmap
 
@@ -32,7 +31,7 @@ ROADMAP.md remains the historical product review and recommendation rationale.
 - Core compliance tracking: organizations, facilities, employees, configurable training types, training records,
   medication practicums, live training classes, document uploads (Supabase Storage, signed URLs), alerts, audit
   logs, and a report center.
-- A full LMS layer: course/version/block authoring, quizzes with server-side grading, course assignments and
+- An integrated training suite: training-content version/block authoring, quizzes with server-side grading, training assignments and
   progress tracking, certificates (with a public `/verify/:slug` verification route), training plans, and
   competency checklist templates/records.
 - A real, generated Compliance Binder PDF (`generate-compliance-binder` Edge Function using `pdf-lib`), replacing
@@ -51,7 +50,7 @@ created.
 
 ```bash
 pnpm install
-pnpm --filter @workspace/caremetric-carebase dev
+pnpm --filter @workspace/caremetric-train dev
 ```
 
 Copy `artifacts/caremetric-train/.env.example` to `.env` and fill in your Supabase project URL, publishable

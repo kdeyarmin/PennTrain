@@ -10,7 +10,7 @@ export interface VideoBlockState {
 export const EMPTY_VIDEO_STATE: VideoBlockState = { position: 0, maxWatched: 0, completedAt: null };
 
 /**
- * Defensive parse of course_progress.video_state (a learner-writable jsonb column):
+ * Defensive parse of course_progress.video_state (an employee-writable jsonb column):
  * anything malformed degrades to "not watched yet" rather than crashing the player or
  * unlocking the gate.
  */

@@ -42,7 +42,7 @@ export default function AiCourseWizard() {
   const { toast } = useToast();
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
 
-  // Plain useState, matching Courses.tsx's "New Course" dialog convention --
+  // Plain useState, matching Courses.tsx's "New Training Content" dialog convention --
   // this page is the AI counterpart to that manual form, not a wizard-library form.
   const [form, setForm] = useState<WizardFormState>(EMPTY_FORM);
   const { mutate: generate, isPending, isError, error, reset } = useGenerateCourseCurriculum();
@@ -96,7 +96,7 @@ export default function AiCourseWizard() {
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
           <Link href={coursesListPath(user?.role)}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Courses
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Training Content
           </Link>
         </Button>
       </div>
@@ -170,7 +170,7 @@ export default function AiCourseWizard() {
                 <Input value={form.category} onChange={e => field("category", e.target.value)} placeholder="Annual In-Service" className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Compliance Training Type</Label>
+                <Label className="text-[13px]">Training Requirement Type</Label>
                 <Select value={form.trainingTypeId} onValueChange={v => field("trainingTypeId", v)}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>

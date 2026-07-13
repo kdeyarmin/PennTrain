@@ -48,7 +48,7 @@ const phases = [
   },
   {
     name: "Phase 4",
-    title: "Governed learning and content",
+    title: "Governed content and training",
     timeline: "Code complete; production pilots pending",
     status: "implemented",
     icon: Sparkles,
@@ -56,7 +56,7 @@ const phases = [
     outcomes: [
       "Course/content lifecycle governance with review, approval, supersession, and retained versions.",
       "SCORM/LTI interoperability and import/export conformance evidence.",
-      "Adaptive remediation, accessible media, offline sync, and conflict-safe learner progress.",
+      "Adaptive remediation, accessible media, offline sync, and conflict-safe employee progress.",
     ],
   },
   {
@@ -82,7 +82,7 @@ const currentFoundation = [
   "Billing and entitlements",
   "Signed integrations",
   "Qualified workforce operations",
-  "Governed learning and content",
+  "Governed content and training",
   "Closed-loop compliance and evidence",
 ];
 

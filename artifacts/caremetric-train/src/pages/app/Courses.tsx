@@ -136,11 +136,11 @@ export default function Courses() {
       },
       {
         onSuccess: () => {
-          toast({ title: "Course created" });
+          toast({ title: "Training content created" });
           setShowForm(false);
           setForm(EMPTY_FORM);
         },
-        onError: (e: Error) => toast({ title: "Failed to create course", description: e.message, variant: "destructive" }),
+        onError: (e: Error) => toast({ title: "Failed to create training content", description: e.message, variant: "destructive" }),
       },
     );
   };
@@ -149,8 +149,8 @@ export default function Courses() {
     <div className="space-y-6">
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1>Courses</h1>
-          <p>Browse the system catalog and your organization's authored training courses.</p>
+          <h1>Training Content</h1>
+          <p>Browse the system catalog and your organization's training content.</p>
         </div>
         <div className="flex items-center gap-3">
           {user?.role === "platform_admin" && (
@@ -169,7 +169,7 @@ export default function Courses() {
                 </Link>
               </Button>
               <Button onClick={openCreate} className="shadow-sm">
-                <Plus className="mr-2 h-4 w-4" /> New Course
+                <Plus className="mr-2 h-4 w-4" /> New Training Content
               </Button>
             </>
           )}
@@ -181,7 +181,7 @@ export default function Courses() {
           <div className="relative flex-1 min-w-48">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search courses..."
+              placeholder="Search training content..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="pl-9 h-9 bg-card"
@@ -220,7 +220,7 @@ export default function Courses() {
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
             <BookOpen className="h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm font-medium text-muted-foreground">No courses yet</p>
+            <p className="text-sm font-medium text-muted-foreground">No training content yet</p>
             <p className="text-xs text-muted-foreground/60 mt-1">Try adjusting your search or filters</p>
           </div>
         ) : (
@@ -228,7 +228,7 @@ export default function Courses() {
             <table className="data-table min-w-[720px]">
               <thead>
                 <tr>
-                  <th>Course</th>
+                  <th>Training item</th>
                   <th>Category</th>
                   <th>Duration</th>
                   <th>Status</th>
@@ -278,13 +278,13 @@ export default function Courses() {
 
       <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
         <BookOpen className="h-4 w-4" />
-        <span>{filtered.length} course{filtered.length !== 1 ? "s" : ""} total</span>
+        <span>{filtered.length} training item{filtered.length !== 1 ? "s" : ""} total</span>
       </div>
 
       <Dialog open={showForm} onOpenChange={o => { if (!o) setShowForm(false); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>New Course</DialogTitle>
+            <DialogTitle>New Training Content</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
@@ -293,7 +293,7 @@ export default function Courses() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-[13px]">Description</Label>
-              <Textarea value={form.description} onChange={e => field("description", e.target.value)} placeholder="Brief overview of what this course covers" />
+              <Textarea value={form.description} onChange={e => field("description", e.target.value)} placeholder="Brief overview of what this training content covers" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -313,7 +313,7 @@ export default function Courses() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Compliance Training Type</Label>
+              <Label className="text-[13px]">Training Requirement Type</Label>
               <Select value={form.trainingTypeId} onValueChange={v => field("trainingTypeId", v)}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -331,7 +331,7 @@ export default function Courses() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
             <Button onClick={handleSubmit} disabled={creating} className="shadow-sm">
-              {creating ? "Creating..." : "Create Course"}
+              {creating ? "Creating..." : "Create Training Content"}
             </Button>
           </DialogFooter>
         </DialogContent>

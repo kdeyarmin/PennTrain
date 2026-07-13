@@ -1,6 +1,6 @@
 -- Restrict course authoring (create/edit/delete) to platform_admin only.
 --
--- Product decision: org_admin/trainer retain the ability to browse the course catalog and
+-- Product decision: org_admin/trainer retain the ability to browse the training content catalog and
 -- enroll/assign employees into existing courses (course_assignments / course_progress are
 -- untouched by this migration), but lose the ability to author courses themselves. Course
 -- authoring becomes exclusive to platform_admin, who will get an AI-assisted authoring

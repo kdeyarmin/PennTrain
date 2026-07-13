@@ -34,7 +34,7 @@ interface CourseVideoPlayerProps {
  * Tracked course video player: resumes at the saved position, records a furthest-watched
  * high-water mark, and (when gated) prevents skipping ahead of it -- the client half of
  * the compliance watch gate. Server-side completion integrity still rests on
- * complete_course_assignment(); this keeps honest learners honest and their place saved.
+ * complete_course_assignment(); this keeps honest employees honest and their place saved.
  */
 export function CourseVideoPlayer({ src, state, gated, onChange }: CourseVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);

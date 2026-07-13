@@ -1,16 +1,16 @@
 -- Video watch state: in-video resume + a flag-gated minimum-watch gate.
 --
 -- END_USER_REVIEW.md recommendation #5: course video blocks were a bare <video> tag --
--- a learner could click Next past a 20-minute mandated video instantly, and closing the
+-- an employee could click Next past a 20-minute mandated video instantly, and closing the
 -- tab mid-video lost the playback position (only the block index was checkpointed).
 --
 -- course_progress gains a video_state jsonb column (block_id -> { position, maxWatched,
--- completedAt }) that the learner-writable progress row already carries through RLS.
+-- completedAt }) that the employee-writable progress row already carries through RLS.
 -- Playback position/high-water marks are resume conveniences, not compliance-determining
--- values: course completion integrity continues to rest on the server-side
+-- values: training completion integrity continues to rest on the server-side
 -- complete_course_assignment() checks and server-graded quizzes. The watch GATE (Next
 -- disabled until the video has actually been watched) is a client-enforced integrity
--- aid for honest learners, shipped behind the default-off release flag
+-- aid for honest employees, shipped behind the default-off release flag
 -- 'learning.video_watch_gate' so organizations opt in deliberately.
 --
 -- feature_release_active() is the first client-callable read of the release-flag state:
@@ -26,7 +26,7 @@ insert into public.feature_definitions (
 ) values (
   'learning.video_watch_gate',
   'Video minimum-watch gate',
-  'Require course video blocks to be watched to the end before the learner can advance',
+  'Require training video blocks to be watched to the end before the employee can advance',
   'boolean', 'false'::jsonb
 )
 on conflict (feature_key) do nothing;

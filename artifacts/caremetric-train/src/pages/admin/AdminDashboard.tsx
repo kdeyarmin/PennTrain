@@ -163,11 +163,11 @@ export default function AdminDashboard() {
     },
     {
       title: "Keep training moving",
-      description: "Shortcuts for creating content and checking that learners can progress.",
+      description: "Shortcuts for creating required content and checking that employees can complete assignments.",
       Icon: CalendarCheck,
       items: [
-        { href: "/admin/courses", label: "Course catalog" },
-        { href: "/admin/courses/new-ai", label: "AI course builder" },
+        { href: "/admin/courses", label: "Training content catalog" },
+        { href: "/admin/courses/new-ai", label: "AI training builder" },
         { href: "/admin/ai-generations", label: "AI generation status" },
       ],
     },
@@ -312,8 +312,8 @@ export default function AdminDashboard() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
-  const learnerTaskBacklog = [
-    { label: "Course assignments overdue", count: overdueAssignments, href: "/admin/courses", guidance: "Use this to prioritize reminders or reassignments." },
+  const employeeTaskBacklog = [
+    { label: "Training assignments overdue", count: overdueAssignments, href: "/admin/courses", guidance: "Use this to prioritize reminders or reassignments." },
     { label: "Training records past due", count: overdueTrainingRecords, href: "/admin/employees", guidance: "Expired records should drive manager follow-up." },
     { label: "Policy attestations overdue", count: overdueAttestations, href: "/admin/help-content", guidance: "Confirm campaigns and send reminders for unsigned policies." },
   ];
@@ -348,10 +348,10 @@ export default function AdminDashboard() {
       Icon: BookOpen,
       status: `${health?.aiGenerationsFailed ?? 0} AI failures`,
       finding: "Course authoring and AI generation health should be reviewed together.",
-      enhancement: "Keep course creation, AI logs, and help content one click away.",
+      enhancement: "Keep training-content creation, AI logs, and help content one click away.",
       links: [
-        { href: "/admin/courses", label: "Courses" },
-        { href: "/admin/courses/new-ai", label: "New AI course" },
+        { href: "/admin/courses", label: "Training content" },
+        { href: "/admin/courses/new-ai", label: "New AI training" },
         { href: "/admin/help-content", label: "Help content" },
       ],
     },
@@ -371,7 +371,7 @@ export default function AdminDashboard() {
       title: "Communications & Support",
       Icon: LifeBuoy,
       status: `${openTickets?.length ?? 0} open tickets`,
-      finding: "Support and failed notification delivery directly affect learner completion.",
+      finding: "Support and failed notification delivery directly affect employee completion.",
       enhancement: "Clear failed deliveries and open tickets from the same operating surface.",
       links: [
         { href: "/admin/support-tickets?status=open", label: "Support queue" },
@@ -410,7 +410,7 @@ export default function AdminDashboard() {
               <div>
                 <h2 className="text-3xl font-bold tracking-tight text-foreground">Super admin command center</h2>
                 <p className="mt-2 max-w-2xl text-muted-foreground">
-                  Run CareMetric CareBase from this portal: launch customers, manage access, publish training, and watch
+                  Run CareMetric Train from this portal: launch customers, manage access, publish training content, and watch
                   operational health without hunting through separate menus.
                 </p>
               </div>
@@ -716,7 +716,7 @@ export default function AdminDashboard() {
             </div>
 
             <div className="rounded-lg border p-4">
-              <div className="flex items-center gap-2 font-semibold"><GraduationCap className="h-4 w-4 text-primary" /> Course assignment hotspots</div>
+              <div className="flex items-center gap-2 font-semibold"><GraduationCap className="h-4 w-4 text-primary" /> Training assignment hotspots</div>
               <div className="mt-3 space-y-2">
                 {coursesNeedingAttention.map((course) => (
                   <Link key={course.courseId} href={`/admin/courses/${course.courseId}`} className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 hover:bg-muted">
@@ -725,15 +725,15 @@ export default function AdminDashboard() {
                   </Link>
                 ))}
                 {coursesNeedingAttention.length === 0 && (
-                  <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">No incomplete course-assignment hotspots found.</p>
+                  <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">No incomplete training-assignment hotspots found.</p>
                 )}
               </div>
             </div>
 
             <div className="rounded-lg border p-4">
-              <div className="flex items-center gap-2 font-semibold"><BookOpen className="h-4 w-4 text-primary" /> Learner task backlog</div>
+              <div className="flex items-center gap-2 font-semibold"><BookOpen className="h-4 w-4 text-primary" /> Employee task backlog</div>
               <div className="mt-3 space-y-2">
-                {learnerTaskBacklog.map((item) => (
+                {employeeTaskBacklog.map((item) => (
                   <Link key={item.label} href={item.href} className="block rounded-md border p-3 hover:bg-muted/50">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-medium">{item.label}</p>

@@ -1,7 +1,7 @@
 -- Certificate notifications are emitted for the profile attached to the completed assignment's
 -- employees row. After self-enrollment was opened to every role, admins/trainers/auditors can earn
--- certificates too, but /me/certificates remains an employee-only page. Keep employee learners on
--- their certificate list and send every other self-learner back to the role-safe course list.
+-- certificates too, but /me/certificates remains an employee-only page. Keep employees on
+-- their certificate list and send every other self-training user back to the role-safe training list.
 
 create or replace function public.notify_certificate_issued()
 returns trigger language plpgsql security definer set search_path to 'public' as $function$
@@ -24,7 +24,7 @@ begin
   values (
     new.organization_id, v_profile_id, 'certificate_issued',
     'Certificate issued',
-    'Your certificate for ' || coalesce(v_course_title, 'this course') || ' is ready.',
+    'Your certificate for ' || coalesce(v_course_title, 'this training item') || ' is ready.',
     case when v_profile_role = 'employee' then '/me/certificates' else '/me/courses' end
   );
 

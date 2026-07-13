@@ -10,10 +10,10 @@ import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 // only ever be used from authoring/editing UI (the quiz builder), where the
 // author is allowed to see and edit the key.
 //
-// The quiz-TAKING flow (anything a learner sees while answering a quiz) must
+// The quiz-taking flow (anything an employee sees while answering a quiz) must
 // use `useQuizAnswerChoices` instead, which calls the `get_quiz_answer_choices`
 // RPC. That RPC deliberately omits `is_correct` -- it is the only sanctioned
-// way for a learner to read answer options without seeing the key. Never
+// way for an employee to read answer options without seeing the key. Never
 // substitute `useListQuizAnswers` for `useQuizAnswerChoices` in a
 // quiz-taking page.
 // ---------------------------------------------------------------------------
@@ -28,7 +28,7 @@ export type QuizQuestionUpdate = TablesUpdate<"quiz_questions">;
 
 // explanation lives in its own quiz_question_explanations table (RLS-restricted to
 // org_admin/trainer/auditor, unlike the rest of quiz_questions) rather than as a plain
-// column, so it isn't readable by a learner before they've taken the quiz. The hooks
+// column, so it isn't readable by an employee before they've taken the quiz. The hooks
 // below read/write it as a joined field so authoring UI can treat it as if it were.
 export type QuizQuestionWithExplanation = QuizQuestion & { explanation: string | null };
 export type QuizQuestionCreatePayload = QuizQuestionInsert & { explanation?: string | null };
@@ -364,7 +364,7 @@ export function useGetQuizReview(attemptId: string | undefined) {
 // quiz_attempt_answers row (is_correct not null) across all attempts at the
 // given questions. RLS on quiz_attempt_answers already scopes this to
 // attempts the caller can see (their org + assigned facilities), so an
-// org_admin/trainer only ever sees difficulty stats for learners they're
+// org_admin/trainer only ever sees difficulty stats for employees they're
 // actually allowed to view.
 // ---------------------------------------------------------------------------
 

@@ -8,7 +8,7 @@
 --
 -- get_quiz_review/mark_notification_read/mark_all_notifications_read have their own internal
 -- auth.uid()/ownership checks and are legitimately called by authenticated users directly (a
--- learner reviewing their quiz, marking their own notifications read) -- keep authenticated,
+-- employee reviewing their quiz, marking their own notifications read) -- keep authenticated,
 -- strip anon and the redundant PUBLIC grant.
 revoke execute on function public.get_quiz_review(uuid) from public;
 revoke execute on function public.get_quiz_review(uuid) from anon;

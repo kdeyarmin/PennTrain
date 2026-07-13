@@ -19,7 +19,7 @@ const EMPTY_RESULTS: GlobalSearchResults = { organizations: [], profiles: [], em
 // per role instead mirrors which routes that role actually has (see App.tsx's ORG_ROLES/
 // ORG_MANAGE_ROLES/RESIDENT_ROLES) so results always link somewhere the current user can open.
 // Employees get their own scoped surface: RLS limits course_assignments to their own rows, so
-// searching those by course title lets them jump straight to a specific assigned course.
+// searching those by course title lets them jump straight to a specific assigned training item.
 function tablesForRole(role: Role | undefined) {
   return {
     organizations: role === "platform_admin",

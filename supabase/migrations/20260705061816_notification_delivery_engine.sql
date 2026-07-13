@@ -42,7 +42,7 @@ create policy notification_deliveries_select on public.notification_deliveries f
 -- Fan-out trigger: for every new notification of a deadline-driven type, queue a delivery per
 -- channel the org has enabled AND (for SMS) the profile has actually opted into. Scoped to
 -- training_due_soon/training_expired -- the deadline nudges this feature exists for -- not every
--- notification type (course_assigned etc. stay in-app-only; SMS-ing every course assignment would
+-- notification type (course_assigned etc. stay in-app-only; SMS-ing every training assignment would
 -- be noise, not signal).
 create or replace function public.queue_notification_delivery()
 returns trigger language plpgsql security definer set search_path to 'public' as $function$

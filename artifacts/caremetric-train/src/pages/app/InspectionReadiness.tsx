@@ -410,7 +410,7 @@ export default function InspectionReadiness() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            One-click packet covering facilities, staff training, credentials, incidents, and inspection items --
+            One-click packet covering facilities, staff requirements, credentials, incidents, and inspection items --
             generated fresh from current data.
           </p>
           <BinderExportButton label="Generate Entrance Packet" />

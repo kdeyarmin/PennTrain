@@ -1,12 +1,8 @@
-# CareMetric CareBase — Workspace
+# CareMetric Train — Workspace
 
 ## Overview
 
-CareMetric CareBase (formerly "PA MedTrack") is a multi-tenant SaaS compliance-training platform for healthcare
-organizations (originally scoped to Pennsylvania Personal Care Homes / Assisted Living Residences, now broader). It
-tracks medication administration training, certifications, annual practicums, training hours, documents, alerts, and
-compliance reporting, plus a full LMS layer: a course/quiz/certificate authoring and delivery system, training plans,
-and competency checklists.
+CareMetric Train (formerly "PA MedTrack") is a multi-tenant SaaS management platform for personal care homes, assisted living residences, and adjacent long-term-care providers. It tracks facility operations, employee compliance, resident assessments, incidents, inspections, scheduling, credentials, medication administration training, annual practicums, training hours, documents, alerts, audit evidence, and survey-ready compliance reporting, plus an integrated training layer for training content, quizzes, certificates, training plans, live classes, and competency checklists.
 
 The app is built directly on Supabase: Postgres + Row-Level Security, Supabase Auth, Supabase Storage, and Edge
 Functions. There is no separate backend API server — the React frontend talks to Supabase directly via `supabase-js`.
@@ -14,7 +10,7 @@ Functions. There is no separate backend API server — the React frontend talks 
 ## Architecture
 
 pnpm workspace monorepo. Single frontend package (`artifacts/caremetric-train`) plus a design mockup sandbox; all
-backend logic lives in the Supabase project (`xsqobvvreaovwibxwyvv`, "CM CareBase").
+backend logic lives in the Supabase project (`xsqobvvreaovwibxwyvv`, "CM Train").
 
 ### Packages
 
@@ -50,14 +46,14 @@ Six roles on `profiles.role`: `platform_admin`, `org_admin`, `facility_manager`,
   courses (create/edit/publish `courses`, `course_versions`, `course_blocks`, `quizzes`, `quiz_questions`,
   `quiz_answers`), manually or via AI generation
 - `org_admin` / `facility_manager` — `/app/*`: dashboard, facilities, employees, training matrix, courses
-  (browse/read-only -- authoring is platform_admin-exclusive, see below), course assignments, training plans,
+  (browse/read-only -- authoring is platform_admin-exclusive, see below), training assignments, training plans,
   competency templates/records, practicums, alerts, reports, compliance binder, documents, pending approvals,
   users (org-scoped), settings, audit log
-- `auditor` — `/app/*`, read-only subset: dashboard, facilities, employees, training matrix, course assignments,
+- `auditor` — `/app/*`, read-only subset: dashboard, facilities, employees, training matrix, training assignments,
   training plans, competency records, practicums, alerts, reports, compliance binder, documents, audit log. Every
   write action across these pages is gated by a role allowlist that excludes auditor; RLS is the actual backstop
 - `trainer` — `/trainer/*`: dashboard, classes, retraining monitor, facilities, employees (read)
-- `employee` — `/me/*`: my training (dashboard), training records, course-taking (`/me/courses/:assignmentId`,
+- `employee` — `/me/*`: my training (dashboard), training records, training assignment (`/me/courses/:assignmentId`,
   reached from a training record's assignment), certificates, documents
 
 Public (no auth): `/verify/:slug` — certificate verification; `/signup` — self-service organization creation
@@ -73,7 +69,7 @@ Public (no auth): `/verify/:slug` — certificate verification; `/signup` — se
 - Compliance-determining fields (`quiz_attempts`, `course_assignments.status`, `certificates`,
   `quiz_answers.is_correct`) are never directly client-writable -- they only change via `SECURITY DEFINER` RPCs or
   Edge Functions, using an `app.privileged_write` GUC escape hatch set only from trusted server-side code.
-- Course content is immutable once `course_versions.status = 'published'` (enforced by trigger, overridable only by
+- Training content is immutable once `course_versions.status = 'published'` (enforced by trigger, overridable only by
   a genuine platform_admin).
 - Course authoring (create/edit/publish `courses`, `course_versions`, `course_blocks`, `quizzes`,
   `quiz_questions`, `quiz_answers`) is `platform_admin`-exclusive; `org_admin`/`facility_manager`/`trainer`
@@ -109,12 +105,12 @@ HeyGen's signed URLs expire (training content, not tenant-sensitive documents; r
   video narration scripts) via the Anthropic Messages API (forced tool-use for structured JSON), grounded in
   optional pasted `source_material` to curb hallucination risk in regulated content
 - `regenerate-course-block` — platform_admin-only; regenerates a single text/video/quiz block via Claude from
-  reviewer feedback; rejected once the parent course version is published
+  reviewer feedback; rejected once the parent training content version is published
 - `poll-heygen-video-statuses` — cron-invoked (`pg_cron`, `verify_jwt=false`) batch poll of every course block
   with an in-progress HeyGen job, so video status flips to "completed" without a manual per-block "check status"
   click
 
-AI-generated course content cannot be published unreviewed: `course_versions.ai_generated` gates a mandatory
+AI-generated training content cannot be published unreviewed: `course_versions.ai_generated` gates a mandatory
 self-review step (`ai_reviewed_at`/`ai_reviewed_by`), enforced by a database trigger with **no platform_admin
 bypass** -- unlike the immutability trigger above, this one applies to platform_admin specifically, since
 platform_admin is the only role that can generate AI content. Every generation call (success or failure) is
@@ -127,8 +123,8 @@ absent or malformed. Reusable demo/platform_admin passwords are intentionally no
 
 ## Key Commands
 
-- `pnpm --filter @workspace/caremetric-carebase run dev` — run the frontend dev server
-- `pnpm --filter @workspace/caremetric-carebase run build` — production build
+- `pnpm --filter @workspace/caremetric-train run dev` — run the frontend dev server
+- `pnpm --filter @workspace/caremetric-train run build` — production build
 - `pnpm run typecheck` — typecheck all workspace packages
 - Schema changes go through `mcp__Supabase__apply_migration`, then the exact same SQL is written to
   `supabase/migrations/<version>_<name>.sql` using the version number Supabase actually assigned (from
@@ -158,7 +154,7 @@ Tenancy/identity: `organizations`, `organization_settings`, `facilities`, `profi
 `employees`, `employee_facility_assignments`, `packages`. Scheduling: `facility_units`, `shift_definitions`,
 `employee_schedule_preferences`, `schedules`, `shift_assignments`. Compliance core: `training_types`, `employee_training_records`,
 `employee_training_hour_buckets`, `practicums`, `training_documents`, `alerts`, `audit_logs`, `training_classes`,
-`training_class_attendees`. LMS: `courses`, `course_versions`, `course_blocks`, `quizzes`, `quiz_questions`,
+`training_class_attendees`. Training content: `courses`, `course_versions`, `course_blocks`, `quizzes`, `quiz_questions`,
 `quiz_answers`, `course_assignments`, `course_progress`, `quiz_attempts`, `quiz_attempt_answers`,
 `course_ai_generations` (AI-generation audit trail), `training_plans`,
 `training_plan_items`, `competency_templates`, `competency_template_items`, `competency_records`,

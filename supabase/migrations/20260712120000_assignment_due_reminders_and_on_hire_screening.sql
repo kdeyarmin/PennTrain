@@ -1,10 +1,10 @@
--- Assignment due-date reminders for never-started courses + on-hire exclusion screening.
+-- Assignment due-date reminders for never-started training + on-hire exclusion screening.
 --
 -- Two coverage gaps from END_USER_REVIEW.md recommendation #4:
 --
--- 1. course-continuation-reminders-daily only nudges learners who already STARTED a
---    course (status='in_progress' with a stale course_progress row). An assignment that
---    was never opened gets no reminder before its due date -- the learner's first push
+-- 1. course-continuation-reminders-daily only nudges employees who already STARTED
+--    training (status='in_progress' with a stale course_progress row). An assignment that
+--    was never opened gets no reminder before its due date -- the employee's first push
 --    after "course_assigned" is the overdue flip. A new daily job now queues a
 --    'course_assignment_due_soon' notification for assignments still in 'assigned'
 --    whose due date falls within the next 7 days. In-app always; email/SMS delivery
@@ -137,8 +137,8 @@ insert into app_private.system_job_definitions (
   operator_route
 ) values (
   'course-assignment-due-reminders',
-  'Course assignment due reminders',
-  'Queues start reminders for unstarted course assignments approaching their due date',
+  'Training assignment due reminders',
+  'Queues start reminders for unstarted training assignments approaching their due date',
   'sql_cron',
   'course-assignment-due-reminders-daily',
   interval '1 day',

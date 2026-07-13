@@ -299,7 +299,7 @@ export default function OrganizationDetail() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Generate a compliance summary PDF for {org.name} -- facility roster, staff training compliance,
+            Generate a compliance summary PDF for {org.name} -- facility roster, staff compliance,
             overdue practicums, certificates issued, and open alerts.
           </p>
           <BinderExportButton organizationId={id} label="Generate Binder PDF" />

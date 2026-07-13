@@ -434,7 +434,7 @@ export default function QuizBuilder() {
       <div className="text-center py-12">
         <p className="text-muted-foreground">Quiz not found.</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href={coursesListPath(user?.role)}>Back to Courses</Link>
+          <Link href={coursesListPath(user?.role)}>Back to Training Content</Link>
         </Button>
       </div>
     );
@@ -445,7 +445,7 @@ export default function QuizBuilder() {
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
           <Link href={course ? courseDetailPath(course.id, user?.role) : coursesListPath(user?.role)}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Course
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Training Content
           </Link>
         </Button>
       </div>
@@ -589,7 +589,7 @@ export default function QuizBuilder() {
               <Textarea
                 value={questionForm.explanation}
                 onChange={e => setQuestionForm(f => ({ ...f, explanation: e.target.value }))}
-                placeholder="Shown to learners after they finish the quiz, to reinforce why the correct answer is correct."
+                placeholder="Shown to employees after they finish the quiz, to reinforce why the correct answer is correct."
                 rows={2}
               />
             </div>

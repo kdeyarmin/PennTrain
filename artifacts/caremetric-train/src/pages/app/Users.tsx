@@ -740,7 +740,7 @@ export default function Users() {
               <Textarea
                 value={impersonateReason}
                 onChange={e => setImpersonateReason(e.target.value)}
-                placeholder="e.g. Investigating a support ticket about missing course progress"
+                placeholder="e.g. Investigating a support ticket about missing training progress"
                 rows={3}
               />
             </div>

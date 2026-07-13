@@ -162,7 +162,7 @@ function ApplyPlanDialog({
     const titleParts = [`Applied to ${succeededEmployees} employee${succeededEmployees !== 1 ? "s" : ""}`];
     if (failedEmployees > 0) titleParts.push(`${failedEmployees} failed`);
 
-    let description = `${totalAssigned} course assignment${totalAssigned !== 1 ? "s" : ""} created.`;
+    let description = `${totalAssigned} training assignment${totalAssigned !== 1 ? "s" : ""} created.`;
     if (totalRequirementsEnsured > 0) {
       description += ` ${totalRequirementsEnsured} training requirement${totalRequirementsEnsured !== 1 ? "s" : ""} now tracked as pending.`;
     }
@@ -185,7 +185,7 @@ function ApplyPlanDialog({
         <DialogHeader>
           <DialogTitle>Apply "{plan.name}" to Employees</DialogTitle>
           <DialogDescription>
-            Creates a course assignment for every course in this plan, and tracks every training-type
+            Creates a training assignment for every course item in this plan, and tracks every training-type
             item as a pending requirement, for each employee selected below.
           </DialogDescription>
         </DialogHeader>
@@ -282,7 +282,7 @@ function PlanProgressSection({ plan }: { plan: TrainingPlan }) {
             <div className="flex flex-wrap gap-1.5 mt-2">
               {rows.map((r) => (
                 <Badge key={r.id} variant="outline" className="text-[10px]">
-                  {courseById.get(r.course_id)?.title ?? "Course"} — {r.status.replace(/_/g, " ")}
+                  {courseById.get(r.course_id)?.title ?? "Training item"} — {r.status.replace(/_/g, " ")}
                 </Badge>
               ))}
             </div>
@@ -325,7 +325,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
 
   const handleAddItem = () => {
     if (!addItemForm.targetId) {
-      toast({ title: "Select a course or training type", variant: "destructive" });
+      toast({ title: "Select training content or a training type", variant: "destructive" });
       return;
     }
     const nextSort = (sortedItems.reduce((max, i) => Math.max(max, i.sort_order), -1)) + 1;
@@ -395,7 +395,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
         <div className="text-center py-8">
           <p className="text-sm text-muted-foreground">No items in this plan yet.</p>
           {canManage && (
-            <p className="text-xs text-muted-foreground/70 mt-1">Add a course or training type to get started.</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">Add training content or a training type to get started.</p>
           )}
         </div>
       ) : (
@@ -466,16 +466,16 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
               >
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="course">Course (online)</SelectItem>
+                  <SelectItem value="course">Online training content</SelectItem>
                   <SelectItem value="training_type">Training Type (legacy)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {addItemForm.targetType === "course" ? (
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Course *</Label>
+                <Label className="text-[13px]">Training content *</Label>
                 <Select value={addItemForm.targetId} onValueChange={(v) => setAddItemForm((f) => ({ ...f, targetId: v }))}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Select course" /></SelectTrigger>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="Select training content" /></SelectTrigger>
                   <SelectContent>
                     {(courses ?? []).map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.title}{c.status !== "published" ? ` (${c.status})` : ""}</SelectItem>
@@ -628,7 +628,7 @@ export default function TrainingPlans() {
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Training Plans</h1>
-          <p>Bundle courses and training types into reusable curricula, then apply them to employees.</p>
+          <p>Bundle training content and training types into reusable curricula, then apply them to employees.</p>
         </div>
         {canManage && (
           <Button onClick={openCreate} className="shadow-sm">
@@ -780,7 +780,7 @@ export default function TrainingPlans() {
             <AlertDialogTitle>Delete Training Plan</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete "{deleteTarget?.name}"? This removes the plan and all of
-              its items. Course assignments already created from a previous "Apply" run are not affected.
+              its items. Training assignments already created from a previous "Apply" run are not affected.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

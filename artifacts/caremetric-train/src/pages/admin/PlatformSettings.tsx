@@ -88,7 +88,7 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
   },
   {
     title: "AI Features",
-    description: "Platform-wide switches for AI-powered course authoring, gated here to control API spend.",
+    description: "Platform-wide switches for AI-powered training-content authoring, gated here to control API spend.",
     icon: Sparkles,
     keys: ["ai_course_generation_enabled", "ai_video_generation_enabled"],
   },

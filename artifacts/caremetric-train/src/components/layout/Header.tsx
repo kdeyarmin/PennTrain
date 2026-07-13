@@ -286,7 +286,7 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         {/* Every role has something to search: staff roles reach org-wide directory entities
             (see tablesForRole in useGlobalSearch.ts), and employees get their own pages plus a
-            title search over their assigned courses. */}
+            title search over their assigned training items. */}
         {!!user && <GlobalSearch />}
         {user?.role === "platform_admin" && <ViewingOrgSelector />}
         {/* platform_admin has no HelpCenter route -- it's gated to ORG_ROLES + employee in

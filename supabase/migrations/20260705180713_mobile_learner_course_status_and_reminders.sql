@@ -1,4 +1,4 @@
--- Tier 3.4 (ROADMAP.md): Mobile-first learner experience.
+-- Tier 3.4 (ROADMAP.md): Mobile-first employee experience.
 --
 -- The viewport meta fix and the responsive sidebar/drawer described in the roadmap text were
 -- already shipped in an earlier commit (f099785) -- this migration covers the remaining gaps:
@@ -9,7 +9,7 @@
 -- in_progress: the one caller-triggerable transition, mirroring complete_course_assignment()'s
 -- own set_config('app.privileged_write', 'on', true) pattern to get past
 -- protect_course_assignment_fields() (which otherwise reverts every non-privileged status write).
--- Idempotent (only fires from 'assigned') and ownership-checked so a learner can only start their
+-- Idempotent (only fires from 'assigned') and ownership-checked so an employee can only start their
 -- own assignment.
 create or replace function public.start_course_assignment(p_assignment_id uuid)
 returns void language plpgsql security definer set search_path to 'public' as $$
@@ -22,7 +22,7 @@ begin
   ) into v_owns;
 
   if not v_owns and not public.is_platform_admin() then
-    raise exception 'not authorized to start this course assignment' using errcode = 'insufficient_privilege';
+    raise exception 'not authorized to start this training assignment' using errcode = 'insufficient_privilege';
   end if;
 
   perform set_config('app.privileged_write', 'on', true);

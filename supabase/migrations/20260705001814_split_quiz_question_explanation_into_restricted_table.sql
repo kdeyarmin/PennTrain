@@ -1,14 +1,14 @@
 -- quiz_questions.explanation (added by 20260704190000_quiz_question_explanations_and_review.sql)
 -- had no role restriction: quiz_questions_select allows any employee in the org to read the full
--- row (needed so learners can see question_text while taking a quiz), so explanation -- which
+-- row (needed so employees can see question_text while taking a quiz), so explanation -- which
 -- typically confirms/describes the correct answer -- was readable via a direct table query
--- before a learner ever attempted the quiz. Unlike quiz_answers.is_correct, this can't be fixed
+-- before an employee ever attempted the quiz. Unlike quiz_answers.is_correct, this can't be fixed
 -- with a column-level revoke: app-level roles (employee vs. org_admin/trainer) all map to the
 -- same `authenticated` Postgres role, so a column grant can't distinguish between them the way
 -- quiz_answers' row-level policy (restricted to org_admin/trainer/auditor) already does.
 --
 -- Splits explanation into its own table with the same row-level restriction as quiz_answers, so
--- get_quiz_review() remains the only sanctioned way for a learner to see it (already correctly
+-- get_quiz_review() remains the only sanctioned way for an employee to see it (already correctly
 -- gated on submitted_at + passed/attempts-exhausted). At the time this migration was written, no
 -- frontend code read or wrote quiz_questions.explanation; the QuizBuilder authoring UI and its
 -- useQuizzes.ts hooks (useListQuizQuestions/useCreateQuizQuestion/useUpdateQuizQuestion) were

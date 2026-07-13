@@ -7,16 +7,16 @@ import { STEPS } from "@/components/marketing/content";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 const LAUNCH_PLAN = [
-  "Week 1: import facilities, employees, roles, and baseline training records.",
-  "Week 2: configure training plans, credential rules, alert windows, and manager access.",
-  "Week 3: publish priority courses, schedule live classes, and invite employees.",
+  "Week 1: import facilities, employees, resident registers, roles, and baseline compliance records.",
+  "Week 2: configure training plans, credential rules, resident assessment schedules, alert windows, and manager access.",
+  "Week 3: publish priority training content, schedule live classes and shifts, and invite employees.",
   "Week 4: review dashboards, close evidence gaps, and export the first compliance binder.",
 ];
 
 const DELIVERABLES = [
-  "Employee training plans tied to role, facility, and license type",
-  "Completion evidence from online courses, live classes, outside records, and practicums",
-  "Dashboards, alerts, certificates, documents, audit log, and binder exports",
+  "Employee training and compliance plans tied to role, facility, and license type",
+  "Completion evidence from assigned training items, live classes, outside records, practicums, and manager reviews",
+  "Dashboards, alerts, certificates, documents, schedules, audit log, and binder exports",
   "Resident assessments, incidents, inspections, and plans of correction tracked alongside staff compliance",
 ];
 
@@ -31,7 +31,7 @@ export default function HowItWorks() {
     <MarketingLayout>
       <PageHero
         title="From roster to survey binder in three connected steps"
-        subtitle="Stand up your organization, assign the training your license type requires, and keep evidence current year round."
+        subtitle="Stand up your organization, configure facility requirements, assign work, and keep operational evidence current year round."
       />
 
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
@@ -89,11 +89,11 @@ export default function HowItWorks() {
         <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
           <Reveal className="text-center">
             <h2 className="text-2xl font-extrabold tracking-tight">
-              The output is a defensible training record
+              The output is a defensible facility record
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               Every action in the app is designed to answer a surveyor's
-              practical question: who needed training, who completed it, who
+              practical question: what was required, who completed it, who
               verified it, and where is the proof?
             </p>
           </Reveal>

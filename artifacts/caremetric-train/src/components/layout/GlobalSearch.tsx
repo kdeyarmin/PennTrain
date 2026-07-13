@@ -68,7 +68,7 @@ export function GlobalSearch() {
         onKeyDown={(e) => { if (e.key === "Escape") { setQuery(""); setOpen(false); } }}
         placeholder="Search everything... (/)"
         className="h-8 pl-8 text-xs bg-muted/50 border-none focus-visible:ring-1"
-        aria-label="Search pages, people, and your courses"
+        aria-label="Search pages, people, and your training"
       />
       {open && query.trim().length >= 2 && (
         <div
@@ -176,7 +176,7 @@ export function GlobalSearch() {
               )}
               {!!results?.courses.length && (
                 <div>
-                  <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">My Courses</p>
+                  <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">My Training</p>
                   {results.courses.map((c) => (
                     <button
                       key={c.assignmentId}

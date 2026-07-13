@@ -179,9 +179,9 @@ export function useRemoveTrainingPlanItem() {
 // Applying a plan to an employee
 //
 // A training plan can mix two kinds of items:
-//   - course-type items (course_id set) -> a real, trackable unit of LMS
+//   - course-type items (course_id set) -> a real, trackable unit of integrated training
 //     work an employee can be assigned and complete, via course_assignments.
-//   - training_type-type items (training_type_id set) -> there's no LMS
+//   - training_type-type items (training_type_id set) -> there's no course-delivery object
 //     content to assign, but applying the plan still needs to do *something*
 //     other than silently no-op: it ensures a 'missing' employee_training_records
 //     shell exists for that (employee, training_type) pair via the
@@ -199,7 +199,7 @@ export function useRemoveTrainingPlanItem() {
 // plain `mutateAsync` function that useCreateCourseAssignment() returns
 // (not the hook itself) for each course-type item. That reuses the exact
 // same insert logic/validation/query-invalidation as the single-course
-// "Assign Course" flow on CourseAssignments.tsx, rather than duplicating a
+// "Assign Training" flow on CourseAssignments.tsx, rather than duplicating a
 // second `supabase.from("course_assignments").insert(...)` call here.
 //
 // This hook fans out over PLAN ITEMS for one employee. The calling page
@@ -232,7 +232,7 @@ export interface ApplyTrainingPlanResult {
   failed: ApplyTrainingPlanItemFailure[];
   /**
    * Set if the (non-fatal, best-effort) admin-facing "training plan assigned"
-   * alert failed to write -- the course assignments above already succeeded
+   * alert failed to write -- the training assignments above already succeeded
    * and are not rolled back, but this failure must still be visible rather
    * than silently swallowed.
    */
@@ -283,7 +283,7 @@ export function useApplyTrainingPlanToEmployee() {
       const courseResults = await Promise.allSettled(
         courseItems.map((item) => {
           const course = courseById.get(item.course_id);
-          if (!course) throw new Error("Course not found");
+          if (!course) throw new Error("Training item not found");
           if (!course.current_version_id) {
             throw new Error(`"${course.title}" has no published version to assign`);
           }
@@ -342,10 +342,10 @@ export function useApplyTrainingPlanToEmployee() {
         });
       });
 
-      // One admin-facing alert per plan application (not per course item --
-      // the employee already gets a personal "New course assigned"
+      // One admin-facing alert per plan application (not per training content item --
+      // the employee already gets a personal "New training assigned"
       // notification per item via the notify_course_assigned trigger). This
-      // is best-effort: the course assignments above already succeeded and
+      // is best-effort: the training assignments above already succeeded and
       // are not undone if this fails, but the failure must still be surfaced
       // to the caller rather than silently swallowed.
       let alertWarning: string | undefined;

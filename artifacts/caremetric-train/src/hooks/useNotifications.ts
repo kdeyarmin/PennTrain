@@ -4,7 +4,7 @@ import type { Tables } from "@/lib/database.types";
 
 export type Notification = Tables<"notifications">;
 
-// Rows are populated exclusively by server-side triggers (course assignments,
+// Rows are populated exclusively by server-side triggers (training assignments,
 // graded quizzes, issued certificates, competency evaluations, training due/
 // expired alerts) -- there is no client insert. Marking read goes through the
 // two RPCs below rather than a direct table UPDATE; see the migration for why.

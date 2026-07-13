@@ -190,7 +190,7 @@ const ORG_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "audi
 // support_tickets_select RLS gates on created_by = auth.uid() (or platform_admin), not on role,
 // and a ticket's stored notification link is baked in from the creator's role *at notify time*.
 // SupportTicketRoute below keeps those historical links usable but redirects each role to the
-// correct prefix before rendering, so learners stay in /me and org-scoped roles stay in /app.
+// correct prefix before rendering, so employees stay in /me and org-scoped roles stay in /app.
 const SUPPORT_TICKET_DETAIL_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor", "employee"];
 // self_enroll_course() lets any role take a course now, not just employee -- these three routes
 // are the only "/me/*" self-service pages every role can reach; the rest of that prefix

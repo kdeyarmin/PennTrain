@@ -4,12 +4,12 @@
 
 -- ---------------------------------------------------------------------------
 -- 1. (Codex, P1, critical) get_quiz_review only gated on submitted_at, so a
---    learner could call the RPC directly (bypassing TakeQuiz's client-side
+--    employee could call the RPC directly (bypassing TakeQuiz's client-side
 --    canRevealAnswers check) and read the answer key on a failed attempt with
 --    retakes still remaining -- defeating the entire point of gating the
 --    reveal on pass-or-exhausted. The gate must live in the function, not
 --    just the UI. Admin/trainer/platform_admin viewers are unaffected -- the
---    integrity concern is specific to the learner viewing their OWN attempt,
+--    integrity concern is specific to the employee viewing their OWN attempt,
 --    and a reviewer needs full visibility regardless of retake status.
 -- ---------------------------------------------------------------------------
 create or replace function public.get_quiz_review(p_attempt_id uuid)
@@ -129,7 +129,7 @@ $function$;
 -- ---------------------------------------------------------------------------
 -- 5. (Codex, P2) The quiz builder lets an author change a question's type
 --    (e.g. multiple_choice -> single_choice) without normalizing its answer
---    key. grade_quiz_attempt compares the learner's selection against every
+--    key. grade_quiz_attempt compares the employee's selection against every
 --    is_correct answer; if two were marked correct under multiple_choice and
 --    the type changes to single_choice/true_false (whose UI only allows one
 --    selection), the question becomes impossible to answer correctly. Enforce

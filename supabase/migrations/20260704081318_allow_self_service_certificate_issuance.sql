@@ -1,6 +1,6 @@
 -- issue_certificate() was the only one of the three trusted course-completion RPCs that did NOT
 -- include the "or public.owns_employee(v_emp)" exception that complete_course_assignment() and
--- grade_quiz_attempt() both have -- meaning a learner who legitimately completed their own course
+-- grade_quiz_attempt() both have -- meaning an employee who legitimately completed their own course
 -- (self-attested via those two RPCs, which already allow it) had no path to trigger their own
 -- certificate issuance, breaking the "complete course -> certificate issued" acceptance flow. The
 -- RPC still computes organization_id/facility_id server-side from the referenced employee row (never
