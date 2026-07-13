@@ -1908,9 +1908,9 @@ export default function Reports() {
             <Card
               key={report.id}
               tabIndex={0}
-              aria-current={isSelected ? "true" : undefined}
+              role="button"
+              aria-pressed={isSelected}
               aria-label={`Select ${report.title} report`}
-              onClick={() => selectReport(report.id)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
