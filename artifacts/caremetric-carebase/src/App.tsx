@@ -88,6 +88,7 @@ const ResidentAgreementGuestPortal = lazy(() => import("@/pages/public/ResidentA
 const ChangeOfConditionQueue = lazy(() => import("@/pages/app/ChangeOfConditionQueue"));
 const ChangeOfConditionDetail = lazy(() => import("@/pages/app/ChangeOfConditionDetail"));
 const DietaryOperations = lazy(() => import("@/pages/app/DietaryOperations"));
+const ResidentServicesCalendar = lazy(() => import("@/pages/app/ResidentServicesCalendar"));
 const QapiDashboard = lazy(() => import("@/pages/app/QapiDashboard"));
 const QapiProjectDetail = lazy(() => import("@/pages/app/QapiProjectDetail"));
 const ResidentAssessmentFormEditor = lazy(() => import("@/pages/app/ResidentAssessmentFormEditor"));
@@ -273,6 +274,7 @@ const SERVICE_DELIVERY_ROLES: UserRole[] = ["platform_admin", "org_admin", "faci
 const ADMISSION_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 const CHANGE_EVENT_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 const DIETARY_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
+const RESIDENT_CALENDAR_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 
 function SupportTicketRoute({ prefix }: { prefix: "/app" | "/me" }) {
   const { user, isLoading, isAuthenticated } = useAuth();
@@ -597,6 +599,9 @@ function Router() {
       <Route path="/app/dietary-operations">
         {() => <ProtectedRoute component={DietaryOperations} allowedRoles={DIETARY_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
+      <Route path="/app/resident-services-calendar">
+        {() => <ProtectedRoute component={ResidentServicesCalendar} allowedRoles={RESIDENT_CALENDAR_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
       <Route path="/app/qapi">
         {() => <ProtectedRoute component={QapiDashboard} allowedRoles={CHANGE_EVENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
@@ -726,6 +731,9 @@ function Router() {
       </Route>
       <Route path="/me/dietary-operations">
         {() => <ProtectedRoute component={DietaryOperations} allowedRoles={["employee"]} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/me/resident-services-calendar">
+        {() => <ProtectedRoute component={ResidentServicesCalendar} allowedRoles={["employee"]} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/me/schedule">
         {() => <ProtectedRoute component={MySchedule} allowedRoles={["employee"]} />}

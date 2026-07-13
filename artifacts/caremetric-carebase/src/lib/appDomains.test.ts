@@ -176,6 +176,16 @@ describe("role-based page visibility", () => {
     expect(canViewPage("/me/dietary-operations", "auditor")).toBe(false);
   });
 
+  it("separates resident calendar oversight from assigned employee services", () => {
+    expect(canViewPage("/app/resident-services-calendar", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/resident-services-calendar", "org_admin")).toBe(true);
+    expect(canViewPage("/app/resident-services-calendar", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/resident-services-calendar", "auditor")).toBe(true);
+    expect(canViewPage("/app/resident-services-calendar", "employee")).toBe(false);
+    expect(canViewPage("/me/resident-services-calendar", "employee")).toBe(true);
+    expect(canViewPage("/me/resident-services-calendar", "auditor")).toBe(false);
+  });
+
   it("makes account MFA settings available to every authenticated role", () => {
     for (const role of ["platform_admin", "org_admin", "facility_manager", "trainer", "auditor", "employee"] as const) {
       expect(canViewPage("/account/security", role)).toBe(true);
