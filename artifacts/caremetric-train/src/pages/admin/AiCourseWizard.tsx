@@ -60,8 +60,9 @@ export default function AiCourseWizard() {
   const field = <K extends keyof WizardFormState>(k: K, v: WizardFormState[K]) =>
     setForm(f => ({ ...f, [k]: v }));
 
-  // Mirrors the Edge Function's own validation (at least one of title_hint,
-  // source_material, or notes is required) so we can catch it before round-tripping.
+  // Mirrors the Edge Function's own validation (at least one of plan_name,
+  // title_hint, source_material, or notes is required) so we can catch it
+  // before round-tripping.
   const hasEnoughToGenerate = !!(form.titleHint.trim() || form.planName.trim() || form.sourceMaterial.trim() || form.notes.trim());
 
   const handleGenerate = () => {
