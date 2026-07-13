@@ -291,7 +291,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
           ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/pch-alr-operations", label: "PCH / ALR Operations", icon: Crosshair }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/pch-alr-operations", label: "PCH / ALF Operations", icon: Crosshair }] : []),
           ...(showPchAlrModules ? [{ href: "/app/regulatory-crosswalk", label: "Regulatory Crosswalk", icon: FileSearch }] : []),
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
           { href: "/app/evidence", label: "Evidence Room", icon: FolderLock },
