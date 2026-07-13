@@ -14,6 +14,7 @@ import {
 } from "@/hooks/useResidentAgreements";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
+import { toDateTimeLocal } from "@/lib/dateUtils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,7 +37,7 @@ const SIGNER_ROLES = ["resident", "designated_person", "guardian", "power_of_att
 
 const blankAgreement = () => ({
   agreementId: "", agreementType: "resident_home_contract", title: "", versionLabel: "1.0",
-  contentText: "", effectiveAt: new Date().toISOString().slice(0, 16), documentId: "none",
+  contentText: "", effectiveAt: toDateTimeLocal(), documentId: "none",
   residentRequired: true, designatedRequired: false, amendmentReason: "",
 });
 const blankResponse = () => ({
@@ -90,7 +91,7 @@ export function ResidentAgreementWorkspace({
     setAgreementForm({
       agreementId: agreement.id, agreementType: agreement.agreement_type, title: agreement.title,
       versionLabel: `${version.version_number + 1}.0`, contentText: version.content_text,
-      effectiveAt: new Date().toISOString().slice(0, 16), documentId: version.document_id ?? "none",
+      effectiveAt: toDateTimeLocal(), documentId: version.document_id ?? "none",
       residentRequired: version.required_signer_roles.includes("resident"),
       designatedRequired: version.required_signer_roles.includes("designated_person"), amendmentReason: "",
     });

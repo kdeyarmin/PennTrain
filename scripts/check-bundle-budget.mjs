@@ -19,18 +19,23 @@ const budgets = {
   // management updates; raised 2420 -> 2430 for deployment recovery, accessible search,
   // and mobile operations while initial-shell size decreased; raised 2430 -> 2500 for
   // the unified operational work queue (resident service requirements/tasks, My Services,
-  // supervisor/manager oversight) while both per-load budgets remain comfortably met; 
+  // supervisor/manager oversight) while both per-load budgets remain comfortably met;
   // raised 2500 -> 2600 for formal QAPI quality management (projects, actions, measurements,
-  // meeting notes, RCA, and print-optimized workspace); raised 2600 -> 2660 for the
-  // complaint/grievance case workflow (intake, investigation, corrective actions,
-  // nonretaliation monitoring, incident escalation, and closure approval). The new
-  // pages remain lazy routes and do not increase the initial-shell budget; raised
-  // 2660 -> 2690 for the resident administrative master workspace; raised
-  // 2690 -> 2700 for resident agreement versioning and external e-signatures;
-  // raised 2700 -> 2750 for the lazy dietary, hydration, nutrition, menu-cycle,
-  // food-safety, and food-service qualification operations workspace. These
-  // changes keep the initial-shell and per-load limits flat.
-  totalJavaScript: 2750 * 1024,
+  // meeting notes, RCA, and print-optimized workspace); raised 2600 -> 2700 for the
+  // environmental work-order, QR-location, evidence, and preventive-maintenance routes,
+  // the complaint/grievance case workflow (intake, investigation, corrective actions,
+  // nonretaliation monitoring, incident escalation, and closure approval), and
+  // qualification-aware scheduling previews, bounded overrides, and service workload;
+  // raised 2700 -> 2710 after merging qualification-visibility updates alongside the
+  // environmental work-order features, which together pushed the combined bundle to
+  // ~2706 KiB. The new pages remain lazy routes and do not increase the initial-shell
+  // budget; raised 2710 -> 2740 for the resident administrative master workspace
+  // (identity, contacts, legal, payer, directives, rights, contracts, history); raised
+  // 2740 -> 2750 for resident agreement versioning and external e-signatures; raised
+  // 2750 -> 2800 for the lazy dietary, hydration, nutrition, menu-cycle, food-safety,
+  // and food-service qualification operations workspace. These changes keep the
+  // initial-shell and per-load limits flat.
+  totalJavaScript: 2800 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };

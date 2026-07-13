@@ -19,6 +19,7 @@ import {
   useUpsertResidentLegalRecord,
   useUpsertResidentPropertyItem,
 } from "@/hooks/useResidentAdministrativeMaster";
+import { toDateTimeLocal } from "@/lib/dateUtils";
 import { formatDateOnly } from "@/lib/residentCompliance";
 import { humanize } from "@/lib/utils";
 import {
@@ -77,11 +78,7 @@ const profileFromResident = (resident: Resident) => ({
   religious_cultural_preferences: resident.religious_cultural_preferences ?? "",
   advance_directive_status: resident.advance_directive_status,
   resident_rights_acknowledged_at: resident.resident_rights_acknowledged_at
-    ? (() => {
-      const date = new Date(resident.resident_rights_acknowledged_at);
-      const offset = date.getTimezoneOffset() * 60_000;
-      return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-    })()
+    ? toDateTimeLocal(resident.resident_rights_acknowledged_at)
     : "",
   resident_rights_document_id: resident.resident_rights_document_id ?? "",
   contract_status: resident.contract_status,

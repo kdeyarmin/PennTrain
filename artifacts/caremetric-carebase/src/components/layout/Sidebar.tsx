@@ -38,6 +38,7 @@ import {
   ClipboardList,
   AlertTriangle,
   Flame,
+  Wrench,
   Pill,
   FileSignature,
   ShieldQuestion,
@@ -167,6 +168,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/schedule", label: "Schedule", icon: CalendarDays },
           { href: "/app/workforce-operations", label: "Workforce Operations", icon: UserRoundCheck },
           ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & Equipment", icon: Flame }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/maintenance", label: "Maintenance & Work Orders", icon: Wrench }] : []),
         ]
       },
       {
@@ -274,6 +276,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/facilities", label: "Facilities", icon: Building2 },
           { href: "/app/employees", label: "Employees", icon: Users },
           ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & Equipment", icon: Flame }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/maintenance", label: "Maintenance & Work Orders", icon: Wrench }] : []),
         ]
       },
       {
@@ -379,6 +382,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           // page -- ProtectedRoute gates by role membership, not URL prefix, and
           // INSPECTION_ROLES already includes trainer.
           ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & Equipment", icon: Flame }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/maintenance", label: "Maintenance & Work Orders", icon: Wrench }] : []),
         ]
       },
       {
