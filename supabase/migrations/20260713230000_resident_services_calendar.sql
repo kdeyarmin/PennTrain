@@ -455,8 +455,7 @@ begin
       v.organization_id, v.facility_id, v_template_id, 'resident_calendar', v_follow_id,
       'resident-calendar-followup:' || v_follow_id,
       btrim(v_follow->>'title'), btrim(v_follow->>'description'), v_owner,
-      coalesce(nullif(v_follow->>'priority', ''), 'high'), v_due, auth.uid()
-    ) returning id into v_work_id;
+      case when v_follow->>'priority' in ('urgent','high','normal','low') then v_follow->>'priority' else 'high' end, v_due, auth.uid()
     update public.resident_service_calendar_follow_ups set work_item_id = v_work_id where id = v_follow_id;
     insert into public.work_item_history(
       organization_id, facility_id, work_item_id, event_type,
