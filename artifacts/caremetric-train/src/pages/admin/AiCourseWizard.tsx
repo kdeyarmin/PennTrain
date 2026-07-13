@@ -9,12 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, Sparkles, Loader2, AlertCircle, ListChecks } from "lucide-react";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
+import { useListOrganizations } from "@/hooks/useOrganizations";
 import { useGenerateCourseCurriculum } from "@/hooks/useAiCourseGeneration";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { coursesListPath, courseDetailPath } from "@/lib/courseRoutes";
 
 interface WizardFormState {
+  generationMode: "course" | "training_plan";
+  organizationId: string;
+  planName: string;
+  courseCount: string;
   titleHint: string;
   category: string;
   trainingTypeId: string;
@@ -27,6 +32,10 @@ interface WizardFormState {
 const NO_TRAINING_TYPE = "none";
 
 const EMPTY_FORM: WizardFormState = {
+  generationMode: "course",
+  organizationId: "",
+  planName: "",
+  courseCount: "3",
   titleHint: "",
   category: "",
   trainingTypeId: NO_TRAINING_TYPE,
@@ -41,6 +50,7 @@ export default function AiCourseWizard() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
+  const { data: organizations } = useListOrganizations();
 
   // Plain useState, matching Courses.tsx's "New Training Content" dialog convention --
   // this page is the AI counterpart to that manual form, not a wizard-library form.
@@ -52,9 +62,13 @@ export default function AiCourseWizard() {
 
   // Mirrors the Edge Function's own validation (at least one of title_hint,
   // source_material, or notes is required) so we can catch it before round-tripping.
-  const hasEnoughToGenerate = !!(form.titleHint.trim() || form.sourceMaterial.trim() || form.notes.trim());
+  const hasEnoughToGenerate = !!(form.titleHint.trim() || form.planName.trim() || form.sourceMaterial.trim() || form.notes.trim());
 
   const handleGenerate = () => {
+    if (form.generationMode === "training_plan" && !form.organizationId) {
+      toast({ title: "Organization required", description: "Choose the organization that will own this training plan.", variant: "destructive" });
+      return;
+    }
     if (!hasEnoughToGenerate) {
       toast({
         title: "More detail needed",
@@ -66,9 +80,14 @@ export default function AiCourseWizard() {
 
     const moduleCount = form.desiredModuleCount.trim() ? Number(form.desiredModuleCount) : undefined;
     const durationMinutes = form.desiredDurationMinutes.trim() ? Number(form.desiredDurationMinutes) : undefined;
+    const courseCount = form.courseCount.trim() ? Number(form.courseCount) : undefined;
 
     generate(
       {
+        generationMode: form.generationMode,
+        organizationId: form.generationMode === "training_plan" ? form.organizationId : undefined,
+        planName: form.planName.trim() || undefined,
+        courseCount: courseCount !== undefined && Number.isFinite(courseCount) ? courseCount : undefined,
         titleHint: form.titleHint.trim() || undefined,
         category: form.category.trim() || undefined,
         trainingTypeId: form.trainingTypeId === NO_TRAINING_TYPE ? undefined : form.trainingTypeId,
@@ -79,10 +98,13 @@ export default function AiCourseWizard() {
       },
       {
         onSuccess: (result) => {
+          if (result.training_plan_id) {
+            toast({ title: "Training plan generated", description: `${result.courses?.length ?? 0} AI course drafts were added to the plan. Review each course before publishing.` });
+            navigate("/admin/training-plans");
+            return;
+          }
           toast({ title: "Course draft generated", description: "Review the content below before publishing." });
-          // Hand off into the existing CourseDetail page rather than duplicating a
-          // review UI here -- it already has the regenerate/review-gate/publish flow.
-          navigate(courseDetailPath(result.course_id, user?.role));
+          navigate(courseDetailPath(result.course_id!, user?.role));
         },
         // No onError handler needed: the mutation's own isError/error state (read
         // below) drives the inline error + "Try Again" UI, and the form values are
@@ -106,10 +128,10 @@ export default function AiCourseWizard() {
           <Sparkles className="h-7 w-7 text-primary" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Generate a Course with AI</h1>
+          <h1 className="text-2xl font-bold">Generate Courses with AI</h1>
           <p className="text-muted-foreground">
-            Claude drafts a full course -- modules, lesson text or video scripts, and knowledge-check quizzes --
-            for you to review and publish. It's grounded strictly in whatever source material you paste in below.
+            Super admins can draft one course or a complete multi-course training plan with modules, video scripts,
+            and quizzes. Everything stays draft-only until a human reviews and publishes it.
           </p>
         </div>
       </div>
@@ -152,6 +174,40 @@ export default function AiCourseWizard() {
                   <Button size="sm" variant="outline" onClick={() => reset()}>Try Again</Button>
                 </AlertDescription>
               </Alert>
+            )}
+
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">What do you want to create?</Label>
+              <Select value={form.generationMode} onValueChange={v => field("generationMode", v as WizardFormState["generationMode"])}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="course">One individual course</SelectItem>
+                  <SelectItem value="training_plan">Multi-course training plan</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {form.generationMode === "training_plan" && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 rounded-lg border bg-muted/30 p-4">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-[13px]">Plan Name</Label>
+                  <Input value={form.planName} onChange={e => field("planName", e.target.value)} placeholder="New Hire Onboarding Path" className="h-9" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]"># Courses</Label>
+                  <Input type="number" min="2" value={form.courseCount} onChange={e => field("courseCount", e.target.value)} className="h-9" />
+                </div>
+                <div className="space-y-1.5 sm:col-span-3">
+                  <Label className="text-[13px]">Owning Organization *</Label>
+                  <Select value={form.organizationId} onValueChange={v => field("organizationId", v)}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Choose organization" /></SelectTrigger>
+                    <SelectContent>
+                      {(organizations ?? []).map(org => <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Courses are created in the system catalog, then bundled into this organization's training plan.</p>
+                </div>
+              </div>
             )}
 
             <div className="space-y-1.5">

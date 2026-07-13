@@ -34,6 +34,7 @@ const ANTHROPIC_TIMEOUT_MS = 120_000;
 const MAX_TOKENS = 16000;
 
 const TOOL_NAME = "emit_course_draft";
+const PLAN_TOOL_NAME = "emit_training_plan_draft";
 
 const QUIZ_QUESTION_SCHEMA = {
   type: "object",
@@ -95,6 +96,17 @@ const COURSE_DRAFT_SCHEMA = {
   required: ["title", "description", "category", "estimated_duration_minutes", "modules"],
 };
 
+
+const TRAINING_PLAN_DRAFT_SCHEMA = {
+  type: "object",
+  properties: {
+    plan_name: { type: "string" },
+    plan_description: { type: "string" },
+    courses: { type: "array", minItems: 2, items: COURSE_DRAFT_SCHEMA },
+  },
+  required: ["plan_name", "plan_description", "courses"],
+};
+
 const SYSTEM_PROMPT = `You are an instructional designer drafting a regulated healthcare-staff training course for the emit_course_draft tool.
 
 Hard rules, in priority order:
@@ -108,7 +120,15 @@ Hard rules, in priority order:
 
 Call the emit_course_draft tool exactly once with the complete course draft. Do not include any commentary outside the tool call.`;
 
+const PLAN_SYSTEM_PROMPT = SYSTEM_PROMPT
+  .replace("drafting a regulated healthcare-staff training course for the emit_course_draft tool", "drafting a sequenced, multi-course regulated healthcare-staff training plan for the emit_training_plan_draft tool")
+  .replace("Call the emit_course_draft tool exactly once with the complete course draft.", "Call the emit_training_plan_draft tool exactly once with the complete training plan draft, including every course in the plan.");
+
 interface CurriculumRequestBody {
+  generation_mode?: "course" | "training_plan";
+  organization_id?: string;
+  plan_name?: string;
+  course_count?: number;
   title_hint?: string;
   category?: string;
   training_type_id?: string;
@@ -173,6 +193,13 @@ function extractToolInput(anthropicBody: Record<string, unknown> | null, toolNam
   return (block as { input?: Record<string, unknown> } | undefined)?.input ?? null;
 }
 
+function isValidPlanDraft(draft: Record<string, unknown> | null): draft is Record<string, unknown> & { courses: Record<string, unknown>[] } {
+  if (!draft) return false;
+  if (typeof draft.plan_name !== "string" || !draft.plan_name.trim()) return false;
+  if (!Array.isArray(draft.courses) || draft.courses.length < 2) return false;
+  return draft.courses.every((course) => isValidDraft(course as Record<string, unknown>));
+}
+
 function isValidDraft(draft: Record<string, unknown> | null): draft is Record<string, unknown> & { modules: unknown[] } {
   if (!draft) return false;
   if (typeof draft.title !== "string" || !draft.title.trim()) return false;
@@ -232,8 +259,12 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  const { title_hint, category, training_type_id, source_material, desired_module_count, desired_duration_minutes, notes } = body;
-  if (!title_hint?.trim() && !source_material?.trim() && !notes?.trim()) {
+  const { generation_mode, organization_id, plan_name, course_count, title_hint, category, training_type_id, source_material, desired_module_count, desired_duration_minutes, notes } = body;
+  const isTrainingPlan = generation_mode === "training_plan";
+  if (isTrainingPlan && !organization_id) {
+    return json({ error: "organization_id is required when generating a training plan" }, 400);
+  }
+  if (!title_hint?.trim() && !source_material?.trim() && !notes?.trim() && !plan_name?.trim()) {
     return json({ error: "at least one of title_hint, source_material, or notes is required" }, 400);
   }
 
@@ -257,6 +288,9 @@ Deno.serve(async (req: Request) => {
   }
 
   const userPromptParts = [
+    isTrainingPlan ? "Create a multi-course training plan. Return several complete course drafts that work together as a sequenced curriculum, not one oversized course." : "Create one individual course.",
+    plan_name ? `Training plan name: ${plan_name}` : "",
+    course_count ? `Desired number of courses in the plan: approximately ${course_count}` : "",
     title_hint ? `Working title / topic: ${title_hint}` : "",
     category ? `Category: ${category}` : "",
     trainingTypeContext,
@@ -298,7 +332,14 @@ Deno.serve(async (req: Request) => {
 
   let result: AnthropicCallResult;
   try {
-    result = await callAnthropicWithFallback(anthropicApiKey, SYSTEM_PROMPT, userPromptParts, TOOL_NAME, COURSE_DRAFT_SCHEMA, controller.signal);
+    result = await callAnthropicWithFallback(
+      anthropicApiKey,
+      isTrainingPlan ? PLAN_SYSTEM_PROMPT : SYSTEM_PROMPT,
+      userPromptParts,
+      isTrainingPlan ? PLAN_TOOL_NAME : TOOL_NAME,
+      isTrainingPlan ? TRAINING_PLAN_DRAFT_SCHEMA : COURSE_DRAFT_SCHEMA,
+      controller.signal,
+    );
   } catch (e) {
     clearTimeout(timeoutId);
     if (e instanceof Error && e.name === "AbortError") {
@@ -321,11 +362,60 @@ Deno.serve(async (req: Request) => {
     return json({ error: message, generation_id: generationId }, 502);
   }
 
+  if (isTrainingPlan) {
+    const planDraft = extractToolInput(result.body, PLAN_TOOL_NAME);
+    if (planDraft && (typeof planDraft.plan_name !== "string" || !planDraft.plan_name.trim()) && plan_name?.trim()) {
+      planDraft.plan_name = plan_name.trim();
+    }
+    if (!isValidPlanDraft(planDraft)) {
+      await markFailed("AI response did not include a valid multi-course training plan draft");
+      return json({ error: "AI response did not include a valid training plan draft", generation_id: generationId }, 502);
+    }
+
+    const createdCourses: { course_id: string; course_version_id: string; title: string }[] = [];
+    for (let i = 0; i < planDraft.courses.length; i++) {
+      const courseDraft = planDraft.courses[i];
+      const { data: childGeneration, error: childGenerationError } = await callerClient
+        .from("course_ai_generations")
+        .insert({ kind: "create_course", requested_by: callerUser.id, model: result.model, request_params: { ...body, plan_generation_id: generationId, course_index: i + 1 }, status: "pending" })
+        .select("id")
+        .single();
+      if (childGenerationError || !childGeneration) {
+        await markFailed(childGenerationError?.message ?? "failed to create course audit record for this training plan");
+        return json({ error: childGenerationError?.message ?? "failed to create course audit record", generation_id: generationId }, 500);
+      }
+      const { data: rpcResult, error: rpcError } = await callerClient
+        .rpc("create_course_from_ai_draft", { p_draft: courseDraft, p_generation_id: childGeneration.id })
+        .single();
+      if (rpcError || !rpcResult) {
+        await markFailed(rpcError?.message ?? "create_course_from_ai_draft RPC failed");
+        return json({ error: rpcError?.message ?? "failed to create a course from the AI training plan", generation_id: generationId }, 500);
+      }
+      const { course_id, course_version_id } = rpcResult as { course_id: string; course_version_id: string };
+      createdCourses.push({ course_id, course_version_id, title: String(courseDraft.title) });
+    }
+
+    const { data: plan, error: planError } = await callerClient
+      .from("training_plans")
+      .insert({ organization_id, name: planDraft.plan_name, description: planDraft.plan_description, created_by: callerUser.id })
+      .select("id")
+      .single();
+    if (planError || !plan) {
+      await markFailed(planError?.message ?? "failed to create training plan");
+      return json({ error: planError?.message ?? "failed to create training plan", generation_id: generationId }, 500);
+    }
+    const { error: itemsError } = await callerClient.from("training_plan_items").insert(
+      createdCourses.map((course, index) => ({ training_plan_id: plan.id, course_id: course.course_id, sort_order: index + 1, is_required: true })),
+    );
+    if (itemsError) {
+      await markFailed(itemsError.message);
+      return json({ error: itemsError.message, generation_id: generationId }, 500);
+    }
+    await callerClient.from("course_ai_generations").update({ status: "completed", response_summary: { plan_name: planDraft.plan_name, course_count: createdCourses.length } }).eq("id", generationId);
+    return json({ success: true, training_plan_id: plan.id, courses: createdCourses, generation_id: generationId });
+  }
+
   const draft = extractToolInput(result.body, TOOL_NAME);
-  // The model occasionally omits the top-level "title" field when one was already supplied as
-  // title_hint (apparently treating it as redundant) even though the schema marks it required and
-  // the system prompt now explicitly calls this out. Fall back to the admin's own title_hint
-  // rather than failing a generation that is otherwise complete and well-formed.
   if (draft && (typeof draft.title !== "string" || !draft.title.trim()) && title_hint?.trim()) {
     draft.title = title_hint.trim();
   }
@@ -343,14 +433,9 @@ Deno.serve(async (req: Request) => {
   }
 
   const { course_id: courseId, course_version_id: courseVersionId } = rpcResult as { course_id: string; course_version_id: string };
-
-  // Best-effort: the RPC's draft shape has no training_type_id slot (it isn't part of the AI's
-  // own draft schema), so persist it here via a follow-up caller-scoped update when the admin
-  // supplied one up front. Non-fatal if it fails -- the course itself was already created.
   if (training_type_id) {
     await callerClient.from("courses").update({ training_type_id }).eq("id", courseId);
   }
-
   await callerClient
     .from("course_ai_generations")
     .update({ response_summary: { title: draft.title, module_count: (draft.modules as unknown[]).length } })
