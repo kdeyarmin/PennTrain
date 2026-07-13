@@ -950,14 +950,16 @@ export function getTemplateComplianceMetadata(template: DocumentTemplate): Templ
 export function searchTemplates(query: string): DocumentTemplate[] {
   const q = query.trim().toLowerCase();
   if (!q) return DOCUMENT_TEMPLATES;
-  return DOCUMENT_TEMPLATES.filter(
-    (t) =>
+  return DOCUMENT_TEMPLATES.filter((t) => {
+    const meta = getTemplateComplianceMetadata(t);
+    return (
       t.title.toLowerCase().includes(q) ||
       t.code.toLowerCase().includes(q) ||
       t.description.toLowerCase().includes(q) ||
       t.category.toLowerCase().includes(q) ||
-      getTemplateComplianceMetadata(t).citations.some((citation) => citation.toLowerCase().includes(q)) ||
-      getTemplateComplianceMetadata(t).facilityTypes.some((facilityType) => facilityType.toLowerCase().includes(q)) ||
-      getTemplateComplianceMetadata(t).binderSection.toLowerCase().includes(q)
-  );
+      meta.citations.some((citation) => citation.toLowerCase().includes(q)) ||
+      meta.facilityTypes.some((facilityType) => facilityType.toLowerCase().includes(q)) ||
+      meta.binderSection.toLowerCase().includes(q)
+    );
+  });
 }
