@@ -451,6 +451,7 @@ begin
     from jsonb_array_elements_text(coalesce(p_profile->'foodAllergies', '[]'::jsonb))
     where btrim(value) <> '' order by btrim(value)
   );
+  perform pg_advisory_xact_lock(hashtext('resident_dietary_profiles'), hashtext(v_resident.id::text));
   select * into v_profile from public.resident_dietary_profiles where resident_id = v_resident.id for update;
   v_version := coalesce(v_profile.version, 0) + 1;
   insert into public.resident_dietary_profiles(

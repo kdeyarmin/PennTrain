@@ -37,7 +37,7 @@ export function useDietaryOperations(facilityId?: string, residentId?: string) {
   return useQuery({
     queryKey: ["dietary-operations", facilityId, residentId],
     queryFn: async () => {
-      const resident = residentId ?? "00000000-0000-0000-0000-000000000000";
+      const resident = residentId || "00000000-0000-0000-0000-000000000000";
       const [profiles, menus, meals, hydration, assignments, readings, reviews, controls, logs, qualifications] = await Promise.all([
         supabase.from("resident_dietary_profiles").select("*").eq("resident_id", resident).maybeSingle(),
         supabase.from("dietary_menu_cycles").select("*,entries:dietary_menu_entries(*)").eq("facility_id", facilityId!).order("starts_on", { ascending: false }),
