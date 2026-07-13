@@ -91,7 +91,7 @@ export default function RegulatoryCrosswalk() {
     const csv = [header, ...filteredRows.map((row) => [
       row.citation,
       row.requirement,
-      row.facilityTypes.join("; "),
+      row.facilityTypes.map((type) => (type === "ALR" ? "ALF" : type)).join("; "),
       row.responsibleRole,
       SOURCE_LABELS[row.evidenceSource],
       STATUS_LABELS[row.status],
@@ -115,7 +115,7 @@ export default function RegulatoryCrosswalk() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Chapter 2600 / 2800 Regulatory Crosswalk</h1>
-          <p className="text-muted-foreground">Citation-by-citation map from PCH/ALR obligations to live CareBase evidence, owners, due dates, and binder destinations.</p>
+          <p className="text-muted-foreground">Citation-by-citation map from PCH/ALF obligations to live CareBase evidence, owners, due dates, and binder destinations.</p>
         </div>
         <Button variant="outline" onClick={downloadCsv}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
       </div>
@@ -161,7 +161,7 @@ export default function RegulatoryCrosswalk() {
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline">{row.citation}</Badge>
-                    {row.facilityTypes.map((type) => <Badge key={type} variant="secondary">{type}</Badge>)}
+                    {row.facilityTypes.map((type) => <Badge key={type} variant="secondary">{type === "ALR" ? "ALF" : type}</Badge>)}
                     <Badge variant={statusVariant(row.status)}>{STATUS_LABELS[row.status]}</Badge>
                   </div>
                   <CardTitle className="text-lg">{row.requirement}</CardTitle>

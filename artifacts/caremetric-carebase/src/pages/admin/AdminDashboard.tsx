@@ -16,7 +16,7 @@ import { useListTrainingRecords } from "@/hooks/useTrainingRecords";
 import { useListPolicyAttestations } from "@/hooks/usePolicyAttestations";
 import { useListTrainingPlans } from "@/hooks/useTrainingPlans";
 import { todayIso } from "@/lib/scheduleDates";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -91,7 +91,7 @@ export default function AdminDashboard() {
   const today = todayIso();
   const soon = new Date();
   soon.setDate(soon.getDate() + 30);
-  const soonIso = soon.toISOString().slice(0, 10);
+  const soonIso = toLocalIsoDate(soon);
   const expiredCredentials = credentials?.filter((credential) => credential.expiration_date && credential.expiration_date < today).length ?? 0;
   const expiringCredentials = credentials?.filter((credential) => credential.expiration_date && credential.expiration_date >= today && credential.expiration_date <= soonIso).length ?? 0;
   const openIncidents = incidents?.filter((incident) => incident.status !== "closed").length ?? 0;

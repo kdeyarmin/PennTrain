@@ -5,6 +5,7 @@ import {
   canonicalHelpPathForRole,
   helpBasePathForRole,
   safePathForRole,
+  viewablePathForRole,
   pagesForRole,
   searchPages,
   searchCommandActions,
@@ -121,11 +122,31 @@ describe("role-based page visibility", () => {
   });
 
   it("checks nested paths against the owning visible page", () => {
+    expect(canViewPath("/admin/incidents/incident-1", "platform_admin")).toBe(true);
+    expect(canViewPath("/admin/inspections/inspection-1", "platform_admin")).toBe(true);
+    expect(canViewPath("/admin/residents/resident-1", "platform_admin")).toBe(true);
+    expect(canViewPath("/admin/residents/resident-1/assessment-forms/form-1", "platform_admin")).toBe(true);
+    expect(canViewPath("/admin/quizzes/quiz-1", "platform_admin")).toBe(true);
     expect(canViewPath("/me/courses/assignment-1/quiz/quiz-1", "employee")).toBe(true);
     expect(canViewPath("/app/help/tickets/t1", "employee")).toBe(true);
     expect(canViewPath("/app/schedule/setup?facility=f1", "org_admin")).toBe(true);
     expect(canViewPath("/app/pending-approvals/anything", "auditor")).toBe(false);
     expect(canViewPath("/admin/settings", "employee")).toBe(false);
+  });
+
+  it("rejects unknown descendants of root app prefixes", () => {
+    expect(canViewPath("/app/not-a-real-page", "org_admin")).toBe(false);
+    expect(canViewPath("/admin/not-a-real-page", "platform_admin")).toBe(false);
+    expect(canViewPath("/trainer/not-a-real-page", "trainer")).toBe(false);
+    expect(canViewPath("/me/not-a-real-page", "employee")).toBe(false);
+    expect(safePathForRole("/app/not-a-real-page", "org_admin")).toBe("/app");
+  });
+
+  it("does not infer nested ownership for pages without detail routes", () => {
+    expect(canViewPath("/app/settings/not-a-real-page", "org_admin")).toBe(false);
+    expect(canViewPath("/account/security/not-a-real-page", "employee")).toBe(false);
+    expect(canViewPath("/admin/settings/not-a-real-page", "platform_admin")).toBe(false);
+    expect(safePathForRole("/app/settings/not-a-real-page", "org_admin")).toBe("/app");
   });
 
   it("keeps stored links inside the current role surface", () => {
@@ -135,6 +156,13 @@ describe("role-based page visibility", () => {
     expect(safePathForRole("/me/certificates", "trainer")).toBe("/trainer");
     expect(safePathForRole("/app/users", "employee")).toBe("/me");
     expect(safePathForRole("/admin/settings", "org_admin")).toBe("/app");
+  });
+
+  it("returns only viewable canonical destinations for related links", () => {
+    expect(viewablePathForRole("/app/employees/employee-1?tab=training", "trainer")).toBe("/trainer/employees/employee-1?tab=training");
+    expect(viewablePathForRole("/app/help/tickets/t1", "employee")).toBe("/me/help/tickets/t1");
+    expect(viewablePathForRole("/app/users", "employee")).toBeNull();
+    expect(viewablePathForRole("/app/settings/not-a-real-page", "org_admin")).toBeNull();
   });
 
   it("surfaces role-aware command actions for Phase 1 workflow shortcuts", () => {

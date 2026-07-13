@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toLocalIsoDate } from "@/lib/dateUtils";
 import { Link } from "wouter";
 import {
   useListIncidents, useCreateIncident, type IncidentInsert,
@@ -175,7 +176,7 @@ export default function Incidents() {
       status: i.status,
       occurred_at: i.occurred_at,
     })),
-    new Date().toISOString().slice(0, 10),
+    toLocalIsoDate(),
   ), [incidents]);
 
   const totalPages = Math.max(1, Math.ceil(searched.length / PAGE_SIZE));

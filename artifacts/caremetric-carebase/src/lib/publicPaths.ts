@@ -45,6 +45,7 @@ export function isPublicPath(path: string): boolean {
     p === "/forgot-password" ||
     p === "/reset-password" ||
     p === "/report-safety" ||
+    p.startsWith("/evidence-access/") ||
     p.startsWith("/verify/") ||
     MARKETING_PATHS.includes(p)
   );

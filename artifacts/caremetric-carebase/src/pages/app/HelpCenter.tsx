@@ -17,7 +17,7 @@ import {
   SUPPORT_TICKET_CATEGORIES, SUPPORT_TICKET_PRIORITIES,
 } from "@/hooks/useSupportTickets";
 import { useAuth } from "@/lib/auth";
-import { canViewPath, canonicalHelpPathForRole } from "@/lib/appDomains";
+import { viewablePathForRole } from "@/lib/appDomains";
 import { filterHelpArticlesForRole } from "@/lib/helpArticleVisibility";
 import { useToast } from "@/hooks/use-toast";
 import { Search, FileDown, Plus, ChevronRight, Lightbulb, ExternalLink, Paperclip, X, Sparkles } from "lucide-react";
@@ -119,9 +119,9 @@ function JobAideItem({ article }: { article: HelpArticle }) {
   const { user } = useAuth();
   const aide = article.content as unknown as JobAideContent;
   const relatedHref = aide.relatedRoute
-    ? canonicalHelpPathForRole(aide.relatedRoute.href, user?.role)
+    ? viewablePathForRole(aide.relatedRoute.href, user?.role)
     : null;
-  const showRelatedRoute = !!relatedHref && canViewPath(relatedHref, user?.role);
+  const showRelatedRoute = !!relatedHref;
 
   return (
     <AccordionItem value={article.id} className="border rounded-lg px-4">
@@ -469,8 +469,8 @@ export default function HelpCenter() {
     [jobAides, user?.role]
   );
   const contextualArticle = useMemo(
-    () => findArticleForRoute(visibleJobAides, originRoute),
-    [visibleJobAides, originRoute]
+    () => findArticleForRoute(visibleJobAides, originRoute, user?.role),
+    [visibleJobAides, originRoute, user?.role]
   );
 
   return (

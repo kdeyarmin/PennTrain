@@ -25,7 +25,7 @@ function tablesForRole(role: Role | undefined) {
     organizations: role === "platform_admin",
     profiles: role === "platform_admin" || role === "org_admin" || role === "facility_manager",
     employees: role !== "employee",
-    residents: role === "org_admin" || role === "facility_manager" || role === "auditor",
+    residents: role === "platform_admin" || role === "org_admin" || role === "facility_manager" || role === "auditor",
     courses: role === "employee",
   };
 }

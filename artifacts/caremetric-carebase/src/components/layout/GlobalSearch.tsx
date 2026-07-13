@@ -49,6 +49,7 @@ export function GlobalSearch() {
     : user?.role === "trainer" ? "/trainer/employees"
     : "/app/employees";
   const usersBasePath = user?.role === "platform_admin" ? "/admin/users" : "/app/users";
+  const residentsBasePath = user?.role === "platform_admin" ? "/admin/residents" : "/app/residents";
 
   const go = (path: string) => {
     setQuery("");
@@ -167,7 +168,7 @@ export function GlobalSearch() {
                     <button
                       key={r.id}
                       className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted text-left"
-                      onClick={() => go(`/app/residents/${r.id}`)}
+                      onClick={() => go(`${residentsBasePath}/${r.id}`)}
                     >
                       <UserRound className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> {r.first_name} {r.last_name}
                     </button>

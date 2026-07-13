@@ -180,7 +180,11 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/admin/ai-generations", label: "AI generation log", domain: "training", roles: PLATFORM_ADMIN, keywords: ["ai", "failures", "cost"] },
   { path: "/admin/training-plans", label: "Training plans", domain: "training", roles: PLATFORM_ADMIN, keywords: ["paths", "requirements", "curriculum"] },
   { path: "/admin/document-analyzer", label: "State form document analyzer", domain: "documents", roles: PLATFORM_ADMIN, keywords: ["pdf", "forms", "handwriting", "ocr", "state", "backlog", "ai"] },
+  { path: "/admin/incidents/:id", label: "Platform incident detail", domain: "compliance", roles: PLATFORM_ADMIN, keywords: ["incident", "complaint", "event"] },
+  { path: "/admin/inspections/:id", label: "Platform inspection item detail", domain: "compliance", roles: PLATFORM_ADMIN, keywords: ["inspection", "equipment", "physical plant"] },
   { path: "/admin/residents/:id", label: "Resident chart", domain: "residents", roles: PLATFORM_ADMIN, keywords: ["resident", "chart", "assessment", "state form"] },
+  { path: "/admin/residents/:residentId/assessment-forms/:formId", label: "Platform resident assessment form", domain: "residents", roles: PLATFORM_ADMIN, keywords: ["resident", "assessment", "rasp", "asp", "state form"] },
+  { path: "/admin/quizzes/:quizId", label: "Quiz builder", domain: "training", roles: PLATFORM_ADMIN, keywords: ["quiz", "questions", "assessment", "authoring"] },
   { path: "/admin/alerts", label: "Platform alerts", domain: "compliance", roles: PLATFORM_ADMIN, keywords: ["risk", "overdue"] },
   { path: "/admin/audit", label: "Platform audit log", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["governance", "activity"] },
   { path: "/admin/notifications", label: "Notification delivery", domain: "support", roles: PLATFORM_ADMIN, keywords: ["email", "sms", "failed"] },
@@ -259,6 +263,47 @@ export const APP_PAGES: AppPageDefinition[] = [
 
 const APP_PAGES_BY_PATH = new Map(APP_PAGES.map((page) => [page.path, page]));
 const APP_PAGES_LONGEST_FIRST = [...APP_PAGES].sort((a, b) => b.path.length - a.path.length);
+function routePathMatcher(path: string): RegExp {
+  const pattern = path
+    .split("/")
+    .map((segment) => segment.startsWith(":") ? "[^/]+" : segment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("/");
+  return new RegExp(`^${pattern}$`);
+}
+
+const APP_PAGE_ROUTE_MATCHERS = APP_PAGES_LONGEST_FIRST.map((page) => ({
+  page,
+  matcher: page.path.includes(":") ? routePathMatcher(page.path) : null,
+}));
+
+// Only these index pages own detail/subresource routes in App.tsx. Keeping this as an explicit
+// allow-list prevents unrelated settings/dashboard pages from authorizing arbitrary descendants
+// such as /app/settings/not-real while still letting stored detail links canonicalize correctly.
+const NESTED_PAGE_OWNER_PATHS = new Set([
+  "/admin/organizations",
+  "/admin/facilities",
+  "/admin/employees",
+  "/admin/courses",
+  "/admin/support-tickets",
+  "/app/facilities",
+  "/app/employees",
+  "/app/courses",
+  "/app/policy-documents",
+  "/app/template-documents",
+  "/app/incidents",
+  "/app/confidential-incidents",
+  "/app/evidence",
+  "/app/violations",
+  "/app/residents",
+  "/app/inspections",
+  "/app/help",
+  "/app/schedule",
+  "/trainer/classes",
+  "/trainer/facilities",
+  "/trainer/employees",
+  "/me/courses",
+  "/me/help",
+]);
 
 function splitPathSuffix(path: string): [pathname: string, suffix: string] {
   const match = path.match(/^([^?#]*)(.*)$/);
@@ -316,9 +361,18 @@ export function canViewPath(path: string, role: Role | undefined): boolean {
   if (!role) return false;
   const canonicalPath = canonicalHelpPathForRole(path, role);
   const [pathname] = splitPathSuffix(canonicalPath);
-  const page = APP_PAGES_LONGEST_FIRST.find(
-    (candidate) => pathname === candidate.path || pathname.startsWith(`${candidate.path}/`),
-  );
+  const match = APP_PAGE_ROUTE_MATCHERS.find(({ page: candidate, matcher }) => {
+    if (matcher) return matcher.test(pathname);
+    if (pathname === candidate.path) return true;
+
+    // Detail/subresource routes are intentionally represented by their owning index page in
+    // APP_PAGES (for example /app/employees owns /app/employees/:id and /app/help owns
+    // /app/help/tickets/:id). Do not let pages without known descendants match arbitrary
+    // malformed URLs, though -- safePathForRole() must reject stale/bad links instead of treating
+    // every path under a visible page as authorized.
+    return NESTED_PAGE_OWNER_PATHS.has(candidate.path) && pathname.startsWith(`${candidate.path}/`);
+  });
+  const page = match?.page;
   return page?.roles.includes(role) ?? false;
 }
 
@@ -326,6 +380,12 @@ export function safePathForRole(path: string, role: Role | undefined): string | 
   if (!role) return null;
   const canonicalPath = canonicalNavigationPathForRole(path, role);
   return canViewPath(canonicalPath, role) ? canonicalPath : homePathForRole(role);
+}
+
+export function viewablePathForRole(path: string, role: Role | undefined): string | null {
+  if (!role) return null;
+  const canonicalPath = canonicalNavigationPathForRole(path, role);
+  return canViewPath(canonicalPath, role) ? canonicalPath : null;
 }
 
 export function searchPages(query: string, role: Role | undefined): AppPageDefinition[] {

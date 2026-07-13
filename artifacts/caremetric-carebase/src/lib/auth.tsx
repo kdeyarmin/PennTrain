@@ -5,6 +5,7 @@ import { useLocation } from "wouter";
 import { supabase, clearSupabaseRuntimeCache } from "./supabase";
 import { queryClient } from "./queryClient";
 import { isPublicPath } from "./publicPaths";
+import { postLoginPathFromLocation } from "./loginRedirect";
 import { useToast } from "@/hooks/use-toast";
 import { STORAGE_KEY as IMPERSONATION_STORAGE_KEY, CHANGE_EVENT as IMPERSONATION_CHANGE_EVENT } from "@/hooks/useImpersonation";
 
@@ -248,7 +249,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isLoading && !session && !isError) {
       if (!isPublicPath(window.location.pathname)) {
-        setLocation("/login");
+        const next = postLoginPathFromLocation(window.location.pathname, window.location.search, window.location.hash);
+        setLocation(`/login?next=${encodeURIComponent(next)}`);
       }
     }
   }, [isLoading, session, isError, setLocation]);
