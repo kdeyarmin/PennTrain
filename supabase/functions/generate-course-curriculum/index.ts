@@ -263,7 +263,9 @@ Deno.serve(async (req: Request) => {
   if (isTrainingPlan && !organization_id) {
     return json({ error: "organization_id is required when generating a training plan" }, 400);
   }
-    return json({ error: "at least one of title_hint, plan_name, source_material, or notes is required" }, 400);
+  if (!title_hint?.trim() && !source_material?.trim() && !notes?.trim() && !plan_name?.trim()) {
+    return json({ error: "at least one of plan_name, title_hint, source_material, or notes is required" }, 400);
+  }
 
   // Best-effort: pull the training type's own name/description/citation_note (if any) into the
   // prompt as additional grounding context. Never fails the request -- this is a nice-to-have.
@@ -307,7 +309,7 @@ Deno.serve(async (req: Request) => {
   const { data: generationRow, error: generationInsertError } = await callerClient
     .from("course_ai_generations")
     .insert({
-      kind: "create_course",
+      kind: isTrainingPlan ? "create_training_plan" : "create_course",
       requested_by: callerUser.id,
       model: requestedModel,
       request_params: body,
@@ -373,9 +375,9 @@ Deno.serve(async (req: Request) => {
       return json({ error: "AI response did not include a valid training plan draft", generation_id: generationId }, 502);
     }
 
-    // Create the training plan row first so that any subsequent failure can be
-    // cleaned up deterministically — deleting the plan cascades its items and
-    // avoids leaving courses orphaned with no plan tying them together.
+    // Create the plan row first so that on any subsequent failure we can delete
+    // it (training_plan_items cascade) together with any already-created courses,
+    // rather than leaving orphaned draft courses unattached to any plan.
     const { data: plan, error: planError } = await callerClient
       .from("training_plans")
       .insert({ organization_id, name: planDraft.plan_name, description: planDraft.plan_description, created_by: callerUser.id })
@@ -395,31 +397,35 @@ Deno.serve(async (req: Request) => {
         .select("id")
         .single();
       if (childGenerationError || !childGeneration) {
+        const msg = childGenerationError?.message ?? "failed to create course audit record for this training plan";
         await callerClient.from("training_plans").delete().eq("id", plan.id);
-        await markFailed(childGenerationError?.message ?? "failed to create course audit record for this training plan");
-        return json({ error: childGenerationError?.message ?? "failed to create course audit record", generation_id: generationId }, 500);
+        for (const c of createdCourses) await callerClient.from("courses").delete().eq("id", c.course_id);
+        await markFailed(msg);
+        return json({ error: msg, generation_id: generationId }, 500);
       }
       const { data: rpcResult, error: rpcError } = await callerClient
         .rpc("create_course_from_ai_draft", { p_draft: courseDraft, p_generation_id: childGeneration.id })
         .single();
       if (rpcError || !rpcResult) {
-        const auditMessage = rpcError?.message ?? "create_course_from_ai_draft RPC failed";
-        await callerClient.from("course_ai_generations").update({ status: "failed", error_message: auditMessage }).eq("id", childGeneration.id);
+        const msg = rpcError?.message ?? "create_course_from_ai_draft RPC failed";
+        await callerClient.from("course_ai_generations").delete().eq("id", childGeneration.id);
         await callerClient.from("training_plans").delete().eq("id", plan.id);
-        await markFailed(auditMessage);
+        for (const c of createdCourses) await callerClient.from("courses").delete().eq("id", c.course_id);
+        await markFailed(msg);
         return json({ error: rpcError?.message ?? "failed to create a course from the AI training plan", generation_id: generationId }, 500);
       }
       const { course_id, course_version_id } = rpcResult as { course_id: string; course_version_id: string };
-      const { error: itemError } = await callerClient
-        .from("training_plan_items")
-        .insert({ training_plan_id: plan.id, course_id, sort_order: i + 1, is_required: true });
-      if (itemError) {
-        await callerClient.from("course_ai_generations").update({ status: "failed", error_message: itemError.message }).eq("id", childGeneration.id);
-        await callerClient.from("training_plans").delete().eq("id", plan.id);
-        await markFailed(itemError.message);
-        return json({ error: itemError.message, generation_id: generationId }, 500);
-      }
       createdCourses.push({ course_id, course_version_id, title: String(courseDraft.title) });
+    }
+
+    const { error: itemsError } = await callerClient.from("training_plan_items").insert(
+      createdCourses.map((course, index) => ({ training_plan_id: plan.id, course_id: course.course_id, sort_order: index + 1, is_required: true })),
+    );
+    if (itemsError) {
+      await callerClient.from("training_plans").delete().eq("id", plan.id);
+      for (const c of createdCourses) await callerClient.from("courses").delete().eq("id", c.course_id);
+      await markFailed(itemsError.message);
+      return json({ error: itemsError.message, generation_id: generationId }, 500);
     }
     await callerClient.from("course_ai_generations").update({ status: "completed", response_summary: { plan_name: planDraft.plan_name, course_count: createdCourses.length } }).eq("id", generationId);
     return json({ success: true, training_plan_id: plan.id, courses: createdCourses, generation_id: generationId });

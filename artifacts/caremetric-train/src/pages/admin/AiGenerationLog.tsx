@@ -42,7 +42,17 @@ function getStatusDisplay(status: string): { color: string; label: string } {
 }
 
 function getKindLabel(kind: string): string {
+  if (kind === "create_training_plan") return "Create Training Plan";
   return kind.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function getTrainingPlanSummary(responseSummary: unknown): { planName?: string; courseCount?: number } {
+  if (!responseSummary || typeof responseSummary !== "object") return {};
+  const summary = responseSummary as { plan_name?: unknown; course_count?: unknown };
+  return {
+    planName: typeof summary.plan_name === "string" ? summary.plan_name : undefined,
+    courseCount: typeof summary.course_count === "number" ? summary.course_count : undefined,
+  };
 }
 
 export default function AiGenerationLog() {
@@ -57,10 +67,16 @@ export default function AiGenerationLog() {
   const generations: AiGenerationLogRow[] = [
     ...(courseGenerationsData ?? []).map((gen): AiGenerationLogRow => {
       const requesterName = gen.requester ? `${gen.requester.first_name} ${gen.requester.last_name}`.trim() : "Unknown";
+      const planSummary = gen.kind === "create_training_plan" ? getTrainingPlanSummary(gen.response_summary) : {};
       return {
         id: `course:${gen.id}`,
         kind: getKindLabel(gen.kind),
-        subject: gen.course_id ? (
+        subject: gen.kind === "create_training_plan" ? (
+          <Link href="/admin/training-plans" className="text-primary hover:underline font-medium">
+            {planSummary.planName ?? "AI-generated training plan"}
+            {planSummary.courseCount ? ` (${planSummary.courseCount} courses)` : ""}
+          </Link>
+        ) : gen.course_id ? (
           <Link href={courseDetailPath(gen.course_id, user?.role)} className="text-primary hover:underline font-medium">
             {gen.courses?.title ?? gen.course_id}
           </Link>

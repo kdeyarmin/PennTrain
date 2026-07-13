@@ -92,7 +92,7 @@ function ApplyPlanDialog({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [applying, setApplying] = useState(false);
 
-  const { data: employees } = useListEmployees({ status: "active" });
+  const { data: employees } = useListEmployees({ status: "active", organizationId: plan.organization_id });
   const { mutateAsync: applyPlan } = useApplyTrainingPlanToEmployee();
 
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
@@ -121,7 +121,7 @@ function ApplyPlanDialog({
   };
 
   const handleApply = async () => {
-    if (selectedIds.length === 0 || !user?.organizationId) return;
+    if (selectedIds.length === 0 || !user) return;
     setApplying(true);
 
     const targets = selectedIds.filter((id) => employeeById.has(id));
@@ -132,7 +132,7 @@ function ApplyPlanDialog({
           planId: plan.id,
           employeeId,
           facilityId: employee.facility_id,
-          organizationId: user.organizationId!,
+          organizationId: plan.organization_id,
           assignedBy: user.id,
         });
       }),
@@ -296,7 +296,7 @@ function PlanProgressSection({ plan }: { plan: TrainingPlan }) {
 // ---------------------------------------------------------------------------
 // Expanded plan detail: items list + add/remove/reorder + apply action.
 // ---------------------------------------------------------------------------
-function TrainingPlanItemsPanel({ plan, canManage, canApply }: { plan: TrainingPlan; canManage: boolean; canApply: boolean }) {
+function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canManage: boolean }) {
   const { toast } = useToast();
 
   const { data: items, isLoading } = useListTrainingPlanItems(plan.id);
@@ -374,7 +374,7 @@ function TrainingPlanItemsPanel({ plan, canManage, canApply }: { plan: TrainingP
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h3 className="text-sm font-semibold text-foreground">Plan Items</h3>
         <div className="flex items-center gap-2">
-          {canApply && (
+          {canManage && (
             <Button size="sm" variant="outline" onClick={() => setShowApplyDialog(true)}>
               <UserPlus className="mr-2 h-3.5 w-3.5" /> Apply to Employee(s)
             </Button>
@@ -548,9 +548,6 @@ export default function TrainingPlans() {
   // (which asks for an owning organization) rather than this org-scoped quick-create form.
   const canCreatePlan = ["org_admin", "trainer"].includes(user?.role ?? "");
   const canManage = canCreatePlan || user?.role === "platform_admin";
-  // platform_admin has no organizationId, so applying a plan to employees would silently do nothing.
-  // Restrict the apply action to org-scoped roles only.
-  const canApply = canCreatePlan;
   const canDeletePlan = user?.role === "org_admin" || user?.role === "platform_admin";
 
   const [search, setSearch] = useState("");
@@ -727,7 +724,7 @@ export default function TrainingPlans() {
                       {isExpanded && (
                         <tr>
                           <td colSpan={5} className="p-0">
-                            <TrainingPlanItemsPanel plan={plan} canManage={canManage} canApply={canApply} />
+                            <TrainingPlanItemsPanel plan={plan} canManage={canManage} />
                           </td>
                         </tr>
                       )}
