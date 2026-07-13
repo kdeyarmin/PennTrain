@@ -76,8 +76,14 @@ const profileFromResident = (resident: Resident) => ({
   preferred_language: resident.preferred_language ?? "",
   religious_cultural_preferences: resident.religious_cultural_preferences ?? "",
   advance_directive_status: resident.advance_directive_status,
-  resident_rights_acknowledged_at: resident.resident_rights_acknowledged_at?.slice(0, 16) ?? "",
-  resident_rights_document_id: resident.resident_rights_document_id ?? "",
+  resident_rights_acknowledged_at: resident.resident_rights_acknowledged_at
+    ? (() => {
+      const date = new Date(resident.resident_rights_acknowledged_at);
+      const offset = date.getTimezoneOffset() * 60_000;
+      return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+    })()
+    : "",
+  resident_rights_document_id: resident.resident_rights_document_id ?? ""
   contract_status: resident.contract_status,
   contract_effective_date: resident.contract_effective_date ?? "",
   contract_document_id: resident.contract_document_id ?? "",
