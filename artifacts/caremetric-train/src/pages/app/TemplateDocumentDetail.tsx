@@ -38,7 +38,7 @@ export default function TemplateDocumentDetail() {
             </div>
             <p className="text-sm text-muted-foreground">{template.category}</p>
             <div className="mt-2 flex flex-wrap gap-1">
-              {metadata.facilityTypes.map((facilityType) => <Badge key={facilityType} variant="secondary">{facilityType}</Badge>)}
+              {metadata.facilityTypes.map((facilityType) => <Badge key={facilityType} variant="secondary">{facilityType === "ALR" ? "ALF" : facilityType}</Badge>)}
               {metadata.citations.map((citation) => <Badge key={citation} variant="outline">{citation}</Badge>)}
             </div>
           </div>
