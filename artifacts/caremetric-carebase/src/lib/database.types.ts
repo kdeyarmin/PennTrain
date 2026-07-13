@@ -16366,6 +16366,18 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      add_work_item_comment: {
+        Args: { p_body: string; p_work_item_id: string }
+        Returns: string
+      }
+      add_work_item_dependency: {
+        Args: {
+          p_dependency_type?: string
+          p_depends_on_work_item_id: string
+          p_work_item_id: string
+        }
+        Returns: string
+      }
       admin_emergency_update_course_block: {
         Args: {
           p_body?: Json
@@ -16491,6 +16503,10 @@ export type Database = {
       approve_training_session_completion: {
         Args: { p_class_id: string; p_reason: string }
         Returns: string
+      }
+      approve_work_item: {
+        Args: { p_reason: string; p_work_item_id: string }
+        Returns: boolean
       }
       assert_course_version_publish_ready: {
         Args: { p_version_id: string }
@@ -17076,6 +17092,7 @@ export type Database = {
         Args: { p_employee_id: string; p_training_type_id: string }
         Returns: undefined
       }
+      escalate_overdue_work_items: { Args: never; Returns: number }
       escalate_unactioned_alerts: { Args: never; Returns: undefined }
       evaluate_feature_access: {
         Args: {
@@ -17866,6 +17883,10 @@ export type Database = {
         }
         Returns: string
       }
+      record_work_item_effectiveness: {
+        Args: { p_result: string; p_work_item_id: string }
+        Returns: boolean
+      }
       register_for_training_session: {
         Args: { p_class_id: string; p_employee_id: string }
         Returns: {
@@ -17885,6 +17906,10 @@ export type Database = {
       release_audit_legal_hold: {
         Args: { p_hold_id: string; p_reason: string }
         Returns: undefined
+      }
+      remove_work_item_dependency: {
+        Args: { p_dependency_id: string }
+        Returns: boolean
       }
       render_notification_template_text: {
         Args: {
@@ -18294,6 +18319,10 @@ export type Database = {
         Args: { p_enabled: boolean; p_job_key: string; p_reason: string }
         Returns: undefined
       }
+      set_work_item_watching: {
+        Args: { p_watching: boolean; p_work_item_id: string }
+        Returns: boolean
+      }
       stage_hris_import_row: {
         Args: {
           p_external_employment_id: string
@@ -18447,6 +18476,17 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      submit_work_item_evidence: {
+        Args: {
+          p_evidence_type: string
+          p_linked_record_id?: string
+          p_linked_record_type?: string
+          p_storage_bucket?: string
+          p_storage_path?: string
+          p_work_item_id: string
+        }
+        Returns: string
+      }
       sync_offline_learning_action: {
         Args: {
           p_action_type: string
@@ -18506,6 +18546,15 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      update_work_item_assignment: {
+        Args: {
+          p_due_at: string
+          p_owner_profile_id: string
+          p_priority: string
+          p_work_item_id: string
+        }
+        Returns: boolean
       }
       upsert_compliance_profile_assignment: {
         Args: {
