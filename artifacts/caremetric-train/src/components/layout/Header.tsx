@@ -302,6 +302,7 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
               aria-expanded={mobileSearchOpen}
               aria-controls="mobile-search-panel"
               onClick={() => setMobileSearchOpen((open) => !open)}
+            >
               <Search className="h-[18px] w-[18px]" />
             </Button>
           </>
