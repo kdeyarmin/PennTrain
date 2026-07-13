@@ -65,6 +65,8 @@ const BackgroundChecks = lazy(() => import("@/pages/app/BackgroundChecks"));
 const ExclusionScreening = lazy(() => import("@/pages/app/ExclusionScreening"));
 const AdministratorQualification = lazy(() => import("@/pages/app/AdministratorQualification"));
 const Incidents = lazy(() => import("@/pages/app/Incidents"));
+const Complaints = lazy(() => import("@/pages/app/Complaints"));
+const ComplaintDetail = lazy(() => import("@/pages/app/ComplaintDetail"));
 const ConfidentialIncidents = lazy(() => import("@/pages/app/ConfidentialIncidents"));
 const ConfidentialIncidentDetail = lazy(() => import("@/pages/app/ConfidentialIncidentDetail"));
 const WorkQueue = lazy(() => import("@/pages/app/WorkQueue"));
@@ -529,6 +531,12 @@ function Router() {
       </Route>
       <Route path="/app/incidents/:id">
         {() => <ProtectedRoute component={IncidentDetail} allowedRoles={INCIDENT_ROLES} />}
+      </Route>
+      <Route path="/app/complaints">
+        {() => <ProtectedRoute component={Complaints} allowedRoles={INCIDENT_ROLES} />}
+      </Route>
+      <Route path="/app/complaints/:id">
+        {() => <ProtectedRoute component={ComplaintDetail} allowedRoles={INCIDENT_ROLES} />}
       </Route>
       <Route path="/app/confidential-incidents">
         {() => <ProtectedRoute component={ConfidentialIncidents} allowedRoles={CONFIDENTIAL_INTAKE_ROLES} />}
