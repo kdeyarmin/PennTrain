@@ -27,8 +27,9 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { toLocalIsoDate } from "@/lib/dateUtils";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => toLocalIsoDate();
 const defaultForm = (): ScheduledReportInput => ({
   name: "", reportKind: "employee_expirations", facilityId: undefined,
   frequency: "weekly", timeZone: "America/New_York", dateRangeMode: "rolling",
