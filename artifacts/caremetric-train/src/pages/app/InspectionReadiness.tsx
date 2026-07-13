@@ -3,12 +3,16 @@ import { useAuth } from "@/lib/auth";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListTrainingRecords } from "@/hooks/useTrainingRecords";
+import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useListEmployeeCredentials } from "@/hooks/useEmployeeCredentials";
 import { useListInspectionItems } from "@/hooks/useInspectionItems";
 import { useListIncidents } from "@/hooks/useIncidents";
 import { useListCorrectiveActions } from "@/hooks/useCorrectiveActions";
 import { useListPolicyAttestations } from "@/hooks/usePolicyAttestations";
 import { useListAdministratorProfiles } from "@/hooks/useAdministratorProfiles";
+import { useListResidents } from "@/hooks/useResidents";
+import { useListFacilityUnits } from "@/hooks/useFacilityUnits";
+import { useListEmployeeSchedulePreferences } from "@/hooks/useEmployeeSchedulePreferences";
 import { useFacilityReadinessBreakdown } from "@/hooks/useCitationTopics";
 import { useListEntranceConferenceItems, type EntranceConferenceItem } from "@/hooks/useEntranceConferenceItems";
 import { BinderExportButton } from "@/components/reports/BinderExportButton";
@@ -21,6 +25,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle, ClipboardCheck, Copy, Download, FileArchive, Loader2, ShieldAlert, Sparkles } from "lucide-react";
 import { toLocalIsoDate } from "@/lib/dateUtils";
+import { buildAdministratorRulePack, summarizeAdministratorRulePack } from "@/lib/administratorRulePacks";
+import { buildSpecialCareComplianceSummary } from "@/lib/specialCareCompliance";
 
 const BACKGROUND_CHECK_CREDENTIAL_TYPES = ["act34_criminal_history", "act73_fbi_fingerprint", "act33_child_abuse"];
 const HEALTH_CREDENTIAL_TYPES = ["tb_screening", "immunization"];
@@ -57,12 +63,16 @@ export default function InspectionReadiness() {
 
   const { data: employees } = useListEmployees({ facilityId: activeFacilityId || undefined, status: "active" });
   const { data: trainingRecords } = useListTrainingRecords({ facilityId: activeFacilityId || undefined });
+  const { data: trainingTypes } = useListTrainingTypes();
   const { data: credentials } = useListEmployeeCredentials({ facilityId: activeFacilityId || undefined });
   const { data: inspectionItems } = useListInspectionItems({ facilityId: activeFacilityId || undefined, isActive: true });
   const { data: incidents } = useListIncidents({ facilityId: activeFacilityId || undefined });
   const { data: correctiveActions } = useListCorrectiveActions({ facilityId: activeFacilityId || undefined });
   const { data: policyAttestations } = useListPolicyAttestations({});
   const { data: administratorProfiles } = useListAdministratorProfiles(user?.organizationId ?? undefined);
+  const { data: residents } = useListResidents({ facilityId: activeFacilityId || undefined });
+  const { data: units } = useListFacilityUnits({ facilityId: activeFacilityId || undefined });
+  const { data: schedulePreferences } = useListEmployeeSchedulePreferences({ facilityId: activeFacilityId || undefined });
 
 
   const overall = useMemo(() => {
@@ -87,6 +97,14 @@ export default function InspectionReadiness() {
 
   const today = toLocalIsoDate();
   const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+  const activeFacility = facilities?.find((facility) => facility.id === activeFacilityId);
+  const specialCareSummary = useMemo(() => buildSpecialCareComplianceSummary({
+    units: units ?? [],
+    residents: residents ?? [],
+    schedulePreferences: schedulePreferences ?? [],
+    trainingRecords: trainingRecords ?? [],
+    trainingTypes: trainingTypes ?? [],
+  }), [units, residents, schedulePreferences, trainingRecords, trainingTypes]);
 
   function readinessFor(item: EntranceConferenceItem): { level: ReadinessLevel; detail?: string } {
     switch (item.data_source) {
@@ -138,13 +156,18 @@ export default function InspectionReadiness() {
         return overdue.length === 0 ? { level: "ready" } : { level: "attention", detail: `${overdue.length} overdue` };
       }
       case "administrator": {
-        const rows = administratorProfiles ?? [];
-        const documented = rows.filter(
-          (p) => p.hundred_hour_course_completed_date || p.nha_license_number || p.regional_office_verification_submitted_date
-        );
-        return documented.length > 0
-          ? { level: "ready", detail: `${documented.length} on file` }
-          : { level: "attention", detail: "no administrator qualification on file" };
+        if (!activeFacility || !(activeFacility.facility_type === "PCH" || activeFacility.facility_type === "ALR")) {
+          return { level: "unknown", detail: "not a PCH/ALR facility" };
+        }
+        const rulePack = buildAdministratorRulePack(activeFacility.facility_type, {
+          profile: (administratorProfiles ?? [])[0] ?? null,
+          ceEntries: [],
+          today,
+        });
+        const summary = summarizeAdministratorRulePack(rulePack);
+        return summary.ready
+          ? { level: "ready", detail: `${summary.total} rule-pack items ready` }
+          : { level: "attention", detail: `${summary.blockingCount} administrator blocker(s)` };
       }
       default:
         return { level: "unknown" };
@@ -162,7 +185,7 @@ export default function InspectionReadiness() {
         detail: result.detail,
       };
     }),
-    [checklistItems, employees, trainingRecords, credentials, inspectionItems, incidents, correctiveActions, policyAttestations, administratorProfiles, activeFacilityId, oneYearAgo, today],
+    [checklistItems, employees, trainingRecords, credentials, inspectionItems, incidents, correctiveActions, policyAttestations, administratorProfiles, activeFacility, activeFacilityId, oneYearAgo, today],
   );
 
   const actionQueue = useMemo(() => buildInspectionReadinessActions({
@@ -282,6 +305,39 @@ export default function InspectionReadiness() {
           </div>
         </CardContent>
       </Card>
+
+      {activeFacility && (activeFacility.facility_type === "PCH" || activeFacility.facility_type === "ALR") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5" />
+              Dementia / Special-Care Designation Gaps
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-4">
+            <div>
+              <p className="text-2xl font-bold">{specialCareSummary.designatedUnits.length}</p>
+              <p className="text-xs text-muted-foreground">designated unit(s)</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{specialCareSummary.residentPlacements}</p>
+              <p className="text-xs text-muted-foreground">resident placement(s)</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{specialCareSummary.staffingGapCount}</p>
+              <p className="text-xs text-muted-foreground">training/staffing gap(s)</p>
+            </div>
+            <div>
+              <Badge variant={specialCareSummary.status === "needs_attention" ? "destructive" : "outline"} className="capitalize">
+                {specialCareSummary.status.replaceAll("_", " ")}
+              </Badge>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Uses unit designation, SDCU resident placement, schedule preferences, and dementia/special-care training records.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
 
       <Card>

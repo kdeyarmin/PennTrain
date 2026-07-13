@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -20,12 +21,9 @@ const ALLOWED_ROLES = ["platform_admin"];
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
-// Primary model id per the exact model id in use in this environment. If Anthropic rejects this
-// literal (e.g. "model not found"), we fall back once to the latest dated Claude Sonnet model id
-// known at the time this function was written, and record whichever model actually served the
-// request on the course_ai_generations audit row.
-const PRIMARY_MODEL = "claude-sonnet-5";
-const FALLBACK_MODEL = "claude-sonnet-4-5-20250929";
+const PRIMARY_MODEL_ENV = "ANTHROPIC_COURSE_DRAFT_MODEL";
+const FALLBACK_MODELS_ENV = "ANTHROPIC_COURSE_DRAFT_FALLBACK_MODELS";
+
 // A full multi-module course draft (lesson text + video scripts + quiz questions/answers/
 // explanations) reliably exceeds 8192 output tokens and was observed truncating mid-generation,
 // producing a tool_use block with no usable input. 16000 gives real headroom; the timeout below
@@ -152,8 +150,8 @@ async function callAnthropicWithFallback(
   toolName: string,
   inputSchema: Record<string, unknown>,
   signal: AbortSignal,
+  candidates: string[],
 ): Promise<AnthropicCallResult> {
-  const candidates = [PRIMARY_MODEL, FALLBACK_MODEL];
   let last: AnthropicCallResult | null = null;
 
   for (const model of candidates) {
@@ -178,9 +176,9 @@ async function callAnthropicWithFallback(
     if (res.ok) return { ok: true, model, status: res.status, body: bodyJson };
 
     const errorMessage = typeof bodyJson?.error?.message === "string" ? bodyJson.error.message : "";
-    const looksLikeModelError = res.status === 404 || (res.status === 400 && /model/i.test(errorMessage));
+    const canFallback = res.status === 404 || res.status === 429 || res.status >= 500 || (res.status === 400 && /model/i.test(errorMessage));
     last = { ok: false, model, status: res.status, body: bodyJson };
-    if (!looksLikeModelError) return last;
+    if (!canFallback) return last;
     // else: try the next candidate model
   }
   return last!;
@@ -301,6 +299,9 @@ Deno.serve(async (req: Request) => {
       : "No source material was provided. Draft general, instructionally sound training content on this topic, and explicitly flag in the description that regulatory specifics have not been verified against a supplied source and should be reviewed before publishing.",
   ].filter(Boolean).join("\n\n");
 
+  const modelCandidates = getAnthropicModelCandidates(PRIMARY_MODEL_ENV, FALLBACK_MODELS_ENV);
+  const requestedModel = modelCandidates[0];
+
   // Audit trail row, inserted before the third-party call so a mid-flight failure (Anthropic
   // error, timeout, RPC failure) still leaves a record with an error_message.
   const { data: generationRow, error: generationInsertError } = await callerClient
@@ -308,7 +309,7 @@ Deno.serve(async (req: Request) => {
     .insert({
       kind: "create_course",
       requested_by: callerUser.id,
-      model: PRIMARY_MODEL,
+      model: requestedModel,
       request_params: body,
       status: "pending",
     })
@@ -338,6 +339,7 @@ Deno.serve(async (req: Request) => {
       isTrainingPlan ? PLAN_TOOL_NAME : TOOL_NAME,
       isTrainingPlan ? TRAINING_PLAN_DRAFT_SCHEMA : COURSE_DRAFT_SCHEMA,
       controller.signal,
+      modelCandidates,
     );
   } catch (e) {
     clearTimeout(timeoutId);
@@ -351,7 +353,7 @@ Deno.serve(async (req: Request) => {
   }
   clearTimeout(timeoutId);
 
-  if (result.model !== PRIMARY_MODEL) {
+  if (result.model !== requestedModel) {
     await callerClient.from("course_ai_generations").update({ model: result.model }).eq("id", generationId);
   }
 

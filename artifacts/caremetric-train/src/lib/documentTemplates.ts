@@ -13,6 +13,13 @@ export type TemplateBody =
   | { kind: "narrative"; items: { label: string; lines?: number }[] }
   | { kind: "reference"; columns: string[]; rows: string[][]; blankColumns?: string[] };
 
+export interface TemplateComplianceMetadata {
+  facilityTypes: ("PCH" | "ALR")[];
+  citations: string[];
+  reviewCadence: string;
+  binderSection: string;
+}
+
 export interface DocumentTemplate {
   code: string;
   title: string;
@@ -26,6 +33,8 @@ export interface DocumentTemplate {
   footerFields?: string[];
   /** Short callout, e.g. usage cadence or suggested language. */
   note?: string;
+  /** Optional override when a template needs more precise tagging than the category default. */
+  compliance?: Partial<TemplateComplianceMetadata>;
 }
 
 export const TEMPLATE_CATEGORIES = [
@@ -41,6 +50,19 @@ export const TEMPLATE_CATEGORIES = [
 ] as const;
 
 export type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];
+
+
+const CATEGORY_COMPLIANCE_METADATA: Record<TemplateCategory, TemplateComplianceMetadata> = {
+  "State Entrance & Handoff": { facilityTypes: ["PCH", "ALR"], citations: ["55 Pa. Code Ch. 2600", "55 Pa. Code Ch. 2800"], reviewCadence: "Before survey window and on entrance", binderSection: "Entrance packet" },
+  "Resident Records & Care Plans": { facilityTypes: ["PCH", "ALR"], citations: ["55 Pa. Code 2600.225", "55 Pa. Code 2600.227", "55 Pa. Code Ch. 2800 resident assessment/support plan"], reviewCadence: "Admission, annual, significant change, and Department request", binderSection: "Resident records" },
+  "Medication Compliance": { facilityTypes: ["PCH", "ALR"], citations: ["55 Pa. Code 2600.181", "55 Pa. Code Ch. 2600 medication records", "55 Pa. Code Ch. 2800 medication administration"], reviewCadence: "Daily open-event review and monthly pattern review", binderSection: "Medication system" },
+  "Staffing & Training": { facilityTypes: ["PCH", "ALR"], citations: ["55 Pa. Code Ch. 2600 staff training", "55 Pa. Code 2800.64", "55 Pa. Code 2800.65"], reviewCadence: "Hire, assignment change, annual training cycle, and survey window", binderSection: "Staffing and training" },
+  "Walkthroughs & Environmental Rounds": { facilityTypes: ["PCH", "ALR"], citations: ["55 Pa. Code Ch. 2600 fire safety/emergency preparedness", "55 Pa. Code Ch. 2800 fire safety/emergency preparedness"], reviewCadence: "Monthly and after each drill or environmental finding", binderSection: "Environment and emergency preparedness" },
+  "Food Service & Sanitation": { facilityTypes: ["PCH", "ALR"], citations: ["55 Pa. Code Ch. 2600 food service", "55 Pa. Code Ch. 2800 food service"], reviewCadence: "Weekly during survey window and after dietary/sanitation findings", binderSection: "Food service and sanitation" },
+  "Rights, Complaints & Incidents": { facilityTypes: ["PCH", "ALR"], citations: ["55 Pa. Code Ch. 2600 resident rights/reportable incidents", "55 Pa. Code Ch. 2800 resident rights/reportable incidents"], reviewCadence: "At admission, complaint intake, incident closure, and weekly until resolved", binderSection: "Rights, complaints, and incidents" },
+  "Mock Survey & POC Readiness": { facilityTypes: ["PCH", "ALR"], citations: ["55 Pa. Code Ch. 2600", "55 Pa. Code Ch. 2800"], reviewCadence: "Before survey window and after every citation or corrective action", binderSection: "Mock survey and POC" },
+  "Admin, License & Reference Tools": { facilityTypes: ["PCH", "ALR"], citations: ["55 Pa. Code Ch. 2600", "55 Pa. Code Ch. 2800"], reviewCadence: "Quarterly and before final survey-window preparation", binderSection: "Administration and reference" },
+};
 
 export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
   // ---------- State Entrance & Handoff ----------
@@ -915,14 +937,29 @@ export function getTemplatesByCategory(category: TemplateCategory): DocumentTemp
   return DOCUMENT_TEMPLATES.filter((t) => t.category === category);
 }
 
+export function getTemplateComplianceMetadata(template: DocumentTemplate): TemplateComplianceMetadata {
+  const defaults = CATEGORY_COMPLIANCE_METADATA[template.category];
+  return {
+    ...defaults,
+    ...template.compliance,
+    facilityTypes: template.compliance?.facilityTypes ?? defaults.facilityTypes,
+    citations: template.compliance?.citations ?? defaults.citations,
+  };
+}
+
 export function searchTemplates(query: string): DocumentTemplate[] {
   const q = query.trim().toLowerCase();
   if (!q) return DOCUMENT_TEMPLATES;
-  return DOCUMENT_TEMPLATES.filter(
-    (t) =>
+  return DOCUMENT_TEMPLATES.filter((t) => {
+    const meta = getTemplateComplianceMetadata(t);
+    return (
       t.title.toLowerCase().includes(q) ||
       t.code.toLowerCase().includes(q) ||
       t.description.toLowerCase().includes(q) ||
-      t.category.toLowerCase().includes(q)
-  );
+      t.category.toLowerCase().includes(q) ||
+      meta.citations.some((citation) => citation.toLowerCase().includes(q)) ||
+      meta.facilityTypes.some((facilityType) => facilityType.toLowerCase().includes(q)) ||
+      meta.binderSection.toLowerCase().includes(q)
+    );
+  });
 }

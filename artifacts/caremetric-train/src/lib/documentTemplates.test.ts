@@ -3,6 +3,7 @@ import {
   DOCUMENT_TEMPLATES,
   TEMPLATE_CATEGORIES,
   getTemplateByCode,
+  getTemplateComplianceMetadata,
   getTemplatesByCategory,
   searchTemplates,
 } from "./documentTemplates";
@@ -67,5 +68,21 @@ describe("searchTemplates", () => {
 
   it("returns an empty array when no templates match", () => {
     expect(searchTemplates("zzz_no_match_xyzzy")).toEqual([]);
+  });
+});
+
+
+describe("getTemplateComplianceMetadata", () => {
+  it("adds citation-aware metadata to templates", () => {
+    const template = getTemplateByCode("BF-01");
+    expect(template).toBeDefined();
+    const metadata = getTemplateComplianceMetadata(template!);
+    expect(metadata.facilityTypes).toEqual(["PCH", "ALR"]);
+    expect(metadata.citations.length).toBeGreaterThan(0);
+    expect(metadata.binderSection).toBeTruthy();
+  });
+
+  it("makes template search citation-aware", () => {
+    expect(searchTemplates("2600.225").some((template) => template.category === "Resident Records & Care Plans")).toBe(true);
   });
 });

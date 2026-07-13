@@ -81,6 +81,9 @@ export default function StateFormsCenter() {
     () => listUpcomingRenewals(activeItems, today, RENEWAL_WINDOW_DAYS),
     [activeItems, today],
   );
+  const admissionRiskResidents = useMemo(() => new Set(activeItems
+    .filter((item) => OPEN_STATUSES.has(item.status) && /(preadmission|assessment|rasp|asp|support)/i.test(item.item_type))
+    .map((item) => item.resident_id)).size, [activeItems]);
 
   const renderItemRow = (item: CenterItem) => {
     const resident = residentById.get(item.resident_id);
@@ -137,6 +140,7 @@ export default function StateFormsCenter() {
     { label: "Missing", value: summary.missingItems, tone: "text-foreground" },
     { label: "Due Soon", value: summary.dueSoonItems, tone: "text-warning" },
     { label: `Renewals (${RENEWAL_WINDOW_DAYS}d)`, value: upcomingRenewals.length, tone: "text-foreground" },
+    { label: "Move-in Packet Risk", value: admissionRiskResidents, tone: admissionRiskResidents ? "text-destructive" : "text-success" },
     { label: "Residents Needing Forms", value: summary.residentsWithOpenItems, tone: "text-foreground" },
   ];
 
@@ -162,7 +166,7 @@ export default function StateFormsCenter() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {tiles.map((tile) => (
           <Card key={tile.label}>
             <CardContent className="pt-4 pb-3">

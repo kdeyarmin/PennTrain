@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useLocation, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,12 +21,18 @@ import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useListPracticums } from "@/hooks/usePracticums";
 import { useListIncidents } from "@/hooks/useIncidents";
 import { useListInspectionItems } from "@/hooks/useInspectionItems";
+import { useListFacilityUnits } from "@/hooks/useFacilityUnits";
+import { useListEmployeeSchedulePreferences } from "@/hooks/useEmployeeSchedulePreferences";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { FACILITY_TYPES, PCH_ALR_ONLY_FACILITY_TYPES, facilityTypeBadgeClass, type FacilityType } from "@/lib/facilityTypes";
 import { FREQUENCY_OPTIONS, responsiblePartyOptions } from "@/lib/residentAssessmentFormSchema";
 import { getComplianceFormLabel } from "@/lib/residentCompliance";
+import { useListAdministratorProfiles } from "@/hooks/useAdministratorProfiles";
+import { buildAdministratorRulePack, summarizeAdministratorRulePack } from "@/lib/administratorRulePacks";
+import { toLocalIsoDate } from "@/lib/dateUtils";
+import { buildSpecialCareComplianceSummary } from "@/lib/specialCareCompliance";
 
 interface FacilityFormData {
   name: string;
@@ -92,6 +98,9 @@ export default function FacilityDetail() {
   const { data: practicums, isLoading: practicumsLoading } = useListPracticums({ facilityId: id });
   const { data: incidents, isLoading: incidentsLoading } = useListIncidents({ facilityId: id });
   const { data: inspectionItems, isLoading: inspectionsLoading } = useListInspectionItems({ facilityId: id, isActive: true });
+  const { data: administratorProfiles, isLoading: administratorsLoading } = useListAdministratorProfiles(user?.organizationId ?? undefined);
+  const { data: units } = useListFacilityUnits({ facilityId: id });
+  const { data: schedulePreferences } = useListEmployeeSchedulePreferences({ facilityId: id });
 
   const trainingTypeName = (typeId: string) => trainingTypes?.find(t => t.id === typeId)?.name ?? "Unknown requirement";
   const relevantRecords = (trainingRecords ?? []).filter(r => RELEVANT_STATUSES.has(r.status));
@@ -99,6 +108,19 @@ export default function FacilityDetail() {
   const compliancePct = relevantRecords.length > 0 ? Math.round((compliantCount / relevantRecords.length) * 100) : 100;
   const dueSoonRecords = (trainingRecords ?? []).filter(r => r.status === "due_soon");
   const expiredRecords = (trainingRecords ?? []).filter(r => r.status === "expired");
+  const administratorRulePack = useMemo(() => {
+    if (!facility || !(facility.facility_type === "PCH" || facility.facility_type === "ALR")) return [];
+    const profile = (administratorProfiles ?? [])[0] ?? null;
+    return buildAdministratorRulePack(facility.facility_type, { profile, ceEntries: [], today: toLocalIsoDate() });
+  }, [administratorProfiles, facility]);
+  const administratorRuleSummary = useMemo(() => summarizeAdministratorRulePack(administratorRulePack), [administratorRulePack]);
+  const specialCareSummary = useMemo(() => buildSpecialCareComplianceSummary({
+    units: units ?? [],
+    residents: residents ?? [],
+    schedulePreferences: schedulePreferences ?? [],
+    trainingRecords: trainingRecords ?? [],
+    trainingTypes: trainingTypes ?? [],
+  }), [units, residents, schedulePreferences, trainingRecords, trainingTypes]);
 
   const { mutate: updateFacility, isPending: updating } = useUpdateFacility();
   const { mutate: deleteFacility, isPending: deleting } = useDeleteFacility();
@@ -264,9 +286,48 @@ export default function FacilityDetail() {
             {facility.administrator_email && <p className="text-xs text-muted-foreground truncate">{facility.administrator_email}</p>}
           </CardContent>
         </Card>
+        {(PCH_ALR_ONLY_FACILITY_TYPES as readonly string[]).includes(facility.facility_type) && (
+          <Card>
+            <CardContent className="pt-4">
+              <p className="text-xs text-muted-foreground">Admin Rule Pack</p>
+              {administratorsLoading ? (
+                <Skeleton className="h-5 w-24 mt-1" />
+              ) : (
+                <>
+                  <p className="font-semibold text-sm capitalize">{administratorRuleSummary.status.replaceAll("_", " ")}</p>
+                  <p className="text-xs text-muted-foreground">{administratorRuleSummary.blockingCount} blocker(s), {administratorRuleSummary.dueSoonCount} due soon</p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {PCH_ALR_ONLY_FACILITY_TYPES.includes(facility.facility_type as FacilityType) && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BedDouble className="h-4 w-4 text-muted-foreground" /> Dementia / Special-Care Readiness
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-3xl font-bold">{specialCareSummary.staffingGapCount}</p>
+                  <p className="text-xs text-muted-foreground">staff training gap(s) for designated units</p>
+                </div>
+                <Badge variant={specialCareSummary.status === "needs_attention" ? "destructive" : "outline"} className="capitalize">
+                  {specialCareSummary.status.replaceAll("_", " ")}
+                </Badge>
+              </div>
+              <div className="mt-3 text-xs text-muted-foreground space-y-1">
+                <p>{specialCareSummary.designatedUnits.length} designated unit(s); {specialCareSummary.residentPlacements} resident placement(s)</p>
+                <p>{specialCareSummary.trainedStaffCount} of {specialCareSummary.assignedStaffCount} assigned staff have current dementia/special-care training evidence.</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
