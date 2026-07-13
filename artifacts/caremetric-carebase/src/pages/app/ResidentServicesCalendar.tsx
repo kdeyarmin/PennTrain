@@ -63,10 +63,12 @@ export default function ResidentServicesCalendar() {
   const employees = useListEmployees({ facilityId, status: "active", organizationId }, { enabled: !!facilityId });
   const profiles = useListProfiles({ organizationId });
   const vehicles = useFacilityTransportVehicles(facilityId);
+  const safeFromDate = fromDate || toLocalIsoDate(addDays(-7));
+  const safeThroughDate = throughDate || toLocalIsoDate(addDays(30));
   const events = useResidentServicesCalendar({
     facilityId: facilityId || undefined,
-    from: new Date(`${fromDate}T00:00:00`).toISOString(),
-    through: new Date(`${throughDate}T23:59:59`).toISOString(),
+    from: new Date(`${safeFromDate}T00:00:00`).toISOString(),
+    through: new Date(`${safeThroughDate}T23:59:59`).toISOString(),
     residentId: residentId || undefined,
     eventType: eventType || undefined,
     status: status || undefined,
