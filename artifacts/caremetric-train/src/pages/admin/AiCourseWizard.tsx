@@ -80,8 +80,13 @@ export default function AiCourseWizard() {
 
     const moduleCount = form.desiredModuleCount.trim() ? Number(form.desiredModuleCount) : undefined;
     const durationMinutes = form.desiredDurationMinutes.trim() ? Number(form.desiredDurationMinutes) : undefined;
-    const courseCount = form.courseCount.trim() ? Number(form.courseCount) : undefined;
+    const courseCountRaw = form.courseCount.trim() ? Number(form.courseCount) : undefined;
+    const courseCount = courseCountRaw !== undefined && Number.isFinite(courseCountRaw) ? Math.trunc(courseCountRaw) : undefined;
 
+    if (form.generationMode === "training_plan" && courseCount !== undefined && courseCount < 2) {
+      toast({ title: "Course count must be at least 2", description: "Training plans must include at least 2 courses.", variant: "destructive" });
+      return;
+    }
     generate(
       {
         generationMode: form.generationMode,
