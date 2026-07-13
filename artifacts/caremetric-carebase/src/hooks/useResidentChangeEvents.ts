@@ -171,7 +171,7 @@ export function useCreateResidentChangeEvent() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: CreateResidentChangeEventInput) => {
-      const { data, error } = await supabase.rpc("create_resident_change_event", {
+      const { data, error } = await supabase.rpc("create_resident_change_event" as never, {
         p_resident_id: input.residentId,
         p_category: input.category,
         p_identified_at: input.identifiedAt,
@@ -190,7 +190,7 @@ export function useCreateResidentChangeEvent() {
         p_reassessment_required: input.reassessmentRequired,
         p_support_plan_revision_required: input.supportPlanRevisionRequired,
         p_source_service_alert_id: input.sourceServiceAlertId ?? undefined,
-      });
+      } as never);
       if (error) throw error;
       return data;
     },
@@ -210,7 +210,7 @@ export function useRecordChangeEventNotification() {
       contact?: string;
       notes?: string;
     }) => {
-      const { data, error } = await supabase.rpc("record_change_event_notification", {
+      const { data, error } = await supabase.rpc("record_change_event_notification" as never, {
         p_event_id: input.eventId,
         p_party: input.party,
         p_status: input.status,
@@ -218,7 +218,7 @@ export function useRecordChangeEventNotification() {
         p_method: input.method ?? "",
         p_contact: input.contact ?? "",
         p_notes: input.notes ?? "",
-      });
+      } as never);
       if (error) throw error;
       return data;
     },

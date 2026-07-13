@@ -18905,6 +18905,16 @@ export type Database = {
         Args: { p_organization_id?: string }
         Returns: Json
       }
+      get_change_event_resident_options: {
+        Args: never
+        Returns: {
+          facility_id: string
+          first_name: string
+          id: string
+          last_name: string
+          room: string
+        }[]
+      }
       get_closed_loop_compliance_control_plane: { Args: never; Returns: Json }
       get_course_version_publish_issues: {
         Args: { p_version_id: string }
