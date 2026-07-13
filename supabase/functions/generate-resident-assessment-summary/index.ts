@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -17,8 +18,9 @@ const ALLOWED_ROLES = ["platform_admin", "org_admin", "facility_manager"];
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
-const PRIMARY_MODEL = "claude-sonnet-5";
-const FALLBACK_MODEL = "claude-sonnet-4-5-20250929";
+const PRIMARY_MODEL_ENV = "ANTHROPIC_RESIDENT_SUMMARY_MODEL";
+const FALLBACK_MODELS_ENV = "ANTHROPIC_RESIDENT_SUMMARY_FALLBACK_MODELS";
+
 const TOOL_NAME = "emit_wellness_summary";
 const MAX_TOKENS = 1200;
 const ANTHROPIC_TIMEOUT_MS = 60_000;
@@ -108,10 +110,11 @@ async function callAnthropicWithFallback(
   apiKey: string,
   userPrompt: string,
   signal: AbortSignal,
+  candidates: string[],
 ): Promise<AnthropicCallResult> {
   let last: AnthropicCallResult | null = null;
 
-  for (const model of [PRIMARY_MODEL, FALLBACK_MODEL]) {
+  for (const model of candidates) {
     const res = await fetch(ANTHROPIC_API_URL, {
       method: "POST",
       headers: {
@@ -133,9 +136,9 @@ async function callAnthropicWithFallback(
     if (res.ok) return { ok: true, model, status: res.status, body: bodyJson };
 
     const errorMessage = typeof bodyJson?.error?.message === "string" ? bodyJson.error.message : "";
-    const looksLikeModelError = res.status === 404 || (res.status === 400 && /model/i.test(errorMessage));
+    const canFallback = res.status === 404 || res.status === 429 || res.status >= 500 || (res.status === 400 && /model/i.test(errorMessage));
     last = { ok: false, model, status: res.status, body: bodyJson };
-    if (!looksLikeModelError) return last;
+    if (!canFallback) return last;
   }
 
   return last!;
@@ -277,6 +280,9 @@ Deno.serve(async (req: Request) => {
   const form = formRaw as ResidentAssessmentFormRow;
   if (form.status !== "draft") return json({ error: "AI summaries can only be generated for draft forms" }, 409);
 
+  const modelCandidates = getAnthropicModelCandidates(PRIMARY_MODEL_ENV, FALLBACK_MODELS_ENV);
+  const requestedModel = modelCandidates[0];
+
   // Audit metadata intentionally excludes assessment answers and generated text; the source content
   // remains only on resident_assessment_forms.content.
   const requestParams = {
@@ -291,7 +297,7 @@ Deno.serve(async (req: Request) => {
       facility_id: form.facility_id,
       resident_assessment_form_id: form.id,
       requested_by: callerUser.id,
-      model: PRIMARY_MODEL,
+      model: requestedModel,
       request_params: requestParams,
       status: "pending",
     })
@@ -318,6 +324,7 @@ Deno.serve(async (req: Request) => {
       anthropicApiKey,
       `Assessment JSON:\n${compactAssessmentForPrompt(form.content ?? {})}`,
       controller.signal,
+      modelCandidates,
     );
   } catch (e) {
     clearTimeout(timeoutId);
@@ -330,6 +337,13 @@ Deno.serve(async (req: Request) => {
     return json({ error: "AI wellness summary generation failed", generation_id: generationId }, 502);
   }
   clearTimeout(timeoutId);
+
+  if (result.model !== requestedModel) {
+    await privilegedClient
+      .from("resident_assessment_ai_generations")
+      .update({ model: result.model })
+      .eq("id", generationId);
+  }
 
   if (!result.ok) {
     const message = anthropicErrorMessage(result);

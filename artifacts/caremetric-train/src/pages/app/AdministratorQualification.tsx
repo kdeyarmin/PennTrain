@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useListProfiles } from "@/hooks/useProfiles";
+import { useListFacilities } from "@/hooks/useFacilities";
 import {
   useGetAdministratorProfileByProfileId, useUpsertAdministratorProfile,
   useListAdministratorCeEntries, useAddAdministratorCeEntry, useDeleteAdministratorCeEntry,
@@ -17,6 +18,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { GraduationCap, FileCheck2, Send, Upload, Trash2, Download } from "lucide-react";
+import { buildAdministratorRulePack, summarizeAdministratorRulePack } from "@/lib/administratorRulePacks";
+import { toLocalIsoDate } from "@/lib/dateUtils";
+import type { FacilityType } from "@/lib/facilityTypes";
 
 const CE_SOURCE_OPTIONS = ["In-Service", "Conference", "Webinar", "Online Course", "Other"];
 const ROLLING_WINDOW_HOURS_REQUIRED = 24;
@@ -82,8 +86,10 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
   const { data: ceEntries } = useListAdministratorCeEntries(profile?.id);
   const { mutateAsync: addCeEntry, isPending: addingCe } = useAddAdministratorCeEntry();
   const { mutateAsync: deleteCeEntry } = useDeleteAdministratorCeEntry();
+  const { data: facilities } = useListFacilities();
 
   const [ceForm, setCeForm] = useState({ hours: "", topic: "", source: CE_SOURCE_OPTIONS[0], completedDate: "", provider: "" });
+  const [facilityTypePreview, setFacilityTypePreview] = useState<FacilityType>("PCH");
 
   const rollingTotal = useMemo(() => {
     const cutoff = new Date();
@@ -93,6 +99,18 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
       .filter((e) => e.completed_date >= cutoffStr)
       .reduce((sum, e) => sum + Number(e.hours), 0);
   }, [ceEntries]);
+  const facilityTypeOptions = useMemo(() => {
+    const types = new Set<FacilityType>(["PCH", "ALR"]);
+    for (const facility of facilities ?? []) {
+      if (facility.facility_type === "PCH" || facility.facility_type === "ALR") types.add(facility.facility_type);
+    }
+    return Array.from(types);
+  }, [facilities]);
+  const administratorRulePack = useMemo(
+    () => buildAdministratorRulePack(facilityTypePreview, { profile, ceEntries, today: toLocalIsoDate() }),
+    [facilityTypePreview, profile, ceEntries],
+  );
+  const administratorRuleSummary = useMemo(() => summarizeAdministratorRulePack(administratorRulePack), [administratorRulePack]);
 
   const save = async (patch: Partial<AdministratorProfile>) => {
     try {
@@ -140,6 +158,45 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <CardTitle>Administrator rule pack</CardTitle>
+              <CardDescription>Facility-type-specific PCH/ALR qualification, CE, orientation, and designee coverage evidence for inspection binders.</CardDescription>
+            </div>
+            <Badge className={administratorRuleSummary.ready ? "bg-success text-success-foreground hover:bg-success/80" : "bg-warning text-warning-foreground hover:bg-warning/80"}>
+              {administratorRuleSummary.status.replaceAll("_", " ")}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5 max-w-xs">
+            <Label className="text-[13px]">Preview facility type</Label>
+            <Select value={facilityTypePreview} onValueChange={(v) => setFacilityTypePreview(v as FacilityType)}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {facilityTypeOptions.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            {administratorRulePack.map((rule) => (
+              <div key={rule.id} className="rounded-lg border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-sm">{rule.label}</p>
+                    <p className="text-xs text-muted-foreground">{rule.citation} · {rule.binderDestination}</p>
+                  </div>
+                  <Badge variant="outline" className="capitalize">{rule.status.replace("_", " ")}</Badge>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">{rule.detail}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><GraduationCap className="h-5 w-5" /> Qualification Path</CardTitle>

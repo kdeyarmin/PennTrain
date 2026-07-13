@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { DOCUMENT_TEMPLATES, TEMPLATE_CATEGORIES, searchTemplates } from "@/lib/documentTemplates";
+import { DOCUMENT_TEMPLATES, TEMPLATE_CATEGORIES, getTemplateComplianceMetadata, searchTemplates } from "@/lib/documentTemplates";
 import { FileStack, Search, ChevronRight } from "lucide-react";
 
 export default function TemplateDocuments() {
@@ -19,8 +19,8 @@ export default function TemplateDocuments() {
         <h1 className="text-2xl font-bold tracking-tight">Template Documents</h1>
         <p className="text-muted-foreground">
           Printable survey-readiness form templates -- entrance packets, chart and medication audits, walkthrough
-          logs, and POC worksheets. Adapted from the PA Personal Care Home Survey Readiness Binder. Print, fill out,
-          and file behind the matching compliance tab.
+          logs, and POC worksheets. Each template is tagged with PCH/ALF applicability, citation families, review cadence,
+          and binder section so teams can file evidence behind the matching compliance tab.
         </p>
       </div>
 
@@ -76,7 +76,9 @@ export default function TemplateDocuments() {
 function TemplateList({ templates }: { templates: typeof DOCUMENT_TEMPLATES }) {
   return (
     <div className="space-y-2">
-      {templates.map((t) => (
+      {templates.map((t) => {
+        const metadata = getTemplateComplianceMetadata(t);
+        return (
         <Link key={t.code} href={`/app/template-documents/${t.code}`}>
           <div className="flex items-center justify-between gap-3 p-3 rounded-lg border hover:bg-accent/5 cursor-pointer">
             <div className="min-w-0">
@@ -85,11 +87,17 @@ function TemplateList({ templates }: { templates: typeof DOCUMENT_TEMPLATES }) {
                 <p className="font-medium text-sm truncate">{t.title}</p>
               </div>
               <p className="text-xs text-muted-foreground truncate mt-0.5">{t.description}</p>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {metadata.facilityTypes.map((facilityType) => <Badge key={facilityType} variant="secondary" className="text-[10px]">{facilityType === "ALR" ? "ALF" : facilityType}</Badge>)}
+                <Badge variant="outline" className="text-[10px]">{metadata.binderSection}</Badge>
+                <Badge variant="outline" className="text-[10px]">{metadata.reviewCadence}</Badge>
+              </div>
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
           </div>
         </Link>
-      ))}
+        );
+      })}
     </div>
   );
 }

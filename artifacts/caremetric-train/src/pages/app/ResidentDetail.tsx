@@ -35,6 +35,7 @@ import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { ResidentFaceSheet } from "@/components/residents/ResidentFaceSheet";
 import { buildResidentFaceSheetPacket } from "@/lib/residentFaceSheet";
+import { buildMoveInReadinessPacket } from "@/lib/moveInReadiness";
 
 type SupportRow = Partial<Pick<ResidentInformalSupport, "id">> & { name: string; relationship: string; phone: string };
 
@@ -237,6 +238,13 @@ export default function ResidentDetail() {
     complianceItems: items ?? [],
     documents: documents ?? [],
   });
+  const moveInPacket = buildMoveInReadinessPacket({
+    resident,
+    facilityType: facility?.facility_type,
+    complianceItems: items ?? [],
+    documents: documents ?? [],
+    supports: informalSupports ?? [],
+  });
 
   return (
     <div className="space-y-6 print:space-y-0">
@@ -288,6 +296,35 @@ export default function ResidentDetail() {
       {resident.status === "discharged" && resident.discharge_date && (
         <p className="text-sm text-muted-foreground">Discharged {formatDateOnly(resident.discharge_date)}</p>
       )}
+
+
+      <Card hidden={!isTrackedFacilityType}>
+        <CardHeader>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" /> Move-in readiness packet</CardTitle>
+            <Badge variant={moveInPacket.status === "inspection_ready" ? "secondary" : "destructive"}>
+              {moveInPacket.status === "inspection_ready" ? "Inspection-ready" : `${moveInPacket.blockers} blocker${moveInPacket.blockers === 1 ? "" : "s"}`}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">Admission/readmission evidence packet for state-form, signature, contact, medication-determination, and resident-rights proof.</p>
+          <div className="grid gap-2 md:grid-cols-2">
+            {moveInPacket.items.map((packetItem) => (
+              <div key={packetItem.id} className="rounded-md border p-2 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium">{packetItem.label}</p>
+                    <p className="text-xs text-muted-foreground">{packetItem.evidence}</p>
+                    <p className="text-xs text-muted-foreground">Due {packetItem.dueDate ? formatDateOnly(packetItem.dueDate) : "—"}</p>
+                  </div>
+                  <Badge variant={packetItem.status === "inspection_ready" ? "outline" : "destructive"}>{packetItem.status === "inspection_ready" ? "Ready" : "Gap"}</Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
