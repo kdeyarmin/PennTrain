@@ -45,3 +45,4 @@ with check (
 
 -- No delete policy: this is a permanent audit record, matching the codebase's existing
 -- audit-log convention (e.g. public.audit_logs).
+-- idempotency: IF NOT EXISTS guards added so preview-branch re-runs do not fail.
