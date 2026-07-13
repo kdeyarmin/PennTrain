@@ -9,6 +9,7 @@ import {
   buildFacilityRetrainingStatus,
   ORG_WIDE_VISIBILITY_ROLES,
 } from "@/lib/facilityRetrainingStatus";
+import { facilityTypeLabel } from "@/lib/facilityTypes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -188,8 +189,8 @@ export default function RetrainingMonitor() {
                         <CardTitle className="text-base">
                           {fac.facilityName}
                         </CardTitle>
-                        <p className="text-sm text-muted-foreground capitalize">
-                          {fac.facilityType?.replace(/_/g, " ")}
+                        <p className="text-sm text-muted-foreground">
+                          {facilityTypeLabel(fac.facilityType)}
                           {fac.isVisible && (
                             <>
                               {" "}&middot; {fac.totalMedAdminStaff} med admin staff

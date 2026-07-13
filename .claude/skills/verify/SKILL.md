@@ -11,8 +11,8 @@ serving the Vite build. Verify by running the exact Railway commands and probing
 ## Build (Railway's buildCommand)
 
 ```bash
-# The vite.config.ts guard fails production builds without these two vars (by design).
-export VITE_SUPABASE_URL=https://dummy-project.supabase.co VITE_SUPABASE_ANON_KEY=dummy-key
+# The vite.config.ts guard fails production builds without these vars (by design).
+export VITE_SUPABASE_URL=https://dummy-project.supabase.co VITE_SUPABASE_ANON_KEY=dummy-key VITE_TURNSTILE_SITE_KEY=1x00000000000000000000AA
 pnpm install --frozen-lockfile --prod=false \
   && pnpm --filter @workspace/caremetric-carebase run typecheck \
   && pnpm --filter @workspace/caremetric-carebase run build

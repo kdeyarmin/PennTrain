@@ -13,6 +13,11 @@ export const FACILITY_TYPES: { value: FacilityType; label: string }[] = [
   { value: "GH", label: "Group Home (GH)" },
 ];
 
+export function facilityTypeLabel(facilityType: string | null | undefined): string {
+  if (!facilityType) return "Unknown";
+  return FACILITY_TYPES.find(({ value }) => value === facilityType)?.label ?? facilityType;
+}
+
 // Facility types this app's PCH/ALR-specific regulatory modules (resident RASP/ASP tracking,
 // medication-admin practicums, the administrator-qualification course, fire-drill logging) have
 // working content for -- see the resident_compliance_rule_packs migration and ROADMAP.md. Nav

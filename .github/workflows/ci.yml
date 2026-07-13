@@ -14,6 +14,7 @@ jobs:
     env:
       VITE_SUPABASE_URL: https://example.supabase.co
       VITE_SUPABASE_ANON_KEY: test-anon-key
+      VITE_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -23,7 +24,7 @@ jobs:
 
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
-          deno-version: v2.x
+          deno-version: v2.5.6
 
       - name: Enable pnpm
         run: |
@@ -51,6 +52,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      VITE_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 

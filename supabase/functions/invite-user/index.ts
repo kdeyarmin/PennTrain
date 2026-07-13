@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { resolveAppRedirect } from "../_shared/appRedirect.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -18,23 +19,28 @@ const VALID_ROLES = ["platform_admin", "org_admin", "facility_manager", "trainer
 // Falls back to this default when redirect_to is missing/invalid -- lands the invited user on the
 // same reset-password flow the frontend normally requests.
 const DEFAULT_APP_ORIGIN = "https://cmcarebase.com";
-// Known app origins (see DEPLOYMENT.md's Supabase Auth redirect URL config) -- the caller-supplied
-// redirect_to is only honored if it matches one of these, so this endpoint can't be used to embed
-// an attacker-controlled domain in the invite email GoTrue sends.
-const ALLOWED_APP_ORIGINS = new Set([
+const DEFAULT_ALLOWED_APP_ORIGINS = new Set([
   "https://cmcarebase.com",
   "https://carebase-production.up.railway.app",
 ]);
 
+function allowedRedirectOrigins(): Set<string> {
+  const configured = (Deno.env.get("SIGNUP_REDIRECT_ORIGINS") ?? "")
+    .split(",")
+    .map((origin) => origin.trim().replace(/\/+$/, ""))
+    .filter(Boolean);
+  return new Set([...DEFAULT_ALLOWED_APP_ORIGINS, ...configured]);
+}
+
 function resolveRedirectTo(candidate: string | undefined): string {
-  if (candidate) {
-    try {
-      if (ALLOWED_APP_ORIGINS.has(new URL(candidate).origin)) return candidate;
-    } catch {
-      // fall through to default
-    }
-  }
-  return `${DEFAULT_APP_ORIGIN}/reset-password`;
+  const fallbackOrigin = (Deno.env.get("PUBLIC_APP_URL") ?? DEFAULT_APP_ORIGIN).replace(/\/+$/, "");
+  const allowLocalhostRedirects = Deno.env.get("ALLOW_LOCALHOST_SIGNUP_REDIRECTS") === "true";
+  return resolveAppRedirect(
+    candidate,
+    `${fallbackOrigin}/reset-password`,
+    allowedRedirectOrigins(),
+    allowLocalhostRedirects,
+  );
 }
 
 Deno.serve(async (req: Request) => {
@@ -81,9 +87,19 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  const { email, first_name, last_name, role, organization_id, redirect_to } = body;
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : undefined;
+  const first_name = typeof body.first_name === "string" ? body.first_name.trim() : undefined;
+  const last_name = typeof body.last_name === "string" ? body.last_name.trim() : undefined;
+  const role = typeof body.role === "string" ? body.role : undefined;
+const redirect_to = typeof body.redirect_to === "string" ? body.redirect_to.trim() : undefined;
   if (!email || !first_name || !last_name || !role) {
     return json({ error: "email, first_name, last_name, and role are required" }, 400);
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json({ error: "Enter a valid email address" }, 400);
+  }
+  if (first_name.length > 100 || last_name.length > 100) {
+    return json({ error: "first_name and last_name must be 100 characters or fewer" }, 400);
   }
   if (!VALID_ROLES.includes(role)) {
     return json({ error: `role must be one of ${VALID_ROLES.join(", ")}` }, 400);
@@ -119,10 +135,16 @@ Deno.serve(async (req: Request) => {
   const effectiveOrgId = callerRole === "platform_admin" ? (organization_id ?? null) : callerOrgId;
 
   const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+  let redirectTo: string;
+  try {
+    redirectTo = resolveRedirectTo(redirect_to);
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : "Invalid invite redirect URL" }, 400);
+  }
 
   const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
     data: { first_name, last_name },
-    redirectTo: resolveRedirectTo(redirect_to),
+    redirectTo,
   });
   if (inviteError) return json({ error: inviteError.message }, 400);
 
@@ -137,7 +159,21 @@ Deno.serve(async (req: Request) => {
     p_role: role,
     p_organization_id: effectiveOrgId,
   });
-  if (rpcError) return json({ error: rpcError.message }, 400);
+  if (rpcError) {
+    // The invite creates auth.users (and therefore a default employee profile) before this RPC
+    // applies the intended tenant and role. Compensate on failure so a retry cannot leave behind
+    // a usable, mis-provisioned account or fail because the email already exists.
+    const { error: cleanupError } = await adminClient.auth.admin.deleteUser(invited.user.id);
+    if (cleanupError) {
+      console.error("invite-user cleanup failed", {
+        user_id: invited.user.id,
+        rpc_error: rpcError.message,
+        cleanup_error: cleanupError.message,
+      });
+      return json({ error: "Invite provisioning failed and requires administrator review" }, 500);
+    }
+    return json({ error: "Invite provisioning failed; no account was created" }, 500);
+  }
 
   return json({
     success: true,

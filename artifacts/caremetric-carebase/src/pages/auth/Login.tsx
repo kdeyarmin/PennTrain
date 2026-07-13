@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation, Link } from "wouter";
+import { useLocation, useSearch, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [, setLocation] = useLocation();
+  const search = useSearch();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const postLoginPath = postLoginPathFromSearch(window.location.search);

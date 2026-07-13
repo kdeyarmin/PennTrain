@@ -4,7 +4,7 @@
 FROM denoland/deno:bin-2.5.6 AS deno-bin
 
 # Include the Supabase CLI so migrations/functions can be exercised from the same dev container.
-FROM supabase/cli:v2.53.4 AS supabase-cli
+FROM supabase/cli:v2.109.1 AS supabase-cli
 
 FROM node:24.15.0-bookworm
 

@@ -24,7 +24,7 @@ const MARKETING_PATHS: readonly string[] = MARKETING_NAV.map((item) => item.href
 // /login. Empty ("") when the app is served from the root.
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-function stripBase(path: string): string {
+export function stripBase(path: string): string {
   if (BASE && (path === BASE || path.startsWith(`${BASE}/`))) {
     return path.slice(BASE.length) || "/";
   }
@@ -47,6 +47,12 @@ export function isPublicPath(path: string): boolean {
     p === "/report-safety" ||
     p.startsWith("/evidence-access/") ||
     p.startsWith("/verify/") ||
+    p.startsWith("/evidence-access/") ||
     MARKETING_PATHS.includes(p)
   );
+}
+
+export function loginRedirectTarget(search: string): string {
+  const candidate = new URLSearchParams(search).get("redirect") ?? "/";
+  return /^\/(?!\/)(?!login(?:[?#]|$))[^\\]*$/.test(candidate) ? candidate : "/";
 }

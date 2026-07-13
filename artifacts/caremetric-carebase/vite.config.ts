@@ -20,7 +20,9 @@ export default defineConfig(({ command, mode }) => {
   // and local .env/.env.<mode> files in this directory.
   if (command === "build") {
     const env = loadEnv(mode, import.meta.dirname, "VITE_");
-    const missing = ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY"].filter((key) => !env[key]);
+    const missing = ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "VITE_TURNSTILE_SITE_KEY"].filter(
+      (key) => !env[key],
+    );
     if (missing.length > 0) {
       throw new Error(
         `Missing required build-time env var(s): ${missing.join(", ")}. ` +
@@ -54,7 +56,7 @@ export default defineConfig(({ command, mode }) => {
         manifest: {
           name: "CareMetric CareBase",
           short_name: "CareMetric",
-          description: "Compliance training and credential tracking for personal care homes and assisted living residences.",
+          description: "Compliance training and credential tracking for personal care homes and assisted living facilities.",
           theme_color: "#102a43",
           background_color: "#102a43",
           display: "standalone",

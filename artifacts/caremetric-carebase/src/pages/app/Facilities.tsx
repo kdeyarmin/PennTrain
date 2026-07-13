@@ -17,7 +17,7 @@ import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useToast } from "@/hooks/use-toast";
-import { FACILITY_TYPES, facilityTypeBadgeClass, type FacilityType } from "@/lib/facilityTypes";
+import { FACILITY_TYPES, facilityTypeBadgeClass, facilityTypeLabel, type FacilityType } from "@/lib/facilityTypes";
 
 interface FacilityFormData {
   name: string;
@@ -227,7 +227,7 @@ export default function Facilities() {
 
                 <div className="flex items-center gap-2 mb-3">
                   <Badge variant="outline" className={`text-[10px] font-medium ${facilityTypeBadgeClass(facility.facility_type)}`}>
-                    {facility.facility_type}
+                    {facilityTypeLabel(facility.facility_type)}
                   </Badge>
                   <Badge variant="outline" className={`text-[10px] font-medium ${
                     facility.is_active

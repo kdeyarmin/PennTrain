@@ -439,7 +439,7 @@ export default function ResidentDetail() {
                       would otherwise fail with an RLS error on Save after the resident update already went
                       through. */}
                   {(canDelete || !row.id) && (
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSupportRows(supportRows.filter((_, j) => j !== i))}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSupportRows(supportRows.filter((_, j) => j !== i))} aria-label="Remove support">
                       <Trash2 className="h-3.5 w-3.5 text-destructive" />
                     </Button>
                   )}
@@ -599,11 +599,11 @@ export default function ResidentDetail() {
                     )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownload(doc)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownload(doc)} aria-label="Download document">
                       <Download className="h-3.5 w-3.5" />
                     </Button>
                     {canDelete && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDocPendingDelete(doc)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDocPendingDelete(doc)} aria-label="Delete document">
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}

@@ -5,7 +5,7 @@ import { useListAllResidentComplianceItems } from "@/hooks/useResidentCompliance
 import { useListResidents } from "@/hooks/useResidents";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { summarizeResidentComplianceAnalytics } from "@/lib/residentComplianceAnalytics";
-import { hasAnyFacilityType, PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
+import { facilityTypeLabel, hasAnyFacilityType, PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -718,7 +718,7 @@ export default function OrgDashboard() {
                     <div className="min-w-0">
                       <p className="text-[13px] font-semibold truncate">{facility.name}</p>
                       <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {facility.facilityType} {facility.licenseNumber ? `· ${facility.licenseNumber}` : ""}
+                        {facilityTypeLabel(facility.facilityType)} {facility.licenseNumber ? `· ${facility.licenseNumber}` : ""}
                       </p>
                     </div>
                   </div>

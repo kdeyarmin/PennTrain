@@ -255,6 +255,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isLoading, session, isError, setLocation]);
 
+  // A valid Auth session without a readable profile cannot be authorized by the app. End the
+  // session explicitly instead of leaving the visitor in a half-signed-in landing/login loop.
+  useEffect(() => {
+    if (!session || !isError) return;
+    (async () => {
+      await supabase.auth.signOut();
+      queryClient.clear();
+      toast({
+        variant: "destructive",
+        title: "Account unavailable",
+        description: "Sign in again or contact your administrator.",
+      });
+      setLocation("/login");
+    })();
+  }, [session, isError, queryClient, toast, setLocation]);
+
   // A deactivated profile still has a valid Supabase session -- isAuthenticated above already
   // treats that as signed out, but the session itself needs to be torn down too, or the very
   // next getSession()/onAuthStateChange tick would let RLS-scoped reads resume as soon as an

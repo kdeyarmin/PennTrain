@@ -233,17 +233,18 @@ export default function ViolationDetail() {
                             <Button
                               variant="ghost" size="icon" className="h-7 w-7"
                               onClick={() => setEditingActionId(ca.id)}
+                              aria-label="Edit corrective action"
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                           )}
                           {canEdit && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: toLocalIsoDate() })}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: toLocalIsoDate() })} aria-label="Complete corrective action">
                               <Check className="h-3.5 w-3.5" />
                             </Button>
                           )}
                           {canDelete && !ca.course_assignment_id && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setActionPendingDelete(ca)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setActionPendingDelete(ca)} aria-label="Delete corrective action">
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           )}
@@ -251,6 +252,7 @@ export default function ViolationDetail() {
                             <Button
                               variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/40 cursor-not-allowed" disabled
                               title="Retraining-backed tasks can't be deleted -- the training assignment would remain active with no linked corrective action. Mark it completed or cancelled instead."
+                              aria-label="Cannot delete retraining corrective action"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -356,11 +358,11 @@ export default function ViolationDetail() {
                     {doc.document_type === "poc" && <Badge variant="outline" className="text-[10px]">POC</Badge>}
                   </span>
                   <div className="flex items-center gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownload(doc)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownload(doc)} aria-label="Download document">
                       <Download className="h-3.5 w-3.5" />
                     </Button>
                     {canDelete && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDocPendingDelete(doc)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDocPendingDelete(doc)} aria-label="Delete document">
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
