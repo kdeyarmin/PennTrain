@@ -65,6 +65,7 @@ import {
   FolderLock,
   ScanText,
   FileSearch,
+  MessageSquareWarning,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -210,7 +211,8 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
       {
         title: "Incidents & Alerts",
         items: [
-          { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
+          { href: "/app/incidents", label: "Incidents", icon: AlertTriangle },
+          { href: "/app/complaints", label: "Complaints & Grievances", icon: MessageSquareWarning },
           { href: "/app/confidential-incidents", label: "Confidential Reports", icon: ShieldAlert },
           { href: "/app/work", label: "Operational Work", icon: ClipboardList },
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
@@ -305,7 +307,8 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
       {
         title: "Incidents & Alerts",
         items: [
-          { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
+          { href: "/app/incidents", label: "Incidents", icon: AlertTriangle },
+          { href: "/app/complaints", label: "Complaints & Grievances", icon: MessageSquareWarning },
           { href: "/app/confidential-incidents", label: "Confidential Reports", icon: ShieldAlert },
           { href: "/app/work", label: "Operational Work", icon: ClipboardList },
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
