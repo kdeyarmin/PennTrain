@@ -356,6 +356,13 @@ Deno.serve(async (req: Request) => {
   }
   clearTimeout(timeoutId);
 
+  if (result.model !== requestedModel) {
+    await privilegedClient
+      .from("resident_assessment_ai_generations")
+      .update({ model: result.model })
+      .eq("id", generationId);
+  }
+
   if (!result.ok) {
     const message = anthropicErrorMessage(result);
     await markFailed(message);
