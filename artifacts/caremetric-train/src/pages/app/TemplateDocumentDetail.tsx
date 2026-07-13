@@ -2,7 +2,7 @@ import { useParams, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { getTemplateByCode } from "@/lib/documentTemplates";
+import { getTemplateByCode, getTemplateComplianceMetadata } from "@/lib/documentTemplates";
 import { TemplateFormRenderer } from "@/components/documents/TemplateFormRenderer";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 import { ArrowLeft, Printer } from "lucide-react";
@@ -22,6 +22,8 @@ export default function TemplateDocumentDetail() {
     );
   }
 
+  const metadata = getTemplateComplianceMetadata(template);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 no-print">
@@ -35,6 +37,10 @@ export default function TemplateDocumentDetail() {
               <h1 className="text-xl font-bold truncate">{template.title}</h1>
             </div>
             <p className="text-sm text-muted-foreground">{template.category}</p>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {metadata.facilityTypes.map((facilityType) => <Badge key={facilityType} variant="secondary">{facilityType}</Badge>)}
+              {metadata.citations.map((citation) => <Badge key={citation} variant="outline">{citation}</Badge>)}
+            </div>
           </div>
         </div>
         <Button size="sm" onClick={() => window.print()}>
@@ -60,9 +66,14 @@ export default function TemplateDocumentDetail() {
             </div>
           </div>
 
-          <div className="mb-4">
+          <div className="mb-4 space-y-2">
             <h2 className="text-lg font-semibold">{template.title}</h2>
             <p className="text-sm text-muted-foreground">{template.description}</p>
+            <div className="rounded-md border bg-muted/20 p-3 text-xs text-muted-foreground">
+              <p><span className="font-medium text-foreground">Binder section:</span> {metadata.binderSection}</p>
+              <p><span className="font-medium text-foreground">Review cadence:</span> {metadata.reviewCadence}</p>
+              <p><span className="font-medium text-foreground">Citation tags:</span> {metadata.citations.join(" · ")}</p>
+            </div>
           </div>
 
           <TemplateFormRenderer template={template} />

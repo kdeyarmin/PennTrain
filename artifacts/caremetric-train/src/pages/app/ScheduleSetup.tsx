@@ -25,9 +25,10 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Plus, Trash2, Grid3x3, Clock, Star } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Grid3x3, Clock, Star, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatTimeLabel, WEEKDAY_LABELS } from "@/lib/scheduleDates";
+import { isSpecialCareUnit } from "@/lib/specialCareCompliance";
 
 export default function ScheduleSetup() {
   const [, navigate] = useLocation();
@@ -118,6 +119,17 @@ function UnitsPanel({ facilityId, organizationId }: { facilityId: string; organi
         <CardTitle className="flex items-center gap-2 text-base"><Grid3x3 className="h-4 w-4" /> Units &amp; Wings</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+          <div className="flex items-start gap-2">
+            <ShieldCheck className="mt-0.5 h-4 w-4 text-primary" />
+            <div>
+              <p className="font-medium">Special-care designation workflow</p>
+              <p className="text-xs text-muted-foreground">
+                Include “Memory,” “Dementia,” “Special Care,” “SDCU,” or “Secured” in a unit name to mark it for dementia/special-care training, staffing coverage, disclosure, and inspection-readiness checks.
+              </p>
+            </div>
+          </div>
+        </div>
         <div className="flex gap-2">
           <Input
             placeholder="e.g. Memory Care Wing, Wing A"
@@ -140,6 +152,7 @@ function UnitsPanel({ facilityId, organizationId }: { facilityId: string; organi
               <div key={u.id} className="flex items-center justify-between rounded-md border px-3 py-2">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{u.name}</span>
+                  {isSpecialCareUnit(u) && <Badge variant="outline">Special care</Badge>}
                   {!u.is_active && <Badge variant="secondary">Inactive</Badge>}
                 </div>
                 <div className="flex items-center gap-2">

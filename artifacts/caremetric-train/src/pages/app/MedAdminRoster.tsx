@@ -4,11 +4,15 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
 import { useListPracticums } from "@/hooks/usePracticums";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
+import { useListIncidents } from "@/hooks/useIncidents";
+import { useListCorrectiveActions } from "@/hooks/useCorrectiveActions";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
-import { Pill, CheckCircle2, XCircle, Droplet } from "lucide-react";
+import { buildMedicationSafetySummary } from "@/lib/medicationSafetyAnalytics";
+import { toLocalIsoDate } from "@/lib/dateUtils";
+import { Pill, CheckCircle2, XCircle, Droplet, AlertTriangle, ClipboardCheck } from "lucide-react";
 
 // "Authorized today" reads compliant OR due_soon as still-currently-valid -- due_soon means
 // "expiring within the warning window", not "already expired". Only missing/expired disqualify.
@@ -37,6 +41,9 @@ export default function MedAdminRoster() {
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
   const { data: trainingRecords } = useListTrainingRecords({});
   const { data: practicums } = useListPracticums({ year: currentYear });
+  const incidentFacilityId = facilityId !== "all" ? facilityId : undefined;
+  const { data: incidents } = useListIncidents({ facilityId: incidentFacilityId });
+  const { data: correctiveActions } = useListCorrectiveActions({ facilityId: incidentFacilityId });
 
   const facilityNameById = useMemo(() => new Map((facilities ?? []).map(f => [f.id, f.name])), [facilities]);
 
@@ -79,6 +86,7 @@ export default function MedAdminRoster() {
   }, [medAdminEmployees, trainingRecords, practicums, medRenewTypeId, medInitTypeId, diabetesEduTypeId]);
 
   const authorizedCount = rows.filter(r => r.authorizedToday).length;
+  const medicationSafety = useMemo(() => buildMedicationSafetySummary({ incidents: incidents ?? [], correctiveActions: correctiveActions ?? [], today: toLocalIsoDate() }), [incidents, correctiveActions]);
 
   return (
     <div className="space-y-6">
@@ -102,6 +110,47 @@ export default function MedAdminRoster() {
           </SelectContent>
         </Select>
       </div>
+
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm text-muted-foreground"><AlertTriangle className="h-4 w-4" />Medication events</CardTitle></CardHeader>
+          <CardContent><p className="text-3xl font-bold">{medicationSafety.totalEvents}</p><p className="text-xs text-muted-foreground">Filtered incident log</p></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm text-muted-foreground"><ClipboardCheck className="h-4 w-4" />Open follow-up</CardTitle></CardHeader>
+          <CardContent><p className="text-3xl font-bold">{medicationSafety.unresolvedFollowUps}</p><p className="text-xs text-muted-foreground">No final report yet</p></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm text-muted-foreground"><AlertTriangle className="h-4 w-4" />Overdue actions</CardTitle></CardHeader>
+          <CardContent><p className="text-3xl font-bold text-destructive">{medicationSafety.overdueFollowUps}</p><p className="text-xs text-muted-foreground">Corrective actions past due</p></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm text-muted-foreground"><Pill className="h-4 w-4" />Retraining signals</CardTitle></CardHeader>
+          <CardContent><p className="text-3xl font-bold">{medicationSafety.retrainingRecommendations}</p><p className="text-xs text-muted-foreground">Review competency/course assignment</p></CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Medication safety pattern review</CardTitle>
+          <CardDescription>Structured event analytics from incidents and corrective actions. Repeated wrong-dose, wrong-medication, wrong-resident, and documentation events flag retraining review.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {medicationSafety.totalEvents === 0 ? (
+            <p className="text-sm text-muted-foreground">No medication safety incidents found for this facility filter.</p>
+          ) : (
+            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-5">
+              {Object.entries(medicationSafety.byType).filter(([, count]) => count > 0).map(([type, count]) => (
+                <div key={type} className="rounded-md border p-2 text-sm">
+                  <p className="font-medium">{type.replaceAll("_", " ")}</p>
+                  <p className="text-2xl font-bold">{count}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
