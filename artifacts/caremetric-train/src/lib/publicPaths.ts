@@ -52,13 +52,6 @@ export function isPublicPath(path: string): boolean {
 }
 
 export function loginRedirectTarget(search: string): string {
-  const candidate = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search).get("redirect");
-  if (
-    !candidate ||
-    !candidate.startsWith("/") ||
-    candidate.startsWith("//") ||
-    candidate.includes("\\") ||
-    candidate.split(/[?#]/, 1)[0] === "/login"
-  ) return "/";
-  return candidate;
+  const candidate = new URLSearchParams(search).get("redirect") ?? "/";
+  return /^\/(?!\/)(?!login(?:[?#]|$))[^\\]*$/.test(candidate) ? candidate : "/";
 }

@@ -84,13 +84,13 @@ export default function SafetyReport() {
       });
       if (error) throw error;
       setResult((data?.data ?? null) as SubmissionResult | null);
-    } catch (error) {
+    } catch {
       setToken("");
       if (widget.current && window.turnstile) window.turnstile.reset(widget.current);
       toast({
         variant: "destructive",
         title: "Report could not be submitted",
-        description: error instanceof Error ? error.message : "Please try again.",
+        description: "Please try again or contact support.",
       });
     } finally {
       setPending(false);
