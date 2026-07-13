@@ -732,8 +732,11 @@ begin
   if v_attempt.status<>'failed' and coalesce(v_delivery.final_outcome,'')<>'failed' then
     raise exception 'Only failed email delivery can be retried' using errcode='22023';
   end if;
-  select coalesce(max(a.attempt_number),0)+1 into v_attempt_number from public.report_delivery_attempts a
-  where a.id=v_attempt.id or a.retry_of_attempt_id=v_attempt.id;
+  select coalesce(max(a.attempt_number),0)+1 into v_attempt_number
+  from public.report_delivery_attempts a
+  where a.run_id = v_attempt.run_id
+    and a.recipient_profile_id = v_attempt.recipient_profile_id
+    and a.delivery_method = 'email_link';
   if v_attempt_number>5 then raise exception 'Delivery retry budget is exhausted' using errcode='22023'; end if;
   insert into public.notification_deliveries(organization_id,profile_id,notification_id,channel,delivery_type,recipient)
   select v_attempt.organization_id,p.id,v_attempt.notification_id,'email','digest',p.email
