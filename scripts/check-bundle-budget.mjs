@@ -31,10 +31,11 @@ const budgets = {
   // emergency operations, complaints/grievances, and qualification-aware scheduling).
   // The new pages remain lazy routes and do not increase the initial-shell budget.
   // raised 2710 -> 2760 after the emergency-operations and environmental-work-orders
-  // branches were both merged into main; measured combined bundle is 2755.7 KiB;
-  // accommodates the resident administrative master workspace (identity, contacts, legal,
-  // payer, directives, rights, contracts, history) merged from main.
-  totalJavaScript: 2760 * 1024,
+  // branches were both merged into main; measured combined bundle is 2755.7 KiB.
+  // raised 2760 -> 2790 after the resident administrative master workspace (identity,
+  // contacts, legal, payer, directives, rights, contracts, history) merged in and the
+  // measured combined bundle reached 2787.2 KiB while the per-load budgets stayed flat.
+  totalJavaScript: 2790 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };
