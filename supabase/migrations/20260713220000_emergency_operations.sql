@@ -932,7 +932,8 @@ begin
     lessons_learned = excluded.lessons_learned,
     corrective_action_plan = excluded.corrective_action_plan,
     reviewed_by = auth.uid(), reviewed_at = now(),
-    approved_by = excluded.approved_by, approved_at = excluded.approved_at,
+    approved_by = coalesce(emergency_after_action_reviews.approved_by, excluded.approved_by),
+    approved_at = coalesce(emergency_after_action_reviews.approved_at, excluded.approved_at),
     updated_at = now()
   returning id into v_id;
   return v_id;
@@ -1007,6 +1008,9 @@ begin
   select * into v_event from public.emergency_events where id = p_emergency_event_id for update;
   if not found then raise exception 'Emergency event not found' using errcode = 'P0002'; end if;
   perform app_private.assert_admission_manager(v_event.organization_id, v_event.facility_id);
+  if v_event.status in ('closed', 'canceled') then
+    raise exception 'Cannot transition a finalized emergency event' using errcode = '55000';
+  end if;
   if p_target_status not in ('active', 'stabilized', 'closed', 'canceled')
      or length(btrim(coalesce(p_reason, ''))) < 5 then
     raise exception 'Invalid emergency event transition' using errcode = '22023';

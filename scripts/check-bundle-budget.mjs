@@ -24,9 +24,10 @@ const budgets = {
   // meeting notes, RCA, and print-optimized workspace); raised 2600 -> 2660 for the
   // complaint/grievance case workflow (intake, investigation, corrective actions,
   // nonretaliation monitoring, incident escalation, and closure approval) and the complete
-  // emergency-operations domain (readiness, accountability, communications, and after-action).
+  // emergency-operations domain (readiness, accountability, communications, and after-action);
+  // raised 2660 -> 2700 after merging both features together, measured at 2683.9 KiB.
   // The new pages remain lazy routes and do not increase the initial-shell budget.
-  totalJavaScript: 2660 * 1024,
+  totalJavaScript: 2700 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };
