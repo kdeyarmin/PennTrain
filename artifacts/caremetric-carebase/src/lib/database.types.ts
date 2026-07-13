@@ -18114,6 +18114,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      search_workspace: { Args: { p_query: string }; Returns: Json }
       self_enroll_course: { Args: { p_course_id: string }; Returns: string }
       send_monday_digest: { Args: never; Returns: undefined }
       send_policy_attestation_reminders: { Args: never; Returns: undefined }
@@ -18446,10 +18447,6 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
-      }
-      search_workspace: {
-        Args: { p_query: string }
-        Returns: Json
       }
       sync_offline_learning_action: {
         Args: {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
 
-const manifestPath = process.argv[2];
+const manifestPath = process.argv.slice(2).find((argument) => argument !== "--");
 if (!manifestPath) {
   console.error("Usage: pnpm run check:pilot -- <pilot-evidence.json>");
   process.exit(2);

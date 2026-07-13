@@ -1,12 +1,14 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { installGlobalErrorReporting } from "@/lib/clientErrorReporting";
-import { installDeploymentRecovery } from "@/lib/deploymentRecovery";
 import "./index.css";
 
-installGlobalErrorReporting();
-installDeploymentRecovery();
+void import("@/lib/clientErrorReporting").then(({ installGlobalErrorReporting }) => {
+  installGlobalErrorReporting();
+});
+void import("@/lib/deploymentRecovery").then(({ installDeploymentRecovery }) => {
+  installDeploymentRecovery();
+});
 
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>
