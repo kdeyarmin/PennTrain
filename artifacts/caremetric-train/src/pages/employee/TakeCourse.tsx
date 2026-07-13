@@ -127,7 +127,7 @@ export default function TakeCourse() {
   // role can actually land on.
   const isEmployeeRole = user?.role === "employee";
   const backHref = isEmployeeRole ? "/me/trainings" : "/me/courses";
-  const backLabel = isEmployeeRole ? "Back to My Trainings" : "Back to My Training";
+  const backLabel = isEmployeeRole ? "Back to My Training Records" : "Back to My Training";
 
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
   const { data: assignment, isLoading: assignmentLoading } = useGetCourseAssignment(assignmentId);

@@ -434,7 +434,7 @@ export default function QuizBuilder() {
       <div className="text-center py-12">
         <p className="text-muted-foreground">Quiz not found.</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href={coursesListPath(user?.role)}>Back to Training Contents</Link>
+          <Link href={coursesListPath(user?.role)}>Back to Training Content</Link>
         </Button>
       </div>
     );

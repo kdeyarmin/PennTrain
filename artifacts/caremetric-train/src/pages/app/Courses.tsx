@@ -150,7 +150,7 @@ export default function Courses() {
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Training Content</h1>
-          <p>Browse the system catalog and your organization's assigned training content.</p>
+          <p>Browse the system catalog and your organization's training content.</p>
         </div>
         <div className="flex items-center gap-3">
           {user?.role === "platform_admin" && (

@@ -33,8 +33,8 @@ interface DeadlineItem {
 }
 
 const DEADLINE_KIND_META: Record<DeadlineItem["kind"], { label: string; icon: LucideIcon }> = {
-  course: { label: "Training", icon: BookOpen },
-  training: { label: "Training", icon: GraduationCap },
+  course: { label: "Training assignment", icon: BookOpen },
+  training: { label: "Training record", icon: GraduationCap },
   practicum: { label: "Practicum", icon: ClipboardCheck },
   attestation: { label: "Attestation", icon: FileCheck2 },
 };

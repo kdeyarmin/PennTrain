@@ -152,7 +152,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Staff Training & Requirements",
         items: [
           { href: "/app/training-matrix", label: "Training Matrix", icon: Grid },
-          { href: "/app/courses", label: "Courses", icon: GraduationCap },
+          { href: "/app/courses", label: "Training Content", icon: GraduationCap },
           { href: "/app/course-assignments", label: "Training Assignments", icon: FileCheck },
           { href: "/trainer/classes", label: "In-Service Classes", icon: GraduationCap },
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
@@ -313,7 +313,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Training",
         items: [
           { href: "/trainer/classes", label: "My Classes", icon: GraduationCap },
-          { href: "/app/courses", label: "Courses", icon: GraduationCap },
+          { href: "/app/courses", label: "Training Content", icon: GraduationCap },
           { href: "/app/course-assignments", label: "Training Assignments", icon: FileCheck },
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
           { href: "/trainer/retraining", label: "Retraining Monitor", icon: ShieldAlert },
