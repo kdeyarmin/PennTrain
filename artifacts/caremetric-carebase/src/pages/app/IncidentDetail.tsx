@@ -54,8 +54,8 @@ export default function IncidentDetail() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Platform admins reach incident details from Alerts; there is no /admin/incidents list route.
-  // Return them to that valid origin instead of sending them to the global 404.
+  // Platform-admin incident details are reachable via multiple entry points (e.g. Alerts, Audit Log).
+  // There is no /admin/incidents list route, so send "Back" to a known valid page (currently Alerts).
   const backDestination = user?.role === "platform_admin"
     ? { href: "/admin/alerts", label: "Alerts" }
     : { href: "/app/incidents", label: "Incidents" };
