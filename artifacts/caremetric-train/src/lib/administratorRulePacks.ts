@@ -105,7 +105,7 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
   if (isAlr) {
     requirements.push({
       id: "alr-orientation-and-dementia",
-      label: "ALR orientation and dementia-specific training evidence",
+      label: "ALF orientation and dementia-specific training evidence",
       citation: "55 Pa. Code 2800.64; Chapter 2800 dementia-care training references",
       facilityTypes: ["ALR"],
       binderDestination: "Administrator Qualifications / Orientation and Dementia Training",
