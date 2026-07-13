@@ -139,7 +139,7 @@ export default function RegulatoryCrosswalk() {
           </Select>
           <Select value={facilityType} onValueChange={(value) => setFacilityType(value as FacilityProgram | "all")}>
             <SelectTrigger><SelectValue placeholder="Facility type" /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All facility types</SelectItem><SelectItem value="PCH">PCH</SelectItem><SelectItem value="ALR">ALR</SelectItem></SelectContent>
+            <SelectContent><SelectItem value="all">All facility types</SelectItem><SelectItem value="PCH">PCH</SelectItem><SelectItem value="ALR">ALF</SelectItem></SelectContent>
           </Select>
           <Select value={status} onValueChange={(value) => setStatus(value as CrosswalkStatus | "all")}>
             <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
