@@ -179,6 +179,11 @@ export default function ConfidentialIncidentDetail() {
           <AlertDescription>
             The reporter indicated someone may be in immediate danger. Urgent triage work was
             routed automatically when this report was submitted.
+            {intake.triage_work_item_id && (
+              <Button asChild variant="outline" size="sm" className="ml-3">
+                <Link href={`/app/work/${intake.triage_work_item_id}`}>Open triage work</Link>
+              </Button>
+            )}
           </AlertDescription>
         </Alert>
       )}

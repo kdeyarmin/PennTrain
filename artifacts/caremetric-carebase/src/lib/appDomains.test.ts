@@ -20,6 +20,7 @@ describe("role-based page visibility", () => {
       "/me/schedule",
       "/me/courses",
       "/me/trainings",
+      "/me/work",
       "/me/certificates",
       "/me/documents",
       "/me/credentials",
@@ -112,6 +113,17 @@ describe("role-based page visibility", () => {
     expect(canViewPage("/app/closed-loop-compliance", "auditor")).toBe(true);
     expect(canViewPage("/app/closed-loop-compliance", "trainer")).toBe(false);
     expect(canViewPage("/app/closed-loop-compliance", "employee")).toBe(false);
+  });
+
+  it("exposes scoped operational work and employee self-service work", () => {
+    expect(canViewPage("/app/work", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/work", "org_admin")).toBe(true);
+    expect(canViewPage("/app/work", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/work", "auditor")).toBe(true);
+    expect(canViewPage("/app/work", "employee")).toBe(false);
+    expect(canViewPage("/me/work", "employee")).toBe(true);
+    expect(canViewPath("/me/work/work-1", "employee")).toBe(true);
+    expect(canViewPath("/app/work/work-1", "auditor")).toBe(true);
   });
 
   it("makes account MFA settings available to every authenticated role", () => {

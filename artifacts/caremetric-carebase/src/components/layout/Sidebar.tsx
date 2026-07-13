@@ -114,6 +114,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Oversight",
         items: [
           { href: "/admin/alerts", label: "Alerts", icon: Bell },
+          { href: "/app/work", label: "Operational Work", icon: ClipboardList },
           { href: "/admin/audit", label: "Audit Log", icon: ShieldAlert },
           { href: "/admin/notifications", label: "Notification Delivery", icon: Send },
           { href: "/admin/system-jobs", label: "System Jobs", icon: Activity },
@@ -193,6 +194,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
           { href: "/app/confidential-incidents", label: "Confidential Reports", icon: ShieldAlert },
+          { href: "/app/work", label: "Operational Work", icon: ClipboardList },
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
           { href: "/app/pending-approvals", label: "Pending Approvals", icon: ClipboardCheck },
@@ -283,6 +285,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
           { href: "/app/confidential-incidents", label: "Confidential Reports", icon: ShieldAlert },
+          { href: "/app/work", label: "Operational Work", icon: ClipboardList },
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
         ]
@@ -374,6 +377,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Schedule & Courses",
         items: [
           { href: "/me/schedule", label: "My Schedule", icon: CalendarDays },
+          { href: "/me/work", label: "My Work", icon: ClipboardList },
           { href: "/me/courses", label: "My Training", icon: BookOpen },
         ]
       },

@@ -42,6 +42,7 @@ const CREDENTIAL_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
 const INSPECTION_ROLES: Role[] = ["org_admin", "facility_manager", "trainer", "auditor"];
 const AUDIT_LOG_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
 const PENDING_APPROVAL_ROLES: Role[] = ["org_admin", "facility_manager", "trainer"];
+const WORK_QUEUE_ROLES: Role[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 const TRAINER_ONLY: Role[] = ["trainer"];
 const EMPLOYEE_ONLY: Role[] = ["employee"];
 const ANY_ROLE: Role[] = ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"];
@@ -225,6 +226,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/inspections", label: "Inspections & equipment", domain: "compliance", roles: INSPECTION_ROLES, keywords: ["fire drill", "equipment", "physical plant"] },
   { path: "/app/incidents", label: "Incidents & complaints", domain: "compliance", roles: REPORTING_ROLES, keywords: ["complaints", "events"] },
   { path: "/app/confidential-incidents", label: "Confidential reports", domain: "compliance", roles: REPORTING_ROLES, keywords: ["safety report", "anonymous", "near miss", "intake", "whistleblower"] },
+  { path: "/app/work", label: "Operational work queue", domain: "compliance", roles: WORK_QUEUE_ROLES, keywords: ["my work", "remediation", "tasks", "owners", "overdue", "approval", "dependencies"] },
   { path: "/app/violations", label: "Violations & POCs", domain: "compliance", roles: REPORTING_ROLES, keywords: ["dhs", "plan of correction"] },
   { path: "/app/alerts", label: "Alerts", domain: "compliance", roles: ORG_ROLES, keywords: ["risk", "overdue"] },
   { path: "/app/pending-approvals", label: "Pending approvals", domain: "compliance", roles: PENDING_APPROVAL_ROLES, keywords: ["review", "approval", "external certificates"] },
@@ -253,6 +255,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/me", label: "My dashboard", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["home", "tasks"] },
   { path: "/me/courses", label: "My training assignments", domain: "self_service", roles: ANY_ROLE, keywords: ["training", "assignments"] },
   { path: "/me/trainings", label: "My training records", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["records", "requirements"] },
+  { path: "/me/work", label: "My work", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["tasks", "remediation", "assigned", "due"] },
   { path: "/me/schedule", label: "My schedule", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["shifts", "calendar"] },
   { path: "/me/certificates", label: "My certificates", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["proof", "download"] },
   { path: "/me/documents", label: "My documents", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["files", "uploads"] },
@@ -292,6 +295,7 @@ const NESTED_PAGE_OWNER_PATHS = new Set([
   "/app/template-documents",
   "/app/incidents",
   "/app/confidential-incidents",
+  "/app/work",
   "/app/evidence",
   "/app/violations",
   "/app/residents",
@@ -302,6 +306,7 @@ const NESTED_PAGE_OWNER_PATHS = new Set([
   "/trainer/facilities",
   "/trainer/employees",
   "/me/courses",
+  "/me/work",
   "/me/help",
 ]);
 

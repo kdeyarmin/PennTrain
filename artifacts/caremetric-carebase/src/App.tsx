@@ -67,6 +67,8 @@ const AdministratorQualification = lazy(() => import("@/pages/app/AdministratorQ
 const Incidents = lazy(() => import("@/pages/app/Incidents"));
 const ConfidentialIncidents = lazy(() => import("@/pages/app/ConfidentialIncidents"));
 const ConfidentialIncidentDetail = lazy(() => import("@/pages/app/ConfidentialIncidentDetail"));
+const WorkQueue = lazy(() => import("@/pages/app/WorkQueue"));
+const WorkItemDetail = lazy(() => import("@/pages/app/WorkItemDetail"));
 const EvidenceRoom = lazy(() => import("@/pages/app/EvidenceRoom"));
 const EvidenceCollectionDetail = lazy(() => import("@/pages/app/EvidenceCollectionDetail"));
 const EvidenceGuestRoom = lazy(() => import("@/pages/public/EvidenceGuestRoom"));
@@ -245,6 +247,9 @@ const PENDING_APPROVAL_ROLES: UserRole[] = ["org_admin", "facility_manager", "tr
 // Matches schedules_write / facility_units_write / shift_definitions_write / employee_schedule_preferences_write
 // RLS -- shift scheduling is org_admin/facility_manager only (no trainer, no auditor write).
 const SCHEDULE_MANAGE_ROLES: UserRole[] = ["org_admin", "facility_manager"];
+// work_items_select permits managers/auditors their scoped queue and any authenticated owner
+// their own assigned rows. Mutations remain independently guarded by the work-item RPCs.
+const WORK_QUEUE_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 
 function SupportTicketRoute({ prefix }: { prefix: "/app" | "/me" }) {
   const { user, isLoading, isAuthenticated } = useAuth();
@@ -514,6 +519,12 @@ function Router() {
       <Route path="/app/confidential-incidents/:id">
         {() => <ProtectedRoute component={ConfidentialIncidentDetail} allowedRoles={CONFIDENTIAL_INTAKE_ROLES} />}
       </Route>
+      <Route path="/app/work">
+        {() => <ProtectedRoute component={WorkQueue} allowedRoles={WORK_QUEUE_ROLES} />}
+      </Route>
+      <Route path="/app/work/:id">
+        {() => <ProtectedRoute component={WorkItemDetail} allowedRoles={WORK_QUEUE_ROLES} />}
+      </Route>
       <Route path="/app/evidence">
         {() => <ProtectedRoute component={EvidenceRoom} allowedRoles={EVIDENCE_ROOM_ROLES} />}
       </Route>
@@ -635,6 +646,12 @@ function Router() {
       </Route>
       <Route path="/me/trainings">
         {() => <ProtectedRoute component={MyTrainings} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/work">
+        {() => <ProtectedRoute component={WorkQueue} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/work/:id">
+        {() => <ProtectedRoute component={WorkItemDetail} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/schedule">
         {() => <ProtectedRoute component={MySchedule} allowedRoles={["employee"]} />}
