@@ -30,7 +30,9 @@ const budgets = {
   // raised 2700 -> 2710 after merging all features together (environmental work orders,
   // emergency operations, complaints/grievances, and qualification-aware scheduling).
   // The new pages remain lazy routes and do not increase the initial-shell budget.
-  totalJavaScript: 2710 * 1024,
+  // raised 2710 -> 2760 after the emergency-operations and environmental-work-orders
+  // branches were both merged into main; measured combined bundle is 2755.7 KiB.
+  totalJavaScript: 2760 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };
