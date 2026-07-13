@@ -145,7 +145,14 @@ export function ResidentAdministrativeMaster({
   };
 
   const updateContact = (index: number, patch: Partial<ContactDraft>) => {
-    setContacts((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row));
+    setContacts((rows) => {
+      const nextRows = rows.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row));
+      const updated = nextRows[index];
+      if (!updated?.is_primary) return nextRows;
+      return nextRows.map((row, rowIndex) =>
+        rowIndex !== index && row.contact_type === updated.contact_type ? { ...row, is_primary: false } : row,
+      );
+    });
   };
 
   const handleSaveMaster = async () => {
