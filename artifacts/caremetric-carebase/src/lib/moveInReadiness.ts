@@ -8,6 +8,8 @@ export interface MoveInResidentLike {
   primary_physician_name?: string | null;
   primary_physician_phone?: string | null;
   designated_person_name?: string | null;
+  resident_rights_acknowledged_at?: string | null;
+  contract_status?: string | null;
 }
 export interface MoveInComplianceItemLike {
   id: string;
@@ -22,6 +24,7 @@ export interface MoveInDocumentLike {
   is_state_form?: boolean | null;
 }
 export interface MoveInSupportLike { name?: string | null; phone?: string | null }
+export interface MoveInOfficialContactLike { contact_type?: string | null; name?: string | null; phone?: string | null }
 
 export interface MoveInChecklistItem {
   id: string;
@@ -72,12 +75,14 @@ export function buildMoveInReadinessPacket({
   complianceItems,
   documents,
   supports,
+  officialContacts = [],
 }: {
   resident: MoveInResidentLike;
   facilityType?: string | null;
   complianceItems: MoveInComplianceItemLike[];
   documents: MoveInDocumentLike[];
   supports: MoveInSupportLike[];
+  officialContacts?: MoveInOfficialContactLike[];
 }): MoveInReadinessPacket {
   const program = programFromFacilityType(facilityType);
   const preadmission = findItem(complianceItems, ["preadmission", "pre_admission"]);
@@ -86,8 +91,11 @@ export function buildMoveInReadinessPacket({
   const rightsDocument = documents.find((document) => (document.document_label ?? "").toLowerCase().includes("rights"));
   const contractDocument = documents.find((document) => /(contract|admission agreement|resident-home)/i.test(document.document_label ?? ""));
   const medicationItem = findItem(complianceItems, ["medication", "self_administration", "self administration"]);
-  const hasContactDetails = Boolean(resident.date_of_birth && resident.primary_physician_name && resident.primary_physician_phone && (program === "PCH" || resident.designated_person_name));
-  const hasSupport = supports.some((support) => support.name && support.phone);
+  const contactTypes = new Set(officialContacts.filter((contact) => contact.name && contact.phone).map((contact) => contact.contact_type));
+  const hasContactDetails = Boolean(resident.date_of_birth
+    && (contactTypes.has("primary_care_provider") || (resident.primary_physician_name && resident.primary_physician_phone))
+    && (program === "PCH" || contactTypes.has("designated_person") || resident.designated_person_name));
+  const hasSupport = contactTypes.has("emergency_contact") || supports.some((support) => support.name && support.phone);
 
   const items: MoveInChecklistItem[] = [
     {
@@ -124,7 +132,7 @@ export function buildMoveInReadinessPacket({
       id: "rights",
       label: "Resident rights / complaint procedure acknowledgement",
       facilityTypes: ["PCH", "ALR"],
-      status: rightsDocument ? "inspection_ready" : "not_ready",
+      status: rightsDocument || resident.resident_rights_acknowledged_at ? "inspection_ready" : "not_ready",
       dueDate: resident.admission_date ?? null,
       blocker: true,
       evidence: "Signed, refused, or unable-to-sign resident rights acknowledgement uploaded.",
@@ -134,7 +142,7 @@ export function buildMoveInReadinessPacket({
       id: "contract",
       label: "Resident-home contract or admission agreement acknowledgement",
       facilityTypes: ["PCH", "ALR"],
-      status: contractDocument ? "inspection_ready" : "not_ready",
+      status: contractDocument || ["executed", "amended"].includes(resident.contract_status ?? "") ? "inspection_ready" : "not_ready",
       dueDate: resident.admission_date ?? null,
       blocker: true,
       evidence: "Signed contract/admission agreement or documented refusal/inability reason uploaded.",
