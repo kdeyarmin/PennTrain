@@ -159,7 +159,7 @@ function UnitsPanel({ facilityId, organizationId }: { facilityId: string; organi
                   <Button variant="ghost" size="sm" onClick={() => update.mutate({ id: u.id, is_active: !u.is_active })}>
                     {u.is_active ? "Deactivate" : "Activate"}
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => del.mutate(u.id)} aria-label={`Delete unit ${u.name}`}>
+                  <Button variant="ghost" size="icon" onClick={() => del.mutate(u.id)} aria-label="Delete unit">
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
@@ -262,7 +262,7 @@ function ShiftsPanel({ facilityId, organizationId }: { facilityId: string; organ
                   <Button variant="ghost" size="sm" onClick={() => update.mutate({ id: s.id, is_active: !s.is_active })}>
                     {s.is_active ? "Deactivate" : "Activate"}
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(s)} aria-label={`Delete shift type ${s.name}`}>
+                  <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(s)} aria-label="Delete shift type">
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>

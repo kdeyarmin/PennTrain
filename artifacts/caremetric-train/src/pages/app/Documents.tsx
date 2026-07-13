@@ -296,11 +296,11 @@ export default function Documents() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Button size="icon" variant="ghost" onClick={() => handleDownload(doc)} title="Download" aria-label={`Download ${doc.file_name}`}>
+                    <Button size="icon" variant="ghost" onClick={() => handleDownload(doc)} title="Download" aria-label="Download document">
                       <Download className="h-4 w-4" />
                     </Button>
                     {canDelete && (
-                      <Button size="icon" variant="ghost" onClick={() => setDeleteDoc(doc)} title="Delete" aria-label={`Delete ${doc.file_name}`}>
+                      <Button size="icon" variant="ghost" onClick={() => setDeleteDoc(doc)} title="Delete" aria-label="Delete document">
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     )}

@@ -655,7 +655,7 @@ function DiagnosisRowsEditor({
                       onClick={() =>
                         onRowsChange(rows.filter((_, j) => j !== i))
                       }
-                      aria-label={`Remove diagnosis ${row.description || i + 1}`}
+                      aria-label="Remove diagnosis"
                     >
                       <Trash2 className="h-3.5 w-3.5 text-destructive" />
                     </Button>
@@ -2251,7 +2251,7 @@ ${text}` : text;
                                   },
                                 })
                               }
-                              aria-label={`Remove participant ${p.name || i + 1}`}
+                              aria-label="Remove participant"
                             >
                               <Trash2 className="h-3.5 w-3.5 text-destructive" />
                             </Button>
