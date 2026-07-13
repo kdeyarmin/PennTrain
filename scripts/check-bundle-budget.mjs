@@ -19,8 +19,10 @@ const budgets = {
   // management updates; raised 2420 -> 2430 for deployment recovery, accessible search,
   // and mobile operations while initial-shell size decreased; raised 2430 -> 2500 for
   // the unified operational work queue (resident service requirements/tasks, My Services,
-  // supervisor/manager oversight) while both per-load budgets remain comfortably met.
-  totalJavaScript: 2500 * 1024,
+  // supervisor/manager oversight) while both per-load budgets remain comfortably met; 
+  // raised 2500 -> 2600 for formal QAPI quality management (projects, actions, measurements,
+  // meeting notes, RCA, and print-optimized workspace).
+  totalJavaScript: 2600 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };

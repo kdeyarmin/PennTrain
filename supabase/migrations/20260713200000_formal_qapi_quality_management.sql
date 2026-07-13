@@ -132,6 +132,7 @@ declare v_fac public.facilities%rowtype;v_id uuid;v_num text;begin
  perform app_private.assert_admission_manager(v_fac.organization_id,v_fac.id);
  if length(btrim(p_title))<3 or length(btrim(p_problem_statement))<10 or p_target_completion_date<current_date then raise exception 'Invalid QAPI project' using errcode='22023';end if;
  if p_source_type is not null and p_source_id is not null then select id into v_id from public.qapi_projects where organization_id=v_fac.organization_id and source_type=p_source_type and source_id=p_source_id;if v_id is not null then return v_id;end if;end if;
+ perform pg_advisory_xact_lock(hashtext('qapi_project_numbering'), hashtext(v_fac.organization_id::text));
  v_num:='QAPI-'||to_char(current_date,'YYYY')||'-'||lpad((select (count(*)+1)::text from public.qapi_projects where organization_id=v_fac.organization_id),4,'0');
  insert into public.qapi_projects(organization_id,facility_id,project_number,title,problem_statement,source_of_concern,source_type,source_id,baseline_data,measurable_objective,target_description,target_value,target_completion_date,project_lead_profile_id,created_by)
  values(v_fac.organization_id,v_fac.id,v_num,btrim(p_title),btrim(p_problem_statement),btrim(p_source_of_concern),p_source_type,p_source_id,p_baseline_data,p_measurable_objective,p_target_description,p_target_value,p_target_completion_date,p_project_lead,auth.uid()) returning id into v_id;
@@ -159,7 +160,7 @@ declare v public.qapi_projects%rowtype;v_work uuid;v_id uuid;v_template uuid;beg
  if not found then raise exception 'QAPI project not found' using errcode='P0002';end if;perform app_private.assert_admission_manager(v.organization_id,v.facility_id);
  select id into v_template from public.work_item_templates where template_key='qapi.project_action' and (organization_id=v.organization_id or organization_id is null) order by organization_id nulls last limit 1;
  insert into public.work_items(organization_id,facility_id,template_id,source_type,source_id,deduplication_key,title,description,owner_profile_id,priority,due_at,created_by)
- values(v.organization_id,v.facility_id,v_template,'qapi',v.id,'qapi:'||v.id||':'||gen_random_uuid(),btrim(p_title),p_description,p_owner,'high',p_due_at,auth.uid()) returning id into v_work;
+ values(v.organization_id,v.facility_id,v_template,'qapi',v.id,'qapi:'||v.id||':'||extensions.gen_random_uuid(),btrim(p_title),p_description,p_owner,'high',p_due_at,auth.uid()) returning id into v_work;
  insert into public.work_item_history(organization_id,facility_id,work_item_id,event_type,resulting_state,actor_profile_id,reason) values(v.organization_id,v.facility_id,v_work,'created','open',auth.uid(),'QAPI project created owned action');
  insert into public.qapi_action_items(organization_id,facility_id,project_id,work_item_id,action_type) values(v.organization_id,v.facility_id,v.id,v_work,p_action_type) returning id into v_id;
  insert into public.qapi_project_history(organization_id,facility_id,project_id,event_type,prior_status,resulting_status,reason,actor_profile_id,evidence) values(v.organization_id,v.facility_id,v.id,'action_added',v.status,v.status,'QAPI action added',auth.uid(),jsonb_build_object('workItemId',v_work));return v_id;end$$;

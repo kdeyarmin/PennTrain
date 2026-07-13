@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { useListProfiles } from "@/hooks/useProfiles";
 import { useCreateResidentChangeEvent } from "@/hooks/useResidentChangeEvents";
+import { toDateTimeLocal } from "@/lib/dateUtils";
 
 export interface ChangeOfConditionResidentOption {
   id: string;
@@ -34,7 +35,7 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
   const { data: profiles } = useListProfiles({ organizationId: user?.organizationId ?? undefined });
   const [selectedResidentId, setSelectedResidentId] = useState("");
   const [category, setCategory] = useState("other_significant_change");
-  const [identifiedAt, setIdentifiedAt] = useState(() => new Date().toISOString().slice(0, 16));
+  const [identifiedAt, setIdentifiedAt] = useState(() => toDateTimeLocal());
   const [observations, setObservations] = useState("");
   const [immediateAction, setImmediateAction] = useState("");
   const [providerStatus, setProviderStatus] = useState("pending");
@@ -45,7 +46,7 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
   const [monitoringFrequency, setMonitoringFrequency] = useState("");
   const [monitoringHours, setMonitoringHours] = useState("24");
   const [assignedProfileId, setAssignedProfileId] = useState(user?.id ?? "");
-  const [followUpDueAt, setFollowUpDueAt] = useState(() => new Date(Date.now() + 4 * 3_600_000).toISOString().slice(0, 16));
+  const [followUpDueAt, setFollowUpDueAt] = useState(() => toDateTimeLocal(new Date(Date.now() + 4 * 3_600_000)));
   const [incidentDecision, setIncidentDecision] = useState("pending");
   const [reassessmentRequired, setReassessmentRequired] = useState(true);
   const [supportPlanRevisionRequired, setSupportPlanRevisionRequired] = useState(true);
@@ -84,7 +85,7 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
         emergencyTransferDestination: destination.trim() || null,
         monitoringInstructions: monitoringInstructions.trim() || null,
         monitoringFrequency: monitoringFrequency.trim() || null,
-        monitoringDurationHours: monitoringInstructions.trim() ? Number(monitoringHours) : null,
+        monitoringDurationHours: monitoringInstructions.trim() && Number.isFinite(Number(monitoringHours)) ? Number(monitoringHours) : null,
         assignedProfileId: assignedProfileId || user?.id || null,
         followUpDueAt: new Date(followUpDueAt).toISOString(),
         incidentDecision,

@@ -150,11 +150,16 @@ export default function MoveInWorkspaceDetail() {
   };
 
   const createGuestLink = () => {
+    const days = Number(guestDays);
+    if (!Number.isFinite(days) || days <= 0) {
+      toast({ title: "Invalid expiration", description: "Guest days must be a positive number", variant: "destructive" });
+      return;
+    }
     issueGrant.mutate({
       workspaceId: data.id,
       guestLabel,
       taskIds: guestTaskIds,
-      expiresAt: new Date(Date.now() + Number(guestDays) * 86_400_000).toISOString(),
+      expiresAt: new Date(Date.now() + days * 86_400_000).toISOString(),
     }, {
       onSuccess: result => {
         const link = `${window.location.origin}/move-in-access/${result.token}`;
