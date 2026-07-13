@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -24,21 +25,6 @@ const DEFAULT_FALLBACK_MODELS = ["claude-opus-4-8", "claude-sonnet-5", "claude-s
 const PRIMARY_MODEL_ENV = "ANTHROPIC_RESIDENT_SUMMARY_MODEL";
 const FALLBACK_MODELS_ENV = "ANTHROPIC_RESIDENT_SUMMARY_FALLBACK_MODELS";
 
-function parseModelList(raw: string | undefined | null): string[] {
-  return (raw ?? "")
-    .split(",")
-    .map((model) => model.trim())
-    .filter(Boolean);
-}
-
-function getAnthropicModelCandidates(): string[] {
-  const primary = Deno.env.get(PRIMARY_MODEL_ENV)?.trim() || DEFAULT_PRIMARY_MODEL;
-  return Array.from(new Set([
-    primary,
-    ...parseModelList(Deno.env.get(FALLBACK_MODELS_ENV)),
-    ...DEFAULT_FALLBACK_MODELS,
-  ]));
-}
 const TOOL_NAME = "emit_wellness_summary";
 const MAX_TOKENS = 1200;
 const ANTHROPIC_TIMEOUT_MS = 60_000;
@@ -298,7 +284,7 @@ Deno.serve(async (req: Request) => {
   const form = formRaw as ResidentAssessmentFormRow;
   if (form.status !== "draft") return json({ error: "AI summaries can only be generated for draft forms" }, 409);
 
-  const modelCandidates = getAnthropicModelCandidates();
+  const modelCandidates = getAnthropicModelCandidates({ primaryEnv: PRIMARY_MODEL_ENV, fallbackEnv: FALLBACK_MODELS_ENV, defaultPrimary: DEFAULT_PRIMARY_MODEL, defaultFallbacks: DEFAULT_FALLBACK_MODELS });
   const requestedModel = modelCandidates[0];
 
   // Audit metadata intentionally excludes assessment answers and generated text; the source content

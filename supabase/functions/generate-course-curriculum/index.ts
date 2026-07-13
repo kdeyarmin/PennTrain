@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -27,21 +28,6 @@ const DEFAULT_FALLBACK_MODELS = ["claude-opus-4-8", "claude-sonnet-5", "claude-s
 const PRIMARY_MODEL_ENV = "ANTHROPIC_COURSE_DRAFT_MODEL";
 const FALLBACK_MODELS_ENV = "ANTHROPIC_COURSE_DRAFT_FALLBACK_MODELS";
 
-function parseModelList(raw: string | undefined | null): string[] {
-  return (raw ?? "")
-    .split(",")
-    .map((model) => model.trim())
-    .filter(Boolean);
-}
-
-function getAnthropicModelCandidates(): string[] {
-  const primary = Deno.env.get(PRIMARY_MODEL_ENV)?.trim() || DEFAULT_PRIMARY_MODEL;
-  return Array.from(new Set([
-    primary,
-    ...parseModelList(Deno.env.get(FALLBACK_MODELS_ENV)),
-    ...DEFAULT_FALLBACK_MODELS,
-  ]));
-}
 // A full multi-module course draft (lesson text + video scripts + quiz questions/answers/
 // explanations) reliably exceeds 8192 output tokens and was observed truncating mid-generation,
 // producing a tool_use block with no usable input. 16000 gives real headroom; the timeout below
@@ -284,7 +270,7 @@ Deno.serve(async (req: Request) => {
       : "No source material was provided. Draft general, instructionally sound training content on this topic, and explicitly flag in the description that regulatory specifics have not been verified against a supplied source and should be reviewed before publishing.",
   ].filter(Boolean).join("\n\n");
 
-  const modelCandidates = getAnthropicModelCandidates();
+  const modelCandidates = getAnthropicModelCandidates({ primaryEnv: PRIMARY_MODEL_ENV, fallbackEnv: FALLBACK_MODELS_ENV, defaultPrimary: DEFAULT_PRIMARY_MODEL, defaultFallbacks: DEFAULT_FALLBACK_MODELS });
   const requestedModel = modelCandidates[0];
 
   // Audit trail row, inserted before the third-party call so a mid-flight failure (Anthropic

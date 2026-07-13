@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -26,21 +27,6 @@ const DEFAULT_FALLBACK_MODELS = ["claude-opus-4-8", "claude-sonnet-5", "claude-s
 const PRIMARY_MODEL_ENV = "ANTHROPIC_COURSE_REGENERATION_MODEL";
 const FALLBACK_MODELS_ENV = "ANTHROPIC_COURSE_REGENERATION_FALLBACK_MODELS";
 
-function parseModelList(raw: string | undefined | null): string[] {
-  return (raw ?? "")
-    .split(",")
-    .map((model) => model.trim())
-    .filter(Boolean);
-}
-
-function getAnthropicModelCandidates(): string[] {
-  const primary = Deno.env.get(PRIMARY_MODEL_ENV)?.trim() || DEFAULT_PRIMARY_MODEL;
-  return Array.from(new Set([
-    primary,
-    ...parseModelList(Deno.env.get(FALLBACK_MODELS_ENV)),
-    ...DEFAULT_FALLBACK_MODELS,
-  ]));
-}
 // Matches the headroom bump in generate-course-curriculum -- a quiz-question regeneration with
 // many questions/answers/explanations can also exceed a tight token budget.
 const ANTHROPIC_TIMEOUT_MS = 90_000;
@@ -268,7 +254,7 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  const modelCandidates = getAnthropicModelCandidates();
+  const modelCandidates = getAnthropicModelCandidates({ primaryEnv: PRIMARY_MODEL_ENV, fallbackEnv: FALLBACK_MODELS_ENV, defaultPrimary: DEFAULT_PRIMARY_MODEL, defaultFallbacks: DEFAULT_FALLBACK_MODELS });
   const requestedModel = modelCandidates[0];
 
   const { data: generationRow, error: generationInsertError } = await callerClient
