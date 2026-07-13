@@ -6861,6 +6861,76 @@ export type Database = {
           },
         ]
       }
+      facility_transport_vehicles: {
+        Row: {
+          capacity: number
+          created_at: string
+          created_by: string | null
+          facility_id: string
+          id: string
+          label: string
+          license_plate: string | null
+          notes: string | null
+          organization_id: string
+          status: string
+          updated_at: string
+          vehicle_type: string
+          wheelchair_accessible: boolean
+        }
+        Insert: {
+          capacity?: number
+          created_at?: string
+          created_by?: string | null
+          facility_id: string
+          id?: string
+          label: string
+          license_plate?: string | null
+          notes?: string | null
+          organization_id: string
+          status?: string
+          updated_at?: string
+          vehicle_type: string
+          wheelchair_accessible?: boolean
+        }
+        Update: {
+          capacity?: number
+          created_at?: string
+          created_by?: string | null
+          facility_id?: string
+          id?: string
+          label?: string
+          license_plate?: string | null
+          notes?: string | null
+          organization_id?: string
+          status?: string
+          updated_at?: string
+          vehicle_type?: string
+          wheelchair_accessible?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "facility_transport_vehicles_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_transport_vehicles_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_transport_vehicles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       facility_units: {
         Row: {
           created_at: string
@@ -17427,6 +17497,380 @@ export type Database = {
           },
         ]
       }
+      resident_service_calendar_event_staff: {
+        Row: {
+          assignment_role: string
+          created_at: string
+          employee_id: string | null
+          event_id: string
+          external_staff_name: string | null
+          facility_id: string
+          id: string
+          instructions: string | null
+          organization_id: string
+        }
+        Insert: {
+          assignment_role: string
+          created_at?: string
+          employee_id?: string | null
+          event_id: string
+          external_staff_name?: string | null
+          facility_id: string
+          id?: string
+          instructions?: string | null
+          organization_id: string
+        }
+        Update: {
+          assignment_role?: string
+          created_at?: string
+          employee_id?: string | null
+          event_id?: string
+          external_staff_name?: string | null
+          facility_id?: string
+          id?: string
+          instructions?: string | null
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_service_calendar_event_staff_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_event_staff_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "resident_service_calendar_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_event_staff_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_event_staff_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_service_calendar_events: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          ends_at: string
+          event_type: string
+          facility_id: string
+          id: string
+          location_address: string | null
+          location_name: string | null
+          next_appointment_at: string | null
+          notes: string | null
+          organization_id: string
+          outcome_reason: string | null
+          preparation_instructions: string | null
+          provider_contact: string | null
+          provider_name: string | null
+          required_records: string[]
+          resident_id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          return_instructions: string | null
+          starts_at: string
+          status: string
+          title: string
+          transportation_mode: string
+          transportation_vendor: string | null
+          updated_at: string
+          vehicle_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          ends_at: string
+          event_type: string
+          facility_id: string
+          id?: string
+          location_address?: string | null
+          location_name?: string | null
+          next_appointment_at?: string | null
+          notes?: string | null
+          organization_id: string
+          outcome_reason?: string | null
+          preparation_instructions?: string | null
+          provider_contact?: string | null
+          provider_name?: string | null
+          required_records?: string[]
+          resident_id: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          return_instructions?: string | null
+          starts_at: string
+          status?: string
+          title: string
+          transportation_mode?: string
+          transportation_vendor?: string | null
+          updated_at?: string
+          vehicle_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string
+          event_type?: string
+          facility_id?: string
+          id?: string
+          location_address?: string | null
+          location_name?: string | null
+          next_appointment_at?: string | null
+          notes?: string | null
+          organization_id?: string
+          outcome_reason?: string | null
+          preparation_instructions?: string | null
+          provider_contact?: string | null
+          provider_name?: string | null
+          required_records?: string[]
+          resident_id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          return_instructions?: string | null
+          starts_at?: string
+          status?: string
+          title?: string
+          transportation_mode?: string
+          transportation_vendor?: string | null
+          updated_at?: string
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_service_calendar_events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_events_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_events_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_events_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_events_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "facility_transport_vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_service_calendar_follow_ups: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string
+          due_at: string
+          event_id: string
+          facility_id: string
+          id: string
+          organization_id: string
+          owner_profile_id: string | null
+          resident_id: string
+          title: string
+          work_item_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description: string
+          due_at: string
+          event_id: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          owner_profile_id?: string | null
+          resident_id: string
+          title: string
+          work_item_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          due_at?: string
+          event_id?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          owner_profile_id?: string | null
+          resident_id?: string
+          title?: string
+          work_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_service_calendar_follow_ups_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_follow_ups_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "resident_service_calendar_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_follow_ups_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_follow_ups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_follow_ups_owner_profile_id_fkey"
+            columns: ["owner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_follow_ups_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_follow_ups_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: true
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_service_calendar_history: {
+        Row: {
+          actor_profile_id: string | null
+          event_id: string
+          event_type: string
+          evidence: Json
+          facility_id: string
+          id: string
+          occurred_at: string
+          organization_id: string
+          prior_status: string | null
+          reason: string
+          resident_id: string
+          resulting_status: string | null
+        }
+        Insert: {
+          actor_profile_id?: string | null
+          event_id: string
+          event_type: string
+          evidence?: Json
+          facility_id: string
+          id?: string
+          occurred_at?: string
+          organization_id: string
+          prior_status?: string | null
+          reason: string
+          resident_id: string
+          resulting_status?: string | null
+        }
+        Update: {
+          actor_profile_id?: string | null
+          event_id?: string
+          event_type?: string
+          evidence?: Json
+          facility_id?: string
+          id?: string
+          occurred_at?: string
+          organization_id?: string
+          prior_status?: string | null
+          reason?: string
+          resident_id?: string
+          resulting_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_service_calendar_history_actor_profile_id_fkey"
+            columns: ["actor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_history_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "resident_service_calendar_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_history_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_history_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resident_service_requirements: {
         Row: {
           created_at: string
@@ -22514,6 +22958,10 @@ export type Database = {
         }
         Returns: string
       }
+      create_resident_service_calendar_event: {
+        Args: { p_event: Json; p_resident_id: string; p_staff?: Json }
+        Returns: string
+      }
       create_room_with_beds: {
         Args: {
           p_bed_count: number
@@ -23014,6 +23462,10 @@ export type Database = {
         Returns: Json
       }
       get_resident_administrative_packet_base: {
+        Args: { p_resident_id: string }
+        Returns: Json
+      }
+      get_resident_administrative_packet_before_calendar: {
         Args: { p_resident_id: string }
         Returns: Json
       }
@@ -23714,6 +24166,18 @@ export type Database = {
         }
         Returns: string
       }
+      record_resident_service_calendar_outcome: {
+        Args: {
+          p_event_id: string
+          p_follow_ups: Json
+          p_next_appointment_at: string
+          p_reason: string
+          p_resolved_at: string
+          p_return_instructions: string
+          p_status: string
+        }
+        Returns: string
+      }
       record_resident_service_task: {
         Args: {
           p_note?: string
@@ -23898,6 +24362,15 @@ export type Database = {
       rescan_org_exclusion_matches: {
         Args: { p_organization_id: string }
         Returns: undefined
+      }
+      reschedule_resident_service_calendar_event: {
+        Args: {
+          p_ends_at: string
+          p_event_id: string
+          p_reason: string
+          p_starts_at: string
+        }
+        Returns: boolean
       }
       reserve_bed_for_prospect: {
         Args: { p_bed_id: string; p_prospect_id: string }
@@ -24648,6 +25121,20 @@ export type Database = {
           p_organization_id: string
           p_permission_keys: string[]
           p_role_template_id?: string
+        }
+        Returns: string
+      }
+      upsert_facility_transport_vehicle: {
+        Args: {
+          p_capacity: number
+          p_facility_id: string
+          p_label: string
+          p_license_plate: string
+          p_notes: string
+          p_status: string
+          p_vehicle_id: string
+          p_vehicle_type: string
+          p_wheelchair_accessible: boolean
         }
         Returns: string
       }
