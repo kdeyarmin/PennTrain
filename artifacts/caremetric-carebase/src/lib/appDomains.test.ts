@@ -137,6 +137,15 @@ describe("role-based page visibility", () => {
     expect(canViewPage("/me/services", "org_admin")).toBe(false);
   });
 
+  it("exposes admission, room, move-in, and census operations to reporting roles", () => {
+    expect(canViewPage("/app/admissions", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/admissions", "org_admin")).toBe(true);
+    expect(canViewPage("/app/admissions", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/admissions", "auditor")).toBe(true);
+    expect(canViewPage("/app/admissions", "employee")).toBe(false);
+    expect(canViewPath("/app/admissions/move-ins/workspace-1", "org_admin")).toBe(true);
+  });
+
   it("makes account MFA settings available to every authenticated role", () => {
     for (const role of ["platform_admin", "org_admin", "facility_manager", "trainer", "auditor", "employee"] as const) {
       expect(canViewPage("/account/security", role)).toBe(true);

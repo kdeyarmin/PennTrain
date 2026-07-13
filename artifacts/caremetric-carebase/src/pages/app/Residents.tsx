@@ -25,9 +25,15 @@ function humanize(value: string): string {
 }
 
 function StatusPill({ status }: { status: string }) {
-  const className =
-    status === "discharged" ? "bg-muted text-muted-foreground"
-    : "bg-success text-success-foreground hover:bg-success/80"; // active
+  const className = status === "active"
+    ? "bg-success text-success-foreground hover:bg-success/80"
+    : status === "reserved"
+      ? "bg-purple-100 text-purple-900"
+      : status === "temporarily_out" || status === "hospital_leave"
+        ? "bg-amber-100 text-amber-900"
+        : status === "deceased"
+          ? "bg-slate-200 text-slate-900"
+          : "bg-muted text-muted-foreground";
   return <Badge className={className} variant="outline">{humanize(status)}</Badge>;
 }
 
@@ -236,7 +242,7 @@ export default function Residents() {
             <SelectTrigger className="w-44 h-9 bg-card"><SelectValue placeholder="All Statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
-              {["active", "discharged"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
+              {["reserved", "active", "temporarily_out", "hospital_leave", "discharged", "deceased"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>

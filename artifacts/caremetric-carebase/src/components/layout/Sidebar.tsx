@@ -116,6 +116,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/admin/alerts", label: "Alerts", icon: Bell },
           { href: "/app/work", label: "Operational Work", icon: ClipboardList },
           { href: "/app/services", label: "Resident Services", icon: CalendarDays },
+          { href: "/app/admissions", label: "Admissions & Census", icon: BedDouble },
           { href: "/admin/audit", label: "Audit Log", icon: ShieldAlert },
           { href: "/admin/notifications", label: "Notification Delivery", icon: Send },
           { href: "/admin/system-jobs", label: "System Jobs", icon: Activity },
@@ -187,6 +188,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Residents",
         items: [
           { href: "/app/residents", label: "Residents", icon: BedDouble },
+          { href: "/app/admissions", label: "Admissions & Census", icon: ClipboardCheck },
           { href: "/app/state-forms", label: "State Forms", icon: ClipboardList },
           { href: "/app/services", label: "Resident Services", icon: CalendarDays },
         ]
@@ -279,6 +281,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Residents",
         items: [
           { href: "/app/residents", label: "Residents", icon: BedDouble },
+          { href: "/app/admissions", label: "Admissions & Census", icon: ClipboardCheck },
           { href: "/app/state-forms", label: "State Forms", icon: ClipboardList },
           { href: "/app/services", label: "Resident Services", icon: CalendarDays },
         ]
