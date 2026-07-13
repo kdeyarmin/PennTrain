@@ -4,12 +4,17 @@ import { useGetSchedule, useGenerateScheduleAssignments, useClearAutoFilledAssig
 import { useGetFacility } from "@/hooks/useFacilities";
 import { useListFacilityUnits } from "@/hooks/useFacilityUnits";
 import { useListShiftDefinitions } from "@/hooks/useShiftDefinitions";
-import { useListEmployeeFacilityAssignments } from "@/hooks/useEmployeeFacilityAssignments";
 import { useListResidents } from "@/hooks/useResidents";
 import {
   useListShiftAssignments, useCreateShiftAssignment, useUpdateShiftAssignment, useDeleteShiftAssignment,
   type ShiftAssignmentWithDetails,
 } from "@/hooks/useShiftAssignments";
+import {
+  useCreateScheduleEligibilityOverride,
+  usePreviewShiftAssignmentCandidates,
+  useScheduleServiceWorkload,
+  type EligibilityCandidate,
+} from "@/hooks/useSchedulingEligibility";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,6 +47,33 @@ const SHIFT_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "no_show", label: "No Show" },
 ];
 
+const ELIGIBILITY_LABELS: Record<string, string> = {
+  lifecycle_inactive: "Inactive employment",
+  facility_not_assigned: "Not assigned to this facility",
+  confirmed_exclusion: "Confirmed exclusion",
+  schedule_conflict: "Overlapping shift",
+  insufficient_rest: "Insufficient rest between shifts",
+  weekly_hours_limit: "Weekly-hour limit exceeded",
+  weekly_hours_warning: "Approaching weekly-hour limit",
+  employee_unavailable: "Employee marked unavailable",
+};
+
+function explainEligibilityCode(code: string) {
+  if (ELIGIBILITY_LABELS[code]) return ELIGIBILITY_LABELS[code];
+  if (code.startsWith("qualification:")) return `Missing or expired qualification: ${code.slice(14).replaceAll("-", " ")}`;
+  if (code.startsWith("credential:")) return `Missing or expired credential: ${code.slice(11).replaceAll("_", " ")}`;
+  if (code.startsWith("training:")) return `Required training is missing or expired (${code.slice(9)})`;
+  return code.replaceAll("_", " ");
+}
+
+function eligibilityBadge(candidate: EligibilityCandidate) {
+  if (candidate.outcome === "blocked") return { label: "Blocked", className: "border-red-300 bg-red-50 text-red-800" };
+  if (candidate.outcome === "warning") return { label: "Eligible with warning", className: "border-amber-300 bg-amber-50 text-amber-800" };
+  return { label: "Eligible", className: "border-emerald-300 bg-emerald-50 text-emerald-800" };
+}
+
+const NON_OVERRIDABLE_BLOCKS = new Set(["lifecycle_inactive", "confirmed_exclusion", "facility_not_assigned", "schedule_conflict"]);
+
 export default function ScheduleDetail() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
@@ -52,9 +84,9 @@ export default function ScheduleDetail() {
   const { data: facility } = useGetFacility(facilityId);
   const { data: units } = useListFacilityUnits({ facilityId });
   const { data: shiftDefs } = useListShiftDefinitions({ facilityId });
-  const { data: roster } = useListEmployeeFacilityAssignments({ facilityId });
   const { data: activeResidents } = useListResidents({ facilityId: facilityId ?? "00000000-0000-0000-0000-000000000000", status: "active" });
   const { data: assignments, isLoading: assignmentsLoading } = useListShiftAssignments({ scheduleId: id });
+  const { data: serviceWorkload } = useScheduleServiceWorkload(id);
 
   const generate = useGenerateScheduleAssignments();
   const clearAutoFill = useClearAutoFilledAssignments();
@@ -71,6 +103,15 @@ export default function ScheduleDetail() {
   const [addForm, setAddForm] = useState({ shiftDefinitionId: "", notes: "" });
   const [addEmployeeIds, setAddEmployeeIds] = useState<Set<string>>(new Set());
   const [isAddingShifts, setIsAddingShifts] = useState(false);
+  const eligibilityPreview = usePreviewShiftAssignmentCandidates({
+    scheduleId: addTarget ? id : undefined,
+    shiftDate: addTarget?.date,
+    shiftDefinitionId: addForm.shiftDefinitionId || undefined,
+    unitId: addTarget?.unitId,
+  });
+  const createOverride = useCreateScheduleEligibilityOverride();
+  const [overrideTarget, setOverrideTarget] = useState<{ candidate: EligibilityCandidate; blockCode: string } | null>(null);
+  const [overrideForm, setOverrideForm] = useState({ reason: "", authorityReference: "", expiresAt: "" });
   const [editForm, setEditForm] = useState({ unitId: UNASSIGNED, shiftDefinitionId: "", status: "scheduled", notes: "" });
   // Tracks which single cell's status dropdown is mid-update (rather than reusing
   // updateAssignment.isPending, which reflects the shared mutation instance and would also flip
@@ -88,15 +129,21 @@ export default function ScheduleDetail() {
 
   const activeUnits = useMemo(() => (units ?? []).filter((u) => u.is_active), [units]);
   const activeShiftDefs = useMemo(() => (shiftDefs ?? []).filter((s) => s.is_active), [shiftDefs]);
-  const activeRoster = useMemo(
-    () => (roster ?? []).filter((r) => r.employees && r.employees.status === "active"),
-    [roster]
+  const eligibleCandidates = useMemo(
+    () => (eligibilityPreview.data ?? []).filter((candidate) => candidate.outcome !== "blocked"),
+    [eligibilityPreview.data]
   );
   const activeResidentCount = activeResidents?.length ?? 0;
 
   useEffect(() => {
     if (!censusWasEdited) setResidentsInHouse(activeResidentCount);
   }, [activeResidentCount, censusWasEdited]);
+
+  useEffect(() => {
+    if (!eligibilityPreview.data) return;
+    const allowed = new Set(eligibleCandidates.map((candidate) => candidate.employeeId));
+    setAddEmployeeIds((selected) => new Set([...selected].filter((employeeId) => allowed.has(employeeId))));
+  }, [eligibilityPreview.data, eligibleCandidates]);
 
   const grid = useMemo(() => {
     const map = new Map<string, ShiftAssignmentWithDetails[]>();
@@ -140,11 +187,40 @@ export default function ScheduleDetail() {
     });
   }
 
-  const allAddEmployeesSelected = activeRoster.length > 0 && activeRoster.every((r) => addEmployeeIds.has(r.employee_id));
-  const someAddEmployeesSelected = activeRoster.some((r) => addEmployeeIds.has(r.employee_id));
+  const allAddEmployeesSelected = eligibleCandidates.length > 0 && eligibleCandidates.every((candidate) => addEmployeeIds.has(candidate.employeeId));
+  const someAddEmployeesSelected = eligibleCandidates.some((candidate) => addEmployeeIds.has(candidate.employeeId));
 
   function toggleSelectAllAddEmployees() {
-    setAddEmployeeIds(allAddEmployeesSelected ? new Set() : new Set(activeRoster.map((r) => r.employee_id)));
+    setAddEmployeeIds(allAddEmployeesSelected ? new Set() : new Set(eligibleCandidates.map((candidate) => candidate.employeeId)));
+  }
+
+  function openOverride(candidate: EligibilityCandidate, blockCode: string) {
+    setOverrideForm({
+      reason: "",
+      authorityReference: "",
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    });
+    setOverrideTarget({ candidate, blockCode });
+  }
+
+  function handleCreateOverride() {
+    if (!overrideTarget || !schedule || !addForm.shiftDefinitionId) return;
+    createOverride.mutate({
+      employeeId: overrideTarget.candidate.employeeId,
+      facilityId: schedule.facility_id,
+      blockCode: overrideTarget.blockCode,
+      scopeType: "shift",
+      scopeId: addForm.shiftDefinitionId,
+      reason: overrideForm.reason,
+      authorityReference: overrideForm.authorityReference,
+      expiresAt: new Date(overrideForm.expiresAt).toISOString(),
+    }, {
+      onSuccess: () => {
+        toast({ title: "Bounded override approved", description: "The reason, authority, scope, expiration, and approver were audit logged.", variant: "success" });
+        setOverrideTarget(null);
+      },
+      onError: (error: Error) => toast({ title: "Override not approved", description: error.message, variant: "destructive" }),
+    });
   }
 
   function openEditDialog(a: ShiftAssignmentWithDetails) {
@@ -167,7 +243,12 @@ export default function ScheduleDetail() {
     }
     const shiftDef = activeShiftDefs.find((s) => s.id === addForm.shiftDefinitionId);
     if (!shiftDef) return;
-    const employeeIds = [...addEmployeeIds];
+    const allowed = new Set(eligibleCandidates.map((candidate) => candidate.employeeId));
+    const employeeIds = [...addEmployeeIds].filter((employeeId) => allowed.has(employeeId));
+    if (employeeIds.length === 0) {
+      toast({ title: "No eligible employees selected", variant: "destructive" });
+      return;
+    }
 
     const describeFailure = (reason: unknown) => {
       const message = reason instanceof Error ? reason.message : String(reason);
@@ -443,6 +524,75 @@ export default function ScheduleDetail() {
               </div>
             </div>
           </div>
+          <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-medium">Service workload</h3>
+                <p className="text-xs text-muted-foreground">
+                  Operational demand from active residents, support-plan services, two-person work, escorts, safety checks, secured-unit coverage, and known appointment or transportation tasks. This is not a medical-acuity score.
+                </p>
+              </div>
+              <Badge variant={(serviceWorkload?.coverageGapCount ?? 0) > 0 ? "destructive" : "secondary"}>
+                {serviceWorkload?.coverageGapCount ?? 0} coverage gaps
+              </Badge>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                ["Active residents", serviceWorkload?.activeResidents ?? activeResidentCount],
+                ["Support-plan services", serviceWorkload?.supportPlanServices ?? 0],
+                ["Two-person services", serviceWorkload?.twoPersonTransfers ?? 0],
+                ["Escorts", serviceWorkload?.escorts ?? 0],
+                ["Safety checks", serviceWorkload?.safetyChecks ?? 0],
+                ["Appointments / transport", serviceWorkload?.appointmentTransportationDemand ?? 0],
+                ["Secured-unit residents", serviceWorkload?.securedUnitResidents ?? 0],
+                ["Configured unit-shifts", serviceWorkload?.coverageRows.length ?? 0],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-lg border bg-background p-3">
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="text-xl font-semibold">{value}</p>
+                </div>
+              ))}
+            </div>
+            {(serviceWorkload?.coverageRows.length ?? 0) === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Configure qualification and service-workload requirements in Scheduling Setup to compare scheduled qualified coverage against each unit and shift.
+              </p>
+            ) : (
+              <div className="overflow-x-auto rounded-md border bg-background">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="p-2 text-left">Date / unit / shift</th>
+                      <th className="p-2 text-left">Staff</th>
+                      <th className="p-2 text-left">Medication</th>
+                      <th className="p-2 text-left">Insulin</th>
+                      <th className="p-2 text-left">First aid / CPR</th>
+                      <th className="p-2 text-left">Trainer / supervisor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {serviceWorkload?.coverageRows.map((row) => {
+                      const gap = row.scheduled_staff < row.minimum_staff
+                        || row.medication_qualified_staff < row.minimum_medication_qualified_staff
+                        || row.insulin_qualified_staff < row.minimum_insulin_qualified_staff
+                        || row.first_aid_cpr_staff < row.minimum_first_aid_cpr_staff
+                        || row.trainer_supervisor_staff < row.minimum_trainer_supervisor_staff;
+                      return (
+                        <tr key={`${row.workload_profile_id}-${row.shift_date}`} className={gap ? "border-t bg-red-50/70" : "border-t"}>
+                          <td className="p-2 font-medium">{formatDateLabel(row.shift_date)} &middot; {row.unit_name} &middot; {row.shift_name}</td>
+                          <td className="p-2">{row.scheduled_staff}/{row.minimum_staff}</td>
+                          <td className="p-2">{row.medication_qualified_staff}/{row.minimum_medication_qualified_staff}</td>
+                          <td className="p-2">{row.insulin_qualified_staff}/{row.minimum_insulin_qualified_staff}</td>
+                          <td className="p-2">{row.first_aid_cpr_staff}/{row.minimum_first_aid_cpr_staff}</td>
+                          <td className="p-2">{row.trainer_supervisor_staff}/{row.minimum_trainer_supervisor_staff}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
           {(scheduleAnalytics.unitDayCoverageGaps > 0 || scheduleAnalytics.employeesOver40Hours.length > 0 || staffingRatios.isBelowTarget || staffingRatios.daysBelowMinimumStaffing.length > 0) && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               <div className="flex items-start gap-2">
@@ -588,24 +738,56 @@ export default function ScheduleDetail() {
                     onCheckedChange={toggleSelectAllAddEmployees}
                     aria-label="Select all visible employees"
                   />
-                  <span className="text-muted-foreground">Select all visible ({activeRoster.length})</span>
+                  <span className="text-muted-foreground">Select all eligible ({eligibleCandidates.length})</span>
                 </label>
                 <div className="max-h-48 overflow-y-auto divide-y">
-                  {activeRoster.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-4">No active employees at this facility.</p>
+                  {eligibilityPreview.isLoading ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">Checking qualifications, availability, rest, and hours...</p>
+                  ) : eligibilityPreview.isError ? (
+                    <p className="text-xs text-destructive text-center py-4">Eligibility preview failed: {eligibilityPreview.error.message}</p>
+                  ) : (eligibilityPreview.data ?? []).length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">No employees are assigned to this facility.</p>
                   ) : (
-                    activeRoster.map((r) => (
-                      <label key={r.employee_id} className="flex items-center gap-2 px-2.5 py-1.5 text-sm cursor-pointer hover:bg-muted/40">
+                    (eligibilityPreview.data ?? []).map((candidate) => {
+                      const badge = eligibilityBadge(candidate);
+                      return (
+                      <div key={candidate.employeeId} className="px-2.5 py-2 text-sm space-y-1.5">
+                        <label className={`flex items-center gap-2 ${candidate.outcome === "blocked" ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}>
                         <Checkbox
-                          checked={addEmployeeIds.has(r.employee_id)}
-                          onCheckedChange={() => toggleAddEmployee(r.employee_id)}
+                          checked={addEmployeeIds.has(candidate.employeeId)}
+                          disabled={candidate.outcome === "blocked"}
+                          onCheckedChange={() => toggleAddEmployee(candidate.employeeId)}
                         />
-                        <span className="flex-1 truncate">{r.employees?.first_name} {r.employees?.last_name}</span>
+                        <span className="flex-1 truncate">
+                          {candidate.employeeName}
+                          {candidate.jobTitle ? <span className="text-xs text-muted-foreground"> &middot; {candidate.jobTitle}</span> : null}
+                        </span>
+                        <Badge variant="outline" className={`text-[10px] ${badge.className}`}>{badge.label}</Badge>
                       </label>
-                    ))
+                        {[...candidate.hardBlocks, ...candidate.warnings].length > 0 && (
+                          <div className="pl-6 space-y-1">
+                            {[...candidate.hardBlocks, ...candidate.warnings].map((code) => (
+                              <div key={code} className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                                <span>{explainEligibilityCode(code)}</span>
+                                {candidate.hardBlocks.includes(code) && !NON_OVERRIDABLE_BLOCKS.has(code) && (
+                                  <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[11px]" onClick={() => openOverride(candidate, code)}>
+                                    Request override
+                                  </Button>
+                                )}
+                              </div>
+                            ))}
+                            {candidate.appliedOverrideIds.length > 0 && (
+                              <p className="text-[11px] text-amber-700">Authorized bounded override applied; assignment remains a warning.</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      );
+                    })
                   )}
                 </div>
               </div>
+              <p className="text-xs text-muted-foreground">Blocked employees cannot be selected. Every accepted assignment stores the eligibility decision used.</p>
             </div>
             <div className="space-y-2">
               <Label>Shift *</Label>
@@ -633,6 +815,44 @@ export default function ScheduleDetail() {
                 : addEmployeeIds.size > 1
                   ? `Add Shift to ${addEmployeeIds.size} Employees`
                   : "Add Shift"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!overrideTarget} onOpenChange={(open) => !open && setOverrideTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Authorize bounded override</DialogTitle>
+            <DialogDescription>
+              {overrideTarget?.candidate.employeeName} &middot; {overrideTarget ? explainEligibilityCode(overrideTarget.blockCode) : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              This override applies only to the selected shift type and expires automatically. Employment inactivity, confirmed exclusions, facility assignment, and overlap blocks cannot be overridden.
+            </div>
+            <div className="space-y-2">
+              <Label>Reason *</Label>
+              <Textarea rows={3} value={overrideForm.reason} onChange={(event) => setOverrideForm((form) => ({ ...form, reason: event.target.value }))} placeholder="Why is this exception safe and necessary?" />
+            </div>
+            <div className="space-y-2">
+              <Label>Authority reference *</Label>
+              <Input value={overrideForm.authorityReference} onChange={(event) => setOverrideForm((form) => ({ ...form, authorityReference: event.target.value }))} placeholder="Policy, approval, or incident reference" />
+            </div>
+            <div className="space-y-2">
+              <Label>Expires *</Label>
+              <Input type="datetime-local" value={overrideForm.expiresAt} onChange={(event) => setOverrideForm((form) => ({ ...form, expiresAt: event.target.value }))} />
+            </div>
+            <p className="text-xs text-muted-foreground">Your profile is recorded as the approver. Current workforce-administration identity assurance is required.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOverrideTarget(null)}>Cancel</Button>
+            <Button
+              onClick={handleCreateOverride}
+              disabled={createOverride.isPending || overrideForm.reason.trim().length < 8 || overrideForm.authorityReference.trim().length < 3 || !overrideForm.expiresAt}
+            >
+              {createOverride.isPending ? "Authorizing..." : "Authorize Override"}
             </Button>
           </DialogFooter>
         </DialogContent>
