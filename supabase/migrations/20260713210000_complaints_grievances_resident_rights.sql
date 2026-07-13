@@ -235,9 +235,15 @@ begin
   perform app_private.assert_admission_manager(v_fac.organization_id, v_fac.id);
   perform app_private.assert_complaint_profile(v_fac.organization_id, p_assigned_investigator_profile_id);
 
-  if p_date_received is null or p_date_received > now() + interval '5 minutes'
+  if p_date_received is null
+    or p_date_received > now() + interval '5 minutes'
+    or p_method_received not in ('in_person', 'phone', 'email', 'letter', 'portal', 'staff_report', 'other')
+    or p_complainant_type not in ('resident', 'designated_person', 'family', 'anonymous', 'staff_on_behalf', 'other')
+    or p_category not in ('billing', 'food', 'staff_conduct', 'service', 'privacy', 'resident_rights', 'environmental', 'other')
+    or p_immediate_risk not in ('none', 'low', 'high', 'imminent')
     or length(btrim(coalesce(p_description, ''))) < 10
     or (coalesce(p_is_anonymous, false) = false and length(btrim(coalesce(p_complainant_name, ''))) < 2)
+    or (p_immediate_risk in ('high', 'imminent') and length(btrim(coalesce(p_immediate_action_taken, ''))) < 5)
     or not (v_concerns <@ array['abuse','neglect','exploitation','serious_injury','other_reportable_event']::text[])
   then
     raise exception 'Complaint intake is incomplete or invalid' using errcode = '22023';
