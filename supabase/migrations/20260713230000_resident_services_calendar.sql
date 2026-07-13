@@ -216,7 +216,7 @@ begin
     id, organization_id, facility_id, label, vehicle_type, license_plate,
     capacity, wheelchair_accessible, status, notes, created_by
   ) values (
-    coalesce(p_vehicle_id, gen_random_uuid()), v_fac.organization_id, v_fac.id,
+    coalesce(p_vehicle_id, extensions.gen_random_uuid()), v_fac.organization_id, v_fac.id,
     btrim(p_label), p_vehicle_type, nullif(btrim(p_license_plate), ''),
     p_capacity, coalesce(p_wheelchair_accessible, false), p_status,
     nullif(btrim(p_notes), ''), auth.uid()
