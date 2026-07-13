@@ -542,11 +542,13 @@ export default function TrainingPlans() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Matches RLS: training_plans/training_plan_items writes (insert/update)
-  // are org_admin + trainer; facility_manager (the third ORG_ROLES member)
-  // is read-only here. Deleting a whole plan is org_admin only.
-  const canManage = ["org_admin", "trainer"].includes(user?.role ?? "");
-  const canDeletePlan = user?.role === "org_admin";
+  // Matches RLS: platform_admin can maintain tenant training plans from the admin route,
+  // while org_admin + trainer manage plans inside their own org. facility_manager remains read-only.
+  // Creating a blank plan still requires an org context, so platform_admin uses the AI builder
+  // (which asks for an owning organization) rather than this org-scoped quick-create form.
+  const canCreatePlan = ["org_admin", "trainer"].includes(user?.role ?? "");
+  const canManage = canCreatePlan || user?.role === "platform_admin";
+  const canDeletePlan = user?.role === "org_admin" || user?.role === "platform_admin";
 
   const [search, setSearch] = useState("");
   const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
@@ -630,7 +632,7 @@ export default function TrainingPlans() {
           <h1>Training Plans</h1>
           <p>Bundle training content and training types into reusable curricula, then apply them to employees.</p>
         </div>
-        {canManage && (
+        {canCreatePlan && (
           <Button onClick={openCreate} className="shadow-sm">
             <Plus className="mr-2 h-4 w-4" /> New Plan
           </Button>

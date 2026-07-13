@@ -632,13 +632,24 @@ export default function CourseDetail() {
   const [videoGenBlock, setVideoGenBlock] = useState<CourseBlock | null>(null);
   const [videoGenForm, setVideoGenForm] = useState({ avatarId: "", voiceId: "", script: "" });
   const { data: heygenOptions, isLoading: heygenOptionsLoading } = useListHeygenOptions(!!videoGenBlock);
+  const preferredHeygenAvatar = heygenOptions?.avatars.find(a => a.is_ai_twin) ?? heygenOptions?.avatars[0];
+  const preferredHeygenVoice = heygenOptions?.voices.find(v => /english|en[-_ ]?us|en[-_ ]?gb/i.test(`${v.language ?? ""} ${v.name ?? ""}`)) ?? heygenOptions?.voices[0];
   const { mutate: generateVideo, isPending: generatingVideo } = useGenerateCourseVideo();
   const { mutate: checkVideoStatus, isPending: checkingVideoStatus } = useCheckCourseVideoStatus();
 
   const openVideoGen = (block: CourseBlock) => {
     setVideoGenBlock(block);
-    setVideoGenForm({ avatarId: "", voiceId: "", script: "" });
+    setVideoGenForm({ avatarId: "", voiceId: "", script: (block.body as { script?: string } | null)?.script ?? "" });
   };
+
+  useEffect(() => {
+    if (!videoGenBlock) return;
+    setVideoGenForm(f => ({
+      ...f,
+      avatarId: f.avatarId || preferredHeygenAvatar?.id || "",
+      voiceId: f.voiceId || preferredHeygenVoice?.voice_id || "",
+    }));
+  }, [preferredHeygenAvatar?.id, preferredHeygenVoice?.voice_id, videoGenBlock]);
 
   const handleRequestCloseVideoGen = () => {
     if (videoGenForm.avatarId || videoGenForm.voiceId || videoGenForm.script.trim()) {
@@ -709,6 +720,8 @@ export default function CourseDetail() {
   const [showBulkVideoGen, setShowBulkVideoGen] = useState(false);
   const [bulkVideoForm, setBulkVideoForm] = useState({ avatarId: "", voiceId: "" });
   const { data: bulkHeygenOptions, isLoading: bulkHeygenOptionsLoading } = useListHeygenOptions(showBulkVideoGen);
+  const preferredBulkHeygenAvatar = bulkHeygenOptions?.avatars.find(a => a.is_ai_twin) ?? bulkHeygenOptions?.avatars[0];
+  const preferredBulkHeygenVoice = bulkHeygenOptions?.voices.find(v => /english|en[-_ ]?us|en[-_ ]?gb/i.test(`${v.language ?? ""} ${v.name ?? ""}`)) ?? bulkHeygenOptions?.voices[0];
   const { mutateAsync: generateVideoAsync } = useGenerateCourseVideo();
   // Once set, the dialog shows the per-block progress list instead of the avatar/voice form.
   const [bulkGenBlockIds, setBulkGenBlockIds] = useState<string[] | null>(null);
@@ -723,6 +736,14 @@ export default function CourseDetail() {
     setBulkGenStartFailures(new Set());
     setShowBulkVideoGen(true);
   };
+
+  useEffect(() => {
+    if (!showBulkVideoGen) return;
+    setBulkVideoForm(f => ({
+      avatarId: f.avatarId || preferredBulkHeygenAvatar?.id || "",
+      voiceId: f.voiceId || preferredBulkHeygenVoice?.voice_id || "",
+    }));
+  }, [preferredBulkHeygenAvatar?.id, preferredBulkHeygenVoice?.voice_id, showBulkVideoGen]);
 
   const closeBulkVideoGen = () => {
     setShowBulkVideoGen(false);
@@ -1611,8 +1632,8 @@ export default function CourseDetail() {
           <DialogHeader><DialogTitle>Generate AI Avatar Video</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-xs text-muted-foreground">
-              Generates a talking-avatar video from a script. This replaces any existing video on this block and
-              typically takes a few minutes -- use the refresh action on the block to check progress.
+              Generates a talking-avatar video from a script. If your HeyGen account has an AI Twin, it is sorted first
+              and preselected so high-quality course videos can be created with one click.
             </p>
             <div className="space-y-1">
               <Label>Avatar *</Label>
@@ -1620,7 +1641,7 @@ export default function CourseDetail() {
                 <SelectTrigger><SelectValue placeholder={heygenOptionsLoading ? "Loading avatars..." : "Select an avatar"} /></SelectTrigger>
                 <SelectContent>
                   {heygenOptions?.avatars.map(a => (
-                    <SelectItem key={a.id} value={a.id}>{a.name}{a.gender ? ` (${a.gender})` : ""}</SelectItem>
+                    <SelectItem key={a.id} value={a.id}>{a.is_ai_twin ? "AI Twin · " : ""}{a.name}{a.gender ? ` (${a.gender})` : ""}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1662,7 +1683,7 @@ export default function CourseDetail() {
               <>
                 <p className="text-xs text-muted-foreground">
                   Generates an AI avatar video for every video block in this version that doesn't have one yet, using
-                  one avatar and voice for all of them, and each block's AI-authored narration script.
+                  one avatar and voice for all of them. Your HeyGen AI Twin is sorted first when available, and each block uses its AI-authored narration script.
                 </p>
                 <div className="space-y-1">
                   <Label>Avatar *</Label>
@@ -1670,7 +1691,7 @@ export default function CourseDetail() {
                     <SelectTrigger><SelectValue placeholder={bulkHeygenOptionsLoading ? "Loading avatars..." : "Select an avatar"} /></SelectTrigger>
                     <SelectContent>
                       {bulkHeygenOptions?.avatars.map(a => (
-                        <SelectItem key={a.id} value={a.id}>{a.name}{a.gender ? ` (${a.gender})` : ""}</SelectItem>
+                        <SelectItem key={a.id} value={a.id}>{a.is_ai_twin ? "AI Twin · " : ""}{a.name}{a.gender ? ` (${a.gender})` : ""}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

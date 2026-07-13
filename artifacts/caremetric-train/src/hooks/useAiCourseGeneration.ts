@@ -26,6 +26,10 @@ async function describeFunctionError(error: unknown, fallback: string): Promise<
 }
 
 export interface GenerateCourseCurriculumPayload {
+  generationMode?: "course" | "training_plan";
+  organizationId?: string;
+  planName?: string;
+  courseCount?: number;
   titleHint?: string;
   category?: string;
   trainingTypeId?: string;
@@ -37,8 +41,10 @@ export interface GenerateCourseCurriculumPayload {
 
 export interface GenerateCourseCurriculumResult {
   success: true;
-  course_id: string;
-  course_version_id: string;
+  course_id?: string;
+  course_version_id?: string;
+  training_plan_id?: string;
+  courses?: { course_id: string; course_version_id: string; title: string }[];
   generation_id: string;
 }
 
@@ -48,6 +54,8 @@ interface GenerateCourseCurriculumResponse {
   success?: boolean;
   course_id?: string;
   course_version_id?: string;
+  training_plan_id?: string;
+  courses?: { course_id: string; course_version_id: string; title: string }[];
   generation_id?: string;
   error?: string;
 }
@@ -66,6 +74,10 @@ export function useGenerateCourseCurriculum() {
         "generate-course-curriculum",
         {
           body: {
+            generation_mode: payload.generationMode ?? "course",
+            organization_id: payload.organizationId || undefined,
+            plan_name: payload.planName || undefined,
+            course_count: payload.courseCount,
             title_hint: payload.titleHint || undefined,
             category: payload.category || undefined,
             training_type_id: payload.trainingTypeId || undefined,
@@ -77,8 +89,13 @@ export function useGenerateCourseCurriculum() {
         },
       );
       if (error) throw new Error(await describeFunctionError(error, "Failed to generate course curriculum"));
-      if (!data || data.success === false || !data.course_id || !data.course_version_id || !data.generation_id) {
+      if (!data || data.success === false || !data.generation_id) {
         throw new Error(data?.error ?? "Failed to generate course curriculum");
+      }
+      if ((payload.generationMode ?? "course") === "training_plan") {
+        if (!data.training_plan_id || !data.courses?.length) throw new Error(data.error ?? "Failed to generate training plan");
+      } else if (!data.course_id || !data.course_version_id) {
+        throw new Error(data.error ?? "Failed to generate course curriculum");
       }
       return data as GenerateCourseCurriculumResult;
     },
