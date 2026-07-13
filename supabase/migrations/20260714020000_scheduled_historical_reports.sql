@@ -582,7 +582,11 @@ begin
   if p_trigger_type not in ('scheduled','manual','retry') then raise exception 'Invalid report trigger type' using errcode='22023'; end if;
   v_period_end := case when v_schedule.date_range_mode='fixed' then v_schedule.fixed_date_to else p_as_of_date end;
   v_period_start := case when v_schedule.date_range_mode='fixed' then v_schedule.fixed_date_from else v_period_end-v_schedule.lookback_days+1 end;
-  if p_retry_of_run_id is not null then select coalesce(max(r.attempt_number),0)+1 into v_attempt from public.report_schedule_runs r where r.id=p_retry_of_run_id or r.retry_of_run_id=p_retry_of_run_id; end if;
+  if p_retry_of_run_id is not null then
+    select coalesce(max(r.attempt_number),0)+1 into v_attempt
+    from public.report_schedule_runs r
+    where r.schedule_id = v_schedule.id and r.as_of_date = p_as_of_date;
+  end if;
   insert into public.report_schedule_runs(
     organization_id,facility_id,schedule_id,report_version_id,trigger_type,status,scheduled_for,
     as_of_date,period_start,period_end,retry_of_run_id,attempt_number,requested_by,started_at
