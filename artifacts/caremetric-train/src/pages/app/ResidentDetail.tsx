@@ -298,7 +298,7 @@ export default function ResidentDetail() {
       )}
 
 
-      <Card>
+      <Card hidden={!isTrackedFacilityType}>
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-2">
             <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" /> Move-in readiness packet</CardTitle>
