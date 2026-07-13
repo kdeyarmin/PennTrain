@@ -18,8 +18,11 @@ describe("role-based page visibility", () => {
     expect(employeePaths).toEqual(expect.arrayContaining([
       "/me",
       "/me/schedule",
+      "/me/services",
+      "/me/change-of-condition",
       "/me/courses",
       "/me/trainings",
+      "/me/work",
       "/me/certificates",
       "/me/documents",
       "/me/credentials",
@@ -112,6 +115,55 @@ describe("role-based page visibility", () => {
     expect(canViewPage("/app/closed-loop-compliance", "auditor")).toBe(true);
     expect(canViewPage("/app/closed-loop-compliance", "trainer")).toBe(false);
     expect(canViewPage("/app/closed-loop-compliance", "employee")).toBe(false);
+  });
+
+  it("exposes scoped operational work and employee self-service work", () => {
+    expect(canViewPage("/app/work", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/work", "org_admin")).toBe(true);
+    expect(canViewPage("/app/work", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/work", "auditor")).toBe(true);
+    expect(canViewPage("/app/work", "employee")).toBe(false);
+    expect(canViewPage("/me/work", "employee")).toBe(true);
+    expect(canViewPath("/me/work/work-1", "employee")).toBe(true);
+    expect(canViewPath("/app/work/work-1", "auditor")).toBe(true);
+  });
+
+  it("separates manager service oversight from employee service delivery", () => {
+    expect(canViewPage("/app/services", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/services", "org_admin")).toBe(true);
+    expect(canViewPage("/app/services", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/services", "auditor")).toBe(true);
+    expect(canViewPage("/app/services", "employee")).toBe(false);
+    expect(canViewPage("/me/services", "employee")).toBe(true);
+    expect(canViewPage("/me/services", "org_admin")).toBe(false);
+  });
+
+  it("exposes admission, room, move-in, and census operations to reporting roles", () => {
+    expect(canViewPage("/app/admissions", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/admissions", "org_admin")).toBe(true);
+    expect(canViewPage("/app/admissions", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/admissions", "auditor")).toBe(true);
+    expect(canViewPage("/app/admissions", "employee")).toBe(false);
+    expect(canViewPath("/app/admissions/move-ins/workspace-1", "org_admin")).toBe(true);
+  });
+
+  it("separates manager change oversight from assigned employee follow-up", () => {
+    expect(canViewPage("/app/change-of-condition", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/change-of-condition", "org_admin")).toBe(true);
+    expect(canViewPage("/app/change-of-condition", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/change-of-condition", "auditor")).toBe(true);
+    expect(canViewPage("/app/change-of-condition", "employee")).toBe(false);
+    expect(canViewPage("/me/change-of-condition", "employee")).toBe(true);
+    expect(canViewPath("/me/change-of-condition/event-1", "employee")).toBe(true);
+    expect(canViewPath("/app/change-of-condition/event-1", "auditor")).toBe(true);
+  });
+
+  it("exposes QAPI projects to reporting roles", () => {
+    expect(canViewPage("/app/qapi", "org_admin")).toBe(true);
+    expect(canViewPage("/app/qapi", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/qapi", "auditor")).toBe(true);
+    expect(canViewPage("/app/qapi", "employee")).toBe(false);
+    expect(canViewPath("/app/qapi/projects/project-1", "org_admin")).toBe(true);
   });
 
   it("makes account MFA settings available to every authenticated role", () => {

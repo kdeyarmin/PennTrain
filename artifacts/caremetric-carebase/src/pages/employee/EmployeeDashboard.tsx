@@ -351,6 +351,10 @@ export default function EmployeeDashboard() {
                 <span className="font-medium text-sm">My Schedule</span>
                 <CalendarDays className="h-4 w-4 text-muted-foreground" />
               </Link>
+              <Link href="/me/services" className="flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors">
+                <span className="font-medium text-sm">My Resident Services</span>
+                <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+              </Link>
               <Link href="/me/courses" className="flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors">
                 <span className="font-medium text-sm">My Training</span>
                 <BookOpen className="h-4 w-4 text-muted-foreground" />

@@ -114,6 +114,11 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Oversight",
         items: [
           { href: "/admin/alerts", label: "Alerts", icon: Bell },
+          { href: "/app/work", label: "Operational Work", icon: ClipboardList },
+          { href: "/app/services", label: "Resident Services", icon: CalendarDays },
+          { href: "/app/admissions", label: "Admissions & Census", icon: BedDouble },
+          { href: "/app/change-of-condition", label: "Change Follow-Up", icon: Activity },
+          { href: "/app/qapi", label: "QAPI & Quality", icon: BarChart3 },
           { href: "/admin/audit", label: "Audit Log", icon: ShieldAlert },
           { href: "/admin/notifications", label: "Notification Delivery", icon: Send },
           { href: "/admin/system-jobs", label: "System Jobs", icon: Activity },
@@ -195,7 +200,11 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Residents",
         items: [
           { href: "/app/residents", label: "Residents", icon: BedDouble },
+          { href: "/app/admissions", label: "Admissions & Census", icon: ClipboardCheck },
+          { href: "/app/change-of-condition", label: "Change Follow-Up", icon: Activity },
+          { href: "/app/qapi", label: "QAPI & Quality", icon: BarChart3 },
           { href: "/app/state-forms", label: "State Forms", icon: ClipboardList },
+          { href: "/app/services", label: "Resident Services", icon: CalendarDays },
         ]
       }] : []),
       {
@@ -203,6 +212,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
           { href: "/app/confidential-incidents", label: "Confidential Reports", icon: ShieldAlert },
+          { href: "/app/work", label: "Operational Work", icon: ClipboardList },
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
           { href: "/app/pending-approvals", label: "Pending Approvals", icon: ClipboardCheck },
@@ -285,7 +295,11 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Residents",
         items: [
           { href: "/app/residents", label: "Residents", icon: BedDouble },
+          { href: "/app/admissions", label: "Admissions & Census", icon: ClipboardCheck },
+          { href: "/app/change-of-condition", label: "Change Follow-Up", icon: Activity },
+          { href: "/app/qapi", label: "QAPI & Quality", icon: BarChart3 },
           { href: "/app/state-forms", label: "State Forms", icon: ClipboardList },
+          { href: "/app/services", label: "Resident Services", icon: CalendarDays },
         ]
       }] : []),
       {
@@ -293,6 +307,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/app/incidents", label: "Incidents & Complaints", icon: AlertTriangle },
           { href: "/app/confidential-incidents", label: "Confidential Reports", icon: ShieldAlert },
+          { href: "/app/work", label: "Operational Work", icon: ClipboardList },
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
         ]
@@ -384,6 +399,9 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Schedule & Courses",
         items: [
           { href: "/me/schedule", label: "My Schedule", icon: CalendarDays },
+          { href: "/me/services", label: "My Services", icon: ClipboardCheck },
+          { href: "/me/change-of-condition", label: "Change Follow-Up", icon: Activity },
+          { href: "/me/work", label: "My Work", icon: ClipboardList },
           { href: "/me/courses", label: "My Training", icon: BookOpen },
         ]
       },

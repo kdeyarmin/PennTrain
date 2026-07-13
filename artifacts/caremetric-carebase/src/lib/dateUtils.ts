@@ -6,6 +6,13 @@ export function toLocalIsoDate(date = new Date()): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+/** Convert a Date or ISO timestamp to a local `YYYY-MM-DDTHH:mm` string for datetime-local inputs. */
+export function toDateTimeLocal(value: Date | string = new Date()): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**

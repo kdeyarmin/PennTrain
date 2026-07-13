@@ -67,6 +67,8 @@ const AdministratorQualification = lazy(() => import("@/pages/app/AdministratorQ
 const Incidents = lazy(() => import("@/pages/app/Incidents"));
 const ConfidentialIncidents = lazy(() => import("@/pages/app/ConfidentialIncidents"));
 const ConfidentialIncidentDetail = lazy(() => import("@/pages/app/ConfidentialIncidentDetail"));
+const WorkQueue = lazy(() => import("@/pages/app/WorkQueue"));
+const WorkItemDetail = lazy(() => import("@/pages/app/WorkItemDetail"));
 const EvidenceRoom = lazy(() => import("@/pages/app/EvidenceRoom"));
 const EvidenceCollectionDetail = lazy(() => import("@/pages/app/EvidenceCollectionDetail"));
 const EvidenceGuestRoom = lazy(() => import("@/pages/public/EvidenceGuestRoom"));
@@ -76,6 +78,14 @@ const Residents = lazy(() => import("@/pages/app/Residents"));
 const ResidentDetail = lazy(() => import("@/pages/app/ResidentDetail"));
 const ResidentComplianceReport = lazy(() => import("@/pages/app/ResidentComplianceReport"));
 const StateFormsCenter = lazy(() => import("@/pages/app/StateFormsCenter"));
+const ServiceDelivery = lazy(() => import("@/pages/app/ServiceDelivery"));
+const AdmissionOperations = lazy(() => import("@/pages/app/AdmissionOperations"));
+const MoveInWorkspaceDetail = lazy(() => import("@/pages/app/MoveInWorkspaceDetail"));
+const MoveInGuestPortal = lazy(() => import("@/pages/public/MoveInGuestPortal"));
+const ChangeOfConditionQueue = lazy(() => import("@/pages/app/ChangeOfConditionQueue"));
+const ChangeOfConditionDetail = lazy(() => import("@/pages/app/ChangeOfConditionDetail"));
+const QapiDashboard = lazy(() => import("@/pages/app/QapiDashboard"));
+const QapiProjectDetail = lazy(() => import("@/pages/app/QapiProjectDetail"));
 const ResidentAssessmentFormEditor = lazy(() => import("@/pages/app/ResidentAssessmentFormEditor"));
 const IncidentDetail = lazy(() => import("@/pages/app/IncidentDetail"));
 const InspectionItems = lazy(() => import("@/pages/app/InspectionItems"));
@@ -248,6 +258,12 @@ const PENDING_APPROVAL_ROLES: UserRole[] = ["org_admin", "facility_manager", "tr
 // Matches schedules_write / facility_units_write / shift_definitions_write / employee_schedule_preferences_write
 // RLS -- shift scheduling is org_admin/facility_manager only (no trainer, no auditor write).
 const SCHEDULE_MANAGE_ROLES: UserRole[] = ["org_admin", "facility_manager"];
+// work_items_select permits managers/auditors their scoped queue and any authenticated owner
+// their own assigned rows. Mutations remain independently guarded by the work-item RPCs.
+const WORK_QUEUE_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
+const SERVICE_DELIVERY_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
+const ADMISSION_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
+const CHANGE_EVENT_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 
 function SupportTicketRoute({ prefix }: { prefix: "/app" | "/me" }) {
   const { user, isLoading, isAuthenticated } = useAuth();
@@ -296,6 +312,7 @@ function Router() {
       {/* Evidence-room guest link: the token in the URL is the whole credential; the
           server authorizes and logs every call, so no session or chrome is involved. */}
       <Route path="/evidence-access/:token" component={EvidenceGuestRoom} />
+      <Route path="/move-in-access/:token" component={MoveInGuestPortal} />
 
       <Route path="/account/security">
         {() => <ProtectedRoute component={MfaSettings} allowedRoles={ANY_ROLE} />}
@@ -515,6 +532,12 @@ function Router() {
       <Route path="/app/confidential-incidents/:id">
         {() => <ProtectedRoute component={ConfidentialIncidentDetail} allowedRoles={CONFIDENTIAL_INTAKE_ROLES} />}
       </Route>
+      <Route path="/app/work">
+        {() => <ProtectedRoute component={WorkQueue} allowedRoles={WORK_QUEUE_ROLES} />}
+      </Route>
+      <Route path="/app/work/:id">
+        {() => <ProtectedRoute component={WorkItemDetail} allowedRoles={WORK_QUEUE_ROLES} />}
+      </Route>
       <Route path="/app/evidence">
         {() => <ProtectedRoute component={EvidenceRoom} allowedRoles={EVIDENCE_ROOM_ROLES} />}
       </Route>
@@ -539,6 +562,27 @@ function Router() {
       </Route>
       <Route path="/app/state-forms">
         {() => <ProtectedRoute component={StateFormsCenter} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/services">
+        {() => <ProtectedRoute component={ServiceDelivery} allowedRoles={SERVICE_DELIVERY_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/admissions">
+        {() => <ProtectedRoute component={AdmissionOperations} allowedRoles={ADMISSION_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/admissions/move-ins/:id">
+        {() => <ProtectedRoute component={MoveInWorkspaceDetail} allowedRoles={ADMISSION_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/change-of-condition">
+        {() => <ProtectedRoute component={ChangeOfConditionQueue} allowedRoles={CHANGE_EVENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/change-of-condition/:id">
+        {() => <ProtectedRoute component={ChangeOfConditionDetail} allowedRoles={CHANGE_EVENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/qapi">
+        {() => <ProtectedRoute component={QapiDashboard} allowedRoles={CHANGE_EVENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/qapi/projects/:id">
+        {() => <ProtectedRoute component={QapiProjectDetail} allowedRoles={CHANGE_EVENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/residents/:residentId/assessment-forms/:formId">
         {() => <ProtectedRoute component={ResidentAssessmentFormEditor} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
@@ -636,6 +680,21 @@ function Router() {
       </Route>
       <Route path="/me/trainings">
         {() => <ProtectedRoute component={MyTrainings} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/work">
+        {() => <ProtectedRoute component={WorkQueue} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/work/:id">
+        {() => <ProtectedRoute component={WorkItemDetail} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/services">
+        {() => <ProtectedRoute component={ServiceDelivery} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/change-of-condition">
+        {() => <ProtectedRoute component={ChangeOfConditionQueue} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/change-of-condition/:id">
+        {() => <ProtectedRoute component={ChangeOfConditionDetail} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/schedule">
         {() => <ProtectedRoute component={MySchedule} allowedRoles={["employee"]} />}
