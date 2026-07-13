@@ -147,11 +147,7 @@ export default function EmergencyEventDetail() {
   );
 
   const submitTimeline = () => addTimeline.mutate(
-    {
-      eventId: id,
-      eventType: timelineType,
-      occurredAt: new Date(timelineAt).toISOString(),
-      description: timelineDescription,
+      occurredAt: new Date(timelineAt || Date.now()).toISOString(),
     },
     {
       onSuccess: () => {
