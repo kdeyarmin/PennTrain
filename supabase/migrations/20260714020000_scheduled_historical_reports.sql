@@ -532,7 +532,7 @@ create or replace function app_private.publish_snapshot_to_evidence_room(
 ) returns uuid language plpgsql security definer set search_path = '' as $function$
 declare v_snapshot public.report_snapshots%rowtype; v_definition public.saved_report_definitions%rowtype; v_collection_id uuid;
 begin
-  select s.* into v_snapshot from public.report_snapshots s where s.id=p_snapshot_id;
+  select s.* into v_snapshot from public.report_snapshots s where s.id=p_snapshot_id for update;
   if v_snapshot.id is null then raise exception 'Report snapshot not found' using errcode='P0002'; end if;
   if v_snapshot.facility_id is null then raise exception 'Organization-wide snapshots cannot be published to a facility evidence room' using errcode='22023'; end if;
   select d.* into v_definition from public.saved_report_definitions d where d.id=v_snapshot.report_definition_id;
