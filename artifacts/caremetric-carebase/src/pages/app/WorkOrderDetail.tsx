@@ -84,8 +84,7 @@ export default function WorkOrderDetail() {
 
   useEffect(() => {
     if (!order) return;
-    const target = order.target_completion_at ? new Date(order.target_completion_at) : null;
-    const localTarget = target ? new Date(target.getTime() - target.getTimezoneOffset() * 60_000).toISOString().slice(0, 16) : "";
+    const localTarget = order.target_completion_at ? toDateTimeLocal(order.target_completion_at) : "";
     setEdit({
       locationDetail: order.location_detail ?? "", roomNumber: order.room_number ?? "",
       safetyRisk: order.safety_risk, priority: order.priority,
