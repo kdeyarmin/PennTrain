@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 import {
   AlertTriangle,
@@ -98,7 +98,6 @@ export default function WorkItemDetail() {
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [priority, setPriority] = useState("");
   const [dueAt, setDueAt] = useState("");
-  const [assignmentInitializedFor, setAssignmentInitializedFor] = useState<string | null>(null);
   const [dependencyId, setDependencyId] = useState("");
   const [dependencyType, setDependencyType] = useState("blocks");
   const [evidenceType, setEvidenceType] = useState("");
@@ -108,12 +107,12 @@ export default function WorkItemDetail() {
   const [effectivenessResult, setEffectivenessResult] = useState("");
 
   const work = query.data;
-  if (work && assignmentInitializedFor !== work.id) {
-    setAssignmentInitializedFor(work.id);
+  useEffect(() => {
+    if (!work) return;
     setOwnerId(work.owner_profile_id);
     setPriority(work.priority);
     setDueAt(toDateTimeLocal(work.due_at));
-  }
+  }, [work]);
 
   const isManager = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const isAuditor = user?.role === "auditor";
