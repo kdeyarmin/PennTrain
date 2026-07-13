@@ -18,6 +18,7 @@ describe("role-based page visibility", () => {
     expect(employeePaths).toEqual(expect.arrayContaining([
       "/me",
       "/me/schedule",
+      "/me/services",
       "/me/courses",
       "/me/trainings",
       "/me/work",
@@ -124,6 +125,16 @@ describe("role-based page visibility", () => {
     expect(canViewPage("/me/work", "employee")).toBe(true);
     expect(canViewPath("/me/work/work-1", "employee")).toBe(true);
     expect(canViewPath("/app/work/work-1", "auditor")).toBe(true);
+  });
+
+  it("separates manager service oversight from employee service delivery", () => {
+    expect(canViewPage("/app/services", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/services", "org_admin")).toBe(true);
+    expect(canViewPage("/app/services", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/services", "auditor")).toBe(true);
+    expect(canViewPage("/app/services", "employee")).toBe(false);
+    expect(canViewPage("/me/services", "employee")).toBe(true);
+    expect(canViewPage("/me/services", "org_admin")).toBe(false);
   });
 
   it("makes account MFA settings available to every authenticated role", () => {

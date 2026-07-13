@@ -115,6 +115,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/admin/alerts", label: "Alerts", icon: Bell },
           { href: "/app/work", label: "Operational Work", icon: ClipboardList },
+          { href: "/app/services", label: "Resident Services", icon: CalendarDays },
           { href: "/admin/audit", label: "Audit Log", icon: ShieldAlert },
           { href: "/admin/notifications", label: "Notification Delivery", icon: Send },
           { href: "/admin/system-jobs", label: "System Jobs", icon: Activity },
@@ -187,6 +188,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/app/residents", label: "Residents", icon: BedDouble },
           { href: "/app/state-forms", label: "State Forms", icon: ClipboardList },
+          { href: "/app/services", label: "Resident Services", icon: CalendarDays },
         ]
       }] : []),
       {
@@ -278,6 +280,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/app/residents", label: "Residents", icon: BedDouble },
           { href: "/app/state-forms", label: "State Forms", icon: ClipboardList },
+          { href: "/app/services", label: "Resident Services", icon: CalendarDays },
         ]
       }] : []),
       {
@@ -377,6 +380,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Schedule & Courses",
         items: [
           { href: "/me/schedule", label: "My Schedule", icon: CalendarDays },
+          { href: "/me/services", label: "My Services", icon: ClipboardCheck },
           { href: "/me/work", label: "My Work", icon: ClipboardList },
           { href: "/me/courses", label: "My Training", icon: BookOpen },
         ]

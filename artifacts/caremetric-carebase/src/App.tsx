@@ -78,6 +78,7 @@ const Residents = lazy(() => import("@/pages/app/Residents"));
 const ResidentDetail = lazy(() => import("@/pages/app/ResidentDetail"));
 const ResidentComplianceReport = lazy(() => import("@/pages/app/ResidentComplianceReport"));
 const StateFormsCenter = lazy(() => import("@/pages/app/StateFormsCenter"));
+const ServiceDelivery = lazy(() => import("@/pages/app/ServiceDelivery"));
 const ResidentAssessmentFormEditor = lazy(() => import("@/pages/app/ResidentAssessmentFormEditor"));
 const IncidentDetail = lazy(() => import("@/pages/app/IncidentDetail"));
 const InspectionItems = lazy(() => import("@/pages/app/InspectionItems"));
@@ -250,6 +251,7 @@ const SCHEDULE_MANAGE_ROLES: UserRole[] = ["org_admin", "facility_manager"];
 // work_items_select permits managers/auditors their scoped queue and any authenticated owner
 // their own assigned rows. Mutations remain independently guarded by the work-item RPCs.
 const WORK_QUEUE_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
+const SERVICE_DELIVERY_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 
 function SupportTicketRoute({ prefix }: { prefix: "/app" | "/me" }) {
   const { user, isLoading, isAuthenticated } = useAuth();
@@ -550,6 +552,9 @@ function Router() {
       <Route path="/app/state-forms">
         {() => <ProtectedRoute component={StateFormsCenter} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
+      <Route path="/app/services">
+        {() => <ProtectedRoute component={ServiceDelivery} allowedRoles={SERVICE_DELIVERY_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
       <Route path="/app/residents/:residentId/assessment-forms/:formId">
         {() => <ProtectedRoute component={ResidentAssessmentFormEditor} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
@@ -652,6 +657,9 @@ function Router() {
       </Route>
       <Route path="/me/work/:id">
         {() => <ProtectedRoute component={WorkItemDetail} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/services">
+        {() => <ProtectedRoute component={ServiceDelivery} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/schedule">
         {() => <ProtectedRoute component={MySchedule} allowedRoles={["employee"]} />}
