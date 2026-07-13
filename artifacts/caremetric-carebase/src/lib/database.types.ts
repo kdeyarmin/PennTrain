@@ -12088,6 +12088,431 @@ export type Database = {
           },
         ]
       }
+      qapi_action_items: {
+        Row: {
+          action_type: string
+          created_at: string
+          facility_id: string
+          id: string
+          organization_id: string
+          project_id: string
+          work_item_id: string
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          project_id: string
+          work_item_id: string
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          project_id?: string
+          work_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qapi_action_items_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qapi_action_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qapi_action_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "qapi_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qapi_action_items_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qapi_measurements: {
+        Row: {
+          denominator: number | null
+          facility_id: string
+          id: string
+          numerator: number
+          organization_id: string
+          period_end: string
+          period_start: string
+          project_id: string
+          recorded_at: string
+          recorded_by: string | null
+          result_notes: string | null
+          result_value: number
+          sample_description: string | null
+          source_snapshot: Json
+        }
+        Insert: {
+          denominator?: number | null
+          facility_id: string
+          id?: string
+          numerator: number
+          organization_id: string
+          period_end: string
+          period_start: string
+          project_id: string
+          recorded_at?: string
+          recorded_by?: string | null
+          result_notes?: string | null
+          result_value: number
+          sample_description?: string | null
+          source_snapshot?: Json
+        }
+        Update: {
+          denominator?: number | null
+          facility_id?: string
+          id?: string
+          numerator?: number
+          organization_id?: string
+          period_end?: string
+          period_start?: string
+          project_id?: string
+          recorded_at?: string
+          recorded_by?: string | null
+          result_notes?: string | null
+          result_value?: number
+          sample_description?: string | null
+          source_snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qapi_measurements_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qapi_measurements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qapi_measurements_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "qapi_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qapi_measurements_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qapi_meeting_notes: {
+        Row: {
+          adjustments: string | null
+          attendees: string
+          barriers: string | null
+          created_at: string
+          created_by: string | null
+          facility_id: string
+          held_at: string
+          id: string
+          notes: string
+          organization_id: string
+          project_id: string
+        }
+        Insert: {
+          adjustments?: string | null
+          attendees: string
+          barriers?: string | null
+          created_at?: string
+          created_by?: string | null
+          facility_id: string
+          held_at: string
+          id?: string
+          notes: string
+          organization_id: string
+          project_id: string
+        }
+        Update: {
+          adjustments?: string | null
+          attendees?: string
+          barriers?: string | null
+          created_at?: string
+          created_by?: string | null
+          facility_id?: string
+          held_at?: string
+          id?: string
+          notes?: string
+          organization_id?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qapi_meeting_notes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qapi_meeting_notes_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qapi_meeting_notes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qapi_meeting_notes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "qapi_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qapi_project_history: {
+        Row: {
+          actor_profile_id: string | null
+          event_type: string
+          evidence: Json
+          facility_id: string
+          id: string
+          occurred_at: string
+          organization_id: string
+          prior_status: string | null
+          project_id: string
+          reason: string
+          resulting_status: string | null
+        }
+        Insert: {
+          actor_profile_id?: string | null
+          event_type: string
+          evidence?: Json
+          facility_id: string
+          id?: string
+          occurred_at?: string
+          organization_id: string
+          prior_status?: string | null
+          project_id: string
+          reason: string
+          resulting_status?: string | null
+        }
+        Update: {
+          actor_profile_id?: string | null
+          event_type?: string
+          evidence?: Json
+          facility_id?: string
+          id?: string
+          occurred_at?: string
+          organization_id?: string
+          prior_status?: string | null
+          project_id?: string
+          reason?: string
+          resulting_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qapi_project_history_actor_profile_id_fkey"
+            columns: ["actor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qapi_project_history_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qapi_project_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qapi_project_history_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "qapi_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qapi_projects: {
+        Row: {
+          adjustments: string | null
+          audit_sample: string | null
+          barriers: string | null
+          baseline_data: string | null
+          closed_at: string | null
+          created_at: string
+          created_by: string | null
+          effectiveness_determination: string | null
+          facility_id: string
+          final_closure_approved_at: string | null
+          final_closure_approved_by: string | null
+          id: string
+          measurable_objective: string | null
+          measurement_frequency: string | null
+          organization_id: string
+          planned_interventions: string | null
+          problem_statement: string
+          project_lead_profile_id: string | null
+          project_number: string
+          root_cause_analysis: string | null
+          root_cause_method: string | null
+          source_id: string | null
+          source_of_concern: string
+          source_type: string | null
+          start_date: string
+          status: string
+          sustainment_period: string | null
+          target_completion_date: string
+          target_description: string | null
+          target_value: number | null
+          team_members: Json
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          adjustments?: string | null
+          audit_sample?: string | null
+          barriers?: string | null
+          baseline_data?: string | null
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          effectiveness_determination?: string | null
+          facility_id: string
+          final_closure_approved_at?: string | null
+          final_closure_approved_by?: string | null
+          id?: string
+          measurable_objective?: string | null
+          measurement_frequency?: string | null
+          organization_id: string
+          planned_interventions?: string | null
+          problem_statement: string
+          project_lead_profile_id?: string | null
+          project_number: string
+          root_cause_analysis?: string | null
+          root_cause_method?: string | null
+          source_id?: string | null
+          source_of_concern: string
+          source_type?: string | null
+          start_date?: string
+          status?: string
+          sustainment_period?: string | null
+          target_completion_date: string
+          target_description?: string | null
+          target_value?: number | null
+          team_members?: Json
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          adjustments?: string | null
+          audit_sample?: string | null
+          barriers?: string | null
+          baseline_data?: string | null
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          effectiveness_determination?: string | null
+          facility_id?: string
+          final_closure_approved_at?: string | null
+          final_closure_approved_by?: string | null
+          id?: string
+          measurable_objective?: string | null
+          measurement_frequency?: string | null
+          organization_id?: string
+          planned_interventions?: string | null
+          problem_statement?: string
+          project_lead_profile_id?: string | null
+          project_number?: string
+          root_cause_analysis?: string | null
+          root_cause_method?: string | null
+          source_id?: string | null
+          source_of_concern?: string
+          source_type?: string | null
+          start_date?: string
+          status?: string
+          sustainment_period?: string | null
+          target_completion_date?: string
+          target_description?: string | null
+          target_value?: number | null
+          team_members?: Json
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qapi_projects_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qapi_projects_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qapi_projects_final_closure_approved_by_fkey"
+            columns: ["final_closure_approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qapi_projects_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qapi_projects_project_lead_profile_id_fkey"
+            columns: ["project_lead_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       qualification_lifecycle_events: {
         Row: {
           actor_profile_id: string | null
@@ -17916,6 +18341,28 @@ export type Database = {
         }
         Returns: string
       }
+      add_qapi_action: {
+        Args: {
+          p_action_type: string
+          p_description: string
+          p_due_at: string
+          p_owner: string
+          p_project_id: string
+          p_title: string
+        }
+        Returns: string
+      }
+      add_qapi_meeting_note: {
+        Args: {
+          p_adjustments: string
+          p_attendees: string
+          p_barriers: string
+          p_held_at: string
+          p_notes: string
+          p_project_id: string
+        }
+        Returns: string
+      }
       add_work_item_comment: {
         Args: { p_body: string; p_work_item_id: string }
         Returns: string
@@ -18568,6 +19015,23 @@ export type Database = {
         }
         Returns: string
       }
+      create_qapi_project: {
+        Args: {
+          p_baseline_data: string
+          p_facility_id: string
+          p_measurable_objective: string
+          p_problem_statement: string
+          p_project_lead: string
+          p_source_id?: string
+          p_source_of_concern: string
+          p_source_type?: string
+          p_target_completion_date: string
+          p_target_description: string
+          p_target_value: number
+          p_title: string
+        }
+        Returns: string
+      }
       create_referral_source: {
         Args: {
           p_contact_name?: string
@@ -18996,6 +19460,10 @@ export type Database = {
       }
       get_org_dashboard_summary: { Args: never; Returns: Json }
       get_platform_health: { Args: never; Returns: Json }
+      get_qapi_source_metrics: {
+        Args: { p_facility_id: string; p_from: string; p_through: string }
+        Returns: Json
+      }
       get_qualified_workforce_control_plane: { Args: never; Returns: Json }
       get_quiz_answer_choices: {
         Args: { p_quiz_id: string }
@@ -19567,6 +20035,18 @@ export type Database = {
       record_notification_provider_events: {
         Args: { p_events: Json }
         Returns: number
+      }
+      record_qapi_measurement: {
+        Args: {
+          p_denominator: number
+          p_end: string
+          p_notes: string
+          p_numerator: number
+          p_project_id: string
+          p_sample: string
+          p_start: string
+        }
+        Returns: string
       }
       record_regulatory_fixture_result: {
         Args: {
@@ -20394,6 +20874,24 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      update_qapi_project_plan: {
+        Args: {
+          p_adjustments: string
+          p_audit_sample: string
+          p_barriers: string
+          p_effectiveness: string
+          p_measurement_frequency: string
+          p_planned_interventions: string
+          p_project_id: string
+          p_reason: string
+          p_root_cause_analysis: string
+          p_root_cause_method: string
+          p_status: string
+          p_sustainment: string
+          p_team_members: Json
+        }
+        Returns: boolean
       }
       update_resident_service_requirement: {
         Args: {

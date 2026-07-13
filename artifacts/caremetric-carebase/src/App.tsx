@@ -84,6 +84,8 @@ const MoveInWorkspaceDetail = lazy(() => import("@/pages/app/MoveInWorkspaceDeta
 const MoveInGuestPortal = lazy(() => import("@/pages/public/MoveInGuestPortal"));
 const ChangeOfConditionQueue = lazy(() => import("@/pages/app/ChangeOfConditionQueue"));
 const ChangeOfConditionDetail = lazy(() => import("@/pages/app/ChangeOfConditionDetail"));
+const QapiDashboard = lazy(() => import("@/pages/app/QapiDashboard"));
+const QapiProjectDetail = lazy(() => import("@/pages/app/QapiProjectDetail"));
 const ResidentAssessmentFormEditor = lazy(() => import("@/pages/app/ResidentAssessmentFormEditor"));
 const IncidentDetail = lazy(() => import("@/pages/app/IncidentDetail"));
 const InspectionItems = lazy(() => import("@/pages/app/InspectionItems"));
@@ -575,6 +577,12 @@ function Router() {
       </Route>
       <Route path="/app/change-of-condition/:id">
         {() => <ProtectedRoute component={ChangeOfConditionDetail} allowedRoles={CHANGE_EVENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/qapi">
+        {() => <ProtectedRoute component={QapiDashboard} allowedRoles={CHANGE_EVENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/qapi/projects/:id">
+        {() => <ProtectedRoute component={QapiProjectDetail} allowedRoles={CHANGE_EVENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/residents/:residentId/assessment-forms/:formId">
         {() => <ProtectedRoute component={ResidentAssessmentFormEditor} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}

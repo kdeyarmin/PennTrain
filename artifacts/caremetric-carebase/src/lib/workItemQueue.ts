@@ -73,6 +73,8 @@ export function sourceRouteForWorkItem(item: WorkItem): string | null {
       return "/app/exclusion-screening";
     case "policy":
       return "/app/policy-documents";
+    case "qapi":
+      return `/app/qapi/projects/${item.source_id}`;
     default:
       return null;
   }

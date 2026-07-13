@@ -158,6 +158,14 @@ describe("role-based page visibility", () => {
     expect(canViewPath("/app/change-of-condition/event-1", "auditor")).toBe(true);
   });
 
+  it("exposes QAPI projects to reporting roles", () => {
+    expect(canViewPage("/app/qapi", "org_admin")).toBe(true);
+    expect(canViewPage("/app/qapi", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/qapi", "auditor")).toBe(true);
+    expect(canViewPage("/app/qapi", "employee")).toBe(false);
+    expect(canViewPath("/app/qapi/projects/project-1", "org_admin")).toBe(true);
+  });
+
   it("makes account MFA settings available to every authenticated role", () => {
     for (const role of ["platform_admin", "org_admin", "facility_manager", "trainer", "auditor", "employee"] as const) {
       expect(canViewPage("/account/security", role)).toBe(true);
