@@ -26,9 +26,10 @@ const budgets = {
   // nonretaliation monitoring, incident escalation, and closure approval), the complete
   // emergency-operations domain (readiness, accountability, communications, and after-action),
   // and qualification-aware scheduling (previews, bounded overrides, and service workload);
-  // raised 2660 -> 2700 after merging emergency operations, complaints, and scheduling together.
+  // raised 2660 -> 2700 after merging emergency operations, complaints, and scheduling together;
+  // raised 2700 -> 2710 after merging qualification-visibility features from main.
   // The new pages remain lazy routes and do not increase the initial-shell budget.
-  totalJavaScript: 2700 * 1024,
+  totalJavaScript: 2710 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };
