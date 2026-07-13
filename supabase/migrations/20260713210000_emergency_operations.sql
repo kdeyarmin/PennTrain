@@ -722,6 +722,17 @@ begin
     select 1 from public.emergency_resources r where r.id = p_relocation_site_id
       and r.facility_id = v_event.facility_id and r.resource_type = 'relocation_site'
   ) then raise exception 'Relocation site crosses facility scope' using errcode = '42501'; end if;
+  if p_assigned_employee_id is not null and not exists (
+    select 1 from public.employees e
+    where e.id = p_assigned_employee_id and e.organization_id = v_event.organization_id
+      and (
+        e.facility_id = v_event.facility_id
+        or exists (
+          select 1 from public.employee_facility_assignments efa
+          where efa.employee_id = e.id and efa.facility_id = v_event.facility_id
+        )
+      )
+  ) then raise exception 'Assigned employee crosses facility scope' using errcode = '42501'; end if;
   if p_subject_type = 'resident' then
     update public.emergency_event_residents set
       accountability_status = p_status,
