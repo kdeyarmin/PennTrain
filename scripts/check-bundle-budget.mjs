@@ -24,8 +24,10 @@ const budgets = {
   // meeting notes, RCA, and print-optimized workspace); raised 2600 -> 2660 for the
   // complaint/grievance case workflow (intake, investigation, corrective actions,
   // nonretaliation monitoring, incident escalation, and closure approval). The new
-  // pages remain lazy routes and do not increase the initial-shell budget.
-  totalJavaScript: 2660 * 1024,
+  // pages remain lazy routes and do not increase the initial-shell budget; raised
+  // 2660 -> 2690 for the resident administrative master workspace while per-load
+  // limits stayed flat.
+  totalJavaScript: 2690 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };

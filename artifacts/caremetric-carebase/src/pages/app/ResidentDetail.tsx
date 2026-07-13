@@ -34,6 +34,8 @@ import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, getComplianceFormLabe
 import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { ResidentFaceSheet } from "@/components/residents/ResidentFaceSheet";
+import { ResidentAdministrativeMaster } from "@/components/residents/ResidentAdministrativeMaster";
+import { useResidentAdministrativeMaster, useSaveResidentAdministrativeMaster } from "@/hooks/useResidentAdministrativeMaster";
 import { buildResidentFaceSheetPacket } from "@/lib/residentFaceSheet";
 import { buildMoveInReadinessPacket } from "@/lib/moveInReadiness";
 
@@ -67,6 +69,7 @@ export default function ResidentDetail() {
   const { data: documents, isLoading: documentsLoading } = useListResidentDocuments(id);
   const { data: assessmentForms, isLoading: assessmentFormsLoading } = useListResidentAssessmentForms(id);
   const { data: informalSupports, isLoading: informalSupportsLoading } = useListResidentInformalSupports(id);
+  const { data: administrativeMaster } = useResidentAdministrativeMaster(id);
 
   const { mutate: updateResident, isPending: isSavingResident } = useUpdateResident();
   const uploadDocument = useUploadResidentDocument();
@@ -74,6 +77,7 @@ export default function ResidentDetail() {
   const deleteDocument = useDeleteResidentDocument();
   const upsertSupport = useUpsertResidentInformalSupport();
   const deleteSupport = useDeleteResidentInformalSupport();
+  const saveAdministrativeMaster = useSaveResidentAdministrativeMaster();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showChangeDialog, setShowChangeDialog] = useState(false);
@@ -154,9 +158,28 @@ export default function ResidentDetail() {
         return;
       }
 
+      const synchronizedContactTypes = new Set(["primary_care_provider", "dentist", "case_manager", "designated_person"]);
+      const officialContacts = (administrativeMaster?.contacts ?? [])
+        .filter((contact) => !synchronizedContactTypes.has(contact.contact_type))
+        .map((contact) => ({ ...contact }));
+      const addOfficialContact = (contact_type: string, name: string, phone?: string) => {
+        if (name.trim()) officialContacts.push({
+          ...(administrativeMaster?.contacts.find((contact) => contact.contact_type === contact_type) ?? {}),
+          contact_type, name: name.trim(), phone: phone?.trim() || null,
+          is_primary: true, receives_notifications: contact_type === "designated_person",
+          active: true, sort_order: officialContacts.length,
+        } as (typeof officialContacts)[number]);
+      };
+      addOfficialContact("primary_care_provider", contactsForm.primary_physician_name, contactsForm.primary_physician_phone);
+      addOfficialContact("dentist", contactsForm.dentist_name, contactsForm.dentist_phone);
+      addOfficialContact("case_manager", contactsForm.case_manager_name, contactsForm.case_manager_phone);
+      addOfficialContact("designated_person", contactsForm.designated_person_name);
+
       await Promise.all([
-        new Promise<void>((resolve, reject) => {
-          updateResident({ id: resident.id, ...contactsForm, date_of_birth: contactsForm.date_of_birth || null }, { onSuccess: () => resolve(), onError: reject });
+        saveAdministrativeMaster.mutateAsync({
+          residentId: resident.id,
+          profile: { date_of_birth: contactsForm.date_of_birth || "" },
+          contacts: officialContacts,
         }),
         ...nonBlankRows
           .map((r, sortOrder) => upsertSupport.mutateAsync({
@@ -243,6 +266,7 @@ export default function ResidentDetail() {
     supports: informalSupports ?? [],
     complianceItems: items ?? [],
     documents: documents ?? [],
+    administrative: administrativeMaster,
   });
   const moveInPacket = buildMoveInReadinessPacket({
     resident,
@@ -250,6 +274,7 @@ export default function ResidentDetail() {
     complianceItems: items ?? [],
     documents: documents ?? [],
     supports: informalSupports ?? [],
+    officialContacts: administrativeMaster?.contacts ?? [],
   });
 
   return (
@@ -302,6 +327,13 @@ export default function ResidentDetail() {
       {resident.status === "discharged" && resident.discharge_date && (
         <p className="text-sm text-muted-foreground">Discharged {formatDateOnly(resident.discharge_date)}</p>
       )}
+
+      <ResidentAdministrativeMaster
+        resident={resident}
+        documents={documents ?? []}
+        data={administrativeMaster}
+        canManage={canManage}
+      />
 
 
       <Card hidden={!isTrackedFacilityType}>
