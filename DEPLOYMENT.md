@@ -18,8 +18,8 @@ Browser  --https-->  Railway (Node server, static SPA build)
 Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
 ```
 
-- **Railway** hosts and runs `artifacts/caremetric-train` -- a static Vite/React build served by a small
-  Node process (`artifacts/caremetric-train/server/index.mjs`). There is no API layer on Railway; the
+- **Railway** hosts and runs `artifacts/caremetric-carebase` -- a static Vite/React build served by a small
+  Node process (`artifacts/caremetric-carebase/server/index.mjs`). There is no API layer on Railway; the
   browser talks to Supabase directly via `supabase-js`. The server serves precompressed (brotli/
   gzip) assets generated at build time by `server/precompress.mjs` (Railway's proxy does not
   compress for you), sends baseline security headers (nosniff, frame denial, HSTS,
@@ -127,7 +127,7 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
 8. Generate TypeScript types after any schema change:
    ```bash
    npx supabase gen types typescript --project-id <your-project-ref> \
-     > artifacts/caremetric-train/src/lib/database.types.ts
+     > artifacts/caremetric-carebase/src/lib/database.types.ts
    ```
 
 ### Remaining recommended Supabase hardening (one manual dashboard step)
@@ -148,7 +148,7 @@ real tenant data outside the scope of this task.
 ## 2. Railway deployment
 
 The repo root is a pnpm workspace; the deployable app is the `@workspace/caremetric-carebase` package. Keep
-Railway's **Root Directory** setting at the repo root (not `artifacts/caremetric-train`) so `pnpm --filter`
+Railway's **Root Directory** setting at the repo root (not `artifacts/caremetric-carebase`) so `pnpm --filter`
 can see the whole workspace and lockfile.
 
 1. In Railway: **New Project -> Deploy from GitHub repo**, select this repository.
@@ -162,7 +162,7 @@ can see the whole workspace and lockfile.
     `check:all`-style workflow on pushes/PRs)
    - Start: `corepack enable && pnpm --filter @workspace/caremetric-carebase run start`
    - Healthcheck: `GET /health`
-   - Watch paths: only changes under `artifacts/caremetric-train/` and the root toolchain/config files
+   - Watch paths: only changes under `artifacts/caremetric-carebase/` and the root toolchain/config files
      trigger a deploy, so pushes touching e.g. `artifacts/mockup-sandbox` or `scripts/` don't
      redeploy production.
    Railpack resolves Node from `engines.node` in package.json / `.nvmrc` / `.node-version` (all
@@ -239,7 +239,7 @@ and `TWILIO_*` (see step 4 below) -- none of these are Railway variables.
 
 ```bash
 pnpm install
-cp artifacts/caremetric-train/.env.example artifacts/caremetric-train/.env   # fill in your Supabase URL/anon key
+cp artifacts/caremetric-carebase/.env.example artifacts/caremetric-carebase/.env   # fill in your Supabase URL/anon key
 pnpm run dev          # -> pnpm --filter @workspace/caremetric-carebase run dev, http://localhost:5173
 ```
 
@@ -283,7 +283,7 @@ handles migrations/functions) -- both can watch the same repo without conflictin
 ## 6. Data-access layer (already implemented)
 
 The required data-access functions for this SaaS already exist in
-`artifacts/caremetric-train/src/hooks/*.ts` and `src/lib/auth.tsx` -- this change did not need to build
+`artifacts/caremetric-carebase/src/hooks/*.ts` and `src/lib/auth.tsx` -- this change did not need to build
 them from scratch:
 
 - current user profile / session -- `src/lib/auth.tsx` (`useAuth()`)
@@ -376,8 +376,8 @@ policy at all, so it was never exploitable there, but the trigger was extended f
 
 ### Standing security posture
 
-- The service-role key is never referenced anywhere under `artifacts/caremetric-train/src` or
-  `artifacts/caremetric-train/server` -- confirmed by grep as part of this change. Vite only exposes
+- The service-role key is never referenced anywhere under `artifacts/caremetric-carebase/src` or
+  `artifacts/caremetric-carebase/server` -- confirmed by grep as part of this change. Vite only exposes
   `VITE_`-prefixed variables to the client bundle (`import.meta.env`), which is itself a structural
   guardrail against accidentally shipping the service-role key to the browser.
 - RLS is enabled on every table (`mcp__Supabase__list_tables` confirms `rls_enabled: true` across

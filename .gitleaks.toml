@@ -1,4 +1,4 @@
-title = "PennTrain Gitleaks configuration"
+title = "CareMetric CareBase Gitleaks configuration"
 
 [extend]
 useDefault = true

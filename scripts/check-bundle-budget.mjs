@@ -3,7 +3,7 @@ import path from "node:path";
 
 const assetDirectory = path.resolve(
   process.cwd(),
-  "artifacts/caremetric-train/dist/public/assets",
+  "artifacts/caremetric-carebase/dist/public/assets",
 );
 
 const budgets = {

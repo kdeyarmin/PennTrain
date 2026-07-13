@@ -1,17 +1,17 @@
 <p align="center">
-  <img src="artifacts/caremetric-train/public/logo.png" alt="CareMetric Train" width="360" />
+  <img src="artifacts/caremetric-carebase/public/logo.png" alt="CareMetric CareBase" width="360" />
 </p>
 
-# CareMetric Train
+# CareMetric CareBase
 
-**[CareMetricTrain.com](https://caremetrictrain.com)**
+**[CMCareBase.com](https://cmcarebase.com)**
 
-CareMetric Train is a multi-tenant personal care home and assisted living facility management platform for operators that need one system for staff compliance, resident assessments, incidents, inspections, documents, scheduling, and training. It is built directly on Supabase: Postgres with
+CareMetric CareBase is a multi-tenant personal care home and assisted living facility management platform for operators that need one system for staff compliance, resident assessments, incidents, inspections, documents, scheduling, and training. It is built directly on Supabase: Postgres with
 Row-Level Security, Supabase Auth, Supabase Storage, and Edge Functions. There is no separate API server -- the
 React frontend talks to Supabase directly via `supabase-js`.
 
-**Production**: https://caremetrictrain.com (Railway-hosted, service domain
-`penntrain-production.up.railway.app`; see `DEPLOYMENT.md`).
+**Production**: https://cmcarebase.com (Railway-hosted, service domain
+`carebase-production.up.railway.app`; see `DEPLOYMENT.md`).
 
 ## Implementation roadmap
 
@@ -50,10 +50,10 @@ created.
 
 ```bash
 pnpm install
-pnpm --filter @workspace/caremetric-train dev
+pnpm --filter @workspace/caremetric-carebase dev
 ```
 
-Copy `artifacts/caremetric-train/.env.example` to `.env` and fill in your Supabase project URL, publishable
+Copy `artifacts/caremetric-carebase/.env.example` to `.env` and fill in your Supabase project URL, publishable
 (anon) key, and Cloudflare Turnstile site key. The workspace installs native optional dependencies for the current
 developer machine plus linux-x64-glibc CI/deploys via pnpm `supportedArchitectures`.
 
@@ -100,7 +100,7 @@ must be declared in `supabase/config.toml` to auto-deploy via the Supabase GitHu
 4. Create environment-specific admin/demo users through the Supabase Admin API, `invite-user`, or
    `signup-organization`. Do not seed reusable passwords from SQL.
 5. Run `mcp__Supabase__generate_typescript_types` (or `supabase gen types typescript`) to produce
-  `artifacts/caremetric-train/src/lib/database.types.ts`.
+  `artifacts/caremetric-carebase/src/lib/database.types.ts`.
 
 For proven email/SMS delivery, configure the signed SendGrid Event Webhook and
 the Twilio status/inbound-message callbacks to the two notification webhook

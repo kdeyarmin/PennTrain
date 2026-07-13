@@ -32,9 +32,9 @@ const OPERATING_MODES = [
 
 export default function WhoItsFor() {
   usePageMeta({
-    title: "Who It's For — CareMetric Train for PCH, ALF, Group Homes & More",
+    title: "Who It's For — CareMetric CareBase for PCH, ALF, Group Homes & More",
     description:
-      "CareMetric Train adapts to personal care homes, assisted living facilities, group homes, nursing homes, home health, and hospice agencies -- combining facility operations, compliance evidence, and training rules matched to each setting.",
+      "CareMetric CareBase adapts to personal care homes, assisted living facilities, group homes, nursing homes, home health, and hospice agencies -- combining facility operations, compliance evidence, and training rules matched to each setting.",
     path: "/who-its-for",
   });
   return (
@@ -55,7 +55,7 @@ export default function WhoItsFor() {
               A stronger pitch for the whole buying committee
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              CareMetric Train ties facility types to operational outcomes, so
+              CareMetric CareBase ties facility types to operational outcomes, so
               buyers can see how the platform helps leadership, administrators,
               managers, trainers, employees, and auditors at the same time.
             </p>
@@ -78,7 +78,7 @@ export default function WhoItsFor() {
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8">
           <Reveal>
             <h2 className="text-2xl font-extrabold tracking-tight">
-              CareMetric Train adapts to your operating model
+              CareMetric CareBase adapts to your operating model
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               Whether you run one residence or a network of facilities, the app
@@ -132,7 +132,7 @@ export default function WhoItsFor() {
               resident-level compliance
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Beyond staff requirements, CareMetric Train tracks the resident-side
+              Beyond staff requirements, CareMetric CareBase tracks the resident-side
               regulatory deadlines Chapter 2600 and Chapter 2800 require -- RASP
               and ASP assessments -- as their own compliance domain, not
               employee records mislabeled as resident data.
