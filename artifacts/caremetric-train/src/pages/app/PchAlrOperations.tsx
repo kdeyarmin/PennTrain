@@ -93,9 +93,9 @@ export default function PchAlrOperations() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-3xl">
-          <h1 className="text-2xl font-bold tracking-tight">PCH / ALR Operations Center</h1>
+          <h1 className="text-2xl font-bold tracking-tight">PCH / ALF Operations Center</h1>
           <p className="text-muted-foreground">
-            A survey-focused control room for Pennsylvania personal care homes and assisted living residences. It ties Chapter 2600/2800 citation areas to the app workflows that hold evidence, owners, cadence, and inspection-day prompts.
+            A survey-focused control room for Pennsylvania personal care homes and assisted living facilities (ALF). It ties Chapter 2600/2800 citation areas to the app workflows that hold evidence, owners, cadence, and inspection-day prompts.
           </p>
         </div>
         <Button asChild>
@@ -104,9 +104,9 @@ export default function PchAlrOperations() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Metric title="Operational playbooks" value={PCH_ALR_OPERATIONS_ITEMS.length} detail="Cross-module PCH/ALR controls" />
+        <Metric title="Operational playbooks" value={PCH_ALR_OPERATIONS_ITEMS.length} detail="Cross-module PCH/ALF controls" />
         <Metric title="PCH applicable" value={pchCount} detail="Chapter 2600-oriented controls" />
-        <Metric title="ALR applicable" value={alrCount} detail="Chapter 2800-oriented controls" />
+        <Metric title="ALF applicable" value={alrCount} detail="Chapter 2800-oriented controls" />
       </div>
 
       <Card>
