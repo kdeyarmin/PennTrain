@@ -552,7 +552,10 @@ begin
   select * into v_fac from public.facilities where id=p_facility_id;
   if not found then raise exception 'Facility not found' using errcode = 'P0002'; end if;
   perform app_private.assert_admission_manager(v_fac.organization_id, v_fac.id);
-  if p_period_start is null or p_period_end < p_period_start or p_export_format not in ('csv','json') then
+  if p_period_start is null
+    or p_period_end is null
+    or p_period_end < p_period_start
+    or p_export_format not in ('csv','json') then
     raise exception 'Accounting export is invalid' using errcode = '22023';
   end if;
   select count(*), coalesce(sum(t.amount) filter(where t.entry_side='debit'),0),
