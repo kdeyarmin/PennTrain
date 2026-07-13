@@ -8,6 +8,9 @@ export interface HeygenAvatar {
   name: string;
   preview_image_url: string | null;
   gender: string | null;
+  avatar_type?: string | null;
+  group_name?: string | null;
+  is_ai_twin?: boolean;
 }
 
 export interface HeygenVoice {

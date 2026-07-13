@@ -374,6 +374,9 @@ function Router() {
       <Route path="/admin/ai-generations">
         {() => <ProtectedRoute component={AiGenerationLog} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
+      <Route path="/admin/training-plans">
+        {() => <ProtectedRoute component={TrainingPlans} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
       <Route path="/admin/notifications">
         {() => <ProtectedRoute component={NotificationDeliveries} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
