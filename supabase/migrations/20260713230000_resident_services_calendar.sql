@@ -81,7 +81,7 @@ create table public.resident_service_calendar_events (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   check (ends_at > starts_at),
-  check (transportation_mode <> 'facility_vehicle' or vehicle_id is not null),
+  check ((transportation_mode = 'facility_vehicle') = (vehicle_id is not null)),
   check ((status = 'scheduled') = (resolved_at is null)),
   check (next_appointment_at is null or next_appointment_at > starts_at)
 );
