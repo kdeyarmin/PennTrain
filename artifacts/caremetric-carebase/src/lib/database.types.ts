@@ -2262,7 +2262,6 @@ export type Database = {
           },
         ]
       }
-
       compliance_profile_definitions: {
         Row: {
           code: string
