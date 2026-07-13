@@ -389,7 +389,9 @@ Deno.serve(async (req: Request) => {
         .rpc("create_course_from_ai_draft", { p_draft: courseDraft, p_generation_id: childGeneration.id })
         .single();
       if (rpcError || !rpcResult) {
-        await markFailed(rpcError?.message ?? "create_course_from_ai_draft RPC failed");
+        const auditMessage = rpcError?.message ?? "create_course_from_ai_draft RPC failed";
+        await callerClient.from("course_ai_generations").update({ status: "failed", error_message: auditMessage }).eq("id", childGeneration.id);
+        await markFailed(auditMessage);
         return json({ error: rpcError?.message ?? "failed to create a course from the AI training plan", generation_id: generationId }, 500);
       }
       const { course_id, course_version_id } = rpcResult as { course_id: string; course_version_id: string };
