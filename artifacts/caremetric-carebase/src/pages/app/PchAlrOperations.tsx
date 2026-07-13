@@ -1,17 +1,12 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { AlertTriangle, BedDouble, CalendarClock, ClipboardCheck, FileStack, Gavel, Pill, Search, ShieldCheck } from "lucide-react";
+import { AlertTriangle, BedDouble, CalendarClock, ClipboardCheck, FileStack, Gavel, Pill, RefreshCw, Search, ShieldCheck } from "lucide-react";
 import { PCH_ALR_OPERATIONS_ITEMS, buildInspectionDayChecklist, buildPchAlrEvidencePackage, evidencePackageToCsv, evidencePackageToText, searchPchAlrOperations, type OperationsDomain, type PchAlrOperationsItem } from "@/lib/pchAlrOperations";
-import { buildPchAlrOperationsQueue, summarizePchAlrQueue } from "@/lib/pchAlrOperationalSnapshot";
+import { buildPchAlrOperationsQueueFromSnapshot, summarizePchAlrQueue } from "@/lib/pchAlrOperationalSnapshot";
 import { useAuth } from "@/lib/auth";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { useListTrainingRecords } from "@/hooks/useTrainingRecords";
-import { useListEmployeeCredentials } from "@/hooks/useEmployeeCredentials";
-import { useListAllResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
-import { useListIncidents } from "@/hooks/useIncidents";
-import { useListCorrectiveActions } from "@/hooks/useCorrectiveActions";
-import { useListPolicyAttestations } from "@/hooks/usePolicyAttestations";
+import { useOperationsCommandCenter } from "@/hooks/useOperationsCommandCenter";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,6 +28,26 @@ const DOMAIN_ICONS: Record<OperationsDomain, typeof Gavel> = {
   "Citation-aware templates": FileStack,
 };
 
+const SOURCE_ROUTES: Record<string, string> = {
+  complaint: "/app/complaints",
+  credential: "/app/credentials",
+  dietary_exception: "/app/dietary-operations",
+  food_safety: "/app/dietary-operations",
+  incident: "/app/incidents",
+  inspection: "/app/inspections",
+  policy: "/app/policy-documents",
+  qapi: "/app/qapi",
+  resident_calendar: "/app/resident-services-calendar",
+  resident_finance: "/app/resident-finance",
+  support_plan: "/app/services",
+  training_gap: "/app/training-matrix",
+  violation: "/app/violations",
+};
+
+function sourceLabel(sourceType: string): string {
+  return sourceType.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 export default function PchAlrOperations() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -45,23 +60,13 @@ export default function PchAlrOperations() {
 
   const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   const activeFacilityId = facilityId || facilities?.[0]?.id || "";
-  const { data: trainingRecords } = useListTrainingRecords({ facilityId: activeFacilityId || undefined }, { enabled: Boolean(activeFacilityId) });
-  const { data: credentials } = useListEmployeeCredentials({ facilityId: activeFacilityId || undefined });
-  const { data: residentItems } = useListAllResidentComplianceItems({ facilityId: activeFacilityId || undefined });
-  const { data: incidents } = useListIncidents({ facilityId: activeFacilityId || undefined });
-  const { data: correctiveActions } = useListCorrectiveActions({ facilityId: activeFacilityId || undefined });
-  const { data: policyAttestations } = useListPolicyAttestations({});
-  const operationsQueue = useMemo(() => buildPchAlrOperationsQueue({
-    today: toLocalIsoDate(),
-    trainingRecords,
-    credentials,
-    residentItems,
-    incidents,
-    correctiveActions,
-    policyAttestations: (policyAttestations ?? []).filter((attestation) => !activeFacilityId || attestation.facility_id === activeFacilityId),
-  }), [trainingRecords, credentials, residentItems, incidents, correctiveActions, policyAttestations, activeFacilityId]);
+  const { data: snapshot, error: snapshotError, isFetching, refetch } = useOperationsCommandCenter(activeFacilityId || undefined);
+  const operationsQueue = useMemo(
+    () => snapshot ? buildPchAlrOperationsQueueFromSnapshot(snapshot.signals, snapshot.workQueue) : [],
+    [snapshot],
+  );
   const queueSummary = useMemo(() => summarizePchAlrQueue(operationsQueue), [operationsQueue]);
-  const activeFacilityName = facilities?.find((facility) => facility.id === activeFacilityId)?.name ?? "Selected facility";
+  const activeFacilityName = snapshot?.facility.name ?? facilities?.find((facility) => facility.id === activeFacilityId)?.name ?? "Selected facility";
   const evidencePackage = useMemo(() => buildPchAlrEvidencePackage({
     facilityName: activeFacilityName,
     asOfDate: toLocalIsoDate(),
@@ -114,21 +119,28 @@ export default function PchAlrOperations() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle>72-hour live operations queue</CardTitle>
-              <CardDescription>Facility-scoped gaps pulled from training, credentials, resident state forms, incidents, corrective actions, and policy attestations.</CardDescription>
+              <CardDescription>One RLS-scoped snapshot across workforce, resident readiness, rights, emergencies, maintenance, and owned corrective work.</CardDescription>
             </div>
-            <Select value={activeFacilityId} onValueChange={setFacilityId}>
-              <SelectTrigger className="w-64"><SelectValue placeholder="Select facility" /></SelectTrigger>
-              <SelectContent>
-                {(facilities ?? []).map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" disabled={!activeFacilityId || isFetching} onClick={() => void refetch()}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} /> Refresh
+              </Button>
+              <Select value={activeFacilityId} onValueChange={setFacilityId}>
+                <SelectTrigger className="w-64"><SelectValue placeholder="Select facility" /></SelectTrigger>
+                <SelectContent>
+                  {(facilities ?? []).map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-3">
-            <Metric title="Open queue items" value={queueSummary.totalOpen} detail="Across active PCH/ALF workflows" />
+          {snapshotError ? <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{snapshotError.message}</div> : null}
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <Metric title="Owned work open" value={snapshot?.workQueue.openCount ?? 0} detail={`${snapshot?.workQueue.urgentCount ?? 0} urgent · ${snapshot?.workQueue.overdueCount ?? 0} overdue`} />
             <Metric title="Attention buckets" value={queueSummary.attentionCount} detail="Workflow groups with open risk" />
             <Metric title="Ready buckets" value={queueSummary.readyCount} detail="No open records in this view" />
+            <Metric title="Active residents" value={snapshot?.signals.activeResidents ?? 0} detail="Current facility census in scope" />
           </div>
           <div className="grid gap-3 lg:grid-cols-2">
             {operationsQueue.map((item) => (
@@ -144,6 +156,46 @@ export default function PchAlrOperations() {
               </div>
             ))}
           </div>
+          {snapshot ? (
+            <div className="grid gap-4 border-t pt-4 xl:grid-cols-2">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">Priority attention</p>
+                    <p className="text-xs text-muted-foreground">Urgent, overdue, then unassigned work—ordered for the next huddle.</p>
+                  </div>
+                  <Button asChild variant="outline" size="sm"><Link href="/app/work">Open all work</Link></Button>
+                </div>
+                {snapshot.attentionItems.length === 0 ? <p className="rounded-lg border p-3 text-sm text-muted-foreground">No owned work is open for this facility.</p> : snapshot.attentionItems.slice(0, 6).map((item) => (
+                  <Link key={item.id} href={`/app/work/${item.id}`} className="flex items-start justify-between gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{item.title}</p>
+                      <p className="text-xs text-muted-foreground">{sourceLabel(item.sourceType)} · due {new Date(item.dueAt).toLocaleString()}</p>
+                    </div>
+                    <Badge variant={item.priority === "urgent" || new Date(item.dueAt).getTime() < Date.now() ? "destructive" : "outline"}>{item.priority}</Badge>
+                  </Link>
+                ))}
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <p className="font-semibold">Open work by source</p>
+                  <p className="text-xs text-muted-foreground">Every current and future module appears automatically through the shared work queue.</p>
+                </div>
+                {snapshot.sourceBreakdown.length === 0 ? <p className="rounded-lg border p-3 text-sm text-muted-foreground">No source queues are open.</p> : snapshot.sourceBreakdown.map((source) => (
+                  <div key={source.sourceType} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                    <div>
+                      <p className="text-sm font-medium">{sourceLabel(source.sourceType)}</p>
+                      <p className="text-xs text-muted-foreground">{source.urgentCount} urgent · {source.overdueCount} overdue · {source.unassignedCount} unassigned</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={source.overdueCount > 0 || source.urgentCount > 0 ? "destructive" : "secondary"}>{source.openCount}</Badge>
+                      <Button asChild variant="ghost" size="sm"><Link href={SOURCE_ROUTES[source.sourceType] ?? "/app/work"}>Open</Link></Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

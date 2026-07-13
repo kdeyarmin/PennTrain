@@ -214,8 +214,8 @@ const DOMAIN_TO_QUEUE_IDS: Partial<Record<OperationsDomain, string[]>> = {
   "Administrator qualification": ["daily-training"],
   "Special care": ["daily-training"],
   "Resident rights": ["incidents-rights", "policy-attestations"],
-  "Emergency preparedness": ["corrective-actions", "daily-training"],
-  "Daily operations": ["daily-training", "move-in-readiness", "medication-safety", "incidents-rights", "corrective-actions", "policy-attestations"],
+  "Emergency preparedness": ["emergency-operations", "corrective-actions", "daily-training"],
+  "Daily operations": ["unified-work", "maintenance-operations"],
   "Citation-aware templates": ["policy-attestations"],
 };
 

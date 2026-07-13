@@ -22269,6 +22269,10 @@ export type Database = {
         Args: { p_organization_id?: string }
         Returns: Json
       }
+      get_operations_command_center: {
+        Args: { p_facility_id: string }
+        Returns: Json
+      }
       get_org_dashboard_summary: { Args: never; Returns: Json }
       get_platform_health: { Args: never; Returns: Json }
       get_qapi_source_metrics: {

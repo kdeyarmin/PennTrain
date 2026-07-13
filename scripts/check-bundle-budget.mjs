@@ -35,7 +35,9 @@ const budgets = {
   // raised 2760 -> 2790 after the resident administrative master workspace (identity,
   // contacts, legal, payer, directives, rights, contracts, history) merged in and the
   // measured combined bundle reached 2787.2 KiB while the per-load budgets stayed flat.
-  totalJavaScript: 2790 * 1024,
+  // raised 2790 -> 2795 for the integrated operations-command-center snapshot and
+  // huddle views; measured aggregate is 2790.9 KiB and per-load budgets remain flat.
+  totalJavaScript: 2795 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };
