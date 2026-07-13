@@ -35,6 +35,7 @@ import {
 import { AlertTriangle, ArrowLeft, BarChart3, Eraser, Loader2, Plus, Send, Sparkles, Undo2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { enumerateDatesIso, formatDateLabel, formatTimeLabel } from "@/lib/scheduleDates";
+import { toDateTimeLocal } from "@/lib/dateUtils";
 import { summarizeScheduleAnalytics, summarizeStaffingRatios } from "@/lib/scheduleAnalytics";
 
 const UNASSIGNED = "__unassigned__";
@@ -198,7 +199,7 @@ export default function ScheduleDetail() {
     setOverrideForm({
       reason: "",
       authorityReference: "",
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+      expiresAt: toDateTimeLocal(new Date(Date.now() + 24 * 60 * 60 * 1000)),
     });
     setOverrideTarget({ candidate, blockCode });
   }
