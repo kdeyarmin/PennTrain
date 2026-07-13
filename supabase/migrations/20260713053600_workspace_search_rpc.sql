@@ -19,9 +19,7 @@ begin
   end if;
   v_like := '%' || replace(replace(replace(v_query, '\', '\\'), '%', '\%'), '_', '\_') || '%';
 
-  select role into v_role
-  from public.profiles
-  where id = (select auth.uid());
+  v_role := public.current_role();
 
   select jsonb_build_object(
     'organizations',
