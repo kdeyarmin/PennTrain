@@ -351,7 +351,7 @@ begin
 end;
 $$;
 
-drop trigger enforce_shift_assignment_eligibility on public.shift_assignments;
+drop trigger if exists enforce_shift_assignment_eligibility on public.shift_assignments;
 create or replace function app_private.enforce_shift_assignment_eligibility()
 returns trigger
 language plpgsql
