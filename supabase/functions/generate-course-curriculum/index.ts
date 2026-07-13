@@ -196,6 +196,7 @@ function extractToolInput(anthropicBody: Record<string, unknown> | null, toolNam
 function isValidPlanDraft(draft: Record<string, unknown> | null): draft is Record<string, unknown> & { courses: Record<string, unknown>[] } {
   if (!draft) return false;
   if (typeof draft.plan_name !== "string" || !draft.plan_name.trim()) return false;
+  if (typeof draft.plan_description !== "string" || !draft.plan_description.trim()) return false;
   if (!Array.isArray(draft.courses) || draft.courses.length < 2) return false;
   return draft.courses.every((course) => isValidDraft(course as Record<string, unknown>));
 }
