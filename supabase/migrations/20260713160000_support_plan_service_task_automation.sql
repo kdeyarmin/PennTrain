@@ -652,8 +652,8 @@ begin
     raise exception 'Only scheduled service tasks can be recorded' using errcode = '55000';
   end if;
   select * into v_requirement from public.resident_service_requirements where id = v_task.requirement_id;
-  select * into v_employee from public.employees
-  where profile_id = auth.uid() and status = 'active';
+  select * into v_employee from public.employees e
+  where e.profile_id = auth.uid() and e.status = 'active';
   v_is_manager := public.is_platform_admin()
     or (
       public.current_org_id() = v_task.organization_id
@@ -760,8 +760,8 @@ declare
 begin
   select * into v_task from public.resident_service_task_instances where id = p_task_id;
   if not found then raise exception 'Service task not found' using errcode = 'P0002'; end if;
-  select * into v_employee from public.employees
-  where profile_id = auth.uid() and status = 'active';
+  select * into v_employee from public.employees e
+  where e.profile_id = auth.uid() and e.status = 'active';
   if not (
     public.is_platform_admin()
     or (
@@ -879,8 +879,8 @@ begin
   if auth.uid() is null or p_through <= p_from or p_through > p_from + interval '45 days' then
     raise exception 'Invalid service queue request' using errcode = '22023';
   end if;
-  select * into v_employee from public.employees
-  where profile_id = auth.uid() and status = 'active';
+  select * into v_employee from public.employees e
+  where e.profile_id = auth.uid() and e.status = 'active';
   return query
   select
     t.id, t.organization_id, t.facility_id, f.name,
