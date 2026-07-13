@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loginRedirectTarget } from "./loginRedirect";
+import { loginRedirectTarget } from "./publicPaths";
 
 describe("loginRedirectTarget", () => {
   it("preserves safe internal destinations", () => {

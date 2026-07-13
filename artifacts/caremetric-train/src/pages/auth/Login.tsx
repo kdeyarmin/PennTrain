@@ -10,7 +10,7 @@ import { supabase } from "@/lib/supabase";
 import { markExplicitPasswordSignIn } from "@/lib/auth";
 import { Loader2, ArrowRight, ShieldCheck } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
-import { loginRedirectTarget } from "@/lib/loginRedirect";
+import { loginRedirectTarget } from "@/lib/publicPaths";
 
 export default function Login() {
   const [email, setEmail] = useState("");
