@@ -8,6 +8,8 @@ const resident = {
   primary_physician_name: "Dr. Example",
   primary_physician_phone: "555-0100",
   designated_person_name: "Pat Person",
+  resident_rights_acknowledged_at: "2026-07-13T12:00:00Z",
+  contract_status: "executed",
 };
 
 describe("buildMoveInReadinessPacket", () => {
@@ -30,7 +32,11 @@ describe("buildMoveInReadinessPacket", () => {
       { document_label: "Resident rights signed" },
       { document_label: "Admission agreement signed" },
     ];
-    const packet = buildMoveInReadinessPacket({ resident, facilityType: "ALR", complianceItems, documents, supports: [{ name: "Pat", phone: "555" }] });
+    const packet = buildMoveInReadinessPacket({ resident, facilityType: "ALR", complianceItems, documents, supports: [], officialContacts: [
+      { contact_type: "designated_person", name: "Pat Person", phone: "555" },
+      { contact_type: "primary_care_provider", name: "Dr. Example", phone: "555-0100" },
+      { contact_type: "emergency_contact", name: "Alex Person", phone: "555-0101" },
+    ] });
     expect(packet.status).toBe("inspection_ready");
     expect(packet.blockers).toBe(0);
   });

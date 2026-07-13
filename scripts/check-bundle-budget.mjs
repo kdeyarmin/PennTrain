@@ -28,8 +28,10 @@ const budgets = {
   // qualification-aware scheduling previews, bounded overrides, and service workload;
   // raised 2700 -> 2710 after merging qualification-visibility updates alongside the
   // environmental work-order features, which together pushed the combined bundle to
-  // ~2706 KiB. The new pages remain lazy routes and do not increase the initial-shell budget.
-  totalJavaScript: 2710 * 1024,
+  // ~2706 KiB. The new pages remain lazy routes and do not increase the initial-shell
+  // budget; raised 2710 -> 2740 for the resident administrative master workspace
+  // (identity, contacts, legal, payer, directives, rights, contracts, history).
+  totalJavaScript: 2740 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };
