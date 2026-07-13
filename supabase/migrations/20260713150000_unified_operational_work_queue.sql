@@ -724,49 +724,52 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_new jsonb := to_jsonb(new);
 begin
   if tg_table_name = 'incidents' then
     perform app_private.create_automatic_work_item(
       new.organization_id, new.facility_id, 'incident.followup', 'incident', new.id,
-      'Investigate ' || replace(new.incident_type, '_', ' '),
-      new.narrative,
-      case when new.severity = 'critical' then 'urgent'
-           when new.severity = 'major' then 'high' else 'normal' end,
-      now() + case when new.severity = 'critical' then interval '1 hour' else interval '1 day' end
+      'Investigate ' || replace(v_new->>'incident_type', '_', ' '),
+      v_new->>'narrative',
+      case when v_new->>'severity' = 'critical' then 'urgent'
+           when v_new->>'severity' = 'major' then 'high' else 'normal' end,
+      now() + case when v_new->>'severity' = 'critical' then interval '1 hour' else interval '1 day' end
     );
   elsif tg_table_name = 'dhs_violations' then
     perform app_private.create_automatic_work_item(
       new.organization_id, new.facility_id, 'violation.remediation', 'violation', new.id,
-      'Remediate citation ' || coalesce(new.citation_ref, 'finding'),
-      new.description,
-      case when new.severity = 'high' then 'urgent' else 'high' end,
-      coalesce(new.poc_due_date::timestamptz, now() + interval '7 days')
+      'Remediate citation ' || coalesce(v_new->>'citation_ref', 'finding'),
+      v_new->>'description',
+      case when v_new->>'severity' = 'high' then 'urgent' else 'high' end,
+      coalesce((v_new->>'poc_due_date')::timestamptz, now() + interval '7 days')
     );
   elsif tg_table_name = 'inspection_events' and (
-    new.result in ('fail', 'deficiency_noted') or new.follow_up_required
+    v_new->>'result' in ('fail', 'deficiency_noted')
+    or coalesce((v_new->>'follow_up_required')::boolean, false)
   ) then
     perform app_private.create_automatic_work_item(
       new.organization_id, new.facility_id, 'inspection.deficiency', 'inspection', new.id,
       'Resolve inspection deficiency',
-      coalesce(new.deficiency_notes, new.notes, 'Inspection follow-up required'),
-      case when new.result = 'fail' then 'urgent' else 'high' end,
+      coalesce(v_new->>'deficiency_notes', v_new->>'notes', 'Inspection follow-up required'),
+      case when v_new->>'result' = 'fail' then 'urgent' else 'high' end,
       now() + interval '2 days'
     );
-  elsif tg_table_name = 'employee_credentials' and new.status in ('expired', 'missing') then
+  elsif tg_table_name = 'employee_credentials' and v_new->>'status' in ('expired', 'missing') then
     perform app_private.create_automatic_work_item(
       new.organization_id, new.facility_id, 'credential.remediation', 'credential', new.id,
-      'Resolve ' || replace(new.credential_type, '_', ' ') || ' credential',
-      coalesce(new.notes, 'Credential evidence or renewal is required'),
-      case when new.status = 'expired' then 'urgent' else 'high' end,
+      'Resolve ' || replace(v_new->>'credential_type', '_', ' ') || ' credential',
+      coalesce(v_new->>'notes', 'Credential evidence or renewal is required'),
+      case when v_new->>'status' = 'expired' then 'urgent' else 'high' end,
       now() + interval '1 day'
     );
   elsif tg_table_name = 'residents' then
     perform app_private.create_automatic_work_item(
       new.organization_id, new.facility_id, 'move_in.readiness', 'move_in', new.id,
-      'Complete move-in readiness for ' || new.first_name || ' ' || new.last_name,
+      'Complete move-in readiness for ' || (v_new->>'first_name') || ' ' || (v_new->>'last_name'),
       'Coordinate required documents, approvals, room readiness, and admission tasks.',
       'normal',
-      new.admission_date::timestamptz
+      (v_new->>'admission_date')::timestamptz
     );
   end if;
   return new;
