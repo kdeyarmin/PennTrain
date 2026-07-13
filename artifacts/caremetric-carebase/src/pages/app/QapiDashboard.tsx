@@ -97,7 +97,7 @@ export default function QapiDashboard() {
     );
   const metricEntries = Object.entries(metrics.data ?? {})
     .filter(([, v]) => typeof v === "number")
-    .slice(0, 10);
+    .slice(0, 14);
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap justify-between gap-3">
