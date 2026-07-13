@@ -115,15 +115,20 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
     });
   }
 
+  const ceCutoff = addDays(evidence.today, -CE_WINDOW_DAYS);
+  const ceWindowEntries = ceEntries.filter((entry) => entry.completed_date >= ceCutoff && entry.completed_date <= evidence.today);
   const ceHours = rollingCe(ceEntries, evidence.today);
+  const oldestCeDate = ceWindowEntries.map((entry) => entry.completed_date).sort()[0] ?? evidence.today;
+  const ceDueDate = addDays(oldestCeDate, CE_WINDOW_DAYS);
+
   requirements.push({
     id: "administrator-continuing-education",
-    label: `${isAlr ? "ALR" : "PCH"} administrator continuing education`,
+    label: `${isAlr ? "ALF" : "PCH"} administrator continuing education`,
     citation: commonCitation,
     facilityTypes: [facilityType],
     binderDestination: "Administrator Qualifications / Continuing Education",
-    dueDate: addDays(evidence.today, DUE_SOON_DAYS),
-    status: ceHours >= 24 ? "compliant" : "missing",
+    dueDate: ceHours >= 24 ? ceDueDate : null,
+    status: ceHours >= 24 ? (daysBetween(evidence.today, ceDueDate) <= DUE_SOON_DAYS ? "due_soon" : "compliant") : "missing",
     detail: `${ceHours.toFixed(1)} of 24 trailing-12-month CE hours documented.`,
   });
 
