@@ -38,7 +38,7 @@ create table public.facility_transport_vehicles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (facility_id, label),
-  unique nulls not distinct (facility_id, license_plate)
+  unique (facility_id, license_plate)
 );
 create index facility_transport_vehicles_scope_idx
   on public.facility_transport_vehicles(organization_id, facility_id, status);
