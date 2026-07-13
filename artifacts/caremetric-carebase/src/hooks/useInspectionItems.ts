@@ -41,6 +41,18 @@ export function useGetInspectionItem(id: string | undefined) {
   });
 }
 
+export function useGetInspectionItemByQrToken(qrToken: string | undefined) {
+  return useQuery({
+    queryKey: ["inspection_items", "qr", qrToken],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("inspection_items").select("*").eq("qr_token", qrToken!).single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!qrToken,
+  });
+}
+
 export function useCreateInspectionItem() {
   const queryClient = useQueryClient();
   return useMutation({
