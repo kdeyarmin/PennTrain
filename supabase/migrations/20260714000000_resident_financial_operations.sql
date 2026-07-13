@@ -291,7 +291,7 @@ begin
     organization_id, facility_id, resident_id, account_number, created_by
   ) values (
     v_resident.organization_id, v_resident.facility_id, v_resident.id,
-    'RF-' || upper(left(replace(gen_random_uuid()::text, '-', ''), 12)), auth.uid()
+    'RF-' || upper(left(replace(extensions.gen_random_uuid()::text, '-', ''), 12)), auth.uid()
   ) returning * into v;
   return v;
 end
