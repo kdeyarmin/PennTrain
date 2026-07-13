@@ -19,7 +19,7 @@ export default function TemplateDocuments() {
         <h1 className="text-2xl font-bold tracking-tight">Template Documents</h1>
         <p className="text-muted-foreground">
           Printable survey-readiness form templates -- entrance packets, chart and medication audits, walkthrough
-          logs, and POC worksheets. Each template is tagged with PCH/ALR applicability, citation families, review cadence,
+          logs, and POC worksheets. Each template is tagged with PCH/ALF applicability, citation families, review cadence,
           and binder section so teams can file evidence behind the matching compliance tab.
         </p>
       </div>
