@@ -140,7 +140,10 @@ export default function ScheduledReports() {
               {loadingRuns ? <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div> : (
                 <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Report</TableHead><TableHead>As of</TableHead><TableHead>Status</TableHead><TableHead>Reconciliation</TableHead><TableHead>Trend</TableHead><TableHead>Delivery</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                   <TableBody>{runs.map((run) => {
-                    const change = asNumber(run.snapshot?.trend_comparison && (run.snapshot.trend_comparison as Record<string, unknown>).absoluteChange);
+                    const rawChange = run.snapshot?.trend_comparison
+                      ? (run.snapshot.trend_comparison as Record<string, unknown>).absoluteChange
+                      : null;
+                    const change = rawChange === null || rawChange === undefined ? null : asNumber(rawChange);
                     const failed = run.deliveries.filter((d) => d.status === "failed" || d.provider_delivery?.final_outcome === "failed");
                     const published = run.deliveries.some((d) => d.delivery_method === "evidence_room" && d.status === "published");
                     return <TableRow key={run.id}>
@@ -148,7 +151,7 @@ export default function ScheduledReports() {
                       <TableCell>{run.as_of_date}<span className="block text-xs text-muted-foreground">{run.period_start} – {run.period_end}</span></TableCell>
                       <TableCell><StatusBadge status={run.status} /></TableCell>
                       <TableCell>{run.snapshot ? <StatusBadge status={run.snapshot.reconciliation_status} /> : "—"}</TableCell>
-                      <TableCell>{run.snapshot ? <span className={`inline-flex items-center gap-1 ${change > 0 ? "text-amber-700" : change < 0 ? "text-emerald-700" : "text-muted-foreground"}`}>{change > 0 ? <TrendingUp className="h-4 w-4" /> : change < 0 ? <TrendingDown className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}{change > 0 ? "+" : ""}{change}</span> : "—"}</TableCell>
+                      <TableCell>{run.snapshot && change !== null ? <span className={`inline-flex items-center gap-1 ${change > 0 ? "text-amber-700" : change < 0 ? "text-emerald-700" : "text-muted-foreground"}`}>{change > 0 ? <TrendingUp className="h-4 w-4" /> : change < 0 ? <TrendingDown className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}{change > 0 ? "+" : ""}{change}</span> : "—"}</TableCell>
                       <TableCell><div className="flex flex-wrap gap-1">{run.deliveries.map((delivery) => <Badge key={delivery.id} variant={delivery.status === "failed" || delivery.provider_delivery?.final_outcome === "failed" ? "destructive" : "outline"}>{delivery.delivery_method.replace("_", " ")}: {delivery.provider_delivery?.final_outcome ?? delivery.status}</Badge>)}</div></TableCell>
                       <TableCell><div className="flex justify-end gap-1">{canManage && run.status === "failed" && <Button variant="ghost" size="sm" onClick={() => mutate(() => retryRun.mutateAsync(run.id), "Report retry queued")}><RefreshCw className="mr-1 h-3.5 w-3.5" />Retry run</Button>}{canManage && failed.map((delivery) => <Button key={delivery.id} variant="ghost" size="sm" onClick={() => mutate(() => retryDelivery.mutateAsync(delivery.id), "Delivery retry queued")}><Send className="mr-1 h-3.5 w-3.5" />Retry</Button>)}{canManage && run.snapshot?.facility_id && !published && <Button variant="ghost" size="sm" onClick={() => mutate(() => publish.mutateAsync(run.snapshot!.id), "Published to evidence room")}><ShieldCheck className="mr-1 h-3.5 w-3.5" />Publish</Button>}</div></TableCell>
                     </TableRow>;
