@@ -158,7 +158,7 @@ async function enforceRateLimits(
     .select("id", { count: "exact", head: true })
     .eq("ip_hash", ipHash)
     .gte("created_at", hourAgo);
-  if (ipError) throw new HttpError(500, "rate_limit_unavailable", ipError.message);
+  if (ipError) throw new HttpError(500, "rate_limit_unavailable", "Signup is temporarily unavailable. Please try again later.", ipError.message);
   if ((ipCount ?? 0) >= maxIpAttemptsPerHour) {
     throw new HttpError(429, "rate_limited", "Too many signup attempts. Please try again later.");
   }
@@ -168,7 +168,7 @@ async function enforceRateLimits(
     .select("id", { count: "exact", head: true })
     .eq("email_hash", emailHash)
     .gte("created_at", dayAgo);
-  if (emailError) throw new HttpError(500, "rate_limit_unavailable", emailError.message);
+  if (emailError) throw new HttpError(500, "rate_limit_unavailable", "Signup is temporarily unavailable. Please try again later.", emailError.message);
   if ((emailCount ?? 0) >= maxEmailAttemptsPerDay) {
     throw new HttpError(429, "rate_limited", "Too many signup attempts. Please try again later.");
   }
@@ -177,7 +177,7 @@ async function enforceRateLimits(
     .from("organizations")
     .select("id", { count: "exact", head: true })
     .gte("created_at", dayAgo);
-  if (organizationError) throw new HttpError(500, "rate_limit_unavailable", organizationError.message);
+  if (organizationError) throw new HttpError(500, "rate_limit_unavailable", "Signup is temporarily unavailable. Please try again later.", organizationError.message);
   if ((organizationCount ?? 0) >= maxOrganizationsPerDay) {
     throw new HttpError(429, "signup_quota_reached", "Self-service signup is temporarily unavailable.");
   }
