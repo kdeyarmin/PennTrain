@@ -13281,6 +13281,278 @@ export type Database = {
           },
         ]
       }
+      resident_service_requirements: {
+        Row: {
+          created_at: string
+          documentation_mode: string
+          effective_from: string
+          expires_on: string | null
+          facility_id: string
+          frequency: string
+          frequency_detail: string | null
+          id: string
+          need_description: string | null
+          organization_id: string
+          requires_two_staff: boolean
+          resident_id: string
+          responsible_role: string
+          service_code: string
+          service_name: string
+          source_assessment_form_id: string
+          source_key: string
+          source_plan_version: number
+          source_section: string
+          special_instructions: string
+          status: string
+          superseded_at: string | null
+          time_window_end: string
+          time_window_start: string
+          unit_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          documentation_mode?: string
+          effective_from: string
+          expires_on?: string | null
+          facility_id: string
+          frequency: string
+          frequency_detail?: string | null
+          id?: string
+          need_description?: string | null
+          organization_id: string
+          requires_two_staff?: boolean
+          resident_id: string
+          responsible_role: string
+          service_code: string
+          service_name: string
+          source_assessment_form_id: string
+          source_key: string
+          source_plan_version: number
+          source_section: string
+          special_instructions: string
+          status?: string
+          superseded_at?: string | null
+          time_window_end?: string
+          time_window_start?: string
+          unit_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          documentation_mode?: string
+          effective_from?: string
+          expires_on?: string | null
+          facility_id?: string
+          frequency?: string
+          frequency_detail?: string | null
+          id?: string
+          need_description?: string | null
+          organization_id?: string
+          requires_two_staff?: boolean
+          resident_id?: string
+          responsible_role?: string
+          service_code?: string
+          service_name?: string
+          source_assessment_form_id?: string
+          source_key?: string
+          source_plan_version?: number
+          source_section?: string
+          special_instructions?: string
+          status?: string
+          superseded_at?: string | null
+          time_window_end?: string
+          time_window_start?: string
+          unit_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_service_requirements_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_requirements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_requirements_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_requirements_source_assessment_form_id_fkey"
+            columns: ["source_assessment_form_id"]
+            isOneToOne: false
+            referencedRelation: "resident_assessment_forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_requirements_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "facility_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_service_task_instances: {
+        Row: {
+          assigned_employee_id: string | null
+          completed_by_employee_id: string | null
+          created_at: string
+          facility_id: string
+          id: string
+          note: string | null
+          organization_id: string
+          performed_at: string | null
+          recorded_by_profile_id: string | null
+          requirement_id: string
+          resident_id: string
+          responsible_role: string
+          scheduled_end: string
+          scheduled_start: string
+          second_employee_id: string | null
+          service_name: string
+          source_assessment_form_id: string
+          source_plan_version: number
+          status: string
+          supervisor_notified: boolean
+          supervisor_notified_at: string | null
+          unit_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          assigned_employee_id?: string | null
+          completed_by_employee_id?: string | null
+          created_at?: string
+          facility_id: string
+          id?: string
+          note?: string | null
+          organization_id: string
+          performed_at?: string | null
+          recorded_by_profile_id?: string | null
+          requirement_id: string
+          resident_id: string
+          responsible_role: string
+          scheduled_end: string
+          scheduled_start: string
+          second_employee_id?: string | null
+          service_name: string
+          source_assessment_form_id: string
+          source_plan_version: number
+          status?: string
+          supervisor_notified?: boolean
+          supervisor_notified_at?: string | null
+          unit_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assigned_employee_id?: string | null
+          completed_by_employee_id?: string | null
+          created_at?: string
+          facility_id?: string
+          id?: string
+          note?: string | null
+          organization_id?: string
+          performed_at?: string | null
+          recorded_by_profile_id?: string | null
+          requirement_id?: string
+          resident_id?: string
+          responsible_role?: string
+          scheduled_end?: string
+          scheduled_start?: string
+          second_employee_id?: string | null
+          service_name?: string
+          source_assessment_form_id?: string
+          source_plan_version?: number
+          status?: string
+          supervisor_notified?: boolean
+          supervisor_notified_at?: string | null
+          unit_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_service_task_instances_assigned_employee_id_fkey"
+            columns: ["assigned_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_task_instances_completed_by_employee_id_fkey"
+            columns: ["completed_by_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_task_instances_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_task_instances_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_task_instances_recorded_by_profile_id_fkey"
+            columns: ["recorded_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_task_instances_requirement_id_fkey"
+            columns: ["requirement_id"]
+            isOneToOne: false
+            referencedRelation: "resident_service_requirements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_task_instances_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_task_instances_second_employee_id_fkey"
+            columns: ["second_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_task_instances_source_assessment_form_id_fkey"
+            columns: ["source_assessment_form_id"]
+            isOneToOne: false
+            referencedRelation: "resident_assessment_forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_task_instances_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "facility_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       residents: {
         Row: {
           admission_date: string
@@ -14165,6 +14437,167 @@ export type Database = {
             columns: ["scim_connection_id"]
             isOneToOne: false
             referencedRelation: "scim_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_exception_rules: {
+        Row: {
+          action_target: string
+          created_at: string
+          exception_status: string
+          facility_id: string
+          id: string
+          is_active: boolean
+          lookback_days: number
+          organization_id: string
+          threshold_count: number
+          updated_at: string
+        }
+        Insert: {
+          action_target: string
+          created_at?: string
+          exception_status: string
+          facility_id: string
+          id?: string
+          is_active?: boolean
+          lookback_days?: number
+          organization_id: string
+          threshold_count?: number
+          updated_at?: string
+        }
+        Update: {
+          action_target?: string
+          created_at?: string
+          exception_status?: string
+          facility_id?: string
+          id?: string
+          is_active?: boolean
+          lookback_days?: number
+          organization_id?: string
+          threshold_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_exception_rules_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_exception_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_task_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          alert_type: string
+          created_at: string
+          facility_id: string
+          id: string
+          message: string
+          organization_id: string
+          resident_id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          rule_id: string | null
+          severity: string
+          status: string
+          task_instance_id: string
+          title: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_type: string
+          created_at?: string
+          facility_id: string
+          id?: string
+          message: string
+          organization_id: string
+          resident_id: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          rule_id?: string | null
+          severity?: string
+          status?: string
+          task_instance_id: string
+          title: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_type?: string
+          created_at?: string
+          facility_id?: string
+          id?: string
+          message?: string
+          organization_id?: string
+          resident_id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          rule_id?: string | null
+          severity?: string
+          status?: string
+          task_instance_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_task_alerts_acknowledged_by_fkey"
+            columns: ["acknowledged_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_task_alerts_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_task_alerts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_task_alerts_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_task_alerts_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_task_alerts_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "service_exception_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_task_alerts_task_instance_id_fkey"
+            columns: ["task_instance_id"]
+            isOneToOne: false
+            referencedRelation: "resident_service_task_instances"
             referencedColumns: ["id"]
           },
         ]
@@ -16530,6 +16963,10 @@ export type Database = {
         }
         Returns: string
       }
+      assign_resident_service_task: {
+        Args: { p_employee_id: string; p_task_id: string }
+        Returns: boolean
+      }
       authenticate_integration_api_credential: {
         Args: {
           p_correlation_id?: string
@@ -17233,6 +17670,10 @@ export type Database = {
         Args: { p_class_id: string; p_long_lived?: boolean }
         Returns: string
       }
+      generate_resident_service_tasks: {
+        Args: { p_from?: string; p_requirement_id?: string; p_through?: string }
+        Returns: number
+      }
       generate_schedule_assignments: {
         Args: { p_schedule_id: string }
         Returns: Json
@@ -17393,6 +17834,39 @@ export type Database = {
           version_number: number
         }[]
       }
+      get_resident_service_task_queue: {
+        Args: {
+          p_facility_id?: string
+          p_from?: string
+          p_status?: string
+          p_through?: string
+        }
+        Returns: {
+          assigned_employee_id: string
+          assigned_employee_name: string
+          documentation_mode: string
+          facility_id: string
+          facility_name: string
+          id: string
+          note: string
+          organization_id: string
+          requirement_id: string
+          requires_two_staff: boolean
+          resident_id: string
+          resident_name: string
+          resident_room: string
+          responsible_role: string
+          scheduled_end: string
+          scheduled_start: string
+          service_name: string
+          source_assessment_form_id: string
+          source_plan_version: number
+          special_instructions: string
+          status: string
+          supervisor_notified: boolean
+          unit_name: string
+        }[]
+      }
       get_scim_auth_material: {
         Args: { p_connection_key: string }
         Returns: {
@@ -17416,6 +17890,13 @@ export type Database = {
           organization_id: string
           provider: string
           status: string
+        }[]
+      }
+      get_service_task_available_staff: {
+        Args: { p_task_id: string }
+        Returns: {
+          employee_id: string
+          employee_name: string
         }[]
       }
       get_system_job_control_plane: {
@@ -17666,6 +18147,10 @@ export type Database = {
         Args: { p_organization_id?: string; p_source: string }
         Returns: undefined
       }
+      materialize_service_requirements_from_assessment_form: {
+        Args: { p_form_id: string }
+        Returns: number
+      }
       notification_next_permitted_at: {
         Args: { p_requested_at: string; p_timezone: string }
         Returns: string
@@ -17871,6 +18356,46 @@ export type Database = {
         }
         Returns: string
       }
+      record_resident_service_task: {
+        Args: {
+          p_note?: string
+          p_second_employee_id?: string
+          p_status: string
+          p_supervisor_notified?: boolean
+          p_task_id: string
+        }
+        Returns: {
+          assigned_employee_id: string | null
+          completed_by_employee_id: string | null
+          created_at: string
+          facility_id: string
+          id: string
+          note: string | null
+          organization_id: string
+          performed_at: string | null
+          recorded_by_profile_id: string | null
+          requirement_id: string
+          resident_id: string
+          responsible_role: string
+          scheduled_end: string
+          scheduled_start: string
+          second_employee_id: string | null
+          service_name: string
+          source_assessment_form_id: string
+          source_plan_version: number
+          status: string
+          supervisor_notified: boolean
+          supervisor_notified_at: string | null
+          unit_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "resident_service_task_instances"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       record_training_attendance: {
         Args: {
           p_attendance_status: string
@@ -18002,6 +18527,10 @@ export type Database = {
       rescan_org_exclusion_matches: {
         Args: { p_organization_id: string }
         Returns: undefined
+      }
+      resolve_service_task_alert: {
+        Args: { p_alert_id: string; p_status: string }
+        Returns: boolean
       }
       resume_confidential_incident_intake: {
         Args: {
@@ -18547,6 +19076,22 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      update_resident_service_requirement: {
+        Args: {
+          p_documentation_mode: string
+          p_expires_on: string
+          p_frequency: string
+          p_frequency_detail: string
+          p_requirement_id: string
+          p_requires_two_staff: boolean
+          p_responsible_role: string
+          p_special_instructions: string
+          p_time_window_end: string
+          p_time_window_start: string
+          p_unit_id: string
+        }
+        Returns: boolean
+      }
       update_work_item_assignment: {
         Args: {
           p_due_at: string
@@ -18574,6 +19119,17 @@ export type Database = {
           p_organization_id: string
           p_permission_keys: string[]
           p_role_template_id?: string
+        }
+        Returns: string
+      }
+      upsert_service_exception_rule: {
+        Args: {
+          p_action_target: string
+          p_exception_status: string
+          p_facility_id: string
+          p_is_active: boolean
+          p_lookback_days: number
+          p_threshold_count: number
         }
         Returns: string
       }
