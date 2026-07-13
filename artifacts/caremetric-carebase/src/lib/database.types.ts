@@ -16579,9 +16579,109 @@ export type Database = {
           },
         ]
       }
+      service_workload_profiles: {
+        Row: {
+          created_at: string
+          escort_reserve_staff: number
+          facility_id: string
+          id: string
+          minimum_first_aid_cpr_staff: number
+          minimum_insulin_qualified_staff: number
+          minimum_medication_qualified_staff: number
+          minimum_staff: number
+          minimum_trainer_supervisor_staff: number
+          notes: string | null
+          organization_id: string
+          required_credential_types: string[]
+          required_qualification_keys: string[]
+          secured_unit_coverage_required: boolean
+          shift_definition_id: string
+          unit_id: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          escort_reserve_staff?: number
+          facility_id: string
+          id?: string
+          minimum_first_aid_cpr_staff?: number
+          minimum_insulin_qualified_staff?: number
+          minimum_medication_qualified_staff?: number
+          minimum_staff?: number
+          minimum_trainer_supervisor_staff?: number
+          notes?: string | null
+          organization_id: string
+          required_credential_types?: string[]
+          required_qualification_keys?: string[]
+          secured_unit_coverage_required?: boolean
+          shift_definition_id: string
+          unit_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          escort_reserve_staff?: number
+          facility_id?: string
+          id?: string
+          minimum_first_aid_cpr_staff?: number
+          minimum_insulin_qualified_staff?: number
+          minimum_medication_qualified_staff?: number
+          minimum_staff?: number
+          minimum_trainer_supervisor_staff?: number
+          notes?: string | null
+          organization_id?: string
+          required_credential_types?: string[]
+          required_qualification_keys?: string[]
+          secured_unit_coverage_required?: boolean
+          shift_definition_id?: string
+          unit_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_workload_profiles_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_workload_profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_workload_profiles_shift_definition_id_fkey"
+            columns: ["shift_definition_id"]
+            isOneToOne: false
+            referencedRelation: "shift_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_workload_profiles_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "facility_units"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_workload_profiles_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shift_assignments: {
         Row: {
           created_at: string
+          eligibility_decision_id: string | null
           employee_id: string
           end_time: string
           facility_id: string
@@ -16599,6 +16699,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          eligibility_decision_id?: string | null
           employee_id: string
           end_time: string
           facility_id: string
@@ -16616,6 +16717,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          eligibility_decision_id?: string | null
           employee_id?: string
           end_time?: string
           facility_id?: string
@@ -16632,6 +16734,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "shift_assignments_eligibility_decision_id_fkey"
+            columns: ["eligibility_decision_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_eligibility_decisions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "shift_assignments_employee_id_fkey"
             columns: ["employee_id"]
@@ -18997,6 +19106,40 @@ export type Database = {
         Args: { p_compliance_item_id: string; p_resident_id: string }
         Returns: undefined
       }
+      assign_employee_to_shift: {
+        Args: {
+          p_employee_id: string
+          p_notes?: string
+          p_schedule_id: string
+          p_shift_date: string
+          p_shift_definition_id: string
+          p_unit_id?: string
+        }
+        Returns: {
+          created_at: string
+          eligibility_decision_id: string | null
+          employee_id: string
+          end_time: string
+          facility_id: string
+          id: string
+          notes: string | null
+          organization_id: string
+          schedule_id: string
+          shift_date: string
+          shift_definition_id: string | null
+          source: string
+          start_time: string
+          status: string
+          unit_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "shift_assignments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       assign_move_in_task: {
         Args: {
           p_due_at: string
@@ -19733,6 +19876,18 @@ export type Database = {
         }
         Returns: Json
       }
+      evaluate_shift_assignment_eligibility: {
+        Args: {
+          p_employee_id: string
+          p_ends_at: string
+          p_exclude_assignment_ids?: string[]
+          p_facility_id: string
+          p_shift_definition_id: string
+          p_starts_at: string
+          p_unit_id: string
+        }
+        Returns: Json
+      }
       exclusion_source_record_key: {
         Args: {
           p_business_name: string
@@ -20057,6 +20212,10 @@ export type Database = {
           supervisor_notified: boolean
           unit_name: string
         }[]
+      }
+      get_schedule_service_workload: {
+        Args: { p_schedule_id: string }
+        Returns: Json
       }
       get_scim_auth_material: {
         Args: { p_connection_key: string }
@@ -20405,6 +20564,15 @@ export type Database = {
           p_body_template: string
           p_subject_template: string
           p_variables?: Json
+        }
+        Returns: Json
+      }
+      preview_shift_assignment_candidates: {
+        Args: {
+          p_schedule_id: string
+          p_shift_date: string
+          p_shift_definition_id: string
+          p_unit_id?: string
         }
         Returns: Json
       }
