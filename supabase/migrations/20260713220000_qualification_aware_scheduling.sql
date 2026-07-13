@@ -37,6 +37,8 @@ create trigger set_updated_at before update on public.service_workload_profiles
 for each row execute function public.set_updated_at();
 
 alter table public.service_workload_profiles enable row level security;
+drop policy if exists service_workload_profiles_select on public.service_workload_profiles;
+drop policy if exists service_workload_profiles_manage on public.service_workload_profiles;
 create policy service_workload_profiles_select on public.service_workload_profiles
 for select to authenticated using (
   (select public.is_platform_admin())
