@@ -58,11 +58,24 @@ export function useCreateShiftAssignment() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: ShiftAssignmentInsert) => {
-      const { data, error } = await supabase.from("shift_assignments").insert(payload).select().single();
+      if (!payload.schedule_id || !payload.employee_id || !payload.shift_date || !payload.shift_definition_id) {
+        throw new Error("Schedule, employee, date, and shift definition are required");
+      }
+      const { data, error } = await supabase.rpc("assign_employee_to_shift", {
+        p_schedule_id: payload.schedule_id,
+        p_employee_id: payload.employee_id,
+        p_shift_date: payload.shift_date,
+        p_shift_definition_id: payload.shift_definition_id,
+        p_unit_id: payload.unit_id ?? undefined,
+        p_notes: payload.notes ?? undefined,
+      });
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["shift_assignments"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shift_assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule-service-workload"] });
+    },
   });
 }
 
@@ -74,7 +87,10 @@ export function useUpdateShiftAssignment() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["shift_assignments"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shift_assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule-service-workload"] });
+    },
   });
 }
 
@@ -85,6 +101,9 @@ export function useDeleteShiftAssignment() {
       const { error } = await supabase.from("shift_assignments").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["shift_assignments"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shift_assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule-service-workload"] });
+    },
   });
 }

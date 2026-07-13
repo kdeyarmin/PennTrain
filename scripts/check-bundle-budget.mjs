@@ -23,9 +23,10 @@ const budgets = {
   // raised 2500 -> 2600 for formal QAPI quality management (projects, actions, measurements,
   // meeting notes, RCA, and print-optimized workspace); raised 2600 -> 2660 for the
   // complaint/grievance case workflow (intake, investigation, corrective actions,
-  // nonretaliation monitoring, incident escalation, and closure approval). The new
-  // pages remain lazy routes and do not increase the initial-shell budget.
-  totalJavaScript: 2660 * 1024,
+  // nonretaliation monitoring, incident escalation, and closure approval); raised 2660
+  // -> 2680 for qualification-aware scheduling previews, bounded overrides, and service
+  // workload. The new pages remain lazy routes and do not increase the initial-shell budget.
+  totalJavaScript: 2680 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };
