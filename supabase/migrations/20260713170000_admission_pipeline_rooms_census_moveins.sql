@@ -244,6 +244,32 @@ revoke all on function app_private.admission_row_visible(uuid, uuid)
   from public, anon, authenticated, service_role;
 grant execute on function app_private.admission_row_visible(uuid, uuid) to authenticated;
 
+create or replace function app_private.assert_admission_manager(p_org uuid, p_fac uuid default null)
+returns void
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if coalesce(auth.jwt()->>'role', '') = 'service_role' or public.is_platform_admin() then
+    return;
+  end if;
+  if auth.uid() is null
+    or public.current_org_id() <> p_org
+    or public.current_role() not in ('org_admin', 'facility_manager')
+    or (
+      p_fac is not null
+      and public.current_role() = 'facility_manager'
+      and not public.is_assigned_to_facility(p_fac)
+    ) then
+    raise exception 'Admission operation is outside caller scope' using errcode = '42501';
+  end if;
+end;
+$$;
+revoke all on function app_private.assert_admission_manager(uuid, uuid)
+  from public, anon, authenticated, service_role;
+
 create policy referral_sources_select on public.referral_sources
 for select to authenticated
 using (
@@ -310,7 +336,7 @@ set search_path = ''
 as $$
 declare v_id uuid;
 begin
-  perform app_private.assert_phase5_manager(p_organization_id, null);
+  perform app_private.assert_admission_manager(p_organization_id, null);
   if p_source_type not in ('hospital', 'snf', 'agency', 'family', 'physician', 'community', 'self', 'other')
     or length(btrim(coalesce(p_name, ''))) < 2 then
     raise exception 'Invalid referral source' using errcode = '22023';
@@ -358,7 +384,7 @@ declare
 begin
   select * into v_facility from public.facilities where id = p_facility_id;
   if not found then raise exception 'Facility not found' using errcode = 'P0002'; end if;
-  perform app_private.assert_phase5_manager(v_facility.organization_id, v_facility.id);
+  perform app_private.assert_admission_manager(v_facility.organization_id, v_facility.id);
   if length(btrim(coalesce(p_first_name, ''))) < 1
     or length(btrim(coalesce(p_last_name, ''))) < 1
     or (p_referral_source_id is not null and not exists (
@@ -408,7 +434,7 @@ declare v public.admission_prospects%rowtype;
 begin
   select * into v from public.admission_prospects where id = p_prospect_id for update;
   if not found then raise exception 'Prospect not found' using errcode = 'P0002'; end if;
-  perform app_private.assert_phase5_manager(v.organization_id, v.facility_id);
+  perform app_private.assert_admission_manager(v.organization_id, v.facility_id);
   if p_stage not in ('prospect', 'applicant', 'approved', 'waitlisted', 'reserved', 'declined', 'lost')
     or p_clinical_review_status not in ('not_started', 'in_review', 'approved', 'needs_information', 'declined')
     or p_financial_review_status not in ('not_started', 'in_review', 'approved', 'needs_information', 'declined')
@@ -457,7 +483,7 @@ declare
 begin
   select * into v from public.admission_prospects where id = p_prospect_id;
   if not found then raise exception 'Prospect not found' using errcode = 'P0002'; end if;
-  perform app_private.assert_phase5_manager(v.organization_id, v.facility_id);
+  perform app_private.assert_admission_manager(v.organization_id, v.facility_id);
   if p_activity_type not in (
     'contact_attempt', 'tour_scheduled', 'tour_completed', 'tour_canceled',
     'clinical_review', 'financial_review', 'decision', 'note'
@@ -497,7 +523,7 @@ declare
 begin
   select * into v_facility from public.facilities where id = p_facility_id;
   if not found then raise exception 'Facility not found' using errcode = 'P0002'; end if;
-  perform app_private.assert_phase5_manager(v_facility.organization_id, v_facility.id);
+  perform app_private.assert_admission_manager(v_facility.organization_id, v_facility.id);
   if p_room_type not in ('private', 'semi_private', 'shared', 'suite', 'studio', 'other')
     or p_gender_restriction not in ('none', 'female', 'male', 'compatibility_review')
     or p_bed_count not between 1 and 8
@@ -566,7 +592,7 @@ declare v public.facility_beds%rowtype;
 begin
   select * into v from public.facility_beds where id = p_bed_id for update;
   if not found then raise exception 'Bed not found' using errcode = 'P0002'; end if;
-  perform app_private.assert_phase5_manager(v.organization_id, v.facility_id);
+  perform app_private.assert_admission_manager(v.organization_id, v.facility_id);
   if p_status not in ('available', 'temporarily_unavailable', 'maintenance_hold')
     or v.status in ('reserved', 'occupied') then
     raise exception 'Occupied or reserved beds must be released through census workflow' using errcode = '55000';
@@ -601,7 +627,7 @@ begin
   if v_prospect.id is null or v_bed.id is null then
     raise exception 'Prospect or bed not found' using errcode = 'P0002';
   end if;
-  perform app_private.assert_phase5_manager(v_prospect.organization_id, v_prospect.facility_id);
+  perform app_private.assert_admission_manager(v_prospect.organization_id, v_prospect.facility_id);
   if v_prospect.stage not in ('approved', 'waitlisted', 'reserved')
     or v_prospect.clinical_review_status <> 'approved'
     or v_prospect.financial_review_status <> 'approved'
@@ -724,7 +750,7 @@ declare
 begin
   select * into v_prospect from public.admission_prospects where id = p_prospect_id for update;
   if not found then raise exception 'Prospect not found' using errcode = 'P0002'; end if;
-  perform app_private.assert_phase5_manager(v_prospect.organization_id, v_prospect.facility_id);
+  perform app_private.assert_admission_manager(v_prospect.organization_id, v_prospect.facility_id);
   select * into v_bed from public.facility_beds
   where reserved_for_prospect_id = v_prospect.id and status = 'reserved' for update;
   if v_prospect.stage <> 'reserved' or v_bed.id is null
@@ -805,7 +831,7 @@ declare v public.move_in_tasks%rowtype;
 begin
   select * into v from public.move_in_tasks where id = p_task_id for update;
   if not found then raise exception 'Move-in task not found' using errcode = 'P0002'; end if;
-  perform app_private.assert_phase5_manager(v.organization_id, v.facility_id);
+  perform app_private.assert_admission_manager(v.organization_id, v.facility_id);
   if p_owner_profile_id is not null and not exists (
     select 1 from public.profiles p where p.id = p_owner_profile_id
       and p.organization_id = v.organization_id and p.is_active
@@ -841,7 +867,7 @@ declare
 begin
   select * into v from public.move_in_tasks where id = p_task_id for update;
   if not found then raise exception 'Move-in task not found' using errcode = 'P0002'; end if;
-  perform app_private.assert_phase5_manager(v.organization_id, v.facility_id);
+  perform app_private.assert_admission_manager(v.organization_id, v.facility_id);
   if p_target_state not in ('open', 'in_progress', 'submitted', 'approved', 'exception', 'completed')
     or (p_target_state = 'exception' and length(btrim(coalesce(p_reason, ''))) < 5) then
     raise exception 'Invalid move-in task state' using errcode = '22023';
@@ -913,7 +939,7 @@ declare
 begin
   select * into v from public.move_in_workspaces where id = p_workspace_id;
   if not found then raise exception 'Move-in workspace not found' using errcode = 'P0002'; end if;
-  perform app_private.assert_phase5_manager(v.organization_id, v.facility_id);
+  perform app_private.assert_admission_manager(v.organization_id, v.facility_id);
   if p_expires_at <= now() or cardinality(p_task_ids) = 0
     or exists (
       select 1 from unnest(p_task_ids) id
@@ -973,7 +999,7 @@ declare v public.move_in_guest_grants%rowtype;
 begin
   select * into v from public.move_in_guest_grants where id = p_grant_id for update;
   if not found then raise exception 'Move-in guest grant not found' using errcode = 'P0002'; end if;
-  perform app_private.assert_phase5_manager(v.organization_id, v.facility_id);
+  perform app_private.assert_admission_manager(v.organization_id, v.facility_id);
   if length(btrim(coalesce(p_reason, ''))) < 5 then
     raise exception 'Revocation reason is required' using errcode = '22023';
   end if;
@@ -1089,7 +1115,7 @@ declare
 begin
   select * into v from public.move_in_workspaces where id = p_workspace_id for update;
   if not found then raise exception 'Move-in workspace not found' using errcode = 'P0002'; end if;
-  perform app_private.assert_phase5_manager(v.organization_id, v.facility_id);
+  perform app_private.assert_admission_manager(v.organization_id, v.facility_id);
   perform public.refresh_move_in_readiness(v.id);
   select * into v from public.move_in_workspaces where id = p_workspace_id;
   if v.state <> 'ready' or length(btrim(coalesce(p_reason, ''))) < 5 then
@@ -1148,7 +1174,7 @@ declare
 begin
   select * into v from public.residents where id = p_resident_id for update;
   if not found then raise exception 'Resident not found' using errcode = 'P0002'; end if;
-  perform app_private.assert_phase5_manager(v.organization_id, v.facility_id);
+  perform app_private.assert_admission_manager(v.organization_id, v.facility_id);
   if p_target_status not in ('active', 'temporarily_out', 'hospital_leave', 'discharged', 'deceased')
     or length(btrim(coalesce(p_reason, ''))) < 3 then
     raise exception 'Invalid census transition' using errcode = '22023';
