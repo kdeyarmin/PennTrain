@@ -960,7 +960,7 @@ begin
     deduplication_key, title, description, owner_profile_id, priority, due_at, created_by
   ) values (
     v_event.organization_id, v_event.facility_id, v_template, 'emergency', v_event.id,
-    'emergency:' || v_event.id || ':' || gen_random_uuid(), btrim(p_title),
+'emergency:' || v_event.id || ':' || extensions.gen_random_uuid(), btrim(p_title),
     nullif(btrim(p_description), ''), p_owner_profile_id, p_priority, p_due_at, auth.uid()
   ) returning id into v_work;
   insert into public.work_item_history (
