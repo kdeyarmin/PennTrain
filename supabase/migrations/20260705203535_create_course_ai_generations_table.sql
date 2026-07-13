@@ -3,7 +3,7 @@
 -- permanent record, platform_admin-only, no delete policy. Rows are inserted with status='pending'
 -- before the third-party call is made, so a mid-flight failure still leaves an error trail.
 
-create table public.course_ai_generations (
+create table if not exists public.course_ai_generations (
   id uuid primary key default gen_random_uuid(),
   kind text not null check (kind in ('create_course', 'regenerate_block')),
   course_id uuid references public.courses(id) on delete set null,
@@ -20,18 +20,21 @@ create table public.course_ai_generations (
   created_at timestamptz not null default now()
 );
 
-create index course_ai_generations_course_idx on public.course_ai_generations(course_id, created_at desc);
+create index if not exists course_ai_generations_course_idx on public.course_ai_generations(course_id, created_at desc);
 
 alter table public.course_ai_generations enable row level security;
 
+drop policy if exists course_ai_generations_select on public.course_ai_generations;
 create policy course_ai_generations_select on public.course_ai_generations for select to authenticated using (
   (select public.is_platform_admin())
 );
 
+drop policy if exists course_ai_generations_insert on public.course_ai_generations;
 create policy course_ai_generations_insert on public.course_ai_generations for insert to authenticated with check (
   (select public.is_platform_admin())
 );
 
+drop policy if exists course_ai_generations_update on public.course_ai_generations;
 create policy course_ai_generations_update on public.course_ai_generations for update to authenticated
 using (
   (select public.is_platform_admin())
