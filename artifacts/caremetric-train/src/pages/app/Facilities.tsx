@@ -174,8 +174,8 @@ export default function Facilities() {
       </div>
 
       <div className="premium-card">
-        <div className="filter-bar">
-          <div className="relative flex-1 min-w-48">
+        <div className="filter-bar flex-col items-stretch sm:flex-row sm:items-center">
+          <div className="relative w-full flex-1 sm:min-w-48">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search facilities..."
@@ -197,7 +197,7 @@ export default function Facilities() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredFacilities.map(facility => (
             <Link key={facility.id} href={`${basePath}/${facility.id}`}>
-              <div className="premium-card p-5 cursor-pointer transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 group">
+              <div className="premium-card p-5 cursor-pointer transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 group focus-within:ring-2 focus-within:ring-ring">
                 <div className="flex items-start justify-between mb-4">
                   <div className="h-11 w-11 rounded-xl bg-primary/8 flex items-center justify-center">
                     <Building2 className="h-5 w-5 text-primary/70" />
@@ -205,13 +205,13 @@ export default function Facilities() {
                   <div className="flex items-center gap-1.5">
                     {canManage && (
                       <>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-foreground" onClick={(e) => openEdit(e, facility)} aria-label={`Edit ${facility.name}`}>
+                        <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-7 sm:w-7 sm:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-foreground" onClick={(e) => openEdit(e, facility)} aria-label={`Edit ${facility.name}`}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                          className="h-9 w-9 sm:h-7 sm:w-7 sm:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteId(facility.id); }}
                           aria-label={`Delete ${facility.name}`}
                         >
@@ -219,7 +219,7 @@ export default function Facilities() {
                         </Button>
                       </>
                     )}
-                    <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
+                    <ChevronRight className="hidden h-4 w-4 text-muted-foreground/30 transition-colors group-hover:text-muted-foreground/60 sm:block" />
                   </div>
                 </div>
 

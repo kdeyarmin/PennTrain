@@ -578,7 +578,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-3 px-3">
+      <div className="flex-1 overflow-y-auto px-3 py-3 [scrollbar-gutter:stable]">
         {visibleSections.length === 0 && (
           <p className="px-3 py-6 text-[13px] text-sidebar-foreground/40 text-center">No pages match "{filter.trim()}"</p>
         )}
@@ -694,7 +694,7 @@ export function Sidebar() {
   if (!user) return null;
 
   return (
-    <aside className="hidden md:flex w-[260px] bg-sidebar text-sidebar-foreground flex-col h-full shrink-0 border-r border-sidebar-border">
+    <aside className="hidden md:flex h-screen w-[260px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       <SidebarNav />
     </aside>
   );
