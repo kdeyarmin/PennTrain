@@ -233,6 +233,7 @@ describe("role-based page visibility", () => {
   it("returns only viewable canonical destinations for related links", () => {
     expect(viewablePathForRole("/app/employees/employee-1?tab=training", "trainer")).toBe("/trainer/employees/employee-1?tab=training");
     expect(viewablePathForRole("/app/help/tickets/t1", "employee")).toBe("/me/help/tickets/t1");
+    expect(viewablePathForRole("/app/resident-services-calendar", "employee")).toBe("/me/resident-services-calendar");
     expect(viewablePathForRole("/app/users", "employee")).toBeNull();
     expect(viewablePathForRole("/app/settings/not-a-real-page", "org_admin")).toBeNull();
   });

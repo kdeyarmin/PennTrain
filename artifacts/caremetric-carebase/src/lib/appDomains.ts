@@ -368,6 +368,10 @@ export function canonicalHelpPathForRole(path: string, role: Role | undefined): 
 
 function canonicalNavigationPathForRole(path: string, role: Role | undefined): string {
   const helpPath = canonicalHelpPathForRole(path, role);
+  if (role === "employee") {
+    const [pathname, suffix] = splitPathSuffix(helpPath);
+    if (pathname === "/app/resident-services-calendar") return `/me/resident-services-calendar${suffix}`;
+  }
   if (role !== "trainer") return helpPath;
 
   const [pathname, suffix] = splitPathSuffix(helpPath);
