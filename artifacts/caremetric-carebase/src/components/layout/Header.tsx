@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { LogOut, Bell, Building2, CheckCheck, Menu, HelpCircle, ChevronDown } from "lucide-react";
+import { LogOut, Bell, Building2, CheckCheck, Menu, HelpCircle, ChevronDown, Search } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -214,6 +214,7 @@ function NotificationsMenu() {
 export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   const { user } = useAuth();
   const [location, navigate] = useLocation();
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const handleLogout = useSignOut();
 
   // Stash the route on every navigation (skipping Help's own pages) so HelpCenter can contextually
@@ -263,7 +264,8 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   const breadcrumb = getBreadcrumbs();
 
   return (
-    <header className="h-[68px] border-b border-border bg-card/80 backdrop-blur-sm flex items-center justify-between gap-2 px-4 sm:px-6 lg:px-8 shrink-0 sticky top-0 z-10">
+    <header className="min-h-[68px] shrink-0 border-b border-border bg-card/80 px-4 backdrop-blur-sm sm:px-6 lg:px-8 sticky top-0 z-10">
+      <div className="flex h-[68px] items-center justify-between gap-2">
       <div className="flex items-center gap-2 min-w-0">
         <Button
           variant="ghost"
@@ -287,7 +289,24 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
         {/* Every role has something to search: staff roles reach org-wide directory entities
             (see tablesForRole in useGlobalSearch.ts), and employees get their own pages plus a
             title search over their assigned training items. */}
-        {!!user && <GlobalSearch />}
+        {!!user && (
+          <>
+            <div className="hidden sm:block">
+              <GlobalSearch />
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground sm:hidden"
+              aria-label="Open search"
+              aria-expanded={mobileSearchOpen}
+              aria-controls="mobile-search-panel"
+              onClick={() => setMobileSearchOpen((open) => !open)}
+            >
+              <Search className="h-[18px] w-[18px]" />
+            </Button>
+          </>
+        )}
         {user?.role === "platform_admin" && <ViewingOrgSelector />}
         {/* platform_admin has no HelpCenter route -- it's gated to ORG_ROLES + employee in
             App.tsx, and platform_admin's equivalent is the separate /admin/help-content authoring
@@ -338,6 +357,12 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      </div>
+      {mobileSearchOpen && (
+        <div id="mobile-search-panel" className="border-t border-border/60 py-2 sm:hidden">
+          <GlobalSearch autoFocus onNavigate={() => setMobileSearchOpen(false)} />
+        </div>
+      )}
     </header>
   );
 }

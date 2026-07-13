@@ -13,8 +13,9 @@ const budgets = {
   // end-user-review rounds (evidence room, saved views, confidential console, ...)
   // and the state-forms/document-analyzer features landed together; raised 2400 -> 2410
   // when PCH/ALR operations center, regulatory crosswalk, and compliance analytics
-  // features landed; both per-load budgets remained comfortably met.
-  totalJavaScript: 2410 * 1024,
+  // features landed; raised 2410 -> 2420 for the responsive-layout/global-search/user-
+  // management updates, while both per-load budgets remained comfortably met.
+  totalJavaScript: 2420 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };

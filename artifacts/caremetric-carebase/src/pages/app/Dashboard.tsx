@@ -312,7 +312,7 @@ export default function OrgDashboard() {
       )}
 
       {criticalAlertsCount > 0 && (
-        <div className="rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 p-5 flex items-start gap-4">
+        <div className="rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 p-5 flex flex-col gap-4 sm:flex-row sm:items-start">
           <div className="h-10 w-10 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
             <AlertCircle className="h-5 w-5 text-red-600" />
           </div>
@@ -323,7 +323,7 @@ export default function OrgDashboard() {
             <p className="text-sm text-red-700/80 mt-0.5">{firstCriticalTitle}</p>
           </div>
           <Link href="/app/alerts">
-            <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white shadow-sm">
+            <Button size="sm" className="w-full bg-red-600 text-white shadow-sm hover:bg-red-700 sm:w-auto">
               View Alerts
             </Button>
           </Link>
@@ -331,7 +331,7 @@ export default function OrgDashboard() {
       )}
 
       {showResidentFormsBanner && (
-        <div className="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 p-5 flex items-start gap-4">
+        <div className="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 p-5 flex flex-col gap-4 sm:flex-row sm:items-start">
           <div className="h-10 w-10 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
             <FileText className="h-5 w-5 text-amber-600" />
           </div>
@@ -344,7 +344,7 @@ export default function OrgDashboard() {
             </p>
           </div>
           <Link href="/app/state-forms">
-            <Button size="sm" variant="outline" className="border-amber-300 text-amber-900 hover:bg-amber-100 shadow-sm">
+            <Button size="sm" variant="outline" className="w-full border-amber-300 text-amber-900 shadow-sm hover:bg-amber-100 sm:w-auto">
               Open State Forms
             </Button>
           </Link>
@@ -352,7 +352,7 @@ export default function OrgDashboard() {
       )}
 
       {summaryLoading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <StatCardSkeleton />
           <StatCardSkeleton />
           <StatCardSkeleton />
@@ -361,7 +361,7 @@ export default function OrgDashboard() {
           <StatCardSkeleton />
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <div className="stat-card">
             <div className="flex items-start justify-between">
               <div>
@@ -478,37 +478,37 @@ export default function OrgDashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Link href="/app/employees?action=add">
-          <div className="rounded-xl border border-border/60 bg-card p-4 flex flex-col items-center gap-2 hover:bg-muted/50 hover:border-primary/20 transition-all cursor-pointer group">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Link href="/app/employees?action=add" className="group flex rounded-xl border border-border/60 bg-card p-4 transition-all hover:border-primary/20 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <div className="flex w-full items-center gap-3 sm:flex-col sm:gap-2">
             <div className="h-10 w-10 rounded-lg bg-primary/8 flex items-center justify-center group-hover:bg-primary/12 transition-colors">
               <UserPlus className="h-5 w-5 text-primary/70" />
             </div>
-            <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">Add Employee</span>
+            <span className="text-sm font-medium text-muted-foreground transition-colors group-hover:text-foreground sm:text-xs">Add Employee</span>
           </div>
         </Link>
-        <Link href="/app/reports">
-          <div className="rounded-xl border border-border/60 bg-card p-4 flex flex-col items-center gap-2 hover:bg-muted/50 hover:border-primary/20 transition-all cursor-pointer group">
+        <Link href="/app/reports" className="group flex rounded-xl border border-border/60 bg-card p-4 transition-all hover:border-primary/20 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <div className="flex w-full items-center gap-3 sm:flex-col sm:gap-2">
             <div className="h-10 w-10 rounded-lg bg-primary/8 flex items-center justify-center group-hover:bg-primary/12 transition-colors">
               <FileText className="h-5 w-5 text-primary/70" />
             </div>
-            <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">Run Report</span>
+            <span className="text-sm font-medium text-muted-foreground transition-colors group-hover:text-foreground sm:text-xs">Run Report</span>
           </div>
         </Link>
-        <Link href="/app/training-matrix">
-          <div className="rounded-xl border border-border/60 bg-card p-4 flex flex-col items-center gap-2 hover:bg-muted/50 hover:border-primary/20 transition-all cursor-pointer group">
+        <Link href="/app/training-matrix" className="group flex rounded-xl border border-border/60 bg-card p-4 transition-all hover:border-primary/20 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <div className="flex w-full items-center gap-3 sm:flex-col sm:gap-2">
             <div className="h-10 w-10 rounded-lg bg-primary/8 flex items-center justify-center group-hover:bg-primary/12 transition-colors">
               <LayoutGrid className="h-5 w-5 text-primary/70" />
             </div>
-            <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">View Matrix</span>
+            <span className="text-sm font-medium text-muted-foreground transition-colors group-hover:text-foreground sm:text-xs">View Matrix</span>
           </div>
         </Link>
-        <Link href="/app/alerts">
-          <div className="rounded-xl border border-border/60 bg-card p-4 flex flex-col items-center gap-2 hover:bg-muted/50 hover:border-primary/20 transition-all cursor-pointer group">
+        <Link href="/app/alerts" className="group flex rounded-xl border border-border/60 bg-card p-4 transition-all hover:border-primary/20 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <div className="flex w-full items-center gap-3 sm:flex-col sm:gap-2">
             <div className="h-10 w-10 rounded-lg bg-primary/8 flex items-center justify-center group-hover:bg-primary/12 transition-colors">
               <Bell className="h-5 w-5 text-primary/70" />
             </div>
-            <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">Manage Alerts</span>
+            <span className="text-sm font-medium text-muted-foreground transition-colors group-hover:text-foreground sm:text-xs">Manage Alerts</span>
           </div>
         </Link>
       </div>
@@ -579,7 +579,7 @@ export default function OrgDashboard() {
             <h3 className="section-title">Overall Compliance Score</h3>
           </div>
           <div className="p-6">
-            <div className="flex items-center gap-8">
+            <div className="flex flex-col items-center gap-6 sm:flex-row sm:gap-8">
               {summaryLoading ? (
                 <Skeleton className="h-[140px] w-[140px] rounded-full" />
               ) : (
@@ -592,7 +592,7 @@ export default function OrgDashboard() {
                 <p className="text-sm text-muted-foreground mt-1">of training records compliant</p>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4 mt-6">
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
               <div className="rounded-lg bg-muted/50 p-3.5">
                 <div className="flex items-center gap-2 text-muted-foreground mb-1">
                   <Users className="h-4 w-4" />
@@ -707,7 +707,7 @@ export default function OrgDashboard() {
 
             return (
               <Link key={facility.id} href={`/app/facilities/${facility.id}`}>
-                <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 hover:bg-muted/40 transition-colors cursor-pointer">
+                <div className="flex flex-col gap-3 px-4 py-4 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                   <div className="flex items-center gap-4 min-w-0">
                     <div className="relative">
                       <div className="h-10 w-10 rounded-lg bg-primary/8 flex items-center justify-center">
@@ -722,7 +722,7 @@ export default function OrgDashboard() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 shrink-0">
+                  <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end sm:gap-4 sm:shrink-0">
                     {fc && (
                       <div className="hidden sm:flex items-center gap-2.5">
                         <div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden">

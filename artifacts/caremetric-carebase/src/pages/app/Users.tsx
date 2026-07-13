@@ -398,8 +398,8 @@ export default function Users() {
       </div>
 
       <div className="premium-card">
-        <div className="filter-bar">
-          <div className="relative flex-1 min-w-48">
+        <div className="filter-bar flex-col items-stretch sm:flex-row sm:items-center">
+          <div className="relative w-full flex-1 sm:min-w-48">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search users..."
@@ -409,7 +409,7 @@ export default function Users() {
             />
           </div>
           <Select value={roleFilter} onValueChange={v => { setRoleFilter(v); setPage(1); }}>
-            <SelectTrigger className="w-44 h-9 bg-card">
+            <SelectTrigger className="h-9 w-full bg-card sm:w-44">
               <SelectValue placeholder="All Roles" />
             </SelectTrigger>
             <SelectContent>
@@ -421,7 +421,7 @@ export default function Users() {
           </Select>
           {isPlatformAdmin && (
             <Select value={orgFilter} onValueChange={v => { setOrgFilter(v); setPage(1); }}>
-              <SelectTrigger className="w-48 h-9 bg-card">
+              <SelectTrigger className="h-9 w-full bg-card sm:w-48">
                 <SelectValue placeholder="All Organizations" />
               </SelectTrigger>
               <SelectContent>
@@ -450,7 +450,7 @@ export default function Users() {
           </div>
         ) : (
           <>
-            <div className="overflow-hidden overflow-x-auto">
+            <div className="hidden overflow-hidden overflow-x-auto md:block">
               <table className="data-table">
                 <thead>
                   <tr>
@@ -552,16 +552,73 @@ export default function Users() {
                 </tbody>
               </table>
             </div>
-            <div className="flex items-center justify-between px-5 py-4 border-t border-border/60">
-              <p className="text-[13px] text-muted-foreground">
+            <div className="divide-y divide-border/60 md:hidden">
+              {paginated.map(p => {
+                const editable = canEditRow(p);
+                return (
+                  <article key={p.id} className="space-y-4 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/8 text-xs font-semibold text-primary">
+                          {p.first_name[0]}{p.last_name[0]}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="truncate text-sm font-semibold text-foreground">
+                            {p.first_name} {p.last_name}{p.id === user?.id && <span className="font-normal text-muted-foreground"> (you)</span>}
+                          </h3>
+                          <p className="truncate text-xs text-muted-foreground">{p.email}</p>
+                          {isPlatformAdmin && (
+                            <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                              {p.organization_id ? (orgMap.get(p.organization_id) ?? "No organization name") : "No organization"}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {canImpersonate(p) && (
+                          <Button variant="outline" size="icon" className="h-9 w-9" onClick={e => openImpersonate(e, p)} aria-label={`Log in as ${p.first_name} ${p.last_name}`}>
+                            <LogIn className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button variant="outline" size="icon" className="h-9 w-9" onClick={e => openEdit(e, p)} aria-label={`Edit ${p.first_name} ${p.last_name}`}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="grid gap-3 rounded-lg border bg-muted/20 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs font-medium text-muted-foreground">Role</span>
+                        {editable ? (
+                          <Select value={p.role} onValueChange={v => requestRoleChange(p, v)} disabled={adminUpdating}>
+                            <SelectTrigger className="h-9 w-44 bg-card text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>{assignableRoles.map(r => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}</SelectContent>
+                          </Select>
+                        ) : (
+                          <Badge variant="outline" className="text-xs"><Shield className="mr-1 h-3 w-3" />{ROLE_LABELS[p.role] ?? p.role}</Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs font-medium text-muted-foreground">Status</span>
+                        <div className="flex items-center gap-2">
+                          <Switch checked={p.is_active} onCheckedChange={v => requestActiveToggle(p, v)} disabled={!editable || adminUpdating} aria-label={p.is_active ? `Deactivate ${p.first_name} ${p.last_name}` : `Activate ${p.first_name} ${p.last_name}`} />
+                          <StatusBadge status={p.is_active ? "active" : "inactive"} type="employee" />
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+            <div className="flex flex-col gap-3 border-t border-border/60 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <p className="text-center text-[13px] text-muted-foreground sm:text-left">
                 Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)}</span> of {sorted.length}
               </p>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
+              <div className="flex items-center justify-center gap-2">
+                <Button variant="outline" size="sm" className="h-9 min-w-9" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} aria-label="Previous page">
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="text-[13px] text-muted-foreground px-2">Page {page} of {totalPages}</span>
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+                <span className="px-2 text-[13px] text-muted-foreground">Page {page} of {totalPages}</span>
+                <Button variant="outline" size="sm" className="h-9 min-w-9" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} aria-label="Next page">
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
