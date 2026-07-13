@@ -404,7 +404,7 @@ for each row execute function app_private.enforce_shift_assignment_eligibility()
 -- Direct browser inserts are intentionally closed. All manual assignments use the RPC above;
 -- auto-fill and swap functions still execute as their security-definer owners and hit the trigger.
 revoke insert on table public.shift_assignments from authenticated;
-drop policy shift_assignments_write on public.shift_assignments;
+drop policy if exists shift_assignments_write on public.shift_assignments;
 create policy shift_assignments_update on public.shift_assignments
 for update to authenticated using (
   public.is_platform_admin()
