@@ -278,6 +278,7 @@ begin
     end if;
     select * into v_vehicle from public.facility_transport_vehicles
     where id = (p_event->>'vehicleId')::uuid and facility_id = v_resident.facility_id and status = 'available';
+    if not found then raise exception 'Available vehicle not found' using errcode = 'P0002'; end if;
     if exists (
       select 1 from public.resident_service_calendar_events existing
       where existing.vehicle_id = v_vehicle.id and existing.status = 'scheduled'
@@ -426,6 +427,7 @@ begin
     and template_key = 'resident_calendar.followup' and is_active
   order by organization_id nulls last limit 1;
   if v_template_id is null then raise exception 'Work item template not found' using errcode = 'P0002'; end if;
+  for v_follow in select value from jsonb_array_elements(coalesce(p_follow_ups, '[]'::jsonb)) loop
     begin
       v_due := (v_follow->>'dueAt')::timestamptz;
       v_owner := nullif(v_follow->>'ownerProfileId', '')::uuid;
@@ -456,6 +458,7 @@ begin
       'resident-calendar-followup:' || v_follow_id,
       btrim(v_follow->>'title'), btrim(v_follow->>'description'), v_owner,
       case when v_follow->>'priority' in ('urgent','high','normal','low') then v_follow->>'priority' else 'high' end, v_due, auth.uid()
+    ) returning id into v_work_id;
     update public.resident_service_calendar_follow_ups set work_item_id = v_work_id where id = v_follow_id;
     insert into public.work_item_history(
       organization_id, facility_id, work_item_id, event_type,
