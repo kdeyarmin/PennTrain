@@ -85,8 +85,8 @@ export default function InspectionItemDetail() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
 
-  // Platform admins reach inspection details from Alerts; there is no /admin/inspections list
-  // route. Return them to that valid origin instead of sending them to the global 404.
+  // Platform-admin inspection details are reachable via multiple entry points (e.g. Alerts, Audit Log).
+  // There is no /admin/inspections list route, so send "Back" to a known valid page (currently Alerts).
   const backDestination = user?.role === "platform_admin"
     ? { href: "/admin/alerts", label: "Alerts" }
     : { href: "/app/inspections", label: "Inspections" };
