@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { resolveAppRedirect } from "../_shared/appRedirect.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -33,26 +34,13 @@ function allowedRedirectOrigins(): Set<string> {
 
 function resolveRedirectTo(candidate: string | undefined): string {
   const fallbackOrigin = (Deno.env.get("PUBLIC_APP_URL") ?? DEFAULT_APP_ORIGIN).replace(/\/+$/, "");
-  if (!candidate) return `${fallbackOrigin}/reset-password`;
-
-  let url: URL;
-  try {
-    url = new URL(candidate);
-  } catch {
-    throw new Error("Invalid invite redirect URL");
-  }
-  if (!["http:", "https:"].includes(url.protocol) || !url.pathname.endsWith("/reset-password")) {
-    throw new Error("Invite redirects must use HTTP(S) and land on /reset-password");
-  }
   const allowLocalhostRedirects = Deno.env.get("ALLOW_LOCALHOST_SIGNUP_REDIRECTS") === "true";
-  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
-    if (allowLocalhostRedirects) return url.toString();
-    throw new Error("Localhost invite redirects are disabled");
-  }
-  if (!allowedRedirectOrigins().has(url.origin)) {
-    throw new Error("Invite redirect origin is not allowed");
-  }
-  return url.toString();
+  return resolveAppRedirect(
+    candidate,
+    `${fallbackOrigin}/reset-password`,
+    allowedRedirectOrigins(),
+    allowLocalhostRedirects,
+  );
 }
 
 Deno.serve(async (req: Request) => {
