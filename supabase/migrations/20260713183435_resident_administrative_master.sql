@@ -339,13 +339,25 @@ begin
         contact_type = v_contact->>'contact_type', name = btrim(v_contact->>'name'),
         relationship = nullif(btrim(v_contact->>'relationship'), ''),
         legal_authority = nullif(btrim(v_contact->>'legal_authority'), ''),
-        phone = nullif(btrim(v_contact->>'phone'), ''), alternate_phone = nullif(btrim(v_contact->>'alternate_phone'), ''),
-        email = nullif(btrim(v_contact->>'email'), ''), address_line1 = nullif(btrim(v_contact->>'address_line1'), ''),
-        address_line2 = nullif(btrim(v_contact->>'address_line2'), ''), city = nullif(btrim(v_contact->>'city'), ''),
-        state = nullif(upper(btrim(v_contact->>'state')), ''), postal_code = nullif(btrim(v_contact->>'postal_code'), ''),
+        phone = nullif(btrim(v_contact->>'phone'), ''),
+        alternate_phone = case when v_contact ? 'alternate_phone'
+          then nullif(btrim(v_contact->>'alternate_phone'), '') else alternate_phone end,
+        email = nullif(btrim(v_contact->>'email'), ''),
+        address_line1 = case when v_contact ? 'address_line1'
+          then nullif(btrim(v_contact->>'address_line1'), '') else address_line1 end,
+        address_line2 = case when v_contact ? 'address_line2'
+          then nullif(btrim(v_contact->>'address_line2'), '') else address_line2 end,
+        city = case when v_contact ? 'city'
+          then nullif(btrim(v_contact->>'city'), '') else city end,
+        state = case when v_contact ? 'state'
+          then nullif(upper(btrim(v_contact->>'state')), '') else state end,
+        postal_code = case when v_contact ? 'postal_code'
+          then nullif(btrim(v_contact->>'postal_code'), '') else postal_code end,
         is_primary = coalesce((v_contact->>'is_primary')::boolean, false),
         receives_notifications = coalesce((v_contact->>'receives_notifications')::boolean, false),
-        notes = nullif(btrim(v_contact->>'notes'), ''), sort_order = coalesce((v_contact->>'sort_order')::integer, 0),
+        notes = case when v_contact ? 'notes'
+          then nullif(btrim(v_contact->>'notes'), '') else notes end,
+        sort_order = coalesce((v_contact->>'sort_order')::integer, 0),
         active = true, updated_at = now()
       where id = v_contact_id and resident_id = v_resident.id;
       if not found then raise exception 'Resident contact not found' using errcode = 'P0002'; end if;
