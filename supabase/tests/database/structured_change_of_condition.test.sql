@@ -90,6 +90,7 @@ select is(
   'fall',
   'frontline staff can capture a structured category and observations'
 );
+select pg_temp.act_as('59000000-0000-4000-8000-000000000101');
 select ok(
   exists (
     select 1 from public.resident_compliance_items c
@@ -120,6 +121,7 @@ insert into change_ids(key, id)
 select 'follow_up', id from public.resident_change_follow_ups
 where event_id = (select id from change_ids where key = 'event');
 
+select pg_temp.act_as('59000000-0000-4000-8000-000000000102');
 select lives_ok(
   $$select public.add_change_event_monitoring(
     (select id from change_ids where key = 'event'), now(),
@@ -180,6 +182,7 @@ select is(
   6,
   'immutable history retains create, monitoring, notifications, follow-up, and closure'
 );
+reset role;
 select throws_ok(
   $$delete from public.resident_change_event_history
     where event_id = (select id from change_ids where key = 'event')$$,
