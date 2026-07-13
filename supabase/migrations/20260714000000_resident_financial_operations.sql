@@ -457,7 +457,11 @@ begin
   v_resident := app_private.assert_resident_finance_manager(p_resident_id);
   v_account := app_private.ensure_resident_financial_account(v_resident.id);
   select * into v_account from public.resident_financial_accounts where id = v_account.id for update;
-  if p_period_start is null or p_period_end < p_period_start or p_due_date < current_date then
+  if p_period_start is null
+    or p_period_end is null
+    or p_period_end < p_period_start
+    or p_due_date is null
+    or p_due_date < current_date then
     raise exception 'Statement period or due date is invalid' using errcode = '22023';
   end if;
   select coalesce(sum(case when entry_side='debit' then amount else -amount end),0)
