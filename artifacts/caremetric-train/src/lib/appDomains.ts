@@ -225,6 +225,8 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/pending-approvals", label: "Pending approvals", domain: "compliance", roles: PENDING_APPROVAL_ROLES, keywords: ["review", "approval", "external certificates"] },
   { path: "/app/reports", label: "Reports", domain: "documents", roles: REPORTING_ROLES, keywords: ["analytics", "exports"] },
   { path: "/app/inspection-readiness", label: "Inspection readiness", domain: "compliance", roles: REPORTING_ROLES, keywords: ["survey", "audit"] },
+  { path: "/app/pch-alr-operations", label: "PCH / ALF operations", domain: "compliance", roles: REPORTING_ROLES, keywords: ["personal care home", "assisted living", "chapter 2600", "chapter 2800", "survey", "medication safety", "resident rights", "emergency preparedness"] },
+  { path: "/app/regulatory-crosswalk", label: "Regulatory crosswalk", domain: "compliance", roles: REPORTING_ROLES, keywords: ["chapter 2600", "chapter 2800", "regulation", "citation", "crosswalk", "evidence", "binder", "survey"] },
   { path: "/app/compliance-binder", label: "Compliance binder", domain: "documents", roles: REPORTING_ROLES, keywords: ["evidence", "packet"] },
   { path: "/app/evidence", label: "Evidence room", domain: "compliance", roles: REPORTING_ROLES, keywords: ["survey", "auditor", "guest access", "surveyor", "artifacts", "binder", "share"] },
   { path: "/app/policy-documents", label: "Policies & procedures", domain: "documents", roles: REPORTING_ROLES, keywords: ["attestation", "campaigns"] },

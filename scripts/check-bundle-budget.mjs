@@ -11,9 +11,10 @@ const budgets = {
   // Sum of every lazy route chunk, not what any one page load fetches -- the per-load
   // guardrails are largestJavaScript and initialShell. Raised 2300 -> 2400 when the
   // end-user-review rounds (evidence room, saved views, confidential console, ...)
-  // and the state-forms/document-analyzer features landed together; both per-load
-  // budgets were still comfortably met (largest 388 KiB, shell 1062 KiB).
-  totalJavaScript: 2400 * 1024,
+  // and the state-forms/document-analyzer features landed together; raised 2400 -> 2410
+  // when PCH/ALR operations center, regulatory crosswalk, and compliance analytics
+  // features landed; both per-load budgets remained comfortably met.
+  totalJavaScript: 2410 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };

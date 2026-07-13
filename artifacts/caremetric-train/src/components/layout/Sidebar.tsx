@@ -42,6 +42,7 @@ import {
   FileSignature,
   ShieldQuestion,
   Radar,
+  Crosshair,
   Gavel,
   BookOpen,
   BookCheck,
@@ -63,6 +64,7 @@ import {
   UserRoundCheck,
   FolderLock,
   ScanText,
+  FileSearch,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -201,6 +203,8 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
           { href: "/app/closed-loop-compliance", label: "Closed-Loop Compliance", icon: Gavel },
           ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/pch-alr-operations", label: "PCH / ALF Operations", icon: Crosshair }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/regulatory-crosswalk", label: "Regulatory Crosswalk", icon: FileSearch }] : []),
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
           { href: "/app/evidence", label: "Evidence Room", icon: FolderLock },
           { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
@@ -287,6 +291,8 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
           ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/pch-alr-operations", label: "PCH / ALF Operations", icon: Crosshair }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/regulatory-crosswalk", label: "Regulatory Crosswalk", icon: FileSearch }] : []),
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
           { href: "/app/evidence", label: "Evidence Room", icon: FolderLock },
           { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
