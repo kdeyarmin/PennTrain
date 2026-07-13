@@ -322,6 +322,7 @@ begin
         select 1 from public.employee_facility_assignments assignment
         where assignment.employee_id = v_employee.id and assignment.facility_id = v_resident.facility_id
       ) then raise exception 'Assigned employee is outside facility scope' using errcode = '42501'; end if;
+      perform pg_advisory_xact_lock(hashtext('resident_calendar_employee'), hashtext(v_employee.id::text));
       if exists (
         select 1 from public.resident_service_calendar_event_staff assigned
         join public.resident_service_calendar_events existing on existing.id = assigned.event_id
