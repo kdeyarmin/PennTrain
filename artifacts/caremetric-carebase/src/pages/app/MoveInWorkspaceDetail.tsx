@@ -39,6 +39,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { ResidentAgreementWorkspace } from "@/components/residents/ResidentAgreementWorkspace";
 
 const TASK_STATES = ["open", "in_progress", "submitted", "approved", "exception", "completed"];
 const STATE_CLASS: Record<string, string> = {
@@ -195,6 +196,12 @@ export default function MoveInWorkspaceDetail() {
           <AlertDescription>All document, signature, approval, dependency, and exception gates are clear.</AlertDescription>
         </Alert>
       )}
+
+      <ResidentAgreementWorkspace
+        residentId={data.resident_id}
+        documents={documents ?? []}
+        canManage={canManage}
+      />
 
       <Card>
         <CardHeader><CardTitle>Admission task checklist</CardTitle><CardDescription>Tasks cannot complete until their dependencies and required evidence are satisfied.</CardDescription></CardHeader>

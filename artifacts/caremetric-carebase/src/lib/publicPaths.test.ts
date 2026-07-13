@@ -12,8 +12,10 @@ describe("isPublicPath", () => {
     expect(isPublicPath("/evidence-access/guest-token")).toBe(true);
     expect(isPublicPath("/evidence-access/guest-token/")).toBe(true);
     expect(isPublicPath("/move-in-access/admission-token")).toBe(true);
+    expect(isPublicPath("/resident-agreement-access/signing-token")).toBe(true);
     expect(isPublicPath("/evidence-access")).toBe(false);
     expect(isPublicPath("/move-in-access")).toBe(false);
+    expect(isPublicPath("/resident-agreement-access")).toBe(false);
     expect(isPublicPath("/evidence-accessibility")).toBe(false);
   });
 
