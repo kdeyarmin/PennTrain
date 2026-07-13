@@ -263,8 +263,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       queryClient.clear();
       toast({
         variant: "destructive",
-        title: "Account could not be loaded",
-        description: "Please sign in again. Contact your administrator if the problem continues.",
+        title: "Account unavailable",
+        description: "Sign in again or contact your administrator.",
       });
       setLocation("/login");
     })();

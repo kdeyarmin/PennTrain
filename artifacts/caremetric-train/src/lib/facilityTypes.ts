@@ -14,7 +14,7 @@ export const FACILITY_TYPES: { value: FacilityType; label: string }[] = [
 ];
 
 export function facilityTypeLabel(facilityType: string | null | undefined): string {
-  if (!facilityType) return "Unknown facility type";
+  if (!facilityType) return "Unknown";
   return FACILITY_TYPES.find(({ value }) => value === facilityType)?.label ?? facilityType;
 }
 

@@ -27,7 +27,7 @@ describe("facilityTypeLabel", () => {
   });
 
   it("handles missing and forward-compatible values", () => {
-    expect(facilityTypeLabel(null)).toBe("Unknown facility type");
+    expect(facilityTypeLabel(null)).toBe("Unknown");
     expect(facilityTypeLabel("FUTURE_TYPE")).toBe("FUTURE_TYPE");
   });
 });

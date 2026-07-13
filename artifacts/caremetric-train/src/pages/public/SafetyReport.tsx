@@ -89,8 +89,8 @@ export default function SafetyReport() {
       if (widget.current && window.turnstile) window.turnstile.reset(widget.current);
       toast({
         variant: "destructive",
-        title: "Report could not be submitted",
-        description: "Please try again or contact support.",
+        title: "Submission failed",
+        description: "Please try again.",
       });
     } finally {
       setPending(false);
@@ -149,7 +149,7 @@ export default function SafetyReport() {
               <div ref={container} />
               {!siteKey && (
                 <p role="alert" className="text-sm text-destructive">
-                  Safety report verification is not configured. Please contact support.
+                  Verification is unavailable. Contact support.
                 </p>
               )}
               <Button
