@@ -67,11 +67,8 @@ import {
   ScanText,
   FileSearch,
   MessageSquareWarning,
-<<<<<<< HEAD
   Utensils,
-=======
   Siren,
->>>>>>> origin/main
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
