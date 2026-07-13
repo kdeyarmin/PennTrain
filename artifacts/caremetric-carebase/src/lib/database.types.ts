@@ -14998,54 +14998,399 @@ export type Database = {
           },
         ]
       }
+      report_delivery_attempts: {
+        Row: {
+          attempt_number: number
+          created_at: string
+          delivered_at: string | null
+          delivery_method: string
+          error_code: string | null
+          error_message: string | null
+          evidence_collection_id: string | null
+          facility_id: string | null
+          id: string
+          notification_delivery_id: string | null
+          notification_id: string | null
+          organization_id: string
+          recipient_profile_id: string | null
+          retry_of_attempt_id: string | null
+          run_id: string
+          snapshot_id: string
+          status: string
+        }
+        Insert: {
+          attempt_number?: number
+          created_at?: string
+          delivered_at?: string | null
+          delivery_method: string
+          error_code?: string | null
+          error_message?: string | null
+          evidence_collection_id?: string | null
+          facility_id?: string | null
+          id?: string
+          notification_delivery_id?: string | null
+          notification_id?: string | null
+          organization_id: string
+          recipient_profile_id?: string | null
+          retry_of_attempt_id?: string | null
+          run_id: string
+          snapshot_id: string
+          status: string
+        }
+        Update: {
+          attempt_number?: number
+          created_at?: string
+          delivered_at?: string | null
+          delivery_method?: string
+          error_code?: string | null
+          error_message?: string | null
+          evidence_collection_id?: string | null
+          facility_id?: string | null
+          id?: string
+          notification_delivery_id?: string | null
+          notification_id?: string | null
+          organization_id?: string
+          recipient_profile_id?: string | null
+          retry_of_attempt_id?: string | null
+          run_id?: string
+          snapshot_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_delivery_attempts_evidence_collection_id_fkey"
+            columns: ["evidence_collection_id"]
+            isOneToOne: false
+            referencedRelation: "evidence_collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_delivery_attempts_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_delivery_attempts_notification_delivery_id_fkey"
+            columns: ["notification_delivery_id"]
+            isOneToOne: false
+            referencedRelation: "notification_deliveries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_delivery_attempts_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_delivery_attempts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_delivery_attempts_recipient_profile_id_fkey"
+            columns: ["recipient_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_delivery_attempts_retry_of_attempt_id_fkey"
+            columns: ["retry_of_attempt_id"]
+            isOneToOne: false
+            referencedRelation: "report_delivery_attempts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_delivery_attempts_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "report_schedule_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_delivery_attempts_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "report_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_schedule_recipients: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          delivery_methods: string[]
+          facility_id: string | null
+          id: string
+          organization_id: string
+          profile_id: string
+          schedule_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          delivery_methods: string[]
+          facility_id?: string | null
+          id?: string
+          organization_id: string
+          profile_id: string
+          schedule_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          delivery_methods?: string[]
+          facility_id?: string | null
+          id?: string
+          organization_id?: string
+          profile_id?: string
+          schedule_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_schedule_recipients_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_schedule_recipients_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_schedule_recipients_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_schedule_recipients_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_schedule_recipients_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "report_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_schedule_runs: {
+        Row: {
+          as_of_date: string
+          attempt_number: number
+          created_at: string
+          error_code: string | null
+          error_message: string | null
+          facility_id: string | null
+          finished_at: string | null
+          id: string
+          organization_id: string
+          period_end: string
+          period_start: string
+          report_version_id: string
+          requested_by: string | null
+          retry_of_run_id: string | null
+          schedule_id: string
+          scheduled_for: string
+          snapshot_id: string | null
+          started_at: string | null
+          status: string
+          trigger_type: string
+        }
+        Insert: {
+          as_of_date: string
+          attempt_number?: number
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          facility_id?: string | null
+          finished_at?: string | null
+          id?: string
+          organization_id: string
+          period_end: string
+          period_start: string
+          report_version_id: string
+          requested_by?: string | null
+          retry_of_run_id?: string | null
+          schedule_id: string
+          scheduled_for: string
+          snapshot_id?: string | null
+          started_at?: string | null
+          status?: string
+          trigger_type: string
+        }
+        Update: {
+          as_of_date?: string
+          attempt_number?: number
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          facility_id?: string | null
+          finished_at?: string | null
+          id?: string
+          organization_id?: string
+          period_end?: string
+          period_start?: string
+          report_version_id?: string
+          requested_by?: string | null
+          retry_of_run_id?: string | null
+          schedule_id?: string
+          scheduled_for?: string
+          snapshot_id?: string | null
+          started_at?: string | null
+          status?: string
+          trigger_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_schedule_runs_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_schedule_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_schedule_runs_report_version_id_fkey"
+            columns: ["report_version_id"]
+            isOneToOne: false
+            referencedRelation: "saved_report_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_schedule_runs_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_schedule_runs_retry_of_run_id_fkey"
+            columns: ["retry_of_run_id"]
+            isOneToOne: false
+            referencedRelation: "report_schedule_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_schedule_runs_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "report_schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_schedule_runs_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "report_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_schedules: {
         Row: {
           audience: Json
           created_at: string
           created_by: string | null
           cron_expression: string
+          date_range_mode: string
+          delivery_methods: string[]
           delivery_mode: string
           enabled: boolean
+          facility_id: string | null
+          fixed_as_of_date: string | null
+          fixed_date_from: string | null
+          fixed_date_to: string | null
+          frequency: string | null
           id: string
           last_run_at: string | null
+          lookback_days: number
           next_run_at: string | null
           organization_id: string
+          publish_to_evidence_room: boolean
           report_definition_id: string
+          report_kind: string | null
           report_version_id: string
           retention_days: number
           time_zone: string
+          updated_at: string
         }
         Insert: {
           audience: Json
           created_at?: string
           created_by?: string | null
           cron_expression: string
+          date_range_mode?: string
+          delivery_methods?: string[]
           delivery_mode: string
           enabled?: boolean
+          facility_id?: string | null
+          fixed_as_of_date?: string | null
+          fixed_date_from?: string | null
+          fixed_date_to?: string | null
+          frequency?: string | null
           id?: string
           last_run_at?: string | null
+          lookback_days?: number
           next_run_at?: string | null
           organization_id: string
+          publish_to_evidence_room?: boolean
           report_definition_id: string
+          report_kind?: string | null
           report_version_id: string
           retention_days: number
           time_zone: string
+          updated_at?: string
         }
         Update: {
           audience?: Json
           created_at?: string
           created_by?: string | null
           cron_expression?: string
+          date_range_mode?: string
+          delivery_methods?: string[]
           delivery_mode?: string
           enabled?: boolean
+          facility_id?: string | null
+          fixed_as_of_date?: string | null
+          fixed_date_from?: string | null
+          fixed_date_to?: string | null
+          frequency?: string | null
           id?: string
           last_run_at?: string | null
+          lookback_days?: number
           next_run_at?: string | null
           organization_id?: string
+          publish_to_evidence_room?: boolean
           report_definition_id?: string
+          report_kind?: string | null
           report_version_id?: string
           retention_days?: number
           time_zone?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -15053,6 +15398,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_schedules_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
             referencedColumns: ["id"]
           },
           {
@@ -15148,6 +15500,72 @@ export type Database = {
           },
         ]
       }
+      report_snapshot_publications: {
+        Row: {
+          evidence_collection_id: string
+          facility_id: string
+          id: string
+          organization_id: string
+          published_at: string
+          published_by: string | null
+          snapshot_id: string
+        }
+        Insert: {
+          evidence_collection_id: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          published_at?: string
+          published_by?: string | null
+          snapshot_id: string
+        }
+        Update: {
+          evidence_collection_id?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          published_at?: string
+          published_by?: string | null
+          snapshot_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_snapshot_publications_evidence_collection_id_fkey"
+            columns: ["evidence_collection_id"]
+            isOneToOne: false
+            referencedRelation: "evidence_collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_snapshot_publications_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_snapshot_publications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_snapshot_publications_published_by_fkey"
+            columns: ["published_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_snapshot_publications_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "report_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_snapshots: {
         Row: {
           as_of: string
@@ -15160,14 +15578,20 @@ export type Database = {
           included_record_ids: Json
           material_totals: Json
           organization_id: string
+          period_end: string | null
+          period_start: string | null
+          previous_snapshot_id: string | null
           reconciliation_detail: Json
           reconciliation_status: string
           report_definition_id: string
           report_version_id: string
+          retention_expires_at: string | null
           row_counts: Json
+          schedule_id: string | null
           snapshot_sha256: string
           source_watermarks: Json
           status: string
+          trend_comparison: Json
         }
         Insert: {
           as_of: string
@@ -15180,14 +15604,20 @@ export type Database = {
           included_record_ids: Json
           material_totals?: Json
           organization_id: string
+          period_end?: string | null
+          period_start?: string | null
+          previous_snapshot_id?: string | null
           reconciliation_detail?: Json
           reconciliation_status: string
           report_definition_id: string
           report_version_id: string
+          retention_expires_at?: string | null
           row_counts: Json
+          schedule_id?: string | null
           snapshot_sha256: string
           source_watermarks?: Json
           status?: string
+          trend_comparison?: Json
         }
         Update: {
           as_of?: string
@@ -15200,14 +15630,20 @@ export type Database = {
           included_record_ids?: Json
           material_totals?: Json
           organization_id?: string
+          period_end?: string | null
+          period_start?: string | null
+          previous_snapshot_id?: string | null
           reconciliation_detail?: Json
           reconciliation_status?: string
           report_definition_id?: string
           report_version_id?: string
+          retention_expires_at?: string | null
           row_counts?: Json
+          schedule_id?: string | null
           snapshot_sha256?: string
           source_watermarks?: Json
           status?: string
+          trend_comparison?: Json
         }
         Relationships: [
           {
@@ -15232,6 +15668,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "report_snapshots_previous_snapshot_id_fkey"
+            columns: ["previous_snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "report_snapshots"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "report_snapshots_report_definition_id_fkey"
             columns: ["report_definition_id"]
             isOneToOne: false
@@ -15243,6 +15686,13 @@ export type Database = {
             columns: ["report_version_id"]
             isOneToOne: false
             referencedRelation: "saved_report_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_snapshots_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "report_schedules"
             referencedColumns: ["id"]
           },
         ]
@@ -24903,6 +25353,10 @@ export type Database = {
         Args: { p_reason: string; p_revision_id: string }
         Returns: string
       }
+      publish_report_snapshot_to_evidence_room: {
+        Args: { p_collection_name?: string; p_snapshot_id: string }
+        Returns: string
+      }
       publish_resident_agreement_version: {
         Args: {
           p_agreement_id?: string
@@ -25403,6 +25857,14 @@ export type Database = {
         Args: { p_delivery_id: string }
         Returns: undefined
       }
+      retry_report_delivery_attempt: {
+        Args: { p_attempt_id: string }
+        Returns: string
+      }
+      retry_scheduled_report_run: {
+        Args: { p_run_id: string }
+        Returns: string
+      }
       reveal_confidential_reporter_identity: {
         Args: { p_intake_id: string; p_purpose: string }
         Returns: Json
@@ -25504,7 +25966,15 @@ export type Database = {
           credential_secret: string
         }[]
       }
+      run_due_report_schedules: {
+        Args: { p_batch_size?: number }
+        Returns: number
+      }
       run_phase1_synthetic_checks: { Args: never; Returns: Json }
+      run_scheduled_report_now: {
+        Args: { p_as_of_date?: string; p_schedule_id: string }
+        Returns: string
+      }
       save_report_definition: {
         Args: {
           p_columns?: Json
@@ -25723,6 +26193,42 @@ export type Database = {
           p_rollout_mode: string
         }
         Returns: undefined
+      }
+      set_report_schedule_enabled: {
+        Args: { p_enabled: boolean; p_schedule_id: string }
+        Returns: {
+          audience: Json
+          created_at: string
+          created_by: string | null
+          cron_expression: string
+          date_range_mode: string
+          delivery_methods: string[]
+          delivery_mode: string
+          enabled: boolean
+          facility_id: string | null
+          fixed_as_of_date: string | null
+          fixed_date_from: string | null
+          fixed_date_to: string | null
+          frequency: string | null
+          id: string
+          last_run_at: string | null
+          lookback_days: number
+          next_run_at: string | null
+          organization_id: string
+          publish_to_evidence_room: boolean
+          report_definition_id: string
+          report_kind: string | null
+          report_version_id: string
+          retention_days: number
+          time_zone: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "report_schedules"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       set_system_job_kill_switch: {
         Args: { p_enabled: boolean; p_job_key: string; p_reason: string }
@@ -26200,6 +26706,59 @@ export type Database = {
           p_resident_id: string
         }
         Returns: string
+      }
+      upsert_scheduled_report: {
+        Args: {
+          p_date_range_mode: string
+          p_delivery_methods: string[]
+          p_enabled?: boolean
+          p_facility_id: string
+          p_fixed_as_of_date: string
+          p_fixed_date_from: string
+          p_fixed_date_to: string
+          p_frequency: string
+          p_lookback_days: number
+          p_name: string
+          p_publish_to_evidence_room?: boolean
+          p_recipient_profile_ids: string[]
+          p_report_kind: string
+          p_retention_days: number
+          p_schedule_id: string
+          p_time_zone: string
+        }
+        Returns: {
+          audience: Json
+          created_at: string
+          created_by: string | null
+          cron_expression: string
+          date_range_mode: string
+          delivery_methods: string[]
+          delivery_mode: string
+          enabled: boolean
+          facility_id: string | null
+          fixed_as_of_date: string | null
+          fixed_date_from: string | null
+          fixed_date_to: string | null
+          frequency: string | null
+          id: string
+          last_run_at: string | null
+          lookback_days: number
+          next_run_at: string | null
+          organization_id: string
+          publish_to_evidence_room: boolean
+          report_definition_id: string
+          report_kind: string | null
+          report_version_id: string
+          retention_days: number
+          time_zone: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "report_schedules"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       upsert_service_exception_rule: {
         Args: {

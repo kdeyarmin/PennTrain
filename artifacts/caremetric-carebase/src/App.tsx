@@ -101,6 +101,7 @@ const WorkOrderDetail = lazy(() => import("@/pages/app/WorkOrderDetail"));
 const MaintenanceScan = lazy(() => import("@/pages/app/MaintenanceScan"));
 const Alerts = lazy(() => import("@/pages/app/Alerts"));
 const Reports = lazy(() => import("@/pages/app/Reports"));
+const ScheduledReports = lazy(() => import("@/pages/app/ScheduledReports"));
 const AuditLog = lazy(() => import("@/pages/app/AuditLog"));
 const Users = lazy(() => import("@/pages/app/Users"));
 const Documents = lazy(() => import("@/pages/app/Documents"));
@@ -643,6 +644,9 @@ function Router() {
       </Route>
       <Route path="/app/reports">
         {() => <ProtectedRoute component={Reports} allowedRoles={REPORTS_VIEW_ROLES} />}
+      </Route>
+      <Route path="/app/reports/schedules">
+        {() => <ProtectedRoute component={ScheduledReports} allowedRoles={REPORTS_VIEW_ROLES} />}
       </Route>
       <Route path="/app/documents">
         {() => <ProtectedRoute component={Documents} allowedRoles={ORG_ROLES} />}
