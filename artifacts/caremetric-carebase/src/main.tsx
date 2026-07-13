@@ -3,6 +3,13 @@ import App from "./App";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import "./index.css";
 
+void import("@/lib/clientErrorReporting").then(({ installGlobalErrorReporting }) => {
+  installGlobalErrorReporting();
+});
+void import("@/lib/deploymentRecovery").then(({ installDeploymentRecovery }) => {
+  installDeploymentRecovery();
+});
+
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>
     <App />

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, CheckCircle2, XCircle, Delete } from "lucide-react";
+import { QueryError, QueryLoading } from "@/components/QueryState";
 
 const PIN_PAD_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "back"];
 
@@ -14,7 +15,7 @@ export default function ClassKiosk() {
   const [, params] = useRoute("/trainer/classes/:id/kiosk");
   const classId = params?.id;
 
-  const { data: cls } = useGetTrainingClass(classId);
+  const { data: cls, isLoading: classLoading, isError: classError, error, refetch } = useGetTrainingClass(classId);
   const { data: attendees } = useListClassAttendees(classId);
   // Scoped to the class's facility when it has one -- an org-wide search would otherwise let a
   // same-named employee from a different site get checked in by mistake at a live kiosk with
@@ -50,8 +51,7 @@ export default function ClassKiosk() {
   }, [cls?.facility_id, facilityEmployees, allActiveEmployees, attendeeByEmployeeId]);
 
   const filteredEmployees = employees
-    .filter((e) => !search || `${e.first_name} ${e.last_name}`.toLowerCase().includes(search.toLowerCase()))
-    .slice(0, 8);
+    .filter((e) => !search || `${e.first_name} ${e.last_name}`.toLowerCase().includes(search.toLowerCase()));
 
   const selectedEmployee = employees.find((e) => e.id === selectedEmployeeId);
 
@@ -81,16 +81,24 @@ export default function ClassKiosk() {
   };
 
   if (!classId) return null;
+  if (classLoading) return <QueryLoading what="class kiosk" className="min-h-screen" />;
+  if (classError) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-lg items-center px-4">
+        <QueryError what="this class" error={error} onRetry={() => { void refetch(); }} />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center gap-6 px-4">
-      <div className="w-full max-w-md flex items-center justify-between">
+    <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-4 py-6">
+      <div className="w-full max-w-xl flex items-center justify-between">
         <Link href={`/trainer/classes/${classId}`} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" /> Exit Kiosk Mode
         </Link>
       </div>
 
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-xl shadow-xl">
         <CardHeader className="text-center">
           <CardTitle className="text-xl">{cls?.class_name ?? "Class Check-In"}</CardTitle>
           <p className="text-sm text-muted-foreground">Enter your PIN to check in or out</p>

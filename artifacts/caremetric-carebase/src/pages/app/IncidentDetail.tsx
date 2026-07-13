@@ -54,10 +54,11 @@ export default function IncidentDetail() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // This page is mounted at both /app/incidents/:id (org roles) and /admin/incidents/:id
-  // (platform_admin, reached via Alerts deep links) -- back-navigation must match whichever
-  // prefix the viewer is under, mirroring EmployeeDetail.tsx/FacilityDetail.tsx.
-  const basePath = user?.role === "platform_admin" ? "/admin/incidents" : "/app/incidents";
+  // Platform-admin incident details are reachable via multiple entry points (e.g. Alerts, Audit Log).
+  // There is no /admin/incidents list route, so send "Back" to a known valid page (currently Alerts).
+  const backDestination = user?.role === "platform_admin"
+    ? { href: "/admin/alerts", label: "Alerts" }
+    : { href: "/app/incidents", label: "Incidents" };
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   // incident_staff_involved_delete and incident_documents_delete are narrower than
   // insert/update -- platform_admin or org_admin only -- so facility_manager must not be shown
@@ -184,7 +185,7 @@ export default function IncidentDetail() {
       <div className="text-center py-12">
         <p className="text-muted-foreground">Incident not found.</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href={basePath}>Back to Incidents</Link>
+          <Link href={backDestination.href}>Back to {backDestination.label}</Link>
         </Button>
       </div>
     );
@@ -194,7 +195,7 @@ export default function IncidentDetail() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-          <Link href={basePath}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
+          <Link href={backDestination.href}><ArrowLeft className="mr-2 h-4 w-4" /> Back to {backDestination.label}</Link>
         </Button>
       </div>
 

@@ -29,6 +29,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught application error:", error, errorInfo);
+    void import("@/lib/clientErrorReporting").then(({ reportClientError }) => {
+      reportClientError(error, "react-boundary", errorInfo.componentStack ?? undefined);
+    });
   }
 
   componentDidUpdate(prevProps: ErrorBoundaryProps) {

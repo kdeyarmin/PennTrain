@@ -69,6 +69,9 @@ export default defineConfig(({ command, mode }) => {
           ],
         },
         workbox: {
+          // Navigation must check the network before using a cached shell. Otherwise a deploy can
+          // leave an open tab pinned to index.html that references hashes the new release removed.
+          navigateFallback: null,
           // App.tsx route-splits ~80 per-route chunks (admin/app/trainer/employee pages) behind
           // React.lazy so an anonymous marketing visitor's initial load doesn't fetch them. The SW
           // registers for every visitor (registerType: autoUpdate, default injectRegister), so
@@ -81,7 +84,6 @@ export default defineConfig(({ command, mode }) => {
           // the precache manifest itself regardless of globPatterns, so listing it here just
           // produces a duplicate (harmless, but noisy in the generated sw.js).
           globPatterns: [
-            "index.html",
             "**/index-*.js",
             "**/router-*.js",
             "**/query-*.js",
@@ -92,6 +94,16 @@ export default defineConfig(({ command, mode }) => {
             "**/*.css",
           ],
           runtimeCaching: [
+            {
+              urlPattern: ({ request, sameOrigin }) =>
+                sameOrigin && request.mode === "navigate",
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "app-navigation",
+                networkTimeoutSeconds: 4,
+                expiration: { maxEntries: 8, maxAgeSeconds: 60 * 60 * 24 },
+              },
+            },
             {
               // Per-route chunks aren't precached (see globPatterns above) -- cache them as a
               // user actually visits each page, so repeat visits and brief signal drops on

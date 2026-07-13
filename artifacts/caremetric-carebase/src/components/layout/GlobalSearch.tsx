@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useLocation } from "wouter";
 import { useGlobalSearch } from "@/hooks/useGlobalSearch";
 import { useAuth } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
 import { searchCommandActions, searchPages } from "@/lib/appDomains";
 import { Search, Building2, User, Users, UserRound, Compass, Zap, BookOpen } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const DEBOUNCE_MS = 250;
 
@@ -14,6 +15,7 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [activeOptionId, setActiveOptionId] = useState<string | undefined>();
   const blurTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -62,22 +64,66 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
     onNavigate?.();
   };
 
+  const optionId = (kind: string, key: string) =>
+    `global-search-${kind}-${encodeURIComponent(key).replaceAll("%", "")}`;
+  const optionClass = (id: string) => cn(
+    "w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-muted",
+    activeOptionId === id && "bg-muted ring-1 ring-inset ring-primary/40",
+  );
+
+  const handleSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape") {
+      setQuery("");
+      setOpen(false);
+      setActiveOptionId(undefined);
+      return;
+    }
+    const options = Array.from(
+      document.querySelectorAll<HTMLButtonElement>("#global-search-results [role='option']"),
+    );
+    if (options.length === 0) return;
+    const currentIndex = options.findIndex((option) => option.id === activeOptionId);
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const delta = event.key === "ArrowDown" ? 1 : -1;
+      const nextIndex = currentIndex < 0
+        ? (delta > 0 ? 0 : options.length - 1)
+        : (currentIndex + delta + options.length) % options.length;
+      setActiveOptionId(options[nextIndex].id);
+      options[nextIndex].scrollIntoView({ block: "nearest" });
+    } else if (event.key === "Enter" && currentIndex >= 0) {
+      event.preventDefault();
+      options[currentIndex].click();
+    }
+  };
+
   return (
     <div className="relative w-full sm:w-56">
       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
       <Input
         ref={inputRef}
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setActiveOptionId(undefined);
+        }}
         onFocus={() => setOpen(true)}
         onBlur={() => { blurTimeout.current = setTimeout(() => setOpen(false), 150); }}
-        onKeyDown={(e) => { if (e.key === "Escape") { setQuery(""); setOpen(false); } }}
+        onKeyDown={handleSearchKeyDown}
         placeholder="Search everything... (/)"
         className="h-8 pl-8 text-xs bg-muted/50 border-none focus-visible:ring-1"
         aria-label="Search pages, people, and your training"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={open && query.trim().length >= 2}
+        aria-controls="global-search-results"
+        aria-activedescendant={activeOptionId}
       />
       {open && query.trim().length >= 2 && (
         <div
+          id="global-search-results"
+          role="listbox"
+          aria-label="Search results"
           className="absolute right-0 top-full z-50 mt-1 max-h-96 w-[min(18rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border bg-popover shadow-lg sm:w-72"
           onMouseDown={(e) => { e.preventDefault(); if (blurTimeout.current) clearTimeout(blurTimeout.current); }}
         >
@@ -93,7 +139,11 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
                   {actionResults.map((action) => (
                     <button
                       key={action.id}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted text-left"
+                      id={optionId("action", action.id)}
+                      role="option"
+                      aria-selected={activeOptionId === optionId("action", action.id)}
+                      onMouseMove={() => setActiveOptionId(optionId("action", action.id))}
+                      className={optionClass(optionId("action", action.id))}
                       onClick={() => go(action.path)}
                     >
                       <Zap className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -111,7 +161,11 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
                   {pageResults.map((page) => (
                     <button
                       key={page.path}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted text-left"
+                      id={optionId("page", page.path)}
+                      role="option"
+                      aria-selected={activeOptionId === optionId("page", page.path)}
+                      onMouseMove={() => setActiveOptionId(optionId("page", page.path))}
+                      className={optionClass(optionId("page", page.path))}
                       onClick={() => go(page.path)}
                     >
                       <Compass className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -129,7 +183,11 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
                   {results.organizations.map((o) => (
                     <button
                       key={o.id}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted text-left"
+                      id={optionId("organization", o.id)}
+                      role="option"
+                      aria-selected={activeOptionId === optionId("organization", o.id)}
+                      onMouseMove={() => setActiveOptionId(optionId("organization", o.id))}
+                      className={optionClass(optionId("organization", o.id))}
                       onClick={() => go(`/admin/organizations/${o.id}`)}
                     >
                       <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> {o.name}
@@ -143,8 +201,12 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
                   {results.profiles.map((p) => (
                     <button
                       key={p.id}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted text-left"
-                      onClick={() => go(usersBasePath)}
+                      id={optionId("profile", p.id)}
+                      role="option"
+                      aria-selected={activeOptionId === optionId("profile", p.id)}
+                      onMouseMove={() => setActiveOptionId(optionId("profile", p.id))}
+                      className={optionClass(optionId("profile", p.id))}
+                      onClick={() => go(`${usersBasePath}?search=${encodeURIComponent(p.email)}`)}
                     >
                       <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                       <span className="truncate">{p.first_name} {p.last_name} <span className="text-muted-foreground">({p.email})</span></span>
@@ -158,7 +220,11 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
                   {results.employees.map((e) => (
                     <button
                       key={e.id}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted text-left"
+                      id={optionId("employee", e.id)}
+                      role="option"
+                      aria-selected={activeOptionId === optionId("employee", e.id)}
+                      onMouseMove={() => setActiveOptionId(optionId("employee", e.id))}
+                      className={optionClass(optionId("employee", e.id))}
                       onClick={() => go(`${employeesBasePath}/${e.id}`)}
                     >
                       <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> {e.first_name} {e.last_name}
@@ -172,7 +238,11 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
                   {results.residents.map((r) => (
                     <button
                       key={r.id}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted text-left"
+                      id={optionId("resident", r.id)}
+                      role="option"
+                      aria-selected={activeOptionId === optionId("resident", r.id)}
+                      onMouseMove={() => setActiveOptionId(optionId("resident", r.id))}
+                      className={optionClass(optionId("resident", r.id))}
                       onClick={() => go(`${residentsBasePath}/${r.id}`)}
                     >
                       <UserRound className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> {r.first_name} {r.last_name}
@@ -186,7 +256,11 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
                   {results.courses.map((c) => (
                     <button
                       key={c.assignmentId}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted text-left"
+                      id={optionId("course", c.assignmentId)}
+                      role="option"
+                      aria-selected={activeOptionId === optionId("course", c.assignmentId)}
+                      onMouseMove={() => setActiveOptionId(optionId("course", c.assignmentId))}
+                      className={optionClass(optionId("course", c.assignmentId))}
                       onClick={() => go(`/me/courses/${c.assignmentId}`)}
                     >
                       <BookOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> <span className="truncate">{c.title}</span>

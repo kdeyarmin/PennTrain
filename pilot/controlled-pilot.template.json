@@ -1,0 +1,26 @@
+{
+  "pilotId": "replace-with-pilot-id",
+  "environment": "production-pilot",
+  "startedAt": "",
+  "completedAt": "",
+  "facilityTypes": ["PCH", "ALR"],
+  "checks": [
+    { "id": "role-platform-admin", "domain": "role_journey", "role": "platform_admin", "status": "failed", "observedAt": "", "evidence": "" },
+    { "id": "role-org-admin", "domain": "role_journey", "role": "org_admin", "status": "failed", "observedAt": "", "evidence": "" },
+    { "id": "role-facility-manager", "domain": "role_journey", "role": "facility_manager", "status": "failed", "observedAt": "", "evidence": "" },
+    { "id": "role-trainer", "domain": "role_journey", "role": "trainer", "status": "failed", "observedAt": "", "evidence": "" },
+    { "id": "role-employee", "domain": "role_journey", "role": "employee", "status": "failed", "observedAt": "", "evidence": "" },
+    { "id": "role-auditor", "domain": "role_journey", "role": "auditor", "status": "failed", "observedAt": "", "evidence": "" },
+    { "id": "regulatory-calculation", "domain": "regulatory_calculation", "status": "failed", "observedAt": "", "evidence": "" },
+    { "id": "notification-delivery", "domain": "notification_delivery", "status": "failed", "observedAt": "", "evidence": "" },
+    { "id": "evidence-export", "domain": "evidence_export", "status": "failed", "observedAt": "", "evidence": "" },
+    { "id": "backup-restore", "domain": "backup_restore", "status": "failed", "observedAt": "", "evidence": "" },
+    { "id": "tenant-boundary", "domain": "tenant_boundary", "status": "failed", "observedAt": "", "evidence": "" }
+  ],
+  "approvals": {
+    "product": "",
+    "engineering": "",
+    "security": "",
+    "compliance": ""
+  }
+}

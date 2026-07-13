@@ -342,7 +342,7 @@ export default function Employees() {
 
       <div className="premium-card">
         <div className="filter-bar">
-          <div className="relative flex-1 min-w-48">
+          <div className="relative w-full min-w-0 flex-1 sm:min-w-48">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search employees..."
@@ -352,7 +352,7 @@ export default function Employees() {
             />
           </div>
           <Select value={facilityId} onValueChange={v => setUrlState({ facilityId: v, page: "1" })}>
-            <SelectTrigger className="w-48 h-9 bg-card">
+            <SelectTrigger className="w-full h-9 bg-card sm:w-48">
               <SelectValue placeholder="All Facilities" />
             </SelectTrigger>
             <SelectContent>
@@ -363,7 +363,7 @@ export default function Employees() {
             </SelectContent>
           </Select>
           <Select value={status} onValueChange={v => setUrlState({ status: v, page: "1" })}>
-            <SelectTrigger className="w-40 h-9 bg-card">
+            <SelectTrigger className="w-full h-9 bg-card sm:w-40">
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent>
@@ -392,7 +392,34 @@ export default function Employees() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="space-y-3 p-4 md:hidden">
+              {rows.map((emp) => (
+                <Link key={emp.id} href={`${basePath}/${emp.id}`}>
+                  <article className="rounded-lg border bg-card p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate font-medium">{emp.first_name} {emp.last_name}</h3>
+                        <p className="truncate text-sm text-muted-foreground">{emp.job_title ?? "No role listed"}</p>
+                      </div>
+                      <StatusBadge status={emp.status} type="employee" />
+                    </div>
+                    <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <dt className="text-muted-foreground">Hire date</dt>
+                        <dd className="mt-0.5 font-medium">{formatDateForDisplay(emp.hire_date)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Workforce flags</dt>
+                        <dd className="mt-0.5 font-medium">
+                          {[emp.administers_medications && "Med Admin", emp.trainer_status && "Trainer"].filter(Boolean).join(", ") || "None"}
+                        </dd>
+                      </div>
+                    </dl>
+                  </article>
+                </Link>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="data-table min-w-[720px]">
                 <thead>
                   <tr>

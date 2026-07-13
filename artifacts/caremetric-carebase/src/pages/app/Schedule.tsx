@@ -15,18 +15,21 @@ import {
 import { CalendarDays, Plus, Settings2, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { addDaysIso, formatDateLabel, startOfWeekIso, todayIso } from "@/lib/scheduleDates";
+import { QueryError, QueryLoading } from "@/components/QueryState";
 
 export default function Schedule() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
-  const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const facilitiesQuery = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const facilities = facilitiesQuery.data;
   const [facilityId, setFacilityId] = useState<string>("");
   const [showCreate, setShowCreate] = useState(false);
 
   const activeFacilityId = facilityId || facilities?.[0]?.id || "";
 
-  const { data: schedules, isLoading } = useListSchedules({ facilityId: activeFacilityId || undefined });
+  const schedulesQuery = useListSchedules({ facilityId: activeFacilityId || undefined });
+  const { data: schedules, isLoading } = schedulesQuery;
   const createSchedule = useCreateSchedule();
 
   const thisMonday = startOfWeekIso(todayIso());
@@ -155,10 +158,21 @@ export default function Schedule() {
         </Select>
       </div>
 
-      {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-32 bg-muted animate-pulse rounded-xl" />)}
-        </div>
+      {facilitiesQuery.isError || schedulesQuery.isError ? (
+        <QueryError
+          what="schedules"
+          error={facilitiesQuery.error ?? schedulesQuery.error}
+          onRetry={() => {
+            void facilitiesQuery.refetch();
+            void schedulesQuery.refetch();
+          }}
+        />
+      ) : isLoading || facilitiesQuery.isLoading ? (
+        <QueryLoading what="schedules">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[...Array(4)].map((_, i) => <div key={i} className="h-32 bg-muted animate-pulse rounded-xl" />)}
+          </div>
+        </QueryLoading>
       ) : sorted.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
