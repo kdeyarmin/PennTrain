@@ -9,7 +9,7 @@ create index if not exists shift_assignments_eligibility_decision_idx
   on public.shift_assignments(eligibility_decision_id)
   where eligibility_decision_id is not null;
 
-create table public.service_workload_profiles (
+create table if not exists public.service_workload_profiles (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   facility_id uuid not null references public.facilities(id) on delete cascade,
