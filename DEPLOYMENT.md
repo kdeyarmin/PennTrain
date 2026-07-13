@@ -71,8 +71,8 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    ```
    The AI Edge Functions default to the highest-capability generally available Claude model and
    then fall back through current strong models. If Anthropic changes availability, cost, or account
-   entitlements, override model selection without a code deploy by setting comma-separated fallback
-   secrets:
+   entitlements, override model selection without a code deploy by setting model secrets (and
+   comma-separated fallback model lists):
    - `ANTHROPIC_COURSE_DRAFT_MODEL` / `ANTHROPIC_COURSE_DRAFT_FALLBACK_MODELS`
    - `ANTHROPIC_COURSE_REGENERATION_MODEL` / `ANTHROPIC_COURSE_REGENERATION_FALLBACK_MODELS`
    - `ANTHROPIC_RESIDENT_SUMMARY_MODEL` / `ANTHROPIC_RESIDENT_SUMMARY_FALLBACK_MODELS`
