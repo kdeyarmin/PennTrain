@@ -17,7 +17,7 @@ export function isDeploymentAssetError(reason: unknown): boolean {
 export interface RecoveryEnvironment {
   sessionStorage: Pick<Storage, "getItem" | "setItem">;
   serviceWorker?: {
-    getRegistrations: () => Promise<Array<{ unregister: () => Promise<boolean> }>>;
+    getRegistrations: () => Promise<readonly { unregister: () => Promise<boolean> }[]>;
   };
   caches?: {
     keys: () => Promise<string[]>;

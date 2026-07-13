@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useLocation } from "wouter";
 import { useGlobalSearch } from "@/hooks/useGlobalSearch";
 import { useAuth } from "@/lib/auth";
@@ -66,7 +66,7 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
   const optionId = (kind: string, key: string) =>
     `global-search-${kind}-${encodeURIComponent(key).replaceAll("%", "")}`;
 
-  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+  const handleSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Escape") {
       setQuery("");
       setOpen(false);

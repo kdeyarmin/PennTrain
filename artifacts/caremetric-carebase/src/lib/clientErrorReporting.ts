@@ -24,8 +24,8 @@ export function sanitizeClientErrorText(value: unknown, maxLength = MAX_MESSAGE_
   const text = value instanceof Error ? `${value.name}: ${value.message}` : String(value ?? "Unknown error");
   return text
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted-email]")
-    .replace(/\+?[1-9]\d{7,14}/g, "[redacted-number]")
     .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi, "[redacted-id]")
+    .replace(/\+?[1-9]\d{7,14}/g, "[redacted-number]")
     .replace(/https?:\/\/[^\s?#]+[^\s]*/gi, (url) => url.split(/[?#]/, 1)[0])
     .replace(/[\r\n\t]+/g, " ")
     .replace(/\s+/g, " ")
