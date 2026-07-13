@@ -33,9 +33,10 @@ const budgets = {
   // (identity, contacts, legal, payer, directives, rights, contracts, history); raised
   // 2740 -> 2750 for resident agreement versioning and external e-signatures; raised
   // 2750 -> 2800 for the lazy dietary, hydration, nutrition, menu-cycle, food-safety,
-  // and food-service qualification operations workspace. These changes keep the
-  // initial-shell and per-load limits flat.
-  totalJavaScript: 2800 * 1024,
+  // and food-service qualification operations workspace; raised 2800 -> 2810 after
+  // synchronizing the stacked scheduling and environmental-work-order routes. These
+  // changes keep the initial-shell and per-load limits flat.
+  totalJavaScript: 2810 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };
