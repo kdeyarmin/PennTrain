@@ -182,7 +182,7 @@ export function ReportViewer({
 
         <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground print-footer">
           <p>Showing {rows.length} record{rows.length !== 1 ? "s" : ""}</p>
-          <p>CareMetric Train &middot; CareMetricTrain.com</p>
+          <p>CareMetric CareBase &middot; cmcarebase.com</p>
         </div>
       </div>
     </div>

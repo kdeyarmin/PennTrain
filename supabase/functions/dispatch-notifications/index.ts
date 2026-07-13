@@ -86,7 +86,7 @@ async function sendEmail(
 
   const from = parseFromAddress(
     Deno.env.get("NOTIFICATION_FROM_EMAIL") ||
-      "CareMetric Train <notifications@caremetrictrain.com>",
+      "CareMetric CareBase <notifications@cmcarebase.com>",
   );
   try {
     const response = await fetch("https://api.sendgrid.com/v3/mail/send", {

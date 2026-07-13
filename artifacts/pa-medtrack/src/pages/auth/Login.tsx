@@ -34,7 +34,7 @@ export default function Login() {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       toast({
         title: "Login successful",
-        description: "Welcome back to CareMetric Train",
+        description: "Welcome back to CareMetric CareBase",
       });
       const role = data.user?.user_metadata?.role as Role | undefined;
       setLocation(roleHome(role));
@@ -87,7 +87,7 @@ export default function Login() {
             <ShieldCheck className="h-7 w-7 text-primary-foreground" />
           </div>
           <div className="space-y-1.5">
-            <h1 className="text-[28px] font-bold tracking-tight text-foreground">CareMetric Train</h1>
+            <h1 className="text-[28px] font-bold tracking-tight text-foreground">CareMetric CareBase</h1>
             <p className="text-sm text-muted-foreground">Healthcare Learning &amp; Compliance Platform</p>
           </div>
         </div>

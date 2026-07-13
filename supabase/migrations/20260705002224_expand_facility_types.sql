@@ -1,5 +1,5 @@
 -- Expands facility_type support beyond the original PCH/ALR (personal care home / assisted
--- living residence) to the other four settings CareMetric Train's marketing site and course
+-- living residence) to the other four settings CareMetric CareBase's marketing site and course
 -- catalog already cover: nursing homes, home health agencies, hospice agencies, and group homes.
 -- Without this, facilities.facility_type's CHECK constraint made it impossible to create a
 -- facility of any of those four types at all, even though courses/training content already

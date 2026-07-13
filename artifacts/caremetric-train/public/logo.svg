@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1119" height="374" viewBox="0 0 1119 374" role="img" aria-labelledby="title desc">
+  <title id="title">CareMetric CareBase</title>
+  <desc id="desc">CareMetric CareBase logo with care, home, and technology mark.</desc>
+  <defs>
+    <linearGradient id="markBg" x1="39" x2="347" y1="33" y2="341" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0a8ff0"/>
+      <stop offset="0.48" stop-color="#064ed4"/>
+      <stop offset="1" stop-color="#0b238f"/>
+    </linearGradient>
+    <linearGradient id="word" x1="380" x2="1020" y1="80" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1398ee"/>
+      <stop offset="0.42" stop-color="#0765db"/>
+      <stop offset="1" stop-color="#0a95ed"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="0" width="370" height="370" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#002b70" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+  <rect width="1119" height="374" fill="#fff"/>
+  <g filter="url(#shadow)">
+    <rect x="33" y="28" width="319" height="319" rx="55" fill="url(#markBg)"/>
+    <rect x="45" y="40" width="295" height="295" rx="45" fill="none" stroke="#59c7ff" stroke-width="2.5" opacity="0.78"/>
+    <rect x="55" y="50" width="275" height="275" rx="37" fill="none" stroke="#0a2f93" stroke-width="2" opacity="0.5"/>
+    <g opacity="0.45" stroke="#6fd6ff" stroke-width="1.8" fill="none" stroke-linecap="round">
+      <path d="M199 39v48l27 27v37"/><path d="M213 39v42l28 28v39"/><path d="M230 39v35l26 26v44"/><path d="M247 39v31l25 25v50"/>
+      <path d="M62 264h59m19 0h66m21 0h83"/><path d="M75 92h72"/><path d="M253 291h60"/><path d="M73 302h61"/>
+      <circle cx="292" cy="84" r="3" fill="#6fd6ff"/><circle cx="273" cy="157" r="3" fill="#6fd6ff"/><circle cx="129" cy="260" r="4" fill="#6fd6ff"/><circle cx="312" cy="226" r="3" fill="#6fd6ff"/>
+    </g>
+    <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M92 69c27-10 63-10 91 0l-10 54H102z" fill="#fff" stroke-width="7"/>
+      <path d="M125 78h25M137.5 65v25" stroke="#075bd7" stroke-width="8"/>
+      <circle cx="137" cy="138" r="42" stroke-width="10"/>
+      <path d="M84 294V219c0-23 17-42 38-42 19 0 27 23 43 36 14 11 27 11 38 0" stroke-width="10"/>
+      <path d="M199 168l65-58 72 65" stroke-width="10"/>
+      <path d="M218 153v100h92v-73" stroke-width="10"/>
+      <path d="M261 253v-53h33v53" stroke-width="10"/>
+      <path d="M109 260h199" stroke-width="9"/>
+      <circle cx="109" cy="260" r="19" stroke-width="9" fill="#0b56c9"/>
+      <path d="M308 260c22 0 33-11 33-33" stroke-width="9"/>
+    </g>
+  </g>
+  <text x="389" y="170" font-family="Inter, Avenir Next, Helvetica, Arial, sans-serif" font-size="104" font-weight="700" letter-spacing="-5" fill="url(#word)">CareMetric</text>
+  <line x1="407" y1="262" x2="506" y2="262" stroke="#1766c7" stroke-width="5" stroke-linecap="round"/>
+  <text x="530" y="291" font-family="Inter, Avenir Next, Helvetica, Arial, sans-serif" font-size="82" font-weight="500" letter-spacing="16" fill="#168eea">Care<tspan fill="#59616d">Base</tspan></text>
+  <line x1="989" y1="262" x2="1096" y2="262" stroke="#59616d" stroke-width="5" stroke-linecap="round"/>
+</svg>

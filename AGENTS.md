@@ -23,7 +23,7 @@ Instructions for Codex cloud and other AI coding agents working in this reposito
 
 ## Project shape
 
-- This is a pnpm workspace for CareMetric Train.
+- This is a pnpm workspace for CareMetric CareBase.
 - Run commands from the repository root unless a task explicitly targets a workspace package.
 - Use pnpm through Corepack. Do not use npm or yarn for installs.
 - Keep app, scripts, Supabase functions, and shared packages aligned when changing cross-cutting behavior.

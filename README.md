@@ -1,18 +1,18 @@
 <p align="center">
-  <img src="artifacts/caremetric-train/public/logo.png" alt="CareMetric Train" width="360" />
+  <img src="artifacts/caremetric-train/public/logo.svg" alt="CareMetric CareBase" width="360" />
 </p>
 
-# CareMetric Train
+# CareMetric CareBase
 
-**[CareMetricTrain.com](https://caremetrictrain.com)**
+**[cmcarebase.com](https://cmcarebase.com)**
 
-CareMetric Train is a multi-tenant healthcare compliance-training and LMS platform for personal care homes,
+CareMetric CareBase is a multi-tenant healthcare compliance-training and LMS platform for personal care homes,
 assisted living facilities, and related healthcare organizations. It is built directly on Supabase: Postgres with
 Row-Level Security, Supabase Auth, Supabase Storage, and Edge Functions. There is no separate API server -- the
 React frontend talks to Supabase directly via `supabase-js`.
 
-**Production**: https://caremetrictrain.com (Railway-hosted, service domain
-`penntrain-production.up.railway.app`; see `DEPLOYMENT.md`).
+**Production**: https://cmcarebase.com (Railway-hosted, service domain
+`carebase-production.up.railway.app`; see `DEPLOYMENT.md`).
 
 ## Implementation roadmap
 
@@ -51,7 +51,7 @@ created.
 
 ```bash
 pnpm install
-pnpm --filter @workspace/caremetric-train dev
+pnpm --filter @workspace/caremetric-carebase dev
 ```
 
 Copy `artifacts/caremetric-train/.env.example` to `.env` and fill in your Supabase project URL, publishable

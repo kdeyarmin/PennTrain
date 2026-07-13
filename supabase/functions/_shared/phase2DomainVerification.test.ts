@@ -16,7 +16,7 @@ Deno.test("normalizes safe public domains and constructs a fixed DNS record name
   assertEquals(normalizeDomain(" Example.Health. "), "example.health");
   assertEquals(normalizeDomain("localhost"), null);
   assertEquals(normalizeDomain("example.com/path"), null);
-  assertEquals(verificationRecordName("example.health"), "_caremetric-train-verification.example.health");
+  assertEquals(verificationRecordName("example.health"), "_caremetric-carebase-verification.example.health");
 });
 
 Deno.test("extracts single and split DNS TXT answers", () => {

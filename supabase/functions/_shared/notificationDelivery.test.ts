@@ -112,16 +112,16 @@ Deno.test("uses generic external copy for sensitive notification types", () => {
       "Sensitive detail",
     ),
     {
-      subject: "CareMetric Train compliance action required",
+      subject: "CareMetric CareBase compliance action required",
       body:
-        "A compliance item requires attention. Sign in to CareMetric Train to review it securely.",
+        "A compliance item requires attention. Sign in to CareMetric CareBase to review it securely.",
     },
   );
   assertEquals(
     renderProviderMessage("support_ticket_update", "Ticket", "free-form body"),
     {
-      subject: "Your CareMetric Train support ticket has an update",
-      body: "Sign in to CareMetric Train to review the update securely.",
+      subject: "Your CareMetric CareBase support ticket has an update",
+      body: "Sign in to CareMetric CareBase to review the update securely.",
     },
   );
   assertEquals(
@@ -133,7 +133,7 @@ Deno.test("uses generic external copy for sensitive notification types", () => {
     {
       subject: "A new incident report requires review",
       body:
-        "A new incident report was submitted. Sign in to CareMetric Train to review it securely.",
+        "A new incident report was submitted. Sign in to CareMetric CareBase to review it securely.",
     },
   );
 });
@@ -195,10 +195,10 @@ Deno.test("classifies transient provider responses", () => {
 
 Deno.test("parses display-name sender addresses", () => {
   assertEquals(
-    parseFromAddress('"CareMetric Train" <notifications@example.com>'),
+    parseFromAddress('"CareMetric CareBase" <notifications@example.com>'),
     {
       email: "notifications@example.com",
-      name: "CareMetric Train",
+      name: "CareMetric CareBase",
     },
   );
 });

@@ -27,7 +27,7 @@ function Shell({ children }: { children: ReactNode }) {
       <div className="w-full max-w-2xl space-y-4">
         <div className="flex items-center gap-2 text-muted-foreground">
           <FolderLock className="h-5 w-5" />
-          <span className="font-semibold tracking-tight text-foreground">CareMetric Train</span>
+          <span className="font-semibold tracking-tight text-foreground">CareMetric CareBase</span>
           <span className="text-sm">· Evidence Room</span>
         </div>
         {children}

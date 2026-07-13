@@ -29,7 +29,7 @@ export default function Login() {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       toast({
         title: "Login successful",
-        description: "Welcome back to CareMetric Train",
+        description: "Welcome back to CareMetric CareBase",
       });
       // Land on "/" and let Router's role redirect (driven by the profiles-table-backed
       // useAuth().user.role, not the client-writable auth user_metadata) send the user to
@@ -86,7 +86,7 @@ export default function Login() {
 
       <div className="w-full max-w-[420px] space-y-8 relative z-10 px-4">
         <div className="flex flex-col items-center text-center space-y-3">
-          <Link href="/" aria-label="CareMetric Train home">
+          <Link href="/" aria-label="CareMetric CareBase home">
             <LogoMark className="h-20 w-20" />
           </Link>
           <div className="space-y-1.5">

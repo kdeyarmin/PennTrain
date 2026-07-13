@@ -410,7 +410,7 @@ export default function AdminDashboard() {
               <div>
                 <h2 className="text-3xl font-bold tracking-tight text-foreground">Super admin command center</h2>
                 <p className="mt-2 max-w-2xl text-muted-foreground">
-                  Run CareMetric Train from this portal: launch customers, manage access, publish training, and watch
+                  Run CareMetric CareBase from this portal: launch customers, manage access, publish training, and watch
                   operational health without hunting through separate menus.
                 </p>
               </div>

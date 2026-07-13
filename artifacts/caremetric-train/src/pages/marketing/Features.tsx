@@ -42,16 +42,16 @@ const FEATURE_OUTCOMES = [
 
 export default function Features() {
   usePageMeta({
-    title: "Features — CareMetric Train Compliance & Training Platform",
+    title: "Features — CareMetric CareBase Compliance & Training Platform",
     description:
-      "See every CareMetric Train feature: training LMS, resident assessments, incident and inspection tracking, AI course generation, credential screening, and shift scheduling in one platform.",
+      "See every CareMetric CareBase feature: training LMS, resident assessments, incident and inspection tracking, AI course generation, credential screening, and shift scheduling in one platform.",
     path: "/features",
   });
   return (
     <MarketingLayout>
       <PageHero
         title="Everything compliance requires. Nothing it doesn't."
-        subtitle="CareMetric Train combines an LMS, credential tracker, resident-assessment log, incident and inspection register, live-class log, AI course studio, staff scheduler, document vault, alert center, and compliance binder into one workflow."
+        subtitle="CareMetric CareBase combines an LMS, credential tracker, resident-assessment log, incident and inspection register, live-class log, AI course studio, staff scheduler, document vault, alert center, and compliance binder into one workflow."
       />
 
       <section className="border-b border-border/60 bg-muted/30">
@@ -62,7 +62,7 @@ export default function Features() {
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               Instead of asking managers to manually chase certificates,
-              reconcile sign-in sheets, and rebuild binders, CareMetric Train
+              reconcile sign-in sheets, and rebuild binders, CareMetric CareBase
               keeps every training signal connected to the employee, facility,
               role, and deadline it belongs to.
             </p>
@@ -89,7 +89,7 @@ export default function Features() {
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               Buyers should not have to guess how a feature turns into survey
-              evidence. CareMetric Train organizes each module around a simple
+              evidence. CareMetric CareBase organizes each module around a simple
               chain: define the requirement, route the work, and preserve the
               proof.
             </p>

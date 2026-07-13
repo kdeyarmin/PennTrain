@@ -83,9 +83,9 @@ export default function NotificationDeliveries() {
   const [templateScope, setTemplateScope] = useState("global");
   const [templateKey, setTemplateKey] = useState("default");
   const [templateChannel, setTemplateChannel] = useState<"email" | "sms">("email");
-  const [templateSubject, setTemplateSubject] = useState("CareMetric Train notification");
+  const [templateSubject, setTemplateSubject] = useState("CareMetric CareBase notification");
   const [templateBody, setTemplateBody] = useState(
-    "A training or compliance item requires attention. Sign in to CareMetric Train to review it securely.",
+    "A training or compliance item requires attention. Sign in to CareMetric CareBase to review it securely.",
   );
   const [spendOrganizationId, setSpendOrganizationId] = useState("");
   const [monthlyBudgetUsd, setMonthlyBudgetUsd] = useState("");

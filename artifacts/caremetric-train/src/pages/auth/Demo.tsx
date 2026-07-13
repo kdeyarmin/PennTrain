@@ -11,7 +11,7 @@ export default function Demo() {
 
       <div className="w-full max-w-[420px] space-y-8 relative z-10 px-4">
         <div className="flex flex-col items-center text-center space-y-3">
-          <Link href="/" aria-label="CareMetric Train home">
+          <Link href="/" aria-label="CareMetric CareBase home">
             <LogoMark className="h-20 w-20" />
           </Link>
           <div className="space-y-1.5">

@@ -50,9 +50,9 @@ export default defineConfig(({ command, mode }) => {
       // install prompt is meaningful.
       VitePWA({
         registerType: "autoUpdate",
-        includeAssets: ["favicon.png", "apple-touch-icon.png"],
+        includeAssets: ["logo-mark.svg"],
         manifest: {
-          name: "CareMetric Train",
+          name: "CareMetric CareBase",
           short_name: "CareMetric",
           description: "Compliance training and credential tracking for personal care homes and assisted living residences.",
           theme_color: "#102a43",
@@ -60,6 +60,7 @@ export default defineConfig(({ command, mode }) => {
           display: "standalone",
           start_url: `${basePath}me`,
           icons: [
+            { src: "logo-mark.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
             { src: "pwa-192x192.png", sizes: "192x192", type: "image/png" },
             { src: "pwa-512x512.png", sizes: "512x512", type: "image/png" },
             { src: "pwa-maskable-512x512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },

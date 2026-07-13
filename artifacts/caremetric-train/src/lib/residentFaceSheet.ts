@@ -80,6 +80,6 @@ export function buildResidentFaceSheetPacket({
       label: blank(document.document_label ?? document.state_form_source_label),
       isStateForm: document.is_state_form,
     })),
-    sourceNote: "Generated from the resident record, contacts/supports, compliance checklist, and uploaded document index in CareMetric Train.",
+    sourceNote: "Generated from the resident record, contacts/supports, compliance checklist, and uploaded document index in CareMetric CareBase.",
   };
 }

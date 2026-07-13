@@ -74,7 +74,7 @@ insert into public.notification_templates (
 ) values
   (null, 'course_assignment_due_soon', 'email', 1, 'active',
    'Your assigned training is due soon',
-   'A training course assigned to you is due soon and has not been started. Sign in to CareMetric Train to begin it before the due date.',
+   'A training course assigned to you is due soon and has not been started. Sign in to CareMetric CareBase to begin it before the due date.',
    '{}'::text[], now());
 
 -- ---------------------------------------------------------------------------

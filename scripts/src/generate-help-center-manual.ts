@@ -27,8 +27,8 @@ const SECTIONS: Section[] = [
   {
     title: "Getting Started & Roles",
     paragraphs: [
-      "CareMetric Train is a multi-tenant compliance-training platform. Every account is assigned exactly one role, and that role determines which part of the app you land in after signing in and which pages and actions are available to you. There are six roles: platform_admin, org_admin, facility_manager, trainer, employee, and auditor.",
-      "platform_admin is reserved for the CareMetric Train team. It has broad access across every organization on the platform, under /admin, and is the only role that can author course content -- creating and publishing courses, quizzes, and their questions and answers. org_admin and facility_manager are the two operator-facing admin roles, working under /app: they manage facilities, staff, training compliance, scheduling, documents, and reporting for their own organization. facility_manager's day-to-day access can additionally be narrowed to specific assigned facilities.",
+      "CareMetric CareBase is a multi-tenant compliance-training platform. Every account is assigned exactly one role, and that role determines which part of the app you land in after signing in and which pages and actions are available to you. There are six roles: platform_admin, org_admin, facility_manager, trainer, employee, and auditor.",
+      "platform_admin is reserved for the CareMetric CareBase team. It has broad access across every organization on the platform, under /admin, and is the only role that can author course content -- creating and publishing courses, quizzes, and their questions and answers. org_admin and facility_manager are the two operator-facing admin roles, working under /app: they manage facilities, staff, training compliance, scheduling, documents, and reporting for their own organization. facility_manager's day-to-day access can additionally be narrowed to specific assigned facilities.",
       "trainer works under /trainer, focused on running training classes, monitoring who is due for retraining, and looking up facility/employee rosters. employee is the self-service role under /me, where staff take assigned courses, view their own training records, download their certificates, and complete policy attestations. auditor is a read-only role under /app with visibility into nearly everything org_admin and facility_manager can see -- compliance status, reports, the audit log -- but no ability to create, edit, or delete records.",
     ],
     bullets: [
@@ -58,7 +58,7 @@ const SECTIONS: Section[] = [
     paragraphs: [
       "The Schedule module (/app/schedule) provides basic shift scheduling for facility staff. Start at Schedule Setup (/app/schedule/setup) to define the building blocks: facility units (wings or areas of the building), shift definitions (your typical shift time templates, such as 7a-3p or 3p-11p), and each employee's usual recurring pattern by day of week.",
       "Once those are in place, create a new draft schedule for a facility and period, then use the auto-fill action to populate it from every employee's typical pattern -- it fills in the gaps around any shifts you've already entered by hand, and manual entries always take precedence. When the draft looks right, publish it; employees only see their own shifts once a schedule is published, at /me/schedule.",
-      "Note that scheduling in CareMetric Train is not qualification-gated -- the system does not currently check that a scheduled employee holds a specific certification before assigning them a shift. Also, an employee can only be scheduled for one shift per calendar date across all facilities; there is no same-day float between two facilities.",
+      "Note that scheduling in CareMetric CareBase is not qualification-gated -- the system does not currently check that a scheduled employee holds a specific certification before assigning them a shift. Also, an employee can only be scheduled for one shift per calendar date across all facilities; there is no same-day float between two facilities.",
     ],
     bullets: [
       "Set up facility units, shift definitions, and employee shift preferences",
@@ -70,7 +70,7 @@ const SECTIONS: Section[] = [
     title: "Training Matrix & Courses",
     paragraphs: [
       "The Training Matrix (/app/training-matrix) is the master grid of who owes what: every employee against every applicable training type, with each cell showing a compliance status of Compliant, Due Soon, Expired, Missing, or Not Applicable. It is the fastest way to spot gaps before they become a citation.",
-      "Courses (/app/courses) is where your organization's e-learning content lives -- modules built from text, video, and quizzes, delivered to employees who are enrolled via a course assignment. Course content itself is authored exclusively by CareMetric Train's platform team (including AI-assisted course generation) to keep regulated training content consistent and reviewed; org_admin and facility_manager browse and assign courses but do not edit their content.",
+      "Courses (/app/courses) is where your organization's e-learning content lives -- modules built from text, video, and quizzes, delivered to employees who are enrolled via a course assignment. Course content itself is authored exclusively by CareMetric CareBase's platform team (including AI-assisted course generation) to keep regulated training content consistent and reviewed; org_admin and facility_manager browse and assign courses but do not edit their content.",
       "When an employee completes a course and passes its quiz, a certificate is generated automatically and becomes available on their My Certificates page. Certificates carry a unique verification link (/verify/:slug) that can be checked by anyone, without logging in -- useful for proving a credential to a state surveyor or a business partner.",
     ],
     bullets: [
@@ -222,7 +222,7 @@ const SECTIONS: Section[] = [
     title: "Getting Help",
     paragraphs: [
       "The Help Center is your first stop whenever something is unclear or isn't working as expected. It brings together three resources: a searchable FAQ of answers to common questions, a library of Job Aides (short, task-focused how-to guides for specific workflows), and this User Manual, all in one place so you don't have to guess which page might have the answer.",
-      "When the FAQ and Job Aides don't cover your situation, submit a support ticket directly from the Help Center. Give it a clear subject, pick the category that best matches your issue (general question, technical issue, billing, training content, account access, or feature request), set a priority, and describe what's happening in the message -- the more specific, the faster it can be resolved. Every ticket you submit is visible only to you and the CareMetric Train support team.",
+      "When the FAQ and Job Aides don't cover your situation, submit a support ticket directly from the Help Center. Give it a clear subject, pick the category that best matches your issue (general question, technical issue, billing, training content, account access, or feature request), set a priority, and describe what's happening in the message -- the more specific, the faster it can be resolved. Every ticket you submit is visible only to you and the CareMetric CareBase support team.",
       "Once a ticket is open, you can check on it any time from the Help Center: replies from the support team appear in the ticket's message thread, and you'll see its status move from Open to In Progress and eventually to Resolved. If a resolved ticket turns out not to have actually fixed things, you can reopen it rather than starting a brand-new ticket from scratch.",
     ],
     bullets: [
@@ -244,9 +244,9 @@ class PdfWriter {
 
   static async create() {
     const doc = await PDFDocument.create();
-    doc.setTitle("CareMetric Train — User Manual");
-    doc.setAuthor("CareMetric Train");
-    doc.setSubject("CareMetric Train User Manual");
+    doc.setTitle("CareMetric CareBase — User Manual");
+    doc.setAuthor("CareMetric CareBase");
+    doc.setSubject("CareMetric CareBase User Manual");
     const font = await doc.embedFont(StandardFonts.Helvetica);
     const bold = await doc.embedFont(StandardFonts.HelveticaBold);
     const page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
@@ -356,12 +356,12 @@ class PdfWriter {
 async function buildManual(): Promise<Uint8Array> {
   const pdf = await PdfWriter.create();
 
-  pdf.text("CareMetric Train", { size: 30, bold: true, color: TITLE_COLOR, gap: 12 });
+  pdf.text("CareMetric CareBase", { size: 30, bold: true, color: TITLE_COLOR, gap: 12 });
   pdf.text("User Manual", { size: 20, bold: true, gap: 20 });
   pdf.text(`${EDITION} — ${EDITION_DATE}`, { size: 11, color: MUTED_COLOR, gap: 6 });
   pdf.text("Multi-Tenant Healthcare Compliance Training Platform", { size: 11, color: MUTED_COLOR, gap: 40 });
   pdf.paragraph(
-    "This manual is a complete walkthrough of CareMetric Train for every role in the system -- " +
+    "This manual is a complete walkthrough of CareMetric CareBase for every role in the system -- " +
       "platform administrators, organization and facility administrators, trainers, employees, and " +
       "auditors. Use the table of contents on the next page to jump straight to the area you need, or " +
       "read start to finish if you're getting oriented for the first time.",
@@ -407,7 +407,7 @@ async function buildManual(): Promise<Uint8Array> {
 }
 
 async function main() {
-  const outPath = fileURLToPath(new URL("../../artifacts/caremetric-train/public/CareMetric-Train-User-Manual.pdf", import.meta.url));
+  const outPath = fileURLToPath(new URL("../../artifacts/caremetric-train/public/CareMetric-CareBase-User-Manual.pdf", import.meta.url));
   const bytes = await buildManual();
   await writeFile(outPath, bytes);
   console.log(`Wrote ${outPath} (${(bytes.length / 1024).toFixed(1)} KB)`);

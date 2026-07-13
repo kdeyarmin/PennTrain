@@ -153,7 +153,7 @@ const BUYER_PROMISES: { icon: LucideIcon; title: string; blurb: string }[] = [
     icon: Target,
     title: "Built around inspection risk, not generic e-learning",
     blurb:
-      "CareMetric Train connects training, resident assessments, incidents, credentials, policies, and life-safety evidence to the questions surveyors actually ask.",
+      "CareMetric CareBase connects training, resident assessments, incidents, credentials, policies, and life-safety evidence to the questions surveyors actually ask.",
   },
   {
     icon: FolderCheck,
@@ -191,9 +191,9 @@ const PLATFORM_STATS = [
 
 export default function Landing() {
   usePageMeta({
-    title: "CareMetric Train — Compliance Training Platform",
+    title: "CareMetric CareBase — Compliance Training Platform",
     description:
-      "CareMetric Train is the compliance-training platform for personal care homes, assisted living facilities, group homes, nursing homes, home health, and hospice agencies -- yearly in-services, resident assessments, incidents, and survey-ready compliance binders tracked automatically in one system.",
+      "CareMetric CareBase is the compliance-training platform for personal care homes, assisted living facilities, group homes, nursing homes, home health, and hospice agencies -- yearly in-services, resident assessments, incidents, and survey-ready compliance binders tracked automatically in one system.",
     path: "/",
   });
   return (
@@ -214,7 +214,7 @@ export default function Landing() {
                 Know who is trained, what is due, and where the proof lives.
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-white/74">
-                CareMetric Train is a compliance training platform and command center for care
+                CareMetric CareBase is a compliance training platform and command center for care
                 providers. It turns required in-services, credentials, practicums,
                 live classes, resident assessments, incidents, and certificates
                 into a single survey-ready record for every employee, resident,
@@ -265,7 +265,7 @@ export default function Landing() {
                   <span className="h-2.5 w-2.5 rounded-full bg-warning/40" />
                   <span className="h-2.5 w-2.5 rounded-full bg-success/40" />
                   <span className="ml-2 font-mono text-[10px] tracking-wide text-muted-foreground/70">
-                    CareMetric Train / Compliance Command Center
+                    CareMetric CareBase / Compliance Command Center
                   </span>
                 </div>
                 <CardHeader className="border-b border-border/60 py-5">
@@ -391,7 +391,7 @@ export default function Landing() {
               day.
             </h2>
             <p className="mt-4 text-muted-foreground">
-              CareMetric Train gives operators one place to see risk, assign the
+              CareMetric CareBase gives operators one place to see risk, assign the
               work, capture evidence, and hand a defensible record to leadership
               or an auditor. It is not a course library with a dashboard bolted
               on -- it is the workflow that keeps daily training, resident
@@ -419,7 +419,7 @@ export default function Landing() {
 
           <Reveal className="mt-10 rounded-2xl border border-primary/20 bg-primary/[0.03] p-6">
             <h3 className="text-lg font-semibold">
-              CareMetric Train is strongest when...
+              CareMetric CareBase is strongest when...
             </h3>
             <div className="mt-4 grid gap-3 lg:grid-cols-3">
               {DECISION_SIGNALS.map((signal) => (
@@ -476,7 +476,7 @@ export default function Landing() {
               <Card className="h-full border-primary/30 bg-primary/[0.03] shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-base text-primary">
-                    With CareMetric Train
+                    With CareMetric CareBase
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -502,7 +502,7 @@ export default function Landing() {
             What the app actually does
           </h2>
           <p className="mt-4 text-muted-foreground">
-            CareMetric Train combines learning management, compliance tracking,
+            CareMetric CareBase combines learning management, compliance tracking,
             secure document storage, and role-based reporting so every
             stakeholder works from the same source of truth.
           </p>
