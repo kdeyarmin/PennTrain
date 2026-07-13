@@ -7,15 +7,20 @@ const assetDirectory = path.resolve(
 );
 
 const budgets = {
-  largestJavaScript: 400 * 1024,
+  // Raised 400 -> 410 when the unified operational work queue (resident service
+  // requirements, task instances, My Services, supervisor/manager workflows) landed.
+  largestJavaScript: 410 * 1024,
   // Sum of every lazy route chunk, not what any one page load fetches -- the per-load
   // guardrails are largestJavaScript and initialShell. Raised 2300 -> 2400 when the
   // end-user-review rounds (evidence room, saved views, confidential console, ...)
   // and the state-forms/document-analyzer features landed together; raised 2400 -> 2410
   // when PCH/ALR operations center, regulatory crosswalk, and compliance analytics
   // features landed; raised 2410 -> 2420 for the responsive-layout/global-search/user-
-  // management updates, while both per-load budgets remained comfortably met.
-  totalJavaScript: 2420 * 1024,
+  // management updates; raised 2420 -> 2430 for deployment recovery, accessible search,
+  // and mobile operations; raised 2430 -> 2500 for the unified operational work queue
+  // (resident service requirements/tasks, My Services, supervisor/manager oversight)
+  // while both per-load budgets remain comfortably met.
+  totalJavaScript: 2500 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };
