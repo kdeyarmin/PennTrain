@@ -155,7 +155,7 @@ create table public.resident_agreement_guest_access_events (
   event_type text not null check (event_type in (
     'terms_accepted', 'viewed', 'signed', 'refused', 'unable_to_sign', 'revoked'
   )),
-  device_hash text,
+  device_hash text check (device_hash is null or device_hash ~ '^[0-9a-f]{64}$'),
   occurred_at timestamptz not null default now()
 );
 create index resident_agreement_guest_events_grant_idx
