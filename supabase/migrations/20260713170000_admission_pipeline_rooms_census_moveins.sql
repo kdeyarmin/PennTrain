@@ -736,12 +736,12 @@ begin
     insert into public.residents(
       organization_id, facility_id, first_name, last_name, date_of_birth,
       room, bed_id, admission_date, status,
-      designated_person_name, designated_person_phone, designated_person_email
+      designated_person_name
     ) values (
       v_prospect.organization_id, v_prospect.facility_id, v_prospect.first_name,
       v_prospect.last_name, v_prospect.date_of_birth, v_room.room_number, v_bed.id,
       v_prospect.expected_move_in_date, 'reserved',
-      v_prospect.primary_contact_name, v_prospect.primary_contact_phone, v_prospect.primary_contact_email
+      v_prospect.primary_contact_name
     ) returning id into v_resident;
     update public.admission_prospects set resident_id = v_resident, updated_at = now()
     where id = v_prospect.id;
