@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 import { ArrowLeft, CheckCircle2, Clock3, DollarSign, Download, FileImage, Pause, Pencil, Play, ShieldCheck, Trash2, Upload, UserRound, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { toDateTimeLocal } from "@/lib/dateUtils";
 import { humanize } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
