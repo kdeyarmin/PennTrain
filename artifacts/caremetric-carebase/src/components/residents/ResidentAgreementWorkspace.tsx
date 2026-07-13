@@ -123,8 +123,10 @@ export function ResidentAgreementWorkspace({
   });
 
   const createLink = () => issueGrant.mutate({
-    residentId, guestLabel, versionIds: guestVersionIds,
-    expiresAt: new Date(Date.now() + Number(guestDays) * 86_400_000).toISOString(),
+    residentId,
+    guestLabel,
+    versionIds: guestVersionIds,
+    expiresAt: new Date(Date.now() + Math.min(30, Math.max(1, Number(guestDays) || 7)) * 86_400_000).toISOString(),
   }, {
     onSuccess: result => {
       const base = import.meta.env.BASE_URL.replace(/\/$/, "");
