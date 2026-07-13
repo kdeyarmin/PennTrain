@@ -85,9 +85,11 @@ export default function InspectionItemDetail() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
 
-  // Mounted at both /app/inspections/:id (org roles) and /admin/inspections/:id
-  // (platform_admin, reached via Alerts deep links); basePath keeps back-navigation correct.
-  const basePath = user?.role === "platform_admin" ? "/admin/inspections" : "/app/inspections";
+  // Platform admins reach inspection details from Alerts; there is no /admin/inspections list
+  // route. Return them to that valid origin instead of sending them to the global 404.
+  const backDestination = user?.role === "platform_admin"
+    ? { href: "/admin/alerts", label: "Alerts" }
+    : { href: "/app/inspections", label: "Inspections" };
   const canManage = ["platform_admin", "org_admin", "facility_manager", "trainer"].includes(user?.role ?? "");
   // Narrower than canManage above: dhs_violations_insert RLS and Violations.tsx's own "Record
   // Violation" gate exclude trainer and platform_admin, so a "Create Violation" action shown to
@@ -212,7 +214,7 @@ export default function InspectionItemDetail() {
       <div className="text-center py-12">
         <p className="text-muted-foreground">Inspection item not found.</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href={basePath}>Back to Inspections</Link>
+          <Link href={backDestination.href}>Back to {backDestination.label}</Link>
         </Button>
       </div>
     );
@@ -222,7 +224,7 @@ export default function InspectionItemDetail() {
     <div className="space-y-6">
       <div className="flex items-center gap-3 print:hidden">
         <Button asChild variant="ghost" size="sm">
-          <Link href={basePath}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
+          <Link href={backDestination.href}><ArrowLeft className="mr-2 h-4 w-4" /> Back to {backDestination.label}</Link>
         </Button>
       </div>
 
