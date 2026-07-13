@@ -92,7 +92,7 @@ function ApplyPlanDialog({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [applying, setApplying] = useState(false);
 
-  const { data: employees } = useListEmployees({ status: "active" });
+  const { data: employees } = useListEmployees({ status: "active", organizationId: plan.organization_id });
   const { mutateAsync: applyPlan } = useApplyTrainingPlanToEmployee();
 
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
@@ -121,7 +121,7 @@ function ApplyPlanDialog({
   };
 
   const handleApply = async () => {
-    if (selectedIds.length === 0 || !user?.organizationId) return;
+    if (selectedIds.length === 0) return;
     setApplying(true);
 
     const targets = selectedIds.filter((id) => employeeById.has(id));
@@ -132,7 +132,7 @@ function ApplyPlanDialog({
           planId: plan.id,
           employeeId,
           facilityId: employee.facility_id,
-          organizationId: user.organizationId!,
+          organizationId: plan.organization_id,
           assignedBy: user.id,
         });
       }),
