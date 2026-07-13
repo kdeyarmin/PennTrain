@@ -846,7 +846,7 @@ create or replace function public.queue_designated_person_notifications(
   p_channel text default 'phone'
 ) returns jsonb
 language plpgsql security definer set search_path = '' as $$
-declare v_event public.emergency_events%rowtype; v_batch uuid := gen_random_uuid(); v_count integer;
+declare v_event public.emergency_events%rowtype; v_batch uuid := extensions.gen_random_uuid(); v_count integer;
 begin
   select * into v_event from public.emergency_events where id = p_emergency_event_id;
   if not found then raise exception 'Emergency event not found' using errcode = 'P0002'; end if;
