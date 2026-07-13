@@ -36,9 +36,10 @@ const budgets = {
   // 2750 -> 2800 for the lazy dietary, hydration, nutrition, menu-cycle, food-safety,
   // and food-service qualification operations workspace; raised 2800 -> 2810 after
   // synchronizing the stacked scheduling and environmental-work-order routes; raised
-  // 2810 -> 2840 for the lazy resident-services calendar and transportation workflows.
+  // 2810 -> 2840 for the lazy resident-services calendar and transportation workflows;
+  // raised 2840 -> 2880 for the lazy resident financial operations workspace.
   // These changes keep the initial-shell and per-load limits flat.
-  totalJavaScript: 2840 * 1024,
+  totalJavaScript: 2880 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };

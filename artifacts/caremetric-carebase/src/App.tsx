@@ -89,6 +89,7 @@ const ChangeOfConditionQueue = lazy(() => import("@/pages/app/ChangeOfConditionQ
 const ChangeOfConditionDetail = lazy(() => import("@/pages/app/ChangeOfConditionDetail"));
 const DietaryOperations = lazy(() => import("@/pages/app/DietaryOperations"));
 const ResidentServicesCalendar = lazy(() => import("@/pages/app/ResidentServicesCalendar"));
+const ResidentFinancialOperations = lazy(() => import("@/pages/app/ResidentFinancialOperations"));
 const QapiDashboard = lazy(() => import("@/pages/app/QapiDashboard"));
 const QapiProjectDetail = lazy(() => import("@/pages/app/QapiProjectDetail"));
 const ResidentAssessmentFormEditor = lazy(() => import("@/pages/app/ResidentAssessmentFormEditor"));
@@ -275,6 +276,7 @@ const ADMISSION_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_ma
 const CHANGE_EVENT_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 const DIETARY_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 const RESIDENT_CALENDAR_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
+const RESIDENT_FINANCE_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 
 function SupportTicketRoute({ prefix }: { prefix: "/app" | "/me" }) {
   const { user, isLoading, isAuthenticated } = useAuth();
@@ -601,6 +603,9 @@ function Router() {
       </Route>
       <Route path="/app/resident-services-calendar">
         {() => <ProtectedRoute component={ResidentServicesCalendar} allowedRoles={RESIDENT_CALENDAR_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/resident-finance">
+        {() => <ProtectedRoute component={ResidentFinancialOperations} allowedRoles={RESIDENT_FINANCE_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/qapi">
         {() => <ProtectedRoute component={QapiDashboard} allowedRoles={CHANGE_EVENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
