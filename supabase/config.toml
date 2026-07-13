@@ -161,3 +161,9 @@ verify_jwt = false
 # and logs the access before a short-lived signed URL is minted.
 [functions.evidence-guest-download]
 verify_jwt = false
+
+# Authenticated, role-checked regulatory synthesis. The handler performs its
+# own facility-scoped RLS reads and uses the service role only to append the
+# immutable copilot receipt; model credentials remain Edge Function secrets.
+[functions.compliance-copilot]
+verify_jwt = true

@@ -2262,6 +2262,109 @@ export type Database = {
           },
         ]
       }
+      compliance_copilot_runs: {
+        Row: {
+          as_of_date: string
+          completed_at: string
+          created_at: string
+          determination_kind: string
+          error_message: string | null
+          evidence_used: Json
+          facility_id: string
+          facility_type: string
+          id: string
+          intent: string
+          jurisdiction_code: string
+          missing_information: Json
+          model: string | null
+          organization_id: string
+          question: string
+          request_checksum_sha256: string
+          requested_by: string
+          response: Json
+          response_checksum_sha256: string | null
+          rule_sources: Json
+          safeguards: Json
+          status: string
+          subject_reference: string | null
+          subject_type: string | null
+        }
+        Insert: {
+          as_of_date: string
+          completed_at?: string
+          created_at?: string
+          determination_kind: string
+          error_message?: string | null
+          evidence_used?: Json
+          facility_id: string
+          facility_type: string
+          id?: string
+          intent: string
+          jurisdiction_code: string
+          missing_information?: Json
+          model?: string | null
+          organization_id: string
+          question: string
+          request_checksum_sha256: string
+          requested_by: string
+          response?: Json
+          response_checksum_sha256?: string | null
+          rule_sources?: Json
+          safeguards: Json
+          status: string
+          subject_reference?: string | null
+          subject_type?: string | null
+        }
+        Update: {
+          as_of_date?: string
+          completed_at?: string
+          created_at?: string
+          determination_kind?: string
+          error_message?: string | null
+          evidence_used?: Json
+          facility_id?: string
+          facility_type?: string
+          id?: string
+          intent?: string
+          jurisdiction_code?: string
+          missing_information?: Json
+          model?: string | null
+          organization_id?: string
+          question?: string
+          request_checksum_sha256?: string
+          requested_by?: string
+          response?: Json
+          response_checksum_sha256?: string | null
+          rule_sources?: Json
+          safeguards?: Json
+          status?: string
+          subject_reference?: string | null
+          subject_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_copilot_runs_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_copilot_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_copilot_runs_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       compliance_profile_definitions: {
         Row: {
           code: string

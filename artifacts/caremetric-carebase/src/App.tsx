@@ -110,6 +110,7 @@ const ComplianceBinder = lazy(() => import("@/pages/app/ComplianceBinder"));
 const InspectionReadiness = lazy(() => import("@/pages/app/InspectionReadiness"));
 const PchAlrOperations = lazy(() => import("@/pages/app/PchAlrOperations"));
 const RegulatoryCrosswalk = lazy(() => import("@/pages/app/RegulatoryCrosswalk"));
+const RegulatoryCopilot = lazy(() => import("@/pages/app/RegulatoryCopilot"));
 const PolicyDocuments = lazy(() => import("@/pages/app/PolicyDocuments"));
 const PolicyDocumentDetail = lazy(() => import("@/pages/app/PolicyDocumentDetail"));
 const TemplateDocuments = lazy(() => import("@/pages/app/TemplateDocuments"));
@@ -427,6 +428,9 @@ function Router() {
       <Route path="/admin/closed-loop-compliance">
         {() => <ProtectedRoute component={ClosedLoopCompliance} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
+      <Route path="/admin/regulatory-copilot">
+        {() => <ProtectedRoute component={RegulatoryCopilot} allowedRoles={PLATFORM_ADMIN} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
       <Route path="/admin/exclusion-screening">
         {() => <ProtectedRoute component={ExclusionScreening} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
@@ -503,6 +507,9 @@ function Router() {
       </Route>
       <Route path="/app/regulatory-crosswalk">
         {() => <ProtectedRoute component={RegulatoryCrosswalk} allowedRoles={REPORTS_VIEW_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/regulatory-copilot">
+        {() => <ProtectedRoute component={RegulatoryCopilot} allowedRoles={REPORTS_VIEW_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/practicums">
         {() => <ProtectedRoute component={Practicums} allowedRoles={ORG_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
