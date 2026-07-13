@@ -83,7 +83,7 @@ const profileFromResident = (resident: Resident) => ({
       return new Date(date.getTime() - offset).toISOString().slice(0, 16);
     })()
     : "",
-  resident_rights_document_id: resident.resident_rights_document_id ?? ""
+  resident_rights_document_id: resident.resident_rights_document_id ?? "",
   contract_status: resident.contract_status,
   contract_effective_date: resident.contract_effective_date ?? "",
   contract_document_id: resident.contract_document_id ?? "",
