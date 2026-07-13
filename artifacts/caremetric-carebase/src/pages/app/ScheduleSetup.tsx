@@ -242,8 +242,9 @@ function WorkloadPanel({ facilityId, organizationId, profileId }: { facilityId: 
                   type="number"
                   min="0"
                   max="100"
+                  step="1"
                   value={form[key as keyof typeof form] as string}
-                  onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
+                onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
                 />
               </div>
             ))}

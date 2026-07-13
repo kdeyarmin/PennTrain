@@ -69,6 +69,7 @@ import {
   MessageSquareWarning,
   Utensils,
   Landmark,
+  Siren,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -171,6 +172,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/schedule", label: "Schedule", icon: CalendarDays },
           { href: "/app/workforce-operations", label: "Workforce Operations", icon: UserRoundCheck },
           ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & Equipment", icon: Flame }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/emergency", label: "Emergency Operations", icon: Siren }] : []),
           ...(showPchAlrModules ? [{ href: "/app/maintenance", label: "Maintenance & Work Orders", icon: Wrench }] : []),
         ]
       },
@@ -281,6 +283,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/facilities", label: "Facilities", icon: Building2 },
           { href: "/app/employees", label: "Employees", icon: Users },
           ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & Equipment", icon: Flame }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/emergency", label: "Emergency Operations", icon: Siren }] : []),
           ...(showPchAlrModules ? [{ href: "/app/maintenance", label: "Maintenance & Work Orders", icon: Wrench }] : []),
         ]
       },

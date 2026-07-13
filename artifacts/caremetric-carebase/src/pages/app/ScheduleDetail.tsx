@@ -195,14 +195,23 @@ export default function ScheduleDetail() {
     setAddEmployeeIds(allAddEmployeesSelected ? new Set() : new Set(eligibleCandidates.map((candidate) => candidate.employeeId)));
   }
 
-  function openOverride(candidate: EligibilityCandidate, blockCode: string) {
-    setOverrideForm({
-      reason: "",
-      authorityReference: "",
-      expiresAt: toDateTimeLocal(new Date(Date.now() + 24 * 60 * 60 * 1000)),
-    });
-    setOverrideTarget({ candidate, blockCode });
-  }
+function openOverride(candidate: EligibilityCandidate, blockCode: string) {
+  const shiftDef = activeShiftDefs.find((s) => s.id === addForm.shiftDefinitionId);
+  const defaultExpiresAt = (() => {
+    if (!addTarget || !shiftDef) return new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const start = new Date(`${addTarget.date}T${shiftDef.start_time}`);
+    const end = new Date(`${addTarget.date}T${shiftDef.end_time}`);
+    if (end <= start) end.setDate(end.getDate() + 1);
+    return end;
+  })();
+
+  setOverrideForm({
+    reason: "",
+    authorityReference: "",
+    expiresAt: toDateTimeLocal(defaultExpiresAt),
+  });
+  setOverrideTarget({ candidate, blockCode });
+}
 
   function handleCreateOverride() {
     if (!overrideTarget || !schedule || !addForm.shiftDefinitionId) return;
