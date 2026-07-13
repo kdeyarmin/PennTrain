@@ -206,6 +206,12 @@ create index move_in_task_history_workspace_idx
 create trigger prevent_move_in_task_history_mutation
 before update or delete on public.move_in_task_history
 for each row execute function app_private.prevent_phase5_evidence_mutation();
+create trigger prevent_resident_census_event_mutation
+before update or delete on public.resident_census_events
+for each row execute function app_private.prevent_phase5_evidence_mutation();
+create trigger prevent_admission_activity_mutation
+before update or delete on public.admission_activities
+for each row execute function app_private.prevent_phase5_evidence_mutation();
 
 do $$
 declare
