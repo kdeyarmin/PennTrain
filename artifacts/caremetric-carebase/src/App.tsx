@@ -90,6 +90,9 @@ const ResidentAssessmentFormEditor = lazy(() => import("@/pages/app/ResidentAsse
 const IncidentDetail = lazy(() => import("@/pages/app/IncidentDetail"));
 const InspectionItems = lazy(() => import("@/pages/app/InspectionItems"));
 const InspectionItemDetail = lazy(() => import("@/pages/app/InspectionItemDetail"));
+const Maintenance = lazy(() => import("@/pages/app/Maintenance"));
+const WorkOrderDetail = lazy(() => import("@/pages/app/WorkOrderDetail"));
+const MaintenanceScan = lazy(() => import("@/pages/app/MaintenanceScan"));
 const Alerts = lazy(() => import("@/pages/app/Alerts"));
 const Reports = lazy(() => import("@/pages/app/Reports"));
 const AuditLog = lazy(() => import("@/pages/app/AuditLog"));
@@ -241,6 +244,7 @@ const RESIDENT_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
 // Matches inspection_items_select RLS -- trainer is included, unlike credentials/incidents,
 // since physical-plant compliance is the least sensitive of the three new modules.
 const INSPECTION_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor"];
+const MAINTENANCE_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "trainer", "auditor"];
 // Matches policy_attestation_campaigns_select RLS -- trainer is excluded (campaigns/rosters
 // aren't trainer-relevant); policy_documents_select itself is org-wide but there's no reason to
 // route trainer to a page whose Campaigns tab it can't see any data in.
@@ -592,6 +596,15 @@ function Router() {
       </Route>
       <Route path="/app/inspections/:id">
         {() => <ProtectedRoute component={InspectionItemDetail} allowedRoles={INSPECTION_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/maintenance">
+        {() => <ProtectedRoute component={Maintenance} allowedRoles={MAINTENANCE_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/maintenance/scan/:kind/:token">
+        {() => <ProtectedRoute component={MaintenanceScan} allowedRoles={MAINTENANCE_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/maintenance/:id">
+        {() => <ProtectedRoute component={WorkOrderDetail} allowedRoles={MAINTENANCE_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/alerts">
         {() => <ProtectedRoute component={Alerts} allowedRoles={ORG_ROLES} />}
