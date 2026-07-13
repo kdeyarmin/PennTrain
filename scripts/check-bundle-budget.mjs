@@ -21,12 +21,12 @@ const budgets = {
   // the unified operational work queue (resident service requirements/tasks, My Services,
   // supervisor/manager oversight) while both per-load budgets remain comfortably met; 
   // raised 2500 -> 2600 for formal QAPI quality management (projects, actions, measurements,
-  // meeting notes, RCA, and print-optimized workspace); raised 2600 -> 2660 for the
+  // meeting notes, RCA, and print-optimized workspace); raised 2600 -> 2700 for the
   // environmental work-order, QR-location, evidence, and preventive-maintenance routes
   // plus the complaint/grievance case workflow (intake, investigation, corrective actions,
   // nonretaliation monitoring, incident escalation, and closure approval). The new
   // pages remain lazy routes and do not increase the initial-shell budget.
-  totalJavaScript: 2660 * 1024,
+  totalJavaScript: 2700 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };
