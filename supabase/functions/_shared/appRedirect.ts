@@ -12,6 +12,9 @@ export function resolveAppRedirect(
   } catch {
     throw new Error("Invalid invite redirect URL");
   }
+  if (url.username || url.password) {
+    throw new Error("Invite redirect URL must not include credentials");
+  }
   if (!["http:", "https:"].includes(url.protocol) || !url.pathname.endsWith("/reset-password")) {
     throw new Error("Invite redirects must use HTTP(S) and land on /reset-password");
   }
