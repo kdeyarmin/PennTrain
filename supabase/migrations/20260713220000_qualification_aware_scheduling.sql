@@ -33,6 +33,7 @@ create table if not exists public.service_workload_profiles (
 
 create index if not exists service_workload_profiles_scope_idx
   on public.service_workload_profiles(facility_id, unit_id, shift_definition_id);
+drop trigger if exists set_updated_at on public.service_workload_profiles;
 create trigger set_updated_at before update on public.service_workload_profiles
 for each row execute function public.set_updated_at();
 
@@ -50,6 +51,7 @@ for select to authenticated using (
     )
   )
 );
+drop policy if exists service_workload_profiles_manage on public.service_workload_profiles;
 create policy service_workload_profiles_manage on public.service_workload_profiles
 for all to authenticated using (
   (select public.identity_assurance_is_current('workforce_admin'))
@@ -398,6 +400,7 @@ begin
   return new;
 end;
 $$;
+drop trigger if exists enforce_shift_assignment_eligibility on public.shift_assignments;
 create trigger enforce_shift_assignment_eligibility
 before insert or update of employee_id, facility_id, unit_id, shift_definition_id, shift_date, start_time, end_time
 on public.shift_assignments
@@ -407,6 +410,7 @@ for each row execute function app_private.enforce_shift_assignment_eligibility()
 -- auto-fill and swap functions still execute as their security-definer owners and hit the trigger.
 revoke insert on table public.shift_assignments from authenticated;
 drop policy if exists shift_assignments_write on public.shift_assignments;
+drop policy if exists shift_assignments_update on public.shift_assignments;
 create policy shift_assignments_update on public.shift_assignments
 for update to authenticated using (
   public.is_platform_admin()
@@ -420,6 +424,7 @@ for update to authenticated using (
     and public.is_assigned_to_facility(facility_id)
     and public.is_employee_assigned_to_facility(employee_id, facility_id))
 );
+drop policy if exists shift_assignments_delete on public.shift_assignments;
 create policy shift_assignments_delete on public.shift_assignments
 for delete to authenticated using (
   public.is_platform_admin()
@@ -561,6 +566,7 @@ on conflict (table_name) do update set
   contains_regulated_data = excluded.contains_regulated_data,
   rationale = excluded.rationale;
 
+drop trigger if exists audit_log on public.service_workload_profiles;
 create trigger audit_log after insert or update or delete on public.service_workload_profiles
 for each row execute function public.audit_log_trigger();
 
