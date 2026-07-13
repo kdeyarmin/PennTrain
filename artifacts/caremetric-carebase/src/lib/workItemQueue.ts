@@ -29,7 +29,8 @@ export const WORK_ITEM_PRIORITY_LABELS: Record<string, string> = {
   low: "Low",
 };
 
-const PRIORITY_ORDER = new Map(WORK_ITEM_PRIORITIES.map((priority, index) => [priority, index]));
+const PRIORITY_ORDER: ReadonlyMap<string, number> =
+  new Map(WORK_ITEM_PRIORITIES.map((priority, index) => [priority, index]));
 
 export function isWorkItemOpen(item: WorkItem): boolean {
   return item.state !== "closed" && item.state !== "canceled";
@@ -39,7 +40,7 @@ export function isWorkItemOverdue(item: WorkItem, now = new Date()): boolean {
   return isWorkItemOpen(item) && new Date(item.due_at).getTime() < now.getTime();
 }
 
-export function sortWorkItems(items: WorkItem[], now = new Date()): WorkItem[] {
+export function sortWorkItems<T extends WorkItem>(items: T[], now = new Date()): T[] {
   return [...items].sort((a, b) => {
     const overdueDifference = Number(isWorkItemOverdue(b, now)) - Number(isWorkItemOverdue(a, now));
     if (overdueDifference !== 0) return overdueDifference;
