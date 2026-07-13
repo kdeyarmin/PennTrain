@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase";
 import { useGetOrganizationSettings, useUpsertOrganizationSettings } from "@/hooks/useOrganizationSettings";
 import { useListNotificationDeliveries } from "@/hooks/useNotifications";
 import { useRecalculateOrgCompliance } from "@/hooks/useTrainingRecords";
+import { QueryError, QueryLoading } from "@/components/QueryState";
 
 const DEFAULT_WARNING_DAYS = 90;
 const DEFAULT_OAPSA_DAYS_RESIDENT = 30;
@@ -48,7 +49,7 @@ export default function Settings() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
 
-  const { data: settings, isLoading } = useGetOrganizationSettings(user?.organizationId ?? undefined);
+  const { data: settings, isLoading, isError, error, refetch } = useGetOrganizationSettings(user?.organizationId ?? undefined);
   const { mutate: upsertSettings, isPending: saving } = useUpsertOrganizationSettings();
   const { data: deliveries } = useListNotificationDeliveries(15);
   const { mutate: recalculateCompliance, isPending: recalculating } = useRecalculateOrgCompliance();
@@ -170,12 +171,16 @@ export default function Settings() {
         )}
       </div>
 
-      {isLoading ? (
-        <div className="space-y-6">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-40 bg-muted animate-pulse rounded-xl" />
-          ))}
-        </div>
+      {isError ? (
+        <QueryError what="organization settings" error={error} onRetry={() => { void refetch(); }} />
+      ) : isLoading ? (
+        <QueryLoading what="organization settings">
+          <div className="space-y-6">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-40 bg-muted animate-pulse rounded-xl" />
+            ))}
+          </div>
+        </QueryLoading>
       ) : (
         <>
           <Card>

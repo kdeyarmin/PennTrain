@@ -17,9 +17,9 @@ const budgets = {
   // when PCH/ALR operations center, regulatory crosswalk, and compliance analytics
   // features landed; raised 2410 -> 2420 for the responsive-layout/global-search/user-
   // management updates; raised 2420 -> 2430 for deployment recovery, accessible search,
-  // and mobile operations; raised 2430 -> 2500 for the unified operational work queue
-  // (resident service requirements/tasks, My Services, supervisor/manager oversight)
-  // while both per-load budgets remain comfortably met.
+  // and mobile operations while initial-shell size decreased; raised 2430 -> 2500 for
+  // the unified operational work queue (resident service requirements/tasks, My Services,
+  // supervisor/manager oversight) while both per-load budgets remain comfortably met.
   totalJavaScript: 2500 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,

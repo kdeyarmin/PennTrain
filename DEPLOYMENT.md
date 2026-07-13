@@ -207,11 +207,27 @@ can see the whole workspace and lockfile.
 | `VITE_SUPABASE_URL` | yes | Supabase project URL (Project Settings -> API). **Build-time**: baked into the bundle; changes require a redeploy, not just a restart |
 | `VITE_SUPABASE_ANON_KEY` | yes | anon/publishable key -- safe for the browser, RLS is the real gate. **Build-time**, same caveat as above |
 | `VITE_TURNSTILE_SITE_KEY` | yes | Cloudflare Turnstile site key for `/signup`. **Build-time**, same redeploy caveat as other `VITE_` values |
+| `VITE_CLIENT_ERROR_REPORTING_ENABLED` | no | Build-time switch for PHI-scrubbed client error events. Reporting is enabled by default in production; set `false` only during an incident |
+| `VITE_RELEASE_ID` | recommended | Build-time release identifier, normally `RAILWAY_GIT_COMMIT_SHA`, attached to client error events |
 | `VITE_DEMO_ACCOUNTS_JSON` | no | Optional JSON array for a deliberate demo environment. Leave unset in production unless public demo access is intentionally enabled |
 | `NODE_ENV` | no | Railpack already sets `production`; setting it yourself is harmless |
 | `PORT` | no | Railway injects this automatically; the server reads it |
 | `HOST` | no | the server binds dual-stack `::` by default (Railway's recommendation); override only if you need something else |
 | `BASE_PATH` | no | e.g. `/train/`; only needed if served from a non-root subpath. Set it identically for both the build (`vite.config.ts` reads it) and the running server (`server/index.mjs` strips it before resolving files) -- both read the same `BASE_PATH` var, so one value covers both. |
+| `ASSET_ARCHIVE_DIR` | recommended | Mount a Railway volume at this path (for example `/data/release-assets`). The server archives content-hashed assets for 14 days and serves old hashes to tabs that remained open across a deploy |
+
+### Deployment asset continuity
+
+Attach a Railway volume to the service, set `ASSET_ARCHIVE_DIR` to its mount path, and preserve
+the volume across releases. On startup the static server copies the current release's `assets/`
+files into that archive without overwriting prior hashes and removes files older than 14 days.
+Current assets remain immutable for one year, while missing assets and all other error responses
+use `Cache-Control: no-store` so a CDN cannot retain a transient 404.
+
+The PWA uses network-first navigation and the browser performs a one-time cache/service-worker
+reset when a dynamic import still fails. These are complementary safeguards: the archive keeps
+long-lived tabs working without interruption; automatic recovery handles clients outside the
+archive window. Do not configure Cloudflare or Railway to cache `404` responses.
 
 Never set `NPM_CONFIG_PRODUCTION=true` on this service: every dependency of the app (including
 `vite` itself) lives in `devDependencies`, and that variable makes pnpm skip them at install,

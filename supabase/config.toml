@@ -115,6 +115,12 @@ verify_jwt = true
 [functions.get-platform-status]
 verify_jwt = false
 
+# Public error intake is available before authentication so login and lazy-chunk failures are
+# observable. The handler accepts only a small allowlisted, length-bounded, server-redacted
+# payload and writes structured events to Supabase function logs; it performs no database writes.
+[functions.report-client-error]
+verify_jwt = false
+
 # Organization/platform administrators create Stripe Checkout or Customer Portal sessions. The
 # gateway verifies the JWT and the function repeats the active-role, tenant, entitlement, redirect
 # origin, and idempotency checks before calling Stripe.

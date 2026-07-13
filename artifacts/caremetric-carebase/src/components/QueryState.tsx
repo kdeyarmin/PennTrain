@@ -1,6 +1,7 @@
+import type { ReactNode } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
 
 interface QueryErrorProps {
   /** What failed to load, phrased as a noun: "your certificates" -> "Couldn't load your certificates". */
@@ -32,5 +33,27 @@ export function QueryError({ what = "this data", error, onRetry, className }: Qu
         )}
       </AlertDescription>
     </Alert>
+  );
+}
+
+export function QueryLoading({
+  what = "data",
+  children,
+  className,
+}: {
+  what?: string;
+  children?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={className} role="status" aria-live="polite" aria-busy="true">
+      {children ?? (
+        <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+          <span>Loading {what}…</span>
+        </div>
+      )}
+      {children && <span className="sr-only">Loading {what}…</span>}
+    </div>
   );
 }

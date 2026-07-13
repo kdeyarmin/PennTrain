@@ -53,7 +53,13 @@ export default function ResidentDetail() {
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
-  const residentPathPrefix = location.startsWith("/admin/") ? "/admin/residents" : "/app/residents";
+  const isPlatformRoute = location.startsWith("/admin/");
+  // Platform-admin resident charts are reachable via multiple entry points (e.g. Alerts, Document Analyzer).
+  // There is no /admin/residents list route; keep nested links working, but return "Back" to a valid origin.
+  const residentPathPrefix = isPlatformRoute ? "/admin/residents" : "/app/residents";
+  const backDestination = isPlatformRoute
+    ? { href: "/admin/alerts", label: "Alerts" }
+    : { href: residentPathPrefix, label: "Residents" };
 
   const { data: resident, isLoading } = useGetResident(id);
   const { data: facilities } = useListFacilities();
@@ -225,7 +231,7 @@ export default function ResidentDetail() {
       <div className="text-center py-12">
         <p className="text-muted-foreground">Resident not found.</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href={residentPathPrefix}>Back to Residents</Link>
+          <Link href={backDestination.href}>Back to {backDestination.label}</Link>
         </Button>
       </div>
     );
@@ -251,7 +257,7 @@ export default function ResidentDetail() {
       <div className="space-y-6 print:hidden">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-          <Link href={residentPathPrefix}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
+          <Link href={backDestination.href}><ArrowLeft className="mr-2 h-4 w-4" /> Back to {backDestination.label}</Link>
         </Button>
       </div>
 
