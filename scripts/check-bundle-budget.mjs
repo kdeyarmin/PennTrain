@@ -9,8 +9,9 @@ const assetDirectory = path.resolve(
 const budgets = {
   // Raised 400 -> 410 when the unified operational work queue (resident service
   // requirements, task instances, My Services, supervisor/manager workflows) landed;
-  // raised 410 -> 412 after registering the resident-services routes in the rebased shell.
-  largestJavaScript: 412 * 1024,
+  // raised 410 -> 412 after registering the resident-services routes in the rebased shell;
+  // raised 412 -> 413 for the role-gated regulatory-copilot route registration.
+  largestJavaScript: 413 * 1024,
   // Sum of every lazy route chunk, not what any one page load fetches -- the per-load
   // guardrails are largestJavaScript and initialShell. Raised 2300 -> 2400 when the
   // end-user-review rounds (evidence room, saved views, confidential console, ...)
@@ -37,9 +38,10 @@ const budgets = {
   // and food-service qualification operations workspace; raised 2800 -> 2810 after
   // synchronizing the stacked scheduling and environmental-work-order routes; raised
   // 2810 -> 2840 for the lazy resident-services calendar and transportation workflows;
-  // raised 2840 -> 2880 for the lazy resident financial operations workspace.
+  // raised 2840 -> 2880 for the lazy resident financial operations workspace; raised
+  // 2880 -> 2885 for the lazy citation-backed regulatory copilot workspace.
   // These changes keep the initial-shell and per-load limits flat.
-  totalJavaScript: 2880 * 1024,
+  totalJavaScript: 2885 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };
