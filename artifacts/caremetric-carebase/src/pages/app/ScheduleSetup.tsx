@@ -13,6 +13,12 @@ import {
   useListEmployeeSchedulePreferences, useCreateEmployeeSchedulePreference, useDeleteEmployeeSchedulePreference,
   type EmployeeSchedulePreference,
 } from "@/hooks/useEmployeeSchedulePreferences";
+import {
+  useDeleteServiceWorkloadProfile,
+  useListServiceWorkloadProfiles,
+  useSaveServiceWorkloadProfile,
+  type ServiceWorkloadProfile,
+} from "@/hooks/useSchedulingEligibility";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -21,11 +27,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Plus, Trash2, Grid3x3, Clock, Star, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Grid3x3, Clock, Star, ShieldCheck, UsersRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatTimeLabel, WEEKDAY_LABELS } from "@/lib/scheduleDates";
 import { isSpecialCareUnit } from "@/lib/specialCareCompliance";
@@ -44,7 +51,7 @@ export default function ScheduleSetup() {
           <ArrowLeft className="h-4 w-4 mr-1" />
           Back to Schedules
         </Button>
-        <h1 className="text-2xl font-bold tracking-tight">Shifts, Units &amp; Patterns</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Scheduling Setup</h1>
         <p className="text-muted-foreground">
           Set up once per facility -- the schedule creator's Auto-Fill uses this to build schedules for you.
         </p>
@@ -70,6 +77,7 @@ export default function ScheduleSetup() {
             <TabsTrigger value="units">Units &amp; Wings</TabsTrigger>
             <TabsTrigger value="shifts">Shift Types</TabsTrigger>
             <TabsTrigger value="patterns">Typical Patterns</TabsTrigger>
+            <TabsTrigger value="workload">Qualifications &amp; Workload</TabsTrigger>
           </TabsList>
           <TabsContent value="units" className="mt-4">
             <UnitsPanel facilityId={activeFacilityId} organizationId={user?.organizationId ?? ""} />
@@ -79,6 +87,13 @@ export default function ScheduleSetup() {
           </TabsContent>
           <TabsContent value="patterns" className="mt-4">
             <PatternsPanel facilityId={activeFacilityId} organizationId={user?.organizationId ?? ""} />
+          </TabsContent>
+          <TabsContent value="workload" className="mt-4">
+            <WorkloadPanel
+              facilityId={activeFacilityId}
+              organizationId={user?.organizationId ?? ""}
+              profileId={user?.id ?? ""}
+            />
           </TabsContent>
         </Tabs>
       )}
@@ -91,6 +106,200 @@ export default function ScheduleSetup() {
         </Card>
       )}
     </div>
+  );
+}
+
+const FACILITY_WIDE = "__facility_wide__";
+
+function parseKeys(value: string) {
+  return [...new Set(value.split(",").map((key) => key.trim()).filter(Boolean))];
+}
+
+function WorkloadPanel({ facilityId, organizationId, profileId }: { facilityId: string; organizationId: string; profileId: string }) {
+  const { toast } = useToast();
+  const { data: units } = useListFacilityUnits({ facilityId });
+  const { data: shifts } = useListShiftDefinitions({ facilityId });
+  const { data: profiles } = useListServiceWorkloadProfiles(facilityId);
+  const save = useSaveServiceWorkloadProfile();
+  const del = useDeleteServiceWorkloadProfile();
+  const [form, setForm] = useState({
+    unitId: FACILITY_WIDE,
+    shiftDefinitionId: "",
+    minimumStaff: "1",
+    medicationStaff: "0",
+    insulinStaff: "0",
+    firstAidCprStaff: "0",
+    trainerSupervisorStaff: "0",
+    escortReserveStaff: "0",
+    securedUnit: false,
+    qualificationKeys: "",
+    credentialTypes: "",
+    notes: "",
+  });
+
+  const activeUnits = (units ?? []).filter((unit) => unit.is_active);
+  const activeShifts = (shifts ?? []).filter((shift) => shift.is_active);
+  const unitName = new Map(activeUnits.map((unit) => [unit.id, unit.name]));
+  const shiftName = new Map(activeShifts.map((shift) => [shift.id, shift.name]));
+
+  function loadProfile(profile: ServiceWorkloadProfile) {
+    setForm({
+      unitId: profile.unit_id ?? FACILITY_WIDE,
+      shiftDefinitionId: profile.shift_definition_id,
+      minimumStaff: String(profile.minimum_staff),
+      medicationStaff: String(profile.minimum_medication_qualified_staff),
+      insulinStaff: String(profile.minimum_insulin_qualified_staff),
+      firstAidCprStaff: String(profile.minimum_first_aid_cpr_staff),
+      trainerSupervisorStaff: String(profile.minimum_trainer_supervisor_staff),
+      escortReserveStaff: String(profile.escort_reserve_staff),
+      securedUnit: profile.secured_unit_coverage_required,
+      qualificationKeys: profile.required_qualification_keys.join(", "),
+      credentialTypes: profile.required_credential_types.join(", "),
+      notes: profile.notes ?? "",
+    });
+  }
+
+  function handleSave() {
+    if (!form.shiftDefinitionId) {
+      toast({ title: "Select a shift type", variant: "destructive" });
+      return;
+    }
+    const existing = (profiles ?? []).find((profile) =>
+      profile.shift_definition_id === form.shiftDefinitionId
+      && (profile.unit_id ?? FACILITY_WIDE) === form.unitId
+    );
+    save.mutate({
+      ...(existing ? { id: existing.id } : {}),
+      organization_id: organizationId,
+      facility_id: facilityId,
+      unit_id: form.unitId === FACILITY_WIDE ? null : form.unitId,
+      shift_definition_id: form.shiftDefinitionId,
+      minimum_staff: Number(form.minimumStaff),
+      minimum_medication_qualified_staff: Number(form.medicationStaff),
+      minimum_insulin_qualified_staff: Number(form.insulinStaff),
+      minimum_first_aid_cpr_staff: Number(form.firstAidCprStaff),
+      minimum_trainer_supervisor_staff: Number(form.trainerSupervisorStaff),
+      escort_reserve_staff: Number(form.escortReserveStaff),
+      secured_unit_coverage_required: form.securedUnit,
+      required_qualification_keys: parseKeys(form.qualificationKeys),
+      required_credential_types: parseKeys(form.credentialTypes),
+      notes: form.notes.trim() || null,
+      updated_by: profileId || null,
+    }, {
+      onSuccess: () => toast({ title: "Service workload profile saved", variant: "success" }),
+      onError: (error: Error) => toast({
+        title: "Couldn't save service workload profile",
+        description: error.message,
+        variant: "destructive",
+      }),
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base"><UsersRound className="h-4 w-4" /> Qualifications &amp; Service Workload</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Define the qualified coverage each unit and shift needs. Service workload combines resident services and operational demand; it is not a medical-acuity score.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="rounded-md border p-4 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Unit</Label>
+              <Select value={form.unitId} onValueChange={(value) => setForm((current) => ({ ...current, unitId: value }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={FACILITY_WIDE}>Facility-wide</SelectItem>
+                  {activeUnits.map((unit) => <SelectItem key={unit.id} value={unit.id}>{unit.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Shift</Label>
+              <Select value={form.shiftDefinitionId} onValueChange={(value) => setForm((current) => ({ ...current, shiftDefinitionId: value }))}>
+                <SelectTrigger><SelectValue placeholder="Select shift" /></SelectTrigger>
+                <SelectContent>
+                  {activeShifts.map((shift) => <SelectItem key={shift.id} value={shift.id}>{shift.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {[
+              ["Minimum staff", "minimumStaff"],
+              ["Medication-qualified", "medicationStaff"],
+              ["Insulin-qualified", "insulinStaff"],
+              ["First aid / CPR", "firstAidCprStaff"],
+              ["Trainer / supervisor", "trainerSupervisorStaff"],
+              ["Escort reserve", "escortReserveStaff"],
+            ].map(([label, key]) => (
+              <div className="space-y-1" key={key}>
+                <Label className="text-xs">{label}</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={form[key as keyof typeof form] as string}
+                  onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
+
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={form.securedUnit} onCheckedChange={(checked) => setForm((current) => ({ ...current, securedUnit: checked === true }))} />
+            Secured-unit coverage is required for this shift
+          </label>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Required qualification keys</Label>
+              <Input
+                value={form.qualificationKeys}
+                onChange={(event) => setForm((current) => ({ ...current, qualificationKeys: event.target.value }))}
+                placeholder="med-admin, insulin, memory-care"
+              />
+              <p className="text-xs text-muted-foreground">Comma-separated; these become hard assignment requirements.</p>
+            </div>
+            <div className="space-y-1">
+              <Label>Required credential types</Label>
+              <Input
+                value={form.credentialTypes}
+                onChange={(event) => setForm((current) => ({ ...current, credentialTypes: event.target.value }))}
+                placeholder="first_aid, cpr"
+              />
+            </div>
+          </div>
+          <Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Operational coverage notes" rows={2} />
+          <Button onClick={handleSave} disabled={save.isPending}>{save.isPending ? "Saving..." : "Save Requirements"}</Button>
+          <p className="text-xs text-muted-foreground">Changes require current workforce-administration identity assurance and are audit logged with the approver.</p>
+        </div>
+
+        <div className="space-y-2">
+          {(profiles ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No qualification or service-workload profiles configured yet.</p>
+          ) : (profiles ?? []).map((profile) => (
+            <div key={profile.id} className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
+              <button type="button" className="text-left flex-1" onClick={() => loadProfile(profile)}>
+                <p className="font-medium">{profile.unit_id ? unitName.get(profile.unit_id) : "Facility-wide"} &middot; {shiftName.get(profile.shift_definition_id) ?? "Shift"}</p>
+                <p className="text-xs text-muted-foreground">
+                  {profile.minimum_staff} staff &middot; {profile.minimum_medication_qualified_staff} medication &middot; {profile.minimum_first_aid_cpr_staff} first aid/CPR &middot; {profile.minimum_trainer_supervisor_staff} trainer/supervisor
+                </p>
+                {(profile.required_qualification_keys.length > 0 || profile.required_credential_types.length > 0) && (
+                  <p className="text-xs text-muted-foreground mt-1">Hard requirements: {[...profile.required_qualification_keys, ...profile.required_credential_types].join(", ")}</p>
+                )}
+              </button>
+              <Button variant="ghost" size="icon" onClick={() => del.mutate(profile.id)} aria-label="Delete service workload profile">
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
