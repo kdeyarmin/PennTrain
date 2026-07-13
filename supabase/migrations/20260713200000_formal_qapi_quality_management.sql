@@ -130,6 +130,7 @@ declare v_fac public.facilities%rowtype;v_id uuid;v_num text;begin
  select * into v_fac from public.facilities where id=p_facility_id;
  if not found then raise exception 'Facility not found' using errcode='P0002';end if;
  perform app_private.assert_admission_manager(v_fac.organization_id,v_fac.id);
+ perform pg_advisory_xact_lock(hashtext(v_fac.organization_id::text));
  if length(btrim(p_title))<3 or length(btrim(p_problem_statement))<10 or p_target_completion_date<current_date then raise exception 'Invalid QAPI project' using errcode='22023';end if;
  if p_source_type is not null and p_source_id is not null then select id into v_id from public.qapi_projects where organization_id=v_fac.organization_id and source_type=p_source_type and source_id=p_source_id;if v_id is not null then return v_id;end if;end if;
  perform pg_advisory_xact_lock(hashtext('qapi_project_numbering'), hashtext(v_fac.organization_id::text));
