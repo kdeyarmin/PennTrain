@@ -115,8 +115,8 @@ declare v_fac public.facilities%rowtype;begin
   'inspectionDeficiencies',(select count(*) from public.inspection_events where facility_id=v_fac.id and result in('fail','deficiency_noted') and performed_date between p_from and p_through),
   'nutritionExceptions',(select count(*) from public.resident_change_events where facility_id=v_fac.id and category in('appetite_intake_change','weight_concern') and identified_at::date between p_from and p_through),
   'currentInactiveStaff',(select count(*) from public.employees where facility_id=v_fac.id and status<>'active'),
-  'complaints',jsonb_build_object('available',false,'count',0),
-  'appointmentFailures',jsonb_build_object('available',false,'count',0),
+  'complaints',(select count(*) from public.complaints where facility_id=v_fac.id and date_received between p_from and p_through),
+  'appointmentFailures',(select count(*) from public.resident_service_events where facility_id=v_fac.id and completion_status in('canceled','no_show') and starts_at::date between p_from and p_through),
   'periodStart',p_from,'periodEnd',p_through
  );end$$;
 
