@@ -211,6 +211,10 @@ from (
     'v1'
   ) result
 ) issued;
+insert into admission_ids(key, id)
+select 'guest_task', id from public.move_in_tasks
+where workspace_id = (select id from admission_ids where key = 'workspace')
+  and task_key = 'guest_signing';
 select pg_temp.act_as('00000000-0000-0000-0000-000000000000', 'anon');
 select lives_ok(
   $$select public.accept_move_in_guest_terms(
@@ -226,7 +230,7 @@ select is(
 select lives_ok(
   $$select public.sign_move_in_guest_task(
     (select value from admission_ids where key = 'guest'),
-    (select id from public.move_in_tasks where workspace_id = (select id from admission_ids where key = 'workspace') and task_key = 'guest_signing'),
+    (select id from admission_ids where key = 'guest_task'),
     'Taylor Lee', 'Designated person', 'I reviewed and electronically sign this admission item.'
   )$$,
   'guest signature is captured with relationship and attestation'
