@@ -258,7 +258,7 @@ declare
   v_starts timestamptz;
   v_ends timestamptz;
   v_result jsonb;
-  v_candidates jsonb := '[]'::jsonb;
+  v_candidates jsonb[] := array[]::jsonb[];
 begin
   select * into v_schedule from public.schedules where id = p_schedule_id;
   if not found then raise exception 'Schedule not found' using errcode = 'P0002'; end if;
@@ -291,13 +291,13 @@ begin
       v_employee.id, v_schedule.facility_id, p_unit_id, p_shift_definition_id,
       v_starts, v_ends, array[]::uuid[]
     );
-    v_candidates := v_candidates || jsonb_build_array(v_result || jsonb_build_object(
+    v_candidates := array_append(v_candidates, v_result || jsonb_build_object(
       'employeeId', v_employee.id,
       'employeeName', btrim(v_employee.first_name || ' ' || v_employee.last_name),
       'jobTitle', v_employee.job_title
     ));
   end loop;
-  return v_candidates;
+  return to_jsonb(v_candidates);
 end;
 $$;
 
