@@ -139,9 +139,9 @@ async function resolveStaticFile(pathname) {
 async function resolveArchivedAsset(pathname) {
   if (!ASSET_ARCHIVE_DIR || !pathname.startsWith("assets/")) return null;
   const relativeAssetPath = pathname.slice("assets/".length);
-  const archivePath = join(ASSET_ARCHIVE_DIR, normalize(relativeAssetPath));
   const archivePrefix = ASSET_ARCHIVE_DIR + sep;
-  if (!archivePath.startsWith(archivePrefix)) return null;
+  const archivePath = resolve(ASSET_ARCHIVE_DIR, normalize(relativeAssetPath));
+  if (archivePath !== ASSET_ARCHIVE_DIR && !archivePath.startsWith(archivePrefix)) return null;
   try {
     const info = await stat(archivePath);
     return info.isFile() ? archivePath : null;
