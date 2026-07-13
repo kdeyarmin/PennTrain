@@ -1813,6 +1813,456 @@ export type Database = {
           },
         ]
       }
+            complaint_corrective_actions: {
+              Row: {
+                action_summary: string
+                complaint_id: string
+                created_at: string
+                created_by: string | null
+                facility_id: string
+                id: string
+                organization_id: string
+                work_item_id: string
+              }
+              Insert: {
+                action_summary: string
+                complaint_id: string
+                created_at?: string
+                created_by?: string | null
+                facility_id: string
+                id?: string
+                organization_id: string
+                work_item_id: string
+              }
+              Update: {
+                action_summary?: string
+                complaint_id?: string
+                created_at?: string
+                created_by?: string | null
+                facility_id?: string
+                id?: string
+                organization_id?: string
+                work_item_id?: string
+              }
+              Relationships: [
+                {
+                  foreignKeyName: "complaint_corrective_actions_complaint_id_fkey"
+                  columns: ["complaint_id"]
+                  isOneToOne: false
+                  referencedRelation: "complaints"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaint_corrective_actions_created_by_fkey"
+                  columns: ["created_by"]
+                  isOneToOne: false
+                  referencedRelation: "profiles"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaint_corrective_actions_facility_id_fkey"
+                  columns: ["facility_id"]
+                  isOneToOne: false
+                  referencedRelation: "facilities"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaint_corrective_actions_organization_id_fkey"
+                  columns: ["organization_id"]
+                  isOneToOne: false
+                  referencedRelation: "organizations"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaint_corrective_actions_work_item_id_fkey"
+                  columns: ["work_item_id"]
+                  isOneToOne: false
+                  referencedRelation: "work_items"
+                  referencedColumns: ["id"]
+                },
+              ]
+            }
+            complaint_history: {
+              Row: {
+                actor_profile_id: string | null
+                complaint_id: string
+                event_type: string
+                evidence: Json
+                facility_id: string
+                id: string
+                occurred_at: string
+                organization_id: string
+                prior_status: string | null
+                reason: string
+                resulting_status: string | null
+              }
+              Insert: {
+                actor_profile_id?: string | null
+                complaint_id: string
+                event_type: string
+                evidence?: Json
+                facility_id: string
+                id?: string
+                occurred_at?: string
+                organization_id: string
+                prior_status?: string | null
+                reason: string
+                resulting_status?: string | null
+              }
+              Update: {
+                actor_profile_id?: string | null
+                complaint_id?: string
+                event_type?: string
+                evidence?: Json
+                facility_id?: string
+                id?: string
+                occurred_at?: string
+                organization_id?: string
+                prior_status?: string | null
+                reason?: string
+                resulting_status?: string | null
+              }
+              Relationships: [
+                {
+                  foreignKeyName: "complaint_history_actor_profile_id_fkey"
+                  columns: ["actor_profile_id"]
+                  isOneToOne: false
+                  referencedRelation: "profiles"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaint_history_complaint_id_fkey"
+                  columns: ["complaint_id"]
+                  isOneToOne: false
+                  referencedRelation: "complaints"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaint_history_facility_id_fkey"
+                  columns: ["facility_id"]
+                  isOneToOne: false
+                  referencedRelation: "facilities"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaint_history_organization_id_fkey"
+                  columns: ["organization_id"]
+                  isOneToOne: false
+                  referencedRelation: "organizations"
+                  referencedColumns: ["id"]
+                },
+              ]
+            }
+            complaint_interviews: {
+              Row: {
+                complaint_id: string
+                created_at: string
+                facility_id: string
+                id: string
+                interviewed_at: string
+                notes: string
+                organization_id: string
+                person_name: string
+                recorded_by: string | null
+                relationship_to_case: string
+              }
+              Insert: {
+                complaint_id: string
+                created_at?: string
+                facility_id: string
+                id?: string
+                interviewed_at: string
+                notes: string
+                organization_id: string
+                person_name: string
+                recorded_by?: string | null
+                relationship_to_case: string
+              }
+              Update: {
+                complaint_id?: string
+                created_at?: string
+                facility_id?: string
+                id?: string
+                interviewed_at?: string
+                notes?: string
+                organization_id?: string
+                person_name?: string
+                recorded_by?: string | null
+                relationship_to_case?: string
+              }
+              Relationships: [
+                {
+                  foreignKeyName: "complaint_interviews_complaint_id_fkey"
+                  columns: ["complaint_id"]
+                  isOneToOne: false
+                  referencedRelation: "complaints"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaint_interviews_facility_id_fkey"
+                  columns: ["facility_id"]
+                  isOneToOne: false
+                  referencedRelation: "facilities"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaint_interviews_organization_id_fkey"
+                  columns: ["organization_id"]
+                  isOneToOne: false
+                  referencedRelation: "organizations"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaint_interviews_recorded_by_fkey"
+                  columns: ["recorded_by"]
+                  isOneToOne: false
+                  referencedRelation: "profiles"
+                  referencedColumns: ["id"]
+                },
+              ]
+            }
+            complaint_monitoring_entries: {
+              Row: {
+                action_taken: string | null
+                complaint_id: string
+                created_at: string
+                facility_id: string
+                id: string
+                observations: string
+                observed_at: string
+                organization_id: string
+                recorded_by: string | null
+                retaliation_concern_identified: boolean
+              }
+              Insert: {
+                action_taken?: string | null
+                complaint_id: string
+                created_at?: string
+                facility_id: string
+                id?: string
+                observations: string
+                observed_at: string
+                organization_id: string
+                recorded_by?: string | null
+                retaliation_concern_identified?: boolean
+              }
+              Update: {
+                action_taken?: string | null
+                complaint_id?: string
+                created_at?: string
+                facility_id?: string
+                id?: string
+                observations?: string
+                observed_at?: string
+                organization_id?: string
+                recorded_by?: string | null
+                retaliation_concern_identified?: boolean
+              }
+              Relationships: [
+                {
+                  foreignKeyName: "complaint_monitoring_entries_complaint_id_fkey"
+                  columns: ["complaint_id"]
+                  isOneToOne: false
+                  referencedRelation: "complaints"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaint_monitoring_entries_facility_id_fkey"
+                  columns: ["facility_id"]
+                  isOneToOne: false
+                  referencedRelation: "facilities"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaint_monitoring_entries_organization_id_fkey"
+                  columns: ["organization_id"]
+                  isOneToOne: false
+                  referencedRelation: "organizations"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaint_monitoring_entries_recorded_by_fkey"
+                  columns: ["recorded_by"]
+                  isOneToOne: false
+                  referencedRelation: "profiles"
+                  referencedColumns: ["id"]
+                },
+              ]
+            }
+            complaints: {
+              Row: {
+                acknowledgement_date: string | null
+                appeal_or_reconsideration: string | null
+                appeal_outcome: string | null
+                appeal_requested_at: string | null
+                assigned_investigator_profile_id: string | null
+                category: string
+                closure_approved_at: string | null
+                closure_approved_by: string | null
+                complainant_contact: string | null
+                complainant_name: string | null
+                complainant_type: string
+                complaint_number: string
+                corrective_action_summary: string | null
+                created_at: string
+                created_by: string | null
+                date_received: string
+                description: string
+                facility_id: string
+                findings: string | null
+                id: string
+                immediate_action_taken: string | null
+                immediate_risk: string
+                incident_escalation_reason: string | null
+                incident_id: string | null
+                investigation_notes: string | null
+                is_anonymous: boolean
+                method_received: string
+                nonretaliation_monitoring_required: boolean
+                nonretaliation_monitoring_until: string | null
+                ombudsman_reference: string | null
+                ombudsman_referral_at: string | null
+                organization_id: string
+                reportable_concerns: string[]
+                resident_id: string | null
+                status: string
+                updated_at: string
+                written_response: string | null
+                written_response_date: string | null
+              }
+              Insert: {
+                acknowledgement_date?: string | null
+                appeal_or_reconsideration?: string | null
+                appeal_outcome?: string | null
+                appeal_requested_at?: string | null
+                assigned_investigator_profile_id?: string | null
+                category: string
+                closure_approved_at?: string | null
+                closure_approved_by?: string | null
+                complainant_contact?: string | null
+                complainant_name?: string | null
+                complainant_type: string
+                complaint_number: string
+                corrective_action_summary?: string | null
+                created_at?: string
+                created_by?: string | null
+                date_received: string
+                description: string
+                facility_id: string
+                findings?: string | null
+                id?: string
+                immediate_action_taken?: string | null
+                immediate_risk?: string
+                incident_escalation_reason?: string | null
+                incident_id?: string | null
+                investigation_notes?: string | null
+                is_anonymous?: boolean
+                method_received: string
+                nonretaliation_monitoring_required?: boolean
+                nonretaliation_monitoring_until?: string | null
+                ombudsman_reference?: string | null
+                ombudsman_referral_at?: string | null
+                organization_id: string
+                reportable_concerns?: string[]
+                resident_id?: string | null
+                status?: string
+                updated_at?: string
+                written_response?: string | null
+                written_response_date?: string | null
+              }
+              Update: {
+                acknowledgement_date?: string | null
+                appeal_or_reconsideration?: string | null
+                appeal_outcome?: string | null
+                appeal_requested_at?: string | null
+                assigned_investigator_profile_id?: string | null
+                category?: string
+                closure_approved_at?: string | null
+                closure_approved_by?: string | null
+                complainant_contact?: string | null
+                complainant_name?: string | null
+                complainant_type?: string
+                complaint_number?: string
+                corrective_action_summary?: string | null
+                created_at?: string
+                created_by?: string | null
+                date_received?: string
+                description?: string
+                facility_id?: string
+                findings?: string | null
+                id?: string
+                immediate_action_taken?: string | null
+                immediate_risk?: string
+                incident_escalation_reason?: string | null
+                incident_id?: string | null
+                investigation_notes?: string | null
+                is_anonymous?: boolean
+                method_received?: string
+                nonretaliation_monitoring_required?: boolean
+                nonretaliation_monitoring_until?: string | null
+                ombudsman_reference?: string | null
+                ombudsman_referral_at?: string | null
+                organization_id?: string
+                reportable_concerns?: string[]
+                resident_id?: string | null
+                status?: string
+                updated_at?: string
+                written_response?: string | null
+                written_response_date?: string | null
+              }
+              Relationships: [
+                {
+                  foreignKeyName: "complaints_assigned_investigator_profile_id_fkey"
+                  columns: ["assigned_investigator_profile_id"]
+                  isOneToOne: false
+                  referencedRelation: "profiles"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaints_closure_approved_by_fkey"
+                  columns: ["closure_approved_by"]
+                  isOneToOne: false
+                  referencedRelation: "profiles"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaints_created_by_fkey"
+                  columns: ["created_by"]
+                  isOneToOne: false
+                  referencedRelation: "profiles"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaints_facility_id_fkey"
+                  columns: ["facility_id"]
+                  isOneToOne: false
+                  referencedRelation: "facilities"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaints_incident_id_fkey"
+                  columns: ["incident_id"]
+                  isOneToOne: false
+                  referencedRelation: "incidents"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaints_organization_id_fkey"
+                  columns: ["organization_id"]
+                  isOneToOne: false
+                  referencedRelation: "organizations"
+                  referencedColumns: ["id"]
+                },
+                {
+                  foreignKeyName: "complaints_resident_id_fkey"
+                  columns: ["resident_id"]
+                  isOneToOne: false
+                  referencedRelation: "residents"
+                  referencedColumns: ["id"]
+                },
+              ]
+            }
+      
       compliance_profile_definitions: {
         Row: {
           code: string
@@ -19464,6 +19914,37 @@ export type Database = {
         }
         Returns: string
       }
+      add_complaint_corrective_action: {
+        Args: {
+          p_complaint_id: string
+          p_description: string
+          p_due_at: string
+          p_owner_profile_id: string
+          p_priority: string
+          p_title: string
+        }
+        Returns: string
+      }
+      add_complaint_interview: {
+        Args: {
+          p_complaint_id: string
+          p_interviewed_at: string
+          p_notes: string
+          p_person_name: string
+          p_relationship_to_case: string
+        }
+        Returns: string
+      }
+      add_complaint_monitoring_entry: {
+        Args: {
+          p_action_taken: string
+          p_complaint_id: string
+          p_observations: string
+          p_observed_at: string
+          p_retaliation_concern_identified: boolean
+        }
+        Returns: string
+      }
       add_qapi_action: {
         Args: {
           p_action_type: string
@@ -20062,6 +20543,53 @@ export type Database = {
         }
         Returns: string
       }
+      create_complaint: {
+        Args: {
+          p_assigned_investigator_profile_id?: string
+          p_category: string
+          p_complainant_contact: string
+          p_complainant_name: string
+          p_complainant_type: string
+          p_date_received: string
+          p_description: string
+          p_facility_id: string
+          p_immediate_action_taken: string
+          p_immediate_risk: string
+          p_is_anonymous: boolean
+          p_linked_incident_id?: string
+          p_method_received: string
+          p_reportable_concerns: string[]
+          p_resident_id: string
+        }
+        Returns: string
+      }
+      get_complaint_trends: {
+        Args: { p_facility_id: string; p_from: string; p_through: string }
+        Returns: Json
+      }
+      update_complaint_case: {
+        Args: {
+          p_acknowledgement_date: string
+          p_appeal_or_reconsideration: string
+          p_appeal_outcome: string
+          p_appeal_requested_at: string
+          p_assigned_investigator_profile_id: string
+          p_complaint_id: string
+          p_corrective_action_summary: string
+          p_findings: string
+          p_investigation_notes: string
+          p_nonretaliation_monitoring_required: boolean
+          p_nonretaliation_monitoring_until: string
+          p_ombudsman_reference: string
+          p_ombudsman_referral_at: string
+          p_reason: string
+          p_status: string
+          p_written_response: string
+          p_written_response_date: string
+        }
+        Returns: boolean
+      }
+
       create_emergency_plan_version: {
         Args: {
           p_change_summary: string
