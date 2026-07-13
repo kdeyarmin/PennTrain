@@ -88,7 +88,7 @@ export function useComplianceCopilotHistory(facilityId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("compliance_copilot_runs")
-        .select("*")
+.select("id,question,intent,as_of_date,created_at,status,determination_kind,error_message,request_checksum_sha256,response_checksum_sha256")
         .eq("facility_id", facilityId!)
         .order("created_at", { ascending: false })
         .limit(30);
