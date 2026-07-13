@@ -6,7 +6,9 @@ import { useListCorrectiveActions, useUpdateCorrectiveAction } from "@/hooks/use
 import type { InspectionEvent } from "@/hooks/useInspectionEvents";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListViolationsBySourceInspectionEvents } from "@/hooks/useViolations";
+import { useListWorkOrders } from "@/hooks/useWorkOrders";
 import { CorrectiveActionForm, CorrectiveActionStatusBadge } from "@/components/CorrectiveActionForm";
+import { MaintenanceQrCode } from "@/components/maintenance/MaintenanceQrCode";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Flame, ClipboardList, Plus, Check, Printer, AlertTriangle, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Flame, ClipboardList, Plus, Check, Printer, AlertTriangle, ShieldAlert, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { cn, humanize } from "@/lib/utils";
@@ -103,6 +105,7 @@ export default function InspectionItemDetail() {
   const { data: item, isLoading } = useGetInspectionItem(id);
   const { data: facilities } = useListFacilities();
   const { data: events, isLoading: eventsLoading } = useListInspectionEvents(id);
+  const { data: workOrders } = useListWorkOrders({ inspectionItemId: id });
   const { mutate: updateItem } = useUpdateInspectionItem();
   const { mutate: createEvent, isPending: creatingEvent } = useCreateInspectionEvent();
   const nonPassEventIds = (events ?? []).filter((e) => e.result !== "pass").map((e) => e.id);
@@ -245,6 +248,7 @@ export default function InspectionItemDetail() {
               <Printer className="mr-2 h-4 w-4" /> Print Fire Drill Record
             </Button>
           )}
+          {canManage && <Button asChild variant="outline"><Link href={`/app/maintenance?action=add&assetId=${item.id}`}><Wrench className="mr-2 h-4 w-4" /> New Work Order</Link></Button>}
           {canManage && <Button onClick={() => setShowEventForm(true)}><Plus className="mr-2 h-4 w-4" /> Log Inspection</Button>}
         </div>
       </div>
@@ -282,6 +286,27 @@ export default function InspectionItemDetail() {
           </CardContent>
         </Card>
       )}
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] print:hidden">
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Wrench className="h-5 w-5" /> Environmental Work Orders</CardTitle></CardHeader>
+          <CardContent>
+            {!workOrders?.length ? (
+              <p className="text-sm text-muted-foreground">No work orders are linked to this item. Failed inspections will create one automatically.</p>
+            ) : (
+              <div className="space-y-2">
+                {workOrders.map((order) => (
+                  <Link key={order.id} href={`/app/maintenance/${order.id}`} className="flex items-center justify-between gap-3 rounded-lg border p-3 hover:bg-muted/40">
+                    <div><p className="text-sm font-semibold text-primary">{order.work_order_number}</p><p className="line-clamp-1 text-xs text-muted-foreground">{order.problem_description}</p></div>
+                    <Badge variant="outline">{humanize(order.status)}</Badge>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        <MaintenanceQrCode path={`/app/maintenance/scan/asset/${item.qr_token}`} fileName={`maintenance-${item.label.replace(/\s+/g, "-").toLowerCase()}`} label={item.label} />
+      </div>
 
       <Card className="print:hidden">
         <CardHeader>
