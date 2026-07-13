@@ -8,8 +8,18 @@ export function sanitizePostLoginPath(value: string | null | undefined): string 
   return value;
 }
 
-export function postLoginPathFromSearch(search: string): string {
-  return sanitizePostLoginPath(new URLSearchParams(search).get("next"));
+export function postLoginPathFromSearch(search: string, base = APP_BASE): string {
+  const raw = new URLSearchParams(search).get("next");
+  const sanitized = sanitizePostLoginPath(raw);
+
+  const match = sanitized.match(/^([^?#]*)(.*)$/);
+  const pathname = match?.[1] ?? "/";
+  const suffix = match?.[2] ?? "";
+
+  const stripped = stripAppBaseFromPath(pathname, base);
+  if (stripped.startsWith("/login")) return DEFAULT_POST_LOGIN_PATH;
+
+  return `${stripped}${suffix}`;
 }
 
 export function stripAppBaseFromPath(pathname: string, base = APP_BASE): string {
