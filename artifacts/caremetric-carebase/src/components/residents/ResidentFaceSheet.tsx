@@ -48,6 +48,37 @@ export function ResidentFaceSheet({ packet }: { packet: ResidentFaceSheetPacket 
       </div>
 
       <section className="mb-4 border border-black p-2 text-xs">
+        <h3 className="mb-2 border-b border-black pb-1 text-sm font-bold">Residential-Care Profile</h3>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+          {packet.careProfile.map((item) => (
+            <p key={item.label}><span className="font-semibold">{item.label}:</span> {item.value}</p>
+          ))}
+        </div>
+      </section>
+
+      <div className="mb-4 grid grid-cols-2 gap-3 text-xs">
+        <section className="border border-black p-2">
+          <h3 className="mb-2 border-b border-black pb-1 text-sm font-bold">Legal / Directive Readiness</h3>
+          {packet.legalReadiness.map((item, index) => (
+            <p key={`${item.label}-${index}`}><span className="font-semibold">{item.label}:</span> {item.value}</p>
+          ))}
+        </section>
+        <section className="border border-black p-2">
+          <h3 className="mb-2 border-b border-black pb-1 text-sm font-bold">Property Inventory</h3>
+          {packet.propertyInventory.length ? packet.propertyInventory.map((item, index) => (
+            <p key={`${item.item}-${index}`}><span className="font-semibold">{item.item}:</span> {item.details}</p>
+          )) : <p>No property recorded.</p>}
+        </section>
+      </div>
+
+      <section className="mb-4 border border-black p-2 text-xs">
+        <h3 className="mb-2 border-b border-black pb-1 text-sm font-bold">Admission / Transfer / Leave History</h3>
+        {packet.lifecycle.length ? packet.lifecycle.map((item, index) => (
+          <p key={`${item.event}-${item.date}-${index}`}><span className="font-semibold">{item.date} · {item.event}:</span> {item.reason}</p>
+        )) : <p>No lifecycle events recorded.</p>}
+      </section>
+
+      <section className="mb-4 border border-black p-2 text-xs">
         <h3 className="mb-2 border-b border-black pb-1 text-sm font-bold">Current Resident Compliance / Transfer Form Readiness</h3>
         {!packet.complianceItems.length ? (
           <p>No compliance items recorded.</p>

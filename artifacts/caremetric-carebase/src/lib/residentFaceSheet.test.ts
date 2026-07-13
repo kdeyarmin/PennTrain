@@ -255,4 +255,36 @@ describe("buildResidentFaceSheetPacket", () => {
     expect(packet.supports[1].relationship).toBe("Son");
     expect(packet.supports[1].phone).toBe("—");
   });
+
+  it("reuses the administrative master across downstream packet sections", () => {
+    const packet = buildResidentFaceSheetPacket({
+      resident: {
+        ...baseResident,
+        preferred_name: "Janie",
+        dietary_requirements: "Low sodium",
+        food_allergies: ["Peanuts"],
+        mobility_summary: "Uses rolling walker",
+        advance_directive_status: "on_file",
+        contract_status: "executed",
+      },
+      facility: baseFacility,
+      supports: [],
+      complianceItems: [],
+      documents: [],
+      administrative: {
+        contacts: [{ id: "c1", contact_type: "guardian", name: "Alex Doe", relationship: "Child", legal_authority: "Court-appointed guardian", phone: "555-0100", email: null }],
+        propertyItems: [{ id: "p1", active: true, item_name: "Gold watch", quantity: 1, description: "Engraved", condition_at_receipt: "Good", resident_acknowledged_at: "2026-07-01T12:00:00Z" }],
+        legalRecords: [{ id: "l1", record_type: "court_order", title: "Guardianship order", status: "active" }],
+        censusEvents: [{ id: "e1", event_type: "hospital_leave", effective_at: "2026-07-02T12:00:00Z", reason: "Hospital evaluation" }],
+        history: [],
+      } as any,
+    });
+
+    expect(packet.title).toContain("Janie");
+    expect(packet.contacts[0].value).toContain("Court-appointed guardian");
+    expect(packet.careProfile.find((item) => item.label === "Food Allergies")?.value).toBe("Peanuts");
+    expect(packet.propertyInventory[0].item).toBe("1 × Gold watch");
+    expect(packet.legalReadiness.some((item) => item.value.includes("Guardianship order"))).toBe(true);
+    expect(packet.lifecycle[0]).toMatchObject({ event: "Hospital Leave", reason: "Hospital evaluation" });
+  });
 });

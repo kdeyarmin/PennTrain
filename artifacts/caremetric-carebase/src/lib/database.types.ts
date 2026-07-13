@@ -15462,6 +15462,71 @@ export type Database = {
           },
         ]
       }
+      resident_administrative_history: {
+        Row: {
+          actor_profile_id: string | null
+          event_type: string
+          facility_id: string
+          id: string
+          occurred_at: string
+          organization_id: string
+          resident_id: string
+          snapshot: Json
+          summary: string
+        }
+        Insert: {
+          actor_profile_id?: string | null
+          event_type: string
+          facility_id: string
+          id?: string
+          occurred_at?: string
+          organization_id: string
+          resident_id: string
+          snapshot?: Json
+          summary: string
+        }
+        Update: {
+          actor_profile_id?: string | null
+          event_type?: string
+          facility_id?: string
+          id?: string
+          occurred_at?: string
+          organization_id?: string
+          resident_id?: string
+          snapshot?: Json
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_administrative_history_actor_profile_id_fkey"
+            columns: ["actor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_administrative_history_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_administrative_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_administrative_history_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resident_assessment_ai_generations: {
         Row: {
           created_at: string
@@ -16314,6 +16379,116 @@ export type Database = {
           },
         ]
       }
+      resident_contacts: {
+        Row: {
+          active: boolean
+          address_line1: string | null
+          address_line2: string | null
+          alternate_phone: string | null
+          city: string | null
+          contact_type: string
+          created_at: string
+          created_by: string | null
+          email: string | null
+          facility_id: string
+          id: string
+          is_primary: boolean
+          legal_authority: string | null
+          name: string
+          notes: string | null
+          organization_id: string
+          phone: string | null
+          postal_code: string | null
+          receives_notifications: boolean
+          relationship: string | null
+          resident_id: string
+          sort_order: number
+          state: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          address_line1?: string | null
+          address_line2?: string | null
+          alternate_phone?: string | null
+          city?: string | null
+          contact_type: string
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          facility_id: string
+          id?: string
+          is_primary?: boolean
+          legal_authority?: string | null
+          name: string
+          notes?: string | null
+          organization_id: string
+          phone?: string | null
+          postal_code?: string | null
+          receives_notifications?: boolean
+          relationship?: string | null
+          resident_id: string
+          sort_order?: number
+          state?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          address_line1?: string | null
+          address_line2?: string | null
+          alternate_phone?: string | null
+          city?: string | null
+          contact_type?: string
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          facility_id?: string
+          id?: string
+          is_primary?: boolean
+          legal_authority?: string | null
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          phone?: string | null
+          postal_code?: string | null
+          receives_notifications?: boolean
+          relationship?: string | null
+          resident_id?: string
+          sort_order?: number
+          state?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_contacts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_contacts_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_contacts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_contacts_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resident_documents: {
         Row: {
           compliance_item_id: string | null
@@ -16547,6 +16722,198 @@ export type Database = {
           },
           {
             foreignKeyName: "resident_informal_supports_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_legal_records: {
+        Row: {
+          acknowledged_at: string | null
+          authority_name: string | null
+          created_at: string
+          created_by: string | null
+          document_id: string | null
+          effective_date: string | null
+          expiration_date: string | null
+          facility_id: string
+          id: string
+          organization_id: string
+          record_type: string
+          resident_id: string
+          status: string
+          summary: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          authority_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_id?: string | null
+          effective_date?: string | null
+          expiration_date?: string | null
+          facility_id: string
+          id?: string
+          organization_id: string
+          record_type: string
+          resident_id: string
+          status?: string
+          summary?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          authority_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_id?: string | null
+          effective_date?: string | null
+          expiration_date?: string | null
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          record_type?: string
+          resident_id?: string
+          status?: string
+          summary?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_legal_records_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_legal_records_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "resident_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_legal_records_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_legal_records_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_legal_records_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_property_items: {
+        Row: {
+          active: boolean
+          condition_at_receipt: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          disposition: string | null
+          document_id: string | null
+          facility_id: string
+          id: string
+          item_name: string
+          notes: string | null
+          organization_id: string
+          quantity: number
+          received_on: string | null
+          released_on: string | null
+          resident_acknowledged_at: string | null
+          resident_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          condition_at_receipt?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          disposition?: string | null
+          document_id?: string | null
+          facility_id: string
+          id?: string
+          item_name: string
+          notes?: string | null
+          organization_id: string
+          quantity?: number
+          received_on?: string | null
+          released_on?: string | null
+          resident_acknowledged_at?: string | null
+          resident_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          condition_at_receipt?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          disposition?: string | null
+          document_id?: string | null
+          facility_id?: string
+          id?: string
+          item_name?: string
+          notes?: string | null
+          organization_id?: string
+          quantity?: number
+          received_on?: string | null
+          released_on?: string | null
+          resident_acknowledged_at?: string | null
+          resident_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_property_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_property_items_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "resident_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_property_items_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_property_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_property_items_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
             referencedRelation: "residents"
@@ -16891,76 +17258,163 @@ export type Database = {
         Row: {
           admission_date: string
           admission_track: string
+          advance_directive_status: string
           bed_id: string | null
           case_manager_name: string | null
           case_manager_phone: string | null
+          communication_preferences: string | null
+          contract_document_id: string | null
+          contract_effective_date: string | null
+          contract_status: string
           created_at: string
           date_of_birth: string | null
           dentist_name: string | null
           dentist_phone: string | null
           designated_person_name: string | null
+          dietary_requirements: string | null
           discharge_date: string | null
           facility_id: string
           first_name: string
+          food_allergies: string[]
           hospice: boolean
+          hospice_home_health_agency_name: string | null
+          hospice_home_health_agency_phone: string | null
           id: string
+          insurance_group_number: string | null
+          insurance_member_id: string | null
+          insurance_payer_name: string | null
           last_name: string
+          mobility_summary: string | null
           organization_id: string
+          pharmacy_email: string | null
+          pharmacy_name: string | null
+          pharmacy_phone: string | null
+          photo_document_id: string | null
+          preferred_language: string | null
+          preferred_name: string | null
           primary_physician_name: string | null
           primary_physician_phone: string | null
+          prior_address_city: string | null
+          prior_address_line1: string | null
+          prior_address_line2: string | null
+          prior_address_postal_code: string | null
+          prior_address_state: string | null
+          religious_cultural_preferences: string | null
+          resident_rights_acknowledged_at: string | null
+          resident_rights_document_id: string | null
           room: string | null
           sdcu: boolean
+          secondary_payer_name: string | null
           status: string
+          supervision_requirements: string | null
           updated_at: string
         }
         Insert: {
           admission_date: string
           admission_track?: string
+          advance_directive_status?: string
           bed_id?: string | null
           case_manager_name?: string | null
           case_manager_phone?: string | null
+          communication_preferences?: string | null
+          contract_document_id?: string | null
+          contract_effective_date?: string | null
+          contract_status?: string
           created_at?: string
           date_of_birth?: string | null
           dentist_name?: string | null
           dentist_phone?: string | null
           designated_person_name?: string | null
+          dietary_requirements?: string | null
           discharge_date?: string | null
           facility_id: string
           first_name: string
+          food_allergies?: string[]
           hospice?: boolean
+          hospice_home_health_agency_name?: string | null
+          hospice_home_health_agency_phone?: string | null
           id?: string
+          insurance_group_number?: string | null
+          insurance_member_id?: string | null
+          insurance_payer_name?: string | null
           last_name: string
+          mobility_summary?: string | null
           organization_id: string
+          pharmacy_email?: string | null
+          pharmacy_name?: string | null
+          pharmacy_phone?: string | null
+          photo_document_id?: string | null
+          preferred_language?: string | null
+          preferred_name?: string | null
           primary_physician_name?: string | null
           primary_physician_phone?: string | null
+          prior_address_city?: string | null
+          prior_address_line1?: string | null
+          prior_address_line2?: string | null
+          prior_address_postal_code?: string | null
+          prior_address_state?: string | null
+          religious_cultural_preferences?: string | null
+          resident_rights_acknowledged_at?: string | null
+          resident_rights_document_id?: string | null
           room?: string | null
           sdcu?: boolean
+          secondary_payer_name?: string | null
           status?: string
+          supervision_requirements?: string | null
           updated_at?: string
         }
         Update: {
           admission_date?: string
           admission_track?: string
+          advance_directive_status?: string
           bed_id?: string | null
           case_manager_name?: string | null
           case_manager_phone?: string | null
+          communication_preferences?: string | null
+          contract_document_id?: string | null
+          contract_effective_date?: string | null
+          contract_status?: string
           created_at?: string
           date_of_birth?: string | null
           dentist_name?: string | null
           dentist_phone?: string | null
           designated_person_name?: string | null
+          dietary_requirements?: string | null
           discharge_date?: string | null
           facility_id?: string
           first_name?: string
+          food_allergies?: string[]
           hospice?: boolean
+          hospice_home_health_agency_name?: string | null
+          hospice_home_health_agency_phone?: string | null
           id?: string
+          insurance_group_number?: string | null
+          insurance_member_id?: string | null
+          insurance_payer_name?: string | null
           last_name?: string
+          mobility_summary?: string | null
           organization_id?: string
+          pharmacy_email?: string | null
+          pharmacy_name?: string | null
+          pharmacy_phone?: string | null
+          photo_document_id?: string | null
+          preferred_language?: string | null
+          preferred_name?: string | null
           primary_physician_name?: string | null
           primary_physician_phone?: string | null
+          prior_address_city?: string | null
+          prior_address_line1?: string | null
+          prior_address_line2?: string | null
+          prior_address_postal_code?: string | null
+          prior_address_state?: string | null
+          religious_cultural_preferences?: string | null
+          resident_rights_acknowledged_at?: string | null
+          resident_rights_document_id?: string | null
           room?: string | null
           sdcu?: boolean
+          secondary_payer_name?: string | null
           status?: string
+          supervision_requirements?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -16969,6 +17423,13 @@ export type Database = {
             columns: ["bed_id"]
             isOneToOne: false
             referencedRelation: "facility_beds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "residents_contract_document_id_fkey"
+            columns: ["contract_document_id"]
+            isOneToOne: false
+            referencedRelation: "resident_documents"
             referencedColumns: ["id"]
           },
           {
@@ -16983,6 +17444,20 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "residents_photo_document_id_fkey"
+            columns: ["photo_document_id"]
+            isOneToOne: false
+            referencedRelation: "resident_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "residents_resident_rights_document_id_fkey"
+            columns: ["resident_rights_document_id"]
+            isOneToOne: false
+            referencedRelation: "resident_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -21857,6 +22332,10 @@ export type Database = {
           version_number: number
         }[]
       }
+      get_resident_administrative_packet: {
+        Args: { p_resident_id: string }
+        Returns: Json
+      }
       get_resident_service_task_queue: {
         Args: {
           p_facility_id?: string
@@ -22812,6 +23291,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      save_resident_administrative_master: {
+        Args: { p_contacts?: Json; p_profile: Json; p_resident_id: string }
+        Returns: boolean
+      }
       search_workspace: { Args: { p_query: string }; Returns: Json }
       self_enroll_course: { Args: { p_course_id: string }; Returns: string }
       send_monday_digest: { Args: never; Returns: undefined }
@@ -23424,6 +23907,40 @@ export type Database = {
           p_required_equipment: string
           p_resident_id: string
           p_transportation_needs: string
+        }
+        Returns: string
+      }
+      upsert_resident_legal_record: {
+        Args: {
+          p_acknowledged_at?: string
+          p_authority_name?: string
+          p_document_id?: string
+          p_effective_date?: string
+          p_expiration_date?: string
+          p_record_id?: string
+          p_record_type: string
+          p_resident_id: string
+          p_status: string
+          p_summary?: string
+          p_title: string
+        }
+        Returns: string
+      }
+      upsert_resident_property_item: {
+        Args: {
+          p_active?: boolean
+          p_condition_at_receipt?: string
+          p_description?: string
+          p_disposition?: string
+          p_document_id?: string
+          p_item_id?: string
+          p_item_name: string
+          p_notes?: string
+          p_quantity: number
+          p_received_on?: string
+          p_released_on?: string
+          p_resident_acknowledged_at?: string
+          p_resident_id: string
         }
         Returns: string
       }

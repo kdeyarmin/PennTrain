@@ -9,7 +9,7 @@ create index if not exists shift_assignments_eligibility_decision_idx
   on public.shift_assignments(eligibility_decision_id)
   where eligibility_decision_id is not null;
 
-create table public.service_workload_profiles (
+create table if not exists public.service_workload_profiles (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   facility_id uuid not null references public.facilities(id) on delete cascade,
@@ -31,12 +31,14 @@ create table public.service_workload_profiles (
   unique nulls not distinct (facility_id, unit_id, shift_definition_id)
 );
 
-create index service_workload_profiles_scope_idx
+create index if not exists service_workload_profiles_scope_idx
   on public.service_workload_profiles(facility_id, unit_id, shift_definition_id);
 create trigger set_updated_at before update on public.service_workload_profiles
 for each row execute function public.set_updated_at();
 
 alter table public.service_workload_profiles enable row level security;
+drop policy if exists service_workload_profiles_select on public.service_workload_profiles;
+drop policy if exists service_workload_profiles_manage on public.service_workload_profiles;
 create policy service_workload_profiles_select on public.service_workload_profiles
 for select to authenticated using (
   (select public.is_platform_admin())
@@ -351,7 +353,7 @@ begin
 end;
 $$;
 
-drop trigger enforce_shift_assignment_eligibility on public.shift_assignments;
+drop trigger if exists enforce_shift_assignment_eligibility on public.shift_assignments;
 create or replace function app_private.enforce_shift_assignment_eligibility()
 returns trigger
 language plpgsql
@@ -404,7 +406,7 @@ for each row execute function app_private.enforce_shift_assignment_eligibility()
 -- Direct browser inserts are intentionally closed. All manual assignments use the RPC above;
 -- auto-fill and swap functions still execute as their security-definer owners and hit the trigger.
 revoke insert on table public.shift_assignments from authenticated;
-drop policy shift_assignments_write on public.shift_assignments;
+drop policy if exists shift_assignments_write on public.shift_assignments;
 create policy shift_assignments_update on public.shift_assignments
 for update to authenticated using (
   public.is_platform_admin()
