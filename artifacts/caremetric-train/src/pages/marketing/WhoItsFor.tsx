@@ -25,7 +25,7 @@ const RESIDENT_CARE_POINTS = [
 ];
 
 const OPERATING_MODES = [
-  "Single facility teams that need one clean training record per employee.",
+  "Single facility teams that need one clean operational record for staff, residents, documents, and survey evidence.",
   "Multi-site operators that need rollups without giving every manager global access.",
   "Organizations preparing for audits, licensing surveys, recertification, or ownership transitions.",
 ];
@@ -34,14 +34,14 @@ export default function WhoItsFor() {
   usePageMeta({
     title: "Who It's For — CareMetric Train for PCH, ALF, Group Homes & More",
     description:
-      "CareMetric Train adapts to personal care homes, assisted living facilities, group homes, nursing homes, home health, and hospice agencies -- each with rules matched to their setting.",
+      "CareMetric Train adapts to personal care homes, assisted living facilities, group homes, nursing homes, home health, and hospice agencies -- combining facility operations, compliance evidence, and training rules matched to each setting.",
     path: "/who-its-for",
   });
   return (
     <MarketingLayout>
       <PageHero
         title="Built for every care setting"
-        subtitle="One multi-tenant platform, configured for the training, competency, and documentation rules your organization actually has to follow."
+        subtitle="One multi-tenant platform, configured for the operating, staffing, resident, training, competency, and documentation rules your organization actually has to follow."
       />
 
       <section className="border-b border-border/60 bg-background">
@@ -132,7 +132,7 @@ export default function WhoItsFor() {
               resident-level compliance
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Beyond staff training, CareMetric Train tracks the resident-side
+              Beyond staff requirements, CareMetric Train tracks the resident-side
               regulatory deadlines Chapter 2600 and Chapter 2800 require -- RASP
               and ASP assessments -- as their own compliance domain, not
               employee records mislabeled as resident data.

@@ -26,8 +26,8 @@ function actionLabel(status: string) {
   return "Continue";
 }
 
-// Every course assignment, regardless of due date -- before this page existed, the only place a
-// learner's assignments surfaced at all was the dashboard's "Upcoming Deadlines" widget, which
+// Every training assignment, regardless of due date -- before this page existed, the only place a
+// employee training assignments surfaced at all was the dashboard's "Upcoming Deadlines" widget, which
 // explicitly drops any assignment with a null due_date, making it unreachable in the app
 // (ROADMAP.md Tier 3.4: "assignments without due dates are unreachable today").
 export default function MyCourses() {
@@ -73,7 +73,7 @@ export default function MyCourses() {
 
   // Prefer the employees row org when it exists; fall back to the profile org so that
   // org_admin/auditor who haven't self-enrolled yet (no employees row) still see their org's
-  // published courses in the "Available Courses" list rather than an empty page.
+  // published training items in the "Available Training" list rather than an empty page.
   const effectiveOrgId = employee?.organization_id ?? user?.organizationId ?? undefined;
 
   const allAssignments = assignments ?? [];
@@ -81,7 +81,7 @@ export default function MyCourses() {
 
   // Published courses this account hasn't already been assigned and could actually self-enroll
   // in -- the self-service entry point for any role (not just employee) to start a course on
-  // their own, without waiting for an admin/trainer to assign it via the "Assign Course" dialog.
+  // their own, without waiting for an admin/trainer to assign it via the "Assign Training" dialog.
   // canEnrollInCourse matters for platform_admin specifically: RLS lets that role see every
   // organization's courses, but self_enroll_course only ever accepts system-catalog courses or
   // the caller's own (for platform_admin, always the internal) org's.
@@ -98,7 +98,7 @@ export default function MyCourses() {
     selfEnroll(courseId, {
       onSuccess: (assignmentId) => navigate(`/me/courses/${assignmentId}`),
       onError: (e: Error) => {
-        toast({ title: "Couldn't start course", description: e.message, variant: "destructive" });
+        toast({ title: "Couldn't start training", description: e.message, variant: "destructive" });
       },
     });
   };
@@ -118,15 +118,15 @@ export default function MyCourses() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">My Courses</h1>
-        <p className="text-muted-foreground">Every course assigned to you, plus anything else you can start on your own.</p>
+        <h1 className="text-2xl font-bold tracking-tight">My Training</h1>
+        <p className="text-muted-foreground">Every training item assigned to you, plus anything else you can start on your own.</p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <GraduationCap className="h-5 w-5" />
-            Courses {!isLoading && `(${filtered.length})`}
+            Assigned Training {!isLoading && `(${filtered.length})`}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -144,18 +144,18 @@ export default function MyCourses() {
           </Select>
 
           {assignmentsError ? (
-            <QueryError what="your courses" error={assignmentsErrorDetail} onRetry={() => refetchAssignments()} />
+            <QueryError what="your assigned training" error={assignmentsErrorDetail} onRetry={() => refetchAssignments()} />
           ) : isLoading ? (
             <div className="space-y-2">
               {[...Array(4)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)}
             </div>
           ) : sorted.length === 0 ? (
-            <p className="text-muted-foreground text-sm text-center py-8">No courses assigned yet.</p>
+            <p className="text-muted-foreground text-sm text-center py-8">No training assigned yet.</p>
           ) : (
             <div className="space-y-2">
               {sorted.map(a => {
                 const course = courseById.get(a.course_id);
-                // Urgency only matters while the work is still open -- a completed course's old
+                // Urgency only matters while the work is still open -- a completed training item's old
                 // due date shouldn't shout "overdue."
                 const dueDistance = a.status !== "completed" ? formatDueDistance(a.due_date) : null;
                 const daysLeft = daysUntil(a.due_date);
@@ -168,7 +168,7 @@ export default function MyCourses() {
                 return (
                   <div key={a.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">
                     <div className="min-w-0">
-                      <p className="font-medium truncate">{course?.title ?? "Course"}</p>
+                      <p className="font-medium truncate">{course?.title ?? "Training item"}</p>
                       <p className="text-xs text-muted-foreground">
                         {a.due_date ? `Due ${formatDateForDisplay(a.due_date)}` : "No due date"}
                         {dueDistance && <span className={dueTone}> · {dueDistance}</span>}
@@ -195,19 +195,19 @@ export default function MyCourses() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BookOpen className="h-5 w-5" />
-            Available Courses {!coursesReadyLoading && `(${availableCourses.length})`}
+            Available Training {!coursesReadyLoading && `(${availableCourses.length})`}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {coursesError ? (
-            <QueryError what="available courses" error={coursesErrorDetail} onRetry={() => refetchCourses()} />
+            <QueryError what="available training" error={coursesErrorDetail} onRetry={() => refetchCourses()} />
           ) : coursesReadyLoading ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)}
             </div>
           ) : availableCourses.length === 0 ? (
             <p className="text-muted-foreground text-sm text-center py-8">
-              No other published courses to start right now.
+              No other published training items to start right now.
             </p>
           ) : (
             availableCourses.map(course => (

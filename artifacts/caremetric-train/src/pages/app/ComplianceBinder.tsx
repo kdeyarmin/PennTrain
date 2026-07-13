@@ -72,7 +72,7 @@ export default function ComplianceBinder() {
           <p className="text-sm text-muted-foreground">
             Generates a single PDF, rebuilt from live data every time, covering roughly a dozen compliance areas:
             a citation-weighted DHS readiness summary, the facility roster and resident census (including resident
-            names and other PII), staff training and practicum compliance with overdue detail, certificates
+            names and other PII), staff requirements and practicum compliance with overdue detail, certificates
             issued, open alerts, policy attestation status with a signed ESIGN/UETA audit trail (who signed what,
             when, and from where), employee credentials &amp; clearances, a reportable incidents log, inspection
             items/equipment with open corrective actions, and resident RASP compliance. Exports prepare in the

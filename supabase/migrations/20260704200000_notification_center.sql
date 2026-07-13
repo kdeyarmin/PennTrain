@@ -1,4 +1,4 @@
--- Personal, per-profile notification feed (course assignments, quiz results,
+-- Personal, per-profile notification feed (training assignments, quiz results,
 -- certificates, competency evaluations, training due/expired) across every
 -- role. This is deliberately separate from `alerts`, which its own comment
 -- documents as "internal ops tool: admin/facility roles only, no employee
@@ -78,7 +78,7 @@ begin
   insert into public.notifications (organization_id, profile_id, notification_type, title, body, link)
   values (
     new.organization_id, v_profile_id, 'course_assigned',
-    'New course assigned',
+    'New training assigned',
     coalesce(v_course_title, 'A course') ||
       case when new.due_date is not null then ' — due ' || to_char(new.due_date, 'Mon DD, YYYY') else '' end,
     '/me/courses/' || new.id

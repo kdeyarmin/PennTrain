@@ -199,7 +199,7 @@ export default function CourseDetail() {
   const { data: employee } = useGetEmployeeByProfileId(user?.id);
   // Prefer the employees row org when it exists; fall back to the profile org so that
   // org_admin/auditor who haven't self-enrolled yet (no employees row) still see the
-  // "Take This Course" button for their org's published courses.
+  // "Start Training" button for their org's published training content.
   const effectiveOrgId = employee?.organization_id ?? user?.organizationId ?? undefined;
 
   const { mutate: selfEnroll, isPending: enrolling } = useSelfEnrollCourse();
@@ -207,15 +207,15 @@ export default function CourseDetail() {
     if (!course) return;
     if (!canTakeCourse) {
       toast({
-        title: "Course is not ready yet",
-        description: "A published, reviewed course version is required before learners can start.",
+        title: "Training is not ready yet",
+        description: "A published, reviewed training version is required before employees can start.",
         variant: "destructive",
       });
       return;
     }
     selfEnroll(course.id, {
       onSuccess: assignmentId => navigate(`/me/courses/${assignmentId}`),
-      onError: (e: Error) => toast({ title: "Couldn't start course", description: e.message, variant: "destructive" }),
+      onError: (e: Error) => toast({ title: "Couldn't start training", description: e.message, variant: "destructive" }),
     });
   };
 
@@ -294,7 +294,7 @@ export default function CourseDetail() {
 
     return [
       {
-        label: "Course content is present",
+        label: "Training content is present",
         passed: versionBlocks.length > 0 && !hasIssue(["content block"]),
         detail: versionBlocks.length > 0 ? `${versionBlocks.length} block${versionBlocks.length === 1 ? "" : "s"} in this version.` : "Add at least one block.",
       },
@@ -323,7 +323,7 @@ export default function CourseDetail() {
       {
         label: "Student preview and mobile layout reviewed",
         passed: studentPreviewChecked,
-        detail: "Open the student preview and confirm the content is easy to take on a learner-sized screen.",
+        detail: "Open the student preview and confirm the content is easy to take on an employee-sized screen.",
       },
     ];
   }, [blocks, publishIssues, publishIssuesLoading, studentPreviewChecked]);
@@ -362,8 +362,8 @@ export default function CourseDetail() {
         training_type_id: courseForm.trainingTypeId === NO_TRAINING_TYPE ? null : courseForm.trainingTypeId,
       },
       {
-        onSuccess: () => { toast({ title: "Course updated" }); setShowEditCourse(false); },
-        onError: (e: Error) => toast({ title: "Failed to update course", description: e.message, variant: "destructive" }),
+        onSuccess: () => { toast({ title: "Training content updated" }); setShowEditCourse(false); },
+        onError: (e: Error) => toast({ title: "Failed to update training content", description: e.message, variant: "destructive" }),
       },
     );
   };
@@ -435,7 +435,7 @@ export default function CourseDetail() {
       setSelectedVersionId(version.id);
       toast({
         title: "Review the student preview first",
-        description: "Open the preview, check the learner experience, then mark the checklist item before publishing.",
+        description: "Open the preview, check the employee training experience, then mark the checklist item before publishing.",
         variant: "destructive",
       });
       return;
@@ -525,7 +525,7 @@ export default function CourseDetail() {
     if (!courseDocumentUploadFacility) {
       toast({
         title: "No facility available for document ownership",
-        description: "Create or select a facility before uploading a course document.",
+        description: "Create or select a facility before uploading a training document.",
         variant: "destructive",
       });
       return;
@@ -861,9 +861,9 @@ export default function CourseDetail() {
   if (!course) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Course not found.</p>
+        <p className="text-muted-foreground">Training content not found.</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href={coursesListPath(user?.role)}>Back to Courses</Link>
+          <Link href={coursesListPath(user?.role)}>Back to Training Content</Link>
         </Button>
       </div>
     );
@@ -892,7 +892,7 @@ export default function CourseDetail() {
               {course.organization_id === null ? (
                 <Badge variant="outline" className="text-[10px] font-medium">System Catalog</Badge>
               ) : (
-                <Badge variant="secondary" className="text-[10px] font-medium">Org Course</Badge>
+                <Badge variant="secondary" className="text-[10px] font-medium">Org Training</Badge>
               )}
               {selectedVersion?.ai_generated && (
                 <Badge variant="outline" className="text-[10px] font-medium bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-50">
@@ -906,7 +906,7 @@ export default function CourseDetail() {
           {course.status === "published" && canEnrollInCourse(course, effectiveOrgId) && (
             <Button variant="outline" size="sm" onClick={handleTakeCourse} disabled={enrolling || !canTakeCourse}>
               {enrolling ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-2 h-3.5 w-3.5" />}
-              {canTakeCourse ? "Take This Course" : "Course Not Ready"}
+              {canTakeCourse ? "Start Training" : "Training Not Ready"}
             </Button>
           )}
           {canManage && (
@@ -935,7 +935,7 @@ export default function CourseDetail() {
             <p className="text-sm">{course.estimated_duration_minutes ? `${course.estimated_duration_minutes} minutes` : "—"}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Learner Rating</p>
+            <p className="text-xs text-muted-foreground">Employee Rating</p>
             {feedbackSummary.count > 0 ? (
               <p className="text-sm flex items-center gap-1.5">
                 <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
@@ -971,7 +971,7 @@ export default function CourseDetail() {
             <div className="text-center py-8">
               <p className="text-sm text-muted-foreground">No versions yet.</p>
               {canManage && (
-                <p className="text-xs text-muted-foreground/70 mt-1">Create the first draft version to start authoring this course.</p>
+                <p className="text-xs text-muted-foreground/70 mt-1">Create the first draft version to start authoring this training content.</p>
               )}
             </div>
           ) : (
@@ -1105,7 +1105,7 @@ export default function CourseDetail() {
                 onCheckedChange={checked => setStudentPreviewChecked(checked === true)}
               />
               <Label htmlFor="student-preview-reviewed" className="text-sm font-normal cursor-pointer">
-                I reviewed the student preview on a learner-sized screen
+                I reviewed the student preview on an employee-sized screen
               </Label>
             </div>
           </CardContent>
@@ -1293,7 +1293,7 @@ export default function CourseDetail() {
       {/* Edit course metadata */}
       <Dialog open={showEditCourse} onOpenChange={o => { if (!o) setShowEditCourse(false); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Edit Course</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Edit Training Content</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1">
               <Label>Title *</Label>
@@ -1321,10 +1321,10 @@ export default function CourseDetail() {
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              This is the course's catalog status. It's independent of the per-version publish workflow below.
+              This is the training item's catalog status. It's independent of the per-version publish workflow below.
             </p>
             <div className="space-y-1">
-              <Label>Compliance Training Type</Label>
+              <Label>Training Requirement Type</Label>
               <Select value={courseForm.trainingTypeId} onValueChange={v => setCourseForm(f => ({ ...f, trainingTypeId: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -1335,7 +1335,7 @@ export default function CourseDetail() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                When a learner completes this course, it automatically records (or refreshes) their training record
+                When an employee completes this training item, it automatically records (or refreshes) their training record
                 for this requirement, so their annual-hours and due-date tracking update immediately.
               </p>
             </div>
@@ -1377,7 +1377,7 @@ export default function CourseDetail() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="rounded-md border p-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-normal">Course</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-normal">Training item</p>
               <h2 className="text-xl font-semibold">{course.title}</h2>
               {course.description && <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap">{course.description}</p>}
             </div>
@@ -1503,7 +1503,7 @@ export default function CourseDetail() {
                   <Textarea
                     value={blockForm.videoTranscript}
                     onChange={e => setBlockForm(f => ({ ...f, videoTranscript: e.target.value }))}
-                    placeholder="Paste transcript text or caption notes for learners who cannot use audio"
+                    placeholder="Paste transcript text or caption notes for employees who cannot use audio"
                     rows={4}
                   />
                 </div>

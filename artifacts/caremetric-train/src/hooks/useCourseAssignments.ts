@@ -56,7 +56,7 @@ export interface ListCourseAssignmentsPaginatedFilters extends ListCourseAssignm
   pageSize: number;
 }
 
-// Server-side pagination for the Course Assignments admin table -- mirrors useEmployees.ts's
+// Server-side pagination for the Training Assignments admin table -- mirrors useEmployees.ts's
 // useListEmployeesPaginated .range()-based pattern. course_assignments "can run into the
 // thousands for a mid-size org" (see CourseAssignments.tsx's own note), so unlike
 // useListCourseAssignments above (left unbounded -- MyCourses.tsx, TrainingPlans.tsx, and

@@ -12,7 +12,7 @@
 -- requires the assignment to be status='completed') to mint a real, publicly verifiable
 -- certificate for a course whose competency check they never passed.
 --
--- Fix: when v_is_self (a learner completing their OWN assignment -- the only path this whole
+-- Fix: when v_is_self (an employee completing their OWN assignment -- the only path this whole
 -- integrity control section already gates), also require every quiz block under the assignment's
 -- course_version_id to have at least one quiz_attempts row with passed=true for this assignment.
 -- Mirrors the existing seat-time check's scope and error style exactly; an admin/trainer completing
@@ -41,7 +41,7 @@ begin
 
   select * into v_course from public.courses where id = v_course_id;
 
-  -- Completion-integrity control: a learner completing their OWN assignment must have had the
+  -- Completion-integrity control: an employee completing their OWN assignment must have had the
   -- course open for a minimum stretch of time proportional to its nominal length (10%, floor 60
   -- seconds), so a 12-hour course clicked through in 90 seconds cannot become defensible survey
   -- evidence. Only gates the self-completion path (v_is_self) -- an admin/trainer completing a
@@ -56,7 +56,7 @@ begin
     if extract(epoch from (now() - v_progress.started_at)) < v_min_seconds then
       raise exception 'This course needs to stay open for at least % minute(s) before it can be marked complete -- % minute(s) have elapsed so far.',
         ceil(v_min_seconds / 60.0), floor(extract(epoch from (now() - v_progress.started_at)) / 60.0)
-        using errcode = 'check_violation', hint = 'Continue through the course content, then try again.';
+        using errcode = 'check_violation', hint = 'Continue through the training content, then try again.';
     end if;
 
     if exists (
@@ -81,7 +81,7 @@ begin
      set status = 'completed', completed_at = now()
    where id = p_assignment_id;
 
-  -- LMS-compliance bridge: if this course satisfies a specific annual-hours training type, record
+  -- training-compliance bridge: if this course satisfies a specific annual-hours training type, record
   -- (or refresh) the matching employee_training_records row -- "find current record, else insert",
   -- mirroring the manual-entry UI's findCurrentRecord pattern (EmployeeDetail.tsx/TrainingMatrix.tsx)
   -- rather than accumulating a duplicate row per completion.
@@ -96,7 +96,7 @@ begin
       set completion_date = current_date,
           status = 'compliant',
           completion_method = 'online',
-          training_provider = 'CareMetric Train LMS',
+          training_provider = 'CareMetric Train Training Suite',
           hours = round(coalesce(v_course.estimated_duration_minutes, 0) / 60.0, 2),
           notes = 'Auto-recorded on completion of course "' || v_course.title || '".'
       where id = v_record_id;
@@ -107,7 +107,7 @@ begin
       )
       select v_org, e.facility_id, v_emp, v_course.training_type_id,
         current_date, 'compliant', round(coalesce(v_course.estimated_duration_minutes, 0) / 60.0, 2),
-        'online', 'CareMetric Train LMS', 'Auto-recorded on completion of course "' || v_course.title || '".'
+        'online', 'CareMetric Train Training Suite', 'Auto-recorded on completion of course "' || v_course.title || '".'
       from public.employees e where e.id = v_emp;
     end if;
   end if;

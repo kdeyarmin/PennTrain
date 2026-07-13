@@ -123,11 +123,11 @@ export default function TakeCourse() {
 
   // Every role can reach this page now (App.tsx's ANY_ROLE), but /me/trainings and
   // /me/certificates stay employee-only routes -- routing anyone else there would just bounce
-  // them straight back out via ProtectedRoute. /me/courses is the one "/me/*" destination every
+  // them straight back out via ProtectedRoute. /me/courses is the one training-assignment destination every
   // role can actually land on.
   const isEmployeeRole = user?.role === "employee";
   const backHref = isEmployeeRole ? "/me/trainings" : "/me/courses";
-  const backLabel = isEmployeeRole ? "Back to My Trainings" : "Back to My Courses";
+  const backLabel = isEmployeeRole ? "Back to My Trainings" : "Back to My Training";
 
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
   const { data: assignment, isLoading: assignmentLoading } = useGetCourseAssignment(assignmentId);
@@ -154,21 +154,21 @@ export default function TakeCourse() {
   const videoStateRef = useRef<Record<string, VideoBlockState>>({});
   const [videoStateLoadedForId, setVideoStateLoadedForId] = useState<string | null>(null);
 
-  // Tracks the furthest lesson the learner has ever reached, so the lesson-stepper pills below can
+  // Tracks the furthest lesson the employee has ever reached, so the lesson-stepper pills below can
   // allow jumping back to any already-visited lesson while still blocking a jump ahead of it. Starts
   // at 0 and only grows -- moving stepIndex backward (Previous, or a pill click) never lowers it, so
   // "visited" stays visited even after navigating away from it. Also picks up the resumed starting
   // step once progress loads (the effect below re-fires whenever stepIndex changes, including that
-  // one-time jump), so a learner resuming mid-course sees every prior lesson already unlocked.
+  // one-time jump), so an employee resuming mid-training sees every prior lesson already unlocked.
   const [furthestIndex, setFurthestIndex] = useState(0);
   useEffect(() => {
     setFurthestIndex(f => Math.max(f, stepIndex));
   }, [stepIndex]);
 
   // Post-completion rating prompt state. postCompleteDestination tracks where to navigate once
-  // the learner submits or skips the rating: newly completed employee courses go to the issued
+  // the employee submits or skips the rating: newly completed employee training items go to the issued
   // certificate, someone rating an older completion can still return to trainings, and non-
-  // employee self-learners return to the role-safe course list.
+  // non-employee self-training users return to the role-safe training list.
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
   const [postCompleteDestination, setPostCompleteDestination] = useState<"/me/certificates" | "/me/trainings" | "/me/courses">(
     isEmployeeRole ? "/me/certificates" : "/me/courses",
@@ -193,7 +193,7 @@ export default function TakeCourse() {
 
   // Hydrate study aids once per assignment, after the progress row settles: the server
   // copy (course_progress.learning_tools) is the source of truth so notes follow the
-  // learner across devices; localStorage is adopted only when the server has nothing --
+  // employee across devices; localStorage is adopted only when the server has nothing --
   // the one-time migration path for notes written before server sync existed (the
   // debounced save below then persists them).
   useEffect(() => {
@@ -206,7 +206,7 @@ export default function TakeCourse() {
       // the regulated source-of-truth progress row from loading or saving normally.
       local = parseLearningToolsState(window.localStorage.getItem(key));
     } catch (e) {
-      console.warn("Unable to load local course learning tools:", (e as Error).message);
+      console.warn("Unable to load local training study tools:", (e as Error).message);
       setLearningToolsStorageError("Local notes are unavailable in this browser session.");
     }
     const server = sanitizeLearningToolsState(progress?.learning_tools);
@@ -234,7 +234,7 @@ useEffect(() => {
       setLearningToolsStorageError(null);
       setLastStudyToolsSavedAt(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
     } catch (e) {
-      console.warn("Unable to save local course learning tools:", (e as Error).message);
+      console.warn("Unable to save local training study tools:", (e as Error).message);
       setLearningToolsStorageError("Your notes could not be saved locally in this browser session.");
     }
   }, 300);
@@ -303,7 +303,7 @@ useEffect(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonNotes, lessonConfidence, lessonToolsLoadedForId]);
 
-  // Resume where the learner left off (course_progress.last_block_id), once,
+  // Resume where the employee left off (course_progress.last_block_id), once,
   // as soon as blocks are loaded. If there's no progress row yet (brand new
   // assignment) or the stored block no longer exists, we simply start at 0.
   useEffect(() => {
@@ -352,7 +352,7 @@ useEffect(() => {
 
   // Reliable progress checkpointing on mobile (ROADMAP.md Tier 3.4): the stepIndex-triggered save
   // above only fires on Previous/Next, so backgrounding the tab mid-block (locking the phone,
-  // switching apps) mid-lesson would otherwise lose that lesson's progress until the learner
+  // switching apps) mid-lesson would otherwise lose that lesson's progress until the employee
   // navigates again. `visibilitychange` fires reliably when a mobile browser is backgrounded,
   // unlike `beforeunload`, which mobile Safari/Chrome do not reliably fire.
   useEffect(() => {
@@ -411,17 +411,17 @@ useEffect(() => {
 
   // ---------------------------------------------------------------------
   // Sequencing decision (documented per task): a quiz block gates forward
-  // progress. The learner cannot move past the currently-displayed quiz
-  // block -- via Next, or via "Mark Course Complete" if it's the last
+  // progress. The employee cannot move past the currently-displayed quiz
+  // block -- via Next, or via "Mark Training Complete" if it's the last
   // block -- until at least one attempt on that quiz has `passed`.
   // Non-quiz blocks never gate. Because this check runs against whichever
-  // block is currently on screen, and the learner must click through every
+  // block is currently on screen, and the employee must click through every
   // block in order to reach the end, this transitively requires passing
-  // *every* quiz block in the course before completion is reachable --
-  // without having to bulk-resolve every quiz in the course up front.
+  // *every* quiz block in the training item before completion is reachable --
+  // without having to bulk-resolve every quiz in the training item up front.
   // ---------------------------------------------------------------------
   // Video blocks gate the same way when the org has released the watch gate:
-  // the learner can't move past an unwatched video. Completed assignments are
+  // the employee can't move past an unwatched video. Completed assignments are
   // never re-locked (review mode), and videos finished before the flag was
   // enabled already carry completedAt from the resume tracking.
   const isVideoBlock = currentBlock?.block_type === "video" && !!currentBlock?.video_url;
@@ -456,7 +456,7 @@ useEffect(() => {
 
   const handleCopyStudyGuide = async () => {
     if (!blocks || !hasStudyGuideEntries) return;
-    const guide = buildStudyGuide(course?.title ?? "Course", blocks, lessonNotes, lessonConfidence);
+    const guide = buildStudyGuide(course?.title ?? "Training item", blocks, lessonNotes, lessonConfidence);
     try {
       await navigator.clipboard.writeText(guide);
       toast({ title: "Study guide copied", description: "Your notes and confidence checks are ready to paste elsewhere." });
@@ -467,18 +467,18 @@ useEffect(() => {
 
   const handleClearLocalLearningTools = () => {
     if (!hasStudyGuideEntries) return;
-    const confirmed = window.confirm("Clear your notes and confidence checks for this course on this device?");
+    const confirmed = window.confirm("Clear your notes and confidence checks for this training item on this device?");
     if (!confirmed) return;
     const key = lessonStorageKey(assignmentId);
     try {
       if (key) window.localStorage.removeItem(key);
     } catch (e) {
-      console.warn("Unable to clear local course learning tools:", (e as Error).message);
+      console.warn("Unable to clear local training study tools:", (e as Error).message);
     }
     setLessonNotes({});
     setLessonConfidence({});
     setLastStudyToolsSavedAt(null);
-    toast({ title: "Local study tools cleared", description: "Your course progress and quiz attempts were not changed." });
+    toast({ title: "Local study tools cleared", description: "Your training progress and quiz attempts were not changed." });
   };
 
 useEffect(() => {
@@ -509,11 +509,11 @@ useEffect(() => {
       onSuccess: () => {
         // Certificate issuance is part of the same database transaction. A successful response
         // guarantees there is exactly one certificate, even after retries or concurrent clicks.
-        toast({ title: "Course completed", description: "Certificate issued -- nice work!" });
+        toast({ title: "Training completed", description: "Certificate issued -- nice work!" });
         setPostCompleteDestination(isEmployeeRole ? "/me/certificates" : "/me/courses");
         setShowRatingPrompt(true);
       },
-      onError: (e: Error) => toast({ title: "Failed to complete course", description: e.message, variant: "destructive" }),
+      onError: (e: Error) => toast({ title: "Failed to complete training", description: e.message, variant: "destructive" }),
     });
   };
 
@@ -530,7 +530,7 @@ useEffect(() => {
         course_id: assignment.course_id,
         employee_id: assignment.employee_id,
         // Courses can be system-catalog (organization_id null); course_feedback is always
-        // org-scoped, so this stamps the learner's own org rather than the course's.
+        // org-scoped, so this stamps the employee's own org rather than the course's.
         organization_id: employee.organization_id,
         rating: ratingValue,
         comment: ratingComment.trim() || null,
@@ -562,7 +562,7 @@ useEffect(() => {
   if (!employee || !assignment || assignment.employee_id !== employee.id) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Course assignment not found.</p>
+        <p className="text-muted-foreground">Training assignment not found.</p>
         <Button asChild className="mt-4" variant="outline">
           <Link href={backHref}><ArrowLeft className="mr-2 h-4 w-4" /> {backLabel}</Link>
         </Button>
@@ -581,7 +581,7 @@ useEffect(() => {
       </div>
 
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{course?.title ?? "Course"}</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{course?.title ?? "Training item"}</h1>
         <div className="flex items-center gap-2 mt-1">
           {alreadyCompleted ? (
             <Badge>Completed</Badge>
@@ -604,7 +604,7 @@ useEffect(() => {
         <Card>
           <CardContent className="py-8">
             <p className="text-sm text-muted-foreground text-center">
-              This course doesn't have any content yet. Check back later.
+              This training item doesn't have any content yet. Check back later.
             </p>
           </CardContent>
         </Card>
@@ -678,7 +678,7 @@ useEffect(() => {
 
           {blocks.length > 1 && (
             <div className="space-y-1.5">
-              <p className="text-xs text-muted-foreground">Course map: revisit completed steps, track what is locked, and see what comes next.</p>
+              <p className="text-xs text-muted-foreground">Training map: revisit completed steps, track what is locked, and see what comes next.</p>
               <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Lesson navigation">
                 {blocks.map((b, i) => {
                   const isCurrent = i === stepIndex;
@@ -828,7 +828,7 @@ useEffect(() => {
                   <div className="rounded-lg border bg-info/10 p-3 text-sm text-info-foreground">
                     <p className="font-medium">Passing this knowledge check unlocks the next lesson.</p>
                     <p className="mt-1 text-muted-foreground">
-                      If you miss the passing score, revisit earlier lessons using the course map and try again.
+                      If you miss the passing score, revisit earlier lessons using the training map and try again.
                     </p>
                   </div>
                   {currentQuizPassed && (
@@ -931,7 +931,7 @@ useEffect(() => {
               alreadyCompleted ? (
                 <div className="flex items-center gap-3">
                   <Badge className="px-3 py-1.5">
-                    <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Course Completed
+                    <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Training Completed
                   </Badge>
                   {!existingFeedback && (
                     <Button
@@ -940,14 +940,14 @@ useEffect(() => {
                       className="h-auto p-0 text-xs"
                       onClick={() => { setPostCompleteDestination("/me/trainings"); setShowRatingPrompt(true); }}
                     >
-                      Rate this course
+                      Rate this training
                     </Button>
                   )}
                 </div>
               ) : (
                 <Button onClick={handleComplete} disabled={!canAdvance || completeAssignment.isPending}>
                   <CheckCircle2 className="mr-2 h-4 w-4" />
-                  {completeAssignment.isPending ? "Completing..." : "Mark Course Complete"}
+                  {completeAssignment.isPending ? "Completing..." : "Mark Training Complete"}
                 </Button>
               )
             ) : (
@@ -978,7 +978,7 @@ useEffect(() => {
           </p>
           {isLastBlock && !alreadyCompleted && needsReviewCount > 0 && (
             <p className="text-xs text-warning text-right">
-              You can complete the course, but {needsReviewCount} lesson{needsReviewCount === 1 ? "" : "s"} are still marked for review.
+              You can complete the training item, but {needsReviewCount} lesson{needsReviewCount === 1 ? "" : "s"} are still marked for review.
             </p>
           )}
         </>
@@ -986,10 +986,10 @@ useEffect(() => {
 
       <Dialog open={showRatingPrompt} onOpenChange={(o) => { if (!o) handleSkipRating(); }}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Rate this course</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Rate this training</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              How helpful was "{course?.title ?? "this course"}"? Your feedback helps trainers improve it.
+              How helpful was "{course?.title ?? "this training item"}"? Your feedback helps trainers improve it.
             </p>
             <div className="flex items-center gap-1">
               {[1, 2, 3, 4, 5].map((n) => (

@@ -24,7 +24,7 @@ const PROOF_CHAIN = [
     icon: Workflow,
     title: "Workflow",
     description:
-      "Assign the right action to the right role: employee course, trainer class, manager review, admin approval, or auditor read-only review.",
+      "Assign the right action to the right role: employee training, trainer class, manager review, admin approval, or auditor read-only review.",
   },
   {
     icon: FileSearch,
@@ -35,23 +35,23 @@ const PROOF_CHAIN = [
 ];
 
 const FEATURE_OUTCOMES = [
-  "Replace spreadsheets, binders, shared drives, and one-off LMS exports.",
+  "Replace spreadsheets, binders, shared drives, scheduler workarounds, and disconnected training exports.",
   "See overdue, expiring, completed, and missing evidence before survey day.",
   "Give each role a secure workspace instead of a generic admin dashboard.",
 ];
 
 export default function Features() {
   usePageMeta({
-    title: "Features — CareMetric Train Compliance & Training Platform",
+    title: "Features — CareMetric Train Facility Management Software",
     description:
-      "See every CareMetric Train feature: training LMS, resident assessments, incident and inspection tracking, AI course generation, credential screening, and shift scheduling in one platform.",
+      "See every CareMetric Train feature: facility operations, staff compliance, resident assessments, incident and inspection tracking, AI training-content generation, credential screening, and shift scheduling in one platform.",
     path: "/features",
   });
   return (
     <MarketingLayout>
       <PageHero
         title="Everything compliance requires. Nothing it doesn't."
-        subtitle="CareMetric Train combines an LMS, credential tracker, resident-assessment log, incident and inspection register, live-class log, AI course studio, staff scheduler, document vault, alert center, and compliance binder into one workflow."
+        subtitle="CareMetric Train combines facility operations, staff compliance, resident-assessment tracking, incident and inspection registers, training delivery, live-class logs, AI training-content studio, staff scheduler, document vault, alert center, and compliance binder into one workflow."
       />
 
       <section className="border-b border-border/60 bg-muted/30">

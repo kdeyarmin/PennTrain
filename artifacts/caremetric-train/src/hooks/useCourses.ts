@@ -46,7 +46,7 @@ export function useCourseVersionPublishIssues(versionId: string | undefined, ena
 // entirely -- see ListCoursesFilters.systemOnly above), but self_enroll_course rejects enrolling
 // in a course whose organization_id doesn't match the caller's own employee record (a
 // platform_admin's is always the dedicated internal org, never a real tenant's). Without this,
-// a platform_admin's "Available Courses"/"Take This Course" would offer every tenant's courses,
+// a platform_admin's "Available Training"/"Start Training" would offer every tenant's courses,
 // each guaranteed to fail with a destructive error toast the moment they're clicked.
 export function canEnrollInCourse(course: Pick<Course, "organization_id">, employeeOrganizationId: string | undefined): boolean {
   return course.organization_id === null || course.organization_id === employeeOrganizationId;

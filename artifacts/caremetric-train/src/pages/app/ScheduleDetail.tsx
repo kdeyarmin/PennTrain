@@ -159,7 +159,7 @@ export default function ScheduleDetail() {
 
   // Applies the same shift to every selected employee in one batch via Promise.allSettled (so one
   // employee's conflict doesn't block the rest), then reports a single summary toast -- mirrors
-  // the bulk-assignment pattern used elsewhere in this app (e.g. CourseAssignments' Assign Course).
+  // the bulk-assignment pattern used elsewhere in this app (e.g. CourseAssignments' Assign Training).
   async function handleAdd() {
     if (!addTarget || !schedule || addEmployeeIds.size === 0 || !addForm.shiftDefinitionId) {
       toast({ title: "Pick at least one employee and a shift", variant: "destructive" });

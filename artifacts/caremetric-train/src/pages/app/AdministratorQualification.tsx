@@ -161,11 +161,11 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
           {profile?.qualification_path === "hundred_hour_course" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t">
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Course Completed Date</Label>
+                <Label className="text-[13px]">Training Course Completed Date</Label>
                 <Input type="date" defaultValue={profile.hundred_hour_course_completed_date ?? ""} onBlur={(e) => save({ hundred_hour_course_completed_date: e.target.value || null })} className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Course Provider</Label>
+                <Label className="text-[13px]">Training Course Provider</Label>
                 <Input defaultValue={profile.hundred_hour_course_provider ?? ""} onBlur={(e) => save({ hundred_hour_course_provider: e.target.value || null })} className="h-9" />
               </div>
               <label className="flex items-center gap-2 text-sm sm:col-span-2">
@@ -178,7 +178,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
               </div>
               <div className="sm:col-span-2">
                 <DocumentUploadRow
-                  label="Course Certificate"
+                  label="Training Course Certificate"
                   path={profile.hundred_hour_course_document_path}
                   organizationId={organizationId}
                   profileId={profileId}

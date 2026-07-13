@@ -88,7 +88,7 @@ function ProgressDialog({ assignmentId, onClose }: { assignmentId: string | null
     <Dialog open={!!assignmentId} onOpenChange={o => { if (!o) onClose(); }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Course Progress</DialogTitle>
+          <DialogTitle>Training Progress</DialogTitle>
         </DialogHeader>
         {isLoading ? (
           <div className="h-16 bg-muted animate-pulse rounded" />
@@ -131,7 +131,7 @@ export default function CourseAssignments() {
   const [downloadingCertId, setDownloadingCertId] = useState<string | null>(null);
 
   // RLS also lets an employee complete their own assignment, but that
-  // self-service path lives on the learner-facing page -- this admin view
+  // self-service path lives on the employee training page -- this admin view
   // only exposes "Mark Complete" to non-employee managing roles.
   const canManage = ["org_admin", "facility_manager", "trainer"].includes(user?.role ?? "");
 
@@ -180,7 +180,7 @@ export default function CourseAssignments() {
     return map;
   }, [allCourseVersions]);
 
-  // Only courses with at least one published, learner-ready version are worth assigning. This
+  // Only courses with at least one published, employee-ready training version are worth assigning. This
   // keeps managers from selecting a catalog-published course whose current version is still a
   // draft or whose AI-generated content has not completed the required review.
   const publishedCourses = useMemo(
@@ -294,7 +294,7 @@ export default function CourseAssignments() {
   // doesn't stop the rest, then reports one summary toast instead of one per employee.
   const handleAssign = async () => {
     if (selectedEmployeeIds.size === 0 || !assignForm.courseId) {
-      toast({ title: "Select at least one employee and a course", variant: "destructive" });
+      toast({ title: "Select at least one employee and training item", variant: "destructive" });
       return;
     }
     const course = courseById.get(assignForm.courseId);
@@ -307,7 +307,7 @@ export default function CourseAssignments() {
 
     const versionId = assignForm.courseVersionId || defaultVersion?.id;
     if (!versionId) {
-      toast({ title: "This course has no published version to assign", variant: "destructive" });
+      toast({ title: "This training item has no published version to assign", variant: "destructive" });
       return;
     }
     const courseId = course.id;
@@ -335,7 +335,7 @@ export default function CourseAssignments() {
     const succeeded = results.filter(r => r.status === "fulfilled").length;
     const failed = results.length - succeeded;
     toast({
-      title: failed === 0 ? "Course assigned" : succeeded === 0 ? "Failed to assign course" : "Course partially assigned",
+      title: failed === 0 ? "Training assigned" : succeeded === 0 ? "Failed to assign training" : "Training partially assigned",
       description:
         `${succeeded} of ${results.length} employee${results.length === 1 ? "" : "s"} assigned successfully.`
         + (failed > 0 ? ` ${failed} failed.` : ""),
@@ -382,12 +382,12 @@ export default function CourseAssignments() {
     <div className="space-y-6">
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1>Course Assignments</h1>
-          <p>Assign courses to employees and track completion.</p>
+          <h1>Training Assignments</h1>
+          <p>Assign required training to employees and track completion.</p>
         </div>
         {canManage && (
           <Button onClick={openAssign} className="shadow-sm">
-            <UserPlus className="mr-2 h-4 w-4" /> Assign Course
+            <UserPlus className="mr-2 h-4 w-4" /> Assign Training
           </Button>
         )}
       </div>
@@ -428,7 +428,7 @@ export default function CourseAssignments() {
           <div className="relative flex-1 min-w-48">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by employee or course..."
+              placeholder="Search by employee or training item..."
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               className="pl-9 h-9 bg-card"
@@ -465,7 +465,7 @@ export default function CourseAssignments() {
         ) : paginated.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
             <ClipboardList className="h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm font-medium text-muted-foreground">No course assignments found</p>
+            <p className="text-sm font-medium text-muted-foreground">No training assignments found</p>
             <p className="text-xs text-muted-foreground/60 mt-1">Try adjusting your search or filters</p>
           </div>
         ) : (
@@ -475,7 +475,7 @@ export default function CourseAssignments() {
                 <thead>
                   <tr>
                     <th>Employee</th>
-                    <th>Course</th>
+                    <th>Training item</th>
                     <th>Status</th>
                     <th>Due Date</th>
                     <th>Completed</th>
@@ -582,13 +582,13 @@ export default function CourseAssignments() {
       <Dialog open={showAssignForm} onOpenChange={o => { if (!o) setShowAssignForm(false); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Assign Course</DialogTitle>
+            <DialogTitle>Assign Training</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Course *</Label>
+              <Label className="text-[13px]">Training item *</Label>
               <Select value={assignForm.courseId} onValueChange={handleCourseChange}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Select course" /></SelectTrigger>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Select training item" /></SelectTrigger>
                 <SelectContent>
                   {publishedCourses.map(c => (
                     <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
@@ -679,7 +679,7 @@ export default function CourseAssignments() {
                 ? "Assigning..."
                 : selectedEmployeeIds.size > 0
                   ? `Assign to ${selectedEmployeeIds.size} Employee${selectedEmployeeIds.size === 1 ? "" : "s"}`
-                  : "Assign Course"}
+                  : "Assign Training"}
             </Button>
           </DialogFooter>
         </DialogContent>

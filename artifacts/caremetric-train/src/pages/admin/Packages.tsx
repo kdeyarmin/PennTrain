@@ -167,7 +167,7 @@ export default function Packages() {
                   <TableHead>Status</TableHead>
                   <TableHead>Order</TableHead>
                   <TableHead>Facility Limit</TableHead>
-                  <TableHead>Learner Limit</TableHead>
+                  <TableHead>Employee Seat Limit</TableHead>
                   <TableHead>Price</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -239,7 +239,7 @@ export default function Packages() {
               <Input type="number" min="0" value={form.facilityLimit} onChange={e => field("facilityLimit", e.target.value)} placeholder="Unlimited" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Learner Limit</Label>
+              <Label className="text-[13px]">Employee Seat Limit</Label>
               <Input type="number" min="0" value={form.learnerLimit} onChange={e => field("learnerLimit", e.target.value)} placeholder="Unlimited" className="h-9" />
             </div>
             <div className="col-span-full space-y-1.5">

@@ -250,7 +250,7 @@ export default function ViolationDetail() {
                           {canDelete && ca.course_assignment_id && (
                             <Button
                               variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/40 cursor-not-allowed" disabled
-                              title="Retraining-backed tasks can't be deleted -- the course assignment would remain active with no linked corrective action. Mark it completed or cancelled instead."
+                              title="Retraining-backed tasks can't be deleted -- the training assignment would remain active with no linked corrective action. Mark it completed or cancelled instead."
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -283,7 +283,7 @@ export default function ViolationDetail() {
                     </SelectContent>
                   </Select>
                   <Select value={retrainCourseId} onValueChange={setRetrainCourseId}>
-                    <SelectTrigger className="h-9 flex-1"><SelectValue placeholder="Select course" /></SelectTrigger>
+                    <SelectTrigger className="h-9 flex-1"><SelectValue placeholder="Select training item" /></SelectTrigger>
                     <SelectContent>
                       {(courses ?? []).map((c) => <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>)}
                     </SelectContent>
@@ -296,7 +296,7 @@ export default function ViolationDetail() {
                       const employee = employeeById.get(retrainEmployeeId);
                       const course = (courses ?? []).find((c) => c.id === retrainCourseId);
                       if (!employee || !course?.current_version_id) {
-                        toast({ title: course && !course.current_version_id ? "This course has no published version to assign" : "Select a staff member and course", variant: "destructive" });
+                        toast({ title: course && !course.current_version_id ? "This training item has no published version to assign" : "Select a staff member and training item", variant: "destructive" });
                         return;
                       }
                       setCreatingAction(true);

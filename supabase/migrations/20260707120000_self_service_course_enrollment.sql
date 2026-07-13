@@ -17,7 +17,7 @@
 --
 -- self_enroll_course() is the actual self-service RPC, letting any role start a published
 -- course on their own, the same way start_course_assignment()/complete_course_assignment()
--- already let a learner self-serve the rest of the course lifecycle.
+-- already let an employee self-serve the rest of the training lifecycle.
 
 create or replace function public.ensure_employee_record(p_profile_id uuid)
 returns void language plpgsql security definer set search_path to 'public' as $$

@@ -341,7 +341,7 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
 
   // Applies the same pattern to every selected employee in one batch via Promise.allSettled (so
   // one employee's failure doesn't block the rest), then reports one summary toast -- mirrors the
-  // bulk-assignment pattern used elsewhere in this app (e.g. CourseAssignments' Assign Course).
+  // bulk-assignment pattern used elsewhere in this app (e.g. CourseAssignments' Assign Training).
   async function handleAdd() {
     if (employeeIds.size === 0 || !shiftDefinitionId || selectedDays.length === 0) {
       toast({ title: "Pick at least one employee, day, and shift", variant: "destructive" });

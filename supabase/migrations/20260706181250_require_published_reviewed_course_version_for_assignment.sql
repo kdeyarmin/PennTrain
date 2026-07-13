@@ -18,7 +18,7 @@
 -- Deliberately NOT bypassed for platform_admin: unlike the content-immutability locks (which
 -- platform_admin may need to intentionally override), this is a pure data-integrity guardrail with
 -- no legitimate reason for ANY role -- including the course-authoring role itself -- to assign a
--- learner to content that was never published/reviewed. Mirrors the equally-strict, no-bypass
+-- employee to content that was never published/reviewed. Mirrors the equally-strict, no-bypass
 -- AI-review-gate trigger already documented in ARCHITECTURE.md ("unlike the immutability trigger
 -- above, this one applies to platform_admin specifically").
 create or replace function public.validate_course_assignment_version()

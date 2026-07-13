@@ -27,16 +27,16 @@ const SECTIONS: Section[] = [
   {
     title: "Getting Started & Roles",
     paragraphs: [
-      "CareMetric Train is a multi-tenant compliance-training platform. Every account is assigned exactly one role, and that role determines which part of the app you land in after signing in and which pages and actions are available to you. There are six roles: platform_admin, org_admin, facility_manager, trainer, employee, and auditor.",
-      "platform_admin is reserved for the CareMetric Train team. It has broad access across every organization on the platform, under /admin, and is the only role that can author course content -- creating and publishing courses, quizzes, and their questions and answers. org_admin and facility_manager are the two operator-facing admin roles, working under /app: they manage facilities, staff, training compliance, scheduling, documents, and reporting for their own organization. facility_manager's day-to-day access can additionally be narrowed to specific assigned facilities.",
-      "trainer works under /trainer, focused on running training classes, monitoring who is due for retraining, and looking up facility/employee rosters. employee is the self-service role under /me, where staff take assigned courses, view their own training records, download their certificates, and complete policy attestations. auditor is a read-only role under /app with visibility into nearly everything org_admin and facility_manager can see -- compliance status, reports, the audit log -- but no ability to create, edit, or delete records.",
+      "CareMetric Train is a multi-tenant facility management and compliance platform for personal care homes, assisted living residences, and related care providers. Every account is assigned exactly one role, and that role determines which part of the app you land in after signing in and which pages and actions are available to you. There are six roles: platform_admin, org_admin, facility_manager, trainer, employee, and auditor.",
+      "platform_admin is reserved for the CareMetric Train team. It has broad access across every organization on the platform, under /admin, and is the only role that can author training content -- creating and publishing training content, quizzes, and their questions and answers. org_admin and facility_manager are the two operator-facing admin roles, working under /app: they manage facilities, staff, training compliance, scheduling, documents, and reporting for their own organization. facility_manager's day-to-day access can additionally be narrowed to specific assigned facilities.",
+      "trainer works under /trainer, focused on running training classes, monitoring who is due for retraining, and looking up facility/employee rosters. employee is the self-service role under /me, where staff take assigned training items, view their own training records, download their certificates, and complete policy attestations. auditor is a read-only role under /app with visibility into nearly everything org_admin and facility_manager can see -- compliance status, reports, the audit log -- but no ability to create, edit, or delete records.",
     ],
     bullets: [
-      "platform_admin -- /admin -- every organization, course authoring, platform settings",
+      "platform_admin -- /admin -- every organization, training-content authoring, platform settings",
       "org_admin -- /app -- full management of one organization",
       "facility_manager -- /app -- management scoped to assigned facilities",
       "trainer -- /trainer -- classes, retraining monitor, facility/employee lookup",
-      "employee -- /me -- own courses, training records, certificates, attestations",
+      "employee -- /me -- own training assignments, training records, certificates, attestations",
       "auditor -- /app (read-only) -- compliance visibility without edit rights",
     ],
   },
@@ -44,7 +44,7 @@ const SECTIONS: Section[] = [
     title: "Facilities & Employees",
     paragraphs: [
       "Facilities (/app/facilities) are the physical locations your organization operates -- personal care homes, assisted living residences, or other licensed sites. Each facility record carries its own license number and facility type, which in turn controls which compliance modules apply to it: some workflows, like Practicums, the Medication Administration Roster, Residents, and Inspections, only appear for facility types that require them.",
-      "Employees (/app/employees) is your staff roster. Every employee belongs to a home facility, and can optionally be assigned to work additional facilities for scheduling purposes. Opening an employee's detail page brings together everything about that person in one place: their training record status, credentials, background checks, assigned courses, and practicum progress, so a facility_manager preparing for an inspection doesn't have to hunt across five different pages.",
+      "Employees (/app/employees) is your staff roster. Every employee belongs to a home facility, and can optionally be assigned to work additional facilities for scheduling purposes. Opening an employee's detail page brings together everything about that person in one place: their training record status, credentials, background checks, assigned training items, and practicum progress, so a facility_manager preparing for an inspection doesn't have to hunt across five different pages.",
       "New employees can be added one at a time or in bulk via CSV import, which is useful when onboarding an entire facility's existing staff at once.",
     ],
     bullets: [
@@ -67,16 +67,16 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    title: "Training Matrix & Courses",
+    title: "Training Matrix & Training Content",
     paragraphs: [
       "The Training Matrix (/app/training-matrix) is the master grid of who owes what: every employee against every applicable training type, with each cell showing a compliance status of Compliant, Due Soon, Expired, Missing, or Not Applicable. It is the fastest way to spot gaps before they become a citation.",
-      "Courses (/app/courses) is where your organization's e-learning content lives -- modules built from text, video, and quizzes, delivered to employees who are enrolled via a course assignment. Course content itself is authored exclusively by CareMetric Train's platform team (including AI-assisted course generation) to keep regulated training content consistent and reviewed; org_admin and facility_manager browse and assign courses but do not edit their content.",
-      "When an employee completes a course and passes its quiz, a certificate is generated automatically and becomes available on their My Certificates page. Certificates carry a unique verification link (/verify/:slug) that can be checked by anyone, without logging in -- useful for proving a credential to a state surveyor or a business partner.",
+      "Courses (/app/courses) is where your organization's required training content is managed -- modules built from text, video, and quizzes, delivered to employees who are enrolled via a training assignment. Training content itself is authored exclusively by CareMetric Train's platform team (including AI-assisted course generation) to keep regulated training content consistent and reviewed; org_admin and facility_manager browse and assign courses but do not edit their content.",
+      "When an employee completes a training item and passes its quiz, a certificate is generated automatically and becomes available on their My Certificates page. Certificates carry a unique verification link (/verify/:slug) that can be checked by anyone, without logging in -- useful for proving a credential to a state surveyor or a business partner.",
     ],
     bullets: [
       "Review the Training Matrix for compliance gaps across your whole roster",
-      "Assign courses to employees via Course Assignments",
-      "Employees take courses and quizzes at /me/courses",
+      "Assign required training to employees via Training Assignments",
+      "Employees take training content and quizzes at /me/courses",
       "Passing a quiz auto-issues a certificate, verifiable at /verify/:slug",
     ],
   },
@@ -359,7 +359,7 @@ async function buildManual(): Promise<Uint8Array> {
   pdf.text("CareMetric Train", { size: 30, bold: true, color: TITLE_COLOR, gap: 12 });
   pdf.text("User Manual", { size: 20, bold: true, gap: 20 });
   pdf.text(`${EDITION} — ${EDITION_DATE}`, { size: 11, color: MUTED_COLOR, gap: 6 });
-  pdf.text("Multi-Tenant Healthcare Compliance Training Platform", { size: 11, color: MUTED_COLOR, gap: 40 });
+  pdf.text("Multi-Tenant Healthcare Facility Management Platform", { size: 11, color: MUTED_COLOR, gap: 40 });
   pdf.paragraph(
     "This manual is a complete walkthrough of CareMetric Train for every role in the system -- " +
       "platform administrators, organization and facility administrators, trainers, employees, and " +

@@ -8,7 +8,7 @@
 -- back onto that (now-published, immutable) course_blocks row is unconditionally rejected by this
 -- trigger: is_platform_admin() evaluates false with no JWT, so the exception fires every time. The
 -- block is re-selected and re-polled by the cron every 5 minutes forever (wasting HeyGen API calls),
--- the video_url is never set for real learners taking the now-published course, and if the job had
+-- the video_url is never set for real employees taking the now-published course, and if the job had
 -- already completed, the downloaded video file is left orphaned in the course-videos storage bucket
 -- with no course_blocks row ever linking to it.
 --

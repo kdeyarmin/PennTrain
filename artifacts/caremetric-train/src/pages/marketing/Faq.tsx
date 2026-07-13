@@ -34,7 +34,7 @@ export default function Faq() {
   usePageMeta({
     title: "FAQ — CareMetric Train",
     description:
-      "Answers to common questions about CareMetric Train: regulations covered, in-service hours by facility type, resident assessments, AI course generation, and more.",
+      "Answers to common questions about CareMetric Train: facility operations, regulations covered, in-service hours by facility type, resident assessments, AI training-content generation, scheduling, and more.",
     path: "/faq",
   });
   useJsonLd("faq-jsonld", FAQ_JSON_LD);
@@ -53,7 +53,7 @@ export default function Faq() {
             </div>
             <h2 className="mt-4 text-2xl font-extrabold tracking-tight">Start with the questions teams ask first</h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              If you are replacing spreadsheets, paper binders, or a generic LMS,
+              If you are replacing spreadsheets, paper binders, shared drives, or a disconnected training tool,
               these answers explain where CareMetric Train fits and what it manages.
             </p>
           </Reveal>

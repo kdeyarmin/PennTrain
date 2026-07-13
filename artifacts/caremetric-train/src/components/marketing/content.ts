@@ -119,36 +119,36 @@ export type FeatureCategory = {
 export const FEATURE_CATEGORIES: FeatureCategory[] = [
   {
     id: "training-compliance",
-    category: "Training & Compliance Core",
-    blurb: "The system of record for every employee's in-services, certifications, and role-based requirements.",
+    category: "Facility Compliance & Training Core",
+    blurb: "The system of record for staff requirements, facility evidence, and survey-ready training proof.",
     items: [
       {
         icon: ShieldCheck,
         title: "Compliance Tracking",
         description:
-          "Yearly in-services, training records, certifications, and medication practicums in one system of record, with automatic alerts before anything lapses.",
+          "Yearly in-services, credentials, medication practicums, resident-facing staff requirements, and facility evidence in one system of record, with automatic alerts before anything lapses.",
       },
       {
         icon: GraduationCap,
         title: "Built-in Course Builder",
         description:
-          "Author courses, quizzes with server-side grading, and issue certificates -- no separate training vendor required.",
+          "Author required training content, quizzes with server-side grading, and certificates inside the same facility operations workflow.",
       },
       {
         icon: ClipboardCheck,
         title: "Competency Checklists",
         description:
-          "Configurable competency templates and training plans so every role gets the right requirements, automatically.",
+          "Configurable competency templates and training plans so every staff role gets the right facility requirements automatically.",
       },
       {
         icon: ListChecks,
         title: "Training Plans, Built Per Role",
         description:
-          "Assign the right training plan to each role once -- or roll it out to an entire facility roster in a single action -- and CareMetric Train tracks every employee's progress against it automatically.",
+          "Assign the right plan to each role once -- or roll it out to an entire facility roster in a single action -- and CareMetric Train tracks every employee's progress against it automatically.",
       },
       {
         icon: SlidersHorizontal,
-        title: "Custom Training Type Catalog",
+        title: "Custom Requirement Catalog",
         description:
           "Beyond the built-in Pennsylvania training types, org admins can define their own -- scoped to a specific facility type or all of them -- with its own required hours, renewal interval, warning window, evidence-document requirement, and regulatory citation.",
       },
@@ -156,13 +156,13 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: LayoutGrid,
         title: "Interactive Compliance Matrix",
         description:
-          "A color-coded grid of every active employee against every training type, filterable by facility, status, or due-date window, with click-to-edit records and a one-click CSV export.",
+          "A color-coded grid of every active employee against every applicable requirement, filterable by facility, status, or due-date window, with click-to-edit records and a one-click CSV export.",
       },
       {
         icon: BarChart3,
         title: "Compliance Reporting Center",
         description:
-          "Roll up training compliance, certifications, and practicums by facility, training type, or employee -- scoped to what each role is allowed to see.",
+          "Roll up staff compliance, certifications, practicums, and facility evidence by facility, requirement type, or employee -- scoped to what each role is allowed to see.",
       },
       {
         icon: FolderLock,
@@ -206,7 +206,7 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: CalendarCheck,
         title: "Live Class Scheduling & Sign-In",
         description:
-          "Trainers schedule instructor-led classes and capture digital attendee sign-in, so in-person sessions count toward compliance right alongside online courses.",
+          "Trainers schedule instructor-led classes and capture digital attendee sign-in, so in-person sessions count toward compliance right alongside assigned training items.",
       },
       {
         icon: QrCode,
@@ -225,7 +225,7 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
   {
     id: "resident-care",
     category: "Resident Care Compliance",
-    blurb: "For personal care homes and assisted living facilities: resident-level regulatory tracking, not just staff training.",
+    blurb: "For personal care homes and assisted living facilities: resident-level regulatory tracking, not just staff requirements.",
     items: [
       {
         icon: FilePenLine,
@@ -395,9 +395,9 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
       },
       {
         icon: Smartphone,
-        title: "Installable Mobile App for Learners",
+        title: "Installable Mobile App for Employees",
         description:
-          "The employee course player installs to a phone's home screen like a native app, with the app shell precached for fast loads and course data falling back gracefully when a facility's WiFi or cell signal drops mid-lesson.",
+          "The employee training player installs to a phone's home screen like a native app, with the app shell precached for fast loads and assignment data falling back gracefully when a facility's WiFi or cell signal drops mid-lesson.",
       },
     ],
   },
@@ -412,7 +412,7 @@ export const STEPS = [
   {
     title: "Assign training & practicums",
     description:
-      "Build training plans and course assignments once -- author them yourself or let AI draft a course from your own materials -- and let CareMetric Train track completion for every employee.",
+      "Build training plans, training assignments, practicum requirements, and operational follow-ups once -- author content yourself or let AI draft from your own materials -- and let CareMetric Train track completion for every employee.",
   },
   {
     title: "Stay survey-ready",
@@ -472,7 +472,7 @@ export const SECURITY_FEATURES: IconItem[] = [
     icon: UserCheck,
     title: "Human Review Gate on AI Content",
     description:
-      "A course version drafted or touched by AI can't be published until a named reviewer explicitly signs off, and that approval is cleared automatically the moment any block is AI-regenerated -- a stale sign-off can never cover new content.",
+      "A training content version drafted or touched by AI can't be published until a named reviewer explicitly signs off, and that approval is cleared automatically the moment any block is AI-regenerated -- a stale sign-off can never cover new content.",
   },
   {
     icon: Eye,
@@ -498,12 +498,12 @@ export const FAQS = [
   {
     question: "What is CareMetric Train?",
     answer:
-      "CareMetric Train is a multi-tenant compliance-training platform and learning management system built for personal care homes, assisted living facilities, group homes, nursing homes, home health, and hospice agencies. It replaces spreadsheets and paper binders with one system for yearly in-services, training records, certifications, medication practicums, resident assessments, incidents, and survey-ready reporting.",
+      "CareMetric Train is multi-tenant personal care home and assisted living facility management software built for operators who need one command center for staff compliance, resident assessments, incidents, inspections, scheduling, documents, training, and survey readiness. It replaces spreadsheets, shared drives, paper binders, and disconnected point tools with one operational record.",
   },
   {
     question: "How does CareMetric Train track our staff's yearly in-services?",
     answer:
-      "Every employee gets a training plan built from the in-service hours, topics, and renewal windows your facility requires. As staff complete assigned courses, live classes, or outside training, CareMetric Train logs the hours automatically, flags anyone falling behind before their deadline, and rolls it all up into one facility-wide view -- no more reconciling paper sign-in sheets once a year to see who's actually current.",
+      "Every employee gets a training plan built from the in-service hours, topics, and renewal windows your facility requires. As staff complete assigned training items, live classes, or outside training, CareMetric Train logs the hours automatically, flags anyone falling behind before their deadline, and rolls it all up into one facility-wide view -- no more reconciling paper sign-in sheets once a year to see who's actually current.",
   },
   {
     question: "How many yearly in-service hours does my type of provider actually need?",
@@ -518,7 +518,7 @@ export const FAQS = [
   {
     question: "Do our employees need to install anything?",
     answer:
-      "No. CareMetric Train runs in the browser on any device, and the employee course player can also be installed to a phone's home screen as a lightweight app for faster access. Employees sign in to a course center to complete assigned training, take quizzes, and download their own certificates -- no app store required.",
+      "No. CareMetric Train runs in the browser on any device, and the employee training player can also be installed to a phone's home screen as a lightweight app for faster access. Employees sign in to their self-service workspace to complete assigned training, take quizzes, view schedules, and download their own certificates -- no app store required.",
   },
   {
     question: "How does the compliance binder actually work?",
@@ -536,9 +536,9 @@ export const FAQS = [
       "Yes. Bulk CSV import lets you onboard an entire facility's staff in minutes instead of entering employees one at a time.",
   },
   {
-    question: "Do you support in-person, instructor-led training, or only online courses?",
+    question: "Do you support in-person, instructor-led training as well as assigned training items?",
     answer:
-      "Both. Trainers can schedule live classes and capture attendance with a rotating QR code, a shared-device kiosk mode, or a printed sign-in sheet -- so instructor-led sessions count toward each employee's in-service hours right alongside their online course progress.",
+      "Both. Trainers can schedule live classes and capture attendance with a rotating QR code, a shared-device kiosk mode, or a printed sign-in sheet -- so instructor-led sessions count toward each employee's in-service hours right alongside their assigned training item progress.",
   },
   {
     question: "Can one organization manage more than one facility?",
@@ -551,7 +551,7 @@ export const FAQS = [
       "Yes. The report center rolls up training compliance, certifications, and practicums by facility, training type, or employee, and it respects the same role-based scoping as the rest of the app -- an org admin sees every facility, a facility manager sees their own.",
   },
   {
-    question: "Does CareMetric Train track resident-level compliance, not just staff training?",
+    question: "Does CareMetric Train track resident-level compliance, not just staff requirements?",
     answer:
       "Yes, for personal care homes and assisted living facilities. CareMetric Train tracks each resident's RASP/ASP preadmission screening, 15-day initial assessment, annual reassessment, significant-change reassessment, and support-plan updates -- each with its own due date -- alongside a digital drafting tool mirroring the DHS assessment structure. Every item still requires the signed, DHS-prescribed form on file to be marked complete; there's no substitute.",
   },
@@ -566,14 +566,14 @@ export const FAQS = [
       "Yes -- separate from staff in-service hours, CareMetric Train tracks each administrator's qualification path (the 100-hour DHS-approved course plus competency test, or an NHA license exemption), the regional-office qualification notice, and a rolling 24-hour annual continuing-education requirement, with supporting documents attached to each record.",
   },
   {
-    question: "Can CareMetric Train schedule staff shifts, not just training?",
+    question: "Can CareMetric Train schedule staff shifts too?",
     answer:
       "Yes. Beyond training compliance, CareMetric Train includes a shift-scheduling module: set up each facility's units and shift types, capture each employee's typical weekly pattern, auto-fill a draft schedule from those patterns, and publish it so employees see their upcoming shifts under My Schedule.",
   },
   {
-    question: "How does the AI course generation work, and who reviews it?",
+    question: "How does the AI training-content generation work, and who reviews it?",
     answer:
-      "Paste in a regulation, policy, or reference document and CareMetric Train drafts a complete course -- lesson content, video scripts, and quizzes -- grounded in that source text, with an optional AI avatar video for any lesson. The model is instructed to flag gaps instead of inventing a citation, and no AI-touched course can publish until a named reviewer explicitly signs off.",
+      "Paste in a regulation, policy, or reference document and CareMetric Train drafts complete training content -- lesson content, video scripts, and quizzes -- grounded in that source text, with an optional AI avatar video for any lesson. The model is instructed to flag gaps instead of inventing a citation, and no AI-touched training content can publish until a named reviewer explicitly signs off.",
   },
   {
     question: "How do you handle incidents, DHS violations, and plans of correction?",

@@ -40,7 +40,7 @@ export default function Security() {
     <MarketingLayout>
       <PageHero
         title="Enterprise-grade security, built in"
-        subtitle="Your training and compliance data is sensitive. CareMetric Train protects it with role-aware workflows, private evidence storage, and database-enforced access boundaries."
+        subtitle="Your facility, resident, staff, training, and compliance data is sensitive. CareMetric Train protects it with role-aware workflows, private evidence storage, and database-enforced access boundaries."
       />
 
       <section className="relative overflow-hidden bg-gradient-to-br from-[#071626] via-[#0d2742] to-[#143a5c] text-white">

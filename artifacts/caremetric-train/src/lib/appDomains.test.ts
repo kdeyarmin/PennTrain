@@ -11,7 +11,7 @@ import {
 } from "./appDomains";
 
 describe("role-based page visibility", () => {
-  it("keeps employee learners in the self-service surface", () => {
+  it("keeps employees in the self-service surface", () => {
     const employeePaths = pagesForRole("employee").map((page) => page.path);
 
     expect(employeePaths).toEqual(expect.arrayContaining([
@@ -35,7 +35,7 @@ describe("role-based page visibility", () => {
     expect(canViewPage("/me/help", "employee")).toBe(true);
   });
 
-  it("uses the employee help prefix only for employee learners", () => {
+  it("uses the employee help prefix only for employees", () => {
     expect(helpBasePathForRole("employee")).toBe("/me");
     expect(helpBasePathForRole("trainer")).toBe("/app");
     expect(helpBasePathForRole("org_admin")).toBe("/app");
@@ -96,7 +96,7 @@ describe("role-based page visibility", () => {
     expect(canViewPage("/app/workforce-operations", "employee")).toBe(false);
   });
 
-  it("limits governed learning operations to platform and tenant managers", () => {
+  it("limits governed content operations to platform and tenant managers", () => {
     expect(canViewPage("/admin/governed-learning", "platform_admin")).toBe(true);
     expect(canViewPage("/app/governed-learning", "org_admin")).toBe(true);
     expect(canViewPage("/app/governed-learning", "facility_manager")).toBe(true);
@@ -140,8 +140,8 @@ describe("role-based page visibility", () => {
   it("surfaces role-aware command actions for Phase 1 workflow shortcuts", () => {
     expect(searchCommandActions("add employee", "org_admin").map((action) => action.path)).toContain("/app/employees?action=add");
     expect(searchCommandActions("bulk import", "facility_manager").map((action) => action.path)).toContain("/app/employees?action=bulk-import");
-    expect(searchCommandActions("ai course", "platform_admin").map((action) => action.path)).toContain("/admin/courses/new-ai");
-    expect(searchCommandActions("ai course", "org_admin")).toEqual([]);
+    expect(searchCommandActions("ai training", "platform_admin").map((action) => action.path)).toContain("/admin/courses/new-ai");
+    expect(searchCommandActions("ai training", "org_admin")).toEqual([]);
     expect(searchCommandActions("bulk import", "employee")).toEqual([]);
   });
 

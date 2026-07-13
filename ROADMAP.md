@@ -21,10 +21,10 @@ engineer who knows this stack — then merged and stress-tested for completeness
   compliance-determining fields (grades, certificates, assignment status, roles) locked behind
   `SECURITY DEFINER` RPCs. The frontend deliberately mirrors RLS role-by-role on every page. This is hard to
   replicate and is the right foundation for a compliance product.
-- **A real LMS.** Versioned immutable courses, server-side quiz grading with a proper answer-key boundary,
+- **A real integrated training suite.** Versioned immutable courses, server-side quiz grading with a proper answer-key boundary,
   certificates with public `/verify/:slug` verification, training plans, competency checklists, live classes with
   sign-in sheets, and a working HeyGen AI-video pipeline.
-- **Operational primitives no LMS competitor has.** The credential, incident, and inspection modules are complete
+- **Operational primitives no training-only competitor has.** The credential, incident, and inspection modules are complete
   CRUD with evidence documents, corrective actions, and alert wiring. Pure training vendors (Relias, CareAcademy,
   MedTrainer) do not own incidents/inspections; ops platforms (ECP, ALIS, August Health) do not own training.
   CareMetric Train already holds both sides' primitives — that is the strategic position to press.
@@ -39,7 +39,7 @@ The product's core claim — "we track your §2600.65 annual training hours" —
 |---|--------|-------|
 | 1 | `employee_training_hour_buckets` has **no writer anywhere** — permanently empty; `required_hours` hardcoded to 12 regardless of facility type (ALR needs 16, group homes 24) | schema + `recalculate_all_compliance()` |
 | 2 | Training-type seed is **broken on fresh databases** — UPDATEs against codes (`DIRECT-ANNUAL`, `DEMENTIA`) that were never inserted; no PCH 12-hour, med-admin, orientation, or fire-safety system types exist, so Survey-Readiness med-admin/trainer checks pass vacuously | `20260704234451` migration |
-| 3 | **Completing an LMS course never touches compliance** — no link exists between `courses` and `training_types`, so finishing the seeded "12-hour annual in-service" advances nothing | `complete_course_assignment()` |
+| 3 | **Completing a training course never touches compliance** — no link exists between `courses` and `training_types`, so finishing the seeded "12-hour annual in-service" advances nothing | `complete_course_assignment()` |
 | 4 | **New hires generate no "missing" requirement rows** — dashboards only score records that exist, so compliance percentages systematically overstate | recalc engine |
 | 5 | **Practicums cannot be created in the UI** — the "Record Practicum" button has no `onClick`; `useCreatePracticum`/`useUpdatePracticum` are dead exports | `Practicums.tsx:36-38` |
 | 6 | **No manual training-record entry form anywhere** — an administrator cannot record a paper in-service; `useCreateTrainingRecord` is only invoked by PendingApprovals | app-wide |
@@ -149,9 +149,9 @@ stable enough to encode.
 ### Competitive landscape
 
 **Training/compliance platforms** (Relias, CareAcademy, MedTrainer, HealthStream, Smartlinx): the market moved
-past "course player" years ago. Decisive, review-cited capabilities: state-rules **auto-assignment** by
+past standalone training players years ago. Decisive, review-cited capabilities: state-rules **auto-assignment** by
 role/location/hire date (CareAcademy claims "95% admin time saved"); automatic **text/email reminders with
-escalation** (CareAcademy's most-praised feature); **all-in-one compliance bundles** — LMS + policy attestations +
+escalation** (CareAcademy's most-praised feature); **all-in-one compliance bundles** — training + policy attestations +
 credentialing + incident reporting in one login (MedTrainer's entire pitch, Relias "Policy Pro"); accredited
 state-specific libraries; audit-ready exports. Universal complaints: inflexible reporting and lost mobile course
 progress — both cheap wedges. CareAcademy and Relias both ship full **Spanish** experiences.
@@ -159,7 +159,7 @@ progress — both cheap wedges. CareAcademy and Relias both ship full **Spanish*
 **Operations platforms** (ECP, August Health, ALIS, Eldermark, PointClickCare, Yardi, Synkwise, StoriiCare):
 anchor purchase for 5–50-bed operators is eMAR with pharmacy integration (ECP's 850+ pharmacy network is a
 multi-year moat — do not chase it), then assessments→care plans, then incident reporting. August Health proved
-"digitize the worst paperwork moment" (move-ins) as a wedge. **None of the eight embeds compliance training** —
+"digitize the worst paperwork moment" (move-ins) as a wedge. **None of the eight embeds staff compliance training** —
 the training layer is always a separate vendor. The whitespace CareMetric Train occupies is real, and it runs both
 directions.
 
@@ -239,7 +239,7 @@ Efforts: **S** = days, **M** = 1–2 weeks, **L** = multi-week. Sequence within 
    Settings toggles and `default_warning_days` real. **Includes the alert re-bucketing fix** so severity actually
    escalates (due_90 → due_30 → due_7) as deadlines approach — without it, SMS nudges would carry stale urgency.
 
-2. **Annual training-hours engine + LMS-compliance bridge** — *make §2600.65 real.*
+2. **Annual training-hours engine + training-compliance bridge** — *make §2600.65 real.*
    Prerequisite sub-task: **a `courses.training_type_id` mapping** (plus seed updates linking the system courses
    to the training-type catalog) — no bridge exists today in either direction. Then: extend the recalc engine to
    aggregate hours into `employee_training_hour_buckets` from training records, class completions, and course
@@ -331,9 +331,9 @@ Efforts: **S** = days, **M** = 1–2 weeks, **L** = multi-week. Sequence within 
    days — the current annual-expiration model cannot represent them — and half of first-year quits happen inside
    90 days.
 
-4. **Mobile-first learner experience.**
-   Responsive navigation (the sidebar is a fixed 260px `aside` today), a learner "My Courses" list (assignments
-   without due dates are unreachable today), an installable PWA course player with reliable progress
+4. **Mobile-first employee training experience.**
+   Responsive navigation (the sidebar is a fixed 260px `aside` today), an employee "My Training" list (assignments
+   without due dates are unreachable today), an installable PWA training workspace with reliable progress
    checkpointing, 5–10-minute lesson chunking with SMS magic-link drip, wiring the dead
    `in_progress`/`overdue` statuses, removing `maximum-scale=1`. Sequenced after the hours engine's seat-time
    controls (easy micro-completion would otherwise aggravate the completion-integrity problem). Relias and
@@ -353,9 +353,9 @@ Efforts: **S** = days, **M** = 1–2 weeks, **L** = multi-week. Sequence within 
 |------|---------|-----|
 | eMAR / resident clinical records | **No** | ECP's 850+ pharmacy-integration network is a multi-year moat; segment saturated; patient-safety liability the schema deliberately avoids. Own the staff compliance record, not the resident clinical record. |
 | Qualification-gated shift scheduling | **Built** (basic scheduling; qualification-gating still deferred) | The employees-single-facility blocker this line cited is resolved: `employee_facility_assignments` is the facility join table for the roster (mirrors the existing profile-level `facility_assignments`), additive alongside `employees.facility_id` as the home/primary facility. On top of that, a shift-scheduling module shipped -- `facility_units` (wings), `shift_definitions` (typical shift templates), `employee_schedule_preferences` (each employee's typical shift/unit pattern), `schedules` (draft/published periods), and `shift_assignments`, with a `generate_schedule_assignments` auto-fill RPC that prioritizes each employee's typical pattern so a manager isn't arranging every cell by hand. `/app/schedule` (org_admin/facility_manager) and `/me/schedule` (employee, published shifts only) in the frontend. Still out of scope: cross-checking a shift assignment against the employee's actual training/med-admin qualification before scheduling them (the "qualification-gated" half of this line) -- today `owns_employee`/roster membership is the only gate, not compliance status; an employee is capped at one shift per calendar date across every facility (no same-day float) as the simplest anti-double-booking rule. |
-| Building a NAB-accredited course library in-house | Partner instead | Accreditation is a 12+ month content/regulatory business initiative, not a software feature. What survives inspection is the CE-hour *tracking*. Resell/integrate an approved provider; keep HeyGen for non-accredited in-service content. |
+| Building a NAB-accredited content library in-house | Partner instead | Accreditation is a 12+ month content/regulatory business initiative, not a software feature. What survives inspection is the CE-hour *tracking*. Resell/integrate an approved provider; keep HeyGen for non-accredited in-service content. |
 | AI course drafter from policies / policy Q&A tutor | Drafter: **Built**; Q&A tutor: Defer | The course-drafter half shipped as `platform_admin`-only AI curriculum generation (Anthropic Claude, forced tool-use), grounded in optional pasted source material to curb hallucination risk, gated by a mandatory self-review acknowledgment enforced at the database level (no platform_admin bypass) before a version can publish, with a full audit trail via `course_ai_generations` -- the review-gate workflow this line was waiting on now exists. A freeform policy Q&A tutor remains deferred; open-ended chat over policy documents is a different, still-unaddressed hallucination surface. |
-| SCORM import/player | Defer | Small PCHs rarely own SCORM content; it's an LMS-evaluation checkbox for upmarket switchers. Feasible later without licensing (scorm-again + an edge-function commit endpoint) — nothing is lost by waiting. |
+| SCORM import/player | Defer | Small PCHs rarely own SCORM content; it's a training-system evaluation checkbox for upmarket switchers. Feasible later without licensing (scorm-again + an edge-function commit endpoint) — nothing is lost by waiting. |
 | Multi-state regulation packs | Defer | The PA pack itself doesn't function yet. Design the Tier 2 rulepack engine with a state column so packs become additive data later; earn the abstraction after PA works. |
 | Family portal / activity calendars / engagement suite | **No** | Bloat tier for 5–50-bed operators per review evidence; StoriiCare and Icon own the category; requires resident data the product deliberately lacks. |
 | Spanish / i18n | Defer (revisit soon) | Competitively validated (CareAcademy's flagship Spanish UX; Relias's translated aide library) and workforce-fit, but it's a large cross-cutting retrofit; sequence after the notification rail and mobile experience so there is a Spanish experience worth translating into. |

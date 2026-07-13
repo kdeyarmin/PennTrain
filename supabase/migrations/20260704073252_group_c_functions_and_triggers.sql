@@ -53,7 +53,7 @@ begin
     join public.course_blocks cb on cb.id = qz.course_block_id
    where qz.id = new.quiz_id;
   if v_quiz_ver is distinct from v_assign_ver then
-    raise exception 'quiz % does not belong to the assigned course version %', new.quiz_id, v_assign_ver
+    raise exception 'quiz % does not belong to the assigned training content version %', new.quiz_id, v_assign_ver
       using errcode = 'check_violation';
   end if;
   return new;

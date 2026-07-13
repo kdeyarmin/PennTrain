@@ -172,7 +172,7 @@ export default function TakeQuiz() {
       <div className="space-y-4">
         <p className="text-muted-foreground text-sm">Assignment not found.</p>
         <Button asChild variant="outline" size="sm">
-          <Link href="/me/courses"><ArrowLeft className="mr-2 h-4 w-4" /> Back to My Courses</Link>
+          <Link href="/me/courses"><ArrowLeft className="mr-2 h-4 w-4" /> Back to My Training</Link>
         </Button>
       </div>
     );
@@ -183,7 +183,7 @@ export default function TakeQuiz() {
       <div className="space-y-4">
         <p className="text-muted-foreground text-sm">This assignment does not belong to you.</p>
         <Button asChild variant="outline" size="sm">
-          <Link href="/me/courses"><ArrowLeft className="mr-2 h-4 w-4" /> Back to My Courses</Link>
+          <Link href="/me/courses"><ArrowLeft className="mr-2 h-4 w-4" /> Back to My Training</Link>
         </Button>
       </div>
     );
@@ -194,7 +194,7 @@ export default function TakeQuiz() {
       <div className="space-y-4">
         <p className="text-muted-foreground text-sm">This quiz could not be loaded.</p>
         <Button asChild variant="outline" size="sm">
-          <Link href={backHref}><ArrowLeft className="mr-2 h-4 w-4" /> Back to course</Link>
+          <Link href={backHref}><ArrowLeft className="mr-2 h-4 w-4" /> Back to training</Link>
         </Button>
       </div>
     );
@@ -207,7 +207,7 @@ export default function TakeQuiz() {
       <div className="space-y-4">
         <p className="text-muted-foreground text-sm">This quiz has no questions yet.</p>
         <Button asChild variant="outline" size="sm">
-          <Link href={backHref}><ArrowLeft className="mr-2 h-4 w-4" /> Back to course</Link>
+          <Link href={backHref}><ArrowLeft className="mr-2 h-4 w-4" /> Back to training</Link>
         </Button>
       </div>
     );
@@ -243,7 +243,7 @@ export default function TakeQuiz() {
     }, [reviewAnswers]);
 
     // Revealing the correct answer + explanation is safe only once there's no
-    // more opportunity to use it to game a retake: either the learner already
+    // more opportunity to use it to game a retake: either the employee already
     // passed, or they've used up every attempt allowed. While retakes remain
     // on a failed attempt, only the correct/incorrect verdict is shown (as
     // before) so the quiz still tests recall, not memorized answer letters.
@@ -333,7 +333,7 @@ export default function TakeQuiz() {
                 {starting ? "Starting..." : "Retake Quiz"}
               </Button>
             )}
-            <Button variant="outline" onClick={() => navigate(backHref)}>Back to Course</Button>
+            <Button variant="outline" onClick={() => navigate(backHref)}>Back to Training</Button>
           </div>
         </CardContent>
       </Card>
@@ -344,7 +344,7 @@ export default function TakeQuiz() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-          <Link href={backHref}><ArrowLeft className="mr-2 h-4 w-4" /> Back to Course</Link>
+          <Link href={backHref}><ArrowLeft className="mr-2 h-4 w-4" /> Back to Training</Link>
         </Button>
       </div>
 
@@ -369,12 +369,12 @@ export default function TakeQuiz() {
         // --- Taking the quiz -----------------------------------------------
         // All questions are rendered at once with a single Submit button
         // (rather than one-question-at-a-time paging): quizzes in this app
-        // are short comprehension checks attached to a single course block,
+        // are short comprehension checks attached to a single training block,
         // so a full-page review before submitting is more useful than a
         // multi-step wizard, and it avoids extra client-side "current
         // question index" state to keep in sync with saved answers.
         // Each answer is still persisted via useSubmitQuizAttemptAnswer as
-        // soon as the learner picks it (not batched at the end), so progress
+        // soon as the employee picks it (not batched at the end), so progress
         // survives a refresh or a resumed session.
         <div className="space-y-4">
           {allQuestions.map((q, idx) => {

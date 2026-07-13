@@ -33,7 +33,7 @@ interface DeadlineItem {
 }
 
 const DEADLINE_KIND_META: Record<DeadlineItem["kind"], { label: string; icon: LucideIcon }> = {
-  course: { label: "Course", icon: BookOpen },
+  course: { label: "Training", icon: BookOpen },
   training: { label: "Training", icon: GraduationCap },
   practicum: { label: "Practicum", icon: ClipboardCheck },
   attestation: { label: "Attestation", icon: FileCheck2 },
@@ -146,14 +146,14 @@ export default function EmployeeDashboard() {
   // A single, sorted "what's next" list across the four deadline sources that otherwise live in
   // unrelated tables (course_assignments, employee_training_records, practicums,
   // policy_attestations) -- previously each only surfaced its own status in its own card (and
-  // attestations had no presence here at all), so a learner had to check multiple places to see
+  // attestations had no presence here at all), so an employee had to check multiple places to see
   // everything coming due.
   const courseDeadlines: DeadlineItem[] = (courseAssignments ?? [])
     .filter(a => a.due_date && a.status !== "completed")
     .map(a => ({
       id: `course-${a.id}`,
       kind: "course",
-      label: courseTitleById.get(a.course_id) ?? "Course",
+      label: courseTitleById.get(a.course_id) ?? "Training",
       dueDate: a.due_date as string,
       status: a.status,
       href: `/me/courses/${a.id}`,
@@ -352,7 +352,7 @@ export default function EmployeeDashboard() {
                 <CalendarDays className="h-4 w-4 text-muted-foreground" />
               </Link>
               <Link href="/me/courses" className="flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors">
-                <span className="font-medium text-sm">My Courses</span>
+                <span className="font-medium text-sm">My Training</span>
                 <BookOpen className="h-4 w-4 text-muted-foreground" />
               </Link>
               <Link href="/me/certificates" className="flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors">

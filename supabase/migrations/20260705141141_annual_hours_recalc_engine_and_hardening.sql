@@ -11,9 +11,9 @@
 --     completing one class -- decoupled to call the org-scoped core instead.
 --   * complete_course_assignment() bridged to employee_training_records (the courses.training_type_id
 --     link added in the previous migration) and gained a minimum-seat-time completion-integrity
---     check on the learner's own self-completion path.
+--     check on the employee's own self-completion path.
 --   * The hour-bucket rollup itself: aggregates employee_training_records hours (which already
---     cover manual entries, training-class completions, and now LMS course completions) into
+--     cover manual entries, training-class completions, and now training training completions) into
 --     employee_training_hour_buckets per (employee, year, bucket), applying the general bucket's
 --     6-hour OJT cap and each facility type's own required-hours training-type row.
 
@@ -255,7 +255,7 @@ $$;
 revoke all on function public.complete_training_class(uuid) from public;
 grant execute on function public.complete_training_class(uuid) to authenticated;
 
--- LMS-compliance bridge + completion-integrity control.
+-- training-compliance bridge + completion-integrity control.
 create or replace function public.complete_course_assignment(p_assignment_id uuid)
 returns void language plpgsql security definer set search_path to 'public' as $function$
 declare
@@ -279,7 +279,7 @@ begin
 
   select * into v_course from public.courses where id = v_course_id;
 
-  -- Completion-integrity control: a learner completing their OWN assignment must have had the
+  -- Completion-integrity control: an employee completing their OWN assignment must have had the
   -- course open for a minimum stretch of time proportional to its nominal length (10%, floor 60
   -- seconds), so a 12-hour course clicked through in 90 seconds cannot become defensible survey
   -- evidence. Only gates the self-completion path (v_is_self) -- an admin/trainer completing a
@@ -294,7 +294,7 @@ begin
     if extract(epoch from (now() - v_progress.started_at)) < v_min_seconds then
       raise exception 'This course needs to stay open for at least % minute(s) before it can be marked complete -- % minute(s) have elapsed so far.',
         ceil(v_min_seconds / 60.0), floor(extract(epoch from (now() - v_progress.started_at)) / 60.0)
-        using errcode = 'check_violation', hint = 'Continue through the course content, then try again.';
+        using errcode = 'check_violation', hint = 'Continue through the training content, then try again.';
     end if;
   end if;
 
@@ -303,7 +303,7 @@ begin
      set status = 'completed', completed_at = now()
    where id = p_assignment_id;
 
-  -- LMS-compliance bridge: if this course satisfies a specific annual-hours training type, record
+  -- training-compliance bridge: if this course satisfies a specific annual-hours training type, record
   -- (or refresh) the matching employee_training_records row -- "find current record, else insert",
   -- mirroring the manual-entry UI's findCurrentRecord pattern (EmployeeDetail.tsx/TrainingMatrix.tsx)
   -- rather than accumulating a duplicate row per completion.
@@ -318,7 +318,7 @@ begin
       set completion_date = current_date,
           status = 'compliant',
           completion_method = 'online',
-          training_provider = 'CareMetric Train LMS',
+          training_provider = 'CareMetric Train Training Suite',
           hours = round(coalesce(v_course.estimated_duration_minutes, 0) / 60.0, 2),
           notes = 'Auto-recorded on completion of course "' || v_course.title || '".'
       where id = v_record_id;
@@ -329,7 +329,7 @@ begin
       )
       select v_org, e.facility_id, v_emp, v_course.training_type_id,
         current_date, 'compliant', round(coalesce(v_course.estimated_duration_minutes, 0) / 60.0, 2),
-        'online', 'CareMetric Train LMS', 'Auto-recorded on completion of course "' || v_course.title || '".'
+        'online', 'CareMetric Train Training Suite', 'Auto-recorded on completion of course "' || v_course.title || '".'
       from public.employees e where e.id = v_emp;
     end if;
   end if;

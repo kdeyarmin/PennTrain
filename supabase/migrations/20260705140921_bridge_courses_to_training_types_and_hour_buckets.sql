@@ -1,4 +1,4 @@
--- §2600.65/§2800.65/§6400.52 annual-hours engine, phase 1 (schema): bridges the LMS course
+-- §2600.65/§2800.65/§6400.52 annual-hours engine, phase 1 (schema): bridges the training course
 -- catalog to the training-type compliance catalog, and extends employee_training_hour_buckets
 -- (created but never populated by anything) to hold three concurrent buckets per employee-year
 -- instead of one, per ROADMAP.md Tier 2.2.

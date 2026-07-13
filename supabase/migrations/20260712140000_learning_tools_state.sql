@@ -1,12 +1,12 @@
--- Server-side learner study aids (END_USER_REVIEW.md recommendation #6).
+-- Server-side employee study aids (END_USER_REVIEW.md recommendation #6).
 --
 -- Lesson notes ("My takeaway") and per-lesson confidence checks previously lived only in
 -- localStorage -- lost on a device switch and invisible to trainers. They now ride the
--- learner-writable course_progress row alongside video_state, shaped as
+-- employee-writable course_progress row alongside video_state, shaped as
 --   { notes: { [block_id]: text }, confidence: { [block_id]: 'unsure'|'review'|'ready' } }.
 --
 -- Visibility is deliberate: the existing course_progress_select policy already lets the
--- learner's assigned facility staff (org_admin / facility_manager / trainer) read the
+-- employee's assigned facility staff (org_admin / facility_manager / trainer) read the
 -- progress row, so confidence and takeaways become a coaching signal, and the course
 -- player's copy now discloses that notes save to the training record rather than
 -- promising device-only storage. Study aids are not compliance-determining; completion
