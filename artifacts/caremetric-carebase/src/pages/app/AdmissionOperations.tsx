@@ -13,6 +13,7 @@ import {
   RefreshCw,
   UserRoundPlus,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
@@ -307,6 +308,13 @@ export default function AdmissionOperations() {
     for (const bed of beds.data ?? []) if (bed.room?.building) buildings.set(bed.room.building.id, bed.room.building.licensed_capacity);
     return [...buildings.values()].reduce((sum, value) => sum + value, 0);
   }, [beds.data]);
+  const metrics: { label: string; value: string | number; icon: LucideIcon; className: string }[] = [
+    { label: "Active leads", value: filteredProspects.length, icon: Users, className: "text-blue-600" },
+    { label: "Approved", value: (prospects.data ?? []).filter(item => item.stage === "approved").length, icon: CheckCircle2, className: "text-emerald-600" },
+    { label: "Available beds", value: availableBeds.length, icon: BedDouble, className: "text-emerald-600" },
+    { label: "Open move-ins", value: openWorkspaces.length, icon: ClipboardList, className: "text-purple-600" },
+    { label: "Census / capacity", value: `${activeResidents.length} / ${licensedCapacity || (beds.data ?? []).length}`, icon: Hospital, className: "text-cyan-600" },
+  ];
 
   return (
     <div className="space-y-6">
@@ -321,13 +329,7 @@ export default function AdmissionOperations() {
       <Card><CardContent className="grid gap-2 pt-6 sm:grid-cols-3"><Select value={facilityId} onValueChange={setFacilityId}><SelectTrigger><SelectValue placeholder="All facilities" /></SelectTrigger><SelectContent><SelectItem value="all">All facilities</SelectItem>{facilities?.map(facility => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select><Select value={stage} onValueChange={setStage}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Active pipeline</SelectItem><SelectItem value="all">All stages</SelectItem>{STAGES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select><Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search prospect or referral source" /></CardContent></Card>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {[
-          ["Active leads", filteredProspects.length, Users, "text-blue-600"],
-          ["Approved", (prospects.data ?? []).filter(item => item.stage === "approved").length, CheckCircle2, "text-emerald-600"],
-          ["Available beds", availableBeds.length, BedDouble, "text-emerald-600"],
-          ["Open move-ins", openWorkspaces.length, ClipboardList, "text-purple-600"],
-          ["Census / capacity", `${activeResidents.length} / ${licensedCapacity || (beds.data ?? []).length}`, Hospital, "text-cyan-600"],
-        ].map(([label, value, Icon, className]) => <Card key={String(label)}><CardContent className="flex items-center gap-3 pt-6"><Icon className={`h-7 w-7 ${className}`} /><div><p className="text-2xl font-bold">{value}</p><p className="text-sm text-muted-foreground">{label}</p></div></CardContent></Card>)}
+        {metrics.map(({ label, value, icon: Icon, className }) => <Card key={label}><CardContent className="flex items-center gap-3 pt-6"><Icon className={`h-7 w-7 ${className}`} /><div><p className="text-2xl font-bold">{value}</p><p className="text-sm text-muted-foreground">{label}</p></div></CardContent></Card>)}
       </div>
 
       <Tabs defaultValue="pipeline">
