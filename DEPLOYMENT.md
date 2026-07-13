@@ -47,12 +47,7 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    Storage buckets and RLS policies -- they're defined in the migrations, not a separate step.
 3. Deploy the Edge Functions (every function declared in `supabase/config.toml`):
    ```bash
-   npx supabase functions deploy create-user admin-update-user bulk-import-employees \
-     generate-compliance-binder generate-certificate-pdf generate-incident-report-pdf \
-     attest-policy generate-class-notice-pdf generate-poc-document generate-course-video \
-     check-course-video-status list-heygen-options generate-course-curriculum \
-     regenerate-course-block poll-heygen-video-statuses dispatch-notifications \
-     screen-exclusions send-auth-email invite-user signup-organization
+   npx supabase functions deploy
    ```
    Or connect the Supabase GitHub integration (Project Settings -> Integrations) so pushes to `main`
    auto-deploy both migrations and functions declared in `supabase/config.toml`.
@@ -428,7 +423,8 @@ at build time** -- after changing `VITE_` variables, redeploy (rebuild); don't t
   dashboard -- not scriptable from this repo.
 - Supabase Auth redirect URL and Site URL configuration must be set in the Supabase dashboard.
   The production values: Site URL `https://cmcarebase.com`; Redirect URLs
-  `https://cmcarebase.com/login` and `https://carebase-production.up.railway.app/login`.
+  `https://cmcarebase.com/reset-password`, `https://carebase-production.up.railway.app/reset-password`,
+  and both origins' root URLs for enterprise SSO.
 - Leaked password protection (Authentication -> Policies) is still disabled and must be toggled on
   manually in the dashboard -- it's an Auth config setting, not something a SQL migration can flip.
 - Keep plain Supabase email signup disabled in Authentication -> Providers. Self-service signup

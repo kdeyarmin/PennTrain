@@ -5,7 +5,7 @@
     "context": ".."
   },
   "remoteUser": "node",
-  "workspaceFolder": "/workspace/PennTrain",
+  "workspaceFolder": "/workspace",
   "postCreateCommand": "pnpm install --frozen-lockfile && pnpm run doctor",
   "forwardPorts": [
     5173,

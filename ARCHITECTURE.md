@@ -123,8 +123,8 @@ absent or malformed. Reusable demo/platform_admin passwords are intentionally no
 
 ## Key Commands
 
-- `pnpm --filter @workspace/caremetric-train run dev` — run the frontend dev server
-- `pnpm --filter @workspace/caremetric-train run build` — production build
+- `pnpm --filter @workspace/caremetric-carebase run dev` — run the frontend dev server
+- `pnpm --filter @workspace/caremetric-carebase run build` — production build
 - `pnpm run typecheck` — typecheck all workspace packages
 - Schema changes go through `mcp__Supabase__apply_migration`, then the exact same SQL is written to
   `supabase/migrations/<version>_<name>.sql` using the version number Supabase actually assigned (from
