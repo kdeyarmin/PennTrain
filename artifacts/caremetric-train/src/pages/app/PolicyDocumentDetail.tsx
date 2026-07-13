@@ -414,7 +414,7 @@ export default function PolicyDocumentDetail() {
     versions: (versions ?? []).map((v) => ({ id: v.id, status: v.status })),
     campaigns: campaigns ?? [],
     attestations: (attestations ?? []).filter((a) => campaignIds.has(a.campaign_id)),
-    today: new Date().toISOString().slice(0, 10),
+    today: toLocalIsoDate(),
   }), [document?.current_version_id, versions, campaigns, attestations, campaignIds]);
 
   if (isLoading || !document) {

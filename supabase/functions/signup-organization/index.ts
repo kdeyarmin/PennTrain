@@ -19,7 +19,9 @@ const DEFAULT_ALLOWED_APP_ORIGINS = new Set([
 ]);
 
 class HttpError extends Error {
-  constructor(public status: number, public code: string, message: string) {
+  // `message` is returned to the caller, so it must stay generic for anything derived from
+  // backend errors; pass raw Supabase/DB details via `internalDetail` so they are only logged.
+  constructor(public status: number, public code: string, message: string, public internalDetail?: string) {
     super(message);
   }
 }
@@ -230,7 +232,7 @@ Deno.serve(async (req: Request) => {
       .select("value")
       .eq("key", "signup_enabled")
       .maybeSingle();
-    if (signupSettingError) throw new HttpError(500, "settings_unavailable", signupSettingError.message);
+    if (signupSettingError) throw new HttpError(500, "settings_unavailable", "Signup is temporarily unavailable. Please try again later.", signupSettingError.message);
     const signupEnabled = signupSetting?.value !== false;
     if (!signupEnabled) {
       throw new HttpError(403, "signup_disabled", "Self-service signup is currently disabled. Please contact us directly.");
@@ -241,7 +243,7 @@ Deno.serve(async (req: Request) => {
       .select("value")
       .eq("key", "default_trial_days")
       .maybeSingle();
-    if (trialDaysError) throw new HttpError(500, "settings_unavailable", trialDaysError.message);
+    if (trialDaysError) throw new HttpError(500, "settings_unavailable", "Signup is temporarily unavailable. Please try again later.", trialDaysError.message);
     const trialDays = typeof trialDaysSetting?.value === "number" ? trialDaysSetting.value : 14;
     const trialEndsAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString();
 
@@ -260,7 +262,7 @@ Deno.serve(async (req: Request) => {
         organizationId = data.id;
         break;
       }
-      if (error.code !== "23505") throw new HttpError(400, "organization_create_failed", error.message);
+      if (error.code !== "23505") throw new HttpError(400, "organization_create_failed", "We could not create your organization. Please check your details and try again.", error.message);
     }
     if (!organization) {
       throw new HttpError(500, "organization_slug_failed", "Could not allocate a unique organization slug -- try again");
@@ -270,7 +272,7 @@ Deno.serve(async (req: Request) => {
       data: { first_name: firstName, last_name: lastName },
       redirectTo,
     });
-    if (inviteError) throw new HttpError(400, "invite_failed", inviteError.message);
+    if (inviteError) throw new HttpError(400, "invite_failed", "We could not send an invitation to that email address. If you already have an account, sign in or reset your password instead.", inviteError.message);
     invitedUserId = invited.user.id;
 
     const { error: rpcError } = await adminClient.rpc("admin_update_profile", {
@@ -282,7 +284,7 @@ Deno.serve(async (req: Request) => {
       p_is_active: true,
       p_email: email,
     });
-    if (rpcError) throw new HttpError(500, "profile_update_failed", rpcError.message);
+    if (rpcError) throw new HttpError(500, "profile_update_failed", "Signup could not be completed. Please try again later.", rpcError.message);
 
     await recordAttempt(adminClient, emailHash, ipHash, true, null);
     return json({
@@ -307,7 +309,8 @@ Deno.serve(async (req: Request) => {
     // generic message to avoid leaking internal details or stack traces to the caller.
 const isHttpError = error instanceof HttpError;
 const message = isHttpError ? (error as HttpError).message : "An unexpected error occurred. Please try again.";
-if (!isHttpError || status >= 500) console.error(isHttpError ? "Signup HttpError:" : "Unexpected signup error:", error);
+const internalDetail = isHttpError ? (error as HttpError).internalDetail : undefined;
+if (!isHttpError || status >= 500 || internalDetail) console.error(isHttpError ? "Signup HttpError:" : "Unexpected signup error:", error, internalDetail ?? "");
     // Do not record a rate-limit attempt for Turnstile failures: the token was never
     // verified, so we have no proof the caller controls this email address. Counting
     // these would let an attacker exhaust the per-email limit without ever solving
