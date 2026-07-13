@@ -147,6 +147,10 @@ export default function EmergencyEventDetail() {
   );
 
   const submitTimeline = () => addTimeline.mutate(
+    {
+      eventId: id,
+      eventType: timelineType,
+      description: timelineDescription,
       occurredAt: new Date(timelineAt || Date.now()).toISOString(),
     },
     {
@@ -188,7 +192,12 @@ export default function EmergencyEventDetail() {
   const submitAction = () => addAction.mutate(
     {
       eventId: id,
+      title: actionTitle,
+      description: actionDescription,
+      ownerProfileId: actionOwner,
+      priority: actionPriority,
       dueAt: new Date(actionDueAt || Date.now()).toISOString(),
+    },
     {
       onSuccess: () => {
         toast({ title: "Corrective work created" });
