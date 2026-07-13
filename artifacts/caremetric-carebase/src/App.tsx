@@ -86,6 +86,8 @@ const ChangeOfConditionQueue = lazy(() => import("@/pages/app/ChangeOfConditionQ
 const ChangeOfConditionDetail = lazy(() => import("@/pages/app/ChangeOfConditionDetail"));
 const QapiDashboard = lazy(() => import("@/pages/app/QapiDashboard"));
 const QapiProjectDetail = lazy(() => import("@/pages/app/QapiProjectDetail"));
+const EmergencyOperations = lazy(() => import("@/pages/app/EmergencyOperations"));
+const EmergencyEventDetail = lazy(() => import("@/pages/app/EmergencyEventDetail"));
 const ResidentAssessmentFormEditor = lazy(() => import("@/pages/app/ResidentAssessmentFormEditor"));
 const IncidentDetail = lazy(() => import("@/pages/app/IncidentDetail"));
 const InspectionItems = lazy(() => import("@/pages/app/InspectionItems"));
@@ -264,6 +266,9 @@ const WORK_QUEUE_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_m
 const SERVICE_DELIVERY_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 const ADMISSION_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 const CHANGE_EVENT_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
+// Emergency operations includes sensitive resident assistance and live accountability evidence.
+// Managers command events; auditors and platform support receive the same scoped read surface.
+const EMERGENCY_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 
 function SupportTicketRoute({ prefix }: { prefix: "/app" | "/me" }) {
   const { user, isLoading, isAuthenticated } = useAuth();
@@ -583,6 +588,12 @@ function Router() {
       </Route>
       <Route path="/app/qapi/projects/:id">
         {() => <ProtectedRoute component={QapiProjectDetail} allowedRoles={CHANGE_EVENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/emergency">
+        {() => <ProtectedRoute component={EmergencyOperations} allowedRoles={EMERGENCY_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/emergency/:id">
+        {() => <ProtectedRoute component={EmergencyEventDetail} allowedRoles={EMERGENCY_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/residents/:residentId/assessment-forms/:formId">
         {() => <ProtectedRoute component={ResidentAssessmentFormEditor} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
