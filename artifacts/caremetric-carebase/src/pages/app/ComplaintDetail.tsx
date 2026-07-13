@@ -102,7 +102,7 @@ export default function ComplaintDetail() {
           [notes.trim().length >= 10, "Investigation notes complete"], [findings.trim().length >= 10, "Findings complete"],
           [writtenResponse.trim().length >= 10 && !!writtenResponseDate, "Written response recorded"],
           [openActions.length === 0, "Corrective actions complete"],
-          [!monitoringRequired || (!!monitoringUntil && (activity.data?.monitoring.length ?? 0) > 0), "Nonretaliation monitoring complete"],
+          [!monitoringRequired || (!!monitoringUntil && new Date(monitoringUntil) <= new Date() && (activity.data?.monitoring.length ?? 0) > 0), "Nonretaliation monitoring complete"],
         ].map(([ready, label]) => <div key={String(label)} className="flex items-center gap-2">{ready ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}<span>{String(label)}</span></div>)}</CardContent></Card>
       </div>
 
