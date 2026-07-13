@@ -84,6 +84,7 @@ const ServiceDelivery = lazy(() => import("@/pages/app/ServiceDelivery"));
 const AdmissionOperations = lazy(() => import("@/pages/app/AdmissionOperations"));
 const MoveInWorkspaceDetail = lazy(() => import("@/pages/app/MoveInWorkspaceDetail"));
 const MoveInGuestPortal = lazy(() => import("@/pages/public/MoveInGuestPortal"));
+const ResidentAgreementGuestPortal = lazy(() => import("@/pages/public/ResidentAgreementGuestPortal"));
 const ChangeOfConditionQueue = lazy(() => import("@/pages/app/ChangeOfConditionQueue"));
 const ChangeOfConditionDetail = lazy(() => import("@/pages/app/ChangeOfConditionDetail"));
 const QapiDashboard = lazy(() => import("@/pages/app/QapiDashboard"));
@@ -315,6 +316,7 @@ function Router() {
           server authorizes and logs every call, so no session or chrome is involved. */}
       <Route path="/evidence-access/:token" component={EvidenceGuestRoom} />
       <Route path="/move-in-access/:token" component={MoveInGuestPortal} />
+      <Route path="/resident-agreement-access/:token" component={ResidentAgreementGuestPortal} />
 
       <Route path="/account/security">
         {() => <ProtectedRoute component={MfaSettings} allowedRoles={ANY_ROLE} />}

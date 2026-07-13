@@ -14246,6 +14246,598 @@ export type Database = {
           },
         ]
       }
+      resident_agreement_guest_access_events: {
+        Row: {
+          agreement_version_id: string | null
+          device_hash: string | null
+          event_type: string
+          facility_id: string
+          guest_grant_id: string
+          id: string
+          occurred_at: string
+          organization_id: string
+          resident_id: string
+          signature_id: string | null
+        }
+        Insert: {
+          agreement_version_id?: string | null
+          device_hash?: string | null
+          event_type: string
+          facility_id: string
+          guest_grant_id: string
+          id?: string
+          occurred_at?: string
+          organization_id: string
+          resident_id: string
+          signature_id?: string | null
+        }
+        Update: {
+          agreement_version_id?: string | null
+          device_hash?: string | null
+          event_type?: string
+          facility_id?: string
+          guest_grant_id?: string
+          id?: string
+          occurred_at?: string
+          organization_id?: string
+          resident_id?: string
+          signature_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_agreement_guest_access_event_agreement_version_id_fkey"
+            columns: ["agreement_version_id"]
+            isOneToOne: false
+            referencedRelation: "resident_agreement_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_guest_access_events_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_guest_access_events_guest_grant_id_fkey"
+            columns: ["guest_grant_id"]
+            isOneToOne: false
+            referencedRelation: "resident_agreement_guest_grants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_guest_access_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_guest_access_events_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_guest_access_events_signature_id_fkey"
+            columns: ["signature_id"]
+            isOneToOne: false
+            referencedRelation: "resident_agreement_signatures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_agreement_guest_grants: {
+        Row: {
+          accepted_at: string | null
+          accepted_device_hash: string | null
+          allowed_version_ids: string[]
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          facility_id: string
+          guest_label: string
+          id: string
+          organization_id: string
+          resident_id: string
+          revocation_reason: string | null
+          revoked_at: string | null
+          terms_version: string
+          token_sha256: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_device_hash?: string | null
+          allowed_version_ids: string[]
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          facility_id: string
+          guest_label: string
+          id?: string
+          organization_id: string
+          resident_id: string
+          revocation_reason?: string | null
+          revoked_at?: string | null
+          terms_version: string
+          token_sha256: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_device_hash?: string | null
+          allowed_version_ids?: string[]
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          facility_id?: string
+          guest_label?: string
+          id?: string
+          organization_id?: string
+          resident_id?: string
+          revocation_reason?: string | null
+          revoked_at?: string | null
+          terms_version?: string
+          token_sha256?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_agreement_guest_grants_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_guest_grants_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_guest_grants_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_guest_grants_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_agreement_history: {
+        Row: {
+          actor_profile_id: string | null
+          agreement_id: string | null
+          agreement_version_id: string | null
+          event_type: string
+          evidence: Json
+          facility_id: string
+          guest_grant_id: string | null
+          id: string
+          occurred_at: string
+          organization_id: string
+          resident_id: string
+          signature_id: string | null
+          summary: string
+        }
+        Insert: {
+          actor_profile_id?: string | null
+          agreement_id?: string | null
+          agreement_version_id?: string | null
+          event_type: string
+          evidence?: Json
+          facility_id: string
+          guest_grant_id?: string | null
+          id?: string
+          occurred_at?: string
+          organization_id: string
+          resident_id: string
+          signature_id?: string | null
+          summary: string
+        }
+        Update: {
+          actor_profile_id?: string | null
+          agreement_id?: string | null
+          agreement_version_id?: string | null
+          event_type?: string
+          evidence?: Json
+          facility_id?: string
+          guest_grant_id?: string | null
+          id?: string
+          occurred_at?: string
+          organization_id?: string
+          resident_id?: string
+          signature_id?: string | null
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_agreement_history_actor_profile_id_fkey"
+            columns: ["actor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_history_agreement_id_fkey"
+            columns: ["agreement_id"]
+            isOneToOne: false
+            referencedRelation: "resident_agreements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_history_agreement_version_id_fkey"
+            columns: ["agreement_version_id"]
+            isOneToOne: false
+            referencedRelation: "resident_agreement_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_history_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_history_guest_grant_id_fkey"
+            columns: ["guest_grant_id"]
+            isOneToOne: false
+            referencedRelation: "resident_agreement_guest_grants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_history_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_history_signature_id_fkey"
+            columns: ["signature_id"]
+            isOneToOne: false
+            referencedRelation: "resident_agreement_signatures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_agreement_signatures: {
+        Row: {
+          agreement_id: string
+          agreement_version_id: string
+          attestation: string
+          authentication_method: string
+          copy_delivered_at: string | null
+          copy_delivery_method: string | null
+          created_at: string
+          device_hash: string | null
+          facility_id: string
+          guest_grant_id: string | null
+          id: string
+          ip_hash: string | null
+          legal_authority: string | null
+          organization_id: string
+          outcome: string
+          reason: string | null
+          recorded_by: string | null
+          relationship: string
+          resident_id: string
+          signed_at: string
+          signer_name: string
+          signer_role: string
+          updated_at: string
+          witness_name: string | null
+          witness_relationship: string | null
+        }
+        Insert: {
+          agreement_id: string
+          agreement_version_id: string
+          attestation: string
+          authentication_method: string
+          copy_delivered_at?: string | null
+          copy_delivery_method?: string | null
+          created_at?: string
+          device_hash?: string | null
+          facility_id: string
+          guest_grant_id?: string | null
+          id?: string
+          ip_hash?: string | null
+          legal_authority?: string | null
+          organization_id: string
+          outcome: string
+          reason?: string | null
+          recorded_by?: string | null
+          relationship: string
+          resident_id: string
+          signed_at?: string
+          signer_name: string
+          signer_role: string
+          updated_at?: string
+          witness_name?: string | null
+          witness_relationship?: string | null
+        }
+        Update: {
+          agreement_id?: string
+          agreement_version_id?: string
+          attestation?: string
+          authentication_method?: string
+          copy_delivered_at?: string | null
+          copy_delivery_method?: string | null
+          created_at?: string
+          device_hash?: string | null
+          facility_id?: string
+          guest_grant_id?: string | null
+          id?: string
+          ip_hash?: string | null
+          legal_authority?: string | null
+          organization_id?: string
+          outcome?: string
+          reason?: string | null
+          recorded_by?: string | null
+          relationship?: string
+          resident_id?: string
+          signed_at?: string
+          signer_name?: string
+          signer_role?: string
+          updated_at?: string
+          witness_name?: string | null
+          witness_relationship?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_agreement_signatures_agreement_id_fkey"
+            columns: ["agreement_id"]
+            isOneToOne: false
+            referencedRelation: "resident_agreements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_signatures_agreement_version_id_fkey"
+            columns: ["agreement_version_id"]
+            isOneToOne: false
+            referencedRelation: "resident_agreement_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_signatures_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_signatures_guest_grant_id_fkey"
+            columns: ["guest_grant_id"]
+            isOneToOne: false
+            referencedRelation: "resident_agreement_guest_grants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_signatures_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_signatures_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_signatures_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_agreement_versions: {
+        Row: {
+          agreement_id: string
+          amendment_reason: string | null
+          content_sha256: string
+          content_text: string
+          created_at: string
+          created_by: string | null
+          document_id: string | null
+          effective_at: string
+          facility_id: string
+          id: string
+          organization_id: string
+          required_signer_roles: string[]
+          resident_id: string
+          status: string
+          supersedes_version_id: string | null
+          version_label: string
+          version_number: number
+        }
+        Insert: {
+          agreement_id: string
+          amendment_reason?: string | null
+          content_sha256: string
+          content_text: string
+          created_at?: string
+          created_by?: string | null
+          document_id?: string | null
+          effective_at?: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          required_signer_roles?: string[]
+          resident_id: string
+          status?: string
+          supersedes_version_id?: string | null
+          version_label: string
+          version_number: number
+        }
+        Update: {
+          agreement_id?: string
+          amendment_reason?: string | null
+          content_sha256?: string
+          content_text?: string
+          created_at?: string
+          created_by?: string | null
+          document_id?: string | null
+          effective_at?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          required_signer_roles?: string[]
+          resident_id?: string
+          status?: string
+          supersedes_version_id?: string | null
+          version_label?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_agreement_versions_agreement_id_fkey"
+            columns: ["agreement_id"]
+            isOneToOne: false
+            referencedRelation: "resident_agreements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_versions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_versions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "resident_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_versions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_versions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_versions_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_versions_supersedes_version_id_fkey"
+            columns: ["supersedes_version_id"]
+            isOneToOne: false
+            referencedRelation: "resident_agreement_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_agreements: {
+        Row: {
+          agreement_type: string
+          created_at: string
+          created_by: string | null
+          current_version_id: string | null
+          facility_id: string
+          id: string
+          organization_id: string
+          resident_id: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          agreement_type: string
+          created_at?: string
+          created_by?: string | null
+          current_version_id?: string | null
+          facility_id: string
+          id?: string
+          organization_id: string
+          resident_id: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          agreement_type?: string
+          created_at?: string
+          created_by?: string | null
+          current_version_id?: string | null
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          resident_id?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_agreements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreements_current_version_fkey"
+            columns: ["current_version_id"]
+            isOneToOne: false
+            referencedRelation: "resident_agreement_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreements_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreements_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resident_assessment_ai_generations: {
         Row: {
           created_at: string
@@ -19181,6 +19773,10 @@ export type Database = {
         Args: { p_fingerprint?: string; p_token: string }
         Returns: boolean
       }
+      accept_resident_agreement_guest_terms: {
+        Args: { p_device_evidence?: string; p_token: string }
+        Returns: boolean
+      }
       acknowledge_notification_spend_alert: {
         Args: { p_alert_id: string }
         Returns: undefined
@@ -20504,6 +21100,14 @@ export type Database = {
         Args: { p_resident_id: string }
         Returns: Json
       }
+      get_resident_administrative_packet_base: {
+        Args: { p_resident_id: string }
+        Returns: Json
+      }
+      get_resident_agreement_guest_workspace: {
+        Args: { p_token: string }
+        Returns: Json
+      }
       get_resident_service_task_queue: {
         Args: {
           p_facility_id?: string
@@ -20763,6 +21367,16 @@ export type Database = {
         }
         Returns: Json
       }
+      issue_resident_agreement_guest_grant: {
+        Args: {
+          p_expires_at: string
+          p_guest_label: string
+          p_resident_id: string
+          p_terms_version?: string
+          p_version_ids: string[]
+        }
+        Returns: Json
+      }
       link_sso_identity_subject: {
         Args: {
           p_link_method?: string
@@ -20823,6 +21437,14 @@ export type Database = {
       }
       mark_all_notifications_read: { Args: never; Returns: undefined }
       mark_notification_read: { Args: { p_id: string }; Returns: undefined }
+      mark_resident_agreement_copy_delivered: {
+        Args: {
+          p_delivered_at: string
+          p_delivery_method: string
+          p_signature_id: string
+        }
+        Returns: boolean
+      }
       match_exclusion_list_against_roster_core: {
         Args: { p_organization_id?: string; p_source: string }
         Returns: undefined
@@ -20911,6 +21533,21 @@ export type Database = {
       publish_governed_content_revision: {
         Args: { p_reason: string; p_revision_id: string }
         Returns: string
+      }
+      publish_resident_agreement_version: {
+        Args: {
+          p_agreement_id?: string
+          p_agreement_type: string
+          p_amendment_reason?: string
+          p_content_text: string
+          p_document_id?: string
+          p_effective_at: string
+          p_required_signer_roles: string[]
+          p_resident_id: string
+          p_title: string
+          p_version_label: string
+        }
+        Returns: Json
       }
       publish_schedule: { Args: { p_schedule_id: string }; Returns: undefined }
       queue_course_assignment_due_reminders: { Args: never; Returns: undefined }
@@ -21067,6 +21704,25 @@ export type Database = {
           p_report_version_id: string
           p_row_counts: Json
           p_source_watermarks: Json
+        }
+        Returns: string
+      }
+      record_resident_agreement_outcome: {
+        Args: {
+          p_attestation: string
+          p_authentication_method: string
+          p_copy_delivered_at?: string
+          p_copy_delivery_method?: string
+          p_device_evidence?: string
+          p_legal_authority: string
+          p_outcome: string
+          p_reason: string
+          p_relationship: string
+          p_signer_name: string
+          p_signer_role: string
+          p_version_id: string
+          p_witness_name: string
+          p_witness_relationship: string
         }
         Returns: string
       }
@@ -21254,6 +21910,24 @@ export type Database = {
         Args: { p_alert_id: string; p_status: string }
         Returns: boolean
       }
+      respond_to_resident_agreement_guest: {
+        Args: {
+          p_attestation: string
+          p_device_evidence?: string
+          p_ip_evidence?: string
+          p_legal_authority: string
+          p_outcome: string
+          p_reason: string
+          p_relationship: string
+          p_signer_name: string
+          p_signer_role: string
+          p_token: string
+          p_version_id: string
+          p_witness_name: string
+          p_witness_relationship: string
+        }
+        Returns: string
+      }
       resume_confidential_incident_intake: {
         Args: {
           p_intake_number: string
@@ -21337,6 +22011,10 @@ export type Database = {
         Returns: undefined
       }
       revoke_move_in_guest_grant: {
+        Args: { p_grant_id: string; p_reason: string }
+        Returns: boolean
+      }
+      revoke_resident_agreement_guest_grant: {
         Args: { p_grant_id: string; p_reason: string }
         Returns: boolean
       }

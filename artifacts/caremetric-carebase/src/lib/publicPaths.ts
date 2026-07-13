@@ -47,6 +47,7 @@ export function isPublicPath(path: string): boolean {
     p === "/report-safety" ||
     p.startsWith("/evidence-access/") ||
     p.startsWith("/move-in-access/") ||
+    p.startsWith("/resident-agreement-access/") ||
     p.startsWith("/verify/") ||
     MARKETING_PATHS.includes(p)
   );
