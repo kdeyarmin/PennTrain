@@ -38,16 +38,16 @@ const CLOSED = new Set(["closed", "resolved", "completed"]);
 
 export function classifyMedicationEvent(incidentType: string | null | undefined): MedicationEventType {
   const value = (incidentType ?? "").toLowerCase();
-  if (!/(med|drug|dose|mar|insulin|refusal|adverse|near miss)/.test(value)) return "other";
-  if (/omit|missed/.test(value)) return "omission";
-  if (/wrong dose|dose/.test(value)) return "wrong_dose";
-  if (/wrong resident|resident/.test(value)) return "wrong_resident";
-  if (/wrong med|wrong medication|drug/.test(value)) return "wrong_medication";
-  if (/wrong time|late|early/.test(value)) return "wrong_time";
-  if (/document|mar/.test(value)) return "documentation_error";
-  if (/adverse|reaction/.test(value)) return "adverse_reaction";
-  if (/refusal/.test(value)) return "refusal";
+  if (!/(med|medication|drug|dose|mar|insulin|refusal|adverse|near miss)/.test(value)) return "other";
   if (/near miss/.test(value)) return "near_miss";
+  if (/refusal/.test(value)) return "refusal";
+  if (/adverse|reaction/.test(value)) return "adverse_reaction";
+  if (/document|mar/.test(value)) return "documentation_error";
+  if (/wrong time|late|early/.test(value)) return "wrong_time";
+  if (/wrong resident/.test(value)) return "wrong_resident";
+  if (/wrong (med|medication)|wrong drug/.test(value)) return "wrong_medication";
+  if (/wrong dose|dose error/.test(value)) return "wrong_dose";
+  if (/omit|missed/.test(value)) return "omission";
   return "other";
 }
 
