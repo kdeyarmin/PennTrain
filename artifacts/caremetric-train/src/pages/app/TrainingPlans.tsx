@@ -121,7 +121,7 @@ function ApplyPlanDialog({
   };
 
   const handleApply = async () => {
-    if (selectedIds.length === 0) return;
+    if (selectedIds.length === 0 || !user) return;
     setApplying(true);
 
     const targets = selectedIds.filter((id) => employeeById.has(id));
