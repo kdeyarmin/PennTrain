@@ -190,11 +190,7 @@ export default function EmergencyOperations() {
   const submitEvent = () =>
     startEvent.mutate(
       {
-        facilityId,
-        eventMode,
-        eventType,
-        startedAt: new Date(eventStartedAt).toISOString(),
-        summary: eventSummary,
+        startedAt: new Date(eventStartedAt || Date.now()).toISOString(),
         locationDescription: eventLocation,
         assemblyPoint,
         incidentCommander: commanderId,
