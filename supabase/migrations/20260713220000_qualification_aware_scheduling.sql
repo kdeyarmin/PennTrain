@@ -2,10 +2,10 @@
 -- every assignment path, and replace census-only staffing estimates with service workload.
 
 alter table public.shift_assignments
-  add column eligibility_decision_id uuid
+  add column if not exists eligibility_decision_id uuid
   references public.schedule_eligibility_decisions(id) on delete restrict;
 
-create index shift_assignments_eligibility_decision_idx
+create index if not exists shift_assignments_eligibility_decision_idx
   on public.shift_assignments(eligibility_decision_id)
   where eligibility_decision_id is not null;
 
