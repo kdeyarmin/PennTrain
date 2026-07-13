@@ -159,7 +159,7 @@ function UnitsPanel({ facilityId, organizationId }: { facilityId: string; organi
                   <Button variant="ghost" size="sm" onClick={() => update.mutate({ id: u.id, is_active: !u.is_active })}>
                     {u.is_active ? "Deactivate" : "Activate"}
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => del.mutate(u.id)}>
+                  <Button variant="ghost" size="icon" onClick={() => del.mutate(u.id)} aria-label={`Delete unit ${u.name}`}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
@@ -231,6 +231,8 @@ function ShiftsPanel({ facilityId, organizationId }: { facilityId: string; organ
                   className="h-8 w-8 rounded-full border-2"
                   style={{ backgroundColor: c, borderColor: form.color === c ? "black" : "transparent" }}
                   onClick={() => setForm((f) => ({ ...f, color: c }))}
+                  aria-label={`Use color ${c}`}
+                  aria-pressed={form.color === c}
                 />
               ))}
             </div>
@@ -260,7 +262,7 @@ function ShiftsPanel({ facilityId, organizationId }: { facilityId: string; organ
                   <Button variant="ghost" size="sm" onClick={() => update.mutate({ id: s.id, is_active: !s.is_active })}>
                     {s.is_active ? "Deactivate" : "Activate"}
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(s)}>
+                  <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(s)} aria-label={`Delete shift type ${s.name}`}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
@@ -489,7 +491,7 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
                           {p.unit_id ? ` · ${unitById.get(p.unit_id)?.name ?? "—"}` : ""}
                         </span>
                       </div>
-                      <Button variant="ghost" size="icon" onClick={() => del.mutate(p.id)}>
+                      <Button variant="ghost" size="icon" onClick={() => del.mutate(p.id)} aria-label="Delete schedule pattern">
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>

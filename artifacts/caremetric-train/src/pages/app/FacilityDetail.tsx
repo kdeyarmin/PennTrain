@@ -26,7 +26,7 @@ import { useListEmployeeSchedulePreferences } from "@/hooks/useEmployeeScheduleP
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { FACILITY_TYPES, PCH_ALR_ONLY_FACILITY_TYPES, facilityTypeBadgeClass, type FacilityType } from "@/lib/facilityTypes";
+import { FACILITY_TYPES, PCH_ALR_ONLY_FACILITY_TYPES, facilityTypeBadgeClass, facilityTypeLabel, type FacilityType } from "@/lib/facilityTypes";
 import { FREQUENCY_OPTIONS, responsiblePartyOptions } from "@/lib/residentAssessmentFormSchema";
 import { getComplianceFormLabel } from "@/lib/residentCompliance";
 import { useListAdministratorProfiles } from "@/hooks/useAdministratorProfiles";
@@ -234,7 +234,7 @@ export default function FacilityDetail() {
           <div>
             <h1 className="text-2xl font-bold">{facility.name}</h1>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <Badge variant="outline" className={facilityTypeBadgeClass(facility.facility_type)}>{facility.facility_type}</Badge>
+              <Badge variant="outline" className={facilityTypeBadgeClass(facility.facility_type)}>{facilityTypeLabel(facility.facility_type)}</Badge>
               <Badge variant={facility.is_active ? "default" : "secondary"}>{facility.is_active ? "Active" : "Inactive"}</Badge>
             </div>
           </div>

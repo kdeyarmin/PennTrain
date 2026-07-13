@@ -27,7 +27,7 @@ const SECTIONS: Section[] = [
   {
     title: "Getting Started & Roles",
     paragraphs: [
-      "CareMetric Train is a multi-tenant facility management and compliance platform for personal care homes, assisted living residences, and related care providers. Every account is assigned exactly one role, and that role determines which part of the app you land in after signing in and which pages and actions are available to you. There are six roles: platform_admin, org_admin, facility_manager, trainer, employee, and auditor.",
+      "CareMetric Train is a multi-tenant facility management and compliance platform for personal care homes, assisted living facilities, and related care providers. Every account is assigned exactly one role, and that role determines which part of the app you land in after signing in and which pages and actions are available to you. There are six roles: platform_admin, org_admin, facility_manager, trainer, employee, and auditor.",
       "platform_admin is reserved for the CareMetric Train team. It has broad access across every organization on the platform, under /admin, and is the only role that can author training content -- creating and publishing training content, quizzes, and their questions and answers. org_admin and facility_manager are the two operator-facing admin roles, working under /app: they manage facilities, staff, training compliance, scheduling, documents, and reporting for their own organization. facility_manager's day-to-day access can additionally be narrowed to specific assigned facilities.",
       "trainer works under /trainer, focused on running training classes, monitoring who is due for retraining, and looking up facility/employee rosters. employee is the self-service role under /me, where staff take assigned training items, view their own training records, download their certificates, and complete policy attestations. auditor is a read-only role under /app with visibility into nearly everything org_admin and facility_manager can see -- compliance status, reports, the audit log -- but no ability to create, edit, or delete records.",
     ],
@@ -43,7 +43,7 @@ const SECTIONS: Section[] = [
   {
     title: "Facilities & Employees",
     paragraphs: [
-      "Facilities (/app/facilities) are the physical locations your organization operates -- personal care homes, assisted living residences, or other licensed sites. Each facility record carries its own license number and facility type, which in turn controls which compliance modules apply to it: some workflows, like Practicums, the Medication Administration Roster, Residents, and Inspections, only appear for facility types that require them.",
+      "Facilities (/app/facilities) are the physical locations your organization operates -- personal care homes, assisted living facilities, or other licensed sites. Each facility record carries its own license number and facility type, which in turn controls which compliance modules apply to it: some workflows, like Practicums, the Medication Administration Roster, Residents, and Inspections, only appear for facility types that require them.",
       "Employees (/app/employees) is your staff roster. Every employee belongs to a home facility, and can optionally be assigned to work additional facilities for scheduling purposes. Opening an employee's detail page brings together everything about that person in one place: their training record status, credentials, background checks, assigned training items, and practicum progress, so a facility_manager preparing for an inspection doesn't have to hunt across five different pages.",
       "New employees can be added one at a time or in bulk via CSV import, which is useful when onboarding an entire facility's existing staff at once.",
     ],
@@ -96,7 +96,7 @@ const SECTIONS: Section[] = [
   {
     title: "Practicums & Medication Administration Roster",
     paragraphs: [
-      "Practicums (/app/practicums) track the hands-on, supervised practicum hours required for certain staff roles at personal care homes and assisted living residences, alongside their due dates and compliance status. This module only appears for facilities of a type that requires practicums.",
+      "Practicums (/app/practicums) track the hands-on, supervised practicum hours required for certain staff roles at personal care homes and assisted living facilities, alongside their due dates and compliance status. This module only appears for facilities of a type that requires practicums.",
       "The Medication Administration Roster (/app/med-admin-roster) is the authoritative list of which employees are currently certified to administer medications at a given facility, and is one of the first documents a state surveyor will ask to see during an inspection. Keeping it current depends on the underlying training records and credentials staying up to date, since roster eligibility is derived from those records rather than tracked separately.",
     ],
     bullets: [
