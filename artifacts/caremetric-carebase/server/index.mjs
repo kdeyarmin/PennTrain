@@ -152,22 +152,26 @@ async function resolveArchivedAsset(pathname) {
 
 async function prepareAssetArchive() {
   if (!ASSET_ARCHIVE_DIR) return;
-  await mkdir(ASSET_ARCHIVE_DIR, { recursive: true });
-  await cp(join(DIST_DIR, "assets"), ASSET_ARCHIVE_DIR, {
-    recursive: true,
-    force: false,
-    errorOnExist: false,
-  });
+  try {
+    await mkdir(ASSET_ARCHIVE_DIR, { recursive: true });
+    await cp(join(DIST_DIR, "assets"), ASSET_ARCHIVE_DIR, {
+      recursive: true,
+      force: false,
+      errorOnExist: false,
+    });
 
-  const cutoff = Date.now() - ASSET_ARCHIVE_MAX_AGE_MS;
-  const entries = await readdir(ASSET_ARCHIVE_DIR, { withFileTypes: true });
-  await Promise.all(entries.map(async (entry) => {
-    if (!entry.isFile()) return;
-    const filePath = join(ASSET_ARCHIVE_DIR, entry.name);
-    const info = await stat(filePath);
-    if (info.mtimeMs < cutoff) await rm(filePath, { force: true });
-  }));
-  console.log(`Preserving release assets in ${ASSET_ARCHIVE_DIR}`);
+    const cutoff = Date.now() - ASSET_ARCHIVE_MAX_AGE_MS;
+    const entries = await readdir(ASSET_ARCHIVE_DIR, { withFileTypes: true });
+    await Promise.all(entries.map(async (entry) => {
+      if (!entry.isFile()) return;
+      const filePath = join(ASSET_ARCHIVE_DIR, entry.name);
+      const info = await stat(filePath);
+      if (info.mtimeMs < cutoff) await rm(filePath, { force: true });
+    }));
+    console.log(`Preserving release assets in ${ASSET_ARCHIVE_DIR}`);
+  } catch (error) {
+    console.warn(`Asset archive disabled (failed to prepare ${ASSET_ARCHIVE_DIR})`, error);
+  }
 }
 
 // Picks the best precompressed encoding the client accepts: br over gzip, honoring q=0
