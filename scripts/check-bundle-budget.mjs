@@ -33,19 +33,19 @@ const budgets = {
   // raised 2700 -> 2710 after merging all features together (environmental work orders,
   // emergency operations, complaints/grievances, and qualification-aware scheduling).
   // The new pages remain lazy routes and do not increase the initial-shell budget.
-  // raised 2710 -> 2760 after the emergency-operations and environmental-work-orders
   // branches were both merged into main; measured combined bundle is 2755.7 KiB; raised
   // 2760 -> 2790 after the resident administrative master workspace (identity, contacts,
   // legal, payer, directives, rights, contracts, history) merged in and the measured
   // combined bundle reached 2787.2 KiB while the per-load budgets stayed flat; raised
   // 2790 -> 2800 for the lazy dietary, hydration, nutrition, menu-cycle, food-safety,
   // and food-service qualification operations workspace; raised 2800 -> 2810 after
-  // synchronizing the stacked scheduling and environmental-work-order routes; raised
-  // 2810 -> 2840 for the lazy resident-services calendar and transportation workflows;
-  // raised 2840 -> 2880 for the lazy resident financial operations workspace; raised
-  // 2880 -> 2920 after merging the emergency-operations routes with the resident calendar/
-  // finance workflows, yielding a measured combined bundle of 2917.0 KiB while the initial-
-  // shell budget stayed well under its limit.
+  // synchronizing the stacked scheduling and environmental-work-order routes and the DHS
+  // Forms Library lazy route; raised 2810 -> 2840 for the lazy resident-services calendar
+  // and transportation workflows, and the integrated operations-command-center snapshot
+  // and huddle views; raised 2840 -> 2880 for the lazy resident financial operations
+  // workspace; raised 2880 -> 2920 after merging the emergency-operations routes with the
+  // resident calendar/finance workflows, yielding a measured combined bundle of 2917.0 KiB
+  // while the initial-shell budget stayed well under its limit.
   totalJavaScript: 2920 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
