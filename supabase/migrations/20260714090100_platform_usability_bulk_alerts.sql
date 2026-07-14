@@ -31,7 +31,6 @@ begin
         v_results := v_results || jsonb_build_array(jsonb_build_object('id', v_id, 'status', 'failed', 'message', 'Alert not found'));
         continue;
       end if;
-
       if not public.is_platform_admin()
          and not (
            v_alert.organization_id = (select public.current_org_id())
@@ -41,7 +40,6 @@ begin
         v_results := v_results || jsonb_build_array(jsonb_build_object('id', v_id, 'status', 'unauthorized', 'message', 'Not authorized'));
         continue;
       end if;
-
       if v_alert.status = p_status then
         v_results := v_results || jsonb_build_array(jsonb_build_object('id', v_id, 'status', 'skipped', 'message', 'Already ' || p_status));
         continue;

@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { addDaysIso, todayIso } from "@/lib/scheduleDates";
 
 function dateDaysAgo(days: number) {
-  return addDaysIso(todayIso(), -days);
+ return addDaysIso(todayIso(), -days);
 }
 
 function MetricCard({ title, value, description, tone = "default" }: { title: string; value: string | number; description: string; tone?: "default" | "warning" | "success" }) {
