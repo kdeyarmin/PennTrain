@@ -70,7 +70,6 @@ import {
   Utensils,
   Landmark,
   Siren,
-  Landmark,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
