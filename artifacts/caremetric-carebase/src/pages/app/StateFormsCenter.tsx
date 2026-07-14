@@ -163,6 +163,9 @@ export default function StateFormsCenter() {
           <Button asChild variant="ghost" size="sm">
             <Link href="/app/resident-compliance">Open flat report</Link>
           </Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/app/dhs-forms">DHS Forms Library</Link>
+          </Button>
         </div>
       </div>
 

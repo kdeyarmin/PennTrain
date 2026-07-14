@@ -215,6 +215,40 @@ export function useGenerateIncidentReportPdf() {
   });
 }
 
+export interface GenerateIncidentStateFormPdfResult {
+  url: string;
+  fieldsFilled: number;
+  sourceLabel: string;
+  sourceUrl: string;
+  expiresIn: number;
+}
+
+interface GenerateIncidentStateFormPdfResponse extends GenerateIncidentStateFormPdfResult {
+  success?: boolean;
+  error?: string;
+}
+
+// Same "always regenerates" posture as useGenerateIncidentReportPdf -- the official DHS form is
+// filled from whatever's currently on the incident, so re-running after an update is expected.
+export function useGenerateIncidentStateFormPdf() {
+  return useMutation({
+    mutationFn: async (incidentId: string): Promise<GenerateIncidentStateFormPdfResult> => {
+      const { data, error } = await supabase.functions.invoke<GenerateIncidentStateFormPdfResponse>(
+        "generate-incident-state-form-pdf",
+        { body: { incidentId } },
+      );
+      if (error) throw error;
+      if (!data || data.success === false || !data.url) {
+        throw new Error(data?.error ?? "Failed to generate the DHS reportable incident form");
+      }
+      return {
+        url: data.url, fieldsFilled: data.fieldsFilled,
+        sourceLabel: data.sourceLabel, sourceUrl: data.sourceUrl, expiresIn: data.expiresIn,
+      };
+    },
+  });
+}
+
 export function useCompleteIncidentNotification() {
   const queryClient = useQueryClient();
   return useMutation({

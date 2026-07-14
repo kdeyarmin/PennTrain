@@ -4,7 +4,7 @@ import {
   useGetIncident, useUpdateIncident,
   useListIncidentStaffInvolved, useAddIncidentStaffInvolved, useRemoveIncidentStaffInvolved,
   useListIncidentNotifications, useAddIncidentNotification, useCompleteIncidentNotification,
-  useGenerateIncidentReportPdf, type IncidentStaffInvolved,
+  useGenerateIncidentReportPdf, useGenerateIncidentStateFormPdf, type IncidentStaffInvolved,
 } from "@/hooks/useIncidents";
 import {
   useListCorrectiveActions, useCreateCorrectiveAction, useUpdateCorrectiveAction,
@@ -90,6 +90,7 @@ export default function IncidentDetail() {
   const getSignedUrl = useIncidentDocumentSignedUrl();
   const deleteDocument = useDeleteIncidentDocument();
   const generateReportPdf = useGenerateIncidentReportPdf();
+  const generateStateFormPdf = useGenerateIncidentStateFormPdf();
 
   const [newStaffEmployee, setNewStaffEmployee] = useState("");
   const [newStaffRole, setNewStaffRole] = useState<"involved_party" | "witness" | "first_responder" | "reporter">("witness");
@@ -593,19 +594,40 @@ export default function IncidentDetail() {
               </span>
             )}
           </div>
-          <Button
-            size="sm"
-            disabled={generateReportPdf.isPending}
-            onClick={() => {
-              generateReportPdf.mutate(incident.id, {
-                onSuccess: (result) => window.open(result.url, "_blank", "noopener,noreferrer"),
-                onError: (e: Error) => toast({ title: "Failed to generate report", description: e.message, variant: "destructive" }),
-              });
-            }}
-          >
-            <FileDown className="mr-2 h-4 w-4" />
-            {generateReportPdf.isPending ? "Generating..." : "Generate DHS Report PDF"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              disabled={generateReportPdf.isPending}
+              onClick={() => {
+                generateReportPdf.mutate(incident.id, {
+                  onSuccess: (result) => window.open(result.url, "_blank", "noopener,noreferrer"),
+                  onError: (e: Error) => toast({ title: "Failed to generate report", description: e.message, variant: "destructive" }),
+                });
+              }}
+            >
+              <FileDown className="mr-2 h-4 w-4" />
+              {generateReportPdf.isPending ? "Generating..." : "Generate Incident Report PDF"}
+            </Button>
+            <Button
+              size="sm" variant="outline"
+              disabled={generateStateFormPdf.isPending}
+              onClick={() => {
+                generateStateFormPdf.mutate(incident.id, {
+                  onSuccess: (result) => window.open(result.url, "_blank", "noopener,noreferrer"),
+                  onError: (e: Error) => toast({ title: "Failed to generate DHS form", description: e.message, variant: "destructive" }),
+                });
+              }}
+            >
+              <FileDown className="mr-2 h-4 w-4" />
+              {generateStateFormPdf.isPending ? "Generating..." : "Fill Official DHS Reportable Incident Form"}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            The incident report above is CareMetric's own summary. The DHS form fills the
+            official state PDF with what's on this page (identity, timing, staff involved,
+            narrative) -- review, complete anything it couldn't fill, and sign before submitting
+            to the Department.
+          </p>
         </CardContent>
       </Card>
 

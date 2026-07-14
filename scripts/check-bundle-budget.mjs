@@ -35,7 +35,9 @@ const budgets = {
   // raised 2760 -> 2790 after the resident administrative master workspace (identity,
   // contacts, legal, payer, directives, rights, contracts, history) merged in and the
   // measured combined bundle reached 2787.2 KiB while the per-load budgets stayed flat.
-  totalJavaScript: 2790 * 1024,
+  // raised 2790 -> 2810 for the DHS Forms Library lazy route (a new page, not part of the
+  // initial shell); measured combined bundle is 2808.4 KiB.
+  totalJavaScript: 2810 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };

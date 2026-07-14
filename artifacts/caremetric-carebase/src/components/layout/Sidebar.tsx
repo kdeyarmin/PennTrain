@@ -68,6 +68,7 @@ import {
   FileSearch,
   MessageSquareWarning,
   Siren,
+  Landmark,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -236,6 +237,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/evidence", label: "Evidence Room", icon: FolderLock },
           { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
           { href: "/app/template-documents", label: "Template Documents", icon: FileStack },
+          { href: "/app/dhs-forms", label: "DHS Forms Library", icon: Landmark },
           { href: "/app/documents", label: "Documents", icon: Files },
         ]
       },
@@ -332,6 +334,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/evidence", label: "Evidence Room", icon: FolderLock },
           { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
           { href: "/app/template-documents", label: "Template Documents", icon: FileStack },
+          { href: "/app/dhs-forms", label: "DHS Forms Library", icon: Landmark },
           { href: "/app/documents", label: "Documents", icon: Files },
           { href: "/app/audit", label: "Audit Log", icon: ShieldAlert },
         ]
