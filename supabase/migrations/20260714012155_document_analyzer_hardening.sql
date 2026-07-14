@@ -111,7 +111,7 @@ begin
     update public.document_analyzer_jobs j
     set status = 'processing',
         attempt_count = j.attempt_count + 1,
-        current_run_id = gen_random_uuid(),
+        current_run_id = extensions.gen_random_uuid(),
         worker_id = p_worker_id,
         locked_at = now(),
         last_started_at = now(),
