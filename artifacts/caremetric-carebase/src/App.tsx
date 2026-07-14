@@ -81,6 +81,7 @@ const ResidentDetail = lazy(() => import("@/pages/app/ResidentDetail"));
 const ResidentComplianceReport = lazy(() => import("@/pages/app/ResidentComplianceReport"));
 const StateFormsCenter = lazy(() => import("@/pages/app/StateFormsCenter"));
 const ServiceDelivery = lazy(() => import("@/pages/app/ServiceDelivery"));
+const ResidentCareDelivery = lazy(() => import("@/pages/app/ResidentCareDelivery"));
 const AdmissionOperations = lazy(() => import("@/pages/app/AdmissionOperations"));
 const MoveInWorkspaceDetail = lazy(() => import("@/pages/app/MoveInWorkspaceDetail"));
 const MoveInGuestPortal = lazy(() => import("@/pages/public/MoveInGuestPortal"));
@@ -127,6 +128,7 @@ const RetrainingMonitor = lazy(() => import("@/pages/trainer/RetrainingMonitor")
 const EmployeeDashboard = lazy(() => import("@/pages/employee/EmployeeDashboard"));
 const MyTrainings = lazy(() => import("@/pages/employee/MyTrainings"));
 const MySchedule = lazy(() => import("@/pages/employee/MySchedule"));
+const MyShift = lazy(() => import("@/pages/employee/MyShift"));
 const MyCourses = lazy(() => import("@/pages/employee/MyCourses"));
 const MyCertificates = lazy(() => import("@/pages/employee/MyCertificates"));
 const MyCredentials = lazy(() => import("@/pages/employee/MyCredentials"));
@@ -587,6 +589,9 @@ function Router() {
       <Route path="/app/services">
         {() => <ProtectedRoute component={ServiceDelivery} allowedRoles={SERVICE_DELIVERY_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
+      <Route path="/app/resident-care-delivery">
+        {() => <ProtectedRoute component={ResidentCareDelivery} allowedRoles={SERVICE_DELIVERY_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
       <Route path="/app/admissions">
         {() => <ProtectedRoute component={AdmissionOperations} allowedRoles={ADMISSION_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
@@ -731,6 +736,9 @@ function Router() {
       </Route>
       <Route path="/me/change-of-condition/:id">
         {() => <ProtectedRoute component={ChangeOfConditionDetail} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/shift">
+        {() => <ProtectedRoute component={MyShift} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/schedule">
         {() => <ProtectedRoute component={MySchedule} allowedRoles={["employee"]} />}

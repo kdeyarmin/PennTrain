@@ -4,7 +4,7 @@ import { useGlobalSearch } from "@/hooks/useGlobalSearch";
 import { useAuth } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
 import { searchCommandActions, searchPages } from "@/lib/appDomains";
-import { Search, Building2, User, Users, UserRound, Compass, Zap, BookOpen } from "lucide-react";
+import { Search, Building2, User, Users, UserRound, Compass, Zap, BookOpen, FileText, AlertTriangle, Wrench, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const DEBOUNCE_MS = 250;
@@ -44,12 +44,11 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const { data: results, isFetching } = useGlobalSearch(debouncedQuery, user?.role);
+  const { data: results, isFetching, isError, error, refetch } = useGlobalSearch(debouncedQuery, user?.role);
   const actionResults = searchCommandActions(debouncedQuery, user?.role);
   const pageResults = searchPages(debouncedQuery, user?.role);
-  const hasResults = !!results && (
-    actionResults.length || pageResults.length || results.organizations.length || results.profiles.length || results.employees.length || results.residents.length || results.courses.length
-  );
+  const hasWorkspaceItems = !!results?.items?.length;
+  const hasResults = !!results && (actionResults.length || pageResults.length || hasWorkspaceItems || results.organizations.length || results.profiles.length || results.employees.length || results.residents.length || results.courses.length);
 
   const employeesBasePath = user?.role === "platform_admin" ? "/admin/employees"
     : user?.role === "trainer" ? "/trainer/employees"
@@ -70,6 +69,18 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
     "w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-muted",
     activeOptionId === id && "bg-muted ring-1 ring-inset ring-primary/40",
   );
+
+  const kindLabel = (kind: string) => kind.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+  const kindIcon = (kind: string) => {
+    if (["incidents", "complaints", "violations"].includes(kind)) return <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />;
+    if (["work_orders", "inspection_items"].includes(kind)) return <Wrench className="h-3.5 w-3.5 text-muted-foreground shrink-0" />;
+    if (["documents", "policies", "certificates"].includes(kind)) return <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />;
+    if (kind === "qapi_projects") return <ShieldCheck className="h-3.5 w-3.5 text-primary shrink-0" />;
+    if (kind === "employees") return <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" />;
+    if (kind === "residents") return <UserRound className="h-3.5 w-3.5 text-muted-foreground shrink-0" />;
+    if (kind === "facilities") return <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />;
+    return <BookOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />;
+  };
 
   const handleSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Escape") {
@@ -128,9 +139,15 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
           onMouseDown={(e) => { e.preventDefault(); if (blurTimeout.current) clearTimeout(blurTimeout.current); }}
         >
           {isFetching && !hasResults ? (
-            <p className="px-3 py-4 text-xs text-muted-foreground text-center">Searching...</p>
+            <p className="px-3 py-4 text-xs text-muted-foreground text-center" aria-live="polite">Searching...</p>
+          ) : isError ? (
+            <div className="px-3 py-4 text-xs text-center" role="alert">
+              <p className="font-medium text-destructive">Search failed</p>
+              <p className="mt-1 text-muted-foreground">{error instanceof Error ? error.message : "Try again."}</p>
+              <button type="button" className="mt-2 rounded text-primary underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => void refetch()}>Retry search</button>
+            </div>
           ) : !hasResults ? (
-            <p className="px-3 py-4 text-xs text-muted-foreground text-center">No matches for "{query.trim()}"</p>
+            <p className="px-3 py-4 text-xs text-muted-foreground text-center" aria-live="polite">No matches for "{query.trim()}"</p>
           ) : (
             <div className="py-1">
               {!!actionResults.length && (
@@ -172,6 +189,30 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
                       <span className="min-w-0">
                         <span className="block truncate">{page.label}</span>
                         <span className="block text-[11px] capitalize text-muted-foreground">{page.domain.replace(/_/g, " ")}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {hasWorkspaceItems && (
+                <div>
+                  <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Records</p>
+                  {results!.items.map((item) => (
+                    <button
+                      key={`${item.kind}-${item.id}`}
+                      id={optionId("workspace", `${item.kind}-${item.id}`)}
+                      role="option"
+                      aria-selected={activeOptionId === optionId("workspace", `${item.kind}-${item.id}`)}
+                      onMouseMove={() => setActiveOptionId(optionId("workspace", `${item.kind}-${item.id}`))}
+                      className={optionClass(optionId("workspace", `${item.kind}-${item.id}`))}
+                      onClick={() => go(item.route)}
+                    >
+                      {kindIcon(item.kind)}
+                      <span className="min-w-0">
+                        <span className="block truncate">{item.label}</span>
+                        <span className="block truncate text-[11px] text-muted-foreground">
+                          {kindLabel(item.kind)}{item.status ? ` · ${item.status.replace(/_/g, " ")}` : ""}{item.facilityName ? ` · ${item.facilityName}` : ""}{item.subtitle ? ` · ${item.subtitle}` : ""}
+                        </span>
                       </span>
                     </button>
                   ))}
