@@ -37,9 +37,10 @@ const budgets = {
   // raised 2790 -> 2800 for resident agreement versioning and external e-signatures; raised
   // 2800 -> 2840 for the lazy dietary, hydration, nutrition, menu-cycle, food-safety,
   // and food-service qualification operations workspace; raised 2840 -> 2860 for the lazy
-  // resident-services calendar and transportation workflows after merging dietary operations.
-  // These changes keep the initial-shell and per-load limits flat.
-  totalJavaScript: 2860 * 1024,
+  // resident-services calendar and transportation workflows after merging dietary operations;
+  // raised 2860 -> 2890 after the rebased dietary and resident-services feature set settled
+  // at a measured combined bundle size of 2882.3 KiB while the per-load budgets stayed flat.
+  totalJavaScript: 2890 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };
