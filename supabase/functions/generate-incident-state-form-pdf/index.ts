@@ -111,7 +111,12 @@ Deno.serve(async (req: Request) => {
   } | null;
   const organizationName = (incident.organizations as unknown as { name: string } | null)?.name ?? "";
 
-  const [{ data: staff }, { data: notifications }, { data: correctiveActions }, { data: reporter }] = await Promise.all([
+  const [
+    { data: staff, error: staffError },
+    { data: notifications, error: notificationsError },
+    { data: correctiveActions, error: correctiveActionsError },
+    { data: reporter, error: reporterError },
+  ] = await Promise.all([
     callerClient
       .from("incident_staff_involved")
       .select("involvement_type, employees(first_name, last_name, job_title)")
@@ -128,9 +133,18 @@ Deno.serve(async (req: Request) => {
       .eq("incident_id", incidentId)
       .order("created_at", { ascending: true }),
     incident.reported_by_profile_id
-      ? callerClient.from("profiles").select("first_name, last_name, phone").eq("id", incident.reported_by_profile_id).maybeSingle()
-      : Promise.resolve({ data: null }),
+      ? callerClient
+        .from("profiles")
+        .select("first_name, last_name, phone")
+        .eq("id", incident.reported_by_profile_id)
+        .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
   ]);
+
+  if (staffError) return json({ error: staffError.message }, 500);
+  if (notificationsError) return json({ error: notificationsError.message }, 500);
+  if (correctiveActionsError) return json({ error: correctiveActionsError.message }, 500);
+  if (reporterError) return json({ error: reporterError.message }, 500);
 
   const templateBytes = await fetchDhsTemplate(INCIDENT_FORM_TEMPLATE);
   const doc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
