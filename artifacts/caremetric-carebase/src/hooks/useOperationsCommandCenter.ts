@@ -55,6 +55,40 @@ export interface OperationsCommandCenterSnapshot {
   generatedAt: string;
 }
 
+export type PortfolioReadinessStatus = "critical" | "attention" | "ready";
+
+export interface PortfolioOperationsFacility {
+  facility: OperationsCommandCenterSnapshot["facility"];
+  readinessStatus: PortfolioReadinessStatus;
+  riskScore: number;
+  signals: OperationsCommandCenterSignals;
+  workQueue: OperationsWorkQueueSummary;
+}
+
+export interface PortfolioOperationsSummary {
+  facilityCount: number;
+  criticalFacilities: number;
+  attentionFacilities: number;
+  readyFacilities: number;
+  openWork: number;
+  urgentWork: number;
+  overdueWork: number;
+  unassignedWork: number;
+  activeEmergencyEvents: number;
+  emergencyUnaccounted: number;
+  highRiskWorkOrders: number;
+  residentReadinessGaps: number;
+  workforceGaps: number;
+  activeResidents: number;
+}
+
+export interface PortfolioOperationsCommandCenterSnapshot {
+  organizationId: string;
+  summary: PortfolioOperationsSummary;
+  facilities: PortfolioOperationsFacility[];
+  generatedAt: string;
+}
+
 export function useOperationsCommandCenter(facilityId: string | undefined) {
   return useQuery({
     queryKey: ["operations-command-center", facilityId],
@@ -67,6 +101,19 @@ export function useOperationsCommandCenter(facilityId: string | undefined) {
       return data as unknown as OperationsCommandCenterSnapshot;
     },
     enabled: Boolean(facilityId),
+    refetchInterval: 60_000,
+  });
+}
+
+export function usePortfolioOperationsCommandCenter() {
+  return useQuery({
+    queryKey: ["portfolio-operations-command-center"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_portfolio_operations_command_center");
+      if (error) throw error;
+      if (!data) throw new Error("Portfolio operations are unavailable for your role or organization.");
+      return data as unknown as PortfolioOperationsCommandCenterSnapshot;
+    },
     refetchInterval: 60_000,
   });
 }
