@@ -365,11 +365,14 @@ begin
     or length(btrim(coalesce(p_reason, ''))) < 5 then
     raise exception 'Calendar reschedule is invalid' using errcode = '22023';
   end if;
-  if v.vehicle_id is not null and exists (
-    select 1 from public.resident_service_calendar_events existing
-    where existing.id <> v.id and existing.vehicle_id = v.vehicle_id and existing.status = 'scheduled'
-      and tstzrange(existing.starts_at, existing.ends_at, '[)') && tstzrange(p_starts_at, p_ends_at, '[)')
-  ) then raise exception 'Vehicle is already assigned during this time' using errcode = '23P01'; end if;
+  if v.vehicle_id is not null then
+    perform pg_advisory_xact_lock(hashtext('resident_calendar_vehicle'), hashtext(v.vehicle_id::text));
+    if exists (
+      select 1 from public.resident_service_calendar_events existing
+      where existing.id <> v.id and existing.vehicle_id = v.vehicle_id and existing.status = 'scheduled'
+        and tstzrange(existing.starts_at, existing.ends_at, '[)') && tstzrange(p_starts_at, p_ends_at, '[)')
+    ) then raise exception 'Vehicle is already assigned during this time' using errcode = '23P01'; end if;
+  end if;
   if exists (
     select 1 from public.resident_service_calendar_event_staff staff
     join public.resident_service_calendar_event_staff assigned on assigned.employee_id = staff.employee_id
