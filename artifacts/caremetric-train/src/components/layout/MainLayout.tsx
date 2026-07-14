@@ -74,8 +74,8 @@ function SuspendedScreen() {
         </div>
         <h1 className="text-xl font-bold">Organization Access Suspended</h1>
         <p className="text-muted-foreground text-sm">
-          Your organization's access to CareMetric CareBase has been suspended. Contact your administrator or
-          CareMetric CareBase support to resolve this.
+          Your organization's access to CareMetric Train has been suspended. Contact your administrator or
+          CareMetric Train support to resolve this.
         </p>
         <Button variant="outline" onClick={handleLogout}>Sign Out</Button>
       </div>

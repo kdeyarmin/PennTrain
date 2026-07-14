@@ -12,9 +12,9 @@ const CORS_HEADERS = {
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const DEFAULT_APP_ORIGIN = "https://cmcarebase.com";
+const DEFAULT_APP_ORIGIN = "https://caremetrictrain.com";
 const DEFAULT_ALLOWED_APP_ORIGINS = new Set([
-  "https://cmcarebase.com",
+  "https://caremetrictrain.com",
   "https://carebase-production.up.railway.app",
 ]);
 

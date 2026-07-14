@@ -23,13 +23,13 @@ const MARGIN = 50;
 const SIGNIN_ROWS = 18;
 // Falls back to this default when the caller doesn't pass its own origin -- matches the domain
 // generate-certificate-pdf already prints on issued certificates ("Verify at
-// cmcarebase.com/verify/...") for consistency across every PDF this app generates.
-const DEFAULT_APP_ORIGIN = "https://cmcarebase.com";
+// caremetrictrain.com/verify/...") for consistency across every PDF this app generates.
+const DEFAULT_APP_ORIGIN = "https://caremetrictrain.com";
 // Known app origins (see DEPLOYMENT.md's Supabase Auth redirect URL config) -- the caller-supplied
 // baseUrl is only honored if it matches one of these, so this endpoint can't be used to embed an
 // arbitrary attacker domain in the check-in QR code printed on the class notice.
 const ALLOWED_APP_ORIGINS = new Set([
-  "https://cmcarebase.com",
+  "https://caremetrictrain.com",
   "https://carebase-production.up.railway.app",
 ]);
 

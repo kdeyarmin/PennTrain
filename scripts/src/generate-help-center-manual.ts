@@ -28,7 +28,7 @@ const SECTIONS: Section[] = [
     title: "Getting Started & Roles",
     paragraphs: [
       "CareMetric Train is a multi-tenant facility management and compliance platform for personal care homes, assisted living residences, and related care providers. Every account is assigned exactly one role, and that role determines which part of the app you land in after signing in and which pages and actions are available to you. There are six roles: platform_admin, org_admin, facility_manager, trainer, employee, and auditor.",
-      "platform_admin is reserved for the CareMetric Train team. It has broad access across every organization on the platform, under /admin, and is the only role that can author training content -- creating and publishing training content, quizzes, and their questions and answers. org_admin and facility_manager are the two operator-facing admin roles, working under /app: they manage facilities, staff, training compliance, scheduling, documents, and reporting for their own organization. facility_manager's day-to-day access can additionally be narrowed to specific assigned facilities.",
+      "platform_admin is reserved for the CareMetric Train team. It has broad access across every organization on the platform, under /admin, and is the only role that can author training content -- creating and publishing training content, quizzes, and their questions and answers. org_admin and facility_manager are the two operator-facing admin roles, working under /app: they manage facilities, staff, training compliance, scheduling, state forms, evidence rooms, documents, and reporting for their own organization. facility_manager's day-to-day access can additionally be narrowed to specific assigned facilities.",
       "trainer works under /trainer, focused on running training classes, monitoring who is due for retraining, and looking up facility/employee rosters. employee is the self-service role under /me, where staff take assigned training items, view their own training records, download their certificates, and complete policy attestations. auditor is a read-only role under /app with visibility into nearly everything org_admin and facility_manager can see -- compliance status, reports, the audit log -- but no ability to create, edit, or delete records.",
     ],
     bullets: [
@@ -44,7 +44,7 @@ const SECTIONS: Section[] = [
     title: "Facilities & Employees",
     paragraphs: [
       "Facilities (/app/facilities) are the physical locations your organization operates -- personal care homes, assisted living residences, or other licensed sites. Each facility record carries its own license number and facility type, which in turn controls which compliance modules apply to it: some workflows, like Practicums, the Medication Administration Roster, Residents, and Inspections, only appear for facility types that require them.",
-      "Employees (/app/employees) is your staff roster. Every employee belongs to a home facility, and can optionally be assigned to work additional facilities for scheduling purposes. Opening an employee's detail page brings together everything about that person in one place: their training record status, credentials, background checks, assigned training items, and practicum progress, so a facility_manager preparing for an inspection doesn't have to hunt across five different pages.",
+      "Employees (/app/employees) is your staff roster. Every employee belongs to a home facility, and can optionally be assigned to work additional facilities for scheduling purposes. Opening an employee's detail page brings together everything about that person in one place: their training record status, credentials, background checks, assigned training items, practicum progress, schedules, documents, and related evidence, so a facility_manager preparing for an inspection doesn't have to hunt across five different pages.",
       "New employees can be added one at a time or in bulk via CSV import, which is useful when onboarding an entire facility's existing staff at once.",
     ],
     bullets: [
@@ -135,12 +135,15 @@ const SECTIONS: Section[] = [
     paragraphs: [
       "For personal care home and assisted living facilities, Residents (/app/residents) maintains a compliance-oriented resident registry -- census information plus flags such as whether a resident is in a specialized dementia care unit (SDCU) or receiving hospice services. This module deliberately does not include clinical charting, an eMAR, or care plans; it exists to track compliance dates and census, not to serve as a clinical record system.",
       "Resident Compliance (/app/resident-compliance) reports on resident-level compliance items -- assessments and other resident-specific requirements -- against their due dates, using the same Compliant / Due Soon / Expired / Missing status model used everywhere else in the app. Resident Assessment Forms let you configure the specific assessment content used for a facility's residents.",
-      "Like Practicums and the Medication Administration Roster, resident modules only appear for facilities of the applicable type, and are restricted to org_admin, facility_manager, and auditor.",
+      "Like Practicums and the Medication Administration Roster, resident modules only appear for facilities of the applicable type, and are restricted to org_admin, facility_manager, and auditor. State Forms (/app/state-forms) extends those resident and facility workflows by tracking DHS forms from draft through review, signature, filing, and renewal reminders, with generated prefill support where configured.",
+      "PCH / ALF Operations (/app/pch-alr-operations) gives personal care home and assisted living leaders a focused snapshot of census, assessment timeliness, medication authorization, inspections, incidents, state-form follow-up, and open corrective work.",
     ],
     bullets: [
       "Maintain your resident census, including SDCU and hospice flags",
       "Track resident-level compliance items against their due dates",
       "Configure resident assessment form content as needed",
+      "Use State Forms to route DHS forms through draft, review, signature, filing, and renewal",
+      "Review the PCH / ALF Operations snapshot before leadership huddles or survey preparation",
     ],
   },
   {
@@ -168,7 +171,7 @@ const SECTIONS: Section[] = [
   {
     title: "Reports & the Compliance Binder",
     paragraphs: [
-      "Reports (/app/reports) provides summary views across your organization's compliance data -- training, credentials, incidents, and more -- for day-to-day monitoring. For a single, comprehensive export, the Compliance Binder (/app/compliance-binder) generates a multi-page PDF snapshot of your organization's (or, for a facility_manager, their assigned facilities') full compliance picture: facility and resident census, training and practicum status, certificates issued, open alerts, policy attestation status, credentials, incidents, inspection items, and a citation-weighted readiness summary ordered the way a DHS surveyor actually works through a review.",
+      "Reports (/app/reports) provides summary views across your organization's compliance data -- training, credentials, incidents, state forms, evidence, and more -- for day-to-day monitoring. For a single, comprehensive export, the Compliance Binder (/app/compliance-binder) generates a multi-page PDF snapshot of your organization's (or, for a facility_manager, their assigned facilities') full compliance picture: facility and resident census, training and practicum status, certificates issued, open alerts, policy attestation status, credentials, state forms, evidence collections, incidents, inspection items, and a citation-weighted readiness summary ordered the way a DHS surveyor actually works through a review.",
       "The Compliance Binder is generated on demand, uploaded securely, and made available through a time-limited download link -- it is not stored anywhere you can browse to later, so generate a fresh copy whenever you need one for an inspection or an internal review.",
     ],
     bullets: [
@@ -190,21 +193,51 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    title: "Documents & Template Documents",
+    title: "Documents, Evidence Room & Template Documents",
     paragraphs: [
       "Documents (/app/documents, and /me/documents for employees) is general-purpose file storage tied to your organization, facilities, or individual employees -- scanned certificates, sign-in sheets, or any other supporting file worth keeping on record.",
+      "Evidence Room (/app/evidence) groups supporting files, certificates, policy versions, incident records, inspection proof, and other artifacts into curated evidence collections. When an outside reviewer needs access, generate a time-limited guest room link instead of sending sensitive attachments by email.",
       "Template Documents (/app/template-documents) is a reference library of standard forms and templates relevant to compliance operations, kept separate from your organization's own uploaded documents so the two don't get mixed together.",
     ],
     bullets: [
       "Upload and organize supporting documents by facility or employee",
+      "Build evidence collections for audits, surveys, internal reviews, or corrective-action follow-up",
+      "Share evidence through guest links with expiration instead of permanent public files",
       "Browse the template document library for standard forms",
+    ],
+  },
+  {
+    title: "Confidential Reports & Closed-Loop Compliance",
+    paragraphs: [
+      "Confidential Reports (/app/confidential-incidents and the public safety-report route) let staff submit sensitive safety concerns without exposing the intake broadly. Authorized reviewers triage each report, manage protected identity details, link the concern to a formal incident when needed, and keep a separate audit trail for review actions.",
+      "Closed-Loop Compliance (/app/closed-loop-compliance) connects findings, corrective actions, evidence, owners, due dates, and verification status across incidents, violations, inspections, and recurring compliance work. It is the operational follow-through layer that turns a finding into documented completion rather than an open-ended note.",
+      "Regulatory Crosswalk (/app/regulatory-crosswalk) explains how requirements, training, policies, inspection topics, state forms, and evidence map back to the citations they support, making it easier to justify a workflow during internal review or survey preparation.",
+    ],
+    bullets: [
+      "Review confidential intakes in the restricted queue",
+      "Link safety reports to formal incidents or corrective actions when appropriate",
+      "Use Closed-Loop Compliance to assign owners and verify completion",
+      "Use Regulatory Crosswalk to understand which regulation each workflow supports",
     ],
   },
   {
     title: "Audit Log",
     paragraphs: [
-      "The Audit Log (/app/audit) is a chronological record of who changed what, and when, across your organization's data. It is available to org_admin and auditor. facility_manager is deliberately excluded from this particular page, since the audit log is organization-wide by design and is not scoped down to a facility_manager's assigned facilities the way most other modules are.",
+      "The Audit Log (/app/audit) is a chronological record of who changed what, and when, across your organization's data. It is available to org_admin, facility_manager, and auditor, with facility-scoped evidence so managers see assigned-facility activity while org administrators retain organization-wide visibility.",
       "The audit log is often the first place to look when reconciling an unexpected change to a record, or when responding to a question about who took a particular action.",
+    ],
+  },
+  {
+    title: "Enterprise, Platform Operations & Support",
+    paragraphs: [
+      "Enterprise Foundation (/app/enterprise for org admins and /admin/enterprise for the platform team) covers identity domains, provisioning and integration foundations, entitlements, and organization-level controls used by larger multi-site operators.",
+      "Platform administrators also monitor System Jobs, Notification Delivery, AI Generation Log, Document Analyzer, Packages, Platform Settings, Support Tickets, Security & Governance, Qualified Workforce, Governed Content, and Improvement Roadmap pages under /admin. These pages keep background automations, billing/package access, AI-assisted content workflows, and support operations observable.",
+      "Help Center Content (/admin/help-content) lets platform administrators maintain FAQ and Job Aide articles without shipping a new app build, while the in-app Help Center remains role-aware for operators, trainers, employees, and auditors.",
+    ],
+    bullets: [
+      "Configure enterprise identity, integration, and entitlement foundations",
+      "Monitor jobs, notifications, AI generations, support tickets, and platform health",
+      "Maintain Help Center content from the platform admin console",
     ],
   },
   {

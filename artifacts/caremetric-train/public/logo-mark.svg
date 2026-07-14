@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
-  <title id="title">CareMetric CareBase mark</title>
+  <title id="title">CareMetric Train mark</title>
   <desc id="desc">Blue technology badge with nurse, stethoscope, and home symbols.</desc>
   <defs><linearGradient id="markBg" x1="55" x2="457" y1="55" y2="457" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#0a8ff0"/><stop offset="0.5" stop-color="#064ed4"/><stop offset="1" stop-color="#0b238f"/></linearGradient></defs>
   <rect width="512" height="512" fill="none"/>

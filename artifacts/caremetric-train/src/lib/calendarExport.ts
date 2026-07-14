@@ -32,7 +32,7 @@ export function buildTrainingClassesIcs(events: TrainingClassCalendarEvent[], no
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//CareMetric CareBase//Training Classes//EN",
+    "PRODID:-//CareMetric Train//Training Classes//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
   ];

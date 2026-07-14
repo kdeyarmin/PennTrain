@@ -258,7 +258,7 @@ async function runWorkerBatch(req: Request, adminClient: any): Promise<Response>
           .maybeSingle();
         const requestedByLabel = requester
           ? `${requester.first_name} ${requester.last_name} (${requester.role})`
-          : "CareMetric CareBase";
+          : "CareMetric Train";
         const pdfBytes = await buildBinderPdf(adminClient, job.organization_id, scope, requestedByLabel);
         // The recorded checksum is what lets a finished export become an immutable
         // evidence-room artifact (report_snapshot_artifacts requires content_sha256).

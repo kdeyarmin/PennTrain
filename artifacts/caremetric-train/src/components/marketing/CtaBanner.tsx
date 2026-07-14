@@ -11,7 +11,7 @@ import { DEMO_MAILTO } from "@/components/marketing/content";
 export function CtaBanner({
   id,
   title = "Ready to make compliance simple?",
-  subtitle = "Tell us about your organization and we'll set up a walkthrough of CareMetric CareBase for your team.",
+  subtitle = "Tell us about your organization and we'll set up a walkthrough of CareMetric Train for your team.",
 }: {
   id?: string;
   title?: string;

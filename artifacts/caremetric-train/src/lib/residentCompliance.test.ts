@@ -42,11 +42,11 @@ describe("getRequiredStateFormInfo", () => {
     expect(alrPreadmission.sourceLabel).toBe("PA DHS Assisted Living Facility (ALF) Preadmission Screening form");
   });
 
-  it("falls back to the PA DHS PCH/ALR compliance forms index when facility type is unsupported", () => {
+  it("falls back to the PA DHS PCH/ALF compliance forms index when facility type is unsupported", () => {
     for (const itemType of ["annual_reassessment", "medical_evaluation", "preadmission_screening"]) {
       const info = getRequiredStateFormInfo(itemType, "NH");
       expect(info.label).toBe("PA DHS state-approved resident compliance form");
-      expect(info.sourceLabel).toBe("PA DHS PCH/ALR Compliance Forms index");
+      expect(info.sourceLabel).toBe("PA DHS PCH/ALF Compliance Forms index");
       expect(info.url).toBe("https://www.pa.gov/agencies/dhs/resources/licensing/pch-alr-licensing/pch-alr-compliance-forms");
     }
   });

@@ -6,7 +6,7 @@
 
 **[CareMetricTrain.com](https://caremetrictrain.com)**
 
-CareMetric Train is a multi-tenant personal care home and assisted living facility management platform for operators that need one system for staff compliance, resident assessments, incidents, inspections, documents, scheduling, and training. It is built directly on Supabase: Postgres with
+CareMetric Train is a multi-tenant personal care home and assisted living facility management platform for operators that need one system for staff compliance, resident assessments, state forms, evidence rooms, confidential incident intake, incidents, inspections, documents, scheduling, and training. It is built directly on Supabase: Postgres with
 Row-Level Security, Supabase Auth, Supabase Storage, and Edge Functions. There is no separate API server -- the
 React frontend talks to Supabase directly via `supabase-js`.
 

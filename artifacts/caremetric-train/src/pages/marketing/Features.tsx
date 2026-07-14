@@ -44,14 +44,14 @@ export default function Features() {
   usePageMeta({
     title: "Features — CareMetric Train Facility Management Software",
     description:
-      "See every CareMetric Train feature: facility operations, staff compliance, resident assessments, incident and inspection tracking, AI training-content generation, credential screening, and shift scheduling in one platform.",
+      "See every CareMetric Train feature: facility operations, staff compliance, resident assessments, state forms, evidence rooms, confidential incident intake, incident and inspection tracking, AI training-content generation, credential screening, and shift scheduling in one platform.",
     path: "/features",
   });
   return (
     <MarketingLayout>
       <PageHero
         title="Everything compliance requires. Nothing it doesn't."
-        subtitle="CareMetric Train combines facility operations, staff compliance, resident-assessment tracking, incident and inspection registers, training delivery, live-class logs, AI training-content studio, staff scheduler, document vault, alert center, and compliance binder into one workflow."
+        subtitle="CareMetric Train combines facility operations, staff compliance, resident-assessment and state-form tracking, incident and inspection registers, confidential intake, evidence rooms, training delivery, live-class logs, AI training-content studio, staff scheduler, document vault, alert center, and compliance binder into one workflow."
       />
 
       <section className="border-b border-border/60 bg-muted/30">
@@ -112,7 +112,7 @@ export default function Features() {
         </div>
       </section>
 
-      {/* Jump nav -- the feature set spans 8 categories, so let visitors skip to what matters to them. */}
+      {/* Jump nav -- the feature set spans multiple categories, so let visitors skip to what matters to them. */}
       <nav
         aria-label="Feature categories"
         className="border-b border-border/60 bg-background"

@@ -48,7 +48,7 @@ export default function CheckIn() {
             </>
           )}
           <Link href="/" className="text-xs text-muted-foreground hover:text-foreground underline">
-            Return to CareMetric CareBase
+            Return to CareMetric Train
           </Link>
         </CardContent>
       </Card>

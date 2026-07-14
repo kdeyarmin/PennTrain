@@ -163,7 +163,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
               <CardTitle>Administrator rule pack</CardTitle>
-              <CardDescription>Facility-type-specific PCH/ALR qualification, CE, orientation, and designee coverage evidence for inspection binders.</CardDescription>
+              <CardDescription>Facility-type-specific PCH/ALF qualification, CE, orientation, and designee coverage evidence for inspection binders.</CardDescription>
             </div>
             <Badge className={administratorRuleSummary.ready ? "bg-success text-success-foreground hover:bg-success/80" : "bg-warning text-warning-foreground hover:bg-warning/80"}>
               {administratorRuleSummary.status.replaceAll("_", " ")}

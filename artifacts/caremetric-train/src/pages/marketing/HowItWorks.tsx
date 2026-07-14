@@ -7,24 +7,25 @@ import { STEPS } from "@/components/marketing/content";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 const LAUNCH_PLAN = [
-  "Week 1: import facilities, employees, resident registers, roles, and baseline compliance records.",
-  "Week 2: configure training plans, credential rules, resident assessment schedules, alert windows, and manager access.",
-  "Week 3: publish priority training content, schedule live classes and shifts, and invite employees.",
-  "Week 4: review dashboards, close evidence gaps, and export the first compliance binder.",
+  "Week 1: import facilities, employees, resident registers, roles, baseline compliance records, and known state-form inventories.",
+  "Week 2: configure training plans, credential rules, resident assessment schedules, alert windows, evidence categories, and manager access.",
+  "Week 3: publish priority training content, schedule live classes and shifts, invite employees, and open confidential intake channels.",
+  "Week 4: review dashboards, close evidence gaps, prepare Evidence Rooms, and export the first compliance binder.",
 ];
 
 const DELIVERABLES = [
   "Employee training and compliance plans tied to role, facility, and license type",
   "Completion evidence from assigned training items, live classes, outside records, practicums, and manager reviews",
-  "Dashboards, alerts, certificates, documents, schedules, audit log, and binder exports",
-  "Resident assessments, incidents, inspections, and plans of correction tracked alongside staff compliance",
+  "Dashboards, alerts, certificates, documents, schedules, audit log, delivery logs, and binder exports",
+  "Resident assessments, state forms, incidents, inspections, confidential reports, and plans of correction tracked alongside staff compliance",
+  "Evidence Rooms and public certificate verification links that provide controlled outside access without exposing the whole tenant",
 ];
 
 export default function HowItWorks() {
   usePageMeta({
-    title: "How It Works — CareMetric CareBase",
+    title: "How It Works — CareMetric Train",
     description:
-      "From roster import to a survey-ready compliance binder in three steps -- see how CareMetric CareBase keeps your facility inspection-ready year round.",
+      "From roster import to a survey-ready compliance binder in three steps -- see how CareMetric Train keeps your facility inspection-ready year round.",
     path: "/how-it-works",
   });
   return (
@@ -66,7 +67,7 @@ export default function HowItWorks() {
               A launch plan your team can understand
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              CareMetric CareBase explains the implementation path in plain terms,
+              CareMetric Train explains the implementation path in plain terms,
               so prospects can picture how they move from scattered records to a
               live compliance workspace without a vague transformation project.
             </p>

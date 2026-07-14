@@ -8,6 +8,7 @@ import {
   CalendarClock,
   CheckCircle2,
   FileCheck2,
+  FileSearch,
   FileStack,
   FolderCheck,
   Gauge,
@@ -17,6 +18,7 @@ import {
   ListChecks,
   Lock,
   MessageSquareQuote,
+  ShieldAlert,
   Pill,
   PlayCircle,
   ShieldCheck,
@@ -97,6 +99,18 @@ const BEYOND_TRAINING: { icon: LucideIcon; title: string; blurb: string }[] = [
     title: "AI Course & Avatar Video Generation",
     blurb:
       "Draft a complete course from your own source material and attach an AI presenter video -- nothing publishes until a person reviews it.",
+  },
+  {
+    icon: FileSearch,
+    title: "State Forms & Evidence Rooms",
+    blurb:
+      "Route state forms through draft, review, signature, and renewal, then package the supporting proof into secure evidence rooms for auditors or surveyors.",
+  },
+  {
+    icon: ShieldAlert,
+    title: "Confidential Safety Intake",
+    blurb:
+      "Let staff submit sensitive concerns through a protected intake path while authorized reviewers triage, document, and link follow-up work without overexposing identities.",
   },
   {
     icon: Pill,
@@ -184,7 +198,7 @@ const DASHBOARD_ROWS = [
 
 const PLATFORM_STATS = [
   { value: "6", label: "facility types, each with its own rules" },
-  { value: "8", label: "feature categories across the platform" },
+  { value: "10", label: "feature categories across the platform" },
   { value: "60+", label: "survey-ready form templates included" },
   { value: "6", label: "roles enforced by database policy" },
 ];
@@ -193,7 +207,7 @@ export default function Landing() {
   usePageMeta({
     title: "CareMetric Train — Facility Management Software",
     description:
-      "CareMetric Train is personal care home and assisted living facility management software -- staff compliance, resident assessments, incidents, inspections, scheduling, documents, training, and survey-ready binders tracked in one system.",
+      "CareMetric Train is personal care home and assisted living facility management software -- staff compliance, resident assessments, state forms, evidence rooms, incidents, inspections, scheduling, documents, training, and survey-ready binders tracked in one system.",
     path: "/",
   });
   return (
@@ -215,7 +229,7 @@ export default function Landing() {
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-white/74">
                 CareMetric Train is facility management software and a compliance command center for personal care homes, assisted living residences, and care providers. It turns required in-services, credentials, practicums,
-                live classes, resident assessments, incidents, and certificates
+                live classes, resident assessments, state forms, confidential reports, evidence collections, incidents, and certificates
                 into a single survey-ready record for every employee, resident,
                 and facility.
               </p>

@@ -49,6 +49,13 @@ import {
   Eye,
   Fingerprint,
   KeyRound,
+  FileSearch,
+  Crosshair,
+  Network,
+  BookCheck,
+  Gavel,
+  ScanText,
+  Activity,
   type LucideIcon,
 } from "lucide-react";
 
@@ -353,6 +360,80 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
     ],
   },
   {
+    id: "operations-evidence",
+    category: "Operations, Evidence & State Forms",
+    blurb: "Daily operating records, source documents, and regulator-facing packets stay connected to the compliance workflows they support.",
+    items: [
+      {
+        icon: ClipboardList,
+        title: "State Forms Center",
+        description:
+          "Track DHS state forms from draft through review, signature, filing, and renewal with due dates, reminders, source labels, and generated prefill support for resident and facility workflows.",
+      },
+      {
+        icon: FolderLock,
+        title: "Evidence Room & Guest Sharing",
+        description:
+          "Bundle certificates, policies, incident files, inspection records, and uploads into curated evidence collections, then share a time-limited guest room link instead of emailing sensitive attachments.",
+      },
+      {
+        icon: ShieldAlert,
+        title: "Confidential Incident Intake",
+        description:
+          "Employees can submit sensitive safety concerns through a public intake route; authorized reviewers triage, de-identify, link to follow-up incidents when appropriate, and preserve the protected audit trail.",
+      },
+      {
+        icon: FileSearch,
+        title: "Regulatory Crosswalk",
+        description:
+          "Map training, policies, inspection topics, resident requirements, and evidence collections back to the regulations they satisfy, so teams can answer why a task exists and where its proof lives.",
+      },
+      {
+        icon: Crosshair,
+        title: "PCH / ALF Operations Snapshot",
+        description:
+          "A focused operating view for personal care homes and assisted living residences rolls census, assessment timeliness, medication authorization, inspections, incidents, and open follow-ups into one command center.",
+      },
+    ],
+  },
+  {
+    id: "enterprise-platform",
+    category: "Enterprise & Platform Operations",
+    blurb: "Tools for larger operators and the CareMetric team to keep every tenant, job, entitlement, and support request observable.",
+    items: [
+      {
+        icon: Network,
+        title: "Enterprise Foundation",
+        description:
+          "Identity domains, signed integration endpoints, SCIM-style provisioning hooks, billing entitlements, and organization-level controls give multi-site operators a governed rollout path.",
+      },
+      {
+        icon: BookCheck,
+        title: "Governed Learning Content",
+        description:
+          "Training content versions, AI-touched lessons, reviewer approvals, assignments, quiz attempts, and certificate issuance stay linked so course changes never erase the proof behind old completions.",
+      },
+      {
+        icon: Gavel,
+        title: "Closed-Loop Compliance",
+        description:
+          "Findings, corrective actions, evidence, responsible owners, due dates, and verification status are tracked together across incidents, violations, inspections, and recurring compliance work.",
+      },
+      {
+        icon: ScanText,
+        title: "Document Analyzer",
+        description:
+          "Platform administrators can review uploaded source documents and AI extraction output before turning source material into governed training, help content, or compliance evidence.",
+      },
+      {
+        icon: Activity,
+        title: "System Jobs & Delivery Logs",
+        description:
+          "Background jobs, notification deliveries, webhook dispatches, support tickets, and platform health checks are visible to operators so automations can be monitored instead of treated as black boxes.",
+      },
+    ],
+  },
+  {
     id: "access-onboarding",
     category: "Access, Alerts & Onboarding",
     blurb: "Getting people and evidence in and out of the system safely.",
@@ -428,7 +509,8 @@ export const OLD_WAY = [
   "Building a compliance binder means a night of printing and hole-punching",
   "No single view of where every facility actually stands",
   "Re-checking each employee's hours against their license type's rules by hand, every renewal cycle",
-  "Resident assessments, incident reports, and inspection findings living in separate binders with no link to a plan of correction",
+  "Resident assessments, state forms, incident reports, and inspection findings living in separate binders with no link to a plan of correction",
+  "Sharing sensitive survey evidence by email because there is no controlled guest room for auditors or surveyors",
   "Building a new course from scratch, or paying a vendor, every time a policy or regulation changes",
 ];
 
@@ -439,7 +521,8 @@ export const NEW_WAY = [
   "A survey-ready compliance binder PDF generated in seconds",
   "Real-time compliance dashboards across every facility, org-wide",
   "Training types configured once per organization -- hours, renewal windows, and which facility types they apply to -- instead of re-explained to every new hire",
-  "Resident assessments, incidents, and DHS-cited violations tracked to a corrective action and a survey-ready plan of correction",
+  "Resident assessments, state forms, incidents, and DHS-cited violations tracked to a corrective action and a survey-ready plan of correction",
+  "Evidence rooms package the exact documents an auditor or surveyor needs behind time-limited guest access",
   "AI-drafted courses from your own source material, reviewed and approved by a real person before anyone sees them",
 ];
 
@@ -460,13 +543,13 @@ export const SECURITY_FEATURES: IconItem[] = [
     icon: Lock,
     title: "Private Storage, Signed URLs",
     description:
-      "Documents, certificates, sign-in sheets, and compliance binders live in private storage and are only ever accessed through short-lived signed links.",
+      "Documents, certificates, sign-in sheets, compliance binders, state-form attachments, and evidence-room exports live in private storage and are only ever accessed through short-lived signed links or governed guest access.",
   },
   {
     icon: History,
     title: "Immutable Audit Trail",
     description:
-      "Compliance-determining actions -- quiz grading, certificate issuance, course publishing -- are logged and can't be altered after the fact.",
+      "Compliance-determining actions -- quiz grading, certificate issuance, course publishing, evidence-room sharing, confidential intake review, and state-form status changes -- are logged and can't be altered after the fact.",
   },
   {
     icon: UserCheck,
@@ -498,7 +581,7 @@ export const FAQS = [
   {
     question: "What is CareMetric Train?",
     answer:
-      "CareMetric Train is multi-tenant personal care home and assisted living facility management software built for operators who need one command center for staff compliance, resident assessments, incidents, inspections, scheduling, documents, training, and survey readiness. It replaces spreadsheets, shared drives, paper binders, and disconnected point tools with one operational record.",
+      "CareMetric Train is multi-tenant personal care home and assisted living facility management software built for operators who need one command center for staff compliance, resident assessments, state forms, evidence rooms, confidential incident intake, incidents, inspections, scheduling, documents, training, and survey readiness. It replaces spreadsheets, shared drives, paper binders, and disconnected point tools with one operational record.",
   },
   {
     question: "How does CareMetric Train track our staff's yearly in-services?",
@@ -523,7 +606,7 @@ export const FAQS = [
   {
     question: "How does the compliance binder actually work?",
     answer:
-      "One click generates a real PDF -- not a print-to-PDF workaround -- pulling each facility's current training compliance, practicums, certificates, resident assessments, incidents, inspection items, and a citation-weighted readiness score into a survey-ready binder, delivered through a short-lived secure link.",
+      "One click generates a real PDF -- not a print-to-PDF workaround -- pulling each facility's current training compliance, practicums, certificates, resident assessments, state forms, evidence collections, incidents, inspection items, and a citation-weighted readiness score into a survey-ready binder, delivered through a short-lived secure link.",
   },
   {
     question: "Can our auditor or surveyor get read-only access?",
@@ -553,7 +636,7 @@ export const FAQS = [
   {
     question: "Does CareMetric Train track resident-level compliance, not just staff requirements?",
     answer:
-      "Yes, for personal care homes and assisted living facilities. CareMetric Train tracks each resident's RASP/ASP preadmission screening, 15-day initial assessment, annual reassessment, significant-change reassessment, and support-plan updates -- each with its own due date -- alongside a digital drafting tool mirroring the DHS assessment structure. Every item still requires the signed, DHS-prescribed form on file to be marked complete; there's no substitute.",
+      "Yes, for personal care homes and assisted living facilities. CareMetric Train tracks each resident's RASP/ASP preadmission screening, 15-day initial assessment, annual reassessment, significant-change reassessment, state-form workflow, and support-plan updates -- each with its own due date -- alongside a digital drafting tool mirroring the DHS assessment structure. Every item still requires the signed, DHS-prescribed form on file to be marked complete; there's no substitute.",
   },
   {
     question: "Do you screen employees against background-check and exclusion requirements?",
@@ -579,6 +662,33 @@ export const FAQS = [
     question: "How do you handle incidents, DHS violations, and plans of correction?",
     answer:
       "Log a reportable incident and CareMetric Train schedules the required regulatory notifications with their own due-by clocks and generates a formatted incident report PDF. A DHS-cited violation gets tracked against its specific citation and POC due date, with evidence attachments and a generated Plan of Correction PDF, through to Corrected and Verified.",
+  },
+
+  {
+    question: "How do Evidence Rooms work for surveyors or auditors?",
+    answer:
+      "An authorized team member curates the relevant certificates, policies, incident files, inspection records, state forms, and uploads into an Evidence Room, then shares a time-limited guest link instead of sending sensitive attachments by email. The room keeps access scoped to the selected evidence and preserves an audit trail of what was shared.",
+  },
+  {
+    question: "What does the State Forms Center track?",
+    answer:
+      "The State Forms Center tracks regulator-facing forms through draft, review, signature, filing, renewal, and follow-up. Each form can carry due dates, source labels, reminders, attachments, and links back to the resident, facility, or compliance workflow it supports.",
+  },
+  {
+    question: "Can staff submit confidential safety concerns?",
+    answer:
+      "Yes. Confidential Incident Intake gives staff a protected route for sensitive reports, while authorized reviewers triage the submission, de-identify details when needed, link it to follow-up incidents or corrective actions, and keep the protected audit trail intact.",
+  },
+
+  {
+    question: "Where do Regulatory Crosswalk and Closed-Loop Compliance fit?",
+    answer:
+      "Regulatory Crosswalk shows which citation supports each requirement, policy, inspection topic, state form, or evidence collection. Closed-Loop Compliance then tracks findings through owners, due dates, correction evidence, and verification, so teams can prove a risk was resolved rather than merely documented.",
+  },
+  {
+    question: "What enterprise and platform operations are included?",
+    answer:
+      "Larger operators get enterprise foundations such as identity-domain governance, integration and provisioning setup, package or billing entitlement visibility, and organization-level controls. Platform administrators also get System Jobs, notification delivery logs, support ticketing, Document Analyzer, AI generation logs, and health checks so background work is observable.",
   },
   {
     question: "Can employees get text or email reminders, not just in-app alerts?",

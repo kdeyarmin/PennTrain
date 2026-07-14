@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-const SITE_URL = "https://cmcarebase.com";
+const SITE_URL = "https://caremetrictrain.com";
 
 function setMetaContent(selector: string, attr: string, value: string) {
   const el = document.querySelector(selector);

@@ -126,7 +126,7 @@ export default function PchAlrOperations() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-3">
-            <Metric title="Open queue items" value={queueSummary.totalOpen} detail="Across active PCH/ALR workflows" />
+            <Metric title="Open queue items" value={queueSummary.totalOpen} detail="Across active PCH/ALF workflows" />
             <Metric title="Attention buckets" value={queueSummary.attentionCount} detail="Workflow groups with open risk" />
             <Metric title="Ready buckets" value={queueSummary.readyCount} detail="No open records in this view" />
           </div>
@@ -170,7 +170,7 @@ export default function PchAlrOperations() {
           <div className="grid gap-4 xl:grid-cols-2">
             {filtered.map((item) => <OperationsCard key={item.id} item={item} />)}
           </div>
-          {filtered.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No PCH/ALR workflows match that search.</p> : null}
+          {filtered.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No PCH/ALF workflows match that search.</p> : null}
         </TabsContent>
         <TabsContent value="inspection-day" className="mt-4">
           <Card>

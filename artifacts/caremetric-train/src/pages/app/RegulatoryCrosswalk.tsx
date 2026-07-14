@@ -115,7 +115,7 @@ export default function RegulatoryCrosswalk() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Chapter 2600 / 2800 Regulatory Crosswalk</h1>
-          <p className="text-muted-foreground">Citation-by-citation map from PCH/ALR obligations to live CareBase evidence, owners, due dates, and binder destinations.</p>
+          <p className="text-muted-foreground">Citation-by-citation map from PCH/ALF obligations to live CareMetric Train evidence, owners, due dates, and binder destinations.</p>
         </div>
         <Button variant="outline" onClick={downloadCsv}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
       </div>

@@ -16,17 +16,19 @@ const BUYING_COMMITTEE_OUTCOMES = [
   "Owners and executives get an organization-wide compliance story instead of disconnected facility updates.",
   "Administrators and managers get the next actions that reduce survey risk this week.",
   "Trainers and employees get simple workflows that create clean evidence without extra paperwork.",
+  "Auditors, surveyors, and support teams get governed access to exactly the records they need -- without uncontrolled file sharing.",
 ];
 
 const RESIDENT_CARE_POINTS = [
   "Preadmission screening, 15-day initial assessment, annual reassessment, and significant-change reassessment, each on its own due date.",
   "A digital drafting tool mirroring the DHS assessment structure, with autosave, finalize-and-lock, and one-click reference PDF generation -- the signed DHS-prescribed form is still what's required on file.",
+  "State-form workflows, support-plan follow-ups, and evidence attachments stay tied to the resident record instead of living in a separate binder.",
   "Automatic support-plan follow-ups whenever a reassessment is completed.",
 ];
 
 const OPERATING_MODES = [
-  "Single facility teams that need one clean operational record for staff, residents, documents, and survey evidence.",
-  "Multi-site operators that need rollups without giving every manager global access.",
+  "Single facility teams that need one clean operational record for staff, residents, documents, state forms, and survey evidence.",
+  "Multi-site operators that need rollups, enterprise controls, and entitlement visibility without giving every manager global access.",
   "Organizations preparing for audits, licensing surveys, recertification, or ownership transitions.",
 ];
 

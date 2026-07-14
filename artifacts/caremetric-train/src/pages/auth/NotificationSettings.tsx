@@ -93,7 +93,7 @@ export default function NotificationSettings() {
           <p className="text-sm font-medium text-primary">Account settings</p>
           <h1 className="text-3xl font-bold tracking-tight">Notification settings</h1>
           <p className="mt-2 text-muted-foreground">
-            Choose how CareMetric CareBase reaches you about training, credentials, and compliance tasks.
+            Choose how CareMetric Train reaches you about training, credentials, and compliance tasks.
           </p>
         </div>
         {!isError && (
@@ -179,7 +179,7 @@ export default function NotificationSettings() {
                     <MessageSquareText className="h-3.5 w-3.5" /> Text me training and compliance reminders
                   </span>
                   <p className="text-[11px] text-muted-foreground mt-1">
-                    By checking this box, I agree to receive automated text messages from CareMetric CareBase
+                    By checking this box, I agree to receive automated text messages from CareMetric Train
                     about my training, credentials, and compliance tasks at the mobile number above. Message
                     frequency varies, and message and data rates may apply. Texts are sent only between
                     8:00 AM and 9:00 PM in my local time zone. I can reply STOP at any time to stop receiving

@@ -145,6 +145,21 @@ describe("role-based page visibility", () => {
     expect(searchCommandActions("bulk import", "employee")).toEqual([]);
   });
 
+  it("surfaces operations and evidence workflow shortcuts in command search", () => {
+    expect(searchCommandActions("evidence room", "org_admin").map((action) => action.path)).toContain("/app/evidence");
+    expect(searchCommandActions("state forms", "facility_manager").map((action) => action.path)).toContain("/app/state-forms");
+    expect(searchCommandActions("confidential intake", "auditor").map((action) => action.path)).toContain("/app/confidential-incidents");
+    expect(searchCommandActions("regulatory crosswalk", "org_admin").map((action) => action.path)).toContain("/app/regulatory-crosswalk");
+    expect(searchCommandActions("PCH operations", "facility_manager").map((action) => action.path)).toContain("/app/pch-alr-operations");
+    expect(searchCommandActions("evidence room", "employee")).toEqual([]);
+  });
+
+  it("surfaces platform operations shortcuts only to platform administrators", () => {
+    expect(searchCommandActions("system jobs", "platform_admin").map((action) => action.path)).toContain("/admin/system-jobs");
+    expect(searchCommandActions("enterprise foundation", "platform_admin").map((action) => action.path)).toContain("/admin/enterprise");
+    expect(searchCommandActions("system jobs", "org_admin")).toEqual([]);
+  });
+
   it("excludes template detail routes from generic page search results", () => {
     const paths = searchPages("resident chart", "platform_admin").map((page) => page.path);
     expect(paths).not.toContain("/admin/residents/:id");

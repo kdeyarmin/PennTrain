@@ -17,12 +17,12 @@ const VALID_ROLES = ["platform_admin", "org_admin", "facility_manager", "trainer
 
 // Falls back to this default when redirect_to is missing/invalid -- lands the invited user on the
 // same reset-password flow the frontend normally requests.
-const DEFAULT_APP_ORIGIN = "https://cmcarebase.com";
+const DEFAULT_APP_ORIGIN = "https://caremetrictrain.com";
 // Known app origins (see DEPLOYMENT.md's Supabase Auth redirect URL config) -- the caller-supplied
 // redirect_to is only honored if it matches one of these, so this endpoint can't be used to embed
 // an attacker-controlled domain in the invite email GoTrue sends.
 const ALLOWED_APP_ORIGINS = new Set([
-  "https://cmcarebase.com",
+  "https://caremetrictrain.com",
   "https://carebase-production.up.railway.app",
 ]);
 

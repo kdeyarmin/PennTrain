@@ -52,7 +52,7 @@ export default defineConfig(({ command, mode }) => {
         registerType: "autoUpdate",
         includeAssets: ["logo-mark.svg"],
         manifest: {
-          name: "CareMetric CareBase",
+          name: "CareMetric Train",
           short_name: "CareMetric",
           description: "Compliance training and credential tracking for personal care homes and assisted living residences.",
           theme_color: "#102a43",
