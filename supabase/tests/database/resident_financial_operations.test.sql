@@ -187,6 +187,11 @@ select lives_ok($$
 $$,'manager opens personal funds with a beginning balance');
 select is((select balance_after from public.resident_personal_fund_transactions where personal_fund_account_id=(select id from finance_ids where key='funds')),100.00::numeric,'beginning balance is a ledger entry');
 select throws_ok($$
+  select public.post_resident_personal_fund_transaction('75000000-0000-4000-8000-000000000201',jsonb_build_object(
+    'transactionKind','deposit','direction','in','amount',5,'purpose','Backdated second entry attempt',
+    'transactionAt',current_date - interval '1 day','residentAcknowledged',true))
+$$,'22023',null,'second personal-funds entry cannot predate the existing ledger entry');
+select throws_ok($$
   select public.open_resident_personal_fund_account('75000000-0000-4000-8000-000000000201',current_date,0,true,null)
 $$,'23505',null,'resident cannot have duplicate personal-funds accounts');
 select lives_ok($$
