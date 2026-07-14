@@ -83,6 +83,8 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    (training due/expired reminders, escalations, the Monday digest) and `send-auth-email`
    (signup, invite, recovery, magic-link, email-change, and reauthentication messages).
    `SEND_EMAIL_HOOK_SECRET` must match the Supabase Auth Send Email hook signing secret.
+   Local-only `supabase/config.toml` hook tests require the same secret base64-encoded as
+   `SEND_EMAIL_HOOK_SECRET_BASE64`, because the CLI config field expects base64 hook secrets.
    The `TWILIO_*` trio is only for SMS; each channel is skipped (not failed) if its credentials
    aren't set, so SMS can be added later without breaking email. Create the SendGrid API key with **Mail Send** scope only,
    and verify the `NOTIFICATION_FROM_EMAIL` sender identity (Single Sender Verification or a
@@ -101,7 +103,9 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    into both application notification mail and the `send-auth-email` Edge Function, but the
    Supabase Auth dashboard hook must be enabled so password-reset, invite, email-change,
    signup, magic-link, and reauthentication mail does not fall back to Supabase's built-in
-   mailer. Use the Send Email Hook path below in every hosted environment:
+   mailer. Use the Send Email Hook path below in every hosted environment; the checked-in
+   local `auth.hook.send_email` stanza is intentionally disabled until a developer opts in
+   with local SendGrid and base64 hook-secret values:
    - **Send Email Hook (required for all-email SendGrid delivery).** Deploy the `send-auth-email` Edge Function
      (`npx supabase functions deploy send-auth-email`), then in the dashboard: Authentication ->
      Hooks -> add a **Send Email** hook of type HTTPS, pointing at

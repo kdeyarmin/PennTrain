@@ -1,10 +1,16 @@
 import { Webhook } from "npm:standardwebhooks@1.0.0";
+import {
+  type AuthEmailData,
+  type AuthEmailMessage,
+  type AuthEmailUser,
+  buildAuthEmailMessages,
+} from "../_shared/authEmail.ts";
+import { parseFromAddress } from "../_shared/notificationDelivery.ts";
 
 // Supabase Auth "Send Email" hook (Authentication -> Hooks in the dashboard): when enabled,
 // Supabase Auth calls this function instead of using SMTP/its default mailer for every
-// signup/recovery/invite/magic-link/email-change email, so this is the one place that needs to
-// stay in sync with dispatch-notifications' SendGrid setup -- same SENDGRID_API_KEY/
-// NOTIFICATION_FROM_EMAIL secrets, same provider, just HTML content instead of plain text.
+// signup/recovery/invite/magic-link/email-change/reauthentication email, so this endpoint
+// keeps Auth mail on the same SendGrid API path as application notification mail.
 // Authenticity is verified via the Standard Webhooks signature (SEND_EMAIL_HOOK_SECRET), since
 // this endpoint is reachable over the public internet and verify_jwt can't apply -- Supabase's
 // own infra calls it, not a user with a JWT.
@@ -14,80 +20,6 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
-
-interface EmailData {
-  token: string;
-  token_hash: string;
-  redirect_to: string;
-  email_action_type: string;
-  site_url: string;
-  token_new: string;
-  token_hash_new: string;
-}
-
-interface HookUser {
-  email: string;
-  new_email?: string;
-}
-
-interface AuthEmailMessage {
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-}
-
-const SUBJECTS: Record<string, string> = {
-  signup: "Confirm your email address",
-  invite: "You've been invited to CareMetric CareBase",
-  magiclink: "Your CareMetric CareBase sign-in link",
-  recovery: "Reset your CareMetric CareBase password",
-  email_change: "Confirm your new email address",
-  reauthentication: "Your CareMetric CareBase verification code",
-};
-
-function buildVerifyUrl(
-  supabaseUrl: string,
-  emailData: EmailData,
-  tokenHash = emailData.token_hash,
-): string {
-  const params = new URLSearchParams({
-    token: tokenHash,
-    type: emailData.email_action_type,
-    redirect_to: emailData.redirect_to,
-  });
-  return `${supabaseUrl}/auth/v1/verify?${params.toString()}`;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function linkEmail(
-  to: string,
-  subject: string,
-  intro: string,
-  cta: string,
-  url: string,
-  outro?: string,
-): AuthEmailMessage {
-  const safeUrl = escapeHtml(url);
-  const safeIntro = escapeHtml(intro);
-  const safeCta = escapeHtml(cta);
-  const safeOutro = outro ? `<p>${escapeHtml(outro)}</p>` : "";
-  return {
-    to,
-    subject,
-    text: `${intro}\n\n${cta}: ${url}${outro ? `\n\n${outro}` : ""}`,
-    html:
-      `<p>${safeIntro}</p><p><a href="${safeUrl}">${safeCta}</a></p>${safeOutro}`,
-  };
-}
 
 function errorResponse(status: number, message: string): Response {
   return new Response(
@@ -99,119 +31,6 @@ function errorResponse(status: number, message: string): Response {
   );
 }
 
-function buildEmails(
-  user: HookUser,
-  emailData: EmailData,
-  supabaseUrl: string,
-): AuthEmailMessage[] {
-  const actionType = emailData.email_action_type;
-  const subject = SUBJECTS[actionType] ?? "CareMetric CareBase notification";
-
-  if (actionType === "reauthentication") {
-    return [{
-      to: user.email,
-      subject,
-      text: `Your verification code is: ${emailData.token}
-
-This code expires shortly. If you didn't request it, you can safely ignore this email.`,
-      html:
-        `<p>Your verification code is:</p><p style="font-size:24px;font-weight:bold">${
-          escapeHtml(emailData.token)
-        }</p><p>This code expires shortly. If you didn't request it, you can safely ignore this email.</p>`,
-    }];
-  }
-
-  if (actionType === "email_change") {
-    const messages: AuthEmailMessage[] = [];
-    const newEmail = user.new_email ?? user.email;
-
-    // Supabase's Secure Email Change payload intentionally uses counterintuitive
-    // field names for backwards compatibility: token_hash_new verifies the
-    // current email, while token_hash verifies the new email. When both token
-    // pairs are present we must send both messages or secure email changes can
-    // never complete.
-    if (emailData.token && emailData.token_hash_new) {
-      messages.push(linkEmail(
-        user.email,
-        subject,
-        `Confirm that you want to change your CareMetric CareBase email address to ${newEmail}.`,
-        "Confirm email change",
-        buildVerifyUrl(supabaseUrl, emailData, emailData.token_hash_new),
-        "If you didn't request this change, you can safely ignore this email.",
-      ));
-    }
-
-    const newEmailTokenHash = emailData.token_hash || emailData.token_hash_new;
-    if (newEmailTokenHash) {
-      messages.push(linkEmail(
-        newEmail,
-        subject,
-        "Confirm this address as your new CareMetric CareBase email address.",
-        "Confirm new email address",
-        buildVerifyUrl(supabaseUrl, emailData, newEmailTokenHash),
-        "If you didn't request this change, you can safely ignore this email.",
-      ));
-    }
-
-    return messages;
-  }
-
-  const verifyUrl = buildVerifyUrl(supabaseUrl, emailData);
-  switch (actionType) {
-    case "signup":
-      return [
-        linkEmail(
-          user.email,
-          subject,
-          "Follow the link below to confirm your email address and finish signing up.",
-          "Confirm email address",
-          verifyUrl,
-        ),
-      ];
-    case "invite":
-      return [
-        linkEmail(
-          user.email,
-          subject,
-          "You've been invited to create a CareMetric CareBase account.",
-          "Accept invitation",
-          verifyUrl,
-        ),
-      ];
-    case "magiclink":
-      return [
-        linkEmail(
-          user.email,
-          subject,
-          "Follow the link below to sign in. This link expires shortly and can only be used once.",
-          "Sign in",
-          verifyUrl,
-        ),
-      ];
-    case "recovery":
-      return [
-        linkEmail(
-          user.email,
-          subject,
-          "We received a request to reset your password.",
-          "Reset password",
-          verifyUrl,
-          "If you didn't request this, you can safely ignore this email.",
-        ),
-      ];
-    default:
-      return [
-        linkEmail(
-          user.email,
-          subject,
-          "Follow the link below to continue.",
-          "Continue",
-          verifyUrl,
-        ),
-      ];
-  }
-}
-
 async function sendViaSendGrid(message: AuthEmailMessage): Promise<void> {
   const apiKey = Deno.env.get("SENDGRID_API_KEY");
   if (!apiKey) {
@@ -220,15 +39,10 @@ async function sendViaSendGrid(message: AuthEmailMessage): Promise<void> {
     );
   }
 
-  const fromRaw = Deno.env.get("NOTIFICATION_FROM_EMAIL") ||
-    "CareMetric CareBase <notifications@cmcarebase.com>";
-  const match = fromRaw.match(/^(.*)<([^<>]+)>\s*$/);
-  const from = match
-    ? {
-      email: match[2].trim(),
-      name: match[1].trim().replace(/^"|"$/g, "") || undefined,
-    }
-    : { email: fromRaw.trim() };
+  const from = parseFromAddress(
+    Deno.env.get("NOTIFICATION_FROM_EMAIL") ||
+      "CareMetric CareBase <notifications@cmcarebase.com>",
+  );
 
   const resp = await fetch("https://api.sendgrid.com/v3/mail/send", {
     method: "POST",
@@ -249,11 +63,11 @@ async function sendViaSendGrid(message: AuthEmailMessage): Promise<void> {
 
   if (!resp.ok) {
     const data = await resp.json().catch(() => ({}));
-    const message =
+    const detail =
       Array.isArray(data?.errors) && typeof data.errors[0]?.message === "string"
         ? data.errors[0].message
         : `SendGrid API returned ${resp.status}`;
-    throw new Error(message);
+    throw new Error(detail);
   }
 }
 
@@ -274,12 +88,12 @@ Deno.serve(async (req: Request) => {
   const payload = await req.text();
   const headers = Object.fromEntries(req.headers);
 
-  let user: HookUser;
-  let emailData: EmailData;
+  let user: AuthEmailUser;
+  let emailData: AuthEmailData;
   try {
     const verified = new Webhook(hookSecret).verify(payload, headers) as {
-      user: HookUser;
-      email_data: EmailData;
+      user: AuthEmailUser;
+      email_data: AuthEmailData;
     };
     user = verified.user;
     emailData = verified.email_data;
@@ -290,8 +104,10 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const messages = buildEmails(user, emailData, supabaseUrl);
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  if (!supabaseUrl) return errorResponse(500, "SUPABASE_URL is not set");
+
+  const messages = buildAuthEmailMessages(user, emailData, supabaseUrl);
   if (messages.length === 0) {
     return errorResponse(
       400,
@@ -300,7 +116,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    await Promise.all(messages.map((message) => sendViaSendGrid(message)));
+    for (const message of messages) await sendViaSendGrid(message);
   } catch (error) {
     return errorResponse(
       500,
