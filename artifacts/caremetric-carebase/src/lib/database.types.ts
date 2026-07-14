@@ -21189,27 +21189,33 @@ export type Database = {
       }
       signup_attempts: {
         Row: {
+          baa_version: string | null
           created_at: string
           email_hash: string
           error_code: string | null
           id: string
           ip_hash: string
+          service_agreement_version: string | null
           success: boolean
         }
         Insert: {
+          baa_version?: string | null
           created_at?: string
           email_hash: string
           error_code?: string | null
           id?: string
           ip_hash: string
+          service_agreement_version?: string | null
           success?: boolean
         }
         Update: {
+          baa_version?: string | null
           created_at?: string
           email_hash?: string
           error_code?: string | null
           id?: string
           ip_hash?: string
+          service_agreement_version?: string | null
           success?: boolean
         }
         Relationships: []
