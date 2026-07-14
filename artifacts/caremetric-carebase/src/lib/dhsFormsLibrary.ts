@@ -396,7 +396,7 @@ export function searchDhsForms(query: string): DhsForm[] {
       f.title.toLowerCase().includes(q) ||
       f.description.toLowerCase().includes(q) ||
       f.category.toLowerCase().includes(q) ||
-      f.facilityTypes.some((ft) => ft.toLowerCase().includes(q) || (ft === "ALR" && "alf".includes(q))),
+      f.facilityTypes.some((ft) => ft.toLowerCase().includes(q) || (ft === "ALR" && q.includes("alf"))),
   );
 }
 
