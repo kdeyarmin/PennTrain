@@ -328,7 +328,7 @@ begin
     select sa.*, f.name as facility_name, u.name as unit_name, sd.name as shift_name
     from public.shift_assignments sa join public.facilities f on f.id=sa.facility_id left join public.facility_units u on u.id=sa.unit_id left join public.shift_definitions sd on sd.id=sa.shift_definition_id
     where sa.employee_id=v_employee.id
-      and (sa.shift_date + sa.end_time + case when sa.end_time <= sa.start_time then interval '1 day' else interval '0' end) >= now()
+      and (sa.shift_date + sa.end_time + case when sa.end_time <= sa.start_time then interval '1 day' else interval '0' end) >= localtimestamp
       and sa.status in ('scheduled','confirmed') order by sa.shift_date, sa.start_time limit 1
   ) s;
   select jsonb_build_object(

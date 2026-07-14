@@ -1,5 +1,5 @@
 begin;
-select plan(80);
+select plan(82);
 
 select has_table('public','resident_financial_accounts','resident receivables use dedicated accounts');
 select has_table('public','resident_rate_agreements','resident rate agreements are versioned financial terms');
@@ -187,6 +187,11 @@ select lives_ok($$
 $$,'manager opens personal funds with a beginning balance');
 select is((select balance_after from public.resident_personal_fund_transactions where personal_fund_account_id=(select id from finance_ids where key='funds')),100.00::numeric,'beginning balance is a ledger entry');
 select throws_ok($$
+  select public.post_resident_personal_fund_transaction('75000000-0000-4000-8000-000000000201',jsonb_build_object(
+    'transactionKind','deposit','direction','in','amount',5,'purpose','Backdated second entry attempt',
+    'transactionAt',current_date - interval '1 day','residentAcknowledged',true))
+$$,'22023',null,'second personal-funds entry cannot predate the existing ledger entry');
+select throws_ok($$
   select public.open_resident_personal_fund_account('75000000-0000-4000-8000-000000000201',current_date,0,true,null)
 $$,'23505',null,'resident cannot have duplicate personal-funds accounts');
 select lives_ok($$
@@ -209,6 +214,11 @@ select lives_ok($$
   ))
 $$,'manager records an acknowledged withdrawal with staff evidence');
 select is((select balance_after from public.resident_personal_fund_transactions where id=(select id from finance_ids where key='withdrawal')),110.00::numeric,'withdrawal updates the running balance');
+select throws_ok($$
+  select public.post_resident_personal_fund_transaction('75000000-0000-4000-8000-000000000201',jsonb_build_object(
+    'transactionKind','deposit','direction','in','amount',5,'purpose','Backdated entry attempt',
+    'transactionAt',now()+interval '30 seconds','residentAcknowledged',true))
+$$,'22023',null,'personal funds entries cannot be backdated after a newer ledger entry exists');
 select throws_ok($$
   select public.post_resident_personal_fund_transaction('75000000-0000-4000-8000-000000000201',jsonb_build_object(
     'transactionKind','withdrawal','direction','out','amount',10,'purpose','Missing staff',

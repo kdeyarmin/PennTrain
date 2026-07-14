@@ -23,7 +23,8 @@ begin
   exception when others then
     raise exception 'Personal funds entry is invalid' using errcode = '22023';
   end;
-  if v_kind not in ('deposit','withdrawal','adjustment') or v_direction not in ('in','out')
+  if coalesce(v_kind,'') not in ('deposit','withdrawal','adjustment')
+    or coalesce(v_direction,'') not in ('in','out')
     or v_amount <= 0 or length(btrim(coalesce(p_entry->>'purpose',''))) < 3
     or v_txn_at is null
     or (v_kind='deposit' and v_direction<>'in') or (v_kind='withdrawal' and v_direction<>'out')
