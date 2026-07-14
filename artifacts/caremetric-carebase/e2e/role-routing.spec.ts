@@ -20,7 +20,7 @@ interface TestAccount {
 const supabaseUrl = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
-const functionsUrl = process.env.SUPABASE_FUNCTIONS_URL ?? `${supabaseUrl}/functions/v1`;
+const functionsUrl = process.env.SUPABASE_FUNCTIONS_URL ?? `${(supabaseUrl ?? "").replace(/\/$/, "")}/functions/v1`;
 const password = process.env.E2E_ACCOUNT_PASSWORD ?? "";
 const guestEmail = "phase1-guest@test.local";
 let verificationSlug: string;
