@@ -46,13 +46,19 @@ export function includesEvery(name: string, words: string[]): boolean {
 // Fills the first form field (in template order) whose normalized name contains every word of
 // any word set. `lock` makes the filled field read-only -- right for the finalized RASP/ASP
 // packet (which flattens afterwards anyway), wrong for a prefilled "start from this" form the
-// user still needs to edit, so the prefill path passes lock: false.
+// user still needs to edit, so the prefill path passes lock: false. `fontSize` overrides the
+// field's own default appearance -- needed for templates whose long-text fields default to
+// auto-size (0 in their /DA string): pdf-lib's auto-size can pick a font large enough to overflow
+// the field's box once the value wraps across several lines (confirmed against the DHS Reportable
+// Incident Form's narrative fields). Leave unset for fields with a sane fixed default, e.g. RASP/
+// ASP's, which already carry an explicit small size.
 export function setFirstMatchingTextField(
   // deno-lint-ignore no-explicit-any
   form: any,
   wordSets: string[][],
   value: string | null | undefined,
   lock = true,
+  fontSize?: number,
 ): boolean {
   if (!value) return false;
   for (const field of form.getFields()) {
@@ -60,6 +66,7 @@ export function setFirstMatchingTextField(
     if (!wordSets.some((words) => includesEvery(name, words))) continue;
     try {
       if (typeof field.setText === "function") {
+        if (fontSize != null && typeof field.setFontSize === "function") field.setFontSize(fontSize);
         field.setText(String(value));
         if (lock) field.enableReadOnly?.();
         return true;
@@ -84,6 +91,34 @@ export function checkFirstMatchingBox(form: any, wordSets: string[][], lock = tr
       }
     } catch (_) {
       // Keep scanning for another checkbox with clearer field metadata.
+    }
+  }
+  return false;
+}
+
+// LiveCycle "reason for X" groups on the DHS RASP form (e.g. AssessmentReasonRadioButtonList)
+// are PDFRadioGroup fields, not PDFCheckBox -- they expose .select(optionValue), never .check().
+// checkFirstMatchingBox silently no-ops on them (typeof field.check !== "function"), so a radio
+// group needs this dedicated helper instead.
+// deno-lint-ignore no-explicit-any
+export function selectFirstMatchingRadioOption(
+  form: any,
+  wordSets: string[][],
+  optionValue: string,
+  lock = true,
+): boolean {
+  for (const field of form.getFields()) {
+    const name = normalizeFieldName(field.getName());
+    if (!wordSets.some((words) => includesEvery(name, words))) continue;
+    try {
+      if (typeof field.select === "function") {
+        field.select(optionValue);
+        if (lock) field.enableReadOnly?.();
+        return true;
+      }
+    } catch (_) {
+      // Keep scanning: another field with clearer metadata may match, or this option value
+      // may not exist on this particular widget.
     }
   }
   return false;
