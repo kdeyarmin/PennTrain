@@ -23,8 +23,10 @@ const assetDirectory = path.resolve(
 const budgets = {
   // Measured 409.3 KiB (the entry chunk) when this headroom policy was adopted.
   largestJavaScript: 460 * 1024,
-  // Measured 2811.9 KiB when this headroom policy was adopted.
-  totalJavaScript: 3250 * 1024,
+  // Measured 2811.9 KiB when this headroom policy was adopted; raised 3250 -> 3300
+  // when the dietary food-safety operations and document-analyzer branches merged
+  // together and the combined measurement reached 2937.0 KiB (past the warning band).
+  totalJavaScript: 3300 * 1024,
   // Measured 129.3 KiB when this headroom policy was adopted.
   totalCss: 160 * 1024,
   // Measured 1095.8 KiB when this headroom policy was adopted.
