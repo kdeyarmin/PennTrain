@@ -43,6 +43,11 @@ const SETTINGS_CONFIG: Record<string, SettingConfig> = {
     description: "Resident assessment summary drafting via Claude. Keep disabled until the PHI/BAA review is complete.",
     type: "boolean",
   },
+  ai_document_analyzer_enabled: {
+    label: "AI Document Analyzer",
+    description: "State form extraction from scanned PDFs via Claude. Keep disabled until the PHI/BAA review is complete.",
+    type: "boolean",
+  },
   ai_video_generation_enabled: {
     label: "AI Avatar Video Generation",
     description: "HeyGen avatar-video generation for course blocks -- disable to stop new HeyGen API spend.",

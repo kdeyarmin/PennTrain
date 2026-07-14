@@ -68,6 +68,8 @@ describe("work item queue", () => {
     }))).toBe("/app/confidential-incidents/i1");
     expect(sourceRouteForWorkItem(item({ source_type: "resident_calendar", source_id: "follow-up-1" })))
       .toBe("/app/resident-services-calendar");
+    expect(sourceRouteForWorkItem(item({ source_type: "resident_finance", source_id: "statement-1" })))
+      .toBe("/app/resident-finance");
     expect(workQueuePathForRole("employee", "w1")).toBe("/me/work/w1");
     expect(workQueuePathForRole("org_admin")).toBe("/app/work");
   });
