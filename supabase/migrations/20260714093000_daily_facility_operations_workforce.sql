@@ -323,7 +323,9 @@ begin
   select to_jsonb(s) into v_shift from (
     select sa.*, f.name as facility_name, u.name as unit_name, sd.name as shift_name
     from public.shift_assignments sa join public.facilities f on f.id=sa.facility_id left join public.facility_units u on u.id=sa.unit_id left join public.shift_definitions sd on sd.id=sa.shift_definition_id
-    where sa.employee_id=v_employee.id and sa.shift_date >= current_date and sa.status in ('scheduled','confirmed') order by sa.shift_date, sa.start_time limit 1
+    where sa.employee_id=v_employee.id
+      and (sa.shift_date + sa.end_time + case when sa.end_time <= sa.start_time then interval '1 day' else interval '0' end) >= now()
+      and sa.status in ('scheduled','confirmed') order by sa.shift_date, sa.start_time limit 1
   ) s;
   select jsonb_build_object(
     'employee', jsonb_build_object('id', v_employee.id, 'name', btrim(v_employee.first_name || ' ' || v_employee.last_name), 'status', v_employee.status),
