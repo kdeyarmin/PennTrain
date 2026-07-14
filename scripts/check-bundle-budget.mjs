@@ -9,10 +9,11 @@ const assetDirectory = path.resolve(
 // These budgets are regression tripwires, not exact ledgers. They exist to catch
 // step changes -- an accidentally eager import, a heavyweight dependency, a chunk
 // that stops code-splitting -- not the few KiB of organic growth every feature adds.
-// Keep each budget 10-15% above the current measurement on main. When organic
+// Keep each budget at least ~10% above the current measurement on main; small
+// metrics can carry more headroom for the sake of a round number. When organic
 // growth pushes a metric past the warning threshold below, raise that budget in
-// one step back to ~10-15% headroom in the same PR (git history records when and
-// why). Do not raise budgets per-feature or shave them to the current measurement:
+// one step that restores that headroom, in the same PR (git history records when
+// and why). Do not raise budgets per-feature or shave them to the current measurement:
 // a budget within a few KiB of actual fails on nearly every branch and gates
 // merges on noise instead of regressions.
 //
@@ -92,7 +93,7 @@ const measurements = [
 ];
 
 for (const { label, actual, budget } of measurements) {
-  const used = ((actual / budget) * 100).toFixed(0);
+  const used = ((actual / budget) * 100).toFixed(1);
   console.log(
     `${label}: ${formatBytes(actual)} (${used}% of ${formatBytes(budget)} budget)`,
   );
@@ -104,8 +105,8 @@ const warnings = measurements.filter(
 for (const { label, actual, budget } of warnings) {
   console.warn(
     `Warning: ${label} is ${formatBytes(actual)}, over ${warningRatio * 100}% of its ` +
-      `${formatBytes(budget)} budget. Raise the budget back to ~10-15% headroom ` +
-      `(see scripts/check-bundle-budget.mjs) before it starts failing branches.`,
+      `${formatBytes(budget)} budget. Raise the budget to restore at least ~10% ` +
+      `headroom (see scripts/check-bundle-budget.mjs) before it starts failing branches.`,
   );
 }
 
