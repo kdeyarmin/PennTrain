@@ -21041,6 +21041,7 @@ export type Database = {
           error_code: string | null
           id: string
           ip_hash: string
+          legal_accepted: boolean | null
           success: boolean
         }
         Insert: {
@@ -21049,6 +21050,7 @@ export type Database = {
           error_code?: string | null
           id?: string
           ip_hash: string
+          legal_accepted?: boolean | null
           success?: boolean
         }
         Update: {
@@ -21057,6 +21059,7 @@ export type Database = {
           error_code?: string | null
           id?: string
           ip_hash?: string
+          legal_accepted?: boolean | null
           success?: boolean
         }
         Relationships: []
@@ -26690,4 +26693,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
