@@ -29,9 +29,7 @@ insert into auth.users(
   confirmation_token, recovery_token, email_change_token_new, email_change,
   email_change_token_current, reauthentication_token, is_sso_user, is_anonymous
 ) values
-  ('00000000-0000-0000-0000-000000000000', '91000000-0000-4000-8000-000000000101', 'authenticated', 'authenticated', 'command-admin@test.local', 'x', now(), '{}', '{}', now(), now(), '', '', '', '', '', '', false, false),
-  ('00000000-0000-0000-8000-000000000000', '91000000-0000-4000-8000-000000000102', 'authenticated', 'authenticated', 'command-manager@test.local', 'x', now(), '{}', '{}', now(), now(), '', '', '', '', '', '', false, false),
-  ('00000000-0000-0000-0000-000000000000', '92000000-0000-4000-8000-000000000101', 'authenticated', 'authenticated', 'other-command-admin@test.local', 'x', now(), '{}', '{}', now(), now(), '', '', '', '', '', '', false, false);
+  ('00000000-0000-0000-0000-000000000000', '91000000-0000-4000-8000-000000000102', 'authenticated', 'authenticated', 'command-manager@test.local', 'x', now(), '{}', '{}', now(), now(), '', '', '', '', '', '', false, false),
 
 select set_config('app.privileged_write', 'on', true);
 insert into public.profiles(id, organization_id, email, first_name, last_name, role, is_active) values
