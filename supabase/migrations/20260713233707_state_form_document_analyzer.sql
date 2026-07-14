@@ -13,7 +13,7 @@
 -- until the PHI/BAA review for the AI vendor is confirmed.
 
 create table public.document_analyzer_jobs (
-  id uuid primary key default gen_random_uuid(),
+  id uuid primary key default extensions.gen_random_uuid(),
   requested_by uuid not null references public.profiles(id) on delete cascade,
   file_name text not null check (length(btrim(file_name)) between 1 and 255),
   file_size integer check (file_size is null or file_size >= 0),
