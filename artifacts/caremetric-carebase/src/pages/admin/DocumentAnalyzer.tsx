@@ -40,6 +40,7 @@ import {
 } from "@/hooks/useDocumentAnalyzer";
 import {
   type AnalyzerJobDraft,
+  approvedExportBatches,
   canReviewAnalyzerStatus,
   type DocumentAnalyzerJob,
   isActiveAnalyzerStatus,
@@ -120,6 +121,7 @@ export default function DocumentAnalyzer() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [draft, setDraft] = useState<AnalyzerJobDraft>(EMPTY_DRAFT);
   const [appliedIssueKeys, setAppliedIssueKeys] = useState<Set<string>>(new Set());
+  const [isExportingPacket, setIsExportingPacket] = useState(false);
 
   const summary = useMemo(() => summarizeAnalyzerJobs(jobs), [jobs]);
   const selectedJob: DocumentAnalyzerJob | undefined =
@@ -355,17 +357,67 @@ export default function DocumentAnalyzer() {
     else setSelectedJobId(jobId);
   };
 
-  const openPacket = (kind: "export" | "print") => {
-    exportPacket.mutate(undefined, {
-      onSuccess: (result) => {
+  const runPacketExport = async (kind: "export" | "print") => {
+    setIsExportingPacket(true);
+    try {
+      const batches = approvedExportBatches(jobs);
+      if (batches.length <= 1) {
+        const result = await exportPacket.mutateAsync(undefined);
         window.open(result.url!, "_blank", "noopener,noreferrer");
         toast({
           title: kind === "print" ? "Packet ready to print" : "Packet exported",
           description: `${result.jobCount} approved form${result.jobCount === 1 ? "" : "s"} included. ${kind === "print" ? "Use the browser PDF viewer to print." : "The download link is valid for 10 minutes."}`,
         });
-      },
-      onError: (e: Error) => toast({ title: "Failed to generate packet", description: e.message, variant: "destructive" }),
-    });
+        return;
+      }
+      // More approved forms than one packet holds: request each batch explicitly and
+      // pull it down to a blob before asking for the next one -- the server reuses a
+      // single storage path per admin, so the following upload replaces the file
+      // behind the previous link.
+      let included = 0;
+      for (let index = 0; index < batches.length; index++) {
+        const result = await exportPacket.mutateAsync(batches[index]);
+        const response = await fetch(result.url!);
+        if (!response.ok) throw new Error(`Failed to download packet file ${index + 1} of ${batches.length}`);
+        const blobUrl = URL.createObjectURL(await response.blob());
+        const anchor = document.createElement("a");
+        anchor.href = blobUrl;
+        anchor.download = `state-form-packet-${index + 1}-of-${batches.length}.pdf`;
+        anchor.click();
+        URL.revokeObjectURL(blobUrl);
+        included += result.jobCount ?? 0;
+      }
+      toast({
+        title: "Packet exported in batches",
+        description: `${included} approved forms downloaded as ${batches.length} PDF files.${kind === "print" ? " Open each download to print it." : ""}`,
+      });
+    } catch (e) {
+      toast({ title: "Failed to generate packet", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setIsExportingPacket(false);
+    }
+  };
+
+  // Export/print never diverges from what is on screen: unsaved corrections are
+  // persisted first, and because saving re-opens that form's approval gate, the
+  // export stops so the reviewer can re-approve instead of shipping a packet that
+  // silently excludes the form they just corrected.
+  const openPacket = (kind: "export" | "print") => {
+    if (dirty && selectedJob) {
+      const wasApproved = selectedJob.approved_for_export;
+      saveDraft(() => {
+        if (wasApproved) {
+          toast({
+            title: "Corrections saved",
+            description: "Saving re-opened this form's approval gate, so it left the packet. Re-approve it, then export again.",
+          });
+        } else {
+          void runPacketExport(kind);
+        }
+      });
+      return;
+    }
+    void runPacketExport(kind);
   };
 
   // Uploads wait for the kill-switch state to load: while extraction is disabled the
@@ -385,11 +437,11 @@ export default function DocumentAnalyzer() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" disabled={!summary.approved || exportPacket.isPending} onClick={() => openPacket("export")}>
-            {exportPacket.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />} Export approved PDFs
+          <Button variant="outline" disabled={!summary.approved || isExportingPacket} onClick={() => openPacket("export")}>
+            {isExportingPacket ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />} Export approved PDFs
           </Button>
-          <Button disabled={!summary.approved || exportPacket.isPending} onClick={() => openPacket("print")}>
-            {exportPacket.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />} Print approved packet
+          <Button disabled={!summary.approved || isExportingPacket} onClick={() => openPacket("print")}>
+            {isExportingPacket ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />} Print approved packet
           </Button>
         </div>
       </div>
@@ -494,7 +546,7 @@ export default function DocumentAnalyzer() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><PencilLine className="h-5 w-5" /> Editable generated state form</CardTitle>
-              <CardDescription>AI output remains draft-only and fully editable. Corrections are saved to the job's audit-logged record.</CardDescription>
+              <CardDescription>AI output remains draft-only and fully editable. Corrections are saved to the job's durable record, and any edit re-opens the approval gate.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {!selectedJob && (

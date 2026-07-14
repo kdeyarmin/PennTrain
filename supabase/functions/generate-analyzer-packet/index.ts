@@ -374,7 +374,10 @@ Deno.serve(async (req: Request) => {
     return json({ error: signedUrlError?.message ?? "failed to create signed url" }, 500);
   }
 
-  await adminClient.from("audit_logs").insert({
+  // The deterministic path above means each re-export overwrites the previous packet
+  // object, so this audit row is the only durable record of the generation. If it cannot
+  // be written, withhold the download link rather than hand out an unrecorded PHI export.
+  const { error: auditError } = await adminClient.from("audit_logs").insert({
     organization_id: null,
     actor_profile_id: callerUser.id,
     entity_type: "document_analyzer_packet",
@@ -382,6 +385,9 @@ Deno.serve(async (req: Request) => {
     action: "generated",
     new_values: { job_ids: jobs.map((j) => j.id), storage_path: path },
   });
+  if (auditError) {
+    return json({ error: `The packet was generated but could not be recorded in the audit log (${auditError.message}). The download link is withheld until the export can be audited.` }, 500);
+  }
 
   return json({
     success: true,

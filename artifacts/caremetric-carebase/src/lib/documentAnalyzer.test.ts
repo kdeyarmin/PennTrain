@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   type DocumentAnalyzerJob,
+  approvedExportBatches,
   isDraftCompleteForApproval,
   isDraftDirty,
   isPdfFileName,
@@ -127,4 +128,16 @@ describe("documentAnalyzer", () => {
     expect(isPotentialResidentDuplicate(draft, { first_name: "Martha J.", last_name: "Ellis", facility_id: "facility-2" })).toBe(false);
     expect(isPotentialResidentDuplicate({ ...draft, facilityId: "" }, { first_name: "Martha J.", last_name: "Ellis", facility_id: "facility-1" })).toBe(false);
   });
+  it("splits approved forms into server-ordered export batches", () => {
+    const jobs = [
+      job({ id: "c", approved_for_export: true, approved_at: "2026-07-12T03:00:00.000Z" }),
+      job({ id: "a", approved_for_export: true, approved_at: "2026-07-12T01:00:00.000Z" }),
+      job({ id: "unapproved" }),
+      job({ id: "b", approved_for_export: true, approved_at: "2026-07-12T02:00:00.000Z" }),
+    ];
+    expect(approvedExportBatches(jobs)).toEqual([["a", "b", "c"]]);
+    expect(approvedExportBatches(jobs, 2)).toEqual([["a", "b"], ["c"]]);
+    expect(approvedExportBatches([job()])).toEqual([]);
+  });
+
 });

@@ -114,6 +114,26 @@ export function summarizeAnalyzerJobs(jobs: DocumentAnalyzerJob[]) {
   };
 }
 
+// Mirrors MAX_PACKET_JOBS in the generate-analyzer-packet edge function: the server
+// refuses explicit selections larger than one packet, so approval sets beyond this
+// size export as sequential batches in the server's own approved_at order.
+export const ANALYZER_EXPORT_BATCH_SIZE = 200;
+
+export function approvedExportBatches(
+  jobs: DocumentAnalyzerJob[],
+  batchSize = ANALYZER_EXPORT_BATCH_SIZE,
+): string[][] {
+  const approved = jobs
+    .filter((job) => job.approved_for_export)
+    .sort((a, b) =>
+      (a.approved_at ?? "").localeCompare(b.approved_at ?? "") || a.id.localeCompare(b.id));
+  const batches: string[][] = [];
+  for (let start = 0; start < approved.length; start += batchSize) {
+    batches.push(approved.slice(start, start + batchSize).map((job) => job.id));
+  }
+  return batches;
+}
+
 export function splitResidentName(fullName: string): { firstName: string; lastName: string } {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return { firstName: "", lastName: "" };
