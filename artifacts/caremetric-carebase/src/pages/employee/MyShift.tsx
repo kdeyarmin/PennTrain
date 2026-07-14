@@ -24,14 +24,17 @@ export default function MyShift() {
     if (!shift?.facility_id || !shift?.id) return;
     const narrative = window.prompt(`${title}: enter the details your manager needs to triage.`);
     if (!narrative?.trim()) return;
+    const periodStart = new Date(`${shift.shift_date}T${shift.start_time}`);
+    const periodEnd = new Date(`${shift.shift_date}T${shift.end_time}`);
+    if (periodEnd <= periodStart) periodEnd.setDate(periodEnd.getDate() + 1);
     createHandoff.mutate({
       facilityId: shift.facility_id,
       unitId: shift.unit_id,
       shiftAssignmentId: shift.id,
       category,
       priority,
-      periodStart: new Date(`${shift.shift_date}T${shift.start_time}`).toISOString(),
-      periodEnd: new Date(`${shift.shift_date}T${shift.end_time}`).toISOString(),
+      periodStart: periodStart.toISOString(),
+      periodEnd: periodEnd.toISOString(),
       narrative: narrative.trim(),
       requiresAcknowledgement: priority !== "low",
     }, {
