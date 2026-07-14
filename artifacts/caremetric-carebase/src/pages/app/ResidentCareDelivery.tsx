@@ -45,7 +45,7 @@ export default function ResidentCareDelivery() {
   const facilities = useListFacilities({ organizationId: selectedOrgId ?? undefined }, Boolean(selectedOrgId));
   const [facilityId, setFacilityId] = useState("");
   const [from, setFrom] = useState(dateDaysAgo(30));
-  const [through, setThrough] = useState(new Date().toISOString().slice(0, 10));
+  const [through, setThrough] = useState(dateDaysAgo(0));
   const effectiveFacilityId = facilityId || facilities.data?.[0]?.id || "";
   const residents = useListResidents({ facilityId: effectiveFacilityId, status: "active" }, { enabled: Boolean(effectiveFacilityId) });
   const analytics = useResidentCareAnalytics({ facilityId: effectiveFacilityId, from, through });
