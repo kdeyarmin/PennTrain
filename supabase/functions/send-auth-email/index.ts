@@ -98,10 +98,8 @@ Deno.serve(async (req: Request) => {
     user = verified.user;
     emailData = verified.email_data;
   } catch (error) {
-    return errorResponse(
-      401,
-      error instanceof Error ? error.message : String(error),
-    );
+    console.error("send-auth-email webhook verification failed", error);
+    return errorResponse(401, "invalid webhook signature");
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -118,10 +116,8 @@ Deno.serve(async (req: Request) => {
   try {
     for (const message of messages) await sendViaSendGrid(message);
   } catch (error) {
-    return errorResponse(
-      500,
-      error instanceof Error ? error.message : String(error),
-    );
+    console.error("send-auth-email delivery failed", error);
+    return errorResponse(500, "auth email delivery failed");
   }
 
   return new Response(JSON.stringify({}), {

@@ -3976,6 +3976,159 @@ export type Database = {
           },
         ]
       }
+      document_analyzer_jobs: {
+        Row: {
+          admission_date: string | null
+          approved_at: string | null
+          approved_by: string | null
+          approved_for_export: boolean
+          attempt_count: number
+          available_at: string
+          chart_creation_status: string
+          chart_resident_id: string | null
+          completed_at: string | null
+          confidence: number | null
+          created_at: string
+          current_run_id: string | null
+          facility_id: string | null
+          facility_name: string
+          file_name: string
+          file_size: number | null
+          id: string
+          issues: Json
+          last_error_code: string | null
+          last_error_message: string | null
+          last_started_at: string | null
+          locked_at: string | null
+          max_attempts: number
+          model: string | null
+          notes: string
+          organization_id: string | null
+          page_count: number | null
+          requested_by: string
+          resident_name: string
+          review_due_date: string
+          source_bucket: string
+          source_path: string
+          state_form_template: string
+          status: string
+          updated_at: string
+          worker_id: string | null
+        }
+        Insert: {
+          admission_date?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_for_export?: boolean
+          attempt_count?: number
+          available_at?: string
+          chart_creation_status?: string
+          chart_resident_id?: string | null
+          completed_at?: string | null
+          confidence?: number | null
+          created_at?: string
+          current_run_id?: string | null
+          facility_id?: string | null
+          facility_name?: string
+          file_name: string
+          file_size?: number | null
+          id?: string
+          issues?: Json
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_started_at?: string | null
+          locked_at?: string | null
+          max_attempts?: number
+          model?: string | null
+          notes?: string
+          organization_id?: string | null
+          page_count?: number | null
+          requested_by: string
+          resident_name?: string
+          review_due_date?: string
+          source_bucket?: string
+          source_path: string
+          state_form_template?: string
+          status?: string
+          updated_at?: string
+          worker_id?: string | null
+        }
+        Update: {
+          admission_date?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_for_export?: boolean
+          attempt_count?: number
+          available_at?: string
+          chart_creation_status?: string
+          chart_resident_id?: string | null
+          completed_at?: string | null
+          confidence?: number | null
+          created_at?: string
+          current_run_id?: string | null
+          facility_id?: string | null
+          facility_name?: string
+          file_name?: string
+          file_size?: number | null
+          id?: string
+          issues?: Json
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_started_at?: string | null
+          locked_at?: string | null
+          max_attempts?: number
+          model?: string | null
+          notes?: string
+          organization_id?: string | null
+          page_count?: number | null
+          requested_by?: string
+          resident_name?: string
+          review_due_date?: string
+          source_bucket?: string
+          source_path?: string
+          state_form_template?: string
+          status?: string
+          updated_at?: string
+          worker_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_analyzer_jobs_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_analyzer_jobs_chart_resident_id_fkey"
+            columns: ["chart_resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_analyzer_jobs_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_analyzer_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_analyzer_jobs_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       emergency_after_action_reviews: {
         Row: {
           approved_at: string | null
@@ -21876,27 +22029,33 @@ export type Database = {
       }
       signup_attempts: {
         Row: {
+          baa_version: string | null
           created_at: string
           email_hash: string
           error_code: string | null
           id: string
           ip_hash: string
+          service_agreement_version: string | null
           success: boolean
         }
         Insert: {
+          baa_version?: string | null
           created_at?: string
           email_hash: string
           error_code?: string | null
           id?: string
           ip_hash: string
+          service_agreement_version?: string | null
           success?: boolean
         }
         Update: {
+          baa_version?: string | null
           created_at?: string
           email_hash?: string
           error_code?: string | null
           id?: string
           ip_hash?: string
+          service_agreement_version?: string | null
           success?: boolean
         }
         Relationships: []
@@ -24244,6 +24403,53 @@ export type Database = {
         }
         Returns: string
       }
+      approve_document_analyzer_job: {
+        Args: { p_job_id: string }
+        Returns: {
+          admission_date: string | null
+          approved_at: string | null
+          approved_by: string | null
+          approved_for_export: boolean
+          attempt_count: number
+          available_at: string
+          chart_creation_status: string
+          chart_resident_id: string | null
+          completed_at: string | null
+          confidence: number | null
+          created_at: string
+          current_run_id: string | null
+          facility_id: string | null
+          facility_name: string
+          file_name: string
+          file_size: number | null
+          id: string
+          issues: Json
+          last_error_code: string | null
+          last_error_message: string | null
+          last_started_at: string | null
+          locked_at: string | null
+          max_attempts: number
+          model: string | null
+          notes: string
+          organization_id: string | null
+          page_count: number | null
+          requested_by: string
+          resident_name: string
+          review_due_date: string
+          source_bucket: string
+          source_path: string
+          state_form_template: string
+          status: string
+          updated_at: string
+          worker_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "document_analyzer_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       approve_regulatory_rule_version: {
         Args: { p_review_notes: string; p_version_id: string }
         Returns: {
@@ -24514,6 +24720,18 @@ export type Database = {
           correlation_id: string
           job_id: string
           run_id: string
+        }[]
+      }
+      claim_document_analyzer_jobs: {
+        Args: { p_job_id?: string; p_limit?: number; p_worker_id: string }
+        Returns: {
+          attempt_count: number
+          file_name: string
+          job_id: string
+          requested_by: string
+          run_id: string
+          source_bucket: string
+          source_path: string
         }[]
       }
       claim_integration_webhook_deliveries: {
@@ -25067,6 +25285,53 @@ export type Database = {
         }
         Returns: boolean
       }
+      decline_document_analyzer_job_chart: {
+        Args: { p_job_id: string }
+        Returns: {
+          admission_date: string | null
+          approved_at: string | null
+          approved_by: string | null
+          approved_for_export: boolean
+          attempt_count: number
+          available_at: string
+          chart_creation_status: string
+          chart_resident_id: string | null
+          completed_at: string | null
+          confidence: number | null
+          created_at: string
+          current_run_id: string | null
+          facility_id: string | null
+          facility_name: string
+          file_name: string
+          file_size: number | null
+          id: string
+          issues: Json
+          last_error_code: string | null
+          last_error_message: string | null
+          last_started_at: string | null
+          locked_at: string | null
+          max_attempts: number
+          model: string | null
+          notes: string
+          organization_id: string | null
+          page_count: number | null
+          requested_by: string
+          resident_name: string
+          review_due_date: string
+          source_bucket: string
+          source_path: string
+          state_form_template: string
+          status: string
+          updated_at: string
+          worker_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "document_analyzer_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       delete_saved_report_definition: {
         Args: { p_definition_id: string }
         Returns: boolean
@@ -25091,6 +25356,57 @@ export type Database = {
           p_profile_id: string
         }
         Returns: number
+      }
+      enqueue_document_analyzer_job: {
+        Args: {
+          p_file_name: string
+          p_file_size?: number
+          p_source_path?: string
+        }
+        Returns: {
+          admission_date: string | null
+          approved_at: string | null
+          approved_by: string | null
+          approved_for_export: boolean
+          attempt_count: number
+          available_at: string
+          chart_creation_status: string
+          chart_resident_id: string | null
+          completed_at: string | null
+          confidence: number | null
+          created_at: string
+          current_run_id: string | null
+          facility_id: string | null
+          facility_name: string
+          file_name: string
+          file_size: number | null
+          id: string
+          issues: Json
+          last_error_code: string | null
+          last_error_message: string | null
+          last_started_at: string | null
+          locked_at: string | null
+          max_attempts: number
+          model: string | null
+          notes: string
+          organization_id: string | null
+          page_count: number | null
+          requested_by: string
+          resident_name: string
+          review_due_date: string
+          source_bucket: string
+          source_path: string
+          state_form_template: string
+          status: string
+          updated_at: string
+          worker_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "document_analyzer_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       enqueue_integration_test_delivery: {
         Args: { p_endpoint_id: string; p_payload?: Json }
@@ -25247,6 +25563,26 @@ export type Database = {
           p_job_id: string
           p_path?: string
           p_run_id: string
+        }
+        Returns: boolean
+      }
+      finish_document_analyzer_job: {
+        Args: {
+          p_admission_date?: string
+          p_confidence?: number
+          p_error_code?: string
+          p_error_message?: string
+          p_facility_name?: string
+          p_issues?: Json
+          p_job_id: string
+          p_model?: string
+          p_notes?: string
+          p_page_count?: number
+          p_resident_name?: string
+          p_review_due_date?: string
+          p_run_id: string
+          p_state_form_template?: string
+          p_status?: string
         }
         Returns: boolean
       }
@@ -25839,6 +26175,53 @@ export type Database = {
         }
       }
       mark_all_notifications_read: { Args: never; Returns: undefined }
+      mark_document_analyzer_job_chart_created: {
+        Args: { p_job_id: string; p_resident_id: string }
+        Returns: {
+          admission_date: string | null
+          approved_at: string | null
+          approved_by: string | null
+          approved_for_export: boolean
+          attempt_count: number
+          available_at: string
+          chart_creation_status: string
+          chart_resident_id: string | null
+          completed_at: string | null
+          confidence: number | null
+          created_at: string
+          current_run_id: string | null
+          facility_id: string | null
+          facility_name: string
+          file_name: string
+          file_size: number | null
+          id: string
+          issues: Json
+          last_error_code: string | null
+          last_error_message: string | null
+          last_started_at: string | null
+          locked_at: string | null
+          max_attempts: number
+          model: string | null
+          notes: string
+          organization_id: string | null
+          page_count: number | null
+          requested_by: string
+          resident_name: string
+          review_due_date: string
+          source_bucket: string
+          source_path: string
+          state_form_template: string
+          status: string
+          updated_at: string
+          worker_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "document_analyzer_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       mark_notification_read: { Args: { p_id: string }; Returns: undefined }
       mark_resident_agreement_copy_delivered: {
         Args: {
@@ -26480,6 +26863,53 @@ export type Database = {
         }
         Returns: boolean
       }
+      retry_document_analyzer_job: {
+        Args: { p_job_id: string }
+        Returns: {
+          admission_date: string | null
+          approved_at: string | null
+          approved_by: string | null
+          approved_for_export: boolean
+          attempt_count: number
+          available_at: string
+          chart_creation_status: string
+          chart_resident_id: string | null
+          completed_at: string | null
+          confidence: number | null
+          created_at: string
+          current_run_id: string | null
+          facility_id: string | null
+          facility_name: string
+          file_name: string
+          file_size: number | null
+          id: string
+          issues: Json
+          last_error_code: string | null
+          last_error_message: string | null
+          last_started_at: string | null
+          locked_at: string | null
+          max_attempts: number
+          model: string | null
+          notes: string
+          organization_id: string | null
+          page_count: number | null
+          requested_by: string
+          resident_name: string
+          review_due_date: string
+          source_bucket: string
+          source_path: string
+          state_form_template: string
+          status: string
+          updated_at: string
+          worker_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "document_analyzer_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       retry_notification_delivery: {
         Args: { p_delivery_id: string }
         Returns: undefined
@@ -27106,6 +27536,62 @@ export type Database = {
         }
         Returns: boolean
       }
+      update_document_analyzer_job_draft: {
+        Args: {
+          p_admission_date?: string
+          p_facility_id?: string
+          p_facility_name?: string
+          p_job_id: string
+          p_notes?: string
+          p_resident_name?: string
+          p_review_due_date?: string
+          p_state_form_template?: string
+        }
+        Returns: {
+          admission_date: string | null
+          approved_at: string | null
+          approved_by: string | null
+          approved_for_export: boolean
+          attempt_count: number
+          available_at: string
+          chart_creation_status: string
+          chart_resident_id: string | null
+          completed_at: string | null
+          confidence: number | null
+          created_at: string
+          current_run_id: string | null
+          facility_id: string | null
+          facility_name: string
+          file_name: string
+          file_size: number | null
+          id: string
+          issues: Json
+          last_error_code: string | null
+          last_error_message: string | null
+          last_started_at: string | null
+          locked_at: string | null
+          max_attempts: number
+          model: string | null
+          notes: string
+          organization_id: string | null
+          page_count: number | null
+          requested_by: string
+          resident_name: string
+          review_due_date: string
+          source_bucket: string
+          source_path: string
+          state_form_template: string
+          status: string
+          updated_at: string
+          worker_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "document_analyzer_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       update_move_in_task: {
         Args: {
           p_document_id?: string
@@ -27579,4 +28065,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
