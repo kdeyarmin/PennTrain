@@ -128,11 +128,11 @@ function FormList({ forms }: { forms: DhsForm[] }) {
               </a>
             </Button>
             {form.autoFill && (
-              <Link href={form.autoFill.path}>
-                <Button size="sm" variant="ghost" className="h-7 text-xs text-primary hover:text-primary">
+              <Button asChild size="sm" variant="ghost" className="h-7 text-xs text-primary hover:text-primary">
+                <Link href={form.autoFill.path}>
                   <Wand2 className="mr-1.5 h-3.5 w-3.5" /> {form.autoFill.label}
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             )}
           </div>
         </div>
