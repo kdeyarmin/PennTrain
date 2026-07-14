@@ -42,10 +42,10 @@ begin
     ) s
     union all
     select * from (
-      select 'residents', r.id, trim(r.first_name || ' ' || r.last_name), coalesce('Room ' || nullif(r.room_number,''), null), r.status, r.facility_id, f.name,
+      select 'residents', r.id, trim(r.first_name || ' ' || r.last_name), coalesce('Room ' || nullif(r.room,''), null), r.status, r.facility_id, f.name,
         case when v_role = 'platform_admin' then '/admin/residents/' else '/app/residents/' end || r.id::text, 4
       from public.residents r left join public.facilities f on f.id = r.facility_id
-      where v_role in ('platform_admin','org_admin','facility_manager','auditor') and (r.first_name ilike v_like escape '\' or r.last_name ilike v_like escape '\' or r.room_number ilike v_like escape '\')
+      where v_role in ('platform_admin','org_admin','facility_manager','auditor') and (r.first_name ilike v_like escape '\' or r.last_name ilike v_like escape '\' or r.room ilike v_like escape '\')
       order by r.last_name, r.first_name limit 8
     ) s
     union all
