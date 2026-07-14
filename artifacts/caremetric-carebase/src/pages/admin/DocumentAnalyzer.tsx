@@ -42,6 +42,7 @@ import {
   type AnalyzerJobDraft,
   canReviewAnalyzerStatus,
   type DocumentAnalyzerJob,
+  isActiveAnalyzerStatus,
   isDraftCompleteForApproval,
   isDraftDirty,
   isPotentialResidentDuplicate,
@@ -91,6 +92,15 @@ const ISSUE_FIELD_TO_DRAFT_KEY: Partial<Record<string, keyof AnalyzerJobDraft>> 
   notes: "notes",
 };
 
+// The admission-date draft feeds a native date input and the RPC's date parameter, so a
+// suggestion is only applicable when it is already in YYYY-MM-DD form.
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+function isApplicableSuggestion(issue: { field: string; suggested_value: string | null }): boolean {
+  const draftKey = ISSUE_FIELD_TO_DRAFT_KEY[issue.field];
+  if (!draftKey || !issue.suggested_value) return false;
+  return draftKey !== "admissionDate" || ISO_DATE.test(issue.suggested_value);
+}
+
 export default function DocumentAnalyzer() {
   const { toast } = useToast();
   const { data: facilities } = useListFacilities();
@@ -124,8 +134,25 @@ export default function DocumentAnalyzer() {
     if (!selectedJob || draftSourceKey === lastDraftSourceKey.current) return;
     lastDraftSourceKey.current = draftSourceKey;
     setDraft(jobToDraft(selectedJob));
-    setAppliedIssueKeys(new Set());
   }, [selectedJob, draftSourceKey]);
+
+  // Applied-suggestion tracking resets only when the extraction issues themselves change
+  // (a re-run), not on every save/approve bump of updated_at -- otherwise an applied
+  // notes suggestion could be re-applied and double-appended.
+  const issuesSourceKey = selectedJob ? `${selectedJob.id}:${JSON.stringify(selectedJob.issues)}` : null;
+  const lastIssuesSourceKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (!issuesSourceKey || issuesSourceKey === lastIssuesSourceKey.current) return;
+    lastIssuesSourceKey.current = issuesSourceKey;
+    setAppliedIssueKeys(new Set());
+  }, [issuesSourceKey]);
+
+  // Pin the selection once so it stops tracking jobs[0]: with created_at-desc ordering and
+  // 4s polling, an implicit selection would silently jump to whichever row lands newest
+  // while the reviewer is mid-edit.
+  useEffect(() => {
+    if (selectedJobId === null && jobs.length > 0) setSelectedJobId(jobs[0].id);
+  }, [jobs, selectedJobId]);
 
   const issues = useMemo(
     () => (selectedJob ? parseAnalyzerIssues(selectedJob.issues) : []),
@@ -135,31 +162,42 @@ export default function DocumentAnalyzer() {
 
   const dirty = !!selectedJob && isDraftDirty(selectedJob, draft);
   const selectedFacility = facilities?.find((facility) => facility.id === draft.facilityId);
-  const { data: existingResidents } = useListResidents(
-    { facilityId: draft.facilityId || undefined },
+  const {
+    data: existingResidents,
+    isLoading: isResidentCheckLoading,
+    isError: isResidentCheckError,
+  } = useListResidents(
+    { facilityId: draft.facilityId || undefined, status: "active" },
     { enabled: Boolean(draft.facilityId) },
   );
+  const duplicateCheckUnsettled = Boolean(draft.facilityId) && (isResidentCheckLoading || isResidentCheckError);
   const possibleDuplicateResident = selectedJob
     ? existingResidents?.find((resident) => isPotentialResidentDuplicate(draft, resident))
     : undefined;
 
-  // One completion toast per batch, driven by the polled rows instead of a local timer.
-  const previousInProgress = useRef(0);
+  // One completion toast per batch, scoped to the uploads/retries this page kicked off --
+  // the polled table also carries every past batch, so whole-table totals would mislead.
+  const pendingBatchIds = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (previousInProgress.current > 0 && summary.inProgress === 0 && summary.total > 0) {
-      toast({
-        title: "Document batch finished",
-        description: `${summary.ready} ready, ${summary.needsReview} needing review, ${summary.failed} failed. Review and approve each form before export.`,
-      });
-    }
-    previousInProgress.current = summary.inProgress;
-  }, [summary.failed, summary.inProgress, summary.needsReview, summary.ready, summary.total, toast]);
+    if (pendingBatchIds.current.size === 0) return;
+    const tracked = jobs.filter((job) => pendingBatchIds.current.has(job.id));
+    if (tracked.length === 0 || tracked.some((job) => isActiveAnalyzerStatus(job.status))) return;
+    const ready = tracked.filter((job) => job.status === "ready").length;
+    const needsReview = tracked.filter((job) => job.status === "needs_review").length;
+    const failed = tracked.filter((job) => job.status === "failed").length;
+    pendingBatchIds.current = new Set();
+    toast({
+      title: "Document batch finished",
+      description: `${ready} ready, ${needsReview} needing review, ${failed} failed. Review and approve each form before export.`,
+    });
+  }, [jobs, toast]);
 
   const addFiles = (files: FileList | null) => {
     if (!files?.length) return;
     uploadDocuments.mutate(Array.from(files), {
       onSuccess: (result) => {
         if (result.enqueued.length > 0) {
+          for (const job of result.enqueued) pendingBatchIds.current.add(job.id);
           setSelectedJobId((current) => current ?? result.enqueued[0].id);
           toast({
             title: `${result.enqueued.length} PDF${result.enqueued.length === 1 ? "" : "s"} queued`,
@@ -183,7 +221,12 @@ export default function DocumentAnalyzer() {
     updateDraft.mutate(
       { jobId: selectedJob.id, ...draft },
       {
-        onSuccess: (job) => onSaved?.(job),
+        onSuccess: (job) => {
+          // The save round-trip bumps updated_at; pre-mark it as seeded so the re-seed
+          // effect doesn't clobber anything typed while the request was in flight.
+          lastDraftSourceKey.current = `${job.id}:${job.updated_at}`;
+          onSaved?.(job);
+        },
         onError: (e: Error) => toast({ title: "Failed to save corrections", description: e.message, variant: "destructive" }),
       },
     );
@@ -204,11 +247,11 @@ export default function DocumentAnalyzer() {
     if (!selectedJob) return;
     const issue = issues[index];
     const draftKey = issue ? ISSUE_FIELD_TO_DRAFT_KEY[issue.field] : undefined;
-    if (!issue?.suggested_value || !draftKey) return;
+    if (!issue?.suggested_value || !draftKey || !isApplicableSuggestion(issue)) return;
     setDraft((current) => ({
       ...current,
       [draftKey]: draftKey === "notes" && current.notes
-        ? `${current.notes}\n${issue.suggested_value}`
+        ? (current.notes.includes(issue.suggested_value!) ? current.notes : `${current.notes}\n${issue.suggested_value}`)
         : issue.suggested_value!,
     }));
     setAppliedIssueKeys((current) => new Set(current).add(`${selectedJob.id}:${index}`));
@@ -232,7 +275,8 @@ export default function DocumentAnalyzer() {
     else link();
   };
 
-  const createResidentChart = () => {
+  const createResidentChart = (options: { ignoreDuplicate?: boolean } = {}) => {
+    if (!options.ignoreDuplicate && possibleDuplicateResident) return;
     if (!selectedJob || !selectedFacility) {
       toast({ title: "Choose a facility first", description: "Select where this resident should be created before adding them to the system.", variant: "destructive" });
       return;
@@ -283,15 +327,32 @@ export default function DocumentAnalyzer() {
 
   const declineResidentChart = () => {
     if (!selectedJob) return;
-    declineChart.mutate(selectedJob.id, {
-      onError: (e: Error) => toast({ title: "Failed to update chart choice", description: e.message, variant: "destructive" }),
-    });
+    const decline = () =>
+      declineChart.mutate(selectedJob.id, {
+        onError: (e: Error) => toast({ title: "Failed to update chart choice", description: e.message, variant: "destructive" }),
+      });
+    if (dirty) saveDraft(() => decline());
+    else decline();
   };
 
   const retryFailedJob = (jobId: string) => {
     retryJob.mutate(jobId, {
+      onSuccess: (job) => {
+        pendingBatchIds.current.add(job.id);
+      },
       onError: (e: Error) => toast({ title: "Failed to retry extraction", description: e.message, variant: "destructive" }),
     });
+  };
+
+  // Switching forms persists unsaved corrections first -- the same auto-save contract the
+  // approve/link/create actions already follow.
+  const selectJob = (jobId: string) => {
+    if (jobId === selectedJob?.id) {
+      setSelectedJobId(jobId);
+      return;
+    }
+    if (dirty) saveDraft(() => setSelectedJobId(jobId));
+    else setSelectedJobId(jobId);
   };
 
   const openPacket = (kind: "export" | "print") => {
@@ -307,7 +368,10 @@ export default function DocumentAnalyzer() {
     });
   };
 
-  const uploadsDisabled = uploadDocuments.isPending || analyzerEnabled === false;
+  // Uploads wait for the kill-switch state to load: while extraction is disabled the
+  // banner explains why, and enqueueing during the load window would just 403 the kick
+  // and leave rows sitting queued with no explanation.
+  const uploadsDisabled = uploadDocuments.isPending || isEnabledLoading || analyzerEnabled !== true;
 
   return (
     <div className="space-y-6">
@@ -414,7 +478,7 @@ export default function DocumentAnalyzer() {
                               <RotateCcw className="mr-1 h-3.5 w-3.5" /> Retry
                             </Button>
                           ) : (
-                            <Button variant="ghost" size="sm" onClick={() => setSelectedJobId(job.id)}>Review</Button>
+                            <Button variant="ghost" size="sm" onClick={() => selectJob(job.id)}>Review</Button>
                           )}
                         </TableCell>
                       </TableRow>
@@ -497,13 +561,18 @@ export default function DocumentAnalyzer() {
                     <AlertTitle>Possible existing resident found</AlertTitle>
                     <AlertDescription className="space-y-3">
                       <p>{possibleDuplicateResident.first_name} {possibleDuplicateResident.last_name} already exists at this facility. Link the analyzed form to that chart instead of creating a duplicate.</p>
-                      <Button size="sm" variant="outline" disabled={markChartCreated.isPending} onClick={linkExistingResidentChart}>Use existing resident chart</Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" disabled={markChartCreated.isPending} onClick={linkExistingResidentChart}>Use existing resident chart</Button>
+                        <Button size="sm" variant="ghost" disabled={isCreatingResident || markChartCreated.isPending} onClick={() => createResidentChart({ ignoreDuplicate: true })}>
+                          This is a different resident -- create anyway
+                        </Button>
+                      </div>
                     </AlertDescription>
                   </Alert>
                 )}
                 {selectedJob.chart_creation_status === "declined" && <Badge variant="secondary">Skipped for this form</Badge>}
                 <div className="flex flex-wrap gap-2">
-                  <Button onClick={createResidentChart} disabled={isCreatingResident || markChartCreated.isPending || !!possibleDuplicateResident || !draft.facilityId || !draft.admissionDate || !draft.residentName.trim() || selectedJob.chart_creation_status === "declined"}>
+                  <Button onClick={() => createResidentChart()} disabled={isCreatingResident || markChartCreated.isPending || duplicateCheckUnsettled || !!possibleDuplicateResident || !draft.facilityId || !draft.admissionDate || !draft.residentName.trim() || selectedJob.chart_creation_status === "declined"}>
                     {isCreatingResident ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} Yes, create resident
                   </Button>
                   <Button variant="outline" onClick={declineResidentChart} disabled={declineChart.isPending || selectedJob.chart_creation_status === "declined"}>Not now</Button>
@@ -535,14 +604,14 @@ export default function DocumentAnalyzer() {
               <div className="flex flex-wrap gap-2">
                 <Badge variant="secondary">{issues.length - openIssues.length} applied</Badge>
                 <Badge variant={openIssues.length ? "destructive" : "default"}>{openIssues.length} open suggestions</Badge>
-                <Badge variant="outline">Editable audit trail retained</Badge>
+                <Badge variant="outline">Approvals recorded with reviewer and timestamp</Badge>
                 <Badge variant="outline">{summary.totalIssues} batch issues</Badge>
                 <Badge variant="outline">{summary.approved} approved for export</Badge>
               </div>
               {issues.map((issue, index) => {
                 const key = `${selectedJob?.id}:${index}`;
                 if (appliedIssueKeys.has(key)) return null;
-                const applicable = Boolean(issue.suggested_value && ISSUE_FIELD_TO_DRAFT_KEY[issue.field]);
+                const applicable = isApplicableSuggestion(issue);
                 return (
                   <div key={key} className="rounded-lg border p-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">

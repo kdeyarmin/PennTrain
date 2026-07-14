@@ -43,6 +43,11 @@ Deno.test("validateExtractionInput rejects structurally unusable payloads", () =
 });
 
 Deno.test("validateExtractionInput degrades recoverable oddities instead of failing", () => {
+  // Calendar-impossible dates must degrade too -- Postgres would reject them at the
+  // finish RPC's date cast and burn every retry.
+  assertEquals(validateExtractionInput({ ...VALID_INPUT, admission_date: "2026-02-30" })?.admission_date, null);
+  assertEquals(validateExtractionInput({ ...VALID_INPUT, admission_date: "2026-13-01" })?.admission_date, null);
+
   const extraction = validateExtractionInput({
     ...VALID_INPUT,
     admission_date: "March 15th, 2024",

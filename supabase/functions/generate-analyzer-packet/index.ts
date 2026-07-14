@@ -36,6 +36,29 @@ function truncate(str: string, maxWidth: number, font: PDFFont, size: number) {
   return s === str ? s : s.slice(0, -1) + "…";
 }
 
+// Extracted handwriting transcriptions routinely carry characters outside WinAnsi (check
+// marks, smart punctuation from OCR, accented names beyond Latin-1); pdf-lib's standard
+// Helvetica throws on the first such character, which would fail the whole packet.
+// Substitute rather than crash -- the reviewer approved the on-screen text; the PDF marks
+// what it cannot render.
+const WINANSI_EXTRA = new Set("€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ ");
+function toWinAnsi(text: string): string {
+  let out = "";
+  for (const ch of text.normalize("NFC").replace(/\r\n?/g, "\n").replace(/\t/g, "  ")) {
+    const code = ch.codePointAt(0)!;
+    if (ch === "\n" || (code >= 0x20 && code <= 0x7e) || (code >= 0xa1 && code <= 0xff) || WINANSI_EXTRA.has(ch)) {
+      out += ch;
+    } else if (ch === "✓" || ch === "✔" || ch === "☑") {
+      out += "[x]";
+    } else if (ch === "☐" || ch === "☒") {
+      out += "[ ]";
+    } else {
+      out += "?";
+    }
+  }
+  return out;
+}
+
 function wrapText(text: string, maxWidth: number, font: PDFFont, size: number): string[] {
   const lines: string[] = [];
   for (const paragraph of text.split(/\r?\n/)) {
@@ -47,12 +70,27 @@ function wrapText(text: string, maxWidth: number, font: PDFFont, size: number): 
     let current = "";
     for (const word of words) {
       const candidate = current ? `${current} ${word}` : word;
-      if (font.widthOfTextAtSize(candidate, size) <= maxWidth || !current) {
+      if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
         current = candidate;
-      } else {
-        lines.push(current);
-        current = word;
+        continue;
       }
+      if (current) lines.push(current);
+      if (font.widthOfTextAtSize(word, size) <= maxWidth) {
+        current = word;
+        continue;
+      }
+      // A single unbroken token wider than the line (long IDs, run-together scans) would
+      // silently run past the page edge -- break it at character level instead.
+      let chunk = "";
+      for (const ch of word) {
+        if (chunk && font.widthOfTextAtSize(chunk + ch, size) > maxWidth) {
+          lines.push(chunk);
+          chunk = ch;
+        } else {
+          chunk += ch;
+        }
+      }
+      current = chunk;
     }
     if (current) lines.push(current);
   }
@@ -90,7 +128,7 @@ class PdfWriter {
     const font = opts.bold ? this.bold : this.font;
     const [r, g, b] = opts.color ?? [0, 0, 0];
     const maxWidth = PAGE_WIDTH - MARGIN * 2;
-    for (const line of wrapText(str, maxWidth, font, size)) {
+    for (const line of wrapText(toWinAnsi(str), maxWidth, font, size)) {
       this.ensureSpace(size + 4);
       this.page.drawText(line, { x: MARGIN, y: this.y, size, font, color: rgb(r, g, b) });
       this.y -= size + 3;
@@ -128,7 +166,7 @@ class PdfWriter {
       const font = bold ? this.bold : this.font;
       for (let i = 0; i < cells.length; i++) {
         const w = widths[i];
-        this.page.drawText(truncate(cells[i] ?? "", w, font, size), { x, y: this.y, size, font, color: rgb(0, 0, 0) });
+        this.page.drawText(truncate(toWinAnsi(cells[i] ?? ""), w, font, size), { x, y: this.y, size, font, color: rgb(0, 0, 0) });
         x += w;
       }
       this.y -= rowHeight;
@@ -187,9 +225,22 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Invalid JSON body" }, 400);
     }
   }
-  const requestedIds = Array.isArray(body.job_ids)
-    ? body.job_ids.filter((id) => typeof id === "string" && id.length > 0)
-    : null;
+  // A provided-but-degenerate filter (empty array, non-strings) must never widen into an
+  // export-everything request -- validate instead of sanitize.
+  let requestedIds: string[] | null = null;
+  if (body.job_ids !== undefined) {
+    if (
+      !Array.isArray(body.job_ids)
+      || body.job_ids.length === 0
+      || body.job_ids.some((id) => typeof id !== "string" || id.length === 0)
+    ) {
+      return json({ error: "job_ids must be a non-empty array of job ids" }, 400);
+    }
+    requestedIds = Array.from(new Set(body.job_ids));
+    if (requestedIds.length > MAX_PACKET_JOBS) {
+      return json({ error: `A packet can include at most ${MAX_PACKET_JOBS} forms; export in smaller batches.` }, 400);
+    }
+  }
 
   let jobsQuery = callerClient
     .from("document_analyzer_jobs")
@@ -197,19 +248,22 @@ Deno.serve(async (req: Request) => {
       "id, file_name, resident_name, facility_name, state_form_template, review_due_date, " +
         "admission_date, notes, issues, confidence, page_count, model, approved_for_export, " +
         "approved_by, approved_at, facility_id, chart_resident_id, created_at",
+      { count: "exact" },
     )
     .eq("approved_for_export", true)
     .order("approved_at", { ascending: true })
     .limit(MAX_PACKET_JOBS);
-  if (requestedIds && requestedIds.length > 0) jobsQuery = jobsQuery.in("id", requestedIds);
-  const { data: jobs, error: jobsError } = await jobsQuery;
+  if (requestedIds) jobsQuery = jobsQuery.in("id", requestedIds);
+  const { data: jobs, error: jobsError, count: approvedCount } = await jobsQuery;
   if (jobsError) return json({ error: jobsError.message }, 500);
   if (!jobs || jobs.length === 0) {
     return json({ error: "No approved forms to export. Approve at least one reviewed form first." }, 400);
   }
-  if (requestedIds && requestedIds.length > 0 && jobs.length !== new Set(requestedIds).size) {
+  if (requestedIds && jobs.length !== requestedIds.length) {
     return json({ error: "Every requested form must exist and be approved for export" }, 409);
   }
+  const totalApproved = approvedCount ?? jobs.length;
+  const omittedCount = Math.max(0, totalApproved - jobs.length);
 
   const approverIds = Array.from(new Set(jobs.map((j) => j.approved_by).filter(Boolean)));
   const facilityIds = Array.from(new Set(jobs.map((j) => j.facility_id).filter(Boolean)));
@@ -238,6 +292,13 @@ Deno.serve(async (req: Request) => {
     gap: 1,
   });
   pdf.text(`Forms included: ${jobs.length}`, { size: 9, color: [0.4, 0.4, 0.4], gap: 6 });
+  if (omittedCount > 0) {
+    pdf.text(
+      `NOTE: ${omittedCount} additional approved form${omittedCount === 1 ? "" : "s"} did not fit this packet's `
+        + `${MAX_PACKET_JOBS}-form limit and are NOT included. Export again with a narrower selection to cover them.`,
+      { size: 9, bold: true, gap: 4 },
+    );
+  }
   pdf.text(
     "Each form below was extracted from a scanned historical document, corrected during "
       + "super-admin review, and explicitly approved for export. Verify against the original "
@@ -298,7 +359,9 @@ Deno.serve(async (req: Request) => {
 
   const pdfBytes = await pdf.save();
   const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
-  const path = `exports/packet-${crypto.randomUUID()}.pdf`;
+  // Deterministic per-admin path: re-exports overwrite instead of accumulating orphaned
+  // PHI-bearing objects; each generation is still recorded in audit_logs below.
+  const path = `exports/packet-${callerUser.id}.pdf`;
   const { error: uploadError } = await adminClient.storage
     .from(ANALYZER_BUCKET)
     .upload(path, pdfBytes, { contentType: "application/pdf", upsert: true });
@@ -326,5 +389,6 @@ Deno.serve(async (req: Request) => {
     path,
     expiresIn: SIGNED_URL_TTL_SECONDS,
     jobCount: jobs.length,
+    omittedCount,
   });
 });

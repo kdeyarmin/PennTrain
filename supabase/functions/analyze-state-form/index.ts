@@ -7,6 +7,10 @@
 //    immediately after upload instead of waiting for the next cron sweep.
 // Extraction never touches resident charts and never approves anything: results land on
 // the job row as a draft for mandatory super-admin review.
+//
+// Unlike the course/wellness Anthropic callers there is no separate *_ai_generations
+// audit table: the durable job row already records requested_by, the serving model,
+// attempt counts, timestamps, and the failure reason for every extraction call.
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { CRON_SECRET_HEADER, requireCronRequest } from "../_shared/cronAuth.ts";
 import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
@@ -183,6 +187,16 @@ async function processClaimedJob(
 
   if (!result.ok) {
     throw new AnalyzerJobError("anthropic_error", anthropicErrorMessage(result));
+  }
+
+  // A truncated response returns HTTP 200 with an incomplete (or missing) tool block, which
+  // would otherwise surface as a misleading "invalid extraction" and burn every retry.
+  const stopReason = (result.body as { stop_reason?: string } | null)?.stop_reason;
+  if (stopReason === "max_tokens") {
+    throw new AnalyzerJobError(
+      "extraction_truncated",
+      `The extraction hit the ${MAX_TOKENS}-token output limit before completing -- the document's handwritten content may be too long for a single pass`,
+    );
   }
 
   const extraction = validateExtractionInput(extractToolInput(result.body));

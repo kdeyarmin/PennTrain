@@ -71,6 +71,7 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    - `ANTHROPIC_COURSE_DRAFT_MODEL` / `ANTHROPIC_COURSE_DRAFT_FALLBACK_MODELS`
    - `ANTHROPIC_COURSE_REGENERATION_MODEL` / `ANTHROPIC_COURSE_REGENERATION_FALLBACK_MODELS`
    - `ANTHROPIC_RESIDENT_SUMMARY_MODEL` / `ANTHROPIC_RESIDENT_SUMMARY_FALLBACK_MODELS`
+   - `ANTHROPIC_DOCUMENT_ANALYZER_MODEL` / `ANTHROPIC_DOCUMENT_ANALYZER_FALLBACK_MODELS`
 
    Store the same `CRON_SHARED_SECRET` in Supabase Vault before the cron-hardening migration runs:
    ```sql
@@ -408,10 +409,15 @@ policy at all, so it was never exploitable there, but the trigger was extended f
   stores real clinical/functional-assessment content (see `residentAssessmentFormSchema.ts`). The
   `generate-resident-assessment-summary` edge function can draft its "Overall Wellness Summary" via
   Anthropic Claude, but this is gated off by the `ai_wellness_summary_generation_enabled`
-  `platform_settings` row, which defaults to `false`. Every other AI integration in this codebase
-  (course drafting) is scoped to training content and never touches resident data -- do not flip
-  this setting to `true` until a BAA with the AI vendor has been confirmed to cover resident data,
-  same as the Supabase/Railway BAA requirement above.
+  `platform_settings` row, which defaults to `false`. The state form document analyzer
+  (`analyze-state-form` edge function) likewise sends scanned historical state forms -- real
+  resident demographics and handwritten clinical notes -- to Anthropic for extraction, and is
+  gated off by the `ai_document_analyzer_enabled` `platform_settings` row, which also defaults
+  to `false` (uploads still land in the Supabase-BAA-covered `state-form-analyzer` bucket and
+  simply wait in the queue). Every other AI integration in this codebase (course drafting) is
+  scoped to training content and never touches resident data -- do not flip either setting to
+  `true` until a BAA with the AI vendor has been confirmed to cover resident data, same as the
+  Supabase/Railway BAA requirement above.
 
 ## 8. Verifying the deployment
 

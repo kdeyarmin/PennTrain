@@ -1,5 +1,5 @@
 begin;
-select plan(25);
+select plan(28);
 
 -- State form document analyzer: platform_admin-only enqueue/visibility, review-draft and
 -- approval gating, service-role worker claim/finish with lease checks and retry backoff,
@@ -188,6 +188,15 @@ select results_eq(
   'a resident in the selected facility can be linked'
 );
 select throws_ok(
+  $$ select public.update_document_analyzer_job_draft(
+       (select id from analyzer_ids where key='first'),
+       'Martha Jane Ellis', 'Sunrise Personal Care Home',
+       'RASP (Resident Assessment-Support Plan)', '07/12/2026', '2024-03-15'::date, 'Corrected notes.',
+       '18000000-0000-4000-8000-000000000011'::uuid) $$,
+  '55000', null,
+  'the facility cannot change after a resident chart is linked'
+);
+select throws_ok(
   $$ select public.decline_document_analyzer_job_chart((select id from analyzer_ids where key='first')) $$,
   '55000', null,
   'a linked chart cannot be declined afterwards'
@@ -237,6 +246,30 @@ select results_eq(
      where id = (select id from analyzer_ids where key='flaky') $$,
   $$ values (0, true) $$,
   'manual retry resets attempts and clears the recorded error'
+);
+reset role;
+
+-- A worker that dies uncleanly on the final attempt leaves an exhausted stale lease that
+-- neither reclaim nor finish nor retry could touch; the next claim sweep fails it out so
+-- the manual retry RPC can recover it.
+create temp table analyzer_lost_claims on commit drop as
+select * from public.claim_document_analyzer_jobs(
+  '18000000-0000-4000-8000-000000000077',
+  (select id from analyzer_ids where key='flaky'), 1);
+update public.document_analyzer_jobs
+  set attempt_count = max_attempts, locked_at = now() - interval '16 minutes'
+  where id = (select id from analyzer_ids where key='flaky');
+select results_eq(
+  $$ select count(*)::int from public.claim_document_analyzer_jobs(
+       '18000000-0000-4000-8000-000000000078', null, 1) $$,
+  array[0],
+  'an exhausted stale lease is never handed back to a worker'
+);
+select results_eq(
+  $$ select status, last_error_code from public.document_analyzer_jobs
+     where id = (select id from analyzer_ids where key='flaky') $$,
+  $$ values ('failed'::text, 'worker_lost'::text) $$,
+  'the claim sweep fails out exhausted stale leases for manual retry'
 );
 
 select * from finish();

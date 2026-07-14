@@ -18,6 +18,14 @@ const ANALYZER_BUCKET = "state-form-analyzer";
 export const ANALYZER_JOBS_KEY = ["document_analyzer_jobs"] as const;
 const ANALYZER_SETTING_KEY = "ai_document_analyzer_enabled";
 
+// Row-returning RPCs seed the fresh row into the cache before invalidating, so the page's
+// re-seed logic sees the post-mutation updated_at immediately instead of one poll later.
+function applyJobRow(queryClient: QueryClient, job: DocumentAnalyzerJob) {
+  queryClient.setQueryData<DocumentAnalyzerJob[]>(ANALYZER_JOBS_KEY, (rows) =>
+    rows?.map((row) => (row.id === job.id ? job : row)));
+  queryClient.invalidateQueries({ queryKey: ANALYZER_JOBS_KEY });
+}
+
 export function useListAnalyzerJobs() {
   return useQuery({
     queryKey: ANALYZER_JOBS_KEY,
@@ -159,7 +167,7 @@ export function useUpdateAnalyzerDraft() {
       if (error) throw error;
       return data as unknown as DocumentAnalyzerJob;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ANALYZER_JOBS_KEY }),
+    onSuccess: (job) => applyJobRow(queryClient, job),
   });
 }
 
@@ -171,7 +179,7 @@ export function useApproveAnalyzerJob() {
       if (error) throw error;
       return data as unknown as DocumentAnalyzerJob;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ANALYZER_JOBS_KEY }),
+    onSuccess: (job) => applyJobRow(queryClient, job),
   });
 }
 
@@ -184,7 +192,7 @@ export function useRetryAnalyzerJob() {
       return data as unknown as DocumentAnalyzerJob;
     },
     onSuccess: (job) => {
-      queryClient.invalidateQueries({ queryKey: ANALYZER_JOBS_KEY });
+      applyJobRow(queryClient, job);
       void kickAnalyzerJobs(queryClient, [job.id]);
     },
   });
@@ -201,7 +209,7 @@ export function useMarkAnalyzerChartCreated() {
       if (error) throw error;
       return data as unknown as DocumentAnalyzerJob;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ANALYZER_JOBS_KEY }),
+    onSuccess: (job) => applyJobRow(queryClient, job),
   });
 }
 
@@ -213,7 +221,7 @@ export function useDeclineAnalyzerChart() {
       if (error) throw error;
       return data as unknown as DocumentAnalyzerJob;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ANALYZER_JOBS_KEY }),
+    onSuccess: (job) => applyJobRow(queryClient, job),
   });
 }
 

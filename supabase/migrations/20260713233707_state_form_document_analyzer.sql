@@ -6,10 +6,11 @@
 -- that drives the analyze-state-form edge worker, and an operational-control-plane
 -- registration. Extraction results land on the job row as an editable draft that a super
 -- admin must review and approve before export -- the AI never finalizes a state form on
--- its own. Scanned forms contain resident PHI, so the whole pipeline sits behind the
--- ai_document_analyzer_enabled platform setting, which (like
--- ai_wellness_summary_generation_enabled) defaults to DISABLED until the PHI/BAA review
--- for sending resident content to the AI vendor is confirmed.
+-- its own. Scanned forms contain resident PHI, so the extraction step (the only step
+-- that sends resident content to the AI vendor -- uploads stay inside the
+-- Supabase-BAA-covered bucket) sits behind the ai_document_analyzer_enabled platform
+-- setting, which (like ai_wellness_summary_generation_enabled) defaults to DISABLED
+-- until the PHI/BAA review for the AI vendor is confirmed.
 
 create table public.document_analyzer_jobs (
   id uuid primary key default gen_random_uuid(),

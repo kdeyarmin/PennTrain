@@ -142,6 +142,16 @@ export interface StateFormExtraction {
 const MAX_ISSUES = 20;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+// The regex alone admits calendar-impossible strings ("2026-02-30") that Postgres would
+// reject when the finish RPC casts to date -- deterministically failing every retry.
+function isRealCalendarDate(iso: string): boolean {
+  const [year, month, day] = iso.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year
+    && parsed.getUTCMonth() === month - 1
+    && parsed.getUTCDate() === day;
+}
+
 function cleanString(value: unknown, maxLength: number): string | null {
   if (typeof value !== "string") return null;
   return value.trim().slice(0, maxLength);
@@ -205,7 +215,9 @@ export function validateExtractionInput(input: unknown): StateFormExtraction | n
   }
 
   const admissionRaw = cleanString(raw.admission_date, 10) ?? "";
-  const admissionDate = ISO_DATE.test(admissionRaw) ? admissionRaw : null;
+  const admissionDate = ISO_DATE.test(admissionRaw) && isRealCalendarDate(admissionRaw)
+    ? admissionRaw
+    : null;
 
   return {
     resident_name: residentName,
