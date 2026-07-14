@@ -20,8 +20,8 @@ function SectionList({ sections }: { sections: { title: string; body: string[] }
           <h2 className="text-lg font-semibold text-slate-950">
             {index + 1}. {section.title}
           </h2>
-          {section.body.map((paragraph) => (
-            <p key={paragraph} className="text-sm leading-6 text-slate-700">
+          {section.body.map((paragraph, paragraphIndex) => (
+            <p key={`${index}-${paragraphIndex}`} className="text-sm leading-6 text-slate-700">
               {paragraph}
             </p>
           ))}
