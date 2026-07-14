@@ -28,6 +28,14 @@ const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
 const MARGIN = 54;
 
+function truncate(str: string, maxWidth: number, font: PDFFont, size: number) {
+  let s = str;
+  while (s.length > 1 && font.widthOfTextAtSize(s, size) > maxWidth - 6) {
+    s = s.slice(0, -1);
+  }
+  return s === str ? s : s.slice(0, -1) + "…";
+}
+
 function wrapText(text: string, maxWidth: number, font: PDFFont, size: number): string[] {
   const lines: string[] = [];
   for (const paragraph of text.split(/\r?\n/)) {
@@ -109,6 +117,31 @@ class PdfWriter {
       color: rgb(0.6, 0.6, 0.6),
     });
     this.y -= 10;
+  }
+
+  table(headers: string[], rows: string[][], widths: number[]) {
+    const size = 8.5;
+    const rowHeight = size + 7;
+    const drawRow = (cells: string[], bold: boolean) => {
+      this.ensureSpace(rowHeight);
+      let x = MARGIN;
+      const font = bold ? this.bold : this.font;
+      for (let i = 0; i < cells.length; i++) {
+        const w = widths[i];
+        this.page.drawText(truncate(cells[i] ?? "", w, font, size), { x, y: this.y, size, font, color: rgb(0, 0, 0) });
+        x += w;
+      }
+      this.y -= rowHeight;
+    };
+    drawRow(headers, true);
+    this.ensureSpace(2);
+    this.page.drawLine({
+      start: { x: MARGIN, y: this.y + rowHeight - 4 },
+      end: { x: PAGE_WIDTH - MARGIN, y: this.y + rowHeight - 4 },
+      thickness: 0.5,
+      color: rgb(0.6, 0.6, 0.6),
+    });
+    for (const row of rows) drawRow(row, false);
   }
 
   async save() {
@@ -210,6 +243,21 @@ Deno.serve(async (req: Request) => {
       + "super-admin review, and explicitly approved for export. Verify against the original "
       + "scan before filing with the Department of Human Services.",
     { size: 8, color: [0.5, 0.5, 0.5], gap: 4 },
+  );
+
+  // Cover roster: which resident each converted document in this packet belongs to,
+  // in the same order as the pages that follow.
+  pdf.heading("Documents in this packet");
+  pdf.table(
+    ["#", "Resident", "State form", "Facility", "Review due"],
+    jobs.map((job, index) => [
+      String(index + 1),
+      job.resident_name || "—",
+      job.state_form_template || "—",
+      (job.facility_id ? facilityById.get(job.facility_id) : undefined) ?? job.facility_name ?? "—",
+      job.review_due_date || "—",
+    ]),
+    [24, 130, 150, 120, 80],
   );
 
   for (const job of jobs) {
