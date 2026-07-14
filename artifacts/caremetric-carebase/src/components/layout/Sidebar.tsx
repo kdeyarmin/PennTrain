@@ -54,6 +54,7 @@ import {
   Sliders,
   Eye,
   CalendarDays,
+  CalendarClock,
   LifeBuoy,
   HelpCircle,
   Search,
@@ -235,6 +236,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Reporting & Documents",
         items: [
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
+          { href: "/app/reports/schedules", label: "Scheduled Reports", icon: CalendarClock },
           { href: "/app/closed-loop-compliance", label: "Closed-Loop Compliance", icon: Gavel },
           ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar }] : []),
           ...(showPchAlrModules ? [{ href: "/app/pch-alr-operations", label: "PCH / ALF Operations", icon: Crosshair }] : []),
@@ -335,6 +337,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Reporting & Documents",
         items: [
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
+          { href: "/app/reports/schedules", label: "Scheduled Reports", icon: CalendarClock },
           ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar }] : []),
           ...(showPchAlrModules ? [{ href: "/app/pch-alr-operations", label: "PCH / ALF Operations", icon: Crosshair }] : []),
           ...(showPchAlrModules ? [{ href: "/app/regulatory-crosswalk", label: "Regulatory Crosswalk", icon: FileSearch }] : []),

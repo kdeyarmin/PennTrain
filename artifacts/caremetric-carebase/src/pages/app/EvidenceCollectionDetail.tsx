@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import {
   useEvidenceCollection,
   useEvidenceArtifacts,
+  useEvidenceReportPublications,
   useEvidenceGrants,
   useEvidenceAccessEvents,
   usePromotableBinderExports,
@@ -34,7 +35,7 @@ import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import {
-  ArrowLeft, Copy, FileCheck2, FolderLock, History, Link2, Loader2, Plus, Scale, ShieldOff, Undo2,
+  ArrowLeft, BarChart3, Copy, FileCheck2, FolderLock, History, Link2, Loader2, Plus, Scale, ShieldOff, Undo2,
 } from "lucide-react";
 
 function formatBytes(bytes: number | null | undefined): string {
@@ -69,6 +70,7 @@ export default function EvidenceCollectionDetail() {
 
   const { data: collection, isLoading, isError, error, refetch } = useEvidenceCollection(id);
   const { data: artifacts } = useEvidenceArtifacts(id);
+  const { data: reportPublications } = useEvidenceReportPublications(id);
   const { data: grants } = useEvidenceGrants(id);
   const { data: events } = useEvidenceAccessEvents(id);
   const { data: promotableExports } = usePromotableBinderExports(collection?.facility_id);
@@ -270,6 +272,34 @@ export default function EvidenceCollectionDetail() {
           </div>
         )}
       </div>
+
+      {(reportPublications ?? []).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Historical report snapshots</CardTitle>
+            <CardDescription>Immutable scheduled-report evidence with reconciliation and prior-period trend context.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(reportPublications ?? []).map((publication) => {
+              const comparison = publication.snapshot.trend_comparison as Record<string, unknown>;
+              return (
+                <div key={publication.id} className="grid gap-3 rounded-lg border p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+                  <div>
+                    <p className="font-medium">{publication.snapshot.report_definition?.name ?? "Scheduled report"}</p>
+                    <p className="text-sm text-muted-foreground">As of {formatDateForDisplay(publication.snapshot.as_of)} · {publication.snapshot.period_start} to {publication.snapshot.period_end}</p>
+                    <p className="mt-1 font-mono text-xs text-muted-foreground">SHA-256 {publication.snapshot.snapshot_sha256.slice(0, 16)}…</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <Badge variant="outline">{publication.snapshot.reconciliation_status}</Badge>
+                    <Badge variant="outline">Total {String((publication.snapshot.material_totals as Record<string, unknown>).total ?? 0)}</Badge>
+                    {comparison.absoluteChange !== null && comparison.absoluteChange !== undefined && <Badge variant="outline">Trend {Number(comparison.absoluteChange) > 0 ? "+" : ""}{String(comparison.absoluteChange)}</Badge>}
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Artifacts */}
       <Card>

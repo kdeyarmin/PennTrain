@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,7 @@ import {
   Eye,
   Loader2,
   Bell,
+  CalendarClock,
 } from "lucide-react";
 
 interface ReportDef {
@@ -1688,19 +1690,24 @@ export default function Reports() {
             organization.
           </p>
         </div>
-        <Select value={facilityId} onValueChange={setFacilityId}>
-          <SelectTrigger className="w-full sm:w-52">
-            <SelectValue placeholder="All Facilities" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Facilities</SelectItem>
-            {facilities.map((f) => (
-              <SelectItem key={f.id} value={f.id}>
-                {f.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <Button variant="outline" asChild>
+            <Link href="/app/reports/schedules"><CalendarClock className="mr-2 h-4 w-4" />Schedules & history</Link>
+          </Button>
+          <Select value={facilityId} onValueChange={setFacilityId}>
+            <SelectTrigger className="w-full sm:w-52">
+              <SelectValue placeholder="All Facilities" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Facilities</SelectItem>
+              {facilities.map((f) => (
+                <SelectItem key={f.id} value={f.id}>
+                  {f.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="rounded-xl border border-border/60 bg-card p-3 shadow-sm sm:p-4">

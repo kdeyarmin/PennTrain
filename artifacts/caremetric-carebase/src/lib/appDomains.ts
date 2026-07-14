@@ -242,6 +242,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/alerts", label: "Alerts", domain: "compliance", roles: ORG_ROLES, keywords: ["risk", "overdue"] },
   { path: "/app/pending-approvals", label: "Pending approvals", domain: "compliance", roles: PENDING_APPROVAL_ROLES, keywords: ["review", "approval", "external certificates"] },
   { path: "/app/reports", label: "Reports", domain: "documents", roles: REPORTING_ROLES, keywords: ["analytics", "exports"] },
+  { path: "/app/reports/schedules", label: "Scheduled reports", domain: "documents", roles: REPORTING_ROLES, keywords: ["historical", "delivery", "trend", "snapshot", "evidence room"] },
   { path: "/app/inspection-readiness", label: "Inspection readiness", domain: "compliance", roles: REPORTING_ROLES, keywords: ["survey", "audit"] },
   { path: "/app/pch-alr-operations", label: "PCH / ALF operations", domain: "compliance", roles: REPORTING_ROLES, keywords: ["personal care home", "assisted living", "chapter 2600", "chapter 2800", "survey", "medication safety", "resident rights", "emergency preparedness"] },
   { path: "/app/regulatory-crosswalk", label: "Regulatory crosswalk", domain: "compliance", roles: REPORTING_ROLES, keywords: ["chapter 2600", "chapter 2800", "regulation", "citation", "crosswalk", "evidence", "binder", "survey"] },

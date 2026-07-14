@@ -20,6 +20,11 @@ export type EvidenceArtifact = Tables<"evidence_collection_artifacts"> & {
 
 export type EvidenceGuestGrant = Tables<"evidence_guest_grants">;
 export type EvidenceAccessEvent = Tables<"evidence_guest_access_events">;
+export type EvidenceReportPublication = Tables<"report_snapshot_publications"> & {
+  snapshot: Pick<Tables<"report_snapshots">, "id" | "as_of" | "period_start" | "period_end" | "reconciliation_status" | "snapshot_sha256" | "material_totals" | "trend_comparison"> & {
+    report_definition: Pick<Tables<"saved_report_definitions">, "name"> | null;
+  };
+};
 
 export function useListEvidenceCollections(filters: { organizationId?: string } = {}) {
   return useQuery({
@@ -64,6 +69,22 @@ export function useEvidenceArtifacts(collectionId: string | undefined) {
         .order("added_at");
       if (error) throw error;
       return data as unknown as EvidenceArtifact[];
+    },
+    enabled: !!collectionId,
+  });
+}
+
+export function useEvidenceReportPublications(collectionId: string | undefined) {
+  return useQuery({
+    queryKey: ["evidence", "report-publications", collectionId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("report_snapshot_publications")
+        .select("*, snapshot:report_snapshots(id, as_of, period_start, period_end, reconciliation_status, snapshot_sha256, material_totals, trend_comparison, report_definition:saved_report_definitions(name))")
+        .eq("evidence_collection_id", collectionId!)
+        .order("published_at", { ascending: false });
+      if (error) throw error;
+      return data as unknown as EvidenceReportPublication[];
     },
     enabled: !!collectionId,
   });
