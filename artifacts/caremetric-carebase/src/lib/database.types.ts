@@ -22035,6 +22035,10 @@ export type Database = {
           error_code: string | null
           id: string
           ip_hash: string
+<<<<<<< HEAD
+=======
+          legal_accepted: boolean | null
+>>>>>>> origin/main
           service_agreement_version: string | null
           success: boolean
         }
@@ -22045,6 +22049,10 @@ export type Database = {
           error_code?: string | null
           id?: string
           ip_hash: string
+<<<<<<< HEAD
+=======
+          legal_accepted?: boolean | null
+>>>>>>> origin/main
           service_agreement_version?: string | null
           success?: boolean
         }
@@ -22055,6 +22063,10 @@ export type Database = {
           error_code?: string | null
           id?: string
           ip_hash?: string
+<<<<<<< HEAD
+=======
+          legal_accepted?: boolean | null
+>>>>>>> origin/main
           service_agreement_version?: string | null
           success?: boolean
         }

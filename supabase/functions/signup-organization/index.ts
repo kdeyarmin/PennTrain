@@ -130,18 +130,42 @@ async function verifyTurnstile(token: string | undefined, ip: string): Promise<v
 
 async function recordAttempt(
   adminClient: ReturnType<typeof createClient>,
+<<<<<<< HEAD
   emailHash: string,
   ipHash: string,
   success: boolean,
   errorCode: string | null,
   serviceAgreementVersion: string | null,
   baaVersion: string | null,
+=======
+  {
+    emailHash,
+    ipHash,
+    success,
+    errorCode,
+    legalAccepted,
+    serviceAgreementVersion,
+    baaVersion,
+  }: {
+    emailHash: string;
+    ipHash: string;
+    success: boolean;
+    errorCode: string | null;
+    legalAccepted: boolean | null;
+    serviceAgreementVersion: string | null;
+    baaVersion: string | null;
+  },
+>>>>>>> origin/main
 ) {
   const { error } = await adminClient.from("signup_attempts").insert({
     email_hash: emailHash,
     ip_hash: ipHash,
     success,
     error_code: errorCode,
+<<<<<<< HEAD
+=======
+    legal_accepted: legalAccepted,
+>>>>>>> origin/main
     service_agreement_version: serviceAgreementVersion,
     baa_version: baaVersion,
   });
@@ -198,6 +222,7 @@ Deno.serve(async (req: Request) => {
     first_name?: string;
     last_name?: string;
     organization_name?: string;
+    legal_accepted?: boolean;
     turnstile_token?: string;
     redirect_to?: string;
     service_agreement_version?: string;
@@ -213,12 +238,22 @@ Deno.serve(async (req: Request) => {
   const firstName = body.first_name?.trim();
   const lastName = body.last_name?.trim();
   const organizationName = body.organization_name?.trim();
+<<<<<<< HEAD
+=======
+  const legalAccepted = body.legal_accepted === true;
+>>>>>>> origin/main
   const serviceAgreementVersion = body.service_agreement_version?.trim();
   const baaVersion = body.baa_version?.trim();
 
   if (!email || !firstName || !lastName || !organizationName) {
     return json({ error: "email, first_name, last_name, and organization_name are required" }, 400);
   }
+<<<<<<< HEAD
+=======
+  if (!legalAccepted) {
+    return json({ error: "legal_accepted must be true" }, 400);
+  }
+>>>>>>> origin/main
   if (!serviceAgreementVersion || !baaVersion) {
     return json({ error: "service_agreement_version and baa_version are required" }, 400);
   }
@@ -302,7 +337,11 @@ Deno.serve(async (req: Request) => {
     });
     if (rpcError) throw new HttpError(500, "profile_update_failed", "Signup could not be completed. Please try again later.", rpcError.message);
 
+<<<<<<< HEAD
     await recordAttempt(adminClient, emailHash, ipHash, true, null, serviceAgreementVersion, baaVersion);
+=======
+    await recordAttempt(adminClient, { emailHash, ipHash, success: true, errorCode: null, legalAccepted, serviceAgreementVersion, baaVersion });
+>>>>>>> origin/main
     return json({
       success: true,
       requiresEmailVerification: true,
@@ -333,7 +372,11 @@ if (!isHttpError || status >= 500 || internalDetail) console.error(isHttpError ?
     // Turnstile (e.g. by replaying requests with a victim's address and a bad token).
     const isTurnstileFailure = code === "turnstile_failed" || code === "turnstile_required" || code === "turnstile_not_configured";
     if (!isTurnstileFailure) {
+<<<<<<< HEAD
       await recordAttempt(adminClient, emailHash, ipHash, false, code, serviceAgreementVersion ?? null, baaVersion ?? null);
+=======
+      await recordAttempt(adminClient, { emailHash, ipHash, success: false, errorCode: code, legalAccepted, serviceAgreementVersion: serviceAgreementVersion ?? null, baaVersion: baaVersion ?? null });
+>>>>>>> origin/main
     }
     return json({ success: false, error: message }, status);
   }
