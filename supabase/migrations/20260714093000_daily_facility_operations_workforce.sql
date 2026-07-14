@@ -379,6 +379,9 @@ values
   ('daily_ops.shift_handoff', 'Urgent shift handoff follow-up', 'rule_exception', 'high', interval '8 hours', false, 'facility_manager')
 on conflict (organization_id, template_key) do nothing;
 
+revoke all on public.workforce_time_off_requests, public.shift_report_entries, public.shift_report_acknowledgements, public.notification_escalation_rules from public, anon, authenticated, service_role;
+grant select on public.workforce_time_off_requests, public.shift_report_entries, public.shift_report_acknowledgements, public.notification_escalation_rules to authenticated;
+
 revoke all on function public.submit_time_off_request(uuid,uuid,timestamptz,timestamptz,text,text) from public, anon;
 revoke all on function public.decide_time_off_request(uuid,text,text) from public, anon;
 revoke all on function public.record_shift_call_off(uuid,text,text,timestamptz,timestamptz) from public, anon;
