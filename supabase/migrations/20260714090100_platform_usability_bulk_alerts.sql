@@ -20,7 +20,7 @@ begin
   if p_status not in ('open','dismissed','resolved') then
     raise exception 'Unsupported alert status' using errcode = '22023';
   end if;
-  if public.current_role() not in ('platform_admin','org_admin','facility_manager','trainer') then
+  if public.current_role() not in ('platform_admin','org_admin','facility_manager') then
     raise exception 'Not authorized to bulk update alerts' using errcode = '42501';
   end if;
 
@@ -31,6 +31,17 @@ begin
         v_results := v_results || jsonb_build_array(jsonb_build_object('id', v_id, 'status', 'failed', 'message', 'Alert not found'));
         continue;
       end if;
+
+      if not public.is_platform_admin()
+         and not (
+           v_alert.organization_id = (select public.current_org_id())
+           and (select public.current_role()) in ('org_admin','facility_manager')
+           and (v_alert.facility_id is null or public.is_assigned_to_facility(v_alert.facility_id))
+         ) then
+        v_results := v_results || jsonb_build_array(jsonb_build_object('id', v_id, 'status', 'unauthorized', 'message', 'Not authorized'));
+        continue;
+      end if;
+
       if v_alert.status = p_status then
         v_results := v_results || jsonb_build_array(jsonb_build_object('id', v_id, 'status', 'skipped', 'message', 'Already ' || p_status));
         continue;
