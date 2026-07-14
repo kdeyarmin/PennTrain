@@ -279,6 +279,7 @@ begin
     select * into v_vehicle from public.facility_transport_vehicles
     where id = (p_event->>'vehicleId')::uuid and facility_id = v_resident.facility_id and status = 'available';
     if not found then raise exception 'Available vehicle not found' using errcode = 'P0002'; end if;
+    perform pg_advisory_xact_lock(hashtext('resident_calendar_vehicle'), hashtext(v_vehicle.id::text));
     if exists (
       select 1 from public.resident_service_calendar_events existing
       where existing.vehicle_id = v_vehicle.id and existing.status = 'scheduled'
