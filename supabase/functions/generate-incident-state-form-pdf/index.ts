@@ -44,15 +44,23 @@ function humanize(value: string | null | undefined): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
+// Every facility this app serves is in Pennsylvania (America/New_York, no PA county sits in a
+// different zone) -- the DHS form asks for the local incident/report date and time, so these must
+// render in that zone explicitly rather than the Deno runtime's default (UTC on Supabase), which
+// would print the wrong calendar date for anything reported in the evening Eastern time.
+const PA_TIME_ZONE = "America/New_York";
+
 function datePart(iso: string | null | undefined): string | null {
   if (!iso) return null;
-  return new Date(iso).toLocaleDateString("en-US");
+  return new Date(iso).toLocaleDateString("en-US", { timeZone: PA_TIME_ZONE });
 }
 
 function timePart(iso: string | null | undefined): string | null {
   if (!iso) return null;
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: PA_TIME_ZONE });
 }
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
@@ -97,7 +105,7 @@ Deno.serve(async (req: Request) => {
     .from("incidents")
     .select(
       "id, organization_id, facility_id, incident_type, status, occurred_at, reported_by_profile_id, " +
-        "narrative, investigation_findings, root_cause, final_report_submitted_at, " +
+        "resident_identifier, narrative, investigation_findings, root_cause, final_report_submitted_at, " +
         "organizations(name), facilities(name, facility_type, license_number, address, city, state, zip, phone)",
     )
     .eq("id", incidentId)
@@ -116,6 +124,7 @@ Deno.serve(async (req: Request) => {
     { data: notifications, error: notificationsError },
     { data: correctiveActions, error: correctiveActionsError },
     { data: reporter, error: reporterError },
+    { data: matchedResident, error: residentError },
   ] = await Promise.all([
     callerClient
       .from("incident_staff_involved")
@@ -139,12 +148,26 @@ Deno.serve(async (req: Request) => {
         .eq("id", incident.reported_by_profile_id)
         .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
+    // resident_identifier is a plain text column, not a resident_id FK (see Incidents.tsx/
+    // IncidentDetail.tsx) -- it holds a real residents.id only when picked via the dropdown, so
+    // guard with a UUID shape check before querying a uuid column (a free-text value like "Room
+    // 12" would otherwise error, not just miss). Scoped to the incident's own facility, matching
+    // IncidentDetail.tsx's resolution -- never resolve across facilities.
+    incident.resident_identifier && UUID_PATTERN.test(incident.resident_identifier)
+      ? callerClient
+        .from("residents")
+        .select("first_name, last_name, date_of_birth")
+        .eq("id", incident.resident_identifier)
+        .eq("facility_id", incident.facility_id)
+        .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
   ]);
 
   if (staffError) return json({ error: staffError.message }, 500);
   if (notificationsError) return json({ error: notificationsError.message }, 500);
   if (correctiveActionsError) return json({ error: correctiveActionsError.message }, 500);
   if (reporterError) return json({ error: reporterError.message }, 500);
+  if (residentError) return json({ error: residentError.message }, 500);
 
   const templateBytes = await fetchDhsTemplate(INCIDENT_FORM_TEMPLATE);
   const doc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
@@ -206,6 +229,22 @@ Deno.serve(async (req: Request) => {
     // per submission -- "Final" once DHS's required final report has actually been recorded,
     // "Initial" otherwise. "InitialFinal" (a single combined report) is never inferred.
     check(incident.final_report_submitted_at ? [["final"]] : [["initial"]]);
+
+    // "Name Last FirstRow1" (Resident Information) vs "Name Last FirstRow1_2" (Persons Involved,
+    // filled below) -- "firstrow1" alone would substring-match both, but form1[0]'s field order
+    // puts the Row1 resident field first, so plain fillText correctly lands on it. Falls back to
+    // the raw resident_identifier text when it isn't a resolvable resident (matches how
+    // IncidentDetail.tsx displays it) -- date_of_birth is a plain `date` column, so it's passed
+    // through as-is rather than round-tripped through datePart's Date/timeZone conversion, which
+    // is only correct for actual timestamptz values and would risk shifting a bare calendar date
+    // to the wrong day.
+    const residentName = matchedResident
+      ? `${matchedResident.last_name}, ${matchedResident.first_name}`
+      : incident.resident_identifier;
+    fillText([["firstrow1"]], residentName);
+    if (matchedResident?.date_of_birth) {
+      fillText([["birthrow1"]], matchedResident.date_of_birth);
+    }
 
     (staff ?? []).slice(0, 4).forEach((row: any, index: number) => {
       const n = index + 1;
