@@ -12,7 +12,7 @@
     "doctor": "pnpm --filter @workspace/scripts run doctor",
     "doctor:network": "pnpm --filter @workspace/scripts run doctor:network",
     "db:migrate": "npx --yes supabase@2.109.1 db push",
-    "check:database": "npx --yes supabase@2.109.1 start && npx --yes supabase@2.109.1 db reset --no-seed && npx --yes supabase@2.109.1 test db && npx --yes supabase@2.109.1 db lint --level error && npx --yes supabase@2.109.1 db advisors --local --type all --fail-on error && node scripts/check-database-types.mjs",
+    "check:database": "npx --yes supabase@2.109.1 start && npx --yes supabase@2.109.1 db reset --no-seed && npx --yes supabase@2.109.1 test db && npx --yes supabase@2.109.1 db lint --level error --fail-on error && npx --yes supabase@2.109.1 db advisors --local --type all --fail-on error && node scripts/check-database-types.mjs",
     "check:bundle": "node scripts/check-bundle-budget.mjs",
     "check:pilot": "node scripts/validate-controlled-pilot.mjs",
     "check:dependencies": "pnpm audit --audit-level high",
