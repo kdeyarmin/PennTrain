@@ -186,6 +186,15 @@ describe("role-based page visibility", () => {
     expect(canViewPage("/me/resident-services-calendar", "auditor")).toBe(false);
   });
 
+  it("limits resident financial operations to management and audit roles", () => {
+    expect(canViewPage("/app/resident-finance", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/resident-finance", "org_admin")).toBe(true);
+    expect(canViewPage("/app/resident-finance", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/resident-finance", "auditor")).toBe(true);
+    expect(canViewPage("/app/resident-finance", "employee")).toBe(false);
+    expect(canViewPage("/app/resident-finance", "trainer")).toBe(false);
+  });
+
   it("makes account MFA settings available to every authenticated role", () => {
     for (const role of ["platform_admin", "org_admin", "facility_manager", "trainer", "auditor", "employee"] as const) {
       expect(canViewPage("/account/security", role)).toBe(true);
