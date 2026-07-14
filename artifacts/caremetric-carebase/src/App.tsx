@@ -20,6 +20,7 @@ const Demo = lazy(() => import("@/pages/auth/Demo"));
 const Signup = lazy(() => import("@/pages/auth/Signup"));
 const ForgotPassword = lazy(() => import("@/pages/auth/ForgotPassword"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
+const FacilitySignupLegal = lazy(() => import("@/pages/legal/FacilitySignupLegal"));
 const MfaSettings = lazy(() => import("@/pages/auth/MfaSettings"));
 const NotificationSettings = lazy(() => import("@/pages/auth/NotificationSettings"));
 
@@ -85,8 +86,12 @@ const ResidentCareDelivery = lazy(() => import("@/pages/app/ResidentCareDelivery
 const AdmissionOperations = lazy(() => import("@/pages/app/AdmissionOperations"));
 const MoveInWorkspaceDetail = lazy(() => import("@/pages/app/MoveInWorkspaceDetail"));
 const MoveInGuestPortal = lazy(() => import("@/pages/public/MoveInGuestPortal"));
+const ResidentAgreementGuestPortal = lazy(() => import("@/pages/public/ResidentAgreementGuestPortal"));
 const ChangeOfConditionQueue = lazy(() => import("@/pages/app/ChangeOfConditionQueue"));
 const ChangeOfConditionDetail = lazy(() => import("@/pages/app/ChangeOfConditionDetail"));
+const DietaryOperations = lazy(() => import("@/pages/app/DietaryOperations"));
+const ResidentServicesCalendar = lazy(() => import("@/pages/app/ResidentServicesCalendar"));
+const ResidentFinancialOperations = lazy(() => import("@/pages/app/ResidentFinancialOperations"));
 const QapiDashboard = lazy(() => import("@/pages/app/QapiDashboard"));
 const QapiProjectDetail = lazy(() => import("@/pages/app/QapiProjectDetail"));
 const EmergencyOperations = lazy(() => import("@/pages/app/EmergencyOperations"));
@@ -275,6 +280,9 @@ const WORK_QUEUE_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_m
 const SERVICE_DELIVERY_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 const ADMISSION_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 const CHANGE_EVENT_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
+const DIETARY_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
+const RESIDENT_CALENDAR_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
+const RESIDENT_FINANCE_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 // Emergency operations includes sensitive resident assistance and live accountability evidence.
 // Managers command events; auditors and platform support receive the same scoped read surface.
 const EMERGENCY_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
@@ -318,6 +326,7 @@ function Router() {
       <Route path="/signup" component={Signup} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
+      <Route path="/legal/facility-signup" component={FacilitySignupLegal} />
       <Route path="/verify/:slug" component={VerifyCertificate} />
       <Route path="/report-safety" component={SafetyReport} />
       {/* Bare, chrome-less public page intentionally left outside ProtectedRoute/MainLayout so
@@ -327,6 +336,7 @@ function Router() {
           server authorizes and logs every call, so no session or chrome is involved. */}
       <Route path="/evidence-access/:token" component={EvidenceGuestRoom} />
       <Route path="/move-in-access/:token" component={MoveInGuestPortal} />
+      <Route path="/resident-agreement-access/:token" component={ResidentAgreementGuestPortal} />
 
       <Route path="/account/security">
         {() => <ProtectedRoute component={MfaSettings} allowedRoles={ANY_ROLE} />}
@@ -604,6 +614,15 @@ function Router() {
       <Route path="/app/change-of-condition/:id">
         {() => <ProtectedRoute component={ChangeOfConditionDetail} allowedRoles={CHANGE_EVENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
+      <Route path="/app/dietary-operations">
+        {() => <ProtectedRoute component={DietaryOperations} allowedRoles={DIETARY_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/resident-services-calendar">
+        {() => <ProtectedRoute component={ResidentServicesCalendar} allowedRoles={RESIDENT_CALENDAR_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/resident-finance">
+        {() => <ProtectedRoute component={ResidentFinancialOperations} allowedRoles={RESIDENT_FINANCE_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
       <Route path="/app/qapi">
         {() => <ProtectedRoute component={QapiDashboard} allowedRoles={CHANGE_EVENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
@@ -736,6 +755,12 @@ function Router() {
       </Route>
       <Route path="/me/change-of-condition/:id">
         {() => <ProtectedRoute component={ChangeOfConditionDetail} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/dietary-operations">
+        {() => <ProtectedRoute component={DietaryOperations} allowedRoles={["employee"]} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/me/resident-services-calendar">
+        {() => <ProtectedRoute component={ResidentServicesCalendar} allowedRoles={["employee"]} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/me/shift">
         {() => <ProtectedRoute component={MyShift} allowedRoles={["employee"]} />}

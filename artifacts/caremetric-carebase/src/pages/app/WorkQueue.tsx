@@ -49,6 +49,8 @@ const SOURCE_LABELS: Record<string, string> = {
   complaint: "Complaint",
   support_plan: "Support plan",
   qapi: "QAPI",
+  resident_calendar: "Resident calendar",
+  resident_finance: "Resident finance",
 };
 
 const PRIORITY_CLASS: Record<string, string> = {

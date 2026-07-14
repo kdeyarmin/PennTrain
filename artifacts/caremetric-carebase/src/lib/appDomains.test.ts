@@ -19,6 +19,7 @@ describe("role-based page visibility", () => {
       "/me",
       "/me/shift",
       "/me/schedule",
+      "/me/shift",
       "/me/services",
       "/me/change-of-condition",
       "/me/courses",
@@ -167,6 +168,35 @@ describe("role-based page visibility", () => {
     expect(canViewPath("/app/qapi/projects/project-1", "org_admin")).toBe(true);
   });
 
+  it("separates dietary oversight from employee dietary rounds", () => {
+    expect(canViewPage("/app/dietary-operations", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/dietary-operations", "org_admin")).toBe(true);
+    expect(canViewPage("/app/dietary-operations", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/dietary-operations", "auditor")).toBe(true);
+    expect(canViewPage("/app/dietary-operations", "employee")).toBe(false);
+    expect(canViewPage("/me/dietary-operations", "employee")).toBe(true);
+    expect(canViewPage("/me/dietary-operations", "auditor")).toBe(false);
+  });
+
+  it("separates resident calendar oversight from assigned employee services", () => {
+    expect(canViewPage("/app/resident-services-calendar", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/resident-services-calendar", "org_admin")).toBe(true);
+    expect(canViewPage("/app/resident-services-calendar", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/resident-services-calendar", "auditor")).toBe(true);
+    expect(canViewPage("/app/resident-services-calendar", "employee")).toBe(false);
+    expect(canViewPage("/me/resident-services-calendar", "employee")).toBe(true);
+    expect(canViewPage("/me/resident-services-calendar", "auditor")).toBe(false);
+  });
+
+  it("limits resident financial operations to management and audit roles", () => {
+    expect(canViewPage("/app/resident-finance", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/resident-finance", "org_admin")).toBe(true);
+    expect(canViewPage("/app/resident-finance", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/resident-finance", "auditor")).toBe(true);
+    expect(canViewPage("/app/resident-finance", "employee")).toBe(false);
+    expect(canViewPage("/app/resident-finance", "trainer")).toBe(false);
+  });
+
   it("makes account MFA settings available to every authenticated role", () => {
     for (const role of ["platform_admin", "org_admin", "facility_manager", "trainer", "auditor", "employee"] as const) {
       expect(canViewPage("/account/security", role)).toBe(true);
@@ -214,6 +244,7 @@ describe("role-based page visibility", () => {
   it("returns only viewable canonical destinations for related links", () => {
     expect(viewablePathForRole("/app/employees/employee-1?tab=training", "trainer")).toBe("/trainer/employees/employee-1?tab=training");
     expect(viewablePathForRole("/app/help/tickets/t1", "employee")).toBe("/me/help/tickets/t1");
+    expect(viewablePathForRole("/app/resident-services-calendar", "employee")).toBe("/me/resident-services-calendar");
     expect(viewablePathForRole("/app/users", "employee")).toBeNull();
     expect(viewablePathForRole("/app/settings/not-a-real-page", "org_admin")).toBeNull();
   });

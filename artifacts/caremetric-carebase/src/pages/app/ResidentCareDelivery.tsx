@@ -16,11 +16,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { addDaysIso, todayIso } from "@/lib/scheduleDates";
 
 function dateDaysAgo(days: number) {
-  const date = new Date();
-  date.setDate(date.getDate() - days);
-  return date.toISOString().slice(0, 10);
+ return addDaysIso(todayIso(), -days);
 }
 
 function MetricCard({ title, value, description, tone = "default" }: { title: string; value: string | number; description: string; tone?: "default" | "warning" | "success" }) {
@@ -46,7 +45,7 @@ export default function ResidentCareDelivery() {
   const facilities = useListFacilities({ organizationId: selectedOrgId ?? undefined }, Boolean(selectedOrgId));
   const [facilityId, setFacilityId] = useState("");
   const [from, setFrom] = useState(dateDaysAgo(30));
-  const [through, setThrough] = useState(new Date().toISOString().slice(0, 10));
+  const [through, setThrough] = useState(dateDaysAgo(0));
   const effectiveFacilityId = facilityId || facilities.data?.[0]?.id || "";
   const residents = useListResidents({ facilityId: effectiveFacilityId, status: "active" }, { enabled: Boolean(effectiveFacilityId) });
   const analytics = useResidentCareAnalytics({ facilityId: effectiveFacilityId, from, through });

@@ -35,6 +35,7 @@ import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { ResidentFaceSheet } from "@/components/residents/ResidentFaceSheet";
 import { ResidentAdministrativeMaster } from "@/components/residents/ResidentAdministrativeMaster";
+import { ResidentAgreementWorkspace } from "@/components/residents/ResidentAgreementWorkspace";
 import { useResidentAdministrativeMaster, useSaveResidentAdministrativeMaster } from "@/hooks/useResidentAdministrativeMaster";
 import { buildResidentFaceSheetPacket } from "@/lib/residentFaceSheet";
 import { buildMoveInReadinessPacket } from "@/lib/moveInReadiness";
@@ -332,6 +333,12 @@ export default function ResidentDetail() {
         resident={resident}
         documents={documents ?? []}
         data={administrativeMaster}
+        canManage={canManage}
+      />
+
+      <ResidentAgreementWorkspace
+        residentId={resident.id}
+        documents={documents ?? []}
         canManage={canManage}
       />
 

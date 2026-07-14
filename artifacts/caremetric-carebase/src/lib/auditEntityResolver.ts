@@ -30,8 +30,8 @@ export function auditEntityRoute(entityType: string, entityId: string, role: Rol
   if (entityType === "facilities") return `${admin ? "/admin" : trainer ? "/trainer" : "/app"}/facilities/${entityId}`;
   if (entityType === "residents") return `${admin ? "/admin" : "/app"}/residents/${entityId}`;
   if (entityType === "incidents") return `${admin ? "/admin" : "/app"}/incidents/${entityId}`;
-  if (entityType === "dhs_violations") return `${admin ? "/admin" : "/app"}/violations/${entityId}`;
-  if (entityType === "complaints") return `${admin ? "/admin" : "/app"}/complaints/${entityId}`;
+  if (entityType === "dhs_violations") return admin ? null : `/app/violations/${entityId}`;
+  if (entityType === "complaints") return admin ? null : `/app/complaints/${entityId}`;
   if (entityType === "inspection_items") return `${admin ? "/admin" : "/app"}/inspections/${entityId}`;
   if (entityType === "courses") return `${admin ? "/admin" : "/app"}/courses/${entityId}`;
   if (entityType === "support_tickets") return `${admin ? "/admin/support-tickets" : "/app/help/tickets"}/${entityId}`;
