@@ -133,12 +133,12 @@ const APP_COMMAND_ACTIONS: AppCommandAction[] = [
   },
   {
     id: "state-form-document-analyzer",
-    label: "Preview state form analyzer prototype",
-    description: "Explore the simulated review workflow; no OCR or durable processing occurs.",
+    label: "Analyze historical state forms",
+    description: "Upload scanned state forms for AI extraction, review, approval, and packet export.",
     path: "/admin/document-analyzer",
     domain: "documents",
     roles: PLATFORM_ADMIN,
-    keywords: ["pdf", "state forms", "handwriting", "ocr", "backlog", "ai", "prototype", "simulation"],
+    keywords: ["pdf", "state forms", "handwriting", "ocr", "backlog", "ai", "extraction", "convert"],
   },
   {
     id: "review-failed-notifications",
@@ -182,7 +182,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/admin/courses/new-ai", label: "AI training builder", domain: "training", roles: PLATFORM_ADMIN, keywords: ["generate", "curriculum", "authoring"] },
   { path: "/admin/ai-generations", label: "AI generation log", domain: "training", roles: PLATFORM_ADMIN, keywords: ["ai", "failures", "cost"] },
   { path: "/admin/training-plans", label: "Training plans", domain: "training", roles: PLATFORM_ADMIN, keywords: ["paths", "requirements", "curriculum"] },
-  { path: "/admin/document-analyzer", label: "State form document analyzer prototype", domain: "documents", roles: PLATFORM_ADMIN, keywords: ["pdf", "forms", "handwriting", "ocr", "state", "backlog", "ai", "prototype", "simulation"] },
+  { path: "/admin/document-analyzer", label: "State form document analyzer", domain: "documents", roles: PLATFORM_ADMIN, keywords: ["pdf", "forms", "handwriting", "ocr", "state", "backlog", "ai", "extraction", "convert"] },
   { path: "/admin/incidents/:id", label: "Platform incident detail", domain: "compliance", roles: PLATFORM_ADMIN, keywords: ["incident", "complaint", "event"] },
   { path: "/admin/inspections/:id", label: "Platform inspection item detail", domain: "compliance", roles: PLATFORM_ADMIN, keywords: ["inspection", "equipment", "physical plant"] },
   { path: "/admin/residents/:id", label: "Resident chart", domain: "residents", roles: PLATFORM_ADMIN, keywords: ["resident", "chart", "assessment", "state form"] },
@@ -226,8 +226,12 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/resident-compliance", label: "Resident compliance", domain: "residents", roles: REPORTING_ROLES, keywords: ["assessments", "care"] },
   { path: "/app/state-forms", label: "State forms", domain: "residents", roles: REPORTING_ROLES, keywords: ["rasp", "asp", "dme", "preadmission", "annual reassessment", "dhs forms", "renewals"] },
   { path: "/app/services", label: "Resident service delivery", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["support plan", "daily services", "refusal", "missed service", "care tasks", "service requirements"] },
+  { path: "/app/resident-care-delivery", label: "Resident care delivery workspace", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["support plan", "dme", "appointments", "hospital transfer", "return", "service exceptions", "care delivery"] },
   { path: "/app/admissions", label: "Admissions, census & rooms", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["referral", "prospect", "inquiry", "room", "bed", "occupancy", "census", "move in", "admission"] },
   { path: "/app/change-of-condition", label: "Change-of-condition management", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["fall", "hospital return", "monitoring", "provider notification", "follow up", "reassessment", "support plan review"] },
+  { path: "/app/dietary-operations", label: "Dietary & food-safety operations", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["diet", "nutrition", "allergy", "texture", "hydration", "meal intake", "weight", "menu", "temperature", "sanitation", "kitchen", "food service"] },
+  { path: "/app/resident-services-calendar", label: "Resident services calendar", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["appointment", "medical", "dental", "behavioral health", "laboratory", "therapy", "transportation", "driver", "vehicle", "family visit", "community service", "activity", "return instructions"] },
+  { path: "/app/resident-finance", label: "Resident financial operations", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["resident contract", "rate agreement", "charge", "payment", "statement", "balance", "delinquency", "accounting export", "personal funds", "deposit", "withdrawal", "receipt", "reconciliation"] },
   { path: "/app/qapi", label: "QAPI & quality management", domain: "compliance", roles: WORK_QUEUE_ROLES, keywords: ["quality", "performance improvement", "five whys", "fishbone", "measurements", "audit sample", "sustainment"] },
   { path: "/app/emergency", label: "Emergency operations", domain: "compliance", roles: EMERGENCY_ROLES, keywords: ["evacuation", "accountability", "outage", "emergency plan", "relocation", "generator fuel", "mass notification", "after action"] },
   { path: "/app/inspections", label: "Inspections & equipment", domain: "compliance", roles: INSPECTION_ROLES, keywords: ["fire drill", "equipment", "physical plant"] },
@@ -263,12 +267,15 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/trainer/employees", label: "Trainer employees", domain: "directory", roles: TRAINER_ONLY, keywords: ["employees", "roster"] },
 
   { path: "/me", label: "My dashboard", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["home", "tasks"] },
+  { path: "/me/shift", label: "My Shift", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["today", "handoff", "call off", "resident services", "open shifts"] },
   { path: "/me/courses", label: "My training assignments", domain: "self_service", roles: ANY_ROLE, keywords: ["training", "assignments"] },
   { path: "/me/trainings", label: "My training records", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["records", "requirements"] },
   { path: "/me/work", label: "My work", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["tasks", "remediation", "assigned", "due"] },
   { path: "/me/schedule", label: "My schedule", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["shifts", "calendar"] },
   { path: "/me/services", label: "My services", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["resident services", "support plan", "tasks", "refusal", "completion"] },
   { path: "/me/change-of-condition", label: "My change follow-ups", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["resident change", "monitoring", "follow up", "observations", "supervisor"] },
+  { path: "/me/dietary-operations", label: "Dietary & food-safety rounds", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["meal", "hydration", "weight", "temperature", "sanitation", "kitchen"] },
+  { path: "/me/resident-services-calendar", label: "Assigned resident services calendar", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["appointment", "driver", "transportation", "accompany", "activity", "return instructions"] },
   { path: "/me/certificates", label: "My certificates", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["proof", "download"] },
   { path: "/me/documents", label: "My documents", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["files", "uploads"] },
   { path: "/me/credentials", label: "My credentials", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["clearances", "licenses"] },
@@ -368,6 +375,10 @@ export function canonicalHelpPathForRole(path: string, role: Role | undefined): 
 
 function canonicalNavigationPathForRole(path: string, role: Role | undefined): string {
   const helpPath = canonicalHelpPathForRole(path, role);
+  if (role === "employee") {
+    const [pathname, suffix] = splitPathSuffix(helpPath);
+    if (pathname === "/app/resident-services-calendar") return `/me/resident-services-calendar${suffix}`;
+  }
   if (role !== "trainer") return helpPath;
 
   const [pathname, suffix] = splitPathSuffix(helpPath);

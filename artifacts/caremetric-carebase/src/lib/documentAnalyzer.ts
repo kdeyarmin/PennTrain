@@ -1,25 +1,31 @@
+import type { Json, Tables } from "@/lib/database.types";
+
+// Pure helpers for the State Form Document Analyzer. Jobs are durable
+// document_analyzer_jobs rows written by SECURITY DEFINER RPCs and the
+// analyze-state-form edge worker; everything here just derives view state from those
+// rows, so it stays unit-testable without a Supabase client.
+
+export type DocumentAnalyzerJob = Tables<"document_analyzer_jobs">;
+
 export type DocumentAnalyzerJobStatus = "queued" | "processing" | "needs_review" | "ready" | "failed";
 
-export type DocumentAnalyzerJob = {
-  id: string;
-  fileName: string;
-  status: DocumentAnalyzerJobStatus;
-  progress: number;
-  pages: number | null;
-  confidence: number | null;
-  facility: string;
+export interface AnalyzerExtractionIssue {
+  field: string;
+  message: string;
+  suggested_value: string | null;
+  severity: "warning" | "info";
+}
+
+/** The editable review draft the page maintains for the selected job. */
+export interface AnalyzerJobDraft {
   residentName: string;
-  currentStateForm: string;
-  issues: number;
+  facilityName: string;
+  stateFormTemplate: string;
   reviewDueDate: string;
-  notes: string;
-  approvedForExport: boolean;
-  facilityId: string;
   admissionDate: string;
-  chartResidentId: string | null;
-  chartCreationStatus: "not_asked" | "declined" | "created";
-  lastUpdated: string;
-};
+  notes: string;
+  facilityId: string;
+}
 
 const PDF_EXTENSION = /\.pdf$/i;
 
@@ -27,40 +33,74 @@ export function isPdfFileName(fileName: string): boolean {
   return PDF_EXTENSION.test(fileName.trim());
 }
 
-export function createDocumentAnalyzerJob(file: Pick<File, "name" | "size">, now = new Date()): DocumentAnalyzerJob {
-  const safeName = file.name.trim() || "Untitled state form.pdf";
-  const baseName = safeName.replace(PDF_EXTENSION, "").replace(/[_-]+/g, " ").trim();
-  const estimatedPages = Math.max(1, Math.min(24, Math.ceil(file.size / 450_000)));
+/** Storage object path for a new upload; must satisfy the enqueue RPC's uploads/ check. */
+export function makeAnalyzerUploadPath(fileName: string): string {
+  return `uploads/${crypto.randomUUID()}-${fileName.trim()}`;
+}
 
+export function isActiveAnalyzerStatus(status: string): boolean {
+  return status === "queued" || status === "processing";
+}
+
+export function canReviewAnalyzerStatus(status: string): boolean {
+  return status === "needs_review" || status === "ready";
+}
+
+/**
+ * Defensive parse of the issues jsonb column. The worker validated the model output
+ * before persisting, but the UI still never trusts stored shapes blindly.
+ */
+export function parseAnalyzerIssues(issues: Json | null | undefined): AnalyzerExtractionIssue[] {
+  if (!Array.isArray(issues)) return [];
+  const parsed: AnalyzerExtractionIssue[] = [];
+  for (const item of issues) {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) continue;
+    const raw = item as Record<string, Json | undefined>;
+    if (typeof raw.field !== "string" || typeof raw.message !== "string") continue;
+    parsed.push({
+      field: raw.field,
+      message: raw.message,
+      suggested_value: typeof raw.suggested_value === "string" && raw.suggested_value.length > 0
+        ? raw.suggested_value
+        : null,
+      severity: raw.severity === "info" ? "info" : "warning",
+    });
+  }
+  return parsed;
+}
+
+export function jobToDraft(job: DocumentAnalyzerJob): AnalyzerJobDraft {
   return {
-    id: `${safeName}-${file.size}-${now.getTime()}`,
-    fileName: safeName,
-    status: "queued",
-    progress: 0,
-    pages: estimatedPages,
-    confidence: null,
-    facility: "Pending AI extraction",
-    residentName: baseName || "Pending AI extraction",
-    currentStateForm: "Current state form mapping pending",
-    issues: 0,
-    reviewDueDate: "Pending AI extraction",
-    notes: "Pending handwriting extraction",
-    approvedForExport: false,
-    facilityId: "",
-    admissionDate: "",
-    chartResidentId: null,
-    chartCreationStatus: "not_asked",
-    lastUpdated: now.toISOString(),
+    residentName: job.resident_name,
+    facilityName: job.facility_name,
+    stateFormTemplate: job.state_form_template,
+    reviewDueDate: job.review_due_date,
+    admissionDate: job.admission_date ?? "",
+    notes: job.notes,
+    facilityId: job.facility_id ?? "",
   };
 }
 
-export function summarizeBatch(jobs: DocumentAnalyzerJob[]) {
+export function isDraftDirty(job: DocumentAnalyzerJob, draft: AnalyzerJobDraft): boolean {
+  const base = jobToDraft(job);
+  return (Object.keys(base) as (keyof AnalyzerJobDraft)[]).some((key) => base[key] !== draft[key]);
+}
+
+/** Mirrors approve_document_analyzer_job's required-field rule for pre-flight UI checks. */
+export function isDraftCompleteForApproval(draft: AnalyzerJobDraft): boolean {
+  return draft.residentName.trim().length > 0
+    && draft.facilityName.trim().length > 0
+    && draft.stateFormTemplate.trim().length > 0
+    && draft.reviewDueDate.trim().length > 0;
+}
+
+export function summarizeAnalyzerJobs(jobs: DocumentAnalyzerJob[]) {
   const ready = jobs.filter((job) => job.status === "ready").length;
   const needsReview = jobs.filter((job) => job.status === "needs_review").length;
   const failed = jobs.filter((job) => job.status === "failed").length;
-  const inProgress = jobs.filter((job) => job.status === "queued" || job.status === "processing").length;
-  const totalIssues = jobs.reduce((total, job) => total + job.issues, 0);
-  const approved = jobs.filter((job) => job.approvedForExport).length;
+  const inProgress = jobs.filter((job) => isActiveAnalyzerStatus(job.status)).length;
+  const totalIssues = jobs.reduce((total, job) => total + parseAnalyzerIssues(job.issues).length, 0);
+  const approved = jobs.filter((job) => job.approved_for_export).length;
 
   return {
     total: jobs.length,
@@ -74,51 +114,24 @@ export function summarizeBatch(jobs: DocumentAnalyzerJob[]) {
   };
 }
 
-export function simulateNextJobState(job: DocumentAnalyzerJob, now = new Date()): DocumentAnalyzerJob {
-  if (job.status === "ready" || job.status === "needs_review" || job.status === "failed") return job;
+// Mirrors MAX_PACKET_JOBS in the generate-analyzer-packet edge function: the server
+// refuses explicit selections larger than one packet, so approval sets beyond this
+// size export as sequential batches in the server's own approved_at order.
+export const ANALYZER_EXPORT_BATCH_SIZE = 200;
 
-  if (job.status === "queued") {
-    return { ...job, status: "processing", progress: Math.max(job.progress, 18), lastUpdated: now.toISOString() };
+export function approvedExportBatches(
+  jobs: DocumentAnalyzerJob[],
+  batchSize = ANALYZER_EXPORT_BATCH_SIZE,
+): string[][] {
+  const approved = jobs
+    .filter((job) => job.approved_for_export)
+    .sort((a, b) =>
+      (a.approved_at ?? "").localeCompare(b.approved_at ?? "") || a.id.localeCompare(b.id));
+  const batches: string[][] = [];
+  for (let start = 0; start < approved.length; start += batchSize) {
+    batches.push(approved.slice(start, start + batchSize).map((job) => job.id));
   }
-
-  const nextProgress = Math.min(100, job.progress + 28);
-  if (nextProgress < 100) {
-    return { ...job, progress: nextProgress, lastUpdated: now.toISOString() };
-  }
-
-  const needsReview = job.fileName.length % 3 === 0;
-  return {
-    ...job,
-    status: needsReview ? "needs_review" : "ready",
-    progress: 100,
-    confidence: needsReview ? 86 : 96,
-    facility: "Sample Personal Care Home",
-    residentName: job.residentName === "Pending AI extraction" ? "Extracted resident" : job.residentName,
-    currentStateForm: "2026 Annual Resident Assessment",
-    issues: needsReview ? 3 : 0,
-    reviewDueDate: "07/12/2026",
-    notes: "Walker with standby assist. Medication reminders transferred from handwritten notes. Emergency contact requires final verification.",
-    approvedForExport: false,
-    facilityId: "",
-    admissionDate: "",
-    chartResidentId: null,
-    chartCreationStatus: "not_asked",
-    lastUpdated: now.toISOString(),
-  };
-}
-
-export function nextJobState(job: DocumentAnalyzerJob, now = new Date()): DocumentAnalyzerJob {
-  return simulateNextJobState(job, now);
-}
-
-export function updateJobDraft(job: DocumentAnalyzerJob, patch: Partial<Pick<DocumentAnalyzerJob, "residentName" | "facility" | "facilityId" | "currentStateForm" | "reviewDueDate" | "admissionDate" | "notes">>, now = new Date()): DocumentAnalyzerJob {
-  return { ...job, ...patch, approvedForExport: false, lastUpdated: now.toISOString() };
-}
-
-export function approveJobForExport(job: DocumentAnalyzerJob, now = new Date()): DocumentAnalyzerJob {
-  const hasRequiredFields = Boolean(job.residentName.trim() && job.facility.trim() && job.currentStateForm.trim() && job.reviewDueDate.trim());
-  const canApprove = hasRequiredFields && (job.status === "ready" || job.status === "needs_review");
-  return { ...job, approvedForExport: canApprove, lastUpdated: now.toISOString() };
+  return batches;
 }
 
 export function splitResidentName(fullName: string): { firstName: string; lastName: string } {
@@ -128,19 +141,14 @@ export function splitResidentName(fullName: string): { firstName: string; lastNa
   return { firstName: parts.slice(0, -1).join(" "), lastName: parts[parts.length - 1] };
 }
 
-export function markResidentChartCreated(job: DocumentAnalyzerJob, residentId: string, now = new Date()): DocumentAnalyzerJob {
-  return { ...job, chartResidentId: residentId, chartCreationStatus: "created", lastUpdated: now.toISOString() };
-}
-
-export function declineResidentChartCreation(job: DocumentAnalyzerJob, now = new Date()): DocumentAnalyzerJob {
-  return { ...job, chartCreationStatus: "declined", lastUpdated: now.toISOString() };
-}
-
 export function normalizeResidentName(name: string): string {
   return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
-export function isPotentialResidentDuplicate(job: Pick<DocumentAnalyzerJob, "residentName" | "facilityId">, resident: { first_name: string; last_name: string; facility_id: string }): boolean {
-  if (!job.facilityId || job.facilityId !== resident.facility_id) return false;
-  return normalizeResidentName(job.residentName) === normalizeResidentName(`${resident.first_name} ${resident.last_name}`);
+export function isPotentialResidentDuplicate(
+  draft: Pick<AnalyzerJobDraft, "residentName" | "facilityId">,
+  resident: { first_name: string; last_name: string; facility_id: string },
+): boolean {
+  if (!draft.facilityId || draft.facilityId !== resident.facility_id) return false;
+  return normalizeResidentName(draft.residentName) === normalizeResidentName(`${resident.first_name} ${resident.last_name}`);
 }

@@ -59,6 +59,8 @@ export interface EnterpriseFoundationSnapshot {
   identity: EnterpriseRecord;
   billing: EnterpriseRecord;
   integrations: EnterpriseRecord;
+  operations: EnterpriseRecord;
+  setup: EnterpriseRecord;
   collectedAt: string;
 }
 
@@ -66,7 +68,7 @@ export function useEnterpriseFoundation() {
   return useQuery({
     queryKey: ["enterprise-foundation"],
     queryFn: async (): Promise<EnterpriseFoundationSnapshot> => {
-      const [scope, workforce, rules, identity, billing, integrations] =
+      const [scope, workforce, rules, identity, billing, integrations, operations, setup] =
         await Promise.all([
           callJsonRpc("get_enterprise_scope_control_plane"),
           callJsonRpc("get_workforce_compliance_control_plane"),
@@ -78,6 +80,13 @@ export function useEnterpriseFoundation() {
           callJsonRpc("get_integration_control_plane", {
             p_organization_id: null,
           }),
+          callJsonRpc("get_enterprise_operations_control_plane", {
+            p_organization_id: null,
+            p_facility_id: null,
+          }),
+          callJsonRpc("get_guided_org_setup_status", {
+            p_organization_id: null,
+          }),
         ]);
 
       return {
@@ -87,11 +96,30 @@ export function useEnterpriseFoundation() {
         identity,
         billing,
         integrations,
+        operations,
+        setup,
         collectedAt: new Date().toISOString(),
       };
     },
     staleTime: 30_000,
     refetchInterval: 60_000,
+  });
+}
+
+export function useSaveEnterpriseSnapshot() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await enterpriseClient.rpc("save_enterprise_analytics_snapshot", {
+        p_organization_id: null,
+        p_facility_id: null,
+      });
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["enterprise-foundation"] });
+    },
   });
 }
 

@@ -75,6 +75,10 @@ export function sourceRouteForWorkItem(item: WorkItem): string | null {
       return "/app/policy-documents";
     case "qapi":
       return `/app/qapi/projects/${item.source_id}`;
+    case "resident_calendar":
+      return "/app/resident-services-calendar";
+    case "resident_finance":
+      return "/app/resident-finance";
     default:
       return null;
   }

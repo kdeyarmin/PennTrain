@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSignupOrganization } from "@/hooks/useSignup";
 import { Loader2, ArrowRight, CheckCircle2 } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
+import { BAA_VERSION, SERVICE_AGREEMENT_VERSION } from "@/lib/legalAgreements";
 
 interface SignupForm {
   organizationName: string;
@@ -41,6 +43,7 @@ declare global {
 export default function Signup() {
   const [form, setForm] = useState<SignupForm>(EMPTY_FORM);
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [legalAccepted, setLegalAccepted] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
   const turnstileContainerRef = useRef<HTMLDivElement | null>(null);
   const turnstileWidgetIdRef = useRef<string | null>(null);
@@ -105,6 +108,10 @@ export default function Signup() {
       toast({ variant: "destructive", title: "All fields are required" });
       return;
     }
+    if (!legalAccepted) {
+      toast({ variant: "destructive", title: "Legal agreement acceptance required", description: "An authorized facility administrator must accept the platform agreement and BAA before signup." });
+      return;
+    }
     if (!turnstileSiteKey || !turnstileToken) {
       toast({ variant: "destructive", title: "Signup verification required" });
       return;
@@ -119,6 +126,8 @@ export default function Signup() {
         organizationName: form.organizationName.trim(),
         turnstileToken,
         redirectTo: `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/reset-password`,
+        serviceAgreementVersion: SERVICE_AGREEMENT_VERSION,
+        baaVersion: BAA_VERSION,
       },
       {
         onSuccess: () => {
@@ -225,6 +234,22 @@ export default function Signup() {
                   required
                 />
               </div>
+              <label htmlFor="legalAccepted" className="flex items-start gap-3 rounded-lg border bg-muted/20 p-3 text-sm leading-5">
+                <Checkbox
+                  id="legalAccepted"
+                  checked={legalAccepted}
+                  onCheckedChange={checked => setLegalAccepted(checked === true)}
+                  disabled={isPending}
+                  className="mt-0.5"
+                />
+                <span>
+                  I am authorized to bind this facility or organization, and I agree to the{" "}
+                  <Link href="/legal/facility-signup" className="font-medium text-primary underline underline-offset-2" target="_blank" rel="noopener noreferrer">
+                    Facility Administrator Platform Agreement and HIPAA Business Associate Agreement
+                  </Link>{" "}
+                  ({SERVICE_AGREEMENT_VERSION}; {BAA_VERSION}) for CareMetric AI LLC.
+                </span>
+              </label>
               {turnstileSiteKey ? (
                 <div className="min-h-[65px]">
                   <div ref={turnstileContainerRef} />
@@ -234,7 +259,7 @@ export default function Signup() {
                   Signup verification is not configured for this deployment.
                 </div>
               )}
-              <Button type="submit" className="w-full h-10 font-medium shadow-sm" disabled={isPending || !turnstileSiteKey || !turnstileToken}>
+              <Button type="submit" className="w-full h-10 font-medium shadow-sm" disabled={isPending || !legalAccepted || !turnstileSiteKey || !turnstileToken}>
                 {isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

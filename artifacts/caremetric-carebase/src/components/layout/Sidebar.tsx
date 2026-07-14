@@ -67,8 +67,10 @@ import {
   ScanText,
   FileSearch,
   MessageSquareWarning,
-  Siren,
+  Utensils,
   Landmark,
+  Siren,
+  HeartPulse,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -104,7 +106,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/admin/courses/new-ai", label: "AI Course Builder", icon: Sparkles },
           { href: "/admin/training-plans", label: "Training Plans", icon: ListChecks },
           { href: "/admin/ai-generations", label: "AI Generation Log", icon: BarChart3 },
-          { href: "/admin/document-analyzer", label: "Document Analyzer (Prototype)", icon: ScanText },
+          { href: "/admin/document-analyzer", label: "Document Analyzer", icon: ScanText },
           { href: "/admin/help-content", label: "Help Center Content", icon: HelpCircle },
         ]
       },
@@ -120,8 +122,12 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/admin/alerts", label: "Alerts", icon: Bell },
           { href: "/app/work", label: "Operational Work", icon: ClipboardList },
           { href: "/app/services", label: "Resident Services", icon: CalendarDays },
+          { href: "/app/resident-care-delivery", label: "Care Delivery", icon: HeartPulse },
           { href: "/app/admissions", label: "Admissions & Census", icon: BedDouble },
           { href: "/app/change-of-condition", label: "Change Follow-Up", icon: Activity },
+          ...(showPchAlrModules ? [{ href: "/app/dietary-operations", label: "Dietary & Food Safety", icon: Utensils }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/resident-services-calendar", label: "Resident Calendar", icon: CalendarDays }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/resident-finance", label: "Resident Finance", icon: Landmark }] : []),
           { href: "/app/qapi", label: "QAPI & Quality", icon: BarChart3 },
           { href: "/admin/audit", label: "Audit Log", icon: ShieldAlert },
           { href: "/admin/notifications", label: "Notification Delivery", icon: Send },
@@ -208,9 +214,13 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/residents", label: "Residents", icon: BedDouble },
           { href: "/app/admissions", label: "Admissions & Census", icon: ClipboardCheck },
           { href: "/app/change-of-condition", label: "Change Follow-Up", icon: Activity },
+          { href: "/app/dietary-operations", label: "Dietary & Food Safety", icon: Utensils },
+          { href: "/app/resident-services-calendar", label: "Resident Calendar", icon: CalendarDays },
+          { href: "/app/resident-finance", label: "Resident Finance", icon: Landmark },
           { href: "/app/qapi", label: "QAPI & Quality", icon: BarChart3 },
           { href: "/app/state-forms", label: "State Forms", icon: ClipboardList },
           { href: "/app/services", label: "Resident Services", icon: CalendarDays },
+          { href: "/app/resident-care-delivery", label: "Care Delivery", icon: HeartPulse },
         ]
       }] : []),
       {
@@ -307,9 +317,13 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/residents", label: "Residents", icon: BedDouble },
           { href: "/app/admissions", label: "Admissions & Census", icon: ClipboardCheck },
           { href: "/app/change-of-condition", label: "Change Follow-Up", icon: Activity },
+          { href: "/app/dietary-operations", label: "Dietary & Food Safety", icon: Utensils },
+          { href: "/app/resident-services-calendar", label: "Resident Calendar", icon: CalendarDays },
+          { href: "/app/resident-finance", label: "Resident Finance", icon: Landmark },
           { href: "/app/qapi", label: "QAPI & Quality", icon: BarChart3 },
           { href: "/app/state-forms", label: "State Forms", icon: ClipboardList },
           { href: "/app/services", label: "Resident Services", icon: CalendarDays },
+          { href: "/app/resident-care-delivery", label: "Care Delivery", icon: HeartPulse },
         ]
       }] : []),
       {
@@ -414,6 +428,8 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/me/schedule", label: "My Schedule", icon: CalendarDays },
           { href: "/me/services", label: "My Services", icon: ClipboardCheck },
           { href: "/me/change-of-condition", label: "Change Follow-Up", icon: Activity },
+          ...(showPchAlrModules ? [{ href: "/me/dietary-operations", label: "Dietary & Food Safety", icon: Utensils }] : []),
+          ...(showPchAlrModules ? [{ href: "/me/resident-services-calendar", label: "Resident Calendar", icon: CalendarDays }] : []),
           { href: "/me/work", label: "My Work", icon: ClipboardList },
           { href: "/me/courses", label: "My Training", icon: BookOpen },
         ]
