@@ -20,6 +20,7 @@ const Demo = lazy(() => import("@/pages/auth/Demo"));
 const Signup = lazy(() => import("@/pages/auth/Signup"));
 const ForgotPassword = lazy(() => import("@/pages/auth/ForgotPassword"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
+const FacilitySignupLegal = lazy(() => import("@/pages/legal/FacilitySignupLegal"));
 const MfaSettings = lazy(() => import("@/pages/auth/MfaSettings"));
 const NotificationSettings = lazy(() => import("@/pages/auth/NotificationSettings"));
 
@@ -316,6 +317,7 @@ function Router() {
       <Route path="/signup" component={Signup} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
+      <Route path="/legal/facility-signup" component={FacilitySignupLegal} />
       <Route path="/verify/:slug" component={VerifyCertificate} />
       <Route path="/report-safety" component={SafetyReport} />
       {/* Bare, chrome-less public page intentionally left outside ProtectedRoute/MainLayout so
