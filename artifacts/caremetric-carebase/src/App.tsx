@@ -762,12 +762,9 @@ function Router() {
       <Route path="/me/resident-services-calendar">
         {() => <ProtectedRoute component={ResidentServicesCalendar} allowedRoles={["employee"]} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
-<<<<<<< HEAD
       <Route path="/me/shift">
         {() => <ProtectedRoute component={MyShift} allowedRoles={["employee"]} />}
       </Route>
-=======
->>>>>>> origin/main
       <Route path="/me/schedule">
         {() => <ProtectedRoute component={MySchedule} allowedRoles={["employee"]} />}
       </Route>
