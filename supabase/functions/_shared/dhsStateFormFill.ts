@@ -66,7 +66,7 @@ export function setFirstMatchingTextField(
     if (!wordSets.some((words) => includesEvery(name, words))) continue;
     try {
       if (typeof field.setText === "function") {
-        if (fontSize && typeof field.setFontSize === "function") field.setFontSize(fontSize);
+        if (fontSize != null && typeof field.setFontSize === "function") field.setFontSize(fontSize);
         field.setText(String(value));
         if (lock) field.enableReadOnly?.();
         return true;
