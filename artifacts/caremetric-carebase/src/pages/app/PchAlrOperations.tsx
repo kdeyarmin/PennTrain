@@ -45,6 +45,7 @@ const SOURCE_ROUTES: Record<string, string> = {
 };
 
 function sourceLabel(sourceType: string): string {
+  if (sourceType === "qapi") return "QAPI";
   return sourceType.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
