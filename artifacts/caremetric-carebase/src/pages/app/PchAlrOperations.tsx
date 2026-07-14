@@ -5,7 +5,7 @@ import { PCH_ALR_OPERATIONS_ITEMS, buildInspectionDayChecklist, buildPchAlrEvide
 import { buildPchAlrOperationsQueueFromSnapshot, summarizePchAlrQueue } from "@/lib/pchAlrOperationalSnapshot";
 import { useAuth } from "@/lib/auth";
 import { toLocalIsoDate } from "@/lib/dateUtils";
-import { facilityTypeLabel, PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
+import { facilityTypeLabel, PCH_ALR_ONLY_FACILITY_TYPES, type FacilityType } from "@/lib/facilityTypes";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useOperationsCommandCenter, usePortfolioOperationsCommandCenter, type PortfolioReadinessStatus } from "@/hooks/useOperationsCommandCenter";
 import { useToast } from "@/hooks/use-toast";
@@ -62,7 +62,7 @@ export default function PchAlrOperations() {
 
   const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   const eligibleFacilities = useMemo(
-    () => (facilities ?? []).filter((facility) => PCH_ALR_ONLY_FACILITY_TYPES.includes(facility.facility_type as any)),
+    () => (facilities ?? []).filter((facility) => PCH_ALR_ONLY_FACILITY_TYPES.includes(facility.facility_type as FacilityType)),
     [facilities],
   );
   const activeFacilityId = facilityId || eligibleFacilities[0]?.id || "";
