@@ -6,6 +6,7 @@ export interface SignupOrganizationRequest {
   firstName: string;
   lastName: string;
   organizationName: string;
+  legalAccepted: boolean;
   turnstileToken: string;
   redirectTo: string;
   serviceAgreementVersion: string;
@@ -40,6 +41,7 @@ export function useSignupOrganization() {
             first_name: payload.firstName,
             last_name: payload.lastName,
             organization_name: payload.organizationName,
+            legal_accepted: payload.legalAccepted,
             turnstile_token: payload.turnstileToken,
             redirect_to: payload.redirectTo,
             service_agreement_version: payload.serviceAgreementVersion,

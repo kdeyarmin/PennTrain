@@ -134,6 +134,7 @@ async function recordAttempt(
   ipHash: string,
   success: boolean,
   errorCode: string | null,
+  legalAccepted: boolean | null,
   serviceAgreementVersion: string | null,
   baaVersion: string | null,
 ) {
@@ -142,6 +143,7 @@ async function recordAttempt(
     ip_hash: ipHash,
     success,
     error_code: errorCode,
+    legal_accepted: legalAccepted,
     service_agreement_version: serviceAgreementVersion,
     baa_version: baaVersion,
   });
@@ -198,6 +200,7 @@ Deno.serve(async (req: Request) => {
     first_name?: string;
     last_name?: string;
     organization_name?: string;
+    legal_accepted?: boolean;
     turnstile_token?: string;
     redirect_to?: string;
     service_agreement_version?: string;
@@ -213,11 +216,15 @@ Deno.serve(async (req: Request) => {
   const firstName = body.first_name?.trim();
   const lastName = body.last_name?.trim();
   const organizationName = body.organization_name?.trim();
+  const legalAccepted = body.legal_accepted === true;
   const serviceAgreementVersion = body.service_agreement_version?.trim();
   const baaVersion = body.baa_version?.trim();
 
   if (!email || !firstName || !lastName || !organizationName) {
     return json({ error: "email, first_name, last_name, and organization_name are required" }, 400);
+  }
+  if (!legalAccepted) {
+    return json({ error: "legal_accepted must be true" }, 400);
   }
   if (!serviceAgreementVersion || !baaVersion) {
     return json({ error: "service_agreement_version and baa_version are required" }, 400);
@@ -302,7 +309,7 @@ Deno.serve(async (req: Request) => {
     });
     if (rpcError) throw new HttpError(500, "profile_update_failed", "Signup could not be completed. Please try again later.", rpcError.message);
 
-    await recordAttempt(adminClient, emailHash, ipHash, true, null, serviceAgreementVersion, baaVersion);
+    await recordAttempt(adminClient, emailHash, ipHash, true, null, legalAccepted, serviceAgreementVersion, baaVersion);
     return json({
       success: true,
       requiresEmailVerification: true,
@@ -333,7 +340,7 @@ if (!isHttpError || status >= 500 || internalDetail) console.error(isHttpError ?
     // Turnstile (e.g. by replaying requests with a victim's address and a bad token).
     const isTurnstileFailure = code === "turnstile_failed" || code === "turnstile_required" || code === "turnstile_not_configured";
     if (!isTurnstileFailure) {
-      await recordAttempt(adminClient, emailHash, ipHash, false, code, serviceAgreementVersion ?? null, baaVersion ?? null);
+      await recordAttempt(adminClient, emailHash, ipHash, false, code, legalAccepted, serviceAgreementVersion ?? null, baaVersion ?? null);
     }
     return json({ success: false, error: message }, status);
   }
