@@ -96,6 +96,15 @@ verify_jwt = true
 [functions.send-auth-email]
 verify_jwt = false
 
+# Local Supabase Auth also routes every auth email (signup, invite, recovery, magic link,
+# email change, and reauthentication) through the same SendGrid-backed hook. In hosted
+# Supabase, mirror this in Authentication -> Hooks with this function URL and the same
+# SEND_EMAIL_HOOK_SECRET Edge Function secret.
+[auth.hook.send_email]
+enabled = true
+uri = "http://127.0.0.1:54321/functions/v1/send-auth-email"
+secrets = "env(SEND_EMAIL_HOOK_SECRET)"
+
 # Public, unauthenticated self-service signup endpoint by design -- there is no caller session
 # yet at signup time. The function enforces Turnstile, hashed rate limits, platform signup gates,
 # and invite-email verification before the org_admin can set a password.
