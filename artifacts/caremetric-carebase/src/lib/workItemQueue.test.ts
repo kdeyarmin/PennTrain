@@ -66,6 +66,8 @@ describe("work item queue", () => {
       source_id: "i1",
       deduplication_key: "confidential-intake:i1",
     }))).toBe("/app/confidential-incidents/i1");
+    expect(sourceRouteForWorkItem(item({ source_type: "resident_calendar", source_id: "follow-up-1" })))
+      .toBe("/app/resident-services-calendar");
     expect(workQueuePathForRole("employee", "w1")).toBe("/me/work/w1");
     expect(workQueuePathForRole("org_admin")).toBe("/app/work");
   });
