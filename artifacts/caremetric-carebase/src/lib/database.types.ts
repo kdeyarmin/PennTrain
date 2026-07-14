@@ -6687,6 +6687,288 @@ export type Database = {
           },
         ]
       }
+      enterprise_integration_jobs: {
+        Row: {
+          id: string
+          organization_id: string
+          facility_id: string | null
+          provider_key: string
+          contract_key: string
+          contract_version: string
+          direction: string
+          object_type: string
+          status: string
+          idempotency_key: string
+          external_batch_id: string | null
+          requested_by: string | null
+          started_at: string | null
+          completed_at: string | null
+          last_attempt_at: string | null
+          last_success_at: string | null
+          attempt_count: number
+          retry_limit: number
+          source_count: number
+          accepted_count: number
+          rejected_count: number
+          mapped_count: number
+          validation_error_count: number
+          mapping_error_count: number
+          dead_letter_reason: string | null
+          provider_status: Json
+          reconciliation: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          facility_id?: string | null
+          provider_key: string
+          contract_key: string
+          contract_version: string
+          direction: string
+          object_type: string
+          status?: string
+          idempotency_key: string
+          external_batch_id?: string | null
+          requested_by?: string | null
+          started_at?: string | null
+          completed_at?: string | null
+          last_attempt_at?: string | null
+          last_success_at?: string | null
+          attempt_count?: number
+          retry_limit?: number
+          source_count?: number
+          accepted_count?: number
+          rejected_count?: number
+          mapped_count?: number
+          validation_error_count?: number
+          mapping_error_count?: number
+          dead_letter_reason?: string | null
+          provider_status?: Json
+          reconciliation?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          facility_id?: string | null
+          provider_key?: string
+          contract_key?: string
+          contract_version?: string
+          direction?: string
+          object_type?: string
+          status?: string
+          idempotency_key?: string
+          external_batch_id?: string | null
+          requested_by?: string | null
+          started_at?: string | null
+          completed_at?: string | null
+          last_attempt_at?: string | null
+          last_success_at?: string | null
+          attempt_count?: number
+          retry_limit?: number
+          source_count?: number
+          accepted_count?: number
+          rejected_count?: number
+          mapped_count?: number
+          validation_error_count?: number
+          mapping_error_count?: number
+          dead_letter_reason?: string | null
+          provider_status?: Json
+          reconciliation?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enterprise_integration_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enterprise_integration_jobs_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enterprise_integration_jobs_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      enterprise_import_batches: {
+        Row: {
+          id: string
+          organization_id: string
+          facility_id: string | null
+          import_type: string
+          status: string
+          template_version: string
+          original_filename: string | null
+          requested_by: string | null
+          total_rows: number
+          valid_rows: number
+          duplicate_rows: number
+          unmapped_rows: number
+          failed_rows: number
+          applied_rows: number
+          validation_summary: Json
+          mapping_summary: Json
+          reconciliation: Json
+          error_report_document_id: string | null
+          idempotency_key: string
+          started_at: string | null
+          completed_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          facility_id?: string | null
+          import_type: string
+          status?: string
+          template_version: string
+          original_filename?: string | null
+          requested_by?: string | null
+          total_rows?: number
+          valid_rows?: number
+          duplicate_rows?: number
+          unmapped_rows?: number
+          failed_rows?: number
+          applied_rows?: number
+          validation_summary?: Json
+          mapping_summary?: Json
+          reconciliation?: Json
+          error_report_document_id?: string | null
+          idempotency_key: string
+          started_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          facility_id?: string | null
+          import_type?: string
+          status?: string
+          template_version?: string
+          original_filename?: string | null
+          requested_by?: string | null
+          total_rows?: number
+          valid_rows?: number
+          duplicate_rows?: number
+          unmapped_rows?: number
+          failed_rows?: number
+          applied_rows?: number
+          validation_summary?: Json
+          mapping_summary?: Json
+          reconciliation?: Json
+          error_report_document_id?: string | null
+          idempotency_key?: string
+          started_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enterprise_import_batches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enterprise_import_batches_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enterprise_import_batches_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      enterprise_analytics_snapshots: {
+        Row: {
+          id: string
+          organization_id: string
+          facility_id: string | null
+          period_start: string
+          period_end: string
+          as_of: string
+          generated_by: string | null
+          metric_definitions: Json
+          metrics: Json
+          source_reconciliation: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          facility_id?: string | null
+          period_start: string
+          period_end: string
+          as_of?: string
+          generated_by?: string | null
+          metric_definitions?: Json
+          metrics?: Json
+          source_reconciliation?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          facility_id?: string | null
+          period_start?: string
+          period_end?: string
+          as_of?: string
+          generated_by?: string | null
+          metric_definitions?: Json
+          metrics?: Json
+          source_reconciliation?: Json
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enterprise_analytics_snapshots_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enterprise_analytics_snapshots_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enterprise_analytics_snapshots_generated_by_fkey"
+            columns: ["generated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       enterprise_organization_memberships: {
         Row: {
           created_at: string
@@ -8960,6 +9242,184 @@ export type Database = {
             referencedRelation: "report_snapshots"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      hospital_transfer_episodes: {
+        Row: {
+          id: string
+          organization_id: string
+          facility_id: string
+          resident_id: string
+          reason: string
+          destination: string
+          transfer_time: string
+          transport_method: string
+          ems_provider_info: string | null
+          documents_sent: string[]
+          equipment_sent: string[]
+          notifications: Json
+          belongings: Json
+          expected_return_at: string | null
+          bed_hold_status: string
+          linked_incident_id: string | null
+          linked_change_event_id: string | null
+          responsible_profile_id: string | null
+          status: string
+          return_time: string | null
+          discharge_document_id: string | null
+          changed_order_ack_status: string
+          medication_reconciliation_status: string
+          condition_changes: string | null
+          diet_changes: string | null
+          mobility_changes: string | null
+          skin_concerns: string | null
+          dme_changes: string | null
+          follow_up_appointment_id: string | null
+          assessment_review_required: boolean
+          support_plan_review_required: boolean
+          return_work_item_id: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          facility_id: string
+          resident_id: string
+          reason: string
+          destination: string
+          transfer_time: string
+          transport_method: string
+          ems_provider_info?: string | null
+          documents_sent?: string[]
+          equipment_sent?: string[]
+          notifications?: Json
+          belongings?: Json
+          expected_return_at?: string | null
+          bed_hold_status?: string
+          linked_incident_id?: string | null
+          linked_change_event_id?: string | null
+          responsible_profile_id?: string | null
+          status?: string
+          return_time?: string | null
+          discharge_document_id?: string | null
+          changed_order_ack_status?: string
+          medication_reconciliation_status?: string
+          condition_changes?: string | null
+          diet_changes?: string | null
+          mobility_changes?: string | null
+          skin_concerns?: string | null
+          dme_changes?: string | null
+          follow_up_appointment_id?: string | null
+          assessment_review_required?: boolean
+          support_plan_review_required?: boolean
+          return_work_item_id?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          facility_id?: string
+          resident_id?: string
+          reason?: string
+          destination?: string
+          transfer_time?: string
+          transport_method?: string
+          ems_provider_info?: string | null
+          documents_sent?: string[]
+          equipment_sent?: string[]
+          notifications?: Json
+          belongings?: Json
+          expected_return_at?: string | null
+          bed_hold_status?: string
+          linked_incident_id?: string | null
+          linked_change_event_id?: string | null
+          responsible_profile_id?: string | null
+          status?: string
+          return_time?: string | null
+          discharge_document_id?: string | null
+          changed_order_ack_status?: string
+          medication_reconciliation_status?: string
+          condition_changes?: string | null
+          diet_changes?: string | null
+          mobility_changes?: string | null
+          skin_concerns?: string | null
+          dme_changes?: string | null
+          follow_up_appointment_id?: string | null
+          assessment_review_required?: boolean
+          support_plan_review_required?: boolean
+          return_work_item_id?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hospital_transfer_episodes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hospital_transfer_episodes_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hospital_transfer_episodes_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hospital_transfer_episodes_linked_change_event_id_fkey"
+            columns: ["linked_change_event_id"]
+            isOneToOne: false
+            referencedRelation: "resident_change_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hospital_transfer_episodes_responsible_profile_id_fkey"
+            columns: ["responsible_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hospital_transfer_episodes_discharge_document_id_fkey"
+            columns: ["discharge_document_id"]
+            isOneToOne: false
+            referencedRelation: "resident_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hospital_transfer_episodes_follow_up_appointment_id_fkey"
+            columns: ["follow_up_appointment_id"]
+            isOneToOne: false
+            referencedRelation: "resident_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hospital_transfer_episodes_return_work_item_id_fkey"
+            columns: ["return_work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hospital_transfer_episodes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
         ]
       }
       hris_identity_links: {
@@ -12299,6 +12759,84 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      notification_escalation_rules: {
+        Row: {
+          id: string
+          organization_id: string | null
+          facility_id: string | null
+          event_type: string
+          severity: string
+          recipient_role: string
+          escalation_level: number
+          channel: string
+          quiet_hours_start: string | null
+          quiet_hours_end: string | null
+          urgent_override: boolean
+          repeat_limit: number
+          fallback_channel: string | null
+          template_key: string | null
+          effective_from: string
+          effective_to: string | null
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id?: string | null
+          facility_id?: string | null
+          event_type: string
+          severity?: string
+          recipient_role: string
+          escalation_level?: number
+          channel: string
+          quiet_hours_start?: string | null
+          quiet_hours_end?: string | null
+          urgent_override?: boolean
+          repeat_limit?: number
+          fallback_channel?: string | null
+          template_key?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          is_active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string | null
+          facility_id?: string | null
+          event_type?: string
+          severity?: string
+          recipient_role?: string
+          escalation_level?: number
+          channel?: string
+          quiet_hours_start?: string | null
+          quiet_hours_end?: string | null
+          urgent_override?: boolean
+          repeat_limit?: number
+          fallback_channel?: string | null
+          template_key?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          is_active?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_escalation_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_escalation_rules_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          }
         ]
       }
       notification_provider_events: {
@@ -17049,6 +17587,153 @@ export type Database = {
           },
         ]
       }
+      resident_appointments: {
+        Row: {
+          id: string
+          organization_id: string
+          facility_id: string
+          resident_id: string
+          appointment_type: string
+          provider_name: string | null
+          location: string
+          starts_at: string
+          expected_return_at: string | null
+          transportation_provider: string | null
+          vehicle_identifier: string | null
+          driver_employee_id: string | null
+          escort_employee_id: string | null
+          pickup_at: string | null
+          documents_required: string[]
+          equipment_required: string[]
+          preparation_checklist: Json
+          staff_notification_log: Json
+          status: string
+          outcome_summary: string | null
+          uploaded_document_id: string | null
+          new_order_ack_status: string
+          follow_up_due_at: string | null
+          follow_up_work_item_id: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          facility_id: string
+          resident_id: string
+          appointment_type: string
+          provider_name?: string | null
+          location: string
+          starts_at: string
+          expected_return_at?: string | null
+          transportation_provider?: string | null
+          vehicle_identifier?: string | null
+          driver_employee_id?: string | null
+          escort_employee_id?: string | null
+          pickup_at?: string | null
+          documents_required?: string[]
+          equipment_required?: string[]
+          preparation_checklist?: Json
+          staff_notification_log?: Json
+          status?: string
+          outcome_summary?: string | null
+          uploaded_document_id?: string | null
+          new_order_ack_status?: string
+          follow_up_due_at?: string | null
+          follow_up_work_item_id?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          facility_id?: string
+          resident_id?: string
+          appointment_type?: string
+          provider_name?: string | null
+          location?: string
+          starts_at?: string
+          expected_return_at?: string | null
+          transportation_provider?: string | null
+          vehicle_identifier?: string | null
+          driver_employee_id?: string | null
+          escort_employee_id?: string | null
+          pickup_at?: string | null
+          documents_required?: string[]
+          equipment_required?: string[]
+          preparation_checklist?: Json
+          staff_notification_log?: Json
+          status?: string
+          outcome_summary?: string | null
+          uploaded_document_id?: string | null
+          new_order_ack_status?: string
+          follow_up_due_at?: string | null
+          follow_up_work_item_id?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_appointments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_appointments_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_appointments_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_appointments_driver_employee_id_fkey"
+            columns: ["driver_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_appointments_escort_employee_id_fkey"
+            columns: ["escort_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_appointments_uploaded_document_id_fkey"
+            columns: ["uploaded_document_id"]
+            isOneToOne: false
+            referencedRelation: "resident_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_appointments_follow_up_work_item_id_fkey"
+            columns: ["follow_up_work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_appointments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       resident_assessment_ai_generations: {
         Row: {
           created_at: string
@@ -18210,6 +18895,195 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      resident_dme_items: {
+        Row: {
+          id: string
+          organization_id: string
+          facility_id: string
+          resident_id: string | null
+          equipment_type: string
+          ownership: string
+          location: string | null
+          vendor: string | null
+          order_date: string | null
+          delivery_date: string | null
+          serial_asset_number: string | null
+          condition: string
+          inspection_frequency_days: number | null
+          preventive_maintenance_required: boolean
+          staff_instructions: string | null
+          supporting_document_id: string | null
+          replacement_due_date: string | null
+          cleaning_required: boolean
+          status: string
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          facility_id: string
+          resident_id?: string | null
+          equipment_type: string
+          ownership?: string
+          location?: string | null
+          vendor?: string | null
+          order_date?: string | null
+          delivery_date?: string | null
+          serial_asset_number?: string | null
+          condition?: string
+          inspection_frequency_days?: number | null
+          preventive_maintenance_required?: boolean
+          staff_instructions?: string | null
+          supporting_document_id?: string | null
+          replacement_due_date?: string | null
+          cleaning_required?: boolean
+          status?: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          facility_id?: string
+          resident_id?: string | null
+          equipment_type?: string
+          ownership?: string
+          location?: string | null
+          vendor?: string | null
+          order_date?: string | null
+          delivery_date?: string | null
+          serial_asset_number?: string | null
+          condition?: string
+          inspection_frequency_days?: number | null
+          preventive_maintenance_required?: boolean
+          staff_instructions?: string | null
+          supporting_document_id?: string | null
+          replacement_due_date?: string | null
+          cleaning_required?: boolean
+          status?: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_dme_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dme_items_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dme_items_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dme_items_supporting_document_id_fkey"
+            columns: ["supporting_document_id"]
+            isOneToOne: false
+            referencedRelation: "resident_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dme_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      resident_dme_history: {
+        Row: {
+          id: string
+          organization_id: string
+          facility_id: string
+          dme_item_id: string
+          resident_id: string | null
+          event_type: string
+          prior_state: Json
+          new_state: Json
+          actor_profile_id: string | null
+          note: string | null
+          occurred_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          facility_id: string
+          dme_item_id: string
+          resident_id?: string | null
+          event_type: string
+          prior_state?: Json
+          new_state?: Json
+          actor_profile_id?: string | null
+          note?: string | null
+          occurred_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          facility_id?: string
+          dme_item_id?: string
+          resident_id?: string | null
+          event_type?: string
+          prior_state?: Json
+          new_state?: Json
+          actor_profile_id?: string | null
+          note?: string | null
+          occurred_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_dme_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dme_history_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dme_history_dme_item_id_fkey"
+            columns: ["dme_item_id"]
+            isOneToOne: false
+            referencedRelation: "resident_dme_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dme_history_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dme_history_actor_profile_id_fkey"
+            columns: ["actor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
         ]
       }
       resident_documents: {
@@ -20247,6 +21121,131 @@ export type Database = {
           },
         ]
       }
+      resident_support_plans: {
+        Row: {
+          id: string
+          organization_id: string
+          facility_id: string
+          resident_id: string
+          version_number: number
+          state: string
+          effective_date: string | null
+          review_due_date: string | null
+          prior_plan_id: string | null
+          assessment_form_id: string | null
+          needs: Json
+          goals: Json
+          services: Json
+          interventions: Json
+          staff_instructions: string | null
+          printable_snapshot: Json
+          staff_controlled_signature: Json
+          approved_by: string | null
+          approved_at: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          facility_id: string
+          resident_id: string
+          version_number: number
+          state?: string
+          effective_date?: string | null
+          review_due_date?: string | null
+          prior_plan_id?: string | null
+          assessment_form_id?: string | null
+          needs?: Json
+          goals?: Json
+          services?: Json
+          interventions?: Json
+          staff_instructions?: string | null
+          printable_snapshot?: Json
+          staff_controlled_signature?: Json
+          approved_by?: string | null
+          approved_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          facility_id?: string
+          resident_id?: string
+          version_number?: number
+          state?: string
+          effective_date?: string | null
+          review_due_date?: string | null
+          prior_plan_id?: string | null
+          assessment_form_id?: string | null
+          needs?: Json
+          goals?: Json
+          services?: Json
+          interventions?: Json
+          staff_instructions?: string | null
+          printable_snapshot?: Json
+          staff_controlled_signature?: Json
+          approved_by?: string | null
+          approved_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_support_plans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_support_plans_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_support_plans_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_support_plans_prior_plan_id_fkey"
+            columns: ["prior_plan_id"]
+            isOneToOne: false
+            referencedRelation: "resident_support_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_support_plans_assessment_form_id_fkey"
+            columns: ["assessment_form_id"]
+            isOneToOne: false
+            referencedRelation: "resident_assessment_forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_support_plans_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_support_plans_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       resident_weight_readings: {
         Row: {
           assignment_id: string | null
@@ -21903,6 +22902,257 @@ export type Database = {
           },
         ]
       }
+      shift_report_entries: {
+        Row: {
+          id: string
+          organization_id: string
+          facility_id: string
+          unit_id: string | null
+          shift_assignment_id: string | null
+          resident_id: string | null
+          employee_id: string | null
+          category: string
+          priority: string
+          shift_period_start: string
+          shift_period_end: string
+          narrative: string
+          author_profile_id: string
+          follow_up_owner_profile_id: string | null
+          requires_acknowledgement: boolean
+          status: string
+          manager_reviewed_by: string | null
+          manager_reviewed_at: string | null
+          resolved_by: string | null
+          resolved_at: string | null
+          resolution_note: string | null
+          linked_incident_id: string | null
+          linked_complaint_id: string | null
+          linked_change_event_id: string | null
+          linked_appointment_id: string | null
+          linked_work_order_id: string | null
+          linked_work_item_id: string | null
+          idempotency_key: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          facility_id: string
+          unit_id?: string | null
+          shift_assignment_id?: string | null
+          resident_id?: string | null
+          employee_id?: string | null
+          category: string
+          priority?: string
+          shift_period_start: string
+          shift_period_end: string
+          narrative: string
+          author_profile_id: string
+          follow_up_owner_profile_id?: string | null
+          requires_acknowledgement?: boolean
+          status?: string
+          manager_reviewed_by?: string | null
+          manager_reviewed_at?: string | null
+          resolved_by?: string | null
+          resolved_at?: string | null
+          resolution_note?: string | null
+          linked_incident_id?: string | null
+          linked_complaint_id?: string | null
+          linked_change_event_id?: string | null
+          linked_appointment_id?: string | null
+          linked_work_order_id?: string | null
+          linked_work_item_id?: string | null
+          idempotency_key: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          facility_id?: string
+          unit_id?: string | null
+          shift_assignment_id?: string | null
+          resident_id?: string | null
+          employee_id?: string | null
+          category?: string
+          priority?: string
+          shift_period_start?: string
+          shift_period_end?: string
+          narrative?: string
+          author_profile_id?: string
+          follow_up_owner_profile_id?: string | null
+          requires_acknowledgement?: boolean
+          status?: string
+          manager_reviewed_by?: string | null
+          manager_reviewed_at?: string | null
+          resolved_by?: string | null
+          resolved_at?: string | null
+          resolution_note?: string | null
+          linked_incident_id?: string | null
+          linked_complaint_id?: string | null
+          linked_change_event_id?: string | null
+          linked_appointment_id?: string | null
+          linked_work_order_id?: string | null
+          linked_work_item_id?: string | null
+          idempotency_key?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shift_report_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_report_entries_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_report_entries_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "facility_units"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_report_entries_shift_assignment_id_fkey"
+            columns: ["shift_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "shift_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_report_entries_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_report_entries_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_report_entries_author_profile_id_fkey"
+            columns: ["author_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_report_entries_follow_up_owner_profile_id_fkey"
+            columns: ["follow_up_owner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_report_entries_manager_reviewed_by_fkey"
+            columns: ["manager_reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_report_entries_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_report_entries_linked_incident_id_fkey"
+            columns: ["linked_incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_report_entries_linked_complaint_id_fkey"
+            columns: ["linked_complaint_id"]
+            isOneToOne: false
+            referencedRelation: "complaints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_report_entries_linked_change_event_id_fkey"
+            columns: ["linked_change_event_id"]
+            isOneToOne: false
+            referencedRelation: "resident_change_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_report_entries_linked_work_order_id_fkey"
+            columns: ["linked_work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_report_entries_linked_work_item_id_fkey"
+            columns: ["linked_work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      shift_report_acknowledgements: {
+        Row: {
+          id: string
+          organization_id: string
+          shift_report_entry_id: string
+          profile_id: string
+          acknowledged_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          shift_report_entry_id: string
+          profile_id: string
+          acknowledged_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          shift_report_entry_id?: string
+          profile_id?: string
+          acknowledged_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shift_report_acknowledgements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_report_acknowledgements_shift_report_entry_id_fkey"
+            columns: ["shift_report_entry_id"]
+            isOneToOne: false
+            referencedRelation: "shift_report_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_report_acknowledgements_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       shift_swap_requests: {
         Row: {
           created_at: string
@@ -22062,6 +23312,208 @@ export type Database = {
           success?: boolean
         }
         Relationships: []
+      }
+      support_plan_proposals: {
+        Row: {
+          id: string
+          organization_id: string
+          facility_id: string
+          resident_id: string
+          assessment_form_id: string | null
+          current_plan_id: string | null
+          target_plan_id: string | null
+          state: string
+          proposal: Json
+          conflict_warnings: string[]
+          rationale: string | null
+          owner_profile_id: string | null
+          due_at: string | null
+          reviewed_by: string | null
+          reviewed_at: string | null
+          review_reason: string | null
+          work_item_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          facility_id: string
+          resident_id: string
+          assessment_form_id?: string | null
+          current_plan_id?: string | null
+          target_plan_id?: string | null
+          state?: string
+          proposal: Json
+          conflict_warnings?: string[]
+          rationale?: string | null
+          owner_profile_id?: string | null
+          due_at?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          review_reason?: string | null
+          work_item_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          facility_id?: string
+          resident_id?: string
+          assessment_form_id?: string | null
+          current_plan_id?: string | null
+          target_plan_id?: string | null
+          state?: string
+          proposal?: Json
+          conflict_warnings?: string[]
+          rationale?: string | null
+          owner_profile_id?: string | null
+          due_at?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          review_reason?: string | null
+          work_item_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_plan_proposals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_plan_proposals_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_plan_proposals_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_plan_proposals_assessment_form_id_fkey"
+            columns: ["assessment_form_id"]
+            isOneToOne: false
+            referencedRelation: "resident_assessment_forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_plan_proposals_current_plan_id_fkey"
+            columns: ["current_plan_id"]
+            isOneToOne: false
+            referencedRelation: "resident_support_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_plan_proposals_target_plan_id_fkey"
+            columns: ["target_plan_id"]
+            isOneToOne: false
+            referencedRelation: "resident_support_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_plan_proposals_owner_profile_id_fkey"
+            columns: ["owner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_plan_proposals_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_plan_proposals_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      support_plan_assessment_mapping_rules: {
+        Row: {
+          id: string
+          organization_id: string | null
+          facility_id: string | null
+          rule_key: string
+          version: number
+          is_active: boolean
+          effective_from: string
+          effective_to: string | null
+          assessment_item_key: string
+          condition: Json
+          proposed_need: Json
+          proposed_service: Json
+          proposed_intervention: Json
+          proposed_dme: Json
+          rationale: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id?: string | null
+          facility_id?: string | null
+          rule_key: string
+          version: number
+          is_active?: boolean
+          effective_from?: string
+          effective_to?: string | null
+          assessment_item_key: string
+          condition?: Json
+          proposed_need?: Json
+          proposed_service?: Json
+          proposed_intervention?: Json
+          proposed_dme?: Json
+          rationale: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string | null
+          facility_id?: string | null
+          rule_key?: string
+          version?: number
+          is_active?: boolean
+          effective_from?: string
+          effective_to?: string | null
+          assessment_item_key?: string
+          condition?: Json
+          proposed_need?: Json
+          proposed_service?: Json
+          proposed_intervention?: Json
+          proposed_dme?: Json
+          rationale?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_plan_assessment_mapping_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_plan_assessment_mapping_rules_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       support_ticket_messages: {
         Row: {
@@ -24014,6 +25466,112 @@ export type Database = {
           },
         ]
       }
+      workforce_time_off_requests: {
+        Row: {
+          id: string
+          organization_id: string
+          facility_id: string
+          employee_id: string
+          request_type: string
+          absence_category: string | null
+          starts_at: string
+          ends_at: string
+          status: string
+          reason: string | null
+          manager_reason: string | null
+          shift_assignment_id: string | null
+          requested_by: string | null
+          idempotency_key: string | null
+          decided_by: string | null
+          decided_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          facility_id: string
+          employee_id: string
+          request_type?: string
+          absence_category?: string | null
+          starts_at: string
+          ends_at: string
+          status?: string
+          reason?: string | null
+          manager_reason?: string | null
+          shift_assignment_id?: string | null
+          requested_by?: string | null
+          idempotency_key?: string | null
+          decided_by?: string | null
+          decided_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          facility_id?: string
+          employee_id?: string
+          request_type?: string
+          absence_category?: string | null
+          starts_at?: string
+          ends_at?: string
+          status?: string
+          reason?: string | null
+          manager_reason?: string | null
+          shift_assignment_id?: string | null
+          requested_by?: string | null
+          idempotency_key?: string | null
+          decided_by?: string | null
+          decided_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workforce_time_off_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workforce_time_off_requests_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workforce_time_off_requests_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workforce_time_off_requests_shift_assignment_id_fkey"
+            columns: ["shift_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "shift_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workforce_time_off_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workforce_time_off_requests_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       xapi_statements: {
         Row: {
           authority: string
@@ -24158,6 +25716,12 @@ export type Database = {
       acknowledge_notification_spend_alert: {
         Args: { p_alert_id: string }
         Returns: undefined
+      }
+      acknowledge_shift_report_entry: {
+        Args: {
+          p_entry_id: string
+        }
+        Returns: boolean
       }
       activate_notification_template: {
         Args: { p_template_id: string }
@@ -24494,6 +26058,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      approve_support_plan: {
+        Args: {
+          p_plan_id: string
+          p_effective_date: string
+          p_review_due_date: string
+          p_staff_signature?: Json
+        }
+        Returns: boolean
+      }
       approve_training_session_completion: {
         Args: { p_class_id: string; p_reason: string }
         Returns: string
@@ -24650,6 +26223,15 @@ export type Database = {
           p_trigger_type?: string
         }
         Returns: string
+      }
+      bulk_update_alert_status: {
+        Args: {
+          p_alert_ids: string[]
+          p_status: string
+          p_reason?: string
+          p_idempotency_key?: string
+        }
+        Returns: Json
       }
       checkin_via_kiosk_pin: {
         Args: { p_class_id: string; p_employee_id: string; p_pin: string }
@@ -24858,6 +26440,23 @@ export type Database = {
       complete_exclusion_source_refresh: {
         Args: { p_expected_record_count: number; p_run_id: string }
         Returns: Json
+      }
+      complete_hospital_return: {
+        Args: {
+          p_episode_id: string
+          p_return_time: string
+          p_discharge_document_id?: string
+          p_changed_order_ack_status?: string
+          p_medication_reconciliation_status?: string
+          p_condition_changes?: string
+          p_diet_changes?: string
+          p_mobility_changes?: string
+          p_skin_concerns?: string
+          p_dme_changes?: string
+          p_assessment_review_required?: boolean
+          p_support_plan_review_required?: boolean
+        }
+        Returns: string
       }
       complete_integration_webhook_delivery: {
         Args: {
@@ -25219,6 +26818,31 @@ export type Database = {
           credential_secret: string
         }[]
       }
+      create_support_plan_draft: {
+        Args: {
+          p_resident_id: string
+          p_assessment_form_id?: string
+          p_prior_plan_id?: string
+        }
+        Returns: string
+      }
+      create_shift_report_entry: {
+        Args: {
+          p_facility_id: string
+          p_unit_id: string
+          p_shift_assignment_id: string
+          p_resident_id: string
+          p_category: string
+          p_priority: string
+          p_shift_period_start: string
+          p_shift_period_end: string
+          p_narrative: string
+          p_follow_up_owner_profile_id?: string
+          p_requires_acknowledgement?: boolean
+          p_idempotency_key?: string
+        }
+        Returns: string
+      }
       create_violation_retraining_action: {
         Args: {
           p_course_id: string
@@ -25285,6 +26909,14 @@ export type Database = {
           p_approve: boolean
           p_reason: string
           p_swap_request_id: string
+        }
+        Returns: boolean
+      }
+      decide_time_off_request: {
+        Args: {
+          p_request_id: string
+          p_status: string
+          p_manager_reason: string
         }
         Returns: boolean
       }
@@ -25627,6 +27259,13 @@ export type Database = {
         Args: { p_schedule_id: string }
         Returns: Json
       }
+      generate_support_plan_proposal: {
+        Args: {
+          p_assessment_form_id: string
+          p_reason?: string
+        }
+        Returns: string
+      }
       get_audit_coverage: {
         Args: never
         Returns: {
@@ -25665,6 +27304,12 @@ export type Database = {
         Args: { p_version_id: string }
         Returns: string[]
       }
+      get_daily_operations_command_center: {
+        Args: {
+          p_facility_id?: string
+        }
+        Returns: Json
+      }
       get_effective_access: {
         Args: { p_at?: string }
         Returns: {
@@ -25689,6 +27334,15 @@ export type Database = {
           value_type: string
         }[]
       }
+      get_enterprise_operations_control_plane: {
+        Args: {
+          p_organization_id?: string
+          p_facility_id?: string
+          p_period_start?: string
+          p_period_end?: string
+        }
+        Returns: Json
+      }
       get_enterprise_scope_control_plane: { Args: never; Returns: Json }
       get_evidence_guest_room: {
         Args: { p_fingerprint?: string; p_token: string }
@@ -25708,6 +27362,12 @@ export type Database = {
         }[]
       }
       get_governed_learning_control_plane: { Args: never; Returns: Json }
+      get_guided_org_setup_status: {
+        Args: {
+          p_organization_id?: string
+        }
+        Returns: Json
+      }
       get_identity_control_plane: {
         Args: never
         Returns: {
@@ -25726,6 +27386,10 @@ export type Database = {
         Returns: Json
       }
       get_move_in_guest_workspace: { Args: { p_token: string }; Returns: Json }
+      get_my_shift_workspace: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       get_notification_delivery_evidence: {
         Args: { p_delivery_id: string }
         Returns: Json
@@ -25745,6 +27409,12 @@ export type Database = {
       }
       get_org_dashboard_summary: { Args: never; Returns: Json }
       get_platform_health: { Args: never; Returns: Json }
+      get_platform_setting: {
+        Args: {
+          p_key: string
+        }
+        Returns: Json
+      }
       get_qapi_source_metrics: {
         Args: { p_facility_id: string; p_from: string; p_through: string }
         Returns: Json
@@ -25824,6 +27494,14 @@ export type Database = {
       }
       get_resident_agreement_guest_workspace: {
         Args: { p_token: string }
+        Returns: Json
+      }
+      get_resident_care_delivery_analytics: {
+        Args: {
+          p_facility_id: string
+          p_from: string
+          p_through: string
+        }
         Returns: Json
       }
       get_resident_service_task_queue: {
@@ -26428,6 +28106,17 @@ export type Database = {
         }
         Returns: string
       }
+      record_appointment_outcome: {
+        Args: {
+          p_appointment_id: string
+          p_status: string
+          p_outcome_summary?: string
+          p_follow_up_due_at?: string
+          p_new_order_ack_status?: string
+          p_uploaded_document_id?: string
+        }
+        Returns: string
+      }
       record_change_event_notification: {
         Args: {
           p_contact: string
@@ -26598,6 +28287,18 @@ export type Database = {
         }
         Returns: string
       }
+      record_resident_dme_event: {
+        Args: {
+          p_dme_item_id: string
+          p_event_type: string
+          p_note?: string
+          p_new_resident_id?: string
+          p_new_status?: string
+          p_new_condition?: string
+          p_location?: string
+        }
+        Returns: boolean
+      }
       record_resident_hydration_round: {
         Args: {
           p_consumed_ml: number
@@ -26686,6 +28387,23 @@ export type Database = {
         }
         Returns: string
       }
+      record_shift_call_off: {
+        Args: {
+          p_shift_assignment_id: string
+          p_category: string
+          p_reason: string
+          p_partial_starts_at?: string
+          p_partial_ends_at?: string
+        }
+        Returns: string
+      }
+      record_service_exception_follow_up: {
+        Args: {
+          p_task_instance_id: string
+          p_reason: string
+        }
+        Returns: string
+      }
       record_training_attendance: {
         Args: {
           p_attendance_status: string
@@ -26719,6 +28437,23 @@ export type Database = {
           p_domain: string
           p_organization_id: string
           p_verification_challenge_sha256: string
+        }
+        Returns: string
+      }
+      register_resident_dme_item: {
+        Args: {
+          p_facility_id: string
+          p_resident_id: string
+          p_equipment_type: string
+          p_ownership?: string
+          p_location?: string
+          p_vendor?: string
+          p_serial_asset_number?: string
+          p_staff_instructions?: string
+          p_inspection_frequency_days?: number
+          p_preventive_maintenance_required?: boolean
+          p_replacement_due_date?: string
+          p_cleaning_required?: boolean
         }
         Returns: string
       }
@@ -26839,6 +28574,13 @@ export type Database = {
         Args: { p_alert_id: string; p_status: string }
         Returns: boolean
       }
+      resolve_shift_report_entry: {
+        Args: {
+          p_entry_id: string
+          p_resolution_note: string
+        }
+        Returns: boolean
+      }
       respond_to_resident_agreement_guest: {
         Args: {
           p_attestation: string
@@ -26932,6 +28674,15 @@ export type Database = {
       }
       review_governed_content_revision: {
         Args: { p_decision: string; p_reason: string; p_revision_id: string }
+        Returns: boolean
+      }
+      review_support_plan_proposal: {
+        Args: {
+          p_proposal_id: string
+          p_decision: string
+          p_rationale: string
+          p_modified_proposal?: Json
+        }
         Returns: boolean
       }
       revoke_evidence_guest_grant: {
@@ -27031,6 +28782,15 @@ export type Database = {
         }
         Returns: string
       }
+      save_enterprise_analytics_snapshot: {
+        Args: {
+          p_organization_id?: string
+          p_facility_id?: string
+          p_period_start?: string
+          p_period_end?: string
+        }
+        Returns: Json
+      }
       save_report_definition: {
         Args: {
           p_columns?: Json
@@ -27063,6 +28823,25 @@ export type Database = {
       save_resident_administrative_master: {
         Args: { p_contacts?: Json; p_profile: Json; p_resident_id: string }
         Returns: boolean
+      }
+      schedule_resident_appointment: {
+        Args: {
+          p_resident_id: string
+          p_appointment_type: string
+          p_location: string
+          p_starts_at: string
+          p_expected_return_at?: string
+          p_provider_name?: string
+          p_transportation_provider?: string
+          p_vehicle_identifier?: string
+          p_driver_employee_id?: string
+          p_escort_employee_id?: string
+          p_pickup_at?: string
+          p_documents_required?: string[]
+          p_equipment_required?: string[]
+          p_preparation_checklist?: Json
+        }
+        Returns: string
       }
       search_workspace: { Args: { p_query: string }; Returns: Json }
       self_enroll_course: { Args: { p_course_id: string }; Returns: string }
@@ -27315,6 +29094,22 @@ export type Database = {
         }
         Returns: string
       }
+      start_hospital_transfer: {
+        Args: {
+          p_resident_id: string
+          p_reason: string
+          p_destination: string
+          p_transfer_time: string
+          p_transport_method: string
+          p_expected_return_at?: string
+          p_linked_change_event_id?: string
+          p_documents_sent?: string[]
+          p_equipment_sent?: string[]
+          p_notifications?: Json
+          p_belongings?: Json
+        }
+        Returns: string
+      }
       start_move_in_workspace: {
         Args: { p_prospect_id: string }
         Returns: string
@@ -27439,6 +29234,23 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      submit_time_off_request: {
+        Args: {
+          p_employee_id: string
+          p_facility_id: string
+          p_starts_at: string
+          p_ends_at: string
+          p_reason: string
+          p_idempotency_key?: string
+        }
+        Returns: string
+      }
+      submit_support_plan_for_review: {
+        Args: {
+          p_plan_id: string
+        }
+        Returns: boolean
       }
       submit_work_item_evidence: {
         Args: {
