@@ -1,8 +1,13 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import { AlertTriangle, Bell, CalendarDays, CheckCircle2, ClipboardList, Clock, FileText, GraduationCap, MapPin, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { QueryError } from "@/components/QueryState";
 import { useAcknowledgeShiftReportEntry, useCreateShiftReportEntry, useMyShiftWorkspace, useRecordShiftCallOff } from "@/hooks/useDailyOperations";
 import { useToast } from "@/hooks/use-toast";
@@ -19,11 +24,15 @@ export default function MyShift() {
   const createHandoff = useCreateShiftReportEntry();
   const { toast } = useToast();
   const shift = data?.currentOrNextShift;
+  const [handoffDraft, setHandoffDraft] = useState<{
+    category: "fall_or_injury" | "maintenance";
+    priority: "normal" | "high" | "urgent";
+    title: string;
+    narrative: string;
+  } | null>(null);
 
-  const reportHandoff = (category: string, priority: string, title: string) => {
-    if (!shift?.facility_id || !shift?.id) return;
-    const narrative = window.prompt(`${title}: enter the details your manager needs to triage.`);
-    if (!narrative?.trim()) return;
+  const reportHandoff = () => {
+    if (!shift?.facility_id || !shift?.id || !handoffDraft?.narrative.trim()) return;
     const periodStart = new Date(`${shift.shift_date}T${shift.start_time}`);
     const periodEnd = new Date(`${shift.shift_date}T${shift.end_time}`);
     if (periodEnd <= periodStart) periodEnd.setDate(periodEnd.getDate() + 1);
@@ -31,14 +40,17 @@ export default function MyShift() {
       facilityId: shift.facility_id,
       unitId: shift.unit_id,
       shiftAssignmentId: shift.id,
-      category,
-      priority,
+      category: handoffDraft.category,
+      priority: handoffDraft.priority,
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
-      narrative: narrative.trim(),
-      requiresAcknowledgement: priority !== "low",
+      narrative: handoffDraft.narrative.trim(),
+      requiresAcknowledgement: handoffDraft.priority !== "normal",
     }, {
-      onSuccess: () => toast({ title: "Handoff recorded", description: "The item will carry forward until a manager resolves it or routes it into the full workflow." }),
+      onSuccess: () => {
+        setHandoffDraft(null);
+        toast({ title: "Handoff recorded", description: "A manager will triage it and, when needed, convert it into a formal incident, maintenance order, condition change, or work item." });
+      },
       onError: (e: Error) => toast({ title: "Could not record handoff", description: e.message, variant: "destructive" }),
     });
   };
@@ -87,8 +99,8 @@ export default function MyShift() {
                   <div className="grid gap-2 sm:grid-cols-2">
                     <Button asChild className="min-h-11 justify-start"><Link href="/me/services"><CheckCircle2 className="mr-2 h-4 w-4" />Complete resident service</Link></Button>
                     <Button asChild variant="outline" className="min-h-11 justify-start"><Link href="/me/change-of-condition"><AlertTriangle className="mr-2 h-4 w-4" />Report condition change</Link></Button>
-                    <Button variant="outline" className="min-h-11 justify-start" onClick={() => reportHandoff("fall_or_injury", "urgent", "Incident concern")} disabled={createHandoff.isPending}><FileText className="mr-2 h-4 w-4" />Incident concern</Button>
-                    <Button variant="outline" className="min-h-11 justify-start" onClick={() => reportHandoff("maintenance", "high", "Maintenance concern")} disabled={createHandoff.isPending}><Wrench className="mr-2 h-4 w-4" />Maintenance concern</Button>
+                    <Button variant="outline" className="min-h-11 justify-start" onClick={() => setHandoffDraft({ category: "fall_or_injury", priority: "urgent", title: "Safety handoff", narrative: "" })} disabled={createHandoff.isPending}><FileText className="mr-2 h-4 w-4" />Add safety handoff</Button>
+                    <Button variant="outline" className="min-h-11 justify-start" onClick={() => setHandoffDraft({ category: "maintenance", priority: "high", title: "Maintenance handoff", narrative: "" })} disabled={createHandoff.isPending}><Wrench className="mr-2 h-4 w-4" />Add maintenance handoff</Button>
                   </div>
                   <Button variant="destructive" className="min-h-11 w-full sm:w-auto" onClick={handleCallOff} disabled={callOff.isPending}>Report call-off</Button>
                 </div>
@@ -122,6 +134,51 @@ export default function MyShift() {
           </div>
         </>
       )}
+
+      <Dialog open={Boolean(handoffDraft)} onOpenChange={(open) => !open && setHandoffDraft(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{handoffDraft?.title}</DialogTitle>
+            <DialogDescription>
+              This records a shift handoff, not a formal incident or work order. A manager will review and route it. For immediate danger, follow the facility emergency procedure first.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="handoff-priority">Priority</Label>
+              <Select
+                value={handoffDraft?.priority ?? "normal"}
+                onValueChange={(value) => setHandoffDraft((draft) => draft ? { ...draft, priority: value as "normal" | "high" | "urgent" } : draft)}
+              >
+                <SelectTrigger id="handoff-priority"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="normal">Routine - review within one day</SelectItem>
+                  <SelectItem value="high">High - review this shift</SelectItem>
+                  <SelectItem value="urgent">Urgent - review immediately</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="handoff-details">What happened or needs attention?</Label>
+              <Textarea
+                id="handoff-details"
+                value={handoffDraft?.narrative ?? ""}
+                onChange={(event) => setHandoffDraft((draft) => draft ? { ...draft, narrative: event.target.value } : draft)}
+                rows={6}
+                maxLength={4000}
+                placeholder="Include the location, resident initials only when necessary, what you observed, and any immediate action taken."
+              />
+              <p className="text-xs text-muted-foreground">{handoffDraft?.narrative.length ?? 0}/4000 characters</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHandoffDraft(null)}>Cancel</Button>
+            <Button onClick={reportHandoff} disabled={!handoffDraft?.narrative.trim() || createHandoff.isPending}>
+              {createHandoff.isPending ? "Recording..." : "Record handoff"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -36,6 +36,8 @@ import { toLocalIsoDate } from "@/lib/dateUtils";
 import { ResidentFaceSheet } from "@/components/residents/ResidentFaceSheet";
 import { ResidentAdministrativeMaster } from "@/components/residents/ResidentAdministrativeMaster";
 import { ResidentAgreementWorkspace } from "@/components/residents/ResidentAgreementWorkspace";
+import { Resident360Summary } from "@/components/residents/Resident360Summary";
+import { ResidentPortalWorkspace } from "@/components/residents/ResidentPortalWorkspace";
 import { useResidentAdministrativeMaster, useSaveResidentAdministrativeMaster } from "@/hooks/useResidentAdministrativeMaster";
 import { buildResidentFaceSheetPacket } from "@/lib/residentFaceSheet";
 import { buildMoveInReadinessPacket } from "@/lib/moveInReadiness";
@@ -329,6 +331,8 @@ export default function ResidentDetail() {
         <p className="text-sm text-muted-foreground">Discharged {formatDateOnly(resident.discharge_date)}</p>
       )}
 
+      <Resident360Summary residentId={resident.id} />
+
       <ResidentAdministrativeMaster
         resident={resident}
         documents={documents ?? []}
@@ -341,6 +345,8 @@ export default function ResidentDetail() {
         documents={documents ?? []}
         canManage={canManage}
       />
+
+      {canManage && <ResidentPortalWorkspace residentId={resident.id} />}
 
 
       <Card hidden={!isTrackedFacilityType}>

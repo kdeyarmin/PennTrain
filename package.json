@@ -18,6 +18,7 @@
     "check:dependencies": "pnpm audit --audit-level high",
     "check:release": "pnpm run check:dependencies && pnpm run check:all && pnpm run check:database",
     "check:edge-functions": "node scripts/check-edge-functions.mjs",
+    "check:dhs-sources": "node scripts/check-dhs-sources.mjs",
     "check:all": "pnpm run typecheck && pnpm run test && pnpm run check:edge-functions && pnpm --filter @workspace/caremetric-carebase run build && pnpm run check:bundle"
   },
   "private": true,

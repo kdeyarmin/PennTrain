@@ -23,6 +23,7 @@ const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
 const password = process.env.E2E_ACCOUNT_PASSWORD ?? "";
 const guestEmail = "phase1-guest@test.local";
 let verificationSlug: string;
+let residentPortalToken: string;
 
 let admin: SupabaseClient;
 let organizationId: string;
@@ -156,7 +157,7 @@ test.describe("role-aware release journeys", () => {
       },
     );
     if (guestProfileError) throw guestProfileError;
-    for (const role of ["facility_manager", "trainer"] as const) {
+    for (const role of ["org_admin", "facility_manager", "trainer"] as const) {
       const account = accounts.get(role)!;
       const { error } = await admin.from("facility_assignments").insert({
         profile_id: account.id,
@@ -181,6 +182,59 @@ test.describe("role-aware release journeys", () => {
       .select("id")
       .single();
     if (employeeError) throw employeeError;
+
+    const orgAdmin = accounts.get("org_admin")!;
+    const orgAdminAuthClient = createClient(supabaseUrl!, anonKey!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: orgAdminSignIn, error: orgAdminSignInError } =
+      await orgAdminAuthClient.auth.signInWithPassword({
+        email: orgAdmin.email,
+        password,
+      });
+    if (orgAdminSignInError || !orgAdminSignIn.session) {
+      throw (
+        orgAdminSignInError ??
+        new Error("Org admin sign-in returned no session")
+      );
+    }
+    const orgAdminClient = createClient(supabaseUrl!, anonKey!, {
+      global: {
+        headers: {
+          Authorization: "Bearer " + orgAdminSignIn.session.access_token,
+        },
+      },
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { data: resident, error: residentError } = await orgAdminClient
+      .from("residents")
+      .insert({
+        organization_id: organizationId,
+        facility_id: facilityId,
+        first_name: "Portal",
+        last_name: "Resident",
+        room: "10",
+        admission_date: new Date().toISOString().slice(0, 10),
+      })
+      .select("id")
+      .single();
+    if (residentError) throw residentError;
+    const { data: portalGrant, error: portalGrantError } =
+      await orgAdminClient
+        .rpc("create_resident_portal_grant", {
+          p_resident_id: resident.id,
+          p_designated_person_name: "Portal Representative",
+          p_relationship_label: "Designated person",
+          p_contact_email: "portal-representative@test.local",
+          p_permissions: ["schedule", "messages"],
+          p_expires_at: new Date(
+            Date.now() + 24 * 60 * 60 * 1000,
+          ).toISOString(),
+        })
+        .single();
+    if (portalGrantError) throw portalGrantError;
+    residentPortalToken = portalGrant.access_token;
 
     const { data: course, error: courseError } = await admin
       .from("courses")
@@ -295,6 +349,22 @@ test.describe("role-aware release journeys", () => {
     await expect(
       page.getByText("Phase 1 Public Verification Course"),
     ).toBeVisible();
+  });
+
+  test("designated-person portal removes the URL credential and gates resident data on terms", async ({ page }) => {
+    await page.goto(`/resident-portal?access=${residentPortalToken}`);
+    await expect.poll(() => new URL(page.url()).pathname).toBe("/resident-portal");
+    await expect.poll(() => new URL(page.url()).search).toBe("");
+    await expect(page.getByRole("heading", { name: "Review portal terms" })).toBeVisible();
+    await expect(page.getByText("Portal Resident")).toHaveCount(0);
+
+    await page.getByRole("checkbox").check();
+    await page.getByRole("button", { name: "Accept and continue" }).click();
+    await expect(page.getByRole("heading", { name: "Portal Resident" })).toBeVisible();
+    await expect(page.getByText(/For emergencies, call 911/)).toBeVisible();
+
+    const accessibility = await new AxeBuilder({ page }).analyze();
+    expect(accessibility.violations.filter((violation) => violation.impact === "critical")).toEqual([]);
   });
 
   test("the demo page exposes no shared credentials and routes guests to sign in", async ({

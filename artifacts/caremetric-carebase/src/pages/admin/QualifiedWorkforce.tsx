@@ -1,11 +1,14 @@
 import { useState } from "react";
-import { AlertTriangle, Award, CalendarCheck, FileScan, RefreshCw, UsersRound } from "lucide-react";
+import { AlertTriangle, Award, CalendarCheck, FileScan, RefreshCw, UserCheck, UsersRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   useQualifiedWorkforce,
   useQualifiedWorkforceCommand,
 } from "@/hooks/useQualifiedWorkforce";
 import type { EnterpriseJson, EnterpriseRecord } from "@/hooks/useEnterpriseFoundation";
+import { useAuth } from "@/lib/auth";
+import { useListFacilities } from "@/hooks/useFacilities";
+import { useDecideOpenShiftClaim, useDecideShiftSwap, useDecideTimeOffRequest, useWorkforceSelfServiceQueues } from "@/hooks/useDailyOperations";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 function labelFor(value: string) {
   return value.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -134,9 +138,100 @@ function EligibilityCommand() {
         <div className="space-y-2"><Label htmlFor="phase3-end">Ends at</Label><Input id="phase3-end" type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} /></div>
         <div className="space-y-2 md:col-span-2"><Label htmlFor="phase3-required">Required qualification keys</Label><Input id="phase3-required" value={qualificationKeys} onChange={(e) => setQualificationKeys(e.target.value)} placeholder="medication.administration, cpr" /></div>
         <div className="md:col-span-2"><Button onClick={() => void submit()} disabled={!employeeId || !facilityId || !startsAt || !endsAt || command.isPending}>Evaluate eligibility</Button></div>
-        {result !== null ? <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-4 text-xs md:col-span-2">{JSON.stringify(result, null, 2)}</pre> : null}
+        {result !== null ? <div className="md:col-span-2"><EligibilityResultView result={result} /></div> : null}
       </CardContent>
     </Card>
+  );
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value) ? value.map(String) : [];
+}
+
+function EligibilityResultView({ result }: { result: EnterpriseJson }) {
+  const record = result && typeof result === "object" && !Array.isArray(result) ? result as Record<string, unknown> : {};
+  const source = record.sourceSnapshot && typeof record.sourceSnapshot === "object" && !Array.isArray(record.sourceSnapshot)
+    ? record.sourceSnapshot as Record<string, unknown>
+    : {};
+  const outcome = String(record.outcome ?? "unknown");
+  const blocks = stringArray(record.hardBlocks);
+  const warnings = stringArray(record.warnings);
+  const overrides = stringArray(record.appliedOverrideIds);
+  return (
+    <div className="space-y-4 rounded-lg border p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-medium">Eligibility result</p><p className="text-xs text-muted-foreground">Evidence checksum {String(record.sourceChecksumSha256 ?? "unavailable").slice(0, 16)}...</p></div><Badge variant={outcome === "eligible" ? "default" : outcome === "blocked" ? "destructive" : "secondary"}>{labelFor(outcome)}</Badge></div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-md bg-muted p-3"><p className="text-xs text-muted-foreground">Existing weekly hours</p><p className="text-lg font-semibold">{String(source.weeklyHoursBefore ?? 0)}</p></div>
+        <div className="rounded-md bg-muted p-3"><p className="text-xs text-muted-foreground">Requested hours</p><p className="text-lg font-semibold">{String(source.requestedHours ?? 0)}</p></div>
+        <div className="rounded-md bg-muted p-3"><p className="text-xs text-muted-foreground">Employee status</p><p className="text-lg font-semibold">{labelFor(String(source.employeeStatus ?? "unknown"))}</p></div>
+      </div>
+      <div className="grid gap-3 md:grid-cols-3"><EvidenceList title="Blocking reasons" values={blocks} empty="No blocking reasons" destructive /><EvidenceList title="Warnings" values={warnings} empty="No warnings" /><EvidenceList title="Applied overrides" values={overrides} empty="No overrides" /></div>
+    </div>
+  );
+}
+
+function EvidenceList({ title, values, empty, destructive = false }: { title: string; values: string[]; empty: string; destructive?: boolean }) {
+  return <div><p className="mb-2 text-sm font-medium">{title}</p>{values.length === 0 ? <p className="text-sm text-muted-foreground">{empty}</p> : <div className="flex flex-wrap gap-2">{values.map((value) => <Badge key={value} variant={destructive ? "destructive" : "outline"}>{labelFor(value)}</Badge>)}</div>}</div>;
+}
+
+function RecentEligibilityDecisions({ decisions }: { decisions: EnterpriseJson[] }) {
+  if (decisions.length === 0) return <p className="text-sm text-muted-foreground">No recent decisions.</p>;
+  return <div className="space-y-2">{decisions.map((decision, index) => { const record = decision && typeof decision === "object" && !Array.isArray(decision) ? decision as Record<string, unknown> : {}; return <div key={String(record.id ?? index)} className="grid gap-2 rounded-lg border p-3 text-sm md:grid-cols-[1fr_1fr_auto]"><div><p className="font-medium">{labelFor(String(record.decision_context ?? record.context ?? "eligibility"))}</p><p className="text-muted-foreground">{String(record.employee_name ?? record.employee_id ?? "Unknown employee")}</p></div><div><p>{record.evaluated_for_start ? new Date(String(record.evaluated_for_start)).toLocaleString() : "Time not available"}</p><p className="text-muted-foreground">{stringArray(record.hard_blocks).length} block(s), {stringArray(record.warnings).length} warning(s)</p></div><Badge variant={record.outcome === "eligible" ? "default" : record.outcome === "blocked" ? "destructive" : "secondary"}>{labelFor(String(record.outcome ?? "unknown"))}</Badge></div>; })}</div>;
+}
+
+type QueueDecision = { kind: "time_off" | "claim" | "swap"; id: string; approve: boolean; title: string };
+
+function personName(value: unknown) {
+  if (!value || typeof value !== "object") return "Unknown employee";
+  const record = value as Record<string, unknown>;
+  return `${String(record.first_name ?? "")} ${String(record.last_name ?? "")}`.trim() || "Unknown employee";
+}
+
+function WorkforceSelfServiceQueue() {
+  const { user } = useAuth();
+  const facilities = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const [facilityId, setFacilityId] = useState("all");
+  const queues = useWorkforceSelfServiceQueues(facilityId === "all" ? undefined : facilityId);
+  const decideTimeOff = useDecideTimeOffRequest();
+  const decideClaim = useDecideOpenShiftClaim();
+  const decideSwap = useDecideShiftSwap();
+  const { toast } = useToast();
+  const [decision, setDecision] = useState<QueueDecision | null>(null);
+  const [reason, setReason] = useState("");
+
+  const submitDecision = async () => {
+    if (!decision || reason.trim().length < 5) return;
+    try {
+      if (decision.kind === "time_off") await decideTimeOff.mutateAsync({ requestId: decision.id, status: decision.approve ? "approved" : "denied", reason: reason.trim() });
+      if (decision.kind === "claim") await decideClaim.mutateAsync({ claimId: decision.id, approve: decision.approve, reason: reason.trim() });
+      if (decision.kind === "swap") await decideSwap.mutateAsync({ requestId: decision.id, approve: decision.approve, reason: reason.trim() });
+      setDecision(null);
+      setReason("");
+      toast({ title: "Decision recorded", description: "The employee queue and schedule were refreshed." });
+    } catch (error) {
+      toast({ title: "Decision blocked", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    }
+  };
+
+  const openDecision = (next: QueueDecision) => { setDecision(next); setReason(""); };
+  const pending = decideTimeOff.isPending || decideClaim.isPending || decideSwap.isPending;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader><CardTitle>Employee self-service decisions</CardTitle><CardDescription>Approve or deny time off, open-shift claims, and shift swaps with an auditable reason. Eligibility is rechecked before schedule-changing approvals.</CardDescription></CardHeader>
+        <CardContent className="max-w-sm space-y-2"><Label>Facility</Label><Select value={facilityId} onValueChange={setFacilityId}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All assigned facilities</SelectItem>{(facilities.data ?? []).map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></CardContent>
+      </Card>
+      {queues.isError ? <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Queue unavailable</AlertTitle><AlertDescription>{queues.error instanceof Error ? queues.error.message : "Could not load the queue."}</AlertDescription></Alert> : null}
+      {queues.isLoading ? <div className="flex justify-center p-8"><RefreshCw className="h-5 w-5 animate-spin" /></div> : (
+        <div className="grid gap-4 xl:grid-cols-3">
+          <Card><CardHeader><CardTitle className="text-base">Time off ({queues.data?.timeOff.length ?? 0})</CardTitle></CardHeader><CardContent className="space-y-3">{(queues.data?.timeOff ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No pending requests.</p> : (queues.data?.timeOff ?? []).map((request) => <div key={String(request.id)} className="space-y-2 rounded-lg border p-3 text-sm"><p className="font-medium">{personName(request.employees)}</p><p>{new Date(String(request.starts_at)).toLocaleString()} – {new Date(String(request.ends_at)).toLocaleString()}</p><p className="text-muted-foreground">{String(request.reason ?? "No reason provided")}</p><div className="flex gap-2"><Button size="sm" onClick={() => openDecision({ kind: "time_off", id: String(request.id), approve: true, title: "Approve time off" })}>Approve</Button><Button size="sm" variant="outline" onClick={() => openDecision({ kind: "time_off", id: String(request.id), approve: false, title: "Deny time off" })}>Deny</Button></div></div>)}</CardContent></Card>
+          <Card><CardHeader><CardTitle className="text-base">Open-shift claims ({queues.data?.openShiftClaims.length ?? 0})</CardTitle></CardHeader><CardContent className="space-y-3">{(queues.data?.openShiftClaims ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No claims awaiting review.</p> : (queues.data?.openShiftClaims ?? []).map((claim) => { const offer = claim.open_shift_opportunities as Record<string, unknown> | null; return <div key={String(claim.id)} className="space-y-2 rounded-lg border p-3 text-sm"><p className="font-medium">{personName(claim.employees)}</p><p>{offer?.shift_date ? new Date(`${String(offer.shift_date)}T12:00:00`).toLocaleDateString() : "Open shift"} · {String(offer?.start_time ?? "")}–{String(offer?.end_time ?? "")}</p><Badge variant="outline">{String(claim.claim_status).replace(/_/g, " ")}</Badge><div className="flex gap-2"><Button size="sm" onClick={() => openDecision({ kind: "claim", id: String(claim.id), approve: true, title: "Approve open-shift claim" })}>Approve</Button><Button size="sm" variant="outline" onClick={() => openDecision({ kind: "claim", id: String(claim.id), approve: false, title: "Reject open-shift claim" })}>Reject</Button></div></div>; })}</CardContent></Card>
+          <Card><CardHeader><CardTitle className="text-base">Shift swaps ({queues.data?.shiftSwaps.length ?? 0})</CardTitle></CardHeader><CardContent className="space-y-3">{(queues.data?.shiftSwaps ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No swaps awaiting review.</p> : (queues.data?.shiftSwaps ?? []).map((swap) => <div key={String(swap.id)} className="space-y-2 rounded-lg border p-3 text-sm"><p className="font-medium">{personName(swap.requester)} ↔ {personName(swap.target)}</p><p className="text-muted-foreground">{String(swap.reason)}</p><div className="flex gap-2"><Button size="sm" onClick={() => openDecision({ kind: "swap", id: String(swap.id), approve: true, title: "Approve shift swap" })}>Approve</Button><Button size="sm" variant="outline" onClick={() => openDecision({ kind: "swap", id: String(swap.id), approve: false, title: "Reject shift swap" })}>Reject</Button></div></div>)}</CardContent></Card>
+        </div>
+      )}
+      <Dialog open={Boolean(decision)} onOpenChange={(open) => !open && setDecision(null)}><DialogContent><DialogHeader><DialogTitle>{decision?.title}</DialogTitle><DialogDescription>Record the evidence-backed operational reason. Approvals that change assignments run a fresh eligibility check.</DialogDescription></DialogHeader><div className="space-y-2 py-2"><Label htmlFor="queue-decision-reason">Decision reason</Label><Textarea id="queue-decision-reason" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={1000} /></div><DialogFooter><Button variant="outline" onClick={() => setDecision(null)}>Cancel</Button><Button variant={decision?.approve ? "default" : "destructive"} onClick={() => void submitDecision()} disabled={reason.trim().length < 5 || pending}>Record decision</Button></DialogFooter></DialogContent></Dialog>
+    </div>
   );
 }
 
@@ -164,12 +259,14 @@ export default function QualifiedWorkforce() {
           <TabsTrigger value="renewals"><FileScan className="mr-2 h-4 w-4" />Renewals</TabsTrigger>
           <TabsTrigger value="training"><CalendarCheck className="mr-2 h-4 w-4" />Instructor-led</TabsTrigger>
           <TabsTrigger value="eligibility"><CalendarCheck className="mr-2 h-4 w-4" />Eligibility</TabsTrigger>
+          <TabsTrigger value="self-service"><UserCheck className="mr-2 h-4 w-4" />Self-service queue</TabsTrigger>
         </TabsList>
         <TabsContent value="imports" className="mt-4"><HrisCommands /></TabsContent>
         <TabsContent value="qualifications" className="mt-4"><QualificationCommand /></TabsContent>
         <TabsContent value="renewals" className="mt-4"><MetricPanel title="Credential renewal queue" description="Extraction never updates compliance until an independent human approves it." values={data.credentialRenewals} /></TabsContent>
         <TabsContent value="training" className="mt-4"><MetricPanel title="Instructor-led operations" description="Qualified trainers, capacity, waitlist, signed attendance, and exactly-once completion." values={data.instructorLedTraining} /></TabsContent>
-        <TabsContent value="eligibility" className="mt-4 space-y-4"><EligibilityCommand /><Card><CardHeader><CardTitle className="text-base">Recent decisions</CardTitle></CardHeader><CardContent><pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-4 text-xs">{JSON.stringify(data.recentEligibilityDecisions, null, 2)}</pre></CardContent></Card></TabsContent>
+        <TabsContent value="eligibility" className="mt-4 space-y-4"><EligibilityCommand /><Card><CardHeader><CardTitle className="text-base">Recent decisions</CardTitle></CardHeader><CardContent><RecentEligibilityDecisions decisions={data.recentEligibilityDecisions} /></CardContent></Card></TabsContent>
+        <TabsContent value="self-service" className="mt-4"><WorkforceSelfServiceQueue /></TabsContent>
       </Tabs>
       {data.generatedAt ? <p className="text-xs text-muted-foreground">Snapshot generated {new Date(data.generatedAt).toLocaleString()}</p> : null}
     </div>

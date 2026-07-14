@@ -2,7 +2,8 @@ export type ClientErrorSource =
   | "react-boundary"
   | "window-error"
   | "unhandled-rejection"
-  | "deployment-asset";
+  | "deployment-asset"
+  | "query-error";
 
 interface ClientErrorReport {
   source: ClientErrorSource;
