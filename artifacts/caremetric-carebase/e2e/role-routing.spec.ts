@@ -20,6 +20,7 @@ interface TestAccount {
 const supabaseUrl = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
+const functionsUrl = process.env.SUPABASE_FUNCTIONS_URL ?? `${supabaseUrl}/functions/v1`;
 const password = process.env.E2E_ACCOUNT_PASSWORD ?? "";
 const guestEmail = "phase1-guest@test.local";
 let verificationSlug: string;
@@ -330,6 +331,89 @@ test.describe("role-aware release journeys", () => {
     await expect(
       page.getByRole("heading", { name: "Sign in to your account" }),
     ).toBeVisible();
+  });
+
+  test("employee invitation creates a usable linked portal account", async () => {
+    const account = accounts.get("org_admin")!;
+    const inviteClient = createClient(supabaseUrl!, anonKey!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: signInData, error: signInError } = await inviteClient.auth.signInWithPassword({
+      email: account.email,
+      password,
+    });
+    if (signInError || !signInData.session) {
+      throw signInError ?? new Error("Org admin sign-in returned no session");
+    }
+
+    const suffix = String(Date.now());
+    const inviteEmail = `phase1-invited-employee-${suffix}@test.local`;
+    const { data: employee, error: employeeError } = await admin
+      .from("employees")
+      .insert({
+        organization_id: organizationId,
+        facility_id: facilityId,
+        first_name: "Invited",
+        last_name: "Employee",
+        email: inviteEmail,
+        job_title: "Direct Care Worker",
+        status: "active",
+      })
+      .select("id")
+      .single();
+    if (employeeError) throw employeeError;
+
+    const inviteResponse = await fetch(`${functionsUrl}/invite-user`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${signInData.session.access_token}`,
+        apikey: anonKey!,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: inviteEmail,
+        first_name: "Invited",
+        last_name: "Employee",
+        role: "employee",
+        organization_id: organizationId,
+        employee_id: employee.id,
+        redirect_to: "https://cmcarebase.com/reset-password",
+      }),
+    });
+    const inviteResult = await inviteResponse.json();
+    expect(inviteResponse.ok, JSON.stringify(inviteResult)).toBe(true);
+    expect(inviteResult.success).toBe(true);
+    expect(inviteResult.employee_id).toBe(employee.id);
+
+    const { data: linkedEmployee, error: linkedEmployeeError } = await admin
+      .from("employees")
+      .select("profile_id")
+      .eq("id", employee.id)
+      .single();
+    if (linkedEmployeeError) throw linkedEmployeeError;
+    expect(linkedEmployee.profile_id).toBe(inviteResult.user.id);
+
+    const { data: profile, error: profileError } = await admin
+      .from("profiles")
+      .select("role, organization_id")
+      .eq("id", inviteResult.user.id)
+      .single();
+    if (profileError) throw profileError;
+    expect(profile).toMatchObject({ role: "employee", organization_id: organizationId });
+  });
+
+  test("org admin guided onboarding opens the combined employee and portal flow", async ({ page }) => {
+    const account = accounts.get("org_admin")!;
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(account.email);
+    await page.getByLabel("Password").fill(account.password);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app");
+
+    await page.getByRole("link", { name: "Onboard Employee" }).click();
+    await expect(page.getByRole("dialog").getByRole("heading", { name: "Add Employee" })).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: "Send portal invite" })).toBeChecked();
+    await expect(page.getByRole("button", { name: "Create & Send Invite" })).toBeVisible();
   });
 
   for (const role of [

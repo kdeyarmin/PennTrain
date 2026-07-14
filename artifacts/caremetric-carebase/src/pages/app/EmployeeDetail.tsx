@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   ArrowLeft, User, BookOpen, CalendarCheck, Clock, Pencil, Trash2, FileText, Activity, Building2,
-  Download, ShieldCheck, Plus, KeyRound, ClipboardList, Check, MessageCircle,
+  Download, ShieldCheck, Plus, KeyRound, ClipboardList, Check, MessageCircle, Mail,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGetEmployee, useUpdateEmployee, useDeleteEmployee, useListEmployees } from "@/hooks/useEmployees";
@@ -36,6 +36,7 @@ import {
 } from "@/hooks/useOnboarding";
 import { useListAuditLogs } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/lib/auth";
+import { useInviteUser } from "@/hooks/useProfiles";
 import { useToast } from "@/hooks/use-toast";
 import { todayISO, addDaysISO, computeDueDate, computeStatus } from "@/lib/complianceDates";
 import {
@@ -118,6 +119,7 @@ export default function EmployeeDetail() {
 
   const { mutate: updateEmployee, isPending: updating } = useUpdateEmployee();
   const { mutate: deleteEmployee, isPending: deleting } = useDeleteEmployee();
+  const { mutate: inviteUser, isPending: inviting } = useInviteUser();
   const createTrainingRecord = useCreateTrainingRecord();
   const updateTrainingRecord = useUpdateTrainingRecord();
 
@@ -164,6 +166,32 @@ export default function EmployeeDetail() {
     if (!employee) return;
     setEmpForm(employeeToFormData(employee));
     setShowEditEmp(true);
+  };
+
+  const handlePortalInvite = () => {
+    if (!employee?.email) {
+      openEditEmp();
+      return;
+    }
+    const publicBasePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+    inviteUser(
+      {
+        email: employee.email,
+        firstName: employee.first_name,
+        lastName: employee.last_name,
+        role: "employee",
+        organizationId: employee.organization_id,
+        employeeId: employee.id,
+        redirectTo: `${window.location.origin}${publicBasePath}/reset-password`,
+      },
+      {
+        onSuccess: () => toast({
+          title: "Portal invite sent",
+          description: `${employee.email} can use the invite to set a password and access self-service.`,
+        }),
+        onError: (e: Error) => toast({ title: "Failed to send portal invite", description: e.message, variant: "destructive" }),
+      },
+    );
   };
 
   const handleEmpSave = () => {
@@ -314,6 +342,9 @@ export default function EmployeeDetail() {
               {employee.administers_medications && <Badge variant="outline">Medication Administrator</Badge>}
               {employee.trainer_status && <Badge variant="outline">Trainer</Badge>}
               {employee.worker_type !== "regular" && <Badge variant="outline">{employee.worker_type}</Badge>}
+              <Badge variant="outline" className={employee.profile_id ? "border-success/40 text-success" : "text-muted-foreground"}>
+                {employee.profile_id ? "Portal access active" : "No portal access"}
+              </Badge>
               <Badge className={employee.cleared_for_unsupervised_duty ? "bg-success text-success-foreground hover:bg-success/80" : "bg-warning text-warning-foreground hover:bg-warning/80"} variant="outline">
                 {employee.cleared_for_unsupervised_duty ? "Cleared for Unsupervised Duty" : "Onboarding In Progress"}
               </Badge>
@@ -324,6 +355,12 @@ export default function EmployeeDetail() {
           <div className="flex items-center gap-2 flex-wrap">
             {canManage && (
               <>
+                {!employee.profile_id && (
+                  <Button variant="outline" size="sm" onClick={handlePortalInvite} disabled={inviting}>
+                    <Mail className="mr-2 h-3.5 w-3.5" />
+                    {inviting ? "Sending Invite..." : employee.email ? "Invite to Portal" : "Add Email for Portal"}
+                  </Button>
+                )}
                 <Button variant="outline" size="sm" onClick={openEditEmp}>
                   <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
                 </Button>
