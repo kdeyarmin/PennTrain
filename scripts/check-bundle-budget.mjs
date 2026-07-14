@@ -37,7 +37,10 @@ const budgets = {
   // measured combined bundle reached 2787.2 KiB while the per-load budgets stayed flat.
   // raised 2790 -> 2810 for the DHS Forms Library lazy route (a new page, not part of the
   // initial shell); measured combined bundle is 2808.4 KiB.
-  totalJavaScript: 2810 * 1024,
+  // raised 2810 -> 2820 after combining the DHS Forms Library with the integrated
+  // operations-command-center snapshot and huddle views; measured combined bundle is
+  // 2811.9 KiB and per-load budgets remain flat.
+  totalJavaScript: 2820 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };
