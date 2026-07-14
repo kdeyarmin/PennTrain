@@ -242,7 +242,7 @@ export default function Signup() {
                 />
                 <span>
                   I am authorized to bind this facility or organization, and I agree to the{" "}
-                  <Link href="/legal/facility-signup" className="font-medium text-primary underline underline-offset-2" target="_blank">
+                  <Link href="/legal/facility-signup" className="font-medium text-primary underline underline-offset-2" target="_blank" rel="noopener noreferrer">
                     Facility Administrator Platform Agreement and HIPAA Business Associate Agreement
                   </Link>{" "}
                   ({SERVICE_AGREEMENT_VERSION}; {BAA_VERSION}) for CareMetric AI LLC.
