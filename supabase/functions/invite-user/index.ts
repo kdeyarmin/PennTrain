@@ -218,6 +218,12 @@ Deno.serve(async (req: Request) => {
       });
   const { data: updatedProfile, error: rpcError } = await profileRpc;
   if (rpcError) {
+    // Log the RPC error before attempting cleanup so it is always captured, even when cleanup
+    // succeeds and the outer branch would otherwise return without any trace of what went wrong.
+    console.error("invite-user provisioning rpc failed", {
+      user_id: invited.user.id,
+      rpc_error: rpcError.message,
+    });
     // The invite creates auth.users (and therefore a default employee profile) before this RPC
     // applies the intended tenant and role. Compensate on failure so a retry cannot leave behind
     // a usable, mis-provisioned account or fail because the email already exists.
