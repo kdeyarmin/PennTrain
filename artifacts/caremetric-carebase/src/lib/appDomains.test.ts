@@ -17,7 +17,6 @@ describe("role-based page visibility", () => {
 
     expect(employeePaths).toEqual(expect.arrayContaining([
       "/me",
-      "/me/shift",
       "/me/schedule",
       "/me/shift",
       "/me/services",
