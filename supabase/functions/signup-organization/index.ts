@@ -130,13 +130,23 @@ async function verifyTurnstile(token: string | undefined, ip: string): Promise<v
 
 async function recordAttempt(
   adminClient: ReturnType<typeof createClient>,
-  emailHash: string,
-  ipHash: string,
-  success: boolean,
-  errorCode: string | null,
-  legalAccepted: boolean | null,
-  serviceAgreementVersion: string | null,
-  baaVersion: string | null,
+  {
+    emailHash,
+    ipHash,
+    success,
+    errorCode,
+    legalAccepted,
+    serviceAgreementVersion,
+    baaVersion,
+  }: {
+    emailHash: string;
+    ipHash: string;
+    success: boolean;
+    errorCode: string | null;
+    legalAccepted: boolean | null;
+    serviceAgreementVersion: string | null;
+    baaVersion: string | null;
+  },
 ) {
   const { error } = await adminClient.from("signup_attempts").insert({
     email_hash: emailHash,
@@ -309,7 +319,7 @@ Deno.serve(async (req: Request) => {
     });
     if (rpcError) throw new HttpError(500, "profile_update_failed", "Signup could not be completed. Please try again later.", rpcError.message);
 
-    await recordAttempt(adminClient, emailHash, ipHash, true, null, legalAccepted, serviceAgreementVersion, baaVersion);
+    await recordAttempt(adminClient, { emailHash, ipHash, success: true, errorCode: null, legalAccepted, serviceAgreementVersion, baaVersion });
     return json({
       success: true,
       requiresEmailVerification: true,
@@ -340,7 +350,7 @@ if (!isHttpError || status >= 500 || internalDetail) console.error(isHttpError ?
     // Turnstile (e.g. by replaying requests with a victim's address and a bad token).
     const isTurnstileFailure = code === "turnstile_failed" || code === "turnstile_required" || code === "turnstile_not_configured";
     if (!isTurnstileFailure) {
-      await recordAttempt(adminClient, emailHash, ipHash, false, code, legalAccepted, serviceAgreementVersion ?? null, baaVersion ?? null);
+      await recordAttempt(adminClient, { emailHash, ipHash, success: false, errorCode: code, legalAccepted, serviceAgreementVersion: serviceAgreementVersion ?? null, baaVersion: baaVersion ?? null });
     }
     return json({ success: false, error: message }, status);
   }
