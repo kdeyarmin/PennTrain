@@ -27400,6 +27400,7 @@ export type Database = {
       }
       get_org_dashboard_summary: { Args: never; Returns: Json }
       get_platform_health: { Args: never; Returns: Json }
+      get_portfolio_operations_command_center: { Args: never; Returns: Json }
       get_qapi_source_metrics: {
         Args: { p_facility_id: string; p_from: string; p_through: string }
         Returns: Json
