@@ -211,6 +211,11 @@ $$,'manager records an acknowledged withdrawal with staff evidence');
 select is((select balance_after from public.resident_personal_fund_transactions where id=(select id from finance_ids where key='withdrawal')),110.00::numeric,'withdrawal updates the running balance');
 select throws_ok($$
   select public.post_resident_personal_fund_transaction('75000000-0000-4000-8000-000000000201',jsonb_build_object(
+    'transactionKind','deposit','direction','in','amount',5,'purpose','Backdated entry attempt',
+    'transactionAt',now()+interval '30 seconds','residentAcknowledged',true))
+$$,'22023',null,'personal funds entries cannot be backdated after a newer ledger entry exists');
+select throws_ok($$
+  select public.post_resident_personal_fund_transaction('75000000-0000-4000-8000-000000000201',jsonb_build_object(
     'transactionKind','withdrawal','direction','out','amount',10,'purpose','Missing staff',
     'transactionAt',now()+interval '2 minutes','residentAcknowledged',true))
 $$,'22023',null,'withdrawals require a staff person');
