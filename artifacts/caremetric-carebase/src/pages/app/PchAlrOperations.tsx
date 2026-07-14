@@ -62,7 +62,7 @@ export default function PchAlrOperations() {
 
   const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   const eligibleFacilities = useMemo(
-    () => (facilities ?? []).filter((facility) => facility.facility_type === "PCH" || facility.facility_type === "ALR"),
+    () => (facilities ?? []).filter((facility) => PCH_ALR_ONLY_FACILITY_TYPES.includes(facility.facility_type as any)),
     [facilities],
   );
   const activeFacilityId = facilityId || eligibleFacilities[0]?.id || "";
