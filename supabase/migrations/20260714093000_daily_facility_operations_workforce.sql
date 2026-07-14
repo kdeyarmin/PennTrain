@@ -133,6 +133,10 @@ create policy notification_escalation_rules_select on public.notification_escala
   public.is_platform_admin() or organization_id is null or organization_id = public.current_org_id()
 );
 
+revoke all on public.workforce_time_off_requests, public.shift_report_entries, public.shift_report_acknowledgements, public.notification_escalation_rules from public, anon, authenticated, service_role;
+grant all on public.workforce_time_off_requests, public.shift_report_entries, public.shift_report_acknowledgements, public.notification_escalation_rules to service_role;
+grant select on public.workforce_time_off_requests, public.shift_report_entries, public.shift_report_acknowledgements, public.notification_escalation_rules to authenticated;
+
 create or replace function app_private.assert_daily_ops_manager(p_facility_id uuid)
 returns public.facilities
 language plpgsql
@@ -378,6 +382,9 @@ values
   ('daily_ops.unfilled_shift', 'Unfilled shift coverage', 'rule_exception', 'high', interval '30 minutes', false, 'facility_manager'),
   ('daily_ops.shift_handoff', 'Urgent shift handoff follow-up', 'rule_exception', 'high', interval '8 hours', false, 'facility_manager')
 on conflict (organization_id, template_key) do nothing;
+
+revoke all on public.workforce_time_off_requests, public.shift_report_entries, public.shift_report_acknowledgements, public.notification_escalation_rules from public, anon, authenticated, service_role;
+grant select on public.workforce_time_off_requests, public.shift_report_entries, public.shift_report_acknowledgements, public.notification_escalation_rules to authenticated;
 
 revoke all on function public.submit_time_off_request(uuid,uuid,timestamptz,timestamptz,text,text) from public, anon;
 revoke all on function public.decide_time_off_request(uuid,text,text) from public, anon;
