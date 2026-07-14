@@ -8,6 +8,8 @@ export interface SignupOrganizationRequest {
   organizationName: string;
   turnstileToken: string;
   redirectTo: string;
+  serviceAgreementVersion: string;
+  baaVersion: string;
 }
 
 export interface SignupOrganizationResponse {
@@ -40,6 +42,8 @@ export function useSignupOrganization() {
             organization_name: payload.organizationName,
             turnstile_token: payload.turnstileToken,
             redirect_to: payload.redirectTo,
+            service_agreement_version: payload.serviceAgreementVersion,
+            baa_version: payload.baaVersion,
           },
         },
       );
