@@ -13,6 +13,8 @@ const CORS_HEADERS = {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DEFAULT_APP_ORIGIN = "https://cmcarebase.com";
+const REQUIRED_SERVICE_AGREEMENT_VERSION = "CareMetric-Facility-Admin-Service-Agreement-v2026-07-14";
+const REQUIRED_BAA_VERSION = "CareMetric-HIPAA-BAA-v2026-07-14";
 const DEFAULT_ALLOWED_APP_ORIGINS = new Set([
   "https://cmcarebase.com",
   "https://carebase-production.up.railway.app",
@@ -132,12 +134,16 @@ async function recordAttempt(
   ipHash: string,
   success: boolean,
   errorCode: string | null,
+  serviceAgreementVersion: string | null,
+  baaVersion: string | null,
 ) {
   const { error } = await adminClient.from("signup_attempts").insert({
     email_hash: emailHash,
     ip_hash: ipHash,
     success,
     error_code: errorCode,
+    service_agreement_version: serviceAgreementVersion,
+    baa_version: baaVersion,
   });
   if (error) console.error("Failed to record signup attempt:", error.message);
 }
@@ -194,6 +200,8 @@ Deno.serve(async (req: Request) => {
     organization_name?: string;
     turnstile_token?: string;
     redirect_to?: string;
+    service_agreement_version?: string;
+    baa_version?: string;
   };
   try {
     body = await req.json();
@@ -205,9 +213,17 @@ Deno.serve(async (req: Request) => {
   const firstName = body.first_name?.trim();
   const lastName = body.last_name?.trim();
   const organizationName = body.organization_name?.trim();
+  const serviceAgreementVersion = body.service_agreement_version?.trim();
+  const baaVersion = body.baa_version?.trim();
 
   if (!email || !firstName || !lastName || !organizationName) {
     return json({ error: "email, first_name, last_name, and organization_name are required" }, 400);
+  }
+  if (!serviceAgreementVersion || !baaVersion) {
+    return json({ error: "service_agreement_version and baa_version are required" }, 400);
+  }
+  if (serviceAgreementVersion !== REQUIRED_SERVICE_AGREEMENT_VERSION || baaVersion !== REQUIRED_BAA_VERSION) {
+    return json({ error: "Legal agreement versions must match the current signup terms" }, 400);
   }
   if (!EMAIL_RE.test(email)) return json({ error: "Enter a valid email address" }, 400);
   if (organizationName.length < 2) return json({ error: "organization_name is too short" }, 400);
@@ -286,7 +302,7 @@ Deno.serve(async (req: Request) => {
     });
     if (rpcError) throw new HttpError(500, "profile_update_failed", "Signup could not be completed. Please try again later.", rpcError.message);
 
-    await recordAttempt(adminClient, emailHash, ipHash, true, null);
+    await recordAttempt(adminClient, emailHash, ipHash, true, null, serviceAgreementVersion, baaVersion);
     return json({
       success: true,
       requiresEmailVerification: true,
@@ -317,7 +333,7 @@ if (!isHttpError || status >= 500 || internalDetail) console.error(isHttpError ?
     // Turnstile (e.g. by replaying requests with a victim's address and a bad token).
     const isTurnstileFailure = code === "turnstile_failed" || code === "turnstile_required" || code === "turnstile_not_configured";
     if (!isTurnstileFailure) {
-      await recordAttempt(adminClient, emailHash, ipHash, false, code);
+      await recordAttempt(adminClient, emailHash, ipHash, false, code, serviceAgreementVersion ?? null, baaVersion ?? null);
     }
     return json({ success: false, error: message }, status);
   }
