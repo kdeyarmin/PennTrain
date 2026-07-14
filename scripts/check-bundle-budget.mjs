@@ -6,44 +6,34 @@ const assetDirectory = path.resolve(
   "artifacts/caremetric-carebase/dist/public/assets",
 );
 
+// These budgets are regression tripwires, not exact ledgers. They exist to catch
+// step changes -- an accidentally eager import, a heavyweight dependency, a chunk
+// that stops code-splitting -- not the few KiB of organic growth every feature adds.
+// Keep each budget at least ~10% above the current measurement on main; small
+// metrics can carry more headroom for the sake of a round number. When organic
+// growth pushes a metric past the warning threshold below, raise that budget in
+// one step that restores that headroom, in the same PR (git history records when
+// and why). Do not raise budgets per-feature or shave them to the current measurement:
+// a budget within a few KiB of actual fails on nearly every branch and gates
+// merges on noise instead of regressions.
+//
+// Per-page-load guardrails are largestJavaScript and initialShell. totalJavaScript
+// sums every lazy route chunk -- no single page load fetches it -- so it grows with
+// the number of features by design and only guards against wholesale bloat.
 const budgets = {
-  // Raised 400 -> 410 when the unified operational work queue (resident service
-  // requirements, task instances, My Services, supervisor/manager workflows) landed.
-  largestJavaScript: 410 * 1024,
-  // Sum of every lazy route chunk, not what any one page load fetches -- the per-load
-  // guardrails are largestJavaScript and initialShell. Raised 2300 -> 2400 when the
-  // end-user-review rounds (evidence room, saved views, confidential console, ...)
-  // and the state-forms/document-analyzer features landed together; raised 2400 -> 2410
-  // when PCH/ALR operations center, regulatory crosswalk, and compliance analytics
-  // features landed; raised 2410 -> 2420 for the responsive-layout/global-search/user-
-  // management updates; raised 2420 -> 2430 for deployment recovery, accessible search,
-  // and mobile operations while initial-shell size decreased; raised 2430 -> 2500 for
-  // the unified operational work queue (resident service requirements/tasks, My Services,
-  // supervisor/manager oversight) while both per-load budgets remain comfortably met;
-  // raised 2500 -> 2600 for formal QAPI quality management (projects, actions, measurements,
-  // meeting notes, RCA, and print-optimized workspace); raised 2600 -> 2700 for the
-  // environmental work-order, QR-location, evidence, and preventive-maintenance routes,
-  // the complaint/grievance case workflow (intake, investigation, corrective actions,
-  // nonretaliation monitoring, incident escalation, and closure approval), the complete
-  // emergency-operations domain (readiness, accountability, communications, and after-action),
-  // and qualification-aware scheduling (previews, bounded overrides, and service workload);
-  // raised 2700 -> 2710 after merging all features together (environmental work orders,
-  // emergency operations, complaints/grievances, and qualification-aware scheduling).
-  // The new pages remain lazy routes and do not increase the initial-shell budget.
-  // raised 2710 -> 2760 after the emergency-operations and environmental-work-orders
-  // branches were both merged into main; measured combined bundle is 2755.7 KiB.
-  // raised 2760 -> 2790 after the resident administrative master workspace (identity,
-  // contacts, legal, payer, directives, rights, contracts, history) merged in and the
-  // measured combined bundle reached 2787.2 KiB while the per-load budgets stayed flat.
-  // raised 2790 -> 2810 for the DHS Forms Library lazy route (a new page, not part of the
-  // initial shell); measured combined bundle is 2808.4 KiB.
-  // raised 2810 -> 2820 after combining the DHS Forms Library with the integrated
-  // operations-command-center snapshot and huddle views; measured combined bundle is
-  // 2811.9 KiB and per-load budgets remain flat.
-  totalJavaScript: 2820 * 1024,
-  totalCss: 140 * 1024,
-  initialShell: 1200 * 1024,
+  // Measured 409.3 KiB (the entry chunk) when this headroom policy was adopted.
+  largestJavaScript: 460 * 1024,
+  // Measured 2811.9 KiB when this headroom policy was adopted.
+  totalJavaScript: 3250 * 1024,
+  // Measured 129.3 KiB when this headroom policy was adopted.
+  totalCss: 160 * 1024,
+  // Measured 1095.8 KiB when this headroom policy was adopted.
+  initialShell: 1250 * 1024,
 };
+
+// Warn (without failing) once a metric uses this fraction of its budget, so the
+// budget gets raised deliberately on main instead of failing feature branches.
+const warningRatio = 0.9;
 
 const initialShellPattern =
   /^(index|router|query|radix|supabase|motion|icons)-.+\.(?:js|css)$/;
@@ -83,7 +73,7 @@ const initialShell = assets
   .filter(({ name }) => initialShellPattern.test(name))
   .reduce((sum, asset) => sum + asset.bytes, 0);
 
-const failures = [
+const measurements = [
   {
     label: `largest JavaScript chunk (${largestJavaScript.name})`,
     actual: largestJavaScript.bytes,
@@ -100,17 +90,27 @@ const failures = [
     actual: initialShell,
     budget: budgets.initialShell,
   },
-].filter(({ actual, budget }) => actual > budget);
+];
 
-for (const measurement of [
-  ["Largest JavaScript", largestJavaScript.bytes],
-  ["Total JavaScript", totalJavaScript],
-  ["Total CSS", totalCss],
-  ["Initial shell", initialShell],
-]) {
-  console.log(`${measurement[0]}: ${formatBytes(measurement[1])}`);
+for (const { label, actual, budget } of measurements) {
+  const used = ((actual / budget) * 100).toFixed(1);
+  console.log(
+    `${label}: ${formatBytes(actual)} (${used}% of ${formatBytes(budget)} budget)`,
+  );
 }
 
+const warnings = measurements.filter(
+  ({ actual, budget }) => actual > budget * warningRatio && actual <= budget,
+);
+for (const { label, actual, budget } of warnings) {
+  console.warn(
+    `Warning: ${label} is ${formatBytes(actual)}, over ${warningRatio * 100}% of its ` +
+      `${formatBytes(budget)} budget. Raise the budget to restore at least ~10% ` +
+      `headroom (see scripts/check-bundle-budget.mjs) before it starts failing branches.`,
+  );
+}
+
+const failures = measurements.filter(({ actual, budget }) => actual > budget);
 if (failures.length > 0) {
   const details = failures
     .map(
