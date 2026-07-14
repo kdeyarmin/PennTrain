@@ -115,6 +115,7 @@ const PolicyDocuments = lazy(() => import("@/pages/app/PolicyDocuments"));
 const PolicyDocumentDetail = lazy(() => import("@/pages/app/PolicyDocumentDetail"));
 const TemplateDocuments = lazy(() => import("@/pages/app/TemplateDocuments"));
 const TemplateDocumentDetail = lazy(() => import("@/pages/app/TemplateDocumentDetail"));
+const DhsFormsLibrary = lazy(() => import("@/pages/app/DhsFormsLibrary"));
 const Schedule = lazy(() => import("@/pages/app/Schedule"));
 const ScheduleDetail = lazy(() => import("@/pages/app/ScheduleDetail"));
 const ScheduleSetup = lazy(() => import("@/pages/app/ScheduleSetup"));
@@ -536,6 +537,9 @@ function Router() {
       </Route>
       <Route path="/app/template-documents/:code">
         {() => <ProtectedRoute component={TemplateDocumentDetail} allowedRoles={TEMPLATE_DOCUMENT_ROLES} />}
+      </Route>
+      <Route path="/app/dhs-forms">
+        {() => <ProtectedRoute component={DhsFormsLibrary} allowedRoles={TEMPLATE_DOCUMENT_ROLES} />}
       </Route>
       <Route path="/app/incidents">
         {() => <ProtectedRoute component={Incidents} allowedRoles={INCIDENT_ROLES} />}

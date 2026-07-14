@@ -57,6 +57,7 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
      ANTHROPIC_API_KEY=... \
      SENDGRID_API_KEY=... \
      NOTIFICATION_FROM_EMAIL='CareMetric CareBase <notifications@cmcarebase.com>' \
+     SEND_EMAIL_HOOK_SECRET='v1,whsec_...' \
      TWILIO_ACCOUNT_SID=... TWILIO_AUTH_TOKEN=... TWILIO_FROM_NUMBER=... \
      CRON_SHARED_SECRET=... \
      TURNSTILE_SECRET_KEY=... \
@@ -78,10 +79,14 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    ```
    `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are injected into Edge
    Functions automatically by Supabase -- you do not set those secrets yourself.
-   `SENDGRID_API_KEY`/`NOTIFICATION_FROM_EMAIL` and the `TWILIO_*` trio are read by the
-   `dispatch-notifications` function (training due/expired reminders, escalations, the Monday
-   digest); each channel is skipped (not failed) if its credentials aren't set, so these can be
-   added later without breaking anything. Create the SendGrid API key with **Mail Send** scope only,
+   `SENDGRID_API_KEY`/`NOTIFICATION_FROM_EMAIL` are read by both `dispatch-notifications`
+   (training due/expired reminders, escalations, the Monday digest) and `send-auth-email`
+   (signup, invite, recovery, magic-link, email-change, and reauthentication messages).
+   `SEND_EMAIL_HOOK_SECRET` must match the Supabase Auth Send Email hook signing secret.
+   Local-only `supabase/config.toml` hook tests require the same secret base64-encoded as
+   `SEND_EMAIL_HOOK_SECRET_BASE64`, because the CLI config field expects base64 hook secrets.
+   The `TWILIO_*` trio is only for SMS; each channel is skipped (not failed) if its credentials
+   aren't set, so SMS can be added later without breaking email. Create the SendGrid API key with **Mail Send** scope only,
    and verify the `NOTIFICATION_FROM_EMAIL` sender identity (Single Sender Verification or a
    verified domain) in the SendGrid dashboard first -- SendGrid rejects sends from an unverified
    `from` address.
@@ -94,25 +99,28 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    "/reset-password"` (not `/login`), and Supabase Auth silently falls back to the bare Site URL --
    no error shown anywhere -- when `redirect_to` isn't an allowlisted match, which strands the user on
    the marketing/login page instead of the password-set form after they click a legitimate reset link.
-6. **(Optional) Route Supabase Auth's own mail through SendGrid too.** Step 4 above wires SendGrid
-   into the `dispatch-notifications` Edge Function (training reminders/digests), but password-reset,
-   invite, and email-change confirmation mail is sent separately by Supabase Auth's built-in mailer.
-   Two ways to redirect that, in order of preference:
-   - **Send Email Hook (recommended).** Deploy the `send-auth-email` Edge Function
+6. **Route Supabase Auth's own mail through SendGrid too.** Step 4 above wires SendGrid
+   into both application notification mail and the `send-auth-email` Edge Function, but the
+   Supabase Auth dashboard hook must be enabled so password-reset, invite, email-change,
+   signup, magic-link, and reauthentication mail does not fall back to Supabase's built-in
+   mailer. Use the Send Email Hook path below in every hosted environment; the checked-in
+   local `auth.hook.send_email` stanza is intentionally disabled until a developer opts in
+   with local SendGrid and base64 hook-secret values:
+   - **Send Email Hook (required for all-email SendGrid delivery).** Deploy the `send-auth-email` Edge Function
      (`npx supabase functions deploy send-auth-email`), then in the dashboard: Authentication ->
      Hooks -> add a **Send Email** hook of type HTTPS, pointing at
      `https://<project-ref>.supabase.co/functions/v1/send-auth-email`. The dashboard generates a
-     signing secret when you save it -- set that as `npx supabase secrets set
+     signing secret when you save it -- set the same value from step 4 as `npx supabase secrets set
      SEND_EMAIL_HOOK_SECRET='v1,whsec_...'`. Once the hook is enabled, Supabase Auth calls this
      function over plain HTTPS for every auth email instead of using SMTP, so it goes through the
      exact same SendGrid `v3/mail/send` API (and the same `SENDGRID_API_KEY`/
      `NOTIFICATION_FROM_EMAIL` secrets) as `dispatch-notifications` -- no SMTP involved at all.
      This is the more reliable option: raw SMTP relays are more prone to being slow or silently
      blocked on outbound network paths than a plain HTTPS API call.
-   - **Custom SMTP (simpler, less reliable).** Authentication -> Emails -> SMTP Settings, enable
+   - **Custom SMTP (fallback only, less reliable).** Authentication -> Emails -> SMTP Settings, enable
      "Custom SMTP", and use SendGrid's SMTP relay (`smtp.sendgrid.net:587`, username `apikey`,
-     password = a SendGrid API key with Mail Send scope). Both this and the Hook are dashboard-only
-     settings, not something a migration can configure. If the Hook is enabled, it takes priority
+     password = a SendGrid API key with Mail Send scope). Use this only if the HTTPS hook is unavailable.
+     Both this and the Hook are dashboard-only settings, not something a migration can configure. If the Hook is enabled, it takes priority
      and Custom SMTP is bypassed entirely (see [Supabase's Send Email Hook
      docs](https://supabase.com/docs/guides/auth/auth-hooks/send-email-hook) for the exact
      precedence rules).

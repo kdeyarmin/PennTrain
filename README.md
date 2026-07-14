@@ -102,13 +102,17 @@ must be declared in `supabase/config.toml` to auto-deploy via the Supabase GitHu
 5. Run `mcp__Supabase__generate_typescript_types` (or `supabase gen types typescript`) to produce
   `artifacts/caremetric-carebase/src/lib/database.types.ts`.
 
-For proven email/SMS delivery, configure the signed SendGrid Event Webhook and
-the Twilio status/inbound-message callbacks to the two notification webhook
-functions. Set `SENDGRID_EVENT_WEBHOOK_PUBLIC_KEY`,
-`NOTIFICATION_RECIPIENT_HASH_SECRET`, the Twilio credentials, and
-`CRON_SHARED_SECRET` as Supabase Edge Function secrets; never expose them to
-the Vite application. Twilio Advanced Opt-Out should route inbound STOP/START
-events to `twilio-notification-webhook?kind=consent`.
+For proven email/SMS delivery, deploy `dispatch-notifications` and `send-auth-email`,
+configure the hosted Supabase Auth **Send Email** hook to point at `send-auth-email`,
+and configure the signed SendGrid Event Webhook plus Twilio status/inbound-message
+callbacks to the two notification webhook functions. Set `SENDGRID_API_KEY`,
+`NOTIFICATION_FROM_EMAIL`, `SEND_EMAIL_HOOK_SECRET`,
+`SENDGRID_EVENT_WEBHOOK_PUBLIC_KEY`, `NOTIFICATION_RECIPIENT_HASH_SECRET`, the
+Twilio credentials, and `CRON_SHARED_SECRET` as Supabase Edge Function secrets;
+never expose them to the Vite application. The checked-in local hook stanza stays
+disabled unless a developer opts in with a base64-encoded
+`SEND_EMAIL_HOOK_SECRET_BASE64`. Twilio Advanced Opt-Out should route inbound
+STOP/START events to `twilio-notification-webhook?kind=consent`.
 
 ## Demo users
 

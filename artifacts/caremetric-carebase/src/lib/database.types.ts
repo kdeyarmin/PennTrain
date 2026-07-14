@@ -9777,6 +9777,9 @@ export type Database = {
           resident_identifier: string | null
           root_cause: string | null
           severity: string
+          state_form_pdf_generated_at: string | null
+          state_form_pdf_storage_bucket: string | null
+          state_form_pdf_storage_path: string | null
           status: string
           updated_at: string
         }
@@ -9804,6 +9807,9 @@ export type Database = {
           resident_identifier?: string | null
           root_cause?: string | null
           severity?: string
+          state_form_pdf_generated_at?: string | null
+          state_form_pdf_storage_bucket?: string | null
+          state_form_pdf_storage_path?: string | null
           status?: string
           updated_at?: string
         }
@@ -9831,6 +9837,9 @@ export type Database = {
           resident_identifier?: string | null
           root_cause?: string | null
           severity?: string
+          state_form_pdf_generated_at?: string | null
+          state_form_pdf_storage_bucket?: string | null
+          state_form_pdf_storage_path?: string | null
           status?: string
           updated_at?: string
         }
@@ -24527,6 +24536,10 @@ export type Database = {
       }
       get_notification_template_library: {
         Args: { p_organization_id?: string }
+        Returns: Json
+      }
+      get_operations_command_center: {
+        Args: { p_facility_id: string }
         Returns: Json
       }
       get_org_dashboard_summary: { Args: never; Returns: Json }
