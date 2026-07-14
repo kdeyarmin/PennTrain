@@ -70,6 +70,7 @@ import {
   Utensils,
   Landmark,
   Siren,
+  HeartPulse,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -121,6 +122,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/admin/alerts", label: "Alerts", icon: Bell },
           { href: "/app/work", label: "Operational Work", icon: ClipboardList },
           { href: "/app/services", label: "Resident Services", icon: CalendarDays },
+          { href: "/app/resident-care-delivery", label: "Care Delivery", icon: HeartPulse },
           { href: "/app/admissions", label: "Admissions & Census", icon: BedDouble },
           { href: "/app/change-of-condition", label: "Change Follow-Up", icon: Activity },
           ...(showPchAlrModules ? [{ href: "/app/dietary-operations", label: "Dietary & Food Safety", icon: Utensils }] : []),
@@ -218,6 +220,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/qapi", label: "QAPI & Quality", icon: BarChart3 },
           { href: "/app/state-forms", label: "State Forms", icon: ClipboardList },
           { href: "/app/services", label: "Resident Services", icon: CalendarDays },
+          { href: "/app/resident-care-delivery", label: "Care Delivery", icon: HeartPulse },
         ]
       }] : []),
       {
@@ -320,6 +323,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/qapi", label: "QAPI & Quality", icon: BarChart3 },
           { href: "/app/state-forms", label: "State Forms", icon: ClipboardList },
           { href: "/app/services", label: "Resident Services", icon: CalendarDays },
+          { href: "/app/resident-care-delivery", label: "Care Delivery", icon: HeartPulse },
         ]
       }] : []),
       {

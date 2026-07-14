@@ -226,6 +226,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/resident-compliance", label: "Resident compliance", domain: "residents", roles: REPORTING_ROLES, keywords: ["assessments", "care"] },
   { path: "/app/state-forms", label: "State forms", domain: "residents", roles: REPORTING_ROLES, keywords: ["rasp", "asp", "dme", "preadmission", "annual reassessment", "dhs forms", "renewals"] },
   { path: "/app/services", label: "Resident service delivery", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["support plan", "daily services", "refusal", "missed service", "care tasks", "service requirements"] },
+  { path: "/app/resident-care-delivery", label: "Resident care delivery workspace", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["support plan", "dme", "appointments", "hospital transfer", "return", "service exceptions", "care delivery"] },
   { path: "/app/admissions", label: "Admissions, census & rooms", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["referral", "prospect", "inquiry", "room", "bed", "occupancy", "census", "move in", "admission"] },
   { path: "/app/change-of-condition", label: "Change-of-condition management", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["fall", "hospital return", "monitoring", "provider notification", "follow up", "reassessment", "support plan review"] },
   { path: "/app/dietary-operations", label: "Dietary & food-safety operations", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["diet", "nutrition", "allergy", "texture", "hydration", "meal intake", "weight", "menu", "temperature", "sanitation", "kitchen", "food service"] },
@@ -266,6 +267,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/trainer/employees", label: "Trainer employees", domain: "directory", roles: TRAINER_ONLY, keywords: ["employees", "roster"] },
 
   { path: "/me", label: "My dashboard", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["home", "tasks"] },
+  { path: "/me/shift", label: "My Shift", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["today", "handoff", "call off", "resident services", "open shifts"] },
   { path: "/me/courses", label: "My training assignments", domain: "self_service", roles: ANY_ROLE, keywords: ["training", "assignments"] },
   { path: "/me/trainings", label: "My training records", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["records", "requirements"] },
   { path: "/me/work", label: "My work", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["tasks", "remediation", "assigned", "due"] },
