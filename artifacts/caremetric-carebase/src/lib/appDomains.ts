@@ -247,6 +247,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/evidence", label: "Evidence room", domain: "compliance", roles: REPORTING_ROLES, keywords: ["survey", "auditor", "guest access", "surveyor", "artifacts", "binder", "share"] },
   { path: "/app/policy-documents", label: "Policies & procedures", domain: "documents", roles: REPORTING_ROLES, keywords: ["attestation", "campaigns"] },
   { path: "/app/template-documents", label: "Template documents", domain: "documents", roles: REPORTING_ROLES, keywords: ["forms", "reference"] },
+  { path: "/app/dhs-forms", label: "DHS forms library", domain: "documents", roles: REPORTING_ROLES, keywords: ["state forms", "official forms", "pch", "alf", "alr", "rasp", "asp", "dme", "reportable incident", "download", "pa.gov"] },
   { path: "/app/documents", label: "Documents", domain: "documents", roles: ORG_ROLES, keywords: ["files", "uploads"] },
   { path: "/app/users", label: "Users", domain: "tenant", roles: ORG_MANAGERS, keywords: ["roles", "invites"] },
   { path: "/app/settings", label: "Settings", domain: "tenant", roles: ORG_MANAGERS, keywords: ["configuration", "organization"] },

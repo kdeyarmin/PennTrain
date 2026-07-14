@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPchAlrOperationsQueue, summarizePchAlrQueue } from "./pchAlrOperationalSnapshot";
+import { buildPchAlrOperationsQueue, buildPchAlrOperationsQueueFromSnapshot, summarizePchAlrQueue } from "./pchAlrOperationalSnapshot";
 
 describe("buildPchAlrOperationsQueue", () => {
   it("rolls live operational records into PCH/ALR daily queue buckets", () => {
@@ -23,5 +23,31 @@ describe("buildPchAlrOperationsQueue", () => {
     const summary = summarizePchAlrQueue(buildPchAlrOperationsQueue({ today: "2026-07-13" }));
     expect(summary.totalOpen).toBe(0);
     expect(summary.readyCount).toBeGreaterThan(0);
+  });
+
+  it("maps the server snapshot into cross-module huddle buckets", () => {
+    const queue = buildPchAlrOperationsQueueFromSnapshot({
+      workforceGaps: 2,
+      residentReadinessGaps: 1,
+      medicationFollowUps: 0,
+      incidentComplaintOpen: 3,
+      overdueCorrectiveActions: 1,
+      overduePolicyAttestations: 0,
+      activeEmergencyEvents: 1,
+      emergencyUnaccounted: 2,
+      openWorkOrders: 4,
+      highRiskWorkOrders: 1,
+    }, {
+      openCount: 7,
+      urgentCount: 1,
+      overdueCount: 2,
+      unassignedCount: 3,
+      pendingApprovalCount: 1,
+    });
+
+    expect(queue.find((item) => item.id === "emergency-operations")?.count).toBe(3);
+    expect(queue.find((item) => item.id === "maintenance-operations")?.severity).toBe("attention");
+    expect(queue.find((item) => item.id === "unified-work")?.guidance).toContain("3 unassigned");
+    expect(summarizePchAlrQueue(queue).totalOpen).toBeGreaterThan(7);
   });
 });

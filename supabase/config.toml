@@ -107,6 +107,15 @@ verify_jwt = true
 [functions.send-auth-email]
 verify_jwt = false
 
+# Hosted Supabase Auth hooks are configured in the dashboard. For local end-to-end hook
+# testing, opt in by setting enabled=true and SEND_EMAIL_HOOK_SECRET_BASE64 to a base64
+# encoded Standard Webhooks secret; keep disabled by default so `supabase start` works
+# without developer-local email credentials.
+[auth.hook.send_email]
+enabled = false
+uri = "http://host.docker.internal:54321/functions/v1/send-auth-email"
+secrets = "env(SEND_EMAIL_HOOK_SECRET_BASE64)"
+
 # Public, unauthenticated self-service signup endpoint by design -- there is no caller session
 # yet at signup time. The function enforces Turnstile, hashed rate limits, platform signup gates,
 # and invite-email verification before the org_admin can set a password.
