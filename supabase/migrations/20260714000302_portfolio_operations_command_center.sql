@@ -13,8 +13,10 @@ security invoker
 set search_path = ''
 as $$
 with authorized as (
-  select public.current_org_id() as organization_id
-  where public.current_role() in ('org_admin', 'auditor', 'facility_manager')
+  select auth_ctx.organization_id
+  from (select public.current_org_id() as organization_id, public.current_role() as role) auth_ctx
+  where auth_ctx.role in ('org_admin', 'auditor', 'facility_manager')
+    and auth_ctx.organization_id is not null
 ),
 scoped_facilities as (
   select f.id, f.organization_id, f.name, f.facility_type
