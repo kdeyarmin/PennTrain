@@ -103,7 +103,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/admin/courses/new-ai", label: "AI Course Builder", icon: Sparkles },
           { href: "/admin/training-plans", label: "Training Plans", icon: ListChecks },
           { href: "/admin/ai-generations", label: "AI Generation Log", icon: BarChart3 },
-          { href: "/admin/document-analyzer", label: "Document Analyzer (Prototype)", icon: ScanText },
+          { href: "/admin/document-analyzer", label: "Document Analyzer", icon: ScanText },
           { href: "/admin/help-content", label: "Help Center Content", icon: HelpCircle },
         ]
       },

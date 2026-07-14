@@ -35,7 +35,10 @@ const budgets = {
   // raised 2760 -> 2790 after the resident administrative master workspace (identity,
   // contacts, legal, payer, directives, rights, contracts, history) merged in and the
   // measured combined bundle reached 2787.2 KiB while the per-load budgets stayed flat.
-  totalJavaScript: 2790 * 1024,
+  // raised 2790 -> 2800 when the document analyzer went from browser simulation to the
+  // real durable pipeline (upload/enqueue/poll hooks, review draft persistence, packet
+  // export); measured combined bundle is 2793.1 KiB and the per-load budgets stay flat.
+  totalJavaScript: 2800 * 1024,
   totalCss: 140 * 1024,
   initialShell: 1200 * 1024,
 };
