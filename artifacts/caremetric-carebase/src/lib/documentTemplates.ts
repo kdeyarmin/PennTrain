@@ -765,7 +765,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     title: "Official DHS Forms Index",
     category: "Admin, License & Reference Tools",
     description: "Use this page to prevent confusion between official DHS forms and internal readiness worksheets.",
-    note: "Before each annual survey window, verify the current official forms on the PA DHS PCH/ALR compliance forms page.",
+    note: "Open the DHS Forms Library in this app (Reporting & Documents) for direct download links to every current official form, organized the same way as this table. Before each annual survey window, verify against the current PA DHS PCH/ALR compliance forms page.",
     body: {
       kind: "reference", columns: ["Form category", "How to use", "Examples / notes"],
       rows: [
