@@ -21,6 +21,10 @@ export function getTimeOffRequestWindowError(startsAt: string, endsAt: string): 
 }
 
 export function normalizeTimeOffRequestWindow(startsAt: string, endsAt: string): TimeOffRequestValidationResult {
+  if (!startsAt || !endsAt) {
+    throw new Error("Enter both a start and end date/time for the time-off request.");
+  }
+
   const error = getTimeOffRequestWindowError(startsAt, endsAt);
   if (error) throw new Error(error);
 
