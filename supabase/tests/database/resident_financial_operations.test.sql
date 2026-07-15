@@ -1,5 +1,5 @@
 begin;
-select plan(82);
+select plan(83);
 
 select has_table('public','resident_financial_accounts','resident receivables use dedicated accounts');
 select has_table('public','resident_rate_agreements','resident rate agreements are versioned financial terms');
@@ -204,6 +204,12 @@ select lives_ok($$
   ))
 $$,'manager records a personal-funds deposit');
 select is((select balance_after from public.resident_personal_fund_transactions where id=(select id from finance_ids where key='deposit')),150.00::numeric,'deposit updates the retained running balance');
+select throws_ok($$
+  select public.post_resident_personal_fund_transaction('75000000-0000-4000-8000-000000000201',jsonb_build_object(
+    'transactionKind','deposit','direction','in','amount',25,'purpose','Backdated family deposit',
+    'transactionAt',now()-interval '1 minute','residentAcknowledged',false,
+    'acknowledgementNote','Resident was away during posting'))
+$$,'22023',null,'personal-funds entries cannot be backdated before the current ledger balance');
 select lives_ok($$
   insert into finance_ids values ('withdrawal',public.post_resident_personal_fund_transaction(
     '75000000-0000-4000-8000-000000000201',jsonb_build_object(
