@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -19,8 +19,17 @@ import {
 import { useAuth } from "@/lib/auth";
 import { viewablePathForRole } from "@/lib/appDomains";
 import { filterHelpArticlesForRole } from "@/lib/helpArticleVisibility";
+import {
+  getHelpCopilotAnswer,
+  getHelpCopilotPromptSuggestions,
+  type HelpCopilotAnswer,
+  type HelpCopilotConfidence,
+} from "@/lib/helpCopilot";
 import { useToast } from "@/hooks/use-toast";
-import { Search, FileDown, Plus, ChevronRight, Lightbulb, ExternalLink, Paperclip, X, Sparkles } from "lucide-react";
+import {
+  AlertTriangle, Bot, Search, FileDown, Plus, ChevronRight, Lightbulb, ExternalLink,
+  Paperclip, Send, X, Sparkles,
+} from "lucide-react";
 
 const STATUS_DISPLAY: Record<string, { color: string; label: string }> = {
   open: { color: "bg-blue-100 text-blue-800", label: "Open" },
@@ -28,6 +37,132 @@ const STATUS_DISPLAY: Record<string, { color: string; label: string }> = {
   resolved: { color: "bg-green-100 text-green-800", label: "Resolved" },
   closed: { color: "bg-gray-100 text-gray-600", label: "Closed" },
 };
+
+const CONFIDENCE_DISPLAY: Record<HelpCopilotConfidence, { label: string; className: string }> = {
+  high: { label: "High confidence", className: "border-green-200 bg-green-50 text-green-800" },
+  medium: { label: "Medium confidence", className: "border-amber-200 bg-amber-50 text-amber-800" },
+  low: { label: "Needs more detail", className: "border-slate-200 bg-slate-50 text-slate-700" },
+};
+
+function HelpCopilotPanel({ originRoute }: { originRoute: string | null }) {
+  const { user } = useAuth();
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState<HelpCopilotAnswer | null>(null);
+  const suggestions = useMemo(
+    () => getHelpCopilotPromptSuggestions(originRoute, user?.role),
+    [originRoute, user?.role],
+  );
+
+  const ask = (nextQuestion: string) => {
+    const trimmed = nextQuestion.trim();
+    if (!trimmed) return;
+    setQuestion(trimmed);
+    setAnswer(getHelpCopilotAnswer(trimmed, { role: user?.role, currentRoute: originRoute }));
+  };
+
+  return (
+    <Card className="overflow-hidden border-primary/30">
+      <CardHeader className="bg-primary/[0.04]">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <Bot className="h-5 w-5 text-primary" /> Help Copilot
+        </CardTitle>
+        <CardDescription>
+          Ask how to complete a CareMetric CareBase workflow. Answers use the page you came from and show only links available to your role.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 pt-5">
+        <form
+          className="flex flex-col gap-2 sm:flex-row"
+          onSubmit={(event) => {
+            event.preventDefault();
+            ask(question);
+          }}
+        >
+          <Input
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            placeholder="Example: How do I resolve an uncovered shift?"
+            aria-label="Ask the Help Copilot"
+          />
+          <Button type="submit" className="shrink-0 gap-2" disabled={!question.trim()}>
+            <Send className="h-4 w-4" /> Ask
+          </Button>
+        </form>
+
+        {!answer && (
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Suggested for you</p>
+            <div className="flex flex-wrap gap-2">
+              {suggestions.map((suggestion) => (
+                <Button key={suggestion} type="button" size="sm" variant="outline" onClick={() => ask(suggestion)}>
+                  {suggestion}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {answer && (
+          <div className="space-y-4 rounded-lg border bg-card p-4" aria-live="polite">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">{answer.intentLabel}</Badge>
+              <Badge variant="outline" className={CONFIDENCE_DISPLAY[answer.confidence].className}>
+                {CONFIDENCE_DISPLAY[answer.confidence].label}
+              </Badge>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm leading-6">{answer.answer}</p>
+              {answer.pageGuidance && (
+                <p className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" /> {answer.pageGuidance}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <p className="text-sm font-semibold">Recommended next steps</p>
+              <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+                {answer.nextSteps.map((step) => <li key={step}>{step}</li>)}
+              </ol>
+            </div>
+
+            {answer.links.length > 0 && (
+              <div>
+                <p className="mb-2 text-sm font-semibold">Related pages</p>
+                <div className="flex flex-wrap gap-2">
+                  {answer.links.map((link) => (
+                    <Button key={`${link.href}-${link.label}`} asChild size="sm" variant="outline">
+                      <Link href={link.href}>{link.label} <ExternalLink className="ml-1.5 h-3.5 w-3.5" /></Link>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {answer.caution && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>{answer.caution}</p>
+              </div>
+            )}
+
+            <div>
+              <p className="mb-2 text-xs font-medium text-muted-foreground">Ask a follow-up</p>
+              <div className="flex flex-wrap gap-2">
+                {answer.followUpQuestions.map((followUp) => (
+                  <Button key={followUp} type="button" size="sm" variant="ghost" onClick={() => ask(followUp)}>
+                    {followUp}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function searchArticles(articles: HelpArticle[], query: string): HelpArticle[] {
   const q = query.trim().toLowerCase();
@@ -481,6 +616,8 @@ export default function HelpCenter() {
           Answers to common questions, step-by-step job aides, the full user manual, and support if you're still stuck.
         </p>
       </div>
+
+      <HelpCopilotPanel originRoute={originRoute} />
 
       {contextualArticle && (
         <Card className="border-primary/40 bg-primary/5">
