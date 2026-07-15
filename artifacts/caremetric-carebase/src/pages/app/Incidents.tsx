@@ -90,7 +90,7 @@ function emptyForm(): IncidentFormData {
 interface StaffRow { employeeId: string; involvementType: "involved_party" | "witness" | "first_responder" | "reporter" }
 interface NotificationRow { notificationType: (typeof NOTIFICATION_TYPE_OPTIONS)[number]; dueInHours: string }
 
-const INCIDENTS_URL_DEFAULTS = { search: "", facility: "all", severity: "all", status: "all", page: "1" };
+const INCIDENTS_URL_DEFAULTS = { search: "", facility: "all", resident: "all", severity: "all", status: "all", page: "1" };
 
 export default function Incidents() {
   const { user } = useAuth();
@@ -115,12 +115,12 @@ export default function Incidents() {
   // Scoped to whichever facility is currently selected in the create form (not the page's own
   // facility filter above) -- powers the Resident picker on that form only.
   const { data: formFacilityResidents } = useListResidents(form.facilityId ? { facilityId: form.facilityId } : {});
-  // Unfiltered (RLS already scopes to the caller's org) -- resolves resident_identifier values
-  // that are actually a resident's id (picked via the dropdown above) back to a name for search,
-  // since that column can hold either a real resident id or legacy/"Other" free text.
+  // Unfiltered (RLS already scopes to the caller's org) -- resolves the resident foreign key and
+  // preserves a searchable fallback for legacy free-text snapshots.
   const { data: allResidents } = useListResidents();
   const { data: incidents, isLoading, isError, error, refetch } = useListIncidents({
     facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
+    residentId: urlState.resident !== "all" ? urlState.resident : undefined,
     severity: urlState.severity !== "all" ? urlState.severity : undefined,
     status: urlState.status !== "all" ? urlState.status : undefined,
   });
@@ -152,20 +152,16 @@ export default function Incidents() {
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
   const residentById = useMemo(() => new Map((allResidents ?? []).map((r) => [r.id, r])), [allResidents]);
 
-  // resident_identifier holds either a real residents.id (picked via the dropdown) or legacy/
-  // "Other" free text -- resolve the former to a searchable name so picker-created incidents don't
-  // silently drop out of a name search just because the stored value is a UUID.
-  const residentSearchText = (identifier: string | null) => {
-    if (!identifier) return "";
-    const resident = residentById.get(identifier);
-    return resident ? `${resident.last_name} ${resident.first_name}`.toLowerCase() : identifier.toLowerCase();
+  const residentSearchText = (residentId: string | null, snapshot: string | null) => {
+    const resident = residentId ? residentById.get(residentId) : null;
+    return resident ? `${resident.last_name} ${resident.first_name}`.toLowerCase() : (snapshot ?? "").toLowerCase();
   };
 
   const searched = useMemo(() => {
     const q = urlState.search.trim().toLowerCase();
     if (!q) return incidents ?? [];
     return (incidents ?? []).filter((i) =>
-      i.narrative.toLowerCase().includes(q) || residentSearchText(i.resident_identifier).includes(q)
+      i.narrative.toLowerCase().includes(q) || residentSearchText(i.resident_id, i.resident_identifier_snapshot ?? i.resident_identifier).includes(q)
     );
   }, [incidents, urlState.search, residentById]);
   const incidentSummary = useMemo(() => summarizeIncidentAnalytics(
@@ -191,7 +187,8 @@ export default function Incidents() {
   }, [showForm, facilities]);
 
   const openCreate = () => {
-    setForm(emptyForm());
+    const selectedResident = urlState.resident !== "all" ? residentById.get(urlState.resident) : null;
+    setForm({ ...emptyForm(), residentId: selectedResident?.id ?? "", facilityId: selectedResident?.facility_id ?? "" });
     setStaffRows([]);
     setNotificationRows([]);
     setShowForm(true);
@@ -205,9 +202,6 @@ export default function Incidents() {
     const facility = facilityById.get(form.facilityId);
     if (!facility) return;
 
-    // resident_identifier is a plain text column (no resident_id FK) -- storing the resident's
-    // actual id when one was picked still lets IncidentDetail.tsx resolve it back to a name, while
-    // staying compatible with the free-text fallback for facilities with no resident records yet.
     const residentIdentifier =
       form.residentId === RESIDENT_OTHER ? (form.residentIdentifierOther.trim() || null)
       : form.residentId || null;
@@ -217,7 +211,9 @@ export default function Incidents() {
       facility_id: facility.id,
       incident_type: form.incidentType,
       occurred_at: new Date(form.occurredAt).toISOString(),
+      resident_id: form.residentId && form.residentId !== RESIDENT_OTHER ? form.residentId : null,
       resident_identifier: residentIdentifier,
+      resident_identifier_snapshot: form.residentId === RESIDENT_OTHER ? residentIdentifier : null,
       location_detail: form.locationDetail || null,
       narrative: form.narrative.trim(),
       severity: form.severity,
@@ -227,6 +223,7 @@ export default function Incidents() {
     createIncident(
       {
         ...payload,
+        idempotencyKey: `incident:${crypto.randomUUID()}`,
         staffInvolved: staffRows.filter((r) => r.employeeId).map((r) => ({ employee_id: r.employeeId, involvement_type: r.involvementType, statement: null })),
         notifications: notificationRows.map((r) => ({
           notification_type: r.notificationType,
@@ -297,6 +294,13 @@ export default function Incidents() {
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
               {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={urlState.resident} onValueChange={(v) => setUrlState({ resident: v, page: "1" })}>
+            <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Residents" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Residents</SelectItem>
+              {allResidents?.map((resident) => <SelectItem key={resident.id} value={resident.id}>{resident.last_name}, {resident.first_name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={urlState.severity} onValueChange={(v) => setUrlState({ severity: v, page: "1" })}>

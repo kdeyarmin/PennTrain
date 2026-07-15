@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListResidents } from "@/hooks/useResidents";
+import { useResidentNavigationContext } from "@/hooks/useResidentNavigationContext";
 import { useResidentCareAnalytics, useRegisterResidentDmeItem, useScheduleResidentAppointment, useStartHospitalTransfer } from "@/hooks/useResidentCareDelivery";
 import { QueryError } from "@/components/QueryState";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +44,7 @@ export default function ResidentCareDelivery() {
   const selectedOrgId = viewingOrgId ?? user?.organizationId ?? null;
   const { toast } = useToast();
   const facilities = useListFacilities({ organizationId: selectedOrgId ?? undefined }, Boolean(selectedOrgId));
-  const [facilityId, setFacilityId] = useState("");
+  const { facilityId, residentId, setFacilityId, setResidentId } = useResidentNavigationContext();
   const [from, setFrom] = useState(dateDaysAgo(30));
   const [through, setThrough] = useState(dateDaysAgo(0));
   const effectiveFacilityId = facilityId || facilities.data?.[0]?.id || "";
@@ -59,7 +60,6 @@ export default function ResidentCareDelivery() {
     return denominator > 0 ? `${Math.round((numerator / denominator) * 100)}%` : "N/A";
   }, [analytics.data]);
 
-  const [residentId, setResidentId] = useState("");
   const [equipmentType, setEquipmentType] = useState("walker");
   const [appointmentDate, setAppointmentDate] = useState("");
   const [appointmentLocation, setAppointmentLocation] = useState("");

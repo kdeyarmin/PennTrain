@@ -1,7 +1,8 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
+import { reportClientError, sanitizeClientErrorText } from "@/lib/clientErrorReporting";
 
 interface QueryErrorProps {
   /** What failed to load, phrased as a noun: "your certificates" -> "Couldn't load your certificates". */
@@ -18,7 +19,12 @@ interface QueryErrorProps {
  * announces the failure to screen readers instead of leaving a silent "no data" view.
  */
 export function QueryError({ what = "this data", error, onRetry, className }: QueryErrorProps) {
-  const message = error instanceof Error && error.message ? error.message : null;
+  const message = error instanceof Error && error.message ? sanitizeClientErrorText(error.message) : null;
+  useEffect(() => {
+    // The label is controlled application copy; do not send the raw backend error because it may
+    // contain record identifiers. Operators still get route, release, connectivity, and correlation.
+    reportClientError(new Error(`Failed to load ${what}`), "query-error");
+  }, [what]);
   return (
     <Alert variant="destructive" className={className}>
       <AlertCircle className="h-4 w-4" />

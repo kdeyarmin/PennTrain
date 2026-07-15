@@ -5,6 +5,7 @@ import { useViewingOrg } from "@/lib/viewingOrg";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListResidents } from "@/hooks/useResidents";
 import { useListEmployees } from "@/hooks/useEmployees";
+import { useResidentNavigationContext } from "@/hooks/useResidentNavigationContext";
 import {
   useCreateResidentAccountingExport,
   useCreateResidentRateAgreement,
@@ -55,8 +56,7 @@ export default function ResidentFinancialOperations() {
   const organizationId = viewingOrgId ?? user?.organizationId ?? undefined;
   const canManage = hasRole(user, "platform_admin", "org_admin", "facility_manager");
   const facilities = useListFacilities({ organizationId });
-  const [facilityId, setFacilityId] = useState("");
-  const [residentId, setResidentId] = useState("");
+  const { facilityId, residentId, setFacilityId, setResidentId } = useResidentNavigationContext();
   useEffect(() => { if (!facilityId && facilities.data?.length === 1) setFacilityId(facilities.data[0].id); }, [facilities.data, facilityId]);
   const residents = useListResidents({ facilityId, status: "active" }, { enabled: !!facilityId });
   const employees = useListEmployees({ facilityId, status: "active", organizationId }, { enabled: !!facilityId });
@@ -72,7 +72,7 @@ export default function ResidentFinancialOperations() {
 
   return <div className="space-y-6">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="flex items-center gap-2 text-2xl font-bold"><Landmark className="h-6 w-6" />Resident Financial Operations</h1><p className="text-muted-foreground">Resident contracts, charges, payments, statements, accounting exports, and safeguarded personal funds—separate from CareBase subscription billing.</p></div>{!canManage && <Badge variant="outline">Read-only audit view</Badge>}</div>
-    <Card><CardContent className="grid gap-3 pt-6 md:grid-cols-2"><Field label="Facility"><Choice value={facilityId} onChange={(value) => { setFacilityId(value); setResidentId(""); }} values={(facilities.data ?? []).map((item) => ({ value: item.id, label: item.name }))} placeholder="Select facility" /></Field><Field label="Resident"><Choice value={residentId} onChange={setResidentId} values={(residents.data ?? []).map((item) => ({ value: item.id, label: `${item.last_name}, ${item.first_name}${item.room ? ` · Room ${item.room}` : ""}` }))} placeholder="Select resident" /></Field></CardContent></Card>
+    <Card><CardContent className="grid gap-3 pt-6 md:grid-cols-2"><Field label="Facility"><Choice value={facilityId} onChange={setFacilityId} values={(facilities.data ?? []).map((item) => ({ value: item.id, label: item.name }))} placeholder="Select facility" /></Field><Field label="Resident"><Choice value={residentId} onChange={setResidentId} values={(residents.data ?? []).map((item) => ({ value: item.id, label: `${item.last_name}, ${item.first_name}${item.room ? ` · Room ${item.room}` : ""}` }))} placeholder="Select resident" /></Field></CardContent></Card>
     {!residentId ? <Empty>Select a facility and resident to open the resident financial record.</Empty> : workspace.isLoading ? <Empty>Loading resident financial operations…</Empty> : workspace.isError ? <Empty>Resident financial operations could not be loaded: {workspace.error.message}</Empty> : <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Summary title="Receivable balance" value={money(receivableBalance)} detail={data?.account?.account_number ?? "Account opens with first rate or entry"} /><Summary title="Current monthly terms" value={money(currentRate)} detail={latestRate ? `Rate version ${latestRate.version_number}` : "No rate agreement recorded"} /><Summary title="Personal funds" value={money(fundBalance)} detail={data?.fundAccount?.account_number ?? "No managed-funds account"} /><Summary title="Delinquent carried balance" value={money(delinquent)} detail={delinquent > 0 ? "Operational follow-up created" : "No carried delinquency"} alert={delinquent > 0} /></div>
       <Tabs defaultValue="receivables" className="space-y-4"><TabsList className="h-auto flex-wrap justify-start"><TabsTrigger value="receivables"><ReceiptText className="mr-2 h-4 w-4" />Charges & statements</TabsTrigger><TabsTrigger value="funds"><WalletCards className="mr-2 h-4 w-4" />Personal funds</TabsTrigger><TabsTrigger value="exports"><FileSpreadsheet className="mr-2 h-4 w-4" />Accounting exports</TabsTrigger><TabsTrigger value="history"><History className="mr-2 h-4 w-4" />Audit history</TabsTrigger></TabsList>
