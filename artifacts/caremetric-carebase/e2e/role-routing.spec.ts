@@ -305,6 +305,16 @@ test.describe("role-aware release journeys", () => {
     );
     if (publishError) throw publishError;
 
+    // Publishing a version makes it the immutable current version; activating
+    // the course is a separate catalog decision. Mirror that production
+    // workflow so the assignment-integrity trigger never relies on a draft
+    // course being assignable.
+    const { error: activateCourseError } = await platformClient
+      .from("courses")
+      .update({ status: "published" })
+      .eq("id", course.id);
+    if (activateCourseError) throw activateCourseError;
+
     const { data: assignment, error: assignmentError } = await platformClient
       .from("course_assignments")
       .insert({
