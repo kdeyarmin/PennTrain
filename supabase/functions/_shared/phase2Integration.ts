@@ -285,6 +285,7 @@ export async function phase2PinnedWebhookRequest(
       if (count === 0) throw new Error("Webhook connection closed");
       chunks.push(buffer.slice(0, count));
       total += count;
+    }
     const bytes = new Uint8Array(total);
     let cursor = 0;
     for (const chunk of chunks) { bytes.set(chunk, cursor); cursor += chunk.length; }
