@@ -43,7 +43,7 @@ const SECTIONS: Section[] = [
   {
     title: "Facilities & Employees",
     paragraphs: [
-      "Facilities (/app/facilities) are the physical locations your organization operates -- personal care homes, assisted living facilities, or other licensed sites. Each facility record carries its own facility type, which controls which compliance modules apply. The facility detail page also provides a governed license workspace for license terms, conditions, waivers, filings, renewal dates, documentation references, and an append-only change history.",
+      "Facilities (/app/facilities) are the physical locations your organization operates -- personal care homes, Assisted Living Facilities (ALF), or other licensed sites. Each facility record carries its own facility type, which controls which compliance modules apply. The facility detail page also provides a governed license workspace for license terms, conditions, waivers, filings, renewal dates, documentation references, and an append-only change history.",
       "Employees (/app/employees) is your staff roster. Every employee belongs to a home facility, and can optionally be assigned to work additional facilities for scheduling purposes. Opening an employee's detail page brings together everything about that person in one place: their training record status, credentials, background checks, assigned training items, and practicum progress, so a facility_manager preparing for an inspection doesn't have to hunt across five different pages.",
       "New employees can be added one at a time or in bulk via CSV import, which is useful when onboarding an entire facility's existing staff at once.",
     ],
