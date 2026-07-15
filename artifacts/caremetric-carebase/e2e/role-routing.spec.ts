@@ -20,9 +20,11 @@ interface TestAccount {
 const supabaseUrl = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
+const functionsUrl = process.env.SUPABASE_FUNCTIONS_URL ?? `${(supabaseUrl ?? "").replace(/\/$/, "")}/functions/v1`;
 const password = process.env.E2E_ACCOUNT_PASSWORD ?? "";
 const guestEmail = "phase1-guest@test.local";
 let verificationSlug: string;
+let residentPortalToken: string;
 
 let admin: SupabaseClient;
 let organizationId: string;
@@ -156,7 +158,7 @@ test.describe("role-aware release journeys", () => {
       },
     );
     if (guestProfileError) throw guestProfileError;
-    for (const role of ["facility_manager", "trainer"] as const) {
+    for (const role of ["org_admin", "facility_manager", "trainer"] as const) {
       const account = accounts.get(role)!;
       const { error } = await admin.from("facility_assignments").insert({
         profile_id: account.id,
@@ -181,6 +183,59 @@ test.describe("role-aware release journeys", () => {
       .select("id")
       .single();
     if (employeeError) throw employeeError;
+
+    const orgAdmin = accounts.get("org_admin")!;
+    const orgAdminAuthClient = createClient(supabaseUrl!, anonKey!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: orgAdminSignIn, error: orgAdminSignInError } =
+      await orgAdminAuthClient.auth.signInWithPassword({
+        email: orgAdmin.email,
+        password,
+      });
+    if (orgAdminSignInError || !orgAdminSignIn.session) {
+      throw (
+        orgAdminSignInError ??
+        new Error("Org admin sign-in returned no session")
+      );
+    }
+    const orgAdminClient = createClient(supabaseUrl!, anonKey!, {
+      global: {
+        headers: {
+          Authorization: "Bearer " + orgAdminSignIn.session.access_token,
+        },
+      },
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { data: resident, error: residentError } = await orgAdminClient
+      .from("residents")
+      .insert({
+        organization_id: organizationId,
+        facility_id: facilityId,
+        first_name: "Portal",
+        last_name: "Resident",
+        room: "10",
+        admission_date: new Date().toISOString().slice(0, 10),
+      })
+      .select("id")
+      .single();
+    if (residentError) throw residentError;
+    const { data: portalGrant, error: portalGrantError } =
+      await orgAdminClient
+        .rpc("create_resident_portal_grant", {
+          p_resident_id: resident.id,
+          p_designated_person_name: "Portal Representative",
+          p_relationship_label: "Designated person",
+          p_contact_email: "portal-representative@test.local",
+          p_permissions: ["schedule", "messages"],
+          p_expires_at: new Date(
+            Date.now() + 24 * 60 * 60 * 1000,
+          ).toISOString(),
+        })
+        .single();
+    if (portalGrantError) throw portalGrantError;
+    residentPortalToken = portalGrant.access_token;
 
     const { data: course, error: courseError } = await admin
       .from("courses")
@@ -297,6 +352,22 @@ test.describe("role-aware release journeys", () => {
     ).toBeVisible();
   });
 
+  test("designated-person portal removes the URL credential and gates resident data on terms", async ({ page }) => {
+    await page.goto(`/resident-portal?access=${residentPortalToken}`);
+    await expect.poll(() => new URL(page.url()).pathname).toBe("/resident-portal");
+    await expect.poll(() => new URL(page.url()).search).toBe("");
+    await expect(page.getByRole("heading", { name: "Review portal terms" })).toBeVisible();
+    await expect(page.getByText("Portal Resident")).toHaveCount(0);
+
+    await page.getByRole("checkbox").check();
+    await page.getByRole("button", { name: "Accept and continue" }).click();
+    await expect(page.getByRole("heading", { name: "Portal Resident" })).toBeVisible();
+    await expect(page.getByText(/For emergencies, call 911/)).toBeVisible();
+
+    const accessibility = await new AxeBuilder({ page }).analyze();
+    expect(accessibility.violations.filter((violation) => violation.impact === "critical")).toEqual([]);
+  });
+
   test("the demo page exposes no shared credentials and routes guests to sign in", async ({
     page,
   }) => {
@@ -330,6 +401,89 @@ test.describe("role-aware release journeys", () => {
     await expect(
       page.getByRole("heading", { name: "Sign in to your account" }),
     ).toBeVisible();
+  });
+
+  test("employee invitation creates a usable linked portal account", async () => {
+    const account = accounts.get("org_admin")!;
+    const inviteClient = createClient(supabaseUrl!, anonKey!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: signInData, error: signInError } = await inviteClient.auth.signInWithPassword({
+      email: account.email,
+      password,
+    });
+    if (signInError || !signInData.session) {
+      throw signInError ?? new Error("Org admin sign-in returned no session");
+    }
+
+    const suffix = String(Date.now());
+    const inviteEmail = `phase1-invited-employee-${suffix}@test.local`;
+    const { data: employee, error: employeeError } = await admin
+      .from("employees")
+      .insert({
+        organization_id: organizationId,
+        facility_id: facilityId,
+        first_name: "Invited",
+        last_name: "Employee",
+        email: inviteEmail,
+        job_title: "Direct Care Worker",
+        status: "active",
+      })
+      .select("id")
+      .single();
+    if (employeeError) throw employeeError;
+
+    const inviteResponse = await fetch(`${functionsUrl}/invite-user`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${signInData.session.access_token}`,
+        apikey: anonKey!,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: inviteEmail,
+        first_name: "Invited",
+        last_name: "Employee",
+        role: "employee",
+        organization_id: organizationId,
+        employee_id: employee.id,
+        redirect_to: "https://cmcarebase.com/reset-password",
+      }),
+    });
+    const inviteResult = await inviteResponse.json();
+    expect(inviteResponse.ok, JSON.stringify(inviteResult)).toBe(true);
+    expect(inviteResult.success).toBe(true);
+    expect(inviteResult.employee_id).toBe(employee.id);
+
+    const { data: linkedEmployee, error: linkedEmployeeError } = await admin
+      .from("employees")
+      .select("profile_id")
+      .eq("id", employee.id)
+      .single();
+    if (linkedEmployeeError) throw linkedEmployeeError;
+    expect(linkedEmployee.profile_id).toBe(inviteResult.user.id);
+
+    const { data: profile, error: profileError } = await admin
+      .from("profiles")
+      .select("role, organization_id")
+      .eq("id", inviteResult.user.id)
+      .single();
+    if (profileError) throw profileError;
+    expect(profile).toMatchObject({ role: "employee", organization_id: organizationId });
+  });
+
+  test("org admin guided onboarding opens the combined employee and portal flow", async ({ page }) => {
+    const account = accounts.get("org_admin")!;
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(account.email);
+    await page.getByLabel("Password").fill(account.password);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app");
+
+    await page.getByRole("link", { name: "Onboard Employee" }).click();
+    await expect(page.getByRole("dialog").getByRole("heading", { name: "Add Employee" })).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: "Send portal invite" })).toBeChecked();
+    await expect(page.getByRole("button", { name: "Create & Send Invite" })).toBeVisible();
   });
 
   for (const role of [

@@ -436,8 +436,8 @@ select results_eq(
        update public.employee_training_records set notes = 'platform-write'
        where id = '20000000-0000-4000-8000-000000000403' returning 1
      ) select count(*)::int from changed $$,
-  array[1],
-  'platform_admin can write a representative cross-tenant record'
+  array[0],
+  'platform_admin must use the controlled RPC for authoritative training evidence'
 );
 
 -- org_admin: organization-wide, never cross-tenant.
@@ -456,8 +456,8 @@ select results_eq(
      select
        (select count(*)::int from own_changed),
        (select count(*)::int from cross_changed) $$,
-  $$ values (1, 0) $$,
-  'org_admin writes its organization and cannot write another tenant'
+  $$ values (0, 0) $$,
+  'org_admin direct writes are denied across own and other tenants'
 );
 
 -- facility_manager: assigned facility only.
@@ -480,8 +480,8 @@ select results_eq(
        (select count(*)::int from assigned_changed),
        (select count(*)::int from unassigned_changed),
        (select count(*)::int from cross_changed) $$,
-  $$ values (1, 0, 0) $$,
-  'facility_manager writes assigned scope and not unassigned/cross-tenant scope'
+  $$ values (0, 0, 0) $$,
+  'facility_manager must use the controlled RPC for assigned-scope evidence'
 );
 
 -- trainer: same assigned-facility boundary for training evidence.
@@ -504,8 +504,8 @@ select results_eq(
        (select count(*)::int from assigned_changed),
        (select count(*)::int from unassigned_changed),
        (select count(*)::int from cross_changed) $$,
-  $$ values (1, 0, 0) $$,
-  'trainer writes assigned scope and not unassigned/cross-tenant scope'
+  $$ values (0, 0, 0) $$,
+  'trainer must use the controlled RPC for assigned-scope evidence'
 );
 
 -- auditor: own-organization read-only.

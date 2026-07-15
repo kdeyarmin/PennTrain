@@ -4,12 +4,12 @@ CareMetric CareBase's backend (Postgres, Auth, Storage, RLS, Edge Functions) alr
 Supabase -- see `ARCHITECTURE.md` and `README.md` for the architecture. This document covers the piece that
 was missing: running the frontend in production on **Railway**, and how the two systems fit together.
 
-> **Production URLs**: the public domain is **https://cmcarebase.com**, a custom domain
-> attached to the Railway service, which is also reachable at its Railway-provided domain
-> **https://carebase-production.up.railway.app**. Wherever this doc says `<your-domain>` or
-> `your-app.up.railway.app`, use `cmcarebase.com` for the current production environment.
-> Because the app answers on *both* origins, Supabase Auth's Redirect URL allowlist must contain
-> both (see step 1.5 below).
+> **Production URL**: the public domain is **https://cmcarebase.com**, a custom domain
+> attached to the Railway service. The previously documented
+> `carebase-production.up.railway.app` hostname currently returns Railway's
+> `Application not found` response and must not be used for redirects or application links.
+> If Railway assigns a new provider hostname, verify it in Service -> Settings -> Networking
+> before adding it to any allowlist.
 
 ## Architecture at a glance
 
@@ -62,7 +62,7 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
      CRON_SHARED_SECRET=... \
      TURNSTILE_SECRET_KEY=... \
      SIGNUP_RATE_LIMIT_PEPPER=... \
-     SIGNUP_REDIRECT_ORIGINS='https://cmcarebase.com,https://carebase-production.up.railway.app' \
+     SIGNUP_REDIRECT_ORIGINS='https://cmcarebase.com' \
      PUBLIC_APP_URL='https://cmcarebase.com'
    ```
    The AI Edge Functions default to the highest-capability generally available Claude model and
@@ -93,9 +93,8 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    `from` address.
 5. **Auth URL configuration** (Authentication -> URL Configuration in the dashboard): set **Site URL**
    to the public domain (production: `https://cmcarebase.com`) and add a **Redirect URL** for
-   every origin the app is served from -- production needs both
-   `https://cmcarebase.com/reset-password` and
-   `https://carebase-production.up.railway.app/reset-password`. `ForgotPassword.tsx` calls
+   every verified origin the app is served from -- production currently needs
+   `https://cmcarebase.com/reset-password`. `ForgotPassword.tsx` calls
    `supabase.auth.resetPasswordForEmail` with `redirectTo: window.location.origin + basePath +
    "/reset-password"` (not `/login`), and Supabase Auth silently falls back to the bare Site URL --
    no error shown anywhere -- when `redirect_to` isn't an allowlisted match, which strands the user on
@@ -160,25 +159,24 @@ can see the whole workspace and lockfile.
    - Builder: **Railpack** (Railway's current default builder; Nixpacks is deprecated on Railway
      and its hosted version cannot provision Node 24 -- it silently falls back to Node 18, which
      breaks the Vite 7 build. Do not switch this service back to Nixpacks.)
-   - Build: `corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-carebase run typecheck && pnpm --filter @workspace/caremetric-carebase run build`
+   - Build: `pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-carebase run typecheck && pnpm --filter @workspace/caremetric-carebase run build`
     (Railpack also runs its own install beforehand; the explicit one is a harmless belt-and-braces
     step, and the typecheck is the deploy's static gate; GitHub Actions runs the broader
     `check:all`-style workflow on pushes/PRs)
-   - Start: `corepack enable && pnpm --filter @workspace/caremetric-carebase run start`
+   - Start: `pnpm --filter @workspace/caremetric-carebase run start`
    - Healthcheck: `GET /health`
    - Watch paths: only changes under `artifacts/caremetric-carebase/` and the root toolchain/config files
      trigger a deploy, so pushes touching e.g. `artifacts/mockup-sandbox` or `scripts/` don't
      redeploy production.
    Railpack resolves Node from `engines.node` in package.json / `.nvmrc` / `.node-version` (all
-   pinned to Node 24 here; `RAILPACK_NODE_VERSION` would override) and installs pnpm 10.28.1 via
-   Corepack from the `packageManager` field.
+   pinned to Node 24 here; `RAILPACK_NODE_VERSION` would override) and installs pnpm 11.13.0 via
+   the package manager declared by the `packageManager` field.
    **`railpack.json` (repo root) pins `"provider": "node"` and must stay.** The repo root also
    contains `deno.json`/`deno.lock` (Deno tooling for the Supabase Edge Functions), and Railpack's
-   auto-detection prefers Deno over Node when both are present -- without the pin it builds a
-   Deno-only image with no Node/Corepack/pnpm, and the build dies with `pnpm: not found`
-   (exit 127). The `corepack enable` prefix in `buildCommand`/`startCommand` is belt-and-braces on
-   top of that: it guarantees the `pnpm` shim exists even if Railpack's own package-manager
-   install step is skipped when a custom build command is set. Because `railway.json` sets an explicit
+   auto-detection prefers Deno over Node when both are present -- without the pin it can build a
+   Deno-only image with no Node/pnpm, and the build dies with `pnpm: not found`
+   (exit 127). Railpack installs the declared package manager before the explicit commands run;
+   keep the commands in this document synchronized with `railway.json`. Because `railway.json` sets an explicit
    `startCommand`, Railpack's Vite-SPA auto-detection (serving via Caddy) is overridden and the
    custom Node server is used -- keep `startCommand` in place, or set `RAILPACK_NO_SPA=1` to make
    that explicit.
@@ -188,11 +186,10 @@ can see the whole workspace and lockfile.
    at runtime. If they are missing the build now fails loudly (guard in `vite.config.ts`); if you
    change them later, trigger a redeploy (which rebuilds) -- merely restarting the service ships
    the old bundle, and `/health` has no way to detect that (see step 5 below).
-4. Deploy. Railway assigns a `*.up.railway.app` domain -- for this project it assigned
-   `carebase-production.up.railway.app` -- and the production custom domain
-   (`cmcarebase.com`) is attached under Service -> Settings -> Networking. Every domain the
-   app answers on must be listed in step 1.5 above (Supabase Auth redirect URLs); update that
-   list and re-deploy whenever a domain is added.
+4. Deploy. The production custom domain (`cmcarebase.com`) is attached under Service ->
+   Settings -> Networking. Railway may also assign a `*.up.railway.app` hostname. Verify that
+   hostname actually routes to this service before adding it to step 1.5 (Supabase Auth redirect
+   URLs), `SIGNUP_REDIRECT_ORIGINS`, or application links.
 5. Verify `GET https://cmcarebase.com/health` returns:
    ```json
    {
@@ -224,6 +221,12 @@ can see the whole workspace and lockfile.
 | `HOST` | no | the server binds dual-stack `::` by default (Railway's recommendation); override only if you need something else |
 | `BASE_PATH` | no | e.g. `/train/`; only needed if served from a non-root subpath. Set it identically for both the build (`vite.config.ts` reads it) and the running server (`server/index.mjs` strips it before resolving files) -- both read the same `BASE_PATH` var, so one value covers both. |
 | `ASSET_ARCHIVE_DIR` | recommended | Mount a Railway volume at this path (for example `/data/release-assets`). The server archives content-hashed assets for 14 days and serves old hashes to tabs that remained open across a deploy |
+
+In Cloudflare Turnstile -> Widget -> Hostname Management, authorize `cmcarebase.com`
+for the `VITE_TURNSTILE_SITE_KEY` used by this service. A missing hostname authorization
+produces client error `110200`, leaves signup and confidential intake disabled, and cannot be
+fixed by a Railway redeploy alone. Use a separate site key or explicitly authorized hostname
+for each staging environment.
 
 ### Deployment asset continuity
 
@@ -431,8 +434,6 @@ policy at all, so it was never exploitable there, but the trigger was extended f
 
 ```bash
 curl -s https://cmcarebase.com/health | jq
-# same app on the Railway-provided domain:
-curl -s https://carebase-production.up.railway.app/health | jq
 ```
 
 Expect `status: "ok"` -- that only confirms the Node process is up and serving requests, nothing
@@ -452,9 +453,10 @@ at build time** -- after changing `VITE_` variables, redeploy (rebuild); don't t
 - Railway project creation, GitHub connection, and env var entry must be done in the Railway
   dashboard -- not scriptable from this repo.
 - Supabase Auth redirect URL and Site URL configuration must be set in the Supabase dashboard.
-  The production values: Site URL `https://cmcarebase.com`; Redirect URLs
-  `https://cmcarebase.com/reset-password`, `https://carebase-production.up.railway.app/reset-password`,
-  and both origins' root URLs for enterprise SSO.
+  The production values: Site URL `https://cmcarebase.com`; Redirect URL
+  `https://cmcarebase.com/reset-password`, plus the verified production root URL for enterprise SSO.
+- Cloudflare Turnstile Hostname Management must authorize `cmcarebase.com` for the production
+  site key. The live widget currently returns `110200` until that dashboard setting is corrected.
 - Leaked password protection (Authentication -> Policies) is still disabled and must be toggled on
   manually in the dashboard -- it's an Auth config setting, not something a SQL migration can flip.
 - Keep plain Supabase email signup disabled in Authentication -> Providers. Self-service signup

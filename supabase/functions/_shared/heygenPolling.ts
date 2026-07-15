@@ -147,11 +147,12 @@ export async function pollAndResolveHeygenVideo(
   });
   if (uploadError) return { status: "error", error: uploadError.message };
 
-  const { data: publicUrlData } = storageClient.storage.from("course-videos")
-    .getPublicUrl(storagePath);
+  // Persist a bucket locator, never a public URL. The authenticated frontend
+  // exchanges this locator for a short-lived signed URL after RLS authorizes it.
+  const videoLocator = `storage://course-videos/${storagePath}`;
 
   const { error: updateError } = await writeCourseBlock({
-    video_url: publicUrlData.publicUrl,
+    video_url: videoLocator,
     body: {
       ...block.body,
       heygen: {
@@ -163,5 +164,5 @@ export async function pollAndResolveHeygenVideo(
   });
   if (updateError) return { status: "error", error: updateError.message };
 
-  return { status: "completed", video_url: publicUrlData.publicUrl };
+  return { status: "completed", video_url: videoLocator };
 }

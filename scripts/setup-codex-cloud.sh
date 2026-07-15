@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PNPM_VERSION="${PNPM_VERSION:-10.28.1}"
+PNPM_VERSION="${PNPM_VERSION:-11.13.0}"
 DENO_VERSION="${DENO_VERSION:-v2.5.6}"
 DENO_INSTALL="${DENO_INSTALL:-$HOME/.deno}"
 DENO_INSTALLER_URL="${DENO_INSTALLER_URL:-https://deno.land/install.sh}"

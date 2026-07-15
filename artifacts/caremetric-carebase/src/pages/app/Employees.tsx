@@ -6,6 +6,7 @@ import {
   type Employee, type EmployeeSortField,
 } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useInviteUser } from "@/hooks/useProfiles";
 import { useUrlState } from "@/hooks/useUrlState";
 import { EmployeeFormFields, EMPTY_EMPLOYEE_FORM, employeeToFormData, type EmpFormData } from "@/components/employees/EmployeeFormFields";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { QueryError } from "@/components/QueryState";
 import { Users, Search, ChevronLeft, ChevronRight, UserPlus, Pencil, Trash2, Upload } from "lucide-react";
 import { Link, useSearch } from "wouter";
@@ -90,6 +92,7 @@ export default function Employees() {
   const [editEmp, setEditEmp] = useState<Employee | null>(null);
   const [deleteEmp, setDeleteEmp] = useState<Employee | null>(null);
   const [form, setForm] = useState<EmpFormData>(EMPTY_EMPLOYEE_FORM);
+  const [sendPortalInvite, setSendPortalInvite] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [bulkFile, setBulkFile] = useState<File | null>(null);
   const [bulkImporting, setBulkImporting] = useState(false);
@@ -141,6 +144,7 @@ export default function Employees() {
   const { mutate: createEmployee, isPending: creating } = useCreateEmployee();
   const { mutate: updateEmployee, isPending: updating } = useUpdateEmployee();
   const { mutate: deleteEmployee, isPending: deleting } = useDeleteEmployee();
+  const { mutate: inviteUser, isPending: inviting } = useInviteUser();
 
   const rows = employeesPage?.rows ?? [];
   const totalCount = employeesPage?.count ?? 0;
@@ -157,32 +161,41 @@ export default function Employees() {
   // Defaults the new-employee form's facility to whichever Facility filter is currently active
   // (when one is selected), instead of always resetting to none -- an admin who has filtered the
   // roster down to one facility is almost always about to add someone at that same facility.
-  const openCreate = () => {
+  const openCreate = (withPortalInvite = false) => {
     setEditEmp(null);
     setForm({ ...EMPTY_EMPLOYEE_FORM, facilityId: facilityId !== "all" ? facilityId : "none" });
+    setSendPortalInvite(withPortalInvite);
     setShowForm(true);
   };
 
-  // Dashboard's "Add Employee" quick action links here with ?action=add, expecting this
-  // dialog to open automatically. Runs once on mount only -- a single deep-link action
-  // shouldn't reopen the dialog every time the query string changes while the user is
-  // already working on this page.
+  const closeEmployeeForm = () => {
+    setShowForm(false);
+    setEditEmp(null);
+    setForm(EMPTY_EMPLOYEE_FORM);
+    setSendPortalInvite(false);
+  };
+
+  // Dashboard's "Add Employee" quick action and the "Onboard Employee" sidebar item link here
+  // with ?action=add. Re-run whenever the query string changes so navigating back to this page
+  // while already mounted (Wouter only updates the query string, no remount) still opens the dialog.
   useEffect(() => {
     const params = new URLSearchParams(locationSearch);
     const action = params.get("action");
     if (action === "add") {
-      openCreate();
+      // The guided/dashboard onboarding action opens the practical combined
+      // flow by default: roster record plus a linked self-service login.
+      openCreate(true);
     } else if (action === "bulk-import" && canManage) {
       openBulkImport();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [locationSearch]);
 
   const openEdit = (e: React.MouseEvent, emp: Employee) => {
     e.preventDefault();
     e.stopPropagation();
     setEditEmp(emp);
     setForm(employeeToFormData(emp));
+    setSendPortalInvite(false);
     setShowForm(true);
   };
 
@@ -193,6 +206,10 @@ export default function Employees() {
     }
     if (!editEmp && form.facilityId === "none") {
       toast({ title: "A facility is required", variant: "destructive" });
+      return;
+    }
+    if (!editEmp && sendPortalInvite && !form.email.trim()) {
+      toast({ title: "An email is required to send a portal invite", variant: "destructive" });
       return;
     }
     const payload = {
@@ -219,11 +236,59 @@ export default function Employees() {
           onError: (e: Error) => toast({ title: "Failed to update employee", description: e.message, variant: "destructive" }),
         },
       );
-    } else if (user?.organizationId) {
+    } else {
+      const selectedFacility = facilities?.find((facility) => facility.id === form.facilityId);
+      const organizationId = user?.role === "platform_admin"
+        ? selectedFacility?.organization_id
+        : user?.organizationId;
+      if (!organizationId) {
+        toast({
+          title: "Select a facility in an organization first",
+          description: "The employee must belong to an organization before they can be created.",
+          variant: "destructive",
+        });
+        return;
+      }
       createEmployee(
-        { ...payload, facility_id: form.facilityId, organization_id: user.organizationId },
+        { ...payload, facility_id: form.facilityId, organization_id: organizationId },
         {
-          onSuccess: () => { toast({ title: "Employee created" }); setShowForm(false); setForm(EMPTY_EMPLOYEE_FORM); },
+          onSuccess: (createdEmployee) => {
+            if (!sendPortalInvite) {
+              toast({ title: "Employee created" });
+              closeEmployeeForm();
+              return;
+            }
+
+            const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
+            inviteUser(
+              {
+                email: createdEmployee.email!,
+                firstName: createdEmployee.first_name,
+                lastName: createdEmployee.last_name,
+                role: "employee",
+                organizationId: createdEmployee.organization_id,
+                employeeId: createdEmployee.id,
+                redirectTo: `${window.location.origin}${baseUrl}/reset-password`,
+              },
+              {
+                onSuccess: () => {
+                  toast({
+                    title: "Employee created and portal invite sent",
+                    description: `${createdEmployee.email} can use the invite to set a password and access self-service.`,
+                  });
+                  closeEmployeeForm();
+                },
+                onError: (e: Error) => {
+                  toast({
+                    title: "Employee created, but the portal invite failed",
+                    description: `${e.message} Open the employee record to retry the invite.`,
+                    variant: "destructive",
+                  });
+                  closeEmployeeForm();
+                },
+              },
+            );
+          },
           onError: (e: Error) => toast({ title: "Failed to create employee", description: e.message, variant: "destructive" }),
         },
       );
@@ -333,7 +398,7 @@ export default function Employees() {
             <Button variant="outline" onClick={openBulkImport} className="shadow-sm">
               <Upload className="mr-2 h-4 w-4" /> Bulk Import
             </Button>
-            <Button onClick={openCreate} className="shadow-sm">
+            <Button onClick={() => openCreate()} className="shadow-sm">
               <UserPlus className="mr-2 h-4 w-4" /> Add Employee
             </Button>
           </div>
@@ -535,7 +600,7 @@ export default function Employees() {
         <span>{totalCount} employee{totalCount !== 1 ? "s" : ""} total</span>
       </div>
 
-      <Dialog open={showForm} onOpenChange={o => { if (!o) { setShowForm(false); setEditEmp(null); } }}>
+      <Dialog open={showForm} onOpenChange={o => { if (!o) closeEmployeeForm(); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editEmp ? "Edit Employee" : "Add Employee"}</DialogTitle>
@@ -546,10 +611,26 @@ export default function Employees() {
             facilities={facilities}
             facilityFieldMode={editEmp ? "edit-keep-current" : "create"}
           />
+          {!editEmp && (
+            <div className="flex items-start gap-3 rounded-md border p-3">
+              <Checkbox
+                id="send-portal-invite"
+                checked={sendPortalInvite}
+                onCheckedChange={(checked) => setSendPortalInvite(checked === true)}
+              />
+              <label htmlFor="send-portal-invite" className="cursor-pointer text-[13px] leading-snug">
+                <span className="font-medium">Send portal invite</span>
+                <span className="mt-1 block text-[11px] text-muted-foreground">
+                  Create and link the employee's self-service account so they can set a password,
+                  view training, schedules, credentials, and assigned work. An email is required.
+                </span>
+              </label>
+            </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowForm(false); setEditEmp(null); }}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={creating || updating} className="shadow-sm">
-              {creating || updating ? "Saving..." : editEmp ? "Save Changes" : "Create Employee"}
+            <Button variant="outline" onClick={closeEmployeeForm}>Cancel</Button>
+            <Button onClick={handleSubmit} disabled={creating || updating || inviting} className="shadow-sm">
+              {inviting ? "Sending invite..." : creating || updating ? "Saving..." : editEmp ? "Save Changes" : sendPortalInvite ? "Create & Send Invite" : "Create Employee"}
             </Button>
           </DialogFooter>
         </DialogContent>

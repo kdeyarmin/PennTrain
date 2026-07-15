@@ -12,6 +12,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useUrlState } from "@/hooks/useUrlState";
 import {
   useChangeEventResidentOptions,
   useListResidentChangeEvents,
@@ -33,6 +34,7 @@ const CATEGORIES = [
   "hospice_end_of_life_change", "other_significant_change",
 ];
 const STATUSES = ["open", "monitoring", "follow_up_due", "pending_supervisor_review", "closed"];
+const CHANGE_QUEUE_URL_DEFAULTS = { facility: "all", resident: "all", status: "active", category: "all", search: "" };
 const STATUS_CLASS: Record<string, string> = {
   open: "bg-blue-100 text-blue-900",
   monitoring: "bg-cyan-100 text-cyan-900",
@@ -59,14 +61,16 @@ export default function ChangeOfConditionQueue() {
   const organizationId = viewingOrgId ?? user?.organizationId ?? undefined;
   const isEmployee = user?.role === "employee";
   const canCreate = user?.role !== "auditor";
-  const [facilityId, setFacilityId] = useState("all");
-  const [status, setStatus] = useState("active");
-  const [category, setCategory] = useState("all");
-  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useUrlState(CHANGE_QUEUE_URL_DEFAULTS);
+  const facilityId = filters.facility;
+  const status = filters.status;
+  const category = filters.category;
+  const search = filters.search;
   const [showCreate, setShowCreate] = useState(false);
   const events = useListResidentChangeEvents({
     organizationId,
     facilityId: facilityId === "all" ? undefined : facilityId,
+    residentId: filters.resident === "all" ? undefined : filters.resident,
     status: status !== "all" && status !== "active" ? status : undefined,
     assignedProfileId: isEmployee ? user?.id : undefined,
     category: category === "all" ? undefined : category,
@@ -105,11 +109,12 @@ export default function ChangeOfConditionQueue() {
 
       <Card>
         <CardContent className="space-y-4 pt-6">
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            {!isEmployee && <Select value={facilityId} onValueChange={setFacilityId}><SelectTrigger><SelectValue placeholder="All facilities" /></SelectTrigger><SelectContent><SelectItem value="all">All facilities</SelectItem>{facilities?.map(facility => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select>}
-            <Select value={status} onValueChange={setStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">All active</SelectItem><SelectItem value="all">All statuses</SelectItem>{STATUSES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select>
-            <Select value={category} onValueChange={setCategory}><SelectTrigger><SelectValue placeholder="All categories" /></SelectTrigger><SelectContent><SelectItem value="all">All categories</SelectItem>{CATEGORIES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select>
-            <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search resident or observations" />
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            {!isEmployee && <Select value={facilityId} onValueChange={(value) => setFilters({ facility: value, resident: "all" })}><SelectTrigger><SelectValue placeholder="All facilities" /></SelectTrigger><SelectContent><SelectItem value="all">All facilities</SelectItem>{facilities?.map(facility => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select>}
+            <Select value={filters.resident} onValueChange={(value) => setFilters({ resident: value })}><SelectTrigger><SelectValue placeholder="All residents" /></SelectTrigger><SelectContent><SelectItem value="all">All residents</SelectItem>{(residentOptions.data ?? []).map((resident) => <SelectItem key={resident.id} value={resident.id}>{resident.last_name}, {resident.first_name}</SelectItem>)}</SelectContent></Select>
+            <Select value={status} onValueChange={(value) => setFilters({ status: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">All active</SelectItem><SelectItem value="all">All statuses</SelectItem>{STATUSES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select>
+            <Select value={category} onValueChange={(value) => setFilters({ category: value })}><SelectTrigger><SelectValue placeholder="All categories" /></SelectTrigger><SelectContent><SelectItem value="all">All categories</SelectItem>{CATEGORIES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select>
+            <Input value={search} onChange={event => setFilters({ search: event.target.value })} placeholder="Search resident or observations" />
           </div>
 
           {events.isError ? <QueryError what="change-of-condition events" error={events.error} onRetry={() => events.refetch()} /> : events.isLoading ? (

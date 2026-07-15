@@ -9,6 +9,7 @@ const ALLOWED_SOURCES = new Set([
   "window-error",
   "unhandled-rejection",
   "deployment-asset",
+  "query-error",
 ]);
 
 function json(body: unknown, status = 200) {

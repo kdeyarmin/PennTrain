@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { requireFreshAal2 } from "../_shared/privilegedIdentity.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -79,6 +80,22 @@ Deno.serve(async (req: Request) => {
     }
     if (targetProfile.is_active === false) {
       return json({ error: "cannot impersonate a deactivated user" }, 403);
+    }
+
+    const assurance = await requireFreshAal2(callerClient, "identity_admin");
+    if (!assurance.ok) return json({ error: assurance.error }, assurance.status);
+
+    // Authorization evidence must exist before a bearer credential is minted.
+    const { error: authorizationAuditError } = await adminClient.from("audit_logs").insert({
+      organization_id: targetProfile.organization_id,
+      actor_profile_id: callerUser.id,
+      entity_type: "impersonation",
+      entity_id: target_user_id,
+      action: "impersonation_authorized",
+      new_values: { reason: reason.trim(), target_email: targetProfile.email, assurance: "aal2" },
+    });
+    if (authorizationAuditError) {
+      return json({ error: "Failed to record authorization evidence; impersonation aborted." }, 500);
     }
 
     const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({

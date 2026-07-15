@@ -127,16 +127,17 @@ export function useRecordResidentAgreementOutcome() {
 export function useIssueResidentAgreementGuestGrant() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { residentId: string; guestLabel: string; versionIds: string[]; expiresAt: string }) => {
+    mutationFn: async (input: { residentId: string; guestLabel: string; versionIds: string[]; expiresAt: string; signerRole: string }) => {
       const { data, error } = await supabase.rpc("issue_resident_agreement_guest_grant", {
         p_resident_id: input.residentId,
         p_guest_label: input.guestLabel,
         p_version_ids: input.versionIds,
         p_expires_at: input.expiresAt,
+        p_signer_role: input.signerRole,
         p_terms_version: "resident-esign-v1",
       });
       if (error) throw error;
-      return data as { grantId: string; token: string };
+      return data as { grantId: string; token: string; signerRole: string };
     },
     onSuccess: (_data, input) => invalidate(client, input.residentId),
   });
@@ -175,6 +176,7 @@ export function useMarkResidentAgreementCopyDelivered() {
 
 export interface ResidentAgreementGuestWorkspace {
   guestLabel: string;
+  signerRole: string;
   residentName: string;
   expiresAt: string;
   termsVersion: string;
@@ -188,6 +190,7 @@ export interface ResidentAgreementGuestWorkspace {
     contentSha256: string;
     effectiveAt: string;
     requiredSignerRoles: string[];
+    signerRole: string;
     documentLabel: string | null;
     responded: boolean;
   }[];

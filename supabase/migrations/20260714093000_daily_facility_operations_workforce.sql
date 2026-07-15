@@ -133,6 +133,10 @@ create policy notification_escalation_rules_select on public.notification_escala
   public.is_platform_admin() or organization_id is null or organization_id = public.current_org_id()
 );
 
+revoke all on public.workforce_time_off_requests, public.shift_report_entries, public.shift_report_acknowledgements, public.notification_escalation_rules from public, anon, authenticated, service_role;
+grant all on public.workforce_time_off_requests, public.shift_report_entries, public.shift_report_acknowledgements, public.notification_escalation_rules to service_role;
+grant select on public.workforce_time_off_requests, public.shift_report_entries, public.shift_report_acknowledgements, public.notification_escalation_rules to authenticated;
+
 create or replace function app_private.assert_daily_ops_manager(p_facility_id uuid)
 returns public.facilities
 language plpgsql
@@ -323,7 +327,9 @@ begin
   select to_jsonb(s) into v_shift from (
     select sa.*, f.name as facility_name, u.name as unit_name, sd.name as shift_name
     from public.shift_assignments sa join public.facilities f on f.id=sa.facility_id left join public.facility_units u on u.id=sa.unit_id left join public.shift_definitions sd on sd.id=sa.shift_definition_id
-    where sa.employee_id=v_employee.id and sa.shift_date >= current_date and sa.status in ('scheduled','confirmed') order by sa.shift_date, sa.start_time limit 1
+    where sa.employee_id=v_employee.id
+      and (sa.shift_date + sa.end_time + case when sa.end_time <= sa.start_time then interval '1 day' else interval '0' end) >= localtimestamp
+      and sa.status in ('scheduled','confirmed') order by sa.shift_date, sa.start_time limit 1
   ) s;
   select jsonb_build_object(
     'employee', jsonb_build_object('id', v_employee.id, 'name', btrim(v_employee.first_name || ' ' || v_employee.last_name), 'status', v_employee.status),
@@ -376,6 +382,9 @@ values
   ('daily_ops.unfilled_shift', 'Unfilled shift coverage', 'rule_exception', 'high', interval '30 minutes', false, 'facility_manager'),
   ('daily_ops.shift_handoff', 'Urgent shift handoff follow-up', 'rule_exception', 'high', interval '8 hours', false, 'facility_manager')
 on conflict (organization_id, template_key) do nothing;
+
+revoke all on public.workforce_time_off_requests, public.shift_report_entries, public.shift_report_acknowledgements, public.notification_escalation_rules from public, anon, authenticated, service_role;
+grant select on public.workforce_time_off_requests, public.shift_report_entries, public.shift_report_acknowledgements, public.notification_escalation_rules to authenticated;
 
 revoke all on function public.submit_time_off_request(uuid,uuid,timestamptz,timestamptz,text,text) from public, anon;
 revoke all on function public.decide_time_off_request(uuid,text,text) from public, anon;

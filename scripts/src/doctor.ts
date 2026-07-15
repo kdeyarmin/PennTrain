@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { extname } from "node:path";
 
 const args = new Set(process.argv.slice(2));
 const includeNetwork = args.has("--network");
@@ -16,11 +17,33 @@ function run(
   command: string,
   args: string[] = [],
 ): { status: number | null; stdout: string; stderr: string } {
-  const result = spawnSync(command, args, { encoding: "utf8" });
+  let executable = command;
+  let executableArgs = args;
+
+  if (process.platform === "win32" && !extname(command)) {
+    const lookup = spawnSync("where.exe", [command], { encoding: "utf8" });
+    const resolved = (lookup.stdout ?? "")
+      .split(/\r?\n/)
+      .map((candidate) => candidate.trim())
+      .find((candidate) => [".exe", ".com", ".cmd", ".bat"].includes(extname(candidate).toLowerCase()));
+    if (resolved) executable = resolved;
+  }
+
+  // Node cannot execute Windows .cmd/.bat package-manager shims directly.
+  // Invoke only the already-resolved fixed command through cmd.exe; this avoids
+  // shell lookup ambiguity and the spawn `shell: true` argument-concatenation warning.
+  if (process.platform === "win32" && [".cmd", ".bat"].includes(extname(executable).toLowerCase())) {
+    const shim = executable;
+    const shimArg = `"${shim}"`;
+    executable = process.env.ComSpec ?? "cmd.exe";
+    executableArgs = ["/d", "/c", "call", shimArg, ...args];
+  }
+
+  const result = spawnSync(executable, executableArgs, { encoding: "utf8" });
   return {
     status: result.status,
     stdout: (result.stdout ?? "").trim(),
-    stderr: (result.stderr ?? "").trim(),
+    stderr: (result.stderr ?? result.error?.message ?? "").trim(),
   };
 }
 
@@ -48,7 +71,9 @@ function firstAvailableBrowser(): Check {
     "firefox",
   ];
   for (const candidate of candidates) {
-    const lookup = run("sh", ["-lc", `command -v ${candidate}`]);
+    const lookup = process.platform === "win32"
+      ? run("where.exe", [candidate])
+      : run("sh", ["-lc", `command -v ${candidate}`]);
     if (lookup.status === 0 && lookup.stdout) {
       const version = run(candidate, ["--version"]);
       return {

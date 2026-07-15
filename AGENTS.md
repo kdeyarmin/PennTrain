@@ -4,14 +4,14 @@ Instructions for Codex cloud and other AI coding agents working in this reposito
 
 ## Codex cloud environment
 
-- Configure this repository in Codex cloud settings with Node 24.x and pnpm 10.28.1.
+- Configure this repository in Codex cloud settings with Node 24.x and pnpm 11.13.0.
 - Setup script:
 
   ```bash
   bash scripts/setup-codex-cloud.sh
   ```
 
-  The setup script installs/pins pnpm 10.28.1 and Deno 2.5.6 before running
+  The setup script installs/pins pnpm 11.13.0 and Deno 2.5.6 before running
   `pnpm install --frozen-lockfile`, so `pnpm run check:edge-functions` works in
   Codex cloud instead of being skipped for a missing `deno` binary. If cloud
   egress blocks both `deno.land` and GitHub release downloads, set
@@ -53,7 +53,7 @@ Before finishing a code change, run the smallest relevant checks first. For typi
 
 ## Cursor Cloud specific instructions
 
-The Cursor Cloud VM snapshot already has Node 24.15.0 (nvm), pnpm 10.28.1, Deno
+The Cursor Cloud VM snapshot already has Node 24.15.0 (nvm), pnpm 11.13.0, Deno
 2.5.6, and Docker installed; the startup update script runs
 `bash scripts/setup-codex-cloud.sh` to refresh dependencies. Standard commands
 live in the table above — the notes below are only the non-obvious caveats for

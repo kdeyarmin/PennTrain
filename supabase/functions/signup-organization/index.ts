@@ -17,7 +17,6 @@ const REQUIRED_SERVICE_AGREEMENT_VERSION = "CareMetric-Facility-Admin-Service-Ag
 const REQUIRED_BAA_VERSION = "CareMetric-HIPAA-BAA-v2026-07-14";
 const DEFAULT_ALLOWED_APP_ORIGINS = new Set([
   "https://cmcarebase.com",
-  "https://carebase-production.up.railway.app",
 ]);
 
 class HttpError extends Error {
@@ -128,77 +127,49 @@ async function verifyTurnstile(token: string | undefined, ip: string): Promise<v
   }
 }
 
-async function recordAttempt(
+async function finalizeAttempt(
   adminClient: ReturnType<typeof createClient>,
-  {
-    emailHash,
-    ipHash,
-    success,
-    errorCode,
-    legalAccepted,
-    serviceAgreementVersion,
-    baaVersion,
-  }: {
-    emailHash: string;
-    ipHash: string;
-    success: boolean;
-    errorCode: string | null;
-    legalAccepted: boolean | null;
-    serviceAgreementVersion: string | null;
-    baaVersion: string | null;
-  },
+  attemptId: string,
+  success: boolean,
+  errorCode: string | null,
 ) {
-  const { error } = await adminClient.from("signup_attempts").insert({
-    email_hash: emailHash,
-    ip_hash: ipHash,
-    success,
-    error_code: errorCode,
-    legal_accepted: legalAccepted,
-    service_agreement_version: serviceAgreementVersion,
-    baa_version: baaVersion,
+  const { error } = await adminClient.rpc("finalize_signup_attempt", {
+    p_attempt_id: attemptId,
+    p_success: success,
+    p_error_code: errorCode,
   });
-  if (error) console.error("Failed to record signup attempt:", error.message);
+  if (error) console.error("Failed to finalize signup attempt:", error.message);
 }
 
-async function enforceRateLimits(
+async function reserveAttempt(
   adminClient: ReturnType<typeof createClient>,
   emailHash: string,
   ipHash: string,
-): Promise<void> {
-  const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  legalAccepted: boolean,
+  serviceAgreementVersion: string,
+  baaVersion: string,
+): Promise<string> {
   const maxIpAttemptsPerHour = parsePositiveInteger(Deno.env.get("SIGNUP_MAX_IP_ATTEMPTS_PER_HOUR"), 5);
   const maxEmailAttemptsPerDay = parsePositiveInteger(Deno.env.get("SIGNUP_MAX_EMAIL_ATTEMPTS_PER_DAY"), 3);
   const maxOrganizationsPerDay = parsePositiveInteger(Deno.env.get("SIGNUP_MAX_ORGANIZATIONS_PER_DAY"), 25);
-
-  const { count: ipCount, error: ipError } = await adminClient
-    .from("signup_attempts")
-    .select("id", { count: "exact", head: true })
-    .eq("ip_hash", ipHash)
-    .gte("created_at", hourAgo);
-  if (ipError) throw new HttpError(500, "rate_limit_unavailable", "Signup is temporarily unavailable. Please try again later.", ipError.message);
-  if ((ipCount ?? 0) >= maxIpAttemptsPerHour) {
-    throw new HttpError(429, "rate_limited", "Too many signup attempts. Please try again later.");
-  }
-
-  const { count: emailCount, error: emailError } = await adminClient
-    .from("signup_attempts")
-    .select("id", { count: "exact", head: true })
-    .eq("email_hash", emailHash)
-    .gte("created_at", dayAgo);
-  if (emailError) throw new HttpError(500, "rate_limit_unavailable", "Signup is temporarily unavailable. Please try again later.", emailError.message);
-  if ((emailCount ?? 0) >= maxEmailAttemptsPerDay) {
-    throw new HttpError(429, "rate_limited", "Too many signup attempts. Please try again later.");
-  }
-
-  const { count: organizationCount, error: organizationError } = await adminClient
-    .from("organizations")
-    .select("id", { count: "exact", head: true })
-    .gte("created_at", dayAgo);
-  if (organizationError) throw new HttpError(500, "rate_limit_unavailable", "Signup is temporarily unavailable. Please try again later.", organizationError.message);
-  if ((organizationCount ?? 0) >= maxOrganizationsPerDay) {
+  const { data, error } = await adminClient.rpc("reserve_signup_attempt", {
+    p_email_hash: emailHash,
+    p_ip_hash: ipHash,
+    p_max_ip_per_hour: maxIpAttemptsPerHour,
+    p_max_email_per_day: maxEmailAttemptsPerDay,
+    p_max_orgs_per_day: maxOrganizationsPerDay,
+    p_legal_accepted: legalAccepted,
+    p_service_agreement_version: serviceAgreementVersion,
+    p_baa_version: baaVersion,
+  });
+  if (!error && typeof data === "string") return data;
+  if (error?.message.includes("signup_organization_quota_reached")) {
     throw new HttpError(429, "signup_quota_reached", "Self-service signup is temporarily unavailable.");
   }
+  if (error?.message.includes("signup_ip_rate_limited") || error?.message.includes("signup_email_rate_limited")) {
+    throw new HttpError(429, "rate_limited", "Too many signup attempts. Please try again later.");
+  }
+  throw new HttpError(500, "rate_limit_unavailable", "Signup is temporarily unavailable. Please try again later.", error?.message);
 }
 
 Deno.serve(async (req: Request) => {
@@ -255,10 +226,13 @@ Deno.serve(async (req: Request) => {
 
   let organizationId: string | null = null;
   let invitedUserId: string | null = null;
+  let attemptId: string | null = null;
 
   try {
     await verifyTurnstile(body.turnstile_token, ip);
-    await enforceRateLimits(adminClient, emailHash, ipHash);
+    attemptId = await reserveAttempt(
+      adminClient, emailHash, ipHash, legalAccepted, serviceAgreementVersion, baaVersion,
+    );
 
     const { data: signupSetting, error: signupSettingError } = await adminClient
       .from("platform_settings")
@@ -319,7 +293,7 @@ Deno.serve(async (req: Request) => {
     });
     if (rpcError) throw new HttpError(500, "profile_update_failed", "Signup could not be completed. Please try again later.", rpcError.message);
 
-    await recordAttempt(adminClient, { emailHash, ipHash, success: true, errorCode: null, legalAccepted, serviceAgreementVersion, baaVersion });
+    await finalizeAttempt(adminClient, attemptId, true, null);
     return json({
       success: true,
       requiresEmailVerification: true,
@@ -344,14 +318,7 @@ const isHttpError = error instanceof HttpError;
 const message = isHttpError ? (error as HttpError).message : "An unexpected error occurred. Please try again.";
 const internalDetail = isHttpError ? (error as HttpError).internalDetail : undefined;
 if (!isHttpError || status >= 500 || internalDetail) console.error(isHttpError ? "Signup HttpError:" : "Unexpected signup error:", error, internalDetail ?? "");
-    // Do not record a rate-limit attempt for Turnstile failures: the token was never
-    // verified, so we have no proof the caller controls this email address. Counting
-    // these would let an attacker exhaust the per-email limit without ever solving
-    // Turnstile (e.g. by replaying requests with a victim's address and a bad token).
-    const isTurnstileFailure = code === "turnstile_failed" || code === "turnstile_required" || code === "turnstile_not_configured";
-    if (!isTurnstileFailure) {
-      await recordAttempt(adminClient, { emailHash, ipHash, success: false, errorCode: code, legalAccepted, serviceAgreementVersion: serviceAgreementVersion ?? null, baaVersion: baaVersion ?? null });
-    }
+    if (attemptId) await finalizeAttempt(adminClient, attemptId, false, code);
     return json({ success: false, error: message }, status);
   }
 });
