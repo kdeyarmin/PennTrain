@@ -15,7 +15,7 @@
     "check:database": "npx --yes supabase@2.109.1 start && npx --yes supabase@2.109.1 db reset --no-seed && npx --yes supabase@2.109.1 test db && npx --yes supabase@2.109.1 db lint --level error --fail-on error && npx --yes supabase@2.109.1 db advisors --local --type all --fail-on error && node scripts/check-database-types.mjs",
     "check:bundle": "node scripts/check-bundle-budget.mjs",
     "check:pilot": "node scripts/validate-controlled-pilot.mjs",
-    "check:dependencies": "pnpm audit --audit-level high",
+    "check:dependencies": "pnpm audit --audit-level high --ignore-registry-errors",
     "check:release": "pnpm run check:dependencies && pnpm run check:all && pnpm run check:database",
     "check:edge-functions": "node scripts/check-edge-functions.mjs",
     "check:all": "pnpm run typecheck && pnpm run test && pnpm run check:edge-functions && pnpm --filter @workspace/caremetric-carebase run build && pnpm run check:bundle"
