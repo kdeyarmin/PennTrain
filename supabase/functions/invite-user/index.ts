@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { resolveAppRedirect } from "../_shared/appRedirect.ts";
 import { requireFreshAal2 } from "../_shared/privilegedIdentity.ts";
@@ -16,6 +15,7 @@ function json(body: unknown, status = 200) {
 }
 
 const VALID_ROLES = ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"];
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // Falls back to this default when redirect_to is missing/invalid -- lands the invited user on the
 // same reset-password flow the frontend normally requests.
@@ -79,6 +79,7 @@ Deno.serve(async (req: Request) => {
     last_name?: string;
     role?: string;
     organization_id?: string;
+    employee_id?: string;
     redirect_to?: string;
   };
   try {
@@ -91,7 +92,9 @@ Deno.serve(async (req: Request) => {
   const first_name = typeof body.first_name === "string" ? body.first_name.trim() : undefined;
   const last_name = typeof body.last_name === "string" ? body.last_name.trim() : undefined;
   const role = typeof body.role === "string" ? body.role : undefined;
-const redirect_to = typeof body.redirect_to === "string" ? body.redirect_to.trim() : undefined;
+  const organization_id = typeof body.organization_id === "string" ? body.organization_id.trim() : undefined;
+  const employee_id = typeof body.employee_id === "string" ? body.employee_id.trim() : undefined;
+  const redirect_to = typeof body.redirect_to === "string" ? body.redirect_to.trim() : undefined;
   if (!email || !first_name || !last_name || !role) {
     return json({ error: "email, first_name, last_name, and role are required" }, 400);
   }
@@ -103,6 +106,12 @@ const redirect_to = typeof body.redirect_to === "string" ? body.redirect_to.trim
   }
   if (!VALID_ROLES.includes(role)) {
     return json({ error: `role must be one of ${VALID_ROLES.join(", ")}` }, 400);
+  }
+  if (organization_id && !UUID_PATTERN.test(organization_id)) {
+    return json({ error: "organization_id must be a valid UUID" }, 400);
+  }
+  if (employee_id && !UUID_PATTERN.test(employee_id)) {
+    return json({ error: "employee_id must be a valid UUID" }, 400);
   }
 
   const callerRole = callerProfile.role as string;
@@ -139,6 +148,49 @@ const redirect_to = typeof body.redirect_to === "string" ? body.redirect_to.trim
     if (!assurance.ok) return json({ error: assurance.error }, assurance.status);
   }
 
+  // Employee self-service depends on employees.profile_id. Inviting an employee without linking
+  // that row produces a valid login that can only show "No employee profile is linked" across
+  // the portal. Resolve and authorize the employee before sending any email. RLS on callerClient
+  // also ensures a facility_manager can only target an employee in one of their assigned
+  // facilities.
+  let employeeToLink: { id: string; profile_id: string | null; email: string | null } | null = null;
+  if (role === "employee") {
+    if (!effectiveOrgId) {
+      return json({ error: "organization_id is required for employee users" }, 400);
+    }
+
+    let employeeQuery = callerClient
+      .from("employees")
+      .select("id, profile_id, email")
+      .eq("organization_id", effectiveOrgId);
+    employeeQuery = employee_id
+      ? employeeQuery.eq("id", employee_id)
+      : employeeQuery.ilike("email", email).limit(2);
+
+    const { data: employeeMatches, error: employeeLookupError } = await employeeQuery;
+    if (employeeLookupError) {
+      return json({ error: "Unable to verify the employee record" }, 500);
+    }
+    if (!employeeMatches?.length) {
+      return json({
+        error: employee_id
+          ? "Employee not found or you do not manage their facility"
+          : "Create an employee record with this email before sending a portal invite",
+      }, 400);
+    }
+    if (employeeMatches.length > 1) {
+      return json({ error: "Multiple employee records use this email; invite from the intended employee record" }, 409);
+    }
+
+    employeeToLink = employeeMatches[0];
+    if (employeeToLink.profile_id) {
+      return json({ error: "This employee already has portal access" }, 409);
+    }
+    if ((employeeToLink.email ?? "").trim().toLowerCase() !== email) {
+      return json({ error: "The invite email must match the employee record email" }, 400);
+    }
+  }
+
   const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
   let redirectTo: string;
   try {
@@ -155,16 +207,28 @@ const redirect_to = typeof body.redirect_to === "string" ? body.redirect_to.trim
 
   // handle_new_user() already inserted a profiles row from the invite's auth.users INSERT, but it
   // only ever defaults to role="employee"/organization_id=null there -- an invite has no
-  // app_metadata to read yet at insert time. admin_update_profile() is the trusted RPC (same one
-  // admin-update-user uses) that applies the real role/organization_id: a direct service-role
-  // .update() would be silently reverted by protect_profile_privileged_fields() since this
-  // connection has no auth.uid().
-  const { data: updatedProfile, error: rpcError } = await adminClient.rpc("admin_update_profile", {
-    p_user_id: invited.user.id,
-    p_role: role,
-    p_organization_id: effectiveOrgId,
-  });
+  // app_metadata to read yet at insert time. Employee provisioning uses one trusted database
+  // transaction to set role/org and link employees.profile_id; all other roles use the existing
+  // trusted profile RPC. Direct service-role table updates are intentionally not granted.
+  const profileRpc = employeeToLink
+    ? adminClient.rpc("provision_invited_employee_profile", {
+        p_user_id: invited.user.id,
+        p_employee_id: employeeToLink.id,
+        p_organization_id: effectiveOrgId,
+      })
+    : adminClient.rpc("admin_update_profile", {
+        p_user_id: invited.user.id,
+        p_role: role,
+        p_organization_id: effectiveOrgId,
+      });
+  const { data: updatedProfile, error: rpcError } = await profileRpc;
   if (rpcError) {
+    // Log the RPC error before attempting cleanup so it is always captured, even when cleanup
+    // succeeds and the outer branch would otherwise return without any trace of what went wrong.
+    console.error("invite-user provisioning rpc failed", {
+      user_id: invited.user.id,
+      rpc_error: rpcError.message,
+    });
     // The invite creates auth.users (and therefore a default employee profile) before this RPC
     // applies the intended tenant and role. Compensate on failure so a retry cannot leave behind
     // a usable, mis-provisioned account or fail because the email already exists.
@@ -184,5 +248,6 @@ const redirect_to = typeof body.redirect_to === "string" ? body.redirect_to.trim
     success: true,
     user: { id: invited.user.id, email: invited.user.email },
     profile: updatedProfile,
+    employee_id: employeeToLink?.id ?? null,
   });
 });
