@@ -369,7 +369,7 @@ begin
     or (public.current_role() <> 'org_admin' and not public.is_assigned_to_facility(p_fac)) then
     raise exception 'Dietary operation is outside caller scope' using errcode = '42501';
   end if;
-end
+end;
 $$;
 
 create or replace function app_private.track_dietary_exception_pattern(
@@ -426,7 +426,7 @@ begin
     );
   end if;
   return v_pattern.id;
-end
+end;
 $$;
 
 create or replace function public.upsert_resident_dietary_profile(
@@ -515,7 +515,7 @@ begin
     'Resident dietary profile updated', jsonb_build_object('version', v_version), auth.uid()
   );
   return v_id;
-end
+end;
 $$;
 
 create or replace function public.create_dietary_menu_cycle(
@@ -569,7 +569,7 @@ begin
     'Dietary menu cycle created', jsonb_build_object('status', p_status, 'entryCount', jsonb_array_length(p_entries)), auth.uid()
   );
   return v_id;
-end
+end;
 $$;
 
 create or replace function public.record_resident_meal(
@@ -630,7 +630,7 @@ begin
     );
   end if;
   return v_id;
-end
+end;
 $$;
 
 create or replace function public.record_resident_hydration_round(
@@ -676,7 +676,7 @@ begin
     );
   end if;
   return v_id;
-end
+end;
 $$;
 
 create or replace function public.assign_resident_weight_monitoring(
@@ -706,7 +706,7 @@ begin
     p_assigned_profile_id, btrim(p_reason), auth.uid()
   ) returning id into v_id;
   return v_id;
-end
+end;
 $$;
 
 create or replace function public.record_resident_weight(
@@ -759,7 +759,7 @@ begin
     );
   end if;
   return v_id;
-end
+end;
 $$;
 
 create or replace function public.record_nutrition_risk_review(
@@ -800,7 +800,7 @@ begin
     update public.nutrition_risk_reviews set work_item_id = v_work where id = v_id;
   end if;
   return v_id;
-end
+end;
 $$;
 
 create or replace function public.upsert_food_safety_control_point(
@@ -839,7 +839,7 @@ begin
     if v_id is null then raise exception 'Food-safety control point not found' using errcode = 'P0002'; end if;
   end if;
   return v_id;
-end
+end;
 $$;
 
 create or replace function public.record_food_safety_log(
@@ -900,7 +900,7 @@ begin
     );
   end if;
   return v_id;
-end
+end;
 $$;
 
 create or replace function public.verify_food_safety_log(
@@ -930,7 +930,7 @@ begin
     jsonb_build_object('workItemId', v.work_item_id, 'correctedAt', p_corrected_at), auth.uid()
   );
   return true;
-end
+end;
 $$;
 
 create or replace function public.upsert_food_service_qualification(
@@ -965,7 +965,7 @@ begin
     verified_by = auth.uid(), verified_at = now(), updated_at = now()
   returning id into v_id;
   return v_id;
-end
+end;
 $$;
 
 do $$
@@ -989,7 +989,7 @@ begin
       t || '_select', t
     );
   end loop;
-end
+end;
 $$;
 
 revoke all on function app_private.dietary_row_visible(uuid,uuid),
@@ -1063,7 +1063,7 @@ begin
     'appointmentFailures', jsonb_build_object('available',false,'count',0),
     'periodStart', p_from, 'periodEnd', p_through
   );
-end
+end;
 $$;
 revoke all on function public.get_qapi_source_metrics(uuid,date,date)
 from public, anon, authenticated, service_role;
@@ -1104,7 +1104,7 @@ begin
       ) from public.weight_monitoring_assignments a where a.resident_id = p_resident_id and a.active
     )
   );
-end
+end;
 $$;
 revoke all on function public.get_resident_administrative_packet(uuid)
 from public, anon, authenticated, service_role;
