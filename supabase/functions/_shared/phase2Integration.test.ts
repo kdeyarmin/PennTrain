@@ -31,7 +31,9 @@ Deno.test("outbound signatures bind id, timestamp, and exact body with replay pr
 
 Deno.test("credentials are strict, expiring, scoped, and rotation/revocation aware", () => {
   const key = `ccb_live_abcdef012345.${"a".repeat(64)}`;
+  const legacyKey = `cmt_live_abcdef012345.${"a".repeat(64)}`;
   assertEquals(parsePhase2ApiCredential(`Bearer ${key}`), key);
+  assertEquals(parsePhase2ApiCredential(`Bearer ${legacyKey}`), legacyKey);
   assertEquals(parsePhase2ApiCredential("Bearer service-role-secret"), null);
   assertEquals(phase2CredentialIsUsable({
     status: "active", expiresAt: "2030-01-01T00:00:00Z", scopes: ["events:read"], requiredScope: "events:read",

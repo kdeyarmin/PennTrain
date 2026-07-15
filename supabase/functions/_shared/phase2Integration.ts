@@ -60,7 +60,8 @@ export async function verifyPhase2IntegrationWebhook(input: {
 }
 
 export function parsePhase2ApiCredential(authorization: string | null): string | null {
-  const match = authorization?.match(/^Bearer\s+((ccb_live_|cmt_live_)[0-9a-f]{12}\.[0-9a-f]{64})$/i);
+  // Keep accepting pre-rebrand cmt_live_ credentials until tenants rotate them.
+  const match = authorization?.match(/^Bearer\s+((?:ccb_live_|cmt_live_)[0-9a-f]{12}\.[0-9a-f]{64})$/i);
   return match?.[1] ?? null;
 }
 
