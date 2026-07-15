@@ -187,3 +187,28 @@ verify_jwt = false
 # immutable copilot receipt; model credentials remain Edge Function secrets.
 [functions.compliance-copilot]
 verify_jwt = true
+
+# Browser subscription registration is authenticated and repeats active-profile checks before
+# writing through the otherwise service-only push_subscriptions table.
+[functions.push-subscriptions]
+verify_jwt = true
+
+# Authenticated, role-scoped orchestration. Each checklist item is evaluated through the existing
+# grounded compliance-copilot contract before the immutable run receipt is appended.
+[functions.run-mock-inspection]
+verify_jwt = true
+
+[functions.generate-mock-inspection-report]
+verify_jwt = true
+
+# Authenticated first-party telemetry; the handler derives org and role from the caller and
+# accepts only allowlisted, non-identifying event properties.
+[functions.capture-product-event]
+verify_jwt = true
+
+# Cron-only workers use the same shared-secret boundary as dispatch-notifications.
+[functions.poll-regulatory-updates]
+verify_jwt = false
+
+[functions.run-data-lifecycle]
+verify_jwt = false

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 
 const CORS_HEADERS = {
@@ -65,15 +64,24 @@ Deno.serve(async (req: Request) => {
   if (attestationError) return json({ error: attestationError.message }, 500);
   if (!attestation) return json({ error: "Attestation not found" }, 404);
 
-  const employeeProfileId = (attestation.employees as unknown as { profile_id: string | null } | null)?.profile_id;
+  const typedAttestation = attestation as unknown as {
+    id: string;
+    status: string;
+    employee_id: string;
+    policy_document_version_id: string;
+    employees: { profile_id: string | null } | null;
+    policy_document_versions: { content_hash: string } | null;
+  };
+
+  const employeeProfileId = typedAttestation.employees?.profile_id;
   if (employeeProfileId !== callerUser.id) {
     return json({ error: "You may only attest to your own assigned policies" }, 403);
   }
-  if (attestation.status !== "pending") {
+  if (typedAttestation.status !== "pending") {
     return json({ error: "This policy has already been attested" }, 409);
   }
 
-  const contentHash = (attestation.policy_document_versions as unknown as { content_hash: string } | null)?.content_hash ?? null;
+  const contentHash = typedAttestation.policy_document_versions?.content_hash ?? null;
 
   const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
   const { data: updated, error: updateError } = await adminClient

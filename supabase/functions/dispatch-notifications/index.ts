@@ -1,5 +1,5 @@
-// @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import webpush from "npm:web-push@3.6.7";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
 import {
   classifyNotificationDispatchStatus,
@@ -33,8 +33,9 @@ const PROVIDER_TIMEOUT_MS = 15_000;
 
 interface PendingDelivery {
   id: string;
-  channel: "email" | "sms";
+  channel: "email" | "sms" | "web_push";
   recipient: string;
+  profile_id: string;
   notification_id: string | null;
   notifications: {
     notification_type: string;
@@ -49,6 +50,13 @@ interface PendingDelivery {
     template_key: string;
   } | null;
   organizations: { name: string } | null;
+}
+
+interface StoredPushSubscription {
+  id: string;
+  endpoint: string;
+  p256dh_key: string;
+  auth_key: string;
 }
 
 interface DeliveryAttempt {
@@ -236,6 +244,55 @@ async function sendSms(
   }
 }
 
+async function sendWebPush(
+  adminClient: ReturnType<typeof createClient<any>>,
+  profileId: string,
+  title: string,
+  body: string,
+  notificationId: string | null,
+): Promise<ProviderResult> {
+  const publicKey = Deno.env.get("WEB_PUSH_VAPID_PUBLIC_KEY");
+  const privateKey = Deno.env.get("WEB_PUSH_VAPID_PRIVATE_KEY");
+  const subject = Deno.env.get("WEB_PUSH_VAPID_SUBJECT") || "mailto:security@cmcarebase.com";
+  if (!publicKey || !privateKey) {
+    return { ok: false, retryable: false, errorCode: "provider_not_configured", error: "Web push VAPID credentials are not configured" };
+  }
+  const { data, error } = await adminClient.from("push_subscriptions")
+    .select("id,endpoint,p256dh_key,auth_key")
+    .eq("profile_id", profileId).is("disabled_at", null)
+    .or(`expiration_time.is.null,expiration_time.gt.${new Date().toISOString()}`)
+    .order("last_used_at", { ascending: false }).limit(1).maybeSingle();
+  if (error || !data) {
+    return { ok: false, retryable: false, errorCode: "subscription_unavailable", error: "No active browser push subscription exists" };
+  }
+  const subscription = data as StoredPushSubscription;
+  try {
+    webpush.setVapidDetails(subject, publicKey, privateKey);
+    const response = await webpush.sendNotification({
+      endpoint: subscription.endpoint,
+      keys: { p256dh: subscription.p256dh_key, auth: subscription.auth_key },
+    }, JSON.stringify({
+      title: title.slice(0, 160), body: body.slice(0, 500),
+      data: { url: "/me", notificationId },
+    }), { TTL: 60 * 60 * 24, urgency: "normal", topic: notificationId?.replaceAll("-", "").slice(0, 32) });
+    await adminClient.from("push_subscriptions").update({ last_used_at: new Date().toISOString() }).eq("id", subscription.id);
+    return { ok: true, retryable: false, providerId: response.headers?.location, providerStatus: "accepted", httpStatus: response.statusCode };
+  } catch (error) {
+    const status = typeof error === "object" && error && "statusCode" in error ? Number(error.statusCode) : undefined;
+    if (status === 404 || status === 410) {
+      await adminClient.from("push_subscriptions").update({ disabled_at: new Date().toISOString() }).eq("id", subscription.id);
+    }
+    return {
+      ok: false,
+      retryable: status === 408 || status === 429 || (status !== undefined && status >= 500),
+      httpStatus: status,
+      providerStatus: status === 404 || status === 410 ? "subscription_expired" : "rejected",
+      errorCode: status ? `http_${status}` : "network_error",
+      error: sanitizeProviderDetail(error instanceof Error ? error.message : String(error)) ?? "Web push provider error",
+    };
+  }
+}
+
 function twilioStatusCallbackUrl(
   supabaseUrl: string,
   callbackToken: string,
@@ -357,7 +414,7 @@ Deno.serve(async (req: Request) => {
   const { data: rows, error: fetchError } = await adminClient
     .from("notification_deliveries")
     .select(
-      "id, channel, recipient, notification_id, notifications(notification_type, title, body), notification_templates(subject_template, body_template, allowed_variables, version, template_key), organizations(name)",
+      "id, channel, recipient, profile_id, notification_id, notifications(notification_type, title, body), notification_templates(subject_template, body_template, allowed_variables, version, template_key), organizations(name)",
     )
     .in("id", claimed.map((row: { id: string }) => row.id));
   if (fetchError) {
@@ -425,7 +482,7 @@ Deno.serve(async (req: Request) => {
         rendered = safeFallback;
       }
     }
-    const provider = row.channel === "email" ? "sendgrid" : "twilio";
+    const provider = row.channel === "email" ? "sendgrid" : row.channel === "sms" ? "twilio" : "web_push";
     const outboundBody = row.channel === "sms"
       ? `${rendered.subject}: ${rendered.body} Reply STOP to opt out.`
       : rendered.body;
@@ -463,10 +520,16 @@ Deno.serve(async (req: Request) => {
         outboundBody,
         attempt.id,
       )
-      : await sendSms(
+      : row.channel === "sms" ? await sendSms(
         row.recipient,
         outboundBody,
         twilioStatusCallbackUrl(supabaseUrl, attempt.callback_token),
+      ) : await sendWebPush(
+        adminClient,
+        row.profile_id,
+        rendered.subject,
+        outboundBody,
+        row.notification_id,
       );
 
     const completion = result.ok

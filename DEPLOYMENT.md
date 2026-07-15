@@ -59,6 +59,8 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
      NOTIFICATION_FROM_EMAIL='CareMetric CareBase <notifications@cmcarebase.com>' \
      SEND_EMAIL_HOOK_SECRET='v1,whsec_...' \
      TWILIO_ACCOUNT_SID=... TWILIO_AUTH_TOKEN=... TWILIO_FROM_NUMBER=... \
+     WEB_PUSH_VAPID_PUBLIC_KEY=... WEB_PUSH_VAPID_PRIVATE_KEY=... \
+     WEB_PUSH_VAPID_SUBJECT='mailto:security@cmcarebase.com' \
      CRON_SHARED_SECRET=... \
      TURNSTILE_SECRET_KEY=... \
      SIGNUP_RATE_LIMIT_PEPPER=... \
@@ -91,6 +93,10 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    and verify the `NOTIFICATION_FROM_EMAIL` sender identity (Single Sender Verification or a
    verified domain) in the SendGrid dashboard first -- SendGrid rejects sends from an unverified
    `from` address.
+   Generate one VAPID key pair for each environment and keep the private key only in Supabase
+   Edge Function secrets. `push-subscriptions` returns the public key to authenticated browsers;
+   `dispatch-notifications` uses the same pair to sign provider requests. Rotating the pair
+   invalidates existing browser subscriptions, so plan a user re-subscription window.
 5. **Auth URL configuration** (Authentication -> URL Configuration in the dashboard): set **Site URL**
    to the public domain (production: `https://cmcarebase.com`) and add a **Redirect URL** for
    every verified origin the app is served from -- production currently needs
