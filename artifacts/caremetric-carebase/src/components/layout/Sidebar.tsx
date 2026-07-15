@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth, useSignOut } from "@/lib/auth";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { canViewPage } from "@/lib/appDomains";
+import { canViewPath } from "@/lib/appDomains";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { PCH_ALR_ONLY_FACILITY_TYPES, hasAnyFacilityType } from "@/lib/facilityTypes";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -553,7 +553,11 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const navSections = getNavSections(user.role, showPchAlrModules)
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => canViewPage(item.href, user.role)),
+      // Guided links may include an action query (for example
+      // /app/employees?action=add). canViewPage only accepts canonical page
+      // entries, while canViewPath safely strips the query before checking the
+      // role map.
+      items: section.items.filter((item) => canViewPath(item.href, user.role)),
     }))
     .filter((section) => section.items.length > 0);
 

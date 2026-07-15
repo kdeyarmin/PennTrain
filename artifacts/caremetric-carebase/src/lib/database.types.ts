@@ -29369,6 +29369,38 @@ export type Database = {
           was_stale: boolean
         }[]
       }
+      provision_invited_employee_profile: {
+        Args: {
+          p_employee_id: string
+          p_organization_id: string
+          p_user_id: string
+        }
+        Returns: {
+          created_at: string
+          email: string
+          email_opt_out: boolean
+          email_opt_out_at: string | null
+          first_name: string
+          id: string
+          is_active: boolean
+          last_name: string
+          notification_timezone: string
+          organization_id: string | null
+          phone: string | null
+          preferred_notification_channel: string
+          role: string
+          sms_consent_at: string | null
+          sms_opt_in: boolean
+          sms_opt_out_at: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       publish_course_version: {
         Args: { p_course_version_id: string }
         Returns: string

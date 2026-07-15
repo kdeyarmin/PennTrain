@@ -170,12 +170,12 @@ export function useCreateUserViaAdmin() {
  * `useInviteUser()` sends an email invite instead of setting a temporary password: the
  * `invite-user` Edge Function calls `supabase.auth.admin.inviteUserByEmail()` (queuing the
  * "invite" auth email -- routed through SendGrid via the send-auth-email Send Email Hook, same
- * as password-reset mail) then `admin_update_profile()` to apply the real role/organization_id,
- * since `handle_new_user()` has no app_metadata to read yet at invite time and only ever
- * defaults to role="employee"/organization_id=null. Authorization matrix matches
- * `useCreateUserViaAdmin()`. `redirectTo` should point at `/reset-password` (the same page
- * password-reset links use) -- accepting an invite establishes a session the same way a
- * recovery link does, and that page already handles either.
+ * as password-reset mail). Non-employee roles are finalized by `admin_update_profile()`;
+ * employee invites use an atomic RPC that applies the tenant and links `employees.profile_id`,
+ * since the self-service portal cannot function without that relationship. Authorization matrix
+ * matches `useCreateUserViaAdmin()`. `redirectTo` should point at `/reset-password` (the same page
+ * password-reset links use) -- accepting an invite establishes a session the same way a recovery
+ * link does, and that page already handles either.
  *
  * On success: 2xx with `{ success: true, user: { id, email }, profile: {...} }`. On failure:
  * non-2xx with `{ error: string }`.
@@ -186,6 +186,7 @@ export interface InviteUserRequest {
   lastName: string;
   role: string;
   organizationId: string | null;
+  employeeId?: string;
   redirectTo: string;
 }
 
@@ -193,21 +194,26 @@ export interface InviteUserResponse {
   success?: boolean;
   user?: { id: string; email: string };
   profile?: Profile;
+  employee_id?: string | null;
 }
 
 export function useInviteUser() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ email, firstName, lastName, role, organizationId, redirectTo }: InviteUserRequest) =>
+    mutationFn: ({ email, firstName, lastName, role, organizationId, employeeId, redirectTo }: InviteUserRequest) =>
       invokeEdgeFunction<InviteUserResponse>("invite-user", {
         email,
         first_name: firstName,
         last_name: lastName,
         role,
         organization_id: organizationId,
+        employee_id: employeeId,
         redirect_to: redirectTo,
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["profiles"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["profiles"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+    },
   });
 }
 

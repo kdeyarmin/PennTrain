@@ -641,12 +641,18 @@ export default function Users() {
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="col-span-full flex items-start gap-2 rounded-md border p-3">
-              <Switch checked={inviteMode} onCheckedChange={setInviteMode} id="invite-mode" />
+              <Switch
+                checked={inviteMode}
+                onCheckedChange={setInviteMode}
+                disabled={createForm.role === "employee"}
+                id="invite-mode"
+              />
               <label htmlFor="invite-mode" className="text-[13px] cursor-pointer">
                 <span className="font-medium">Send an email invite</span>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   They'll get an email with a link to set their own password. Turn this off to set a
-                  temporary password yourself instead.
+                  temporary password yourself instead. Employee accounts always use an invite so
+                  they can be linked safely to an existing employee record.
                 </p>
               </label>
             </div>
@@ -678,7 +684,13 @@ export default function Users() {
             )}
             <div className="space-y-1.5">
               <Label className="text-[13px]">Role *</Label>
-              <Select value={createForm.role} onValueChange={v => createField("role", v as Role)}>
+              <Select
+                value={createForm.role}
+                onValueChange={v => {
+                  createField("role", v as Role);
+                  if (v === "employee") setInviteMode(true);
+                }}
+              >
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {assignableRoles.map(r => (
@@ -687,6 +699,12 @@ export default function Users() {
                 </SelectContent>
               </Select>
             </div>
+            {createForm.role === "employee" && (
+              <div className="col-span-full rounded-md border border-primary/20 bg-primary/5 p-3 text-[12px] text-muted-foreground">
+                Employee portal access links to the existing employee record with the same email.
+                Add the employee to the roster first, or use the employee's “Invite to Portal” action.
+              </div>
+            )}
             {isPlatformAdmin && createForm.role !== "platform_admin" && (
               <div className="space-y-1.5">
                 <Label className="text-[13px]">Organization *</Label>
