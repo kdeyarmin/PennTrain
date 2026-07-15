@@ -77,6 +77,7 @@ function postJson(hostname, urlPath, body) {
               );
             }
           }
+        });
       },
     );
     req.on("error", reject);
