@@ -22,6 +22,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { QueryError } from "@/components/QueryState";
 import { formatDateLabel, formatTimeLabel, todayIso } from "@/lib/scheduleDates";
+import { getTimeOffRequestWindowError, normalizeTimeOffRequestWindow } from "@/lib/timeOffRequest";
 
 interface TimeOffDraft {
   startsAt: string;
@@ -61,15 +62,19 @@ export default function MySchedule() {
   const timeOffRequests = workspace.data?.timeOffRequests ?? [];
   const isLoading = employeeLoading || shiftsLoading || workspace.isLoading;
   const selectedShift = useMemo(() => upcoming.find((shift) => shift.id === swapAssignmentId), [upcoming, swapAssignmentId]);
+  const timeOffWindowError = timeOffDraft
+    ? getTimeOffRequestWindowError(timeOffDraft.startsAt, timeOffDraft.endsAt)
+    : null;
 
   const submitTimeOffRequest = async () => {
     if (!employee?.id || !facilityId || !timeOffDraft) return;
     try {
+      const requestWindow = normalizeTimeOffRequestWindow(timeOffDraft.startsAt, timeOffDraft.endsAt);
       await submitTimeOff.mutateAsync({
         employeeId: employee.id,
         facilityId,
-        startsAt: new Date(timeOffDraft.startsAt).toISOString(),
-        endsAt: new Date(timeOffDraft.endsAt).toISOString(),
+        startsAt: requestWindow.startsAtIso,
+        endsAt: requestWindow.endsAtIso,
         reason: timeOffDraft.reason.trim(),
       });
       setTimeOffDraft(null);
@@ -188,9 +193,10 @@ export default function MySchedule() {
           <div className="grid gap-4 py-2">
             <div className="space-y-2"><Label htmlFor="time-off-start">Starts</Label><Input id="time-off-start" type="datetime-local" value={timeOffDraft?.startsAt ?? ""} onChange={(event) => setTimeOffDraft((draft) => draft ? { ...draft, startsAt: event.target.value } : draft)} /></div>
             <div className="space-y-2"><Label htmlFor="time-off-end">Ends</Label><Input id="time-off-end" type="datetime-local" value={timeOffDraft?.endsAt ?? ""} onChange={(event) => setTimeOffDraft((draft) => draft ? { ...draft, endsAt: event.target.value } : draft)} /></div>
+            {timeOffWindowError ? <p className="text-sm text-destructive">{timeOffWindowError}</p> : null}
             <div className="space-y-2"><Label htmlFor="time-off-reason">Reason</Label><Textarea id="time-off-reason" value={timeOffDraft?.reason ?? ""} onChange={(event) => setTimeOffDraft((draft) => draft ? { ...draft, reason: event.target.value } : draft)} maxLength={1000} /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setTimeOffDraft(null)}>Cancel</Button><Button onClick={() => void submitTimeOffRequest()} disabled={!timeOffDraft?.startsAt || !timeOffDraft.endsAt || timeOffDraft.reason.trim().length < 5 || submitTimeOff.isPending}>Submit request</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setTimeOffDraft(null)}>Cancel</Button><Button onClick={() => void submitTimeOffRequest()} disabled={!timeOffDraft?.startsAt || !timeOffDraft.endsAt || Boolean(timeOffWindowError) || timeOffDraft.reason.trim().length < 5 || submitTimeOff.isPending}>Submit request</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
