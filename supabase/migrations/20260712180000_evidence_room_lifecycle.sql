@@ -725,11 +725,12 @@ begin
     'authorized', true);
 end;
 $function$;
--- CREATE OR REPLACE keeps the original grants (anon, authenticated). The evidence-guest-
--- download edge function calls this through a service-role client to authorize and log a
--- download before signing the stored object, so service_role needs execute as well.
+-- Restate all intended grants after CREATE OR REPLACE so the guest-facing RPC
+-- remains callable by public guests and by the evidence-guest-download Edge
+-- Function, which authorizes through a service-role client before signing the
+-- stored object.
 grant execute on function public.authorize_evidence_guest_artifact(text, uuid, text, text)
-  to service_role;
+  to anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- Facility managers can see the grants and events for rooms they manage
