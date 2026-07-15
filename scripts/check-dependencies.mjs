@@ -56,6 +56,7 @@ function postJson(hostname, urlPath, body) {
       },
       (res) => {
         let raw = "";
+        res.on("error", reject);
         res.on("data", (chunk) => (raw += chunk));
         res.on("end", () => {
           if (res.statusCode !== 200) {
