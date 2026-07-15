@@ -30,7 +30,7 @@ function response(body: unknown, status = 200) {
 function csvCell(value: unknown): string {
   if (value === null || value === undefined) return "";
   let rendered = typeof value === "object" ? JSON.stringify(value) : String(value);
-  if (/^[=+\-@]/.test(rendered)) rendered = `'${rendered}`;
+  if (/^\s*[=+\-@]/.test(rendered)) rendered = `'${rendered}`;
   return `"${rendered.replaceAll('"', '""')}"`;
 }
 
@@ -92,14 +92,27 @@ async function documentManifest(
   admin: SupabaseClient,
   organizationId: string,
 ): Promise<JsonRow[]> {
-  const manifest: JsonRow[] = [];
+  type DocRef = { sourceTable: string; row: JsonRow; bucket: string | null; path: string | null };
+  const docRefs: DocRef[] = [];
   for (const source of DOCUMENT_TABLES) {
     const rows = await fetchAllByOrganization(admin, source.table, organizationId);
     for (const row of rows) {
       const rawBucket = row[source.bucketColumn];
       const rawPath = row[source.pathColumn];
-      const bucket = typeof rawBucket === "string" ? rawBucket : null;
-      const path = typeof rawPath === "string" ? rawPath : null;
+      docRefs.push({
+        sourceTable: source.table,
+        row,
+        bucket: typeof rawBucket === "string" ? rawBucket : null,
+        path: typeof rawPath === "string" ? rawPath : null,
+      });
+    }
+  }
+
+  const CONCURRENCY = 10;
+  const manifest: JsonRow[] = [];
+  for (let i = 0; i < docRefs.length; i += CONCURRENCY) {
+    const batch = docRefs.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(batch.map(async ({ sourceTable, row, bucket, path }) => {
       let signedUrl: string | null = null;
       let signedUrlError: string | null = null;
       if (bucket && path) {
@@ -107,16 +120,17 @@ async function documentManifest(
         signedUrl = data?.signedUrl ?? null;
         signedUrlError = error?.message ?? null;
       }
-      manifest.push({
-        sourceTable: source.table,
+      return {
+        sourceTable,
         recordId: row.id ?? null,
         bucket,
         path,
         signedUrl,
         signedUrlExpiresInSeconds: signedUrl ? 3600 : null,
         signedUrlError,
-      });
-    }
+      };
+    }));
+    manifest.push(...results);
   }
   return manifest;
 }

@@ -683,7 +683,7 @@ begin
     set status = 'processing',
         attempt_count = j.attempt_count + 1,
         locked_at = now(),
-        lock_token = gen_random_uuid(),
+        lock_token = extensions.gen_random_uuid(),
         last_error_code = null,
         last_error_message = null,
         updated_at = now()
@@ -796,6 +796,8 @@ stable
 security definer
 set search_path = ''
 as $function$
+declare
+  v_has_id boolean;
 begin
   if coalesce(auth.jwt()->>'role','') <> 'service_role' then
     raise exception 'Only the trusted export worker may read export rows' using errcode = '42501';
@@ -807,10 +809,24 @@ begin
      ) then
     raise exception 'Organization export table request is invalid' using errcode = '22023';
   end if;
-  return query execute format(
-    'select to_jsonb(t) from public.%I t where t.organization_id = $1 order by t.ctid offset $2 limit $3',
-    p_table_name
-  ) using p_organization_id, p_offset, p_limit;
+  select exists (
+    select 1 from pg_catalog.pg_attribute a
+    join pg_catalog.pg_class c on c.oid = a.attrelid
+    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = p_table_name
+      and a.attname = 'id' and a.attnum > 0 and not a.attisdropped
+  ) into v_has_id;
+  if v_has_id then
+    return query execute format(
+      'select to_jsonb(t) from public.%I t where t.organization_id = $1 order by t.id offset $2 limit $3',
+      p_table_name
+    ) using p_organization_id, p_offset, p_limit;
+  else
+    return query execute format(
+      'select to_jsonb(t) from public.%I t where t.organization_id = $1 order by t.ctid offset $2 limit $3',
+      p_table_name
+    ) using p_organization_id, p_offset, p_limit;
+  end if;
 end;
 $function$;
 
