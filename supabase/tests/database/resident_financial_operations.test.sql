@@ -1,5 +1,5 @@
 begin;
-select plan(79);
+select plan(80);
 
 select has_table('public','resident_financial_accounts','resident receivables use dedicated accounts');
 select has_table('public','resident_rate_agreements','resident rate agreements are versioned financial terms');
