@@ -39,10 +39,7 @@ grant select on public.saved_report_definitions,public.saved_report_versions,pub
 revoke all on function public.record_report_snapshot(uuid,uuid,timestamptz,jsonb,jsonb,jsonb,jsonb,text,jsonb),public.issue_evidence_guest_grant(uuid,text,text,uuid[],timestamptz,boolean),public.authorize_evidence_guest_artifact(text,uuid,text,text) from public,anon,authenticated,service_role;
 grant execute on function public.record_report_snapshot(uuid,uuid,timestamptz,jsonb,jsonb,jsonb,jsonb,text,jsonb) to service_role;
 grant execute on function public.issue_evidence_guest_grant(uuid,text,text,uuid[],timestamptz,boolean) to authenticated;
--- The public evidence-guest-download Edge Function invokes this through a
--- service-role client before minting the short-lived storage URL, so the
--- service_role role must retain EXECUTE in addition to the guest-facing roles.
-grant execute on function public.authorize_evidence_guest_artifact(text,uuid,text,text) to anon,authenticated,service_role;
+grant execute on function public.authorize_evidence_guest_artifact(text,uuid,text,text) to anon,authenticated;
 
 create or replace function public.get_closed_loop_compliance_control_plane() returns jsonb language sql stable security invoker set search_path='' as $$select jsonb_build_object(
 'work',jsonb_build_object('open',(select count(*) from public.work_items where state in('open','in_progress','blocked')),'overdue',(select count(*) from public.work_items where state not in('closed','canceled') and due_at<now()),'urgent',(select count(*) from public.work_items where state not in('closed','canceled') and priority='urgent'),'pendingApproval',(select count(*) from public.work_items where state='pending_approval')),
