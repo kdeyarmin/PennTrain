@@ -13,6 +13,7 @@ export type IncidentNotificationUpdate = TablesUpdate<"incident_notifications">;
 
 export interface ListIncidentsFilters {
   facilityId?: string;
+  residentId?: string;
   incidentType?: string;
   severity?: string;
   status?: string;
@@ -24,6 +25,7 @@ export function useListIncidents(filters: ListIncidentsFilters = {}) {
     queryFn: async () => {
       let query = supabase.from("incidents").select("*").order("occurred_at", { ascending: false });
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+      if (filters.residentId) query = query.eq("resident_id", filters.residentId);
       if (filters.incidentType) query = query.eq("incident_type", filters.incidentType);
       if (filters.severity) query = query.eq("severity", filters.severity);
       if (filters.status) query = query.eq("status", filters.status);
@@ -47,37 +49,39 @@ export function useGetIncident(id: string | undefined) {
 }
 
 export interface CreateIncidentPayload extends IncidentInsert {
+  idempotencyKey?: string;
   staffInvolved?: Array<Pick<IncidentStaffInvolvedInsert, "employee_id" | "involvement_type" | "statement">>;
   notifications?: Array<Pick<IncidentNotificationInsert, "notification_type" | "due_at">>;
 }
 
-// Parent-then-children pattern (mirrors useCreateCompetencyRecord in useCompetencies.ts):
-// the incident row is the source of truth, so it's inserted first; if either child batch then
-// fails, the incident itself is already saved and the error says exactly what didn't attach.
+// One RPC persists the parent, staff, and required-notification rows in a single transaction.
+// The idempotency key belongs to the mutation variables so React Query retries reuse it.
 export function useCreateIncident() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ staffInvolved, notifications, ...incidentPayload }: CreateIncidentPayload) => {
-      const { data: incident, error: incidentError } = await supabase
-        .from("incidents").insert(incidentPayload).select().single();
-      if (incidentError) throw incidentError;
-
-      // organization_id/facility_id are re-derived server-side from incident_id by
-      // stamp_scope_from_incident() -- included here only to satisfy the not-null insert types.
-      if (staffInvolved?.length) {
-        const rows = staffInvolved.map((s) => ({
-          incident_id: incident.id, organization_id: incident.organization_id, facility_id: incident.facility_id, ...s,
-        }));
-        const { error } = await supabase.from("incident_staff_involved").insert(rows);
-        if (error) throw new Error(`The incident was saved, but recording staff involvement failed: ${error.message}. Incident id: ${incident.id}.`);
-      }
-      if (notifications?.length) {
-        const rows = notifications.map((n) => ({
-          incident_id: incident.id, organization_id: incident.organization_id, facility_id: incident.facility_id, ...n,
-        }));
-        const { error } = await supabase.from("incident_notifications").insert(rows);
-        if (error) throw new Error(`The incident was saved, but scheduling required notifications failed: ${error.message}. Incident id: ${incident.id}.`);
-      }
+    mutationFn: async ({ staffInvolved, notifications, idempotencyKey, ...incidentPayload }: CreateIncidentPayload) => {
+      const rpc = supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: Incident | null; error: { message: string } | null }>;
+      const residentId = "resident_id" in incidentPayload && typeof incidentPayload.resident_id === "string"
+        ? incidentPayload.resident_id
+        : typeof incidentPayload.resident_identifier === "string" && /^[0-9a-f-]{36}$/iu.test(incidentPayload.resident_identifier)
+          ? incidentPayload.resident_identifier
+          : null;
+      const { data: incident, error } = await rpc("create_incident_atomic", {
+        p_organization_id: incidentPayload.organization_id,
+        p_facility_id: incidentPayload.facility_id,
+        p_incident_type: incidentPayload.incident_type,
+        p_occurred_at: incidentPayload.occurred_at,
+        p_resident_id: residentId,
+        p_resident_identifier_snapshot: residentId ? null : incidentPayload.resident_identifier ?? null,
+        p_location_detail: incidentPayload.location_detail ?? null,
+        p_narrative: incidentPayload.narrative,
+        p_severity: incidentPayload.severity ?? "moderate",
+        p_staff_involved: staffInvolved ?? [],
+        p_notifications: notifications ?? [],
+        p_idempotency_key: idempotencyKey ?? `incident:${crypto.randomUUID()}`,
+      });
+      if (error) throw new Error(error.message);
+      if (!incident) throw new Error("The incident transaction completed without returning a record.");
       return incident;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["incidents"] }),
@@ -211,6 +215,40 @@ export function useGenerateIncidentReportPdf() {
         throw new Error(data?.error ?? "Failed to generate incident report PDF");
       }
       return { url: data.url, path: data.path, expiresIn: data.expiresIn };
+    },
+  });
+}
+
+export interface GenerateIncidentStateFormPdfResult {
+  url: string;
+  fieldsFilled: number;
+  sourceLabel: string;
+  sourceUrl: string;
+  expiresIn: number;
+}
+
+interface GenerateIncidentStateFormPdfResponse extends GenerateIncidentStateFormPdfResult {
+  success?: boolean;
+  error?: string;
+}
+
+// Same "always regenerates" posture as useGenerateIncidentReportPdf -- the official DHS form is
+// filled from whatever's currently on the incident, so re-running after an update is expected.
+export function useGenerateIncidentStateFormPdf() {
+  return useMutation({
+    mutationFn: async (incidentId: string): Promise<GenerateIncidentStateFormPdfResult> => {
+      const { data, error } = await supabase.functions.invoke<GenerateIncidentStateFormPdfResponse>(
+        "generate-incident-state-form-pdf",
+        { body: { incidentId } },
+      );
+      if (error) throw error;
+      if (!data || data.success === false || !data.url) {
+        throw new Error(data?.error ?? "Failed to generate the DHS reportable incident form");
+      }
+      return {
+        url: data.url, fieldsFilled: data.fieldsFilled,
+        sourceLabel: data.sourceLabel, sourceUrl: data.sourceUrl, expiresIn: data.expiresIn,
+      };
     },
   });
 }

@@ -7,7 +7,7 @@ alter table public.work_item_templates add constraint work_item_templates_source
     'violation', 'inspection', 'incident', 'near_miss', 'training_gap',
     'exclusion_match', 'credential', 'policy', 'rule_exception', 'move_in',
     'complaint', 'support_plan', 'qapi', 'change_of_condition',
-    'dietary_exception', 'food_safety', 'resident_calendar'
+    'dietary_exception', 'food_safety', 'emergency', 'resident_calendar'
   ));
 
 insert into public.work_item_templates(
@@ -279,6 +279,7 @@ begin
     select * into v_vehicle from public.facility_transport_vehicles
     where id = (p_event->>'vehicleId')::uuid and facility_id = v_resident.facility_id and status = 'available';
     if not found then raise exception 'Available vehicle not found' using errcode = 'P0002'; end if;
+    perform pg_advisory_xact_lock(hashtext('resident_calendar_vehicle'), hashtext(v_vehicle.id::text));
     if exists (
       select 1 from public.resident_service_calendar_events existing
       where existing.vehicle_id = v_vehicle.id and existing.status = 'scheduled'
@@ -364,11 +365,14 @@ begin
     or length(btrim(coalesce(p_reason, ''))) < 5 then
     raise exception 'Calendar reschedule is invalid' using errcode = '22023';
   end if;
-  if v.vehicle_id is not null and exists (
-    select 1 from public.resident_service_calendar_events existing
-    where existing.id <> v.id and existing.vehicle_id = v.vehicle_id and existing.status = 'scheduled'
-      and tstzrange(existing.starts_at, existing.ends_at, '[)') && tstzrange(p_starts_at, p_ends_at, '[)')
-  ) then raise exception 'Vehicle is already assigned during this time' using errcode = '23P01'; end if;
+  if v.vehicle_id is not null then
+    perform pg_advisory_xact_lock(hashtext('resident_calendar_vehicle'), hashtext(v.vehicle_id::text));
+    if exists (
+      select 1 from public.resident_service_calendar_events existing
+      where existing.id <> v.id and existing.vehicle_id = v.vehicle_id and existing.status = 'scheduled'
+        and tstzrange(existing.starts_at, existing.ends_at, '[)') && tstzrange(p_starts_at, p_ends_at, '[)')
+    ) then raise exception 'Vehicle is already assigned during this time' using errcode = '23P01'; end if;
+  end if;
   if exists (
     select 1 from public.resident_service_calendar_event_staff staff
     join public.resident_service_calendar_event_staff assigned on assigned.employee_id = staff.employee_id

@@ -18,6 +18,7 @@ describe("role-based page visibility", () => {
     expect(employeePaths).toEqual(expect.arrayContaining([
       "/me",
       "/me/schedule",
+      "/me/shift",
       "/me/services",
       "/me/change-of-condition",
       "/me/courses",
@@ -64,6 +65,12 @@ describe("role-based page visibility", () => {
     expect(canViewPage("/app/employees", "trainer")).toBe(false);
     expect(canViewPath("/trainer/employees/employee-1", "trainer")).toBe(true);
     expect(canViewPath("/app/employees/employee-1", "trainer")).toBe(false);
+  });
+
+  it("authorizes guided workflow links that include an action query", () => {
+    expect(canViewPath("/app/employees?action=add", "org_admin")).toBe(true);
+    expect(canViewPath("/app/employees?action=add", "facility_manager")).toBe(true);
+    expect(canViewPath("/app/employees?action=add", "employee")).toBe(false);
   });
 
   it("shows pending approvals to operational training reviewers only", () => {

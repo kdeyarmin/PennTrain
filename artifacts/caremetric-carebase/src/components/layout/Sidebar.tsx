@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth, useSignOut } from "@/lib/auth";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { canViewPage } from "@/lib/appDomains";
+import { canViewPath } from "@/lib/appDomains";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { PCH_ALR_ONLY_FACILITY_TYPES, hasAnyFacilityType } from "@/lib/facilityTypes";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -69,6 +69,8 @@ import {
   MessageSquareWarning,
   Utensils,
   Landmark,
+  Siren,
+  HeartPulse,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -104,7 +106,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/admin/courses/new-ai", label: "AI Course Builder", icon: Sparkles },
           { href: "/admin/training-plans", label: "Training Plans", icon: ListChecks },
           { href: "/admin/ai-generations", label: "AI Generation Log", icon: BarChart3 },
-          { href: "/admin/document-analyzer", label: "Document Analyzer (Prototype)", icon: ScanText },
+          { href: "/admin/document-analyzer", label: "Document Analyzer", icon: ScanText },
           { href: "/admin/help-content", label: "Help Center Content", icon: HelpCircle },
         ]
       },
@@ -120,11 +122,13 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/admin/alerts", label: "Alerts", icon: Bell },
           { href: "/app/work", label: "Operational Work", icon: ClipboardList },
           { href: "/app/services", label: "Resident Services", icon: CalendarDays },
+          { href: "/app/resident-care-delivery", label: "Care Delivery", icon: HeartPulse },
           { href: "/app/admissions", label: "Admissions & Census", icon: BedDouble },
           { href: "/app/change-of-condition", label: "Change Follow-Up", icon: Activity },
           ...(showPchAlrModules ? [{ href: "/app/dietary-operations", label: "Dietary & Food Safety", icon: Utensils }] : []),
           ...(showPchAlrModules ? [{ href: "/app/resident-services-calendar", label: "Resident Calendar", icon: CalendarDays }] : []),
           ...(showPchAlrModules ? [{ href: "/app/resident-finance", label: "Resident Finance", icon: Landmark }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/medication-integration", label: "Medication Integration", icon: Pill }] : []),
           { href: "/app/qapi", label: "QAPI & Quality", icon: BarChart3 },
           { href: "/admin/audit", label: "Audit Log", icon: ShieldAlert },
           { href: "/admin/notifications", label: "Notification Delivery", icon: Send },
@@ -171,7 +175,9 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/employees", label: "Employees", icon: Users },
           { href: "/app/schedule", label: "Schedule", icon: CalendarDays },
           { href: "/app/workforce-operations", label: "Workforce Operations", icon: UserRoundCheck },
+          ...(showPchAlrModules ? [{ href: "/app/shift-handoffs", label: "Shift Handoff Inbox", icon: ClipboardList }] : []),
           ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & Equipment", icon: Flame }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/emergency", label: "Emergency Operations", icon: Siren }] : []),
           ...(showPchAlrModules ? [{ href: "/app/maintenance", label: "Maintenance & Work Orders", icon: Wrench }] : []),
         ]
       },
@@ -214,9 +220,11 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/dietary-operations", label: "Dietary & Food Safety", icon: Utensils },
           { href: "/app/resident-services-calendar", label: "Resident Calendar", icon: CalendarDays },
           { href: "/app/resident-finance", label: "Resident Finance", icon: Landmark },
+          { href: "/app/medication-integration", label: "Medication Integration", icon: Pill },
           { href: "/app/qapi", label: "QAPI & Quality", icon: BarChart3 },
           { href: "/app/state-forms", label: "State Forms", icon: ClipboardList },
           { href: "/app/services", label: "Resident Services", icon: CalendarDays },
+          { href: "/app/resident-care-delivery", label: "Care Delivery", icon: HeartPulse },
         ]
       }] : []),
       {
@@ -244,6 +252,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/evidence", label: "Evidence Room", icon: FolderLock },
           { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
           { href: "/app/template-documents", label: "Template Documents", icon: FileStack },
+          { href: "/app/dhs-forms", label: "DHS Forms Library", icon: Landmark },
           { href: "/app/documents", label: "Documents", icon: Files },
         ]
       },
@@ -283,6 +292,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/facilities", label: "Facilities", icon: Building2 },
           { href: "/app/employees", label: "Employees", icon: Users },
           ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & Equipment", icon: Flame }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/emergency", label: "Emergency Operations", icon: Siren }] : []),
           ...(showPchAlrModules ? [{ href: "/app/maintenance", label: "Maintenance & Work Orders", icon: Wrench }] : []),
         ]
       },
@@ -315,9 +325,11 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/dietary-operations", label: "Dietary & Food Safety", icon: Utensils },
           { href: "/app/resident-services-calendar", label: "Resident Calendar", icon: CalendarDays },
           { href: "/app/resident-finance", label: "Resident Finance", icon: Landmark },
+          { href: "/app/medication-integration", label: "Medication Integration", icon: Pill },
           { href: "/app/qapi", label: "QAPI & Quality", icon: BarChart3 },
           { href: "/app/state-forms", label: "State Forms", icon: ClipboardList },
           { href: "/app/services", label: "Resident Services", icon: CalendarDays },
+          { href: "/app/resident-care-delivery", label: "Care Delivery", icon: HeartPulse },
         ]
       }] : []),
       {
@@ -343,6 +355,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/evidence", label: "Evidence Room", icon: FolderLock },
           { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
           { href: "/app/template-documents", label: "Template Documents", icon: FileStack },
+          { href: "/app/dhs-forms", label: "DHS Forms Library", icon: Landmark },
           { href: "/app/documents", label: "Documents", icon: Files },
           { href: "/app/audit", label: "Audit Log", icon: ShieldAlert },
         ]
@@ -419,6 +432,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
       {
         title: "Schedule & Courses",
         items: [
+          { href: "/me/shift", label: "My Shift", icon: ClipboardList },
           { href: "/me/schedule", label: "My Schedule", icon: CalendarDays },
           { href: "/me/services", label: "My Services", icon: ClipboardCheck },
           { href: "/me/change-of-condition", label: "Change Follow-Up", icon: Activity },
@@ -542,7 +556,11 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const navSections = getNavSections(user.role, showPchAlrModules)
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => canViewPage(item.href, user.role)),
+      // Guided links may include an action query (for example
+      // /app/employees?action=add). canViewPage only accepts canonical page
+      // entries, while canViewPath safely strips the query before checking the
+      // role map.
+      items: section.items.filter((item) => canViewPath(item.href, user.role)),
     }))
     .filter((section) => section.items.length > 0);
 

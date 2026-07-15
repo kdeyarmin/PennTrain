@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { ShieldAlert, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { auditActionDescription, auditEntityLabel, auditEntityRoute } from "@/lib/auditEntityResolver";
 
 // audit_log_trigger() (see supabase/migrations/20260704053624_compliance_rpcs_and_audit_trigger.sql)
 // writes actions as `${tg_table_name}_${created|updated|deleted}`, e.g. "employees_created".
@@ -122,12 +123,6 @@ export default function AuditLog() {
 
   // Role-aware base paths for entity types with a mirrored /admin and /app detail route -- same
   // pattern already used by Alerts.tsx/GlobalSearch.tsx/FacilityDetail.tsx for cross-page links.
-  const employeeBase = isPlatformAdmin ? "/admin/employees" : "/app/employees";
-  const facilityBase = isPlatformAdmin ? "/admin/facilities" : "/app/facilities";
-  const incidentBase = isPlatformAdmin ? "/admin/incidents" : "/app/incidents";
-  const inspectionBase = isPlatformAdmin ? "/admin/inspections" : "/app/inspections";
-  const courseBase = isPlatformAdmin ? "/admin/courses" : "/app/courses";
-  const supportTicketBase = isPlatformAdmin ? "/admin/support-tickets" : "/app/help/tickets";
 
   async function downloadExportManifest() {
     setIsExporting(true);
@@ -168,9 +163,7 @@ export default function AuditLog() {
   // human-readable label; every other entity_type keeps the raw #<uuid> fallback rather than
   // attempting unbounded generic resolution across the dozens of other audited tables.
   function getEntityLabel(entityType: string, entityId: string): string {
-    if (entityType === "employees") return employeeNameById.get(entityId) ?? `#${entityId}`;
-    if (entityType === "facilities") return facilityNameById.get(entityId) ?? `#${entityId}`;
-    return `#${entityId}`;
+    return auditEntityLabel(entityType, entityId, { employeeNameById, facilityNameById });
   }
 
   // Maps an audit_logs row to the detail route for that record, using the same role-aware base
@@ -180,26 +173,7 @@ export default function AuditLog() {
   // sub-resource tables with no page of their own) falls through to plain, unlinked text below
   // rather than guessing a route that doesn't exist.
   function getEntityHref(entityType: string, entityId: string): string | null {
-    switch (entityType) {
-      case "employees": return `${employeeBase}/${entityId}`;
-      case "facilities": return `${facilityBase}/${entityId}`;
-      case "incidents": return `${incidentBase}/${entityId}`;
-      case "inspection_items": return `${inspectionBase}/${entityId}`;
-      case "courses": return `${courseBase}/${entityId}`;
-      case "support_tickets": return `${supportTicketBase}/${entityId}`;
-      // No /admin mirror for these three -- their allowedRoles in App.tsx exclude platform_admin
-      // (dhs_violations_select/residents_select/policy_documents_select RLS agree) -- platform_admin
-      // can still see these rows via the organization filter above, so omit the link entirely for
-      // that viewer rather than send them to a route that immediately redirects them away (same
-      // reasoning Alerts.tsx already applies to its own resident deep link).
-      case "dhs_violations": return isPlatformAdmin ? null : `/app/violations/${entityId}`;
-      case "residents": return isPlatformAdmin ? null : `/app/residents/${entityId}`;
-      case "policy_documents": return isPlatformAdmin ? null : `/app/policy-documents/${entityId}`;
-      // The reverse case: only platform_admin has a detail route for a single organization --
-      // org_admin/auditor manage their own org through Settings, not a per-id page.
-      case "organizations": return isPlatformAdmin ? `/admin/organizations/${entityId}` : null;
-      default: return null;
-    }
+    return auditEntityRoute(entityType, entityId, user?.role);
   }
 
   return (
@@ -271,7 +245,8 @@ export default function AuditLog() {
           ) : (
             <div className="space-y-2">
               {logs.map((log) => {
-                const { color, label } = getActionDisplay(log.action);
+                const { color } = getActionDisplay(log.action);
+                const label = auditActionDescription(log.action, log.entity_type);
                 const actorName = log.actor_profile_id ? profileNameMap?.[log.actor_profile_id] ?? "Unknown user" : "System";
                 const orgName = log.organization_id ? orgNameMap[log.organization_id] : undefined;
                 const entityLabel = log.entity_id ? getEntityLabel(log.entity_type, log.entity_id) : null;

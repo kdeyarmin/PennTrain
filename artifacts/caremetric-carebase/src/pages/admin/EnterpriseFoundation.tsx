@@ -6,9 +6,11 @@ import {
   CreditCard,
   Fingerprint,
   KeyRound,
+  LineChart,
   Network,
   RefreshCw,
   Scale,
+  ShieldCheck,
   UsersRound,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -20,6 +22,7 @@ import {
   useCreateBillingSession,
   useEnterpriseFoundation,
   useEnterpriseRpcCommand,
+  useSaveEnterpriseSnapshot,
   useEnterpriseTableInsert,
 } from "@/hooks/useEnterpriseFoundation";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +36,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { ENTERPRISE_OPERATION_GUARDRAILS, summarizeSetupProgress, type GuidedSetupItem } from "@/lib/enterpriseOperations";
 
 function isScalar(value: EnterpriseJson): value is string | number | boolean | null {
   return value === null || ["string", "number", "boolean"].includes(typeof value);
@@ -1080,6 +1084,99 @@ function IntegrationProvisioningCommand() {
   );
 }
 
+function EnterpriseOperationsPanel({ operations, setup }: { operations: EnterpriseRecord; setup: EnterpriseRecord }) {
+  const { toast } = useToast();
+  const saveSnapshot = useSaveEnterpriseSnapshot();
+  const metrics = (operations.metrics && typeof operations.metrics === "object" && !Array.isArray(operations.metrics))
+    ? operations.metrics as Record<string, EnterpriseRecord>
+    : {};
+  const setupItems = Array.isArray(setup.items) ? setup.items as unknown as GuidedSetupItem[] : [];
+  const progress = summarizeSetupProgress(setupItems);
+
+  const saveCurrentSnapshot = async () => {
+    try {
+      await saveSnapshot.mutateAsync();
+      toast({ title: "Enterprise snapshot saved", description: "The snapshot checksum and source definitions were recorded for reproducible review." });
+    } catch (error) {
+      toast({ title: "Snapshot blocked", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Executive analytics and trusted operations</CardTitle>
+          <CardDescription>RLS-scoped live summaries define numerator, denominator, date basis, freshness, and drill-down source for each metric.</CardDescription>
+          <Button className="mt-2 w-fit" variant="outline" onClick={() => void saveCurrentSnapshot()} disabled={saveSnapshot.isPending}>Save reproducible snapshot</Button>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {Object.entries(metrics).map(([key, metric]) => (
+            <div key={key} className="rounded-lg border p-4">
+              <div className="flex items-start justify-between gap-3">
+                <p className="font-medium">{labelFor(key)}</p>
+                <Badge variant={Number(metric.value ?? 0) > 0 ? "secondary" : "outline"}>{formatScalar(metric.value as string | number | boolean | null)}</Badge>
+              </div>
+              <dl className="mt-3 space-y-1 text-xs text-muted-foreground">
+                <div><dt className="inline font-medium text-foreground">Denominator: </dt><dd className="inline">{formatScalar(metric.denominator as string | number | boolean | null)}</dd></div>
+                <div><dt className="inline font-medium text-foreground">Date basis: </dt><dd className="inline">{formatScalar(metric.dateBasis as string | number | boolean | null)}</dd></div>
+                <div><dt className="inline font-medium text-foreground">Drill-down: </dt><dd className="inline">{formatScalar(metric.source as string | number | boolean | null)}</dd></div>
+              </dl>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Guided organization setup</CardTitle>
+            <CardDescription>{progress.complete} of {progress.total} setup records detected from saved data. {progress.percent}% complete.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {setupItems.map((item) => (
+              <div key={item.key} className="rounded-lg border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium">{item.label}</p>
+                  <Badge variant={item.complete ? "default" : "secondary"}>{item.complete ? "Complete" : "Needs setup"}</Badge>
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">{item.why}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Recovery queues</CardTitle>
+            <CardDescription>Failed integrations and imports remain visible for operator replay, reconciliation, and error export.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-sm font-medium">Integration recovery</p>
+              <JsonValue value={operations.integrationRecovery ?? []} />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Import recovery</p>
+              <JsonValue value={operations.importRecovery ?? []} />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Alert>
+        <ShieldCheck className="h-4 w-4" />
+        <AlertTitle>Platform operations guardrails</AlertTitle>
+        <AlertDescription>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {ENTERPRISE_OPERATION_GUARDRAILS.map((guardrail) => <li key={guardrail}>{guardrail}</li>)}
+          </ul>
+        </AlertDescription>
+      </Alert>
+    </div>
+  );
+}
+
 const TABS = [
   { value: "scope", label: "Scope", icon: Building2 },
   { value: "workforce", label: "Workforce", icon: UsersRound },
@@ -1087,6 +1184,7 @@ const TABS = [
   { value: "identity", label: "Identity", icon: Fingerprint },
   { value: "billing", label: "Entitlements", icon: CreditCard },
   { value: "integrations", label: "Integrations", icon: Network },
+  { value: "operations", label: "Operations", icon: LineChart },
 ] as const;
 
 export default function EnterpriseFoundation() {
@@ -1154,6 +1252,7 @@ export default function EnterpriseFoundation() {
           </TabsContent>
           <TabsContent value="billing" className="space-y-4"><ControlPlanePanel title="Billing and typed entitlements" description="Stripe source-of-truth state, contractual grants, limits, rollout controls, and reconciliation variance." data={data.billing} /><EntitlementCommand />{user?.role === "platform_admin" ? <BillingOverrideCommand /> : null}<BillingCommand /></TabsContent>
           <TabsContent value="integrations" className="space-y-4"><ControlPlanePanel title="Signed integration hub" description="Scoped credentials, versioned events, webhook delivery, retry, rotation, and dead-letter visibility." data={data.integrations} /><IntegrationProvisioningCommand /></TabsContent>
+          <TabsContent value="operations" className="space-y-4"><EnterpriseOperationsPanel operations={data.operations} setup={data.setup} /></TabsContent>
         </Tabs>
       )}
     </div>

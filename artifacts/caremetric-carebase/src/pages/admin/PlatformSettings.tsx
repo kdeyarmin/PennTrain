@@ -43,9 +43,15 @@ const SETTINGS_CONFIG: Record<string, SettingConfig> = {
     description: "Resident assessment summary drafting via Claude. Keep disabled until the PHI/BAA review is complete.",
     type: "boolean",
   },
+<<<<<<< HEAD
   ai_compliance_copilot_enabled: {
     label: "Citation-Backed Regulatory Copilot",
     description: "Read-only compliance synthesis via Claude. Keep disabled until regulated-data, provider-contract, and governed-rule-source reviews are complete.",
+=======
+  ai_document_analyzer_enabled: {
+    label: "AI Document Analyzer",
+    description: "State form extraction from scanned PDFs via Claude. Keep disabled until the PHI/BAA review is complete.",
+>>>>>>> origin/main
     type: "boolean",
   },
   ai_video_generation_enabled: {

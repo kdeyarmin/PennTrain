@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSignupOrganization } from "@/hooks/useSignup";
 import { Loader2, ArrowRight, CheckCircle2 } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
+import { BAA_VERSION, SERVICE_AGREEMENT_VERSION } from "@/lib/legalAgreements";
 
 interface SignupForm {
   organizationName: string;
@@ -41,6 +43,8 @@ declare global {
 export default function Signup() {
   const [form, setForm] = useState<SignupForm>(EMPTY_FORM);
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileError, setTurnstileError] = useState<string | null>(null);
+  const [legalAccepted, setLegalAccepted] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
   const turnstileContainerRef = useRef<HTMLDivElement | null>(null);
   const turnstileWidgetIdRef = useRef<string | null>(null);
@@ -59,9 +63,18 @@ export default function Signup() {
       if (cancelled || !window.turnstile || !turnstileContainerRef.current || turnstileWidgetIdRef.current) return;
       turnstileWidgetIdRef.current = window.turnstile.render(turnstileContainerRef.current, {
         sitekey: turnstileSiteKey,
-        callback: setTurnstileToken,
-        "expired-callback": () => setTurnstileToken(""),
-        "error-callback": () => setTurnstileToken(""),
+        callback: (token) => {
+          setTurnstileToken(token);
+          setTurnstileError(null);
+        },
+        "expired-callback": () => {
+          setTurnstileToken("");
+          setTurnstileError("Verification expired. Please complete it again.");
+        },
+        "error-callback": () => {
+          setTurnstileToken("");
+          setTurnstileError("Verification could not load for this domain. Refresh the page or contact support.");
+        },
       });
     };
 
@@ -79,9 +92,12 @@ export default function Signup() {
         document.head.appendChild(script);
       }
       script.addEventListener("load", renderTurnstile);
+      const handleScriptError = () => setTurnstileError("Verification could not load. Check your connection and refresh the page.");
+      script.addEventListener("error", handleScriptError);
       return () => {
         cancelled = true;
         script?.removeEventListener("load", renderTurnstile);
+        script?.removeEventListener("error", handleScriptError);
         if (turnstileWidgetIdRef.current) window.turnstile?.remove?.(turnstileWidgetIdRef.current);
         turnstileWidgetIdRef.current = null;
       };
@@ -97,12 +113,17 @@ export default function Signup() {
   const resetTurnstile = () => {
     if (turnstileWidgetIdRef.current) window.turnstile?.reset(turnstileWidgetIdRef.current);
     setTurnstileToken("");
+    setTurnstileError(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.organizationName.trim() || !form.firstName.trim() || !form.lastName.trim() || !form.email.trim()) {
       toast({ variant: "destructive", title: "All fields are required" });
+      return;
+    }
+    if (!legalAccepted) {
+      toast({ variant: "destructive", title: "Legal agreement acceptance required", description: "An authorized facility administrator must accept the platform agreement and BAA before signup." });
       return;
     }
     if (!turnstileSiteKey || !turnstileToken) {
@@ -117,8 +138,11 @@ export default function Signup() {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         organizationName: form.organizationName.trim(),
+        legalAccepted,
         turnstileToken,
         redirectTo: `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/reset-password`,
+        serviceAgreementVersion: SERVICE_AGREEMENT_VERSION,
+        baaVersion: BAA_VERSION,
       },
       {
         onSuccess: () => {
@@ -225,16 +249,37 @@ export default function Signup() {
                   required
                 />
               </div>
+              <label htmlFor="legalAccepted" className="flex items-start gap-3 rounded-lg border bg-muted/20 p-3 text-sm leading-5">
+                <Checkbox
+                  id="legalAccepted"
+                  checked={legalAccepted}
+                  onCheckedChange={checked => setLegalAccepted(checked === true)}
+                  disabled={isPending}
+                  className="mt-0.5"
+                />
+                <span>
+                  I am authorized to bind this facility or organization, and I agree to the{" "}
+                  <Link href="/legal/facility-signup" className="font-medium text-primary underline underline-offset-2" target="_blank" rel="noopener noreferrer">
+                    Facility Administrator Platform Agreement and HIPAA Business Associate Agreement
+                  </Link>{" "}
+                  ({SERVICE_AGREEMENT_VERSION}; {BAA_VERSION}) for CareMetric AI LLC.
+                </span>
+              </label>
               {turnstileSiteKey ? (
                 <div className="min-h-[65px]">
                   <div ref={turnstileContainerRef} />
+                  {turnstileError && (
+                    <p role="alert" className="mt-2 text-sm text-destructive">
+                      {turnstileError}
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                   Signup verification is not configured for this deployment.
                 </div>
               )}
-              <Button type="submit" className="w-full h-10 font-medium shadow-sm" disabled={isPending || !turnstileSiteKey || !turnstileToken}>
+              <Button type="submit" className="w-full h-10 font-medium shadow-sm" disabled={isPending || !legalAccepted || !turnstileSiteKey || !turnstileToken}>
                 {isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

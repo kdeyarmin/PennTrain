@@ -1,4 +1,5 @@
 import type { Role } from "@/lib/auth";
+import type { ActiveRegulatoryRule } from "@/hooks/useRegulatoryRules";
 
 export type FacilityProgram = "PCH" | "ALR";
 export type CrosswalkEvidenceSource =
@@ -42,6 +43,7 @@ export interface RegulatoryCrosswalkRow extends RegulatoryObligation {
   evidenceCount: number;
   gapCount: number;
   canEdit: boolean;
+  governedRule: ActiveRegulatoryRule | null;
 }
 
 export interface CrosswalkFilter {
@@ -221,12 +223,26 @@ export function canManageRegulatoryCrosswalk(role: Role | undefined): boolean {
   return role === "org_admin" || role === "facility_manager" || role === "platform_admin";
 }
 
-export function buildRegulatoryCrosswalkRows(input: CrosswalkEvidenceInput, role?: Role): RegulatoryCrosswalkRow[] {
-  return REGULATORY_OBLIGATIONS.map((obligation) => ({
-    ...obligation,
-    ...evaluateEvidence(obligation, input),
-    canEdit: canManageRegulatoryCrosswalk(role),
-  }));
+export function buildRegulatoryCrosswalkRows(input: CrosswalkEvidenceInput, role?: Role, governedRules: ActiveRegulatoryRule[] = []): RegulatoryCrosswalkRow[] {
+  return REGULATORY_OBLIGATIONS.map((obligation) => {
+    const governedRule = governedRules.find((rule) => rule.applicability.crosswalkObligationId === obligation.id) ?? null;
+    const parameters = governedRule?.calculation_parameters ?? {};
+    const governedObligation: RegulatoryObligation = governedRule ? {
+      ...obligation,
+      citation: governedRule.citation,
+      requirement: typeof parameters.requirement === "string" ? parameters.requirement : obligation.requirement,
+      responsibleRole: typeof parameters.responsibleRole === "string" ? parameters.responsibleRole : obligation.responsibleRole,
+      evidenceLabel: typeof parameters.evidenceLabel === "string" ? parameters.evidenceLabel : obligation.evidenceLabel,
+      route: typeof parameters.route === "string" ? parameters.route : obligation.route,
+      binderLocation: typeof parameters.binderLocation === "string" ? parameters.binderLocation : obligation.binderLocation,
+    } : obligation;
+    return {
+      ...governedObligation,
+      ...evaluateEvidence(governedObligation, input),
+      canEdit: canManageRegulatoryCrosswalk(role),
+      governedRule,
+    };
+  });
 }
 
 export function filterRegulatoryCrosswalkRows(rows: RegulatoryCrosswalkRow[], filter: CrosswalkFilter): RegulatoryCrosswalkRow[] {

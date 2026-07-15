@@ -9,8 +9,8 @@ const MARGIN = 56;
 // Static generated asset checked into the built app, not something regenerated live at request
 // time -- a fixed edition string keeps the PDF's bytes (and its git diff) stable across rebuilds
 // that don't actually change the manual's content.
-const EDITION = "Edition 1";
-const EDITION_DATE = "2026";
+const EDITION = "Edition 2";
+const EDITION_DATE = "July 2026";
 
 const TITLE_COLOR: [number, number, number] = [0.16, 0.22, 0.44];
 const BODY_COLOR: [number, number, number] = [0.12, 0.12, 0.12];
@@ -43,12 +43,13 @@ const SECTIONS: Section[] = [
   {
     title: "Facilities & Employees",
     paragraphs: [
-      "Facilities (/app/facilities) are the physical locations your organization operates -- personal care homes, assisted living facilities, or other licensed sites. Each facility record carries its own license number and facility type, which in turn controls which compliance modules apply to it: some workflows, like Practicums, the Medication Administration Roster, Residents, and Inspections, only appear for facility types that require them.",
+      "Facilities (/app/facilities) are the physical locations your organization operates -- personal care homes, assisted living facilities, or other licensed sites. Each facility record carries its own facility type, which controls which compliance modules apply. The facility detail page also provides a governed license workspace for license terms, conditions, waivers, filings, renewal dates, evidence references, and an append-only change history.",
       "Employees (/app/employees) is your staff roster. Every employee belongs to a home facility, and can optionally be assigned to work additional facilities for scheduling purposes. Opening an employee's detail page brings together everything about that person in one place: their training record status, credentials, background checks, assigned training items, and practicum progress, so a facility_manager preparing for an inspection doesn't have to hunt across five different pages.",
       "New employees can be added one at a time or in bulk via CSV import, which is useful when onboarding an entire facility's existing staff at once.",
     ],
     bullets: [
       "Add or edit a facility, including its license number and facility type",
+      "Track license conditions, waivers, filings, renewal evidence, and due dates from the facility detail page",
       "Add employees individually, or bulk-import a CSV of your existing staff",
       "Open any employee's detail page to see their full compliance picture",
     ],
@@ -57,13 +58,14 @@ const SECTIONS: Section[] = [
     title: "Scheduling",
     paragraphs: [
       "The Schedule module (/app/schedule) provides basic shift scheduling for facility staff. Start at Schedule Setup (/app/schedule/setup) to define the building blocks: facility units (wings or areas of the building), shift definitions (your typical shift time templates, such as 7a-3p or 3p-11p), and each employee's usual recurring pattern by day of week.",
-      "Once those are in place, create a new draft schedule for a facility and period, then use the auto-fill action to populate it from every employee's typical pattern -- it fills in the gaps around any shifts you've already entered by hand, and manual entries always take precedence. When the draft looks right, publish it; employees only see their own shifts once a schedule is published, at /me/schedule.",
-      "Note that scheduling in CareMetric CareBase is not qualification-gated -- the system does not currently check that a scheduled employee holds a specific certification before assigning them a shift. Also, an employee can only be scheduled for one shift per calendar date across all facilities; there is no same-day float between two facilities.",
+      "Once those are in place, create a new draft schedule for a facility and period, then use the auto-fill action to populate it from every employee's typical pattern. Qualification-aware eligibility checks evaluate active employment, facility scope, credentials, training, conflicts, and required qualifications before a shift is assigned. When the draft looks right, publish it; employees see their own shifts at /me/schedule.",
+      "Employees can request time off, claim eligible open shifts, propose governed shift swaps, and cancel pending requests from My Schedule. Manager approval queues re-evaluate eligibility at decision time and retain the decision reason and eligibility evidence so a staffing change cannot bypass compliance controls.",
     ],
     bullets: [
       "Set up facility units, shift definitions, and employee shift preferences",
       "Create a draft schedule and run auto-fill to populate it",
       "Review, adjust, and publish the schedule so employees can see it",
+      "Review open-shift claims and shift swaps in the Qualified Workforce manager queue",
     ],
   },
   {
@@ -98,10 +100,12 @@ const SECTIONS: Section[] = [
     paragraphs: [
       "Practicums (/app/practicums) track the hands-on, supervised practicum hours required for certain staff roles at personal care homes and assisted living facilities, alongside their due dates and compliance status. This module only appears for facilities of a type that requires practicums.",
       "The Medication Administration Roster (/app/med-admin-roster) is the authoritative list of which employees are currently certified to administer medications at a given facility, and is one of the first documents a state surveyor will ask to see during an inspection. Keeping it current depends on the underlying training records and credentials staying up to date, since roster eligibility is derived from those records rather than tracked separately.",
+      "Medication Integration (/app/medication-integration) is a separate, read-only interoperability workspace for records received from an external eMAR. It monitors source freshness, resident mappings, external orders, administration evidence, and synchronization exceptions. Clinical orders and administrations cannot be prescribed, changed, or back-entered in CareBase; corrections must be made in the source eMAR.",
     ],
     bullets: [
       "Track practicum hours and due dates for medication-administration-eligible staff",
       "Review the current medication administration roster before an inspection",
+      "Monitor eMAR freshness and resolve operational integration exceptions without editing clinical records",
     ],
   },
   {
@@ -120,7 +124,7 @@ const SECTIONS: Section[] = [
   {
     title: "Incidents & DHS Violations / Plans of Correction",
     paragraphs: [
-      "Incidents (/app/incidents) is the reportable-incident log: falls, injuries, medication errors, and other events that must be documented, investigated, and in many cases reported to state agencies within a required time window. Each incident tracks the staff involved, required notifications and their due dates, investigation findings, root cause, and any corrective actions -- and can be exported as a formal incident report PDF once a final report is submitted.",
+      "Incidents (/app/incidents) is the reportable-incident log: falls, injuries, medication errors, and other events that must be documented, investigated, and in many cases reported to state agencies within a required time window. Incident creation is atomic: the resident link, staff involvement, required notifications, and idempotency record are committed together so a partial report cannot be left behind. Each incident then tracks investigation findings, root cause, corrective actions, and formal report exports.",
       "Violations (/app/violations) tracks formal DHS citations issued against a facility and the corresponding Plan of Correction (POC) -- what the facility committed to do, by when, to resolve the citation. Both incidents and violations are restricted to org_admin, facility_manager, and auditor, reflecting how sensitive this data is; trainer and self-service employee access are both excluded.",
       "Staying ahead of open corrective actions across incidents and violations is one of the most effective ways to walk into a state inspection with confidence rather than surprises.",
     ],
@@ -133,14 +137,39 @@ const SECTIONS: Section[] = [
   {
     title: "Residents & Resident Compliance",
     paragraphs: [
-      "For personal care home and assisted living facilities, Residents (/app/residents) maintains a compliance-oriented resident registry -- census information plus flags such as whether a resident is in a specialized dementia care unit (SDCU) or receiving hospice services. This module deliberately does not include clinical charting, an eMAR, or care plans; it exists to track compliance dates and census, not to serve as a clinical record system.",
+      "For personal care home and assisted living facilities, Residents (/app/residents) maintains a compliance-oriented resident registry. Each resident detail page now includes a Resident 360 summary and chronological operational timeline spanning compliance, incidents, service delivery, financial activity, and external medication evidence while preserving the source and authorization rules of each record.",
       "Resident Compliance (/app/resident-compliance) reports on resident-level compliance items -- assessments and other resident-specific requirements -- against their due dates, using the same Compliant / Due Soon / Expired / Missing status model used everywhere else in the app. Resident Assessment Forms let you configure the specific assessment content used for a facility's residents.",
+      "Authorized managers can issue an expiring, permission-limited designated-person portal from a resident record. The portal stores only a hash of its high-entropy access token, removes the token from the browser URL, requires acceptance of current terms, logs access, and can expose only the selected schedule, finance summary, document index, and routine messaging permissions. It is not an emergency or clinical communication channel.",
       "Like Practicums and the Medication Administration Roster, resident modules only appear for facilities of the applicable type, and are restricted to org_admin, facility_manager, and auditor.",
     ],
     bullets: [
       "Maintain your resident census, including SDCU and hospice flags",
       "Track resident-level compliance items against their due dates",
       "Configure resident assessment form content as needed",
+      "Use Resident 360 to follow operational history and issue or revoke designated-person portal access",
+    ],
+  },
+  {
+    title: "Shift Handoffs & Daily Operations",
+    paragraphs: [
+      "The Dashboard Today view prioritizes work that needs attention now: overdue and due-today obligations, unresolved handoffs, incidents, staffing gaps, and other operational risks. Links retain facility and resident context so staff land on the relevant record instead of restarting a search.",
+      "Shift Handoffs (/app/shift-handoffs) turns narrative shift reports into an accountable inbox. Managers can triage items, assign owners and due dates, escalate overdue items, or convert an item into the appropriate governed work record while retaining a link back to the handoff evidence.",
+    ],
+    bullets: [
+      "Start each day with the Dashboard Today priorities",
+      "Triage handoff items, assign accountable owners, and record due dates",
+      "Convert actionable handoffs into governed work and escalate overdue items",
+    ],
+  },
+  {
+    title: "Regulatory Crosswalk & Source Freshness",
+    paragraphs: [
+      "The Regulatory Crosswalk (/app/regulatory-crosswalk) maps operational requirements to governed regulatory-rule records with citation, effective-date, source, and provenance metadata. When no effective governed rule is available, the screen labels static fallback guidance rather than presenting it as current law.",
+      "An automated source-freshness check verifies official Pennsylvania DHS links on a schedule. Operators should still route legal or policy interpretations through qualified compliance review; the automated check proves that cited official sources remain reachable, not that a legal conclusion has been approved.",
+    ],
+    bullets: [
+      "Review the effective citation and source provenance behind compliance guidance",
+      "Treat fallback guidance and stale-source warnings as review-required",
     ],
   },
   {

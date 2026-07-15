@@ -22,6 +22,7 @@ export default function SafetyReport() {
   const [narrative, setNarrative] = useState("");
   const [urgent, setUrgent] = useState(false);
   const [token, setToken] = useState("");
+  const [turnstileError, setTurnstileError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<SubmissionResult | null>(null);
   const container = useRef<HTMLDivElement | null>(null);
@@ -36,9 +37,18 @@ export default function SafetyReport() {
       if (!canceled && window.turnstile && container.current && !widget.current) {
         widget.current = window.turnstile.render(container.current, {
           sitekey: siteKey,
-          callback: setToken,
-          "expired-callback": () => setToken(""),
-          "error-callback": () => setToken(""),
+          callback: (nextToken) => {
+            setToken(nextToken);
+            setTurnstileError(null);
+          },
+          "expired-callback": () => {
+            setToken("");
+            setTurnstileError("Verification expired. Please complete it again.");
+          },
+          "error-callback": () => {
+            setToken("");
+            setTurnstileError("Verification could not load for this domain. Refresh the page or contact support.");
+          },
         });
       }
     };
@@ -55,9 +65,12 @@ export default function SafetyReport() {
         document.head.appendChild(script);
       }
       script.addEventListener("load", render);
+      const handleScriptError = () => setTurnstileError("Verification could not load. Check your connection and refresh the page.");
+      script.addEventListener("error", handleScriptError);
       return () => {
         canceled = true;
         script?.removeEventListener("load", render);
+        script?.removeEventListener("error", handleScriptError);
       };
     }
 
@@ -86,6 +99,7 @@ export default function SafetyReport() {
       setResult((data?.data ?? null) as SubmissionResult | null);
     } catch {
       setToken("");
+      setTurnstileError(null);
       if (widget.current && window.turnstile) window.turnstile.reset(widget.current);
       toast({
         variant: "destructive",
@@ -147,6 +161,11 @@ export default function SafetyReport() {
                 <Switch id="danger" checked={urgent} onCheckedChange={setUrgent} />
               </div>
               <div ref={container} />
+              {turnstileError && (
+                <p role="alert" className="text-sm text-destructive">
+                  {turnstileError}
+                </p>
+              )}
               {!siteKey && (
                 <p role="alert" className="text-sm text-destructive">
                   Verification is unavailable. Contact support.

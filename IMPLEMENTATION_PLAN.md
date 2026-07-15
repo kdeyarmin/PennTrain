@@ -816,7 +816,7 @@ or inability to disable the new path.
 
 Every pull request:
 
-- Install the exact Node 24 and pnpm 10.28.1 toolchain with a frozen lockfile.
+- Install the exact Node 24 and pnpm 11.13.0 toolchain with a frozen lockfile.
 - Run pnpm run check:all.
 - Reset a fresh local Supabase stack with the pinned CLI and run pgTAP.
 - Run schema lint/advisors, regenerate database types, and fail on drift.

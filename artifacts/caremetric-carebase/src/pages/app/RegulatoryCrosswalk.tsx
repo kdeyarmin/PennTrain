@@ -15,6 +15,8 @@ import { useListViolations } from "@/hooks/useViolations";
 import { useListPolicyDocuments } from "@/hooks/usePolicyDocuments";
 import { useListPolicyAttestations } from "@/hooks/usePolicyAttestations";
 import { useListEvidenceCollections } from "@/hooks/useEvidenceRoom";
+import { useActiveRegulatoryRules } from "@/hooks/useRegulatoryRules";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,6 +65,7 @@ export default function RegulatoryCrosswalk() {
   const { data: policyDocuments } = useListPolicyDocuments({ organizationId: user?.organizationId ?? undefined });
   const { data: policyAttestations } = useListPolicyAttestations({});
   const { data: evidenceCollections } = useListEvidenceCollections({ organizationId: user?.organizationId ?? undefined });
+  const governedRules = useActiveRegulatoryRules();
 
   const rows = useMemo(() => buildRegulatoryCrosswalkRows({
     today: toLocalIsoDate(),
@@ -76,7 +79,7 @@ export default function RegulatoryCrosswalk() {
     policyDocuments,
     policyAttestations: (policyAttestations ?? []).filter((attestation) => !activeFacilityId || attestation.facility_id === activeFacilityId),
     evidenceCollections: (evidenceCollections ?? []).filter((collection) => !activeFacilityId || collection.facility_id === activeFacilityId),
-  }, user?.role), [trainingRecords, credentials, residentItems, incidents, correctiveActions, inspectionItems, violations, policyDocuments, policyAttestations, evidenceCollections, activeFacilityId, user?.role]);
+  }, user?.role, governedRules.data), [trainingRecords, credentials, residentItems, incidents, correctiveActions, inspectionItems, violations, policyDocuments, policyAttestations, evidenceCollections, activeFacilityId, user?.role, governedRules.data]);
 
   const filteredRows = useMemo(() => filterRegulatoryCrosswalkRows(rows, { facilityType, status, evidenceSource, citation }), [rows, facilityType, status, evidenceSource, citation]);
   const summary = useMemo(() => ({
@@ -127,6 +130,16 @@ export default function RegulatoryCrosswalk() {
         <SummaryCard title="Overdue" value={summary.overdue} icon="danger" />
       </div>
 
+      <Alert variant={rows.every((row) => row.governedRule) ? "default" : "destructive"}>
+        <ShieldAlert className="h-4 w-4" />
+        <AlertTitle>Governed rule coverage: {rows.filter((row) => row.governedRule).length} of {rows.length}</AlertTitle>
+        <AlertDescription>
+          {rows.every((row) => row.governedRule)
+            ? "Every crosswalk obligation is backed by an approved, effective, checksum-pinned rule version."
+            : "Rows without a governed version are clearly marked reference mappings. They must not be treated as legal advice or activated compliance logic until independent review, fixtures, shadow comparison, and approval are complete."}
+        </AlertDescription>
+      </Alert>
+
       <Card>
         <CardHeader>
           <CardTitle>Filters</CardTitle>
@@ -163,6 +176,7 @@ export default function RegulatoryCrosswalk() {
                     <Badge variant="outline">{row.citation}</Badge>
                     {row.facilityTypes.map((type) => <Badge key={type} variant="secondary">{type === "ALR" ? "ALF" : type}</Badge>)}
                     <Badge variant={statusVariant(row.status)}>{STATUS_LABELS[row.status]}</Badge>
+                    <Badge variant={row.governedRule ? "default" : "outline"}>{row.governedRule ? `Governed v${row.governedRule.version_number}` : "Reference mapping"}</Badge>
                   </div>
                   <CardTitle className="text-lg">{row.requirement}</CardTitle>
                   <CardDescription>{row.evidenceLabel}</CardDescription>
@@ -177,6 +191,7 @@ export default function RegulatoryCrosswalk() {
               <div><p className="font-medium">Binder location</p><p className="text-muted-foreground">{row.binderLocation}</p></div>
               <div className="md:col-span-4 rounded-md bg-muted/30 p-3 text-xs text-muted-foreground">
                 {row.evidenceCount} evidence row{row.evidenceCount === 1 ? "" : "s"} · {row.gapCount} open gap{row.gapCount === 1 ? "" : "s"} · {row.canEdit ? "Managers can update linked evidence." : "Auditor access is read-only."}
+                {row.governedRule ? <span className="mt-1 block">Effective {row.governedRule.effective_from} · content checksum {row.governedRule.content_checksum_sha256.slice(0, 16)}...{row.governedRule.source_uri ? <> · <a href={row.governedRule.source_uri} target="_blank" rel="noreferrer" className="text-primary hover:underline">Official source</a></> : null}</span> : null}
               </div>
             </CardContent>
           </Card>

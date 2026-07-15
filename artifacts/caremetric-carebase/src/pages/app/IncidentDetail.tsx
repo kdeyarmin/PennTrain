@@ -4,7 +4,7 @@ import {
   useGetIncident, useUpdateIncident,
   useListIncidentStaffInvolved, useAddIncidentStaffInvolved, useRemoveIncidentStaffInvolved,
   useListIncidentNotifications, useAddIncidentNotification, useCompleteIncidentNotification,
-  useGenerateIncidentReportPdf, type IncidentStaffInvolved,
+  useGenerateIncidentReportPdf, useGenerateIncidentStateFormPdf, type IncidentStaffInvolved,
 } from "@/hooks/useIncidents";
 import {
   useListCorrectiveActions, useCreateCorrectiveAction, useUpdateCorrectiveAction,
@@ -90,6 +90,7 @@ export default function IncidentDetail() {
   const getSignedUrl = useIncidentDocumentSignedUrl();
   const deleteDocument = useDeleteIncidentDocument();
   const generateReportPdf = useGenerateIncidentReportPdf();
+  const generateStateFormPdf = useGenerateIncidentStateFormPdf();
 
   const [newStaffEmployee, setNewStaffEmployee] = useState("");
   const [newStaffRole, setNewStaffRole] = useState<"involved_party" | "witness" | "first_responder" | "reporter">("witness");
@@ -113,16 +114,12 @@ export default function IncidentDetail() {
   const employeeById = new Map((employees ?? []).map((e) => [e.id, e]));
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
   const staffPendingRemoveEmployee = staffPendingRemove ? employeeById.get(staffPendingRemove.employee_id) : undefined;
-  // resident_identifier is a plain text column, not a resident_id FK -- when it holds a real
-  // resident's id (set via the picker on the Incidents.tsx create form) resolve it to a name
-  // instead of showing the raw uuid; legacy/free-text values that don't match any resident on
-  // file at this facility just render as-is, same as before.
-  const matchedResident = incident?.resident_identifier
-    ? facilityResidents?.find((r) => r.id === incident.resident_identifier)
+  const matchedResident = incident?.resident_id
+    ? facilityResidents?.find((r) => r.id === incident.resident_id)
     : undefined;
   const residentDisplay = matchedResident
     ? `${matchedResident.last_name}, ${matchedResident.first_name}${matchedResident.room ? ` — Room ${matchedResident.room}` : ""}`
-    : incident?.resident_identifier;
+    : incident?.resident_identifier_snapshot ?? incident?.resident_identifier;
 
   const confirmRemoveStaff = async () => {
     if (!staffPendingRemove || !incident) return;
@@ -224,7 +221,7 @@ export default function IncidentDetail() {
         <CardContent className="space-y-3">
           <p className="text-sm whitespace-pre-wrap">{incident.narrative}</p>
           <div className="grid grid-cols-2 gap-3 text-sm pt-2 border-t">
-            {incident.resident_identifier && <div><p className="text-xs text-muted-foreground">Resident</p><p>{residentDisplay}</p></div>}
+            {(incident.resident_id || incident.resident_identifier_snapshot || incident.resident_identifier) && <div><p className="text-xs text-muted-foreground">Resident</p><p>{residentDisplay}</p>{incident.resident_id ? <Link href={`/app/residents/${incident.resident_id}`} className="text-xs text-primary hover:underline">Open resident 360</Link> : null}</div>}
             {incident.location_detail && <div><p className="text-xs text-muted-foreground">Location</p><p>{incident.location_detail}</p></div>}
           </div>
         </CardContent>
@@ -593,19 +590,40 @@ export default function IncidentDetail() {
               </span>
             )}
           </div>
-          <Button
-            size="sm"
-            disabled={generateReportPdf.isPending}
-            onClick={() => {
-              generateReportPdf.mutate(incident.id, {
-                onSuccess: (result) => window.open(result.url, "_blank", "noopener,noreferrer"),
-                onError: (e: Error) => toast({ title: "Failed to generate report", description: e.message, variant: "destructive" }),
-              });
-            }}
-          >
-            <FileDown className="mr-2 h-4 w-4" />
-            {generateReportPdf.isPending ? "Generating..." : "Generate DHS Report PDF"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              disabled={generateReportPdf.isPending}
+              onClick={() => {
+                generateReportPdf.mutate(incident.id, {
+                  onSuccess: (result) => window.open(result.url, "_blank", "noopener,noreferrer"),
+                  onError: (e: Error) => toast({ title: "Failed to generate report", description: e.message, variant: "destructive" }),
+                });
+              }}
+            >
+              <FileDown className="mr-2 h-4 w-4" />
+              {generateReportPdf.isPending ? "Generating..." : "Generate Incident Report PDF"}
+            </Button>
+            <Button
+              size="sm" variant="outline"
+              disabled={generateStateFormPdf.isPending}
+              onClick={() => {
+                generateStateFormPdf.mutate(incident.id, {
+                  onSuccess: (result) => window.open(result.url, "_blank", "noopener,noreferrer"),
+                  onError: (e: Error) => toast({ title: "Failed to generate DHS form", description: e.message, variant: "destructive" }),
+                });
+              }}
+            >
+              <FileDown className="mr-2 h-4 w-4" />
+              {generateStateFormPdf.isPending ? "Generating..." : "Fill Official DHS Reportable Incident Form"}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            The incident report above is CareMetric's own summary. The DHS form fills the
+            official state PDF with what's on this page (identity, timing, staff involved,
+            narrative) -- review, complete anything it couldn't fill, and sign before submitting
+            to the Department.
+          </p>
         </CardContent>
       </Card>
 

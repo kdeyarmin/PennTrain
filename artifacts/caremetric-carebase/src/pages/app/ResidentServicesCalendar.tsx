@@ -6,6 +6,7 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useListResidents } from "@/hooks/useResidents";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListProfiles } from "@/hooks/useProfiles";
+import { useResidentNavigationContext } from "@/hooks/useResidentNavigationContext";
 import {
   type ResidentServiceCalendarEventView,
   useCreateResidentServiceCalendarEvent,
@@ -52,21 +53,22 @@ export default function ResidentServicesCalendar() {
   const canManage = hasRole(user, "platform_admin", "org_admin", "facility_manager");
   const canRecord = !hasRole(user, "auditor");
   const facilities = useListFacilities({ organizationId });
-  const [facilityId, setFacilityId] = useState("");
+  const { facilityId, residentId, setFacilityId, setResidentId } = useResidentNavigationContext();
   useEffect(() => { if (!facilityId && facilities.data?.length === 1) setFacilityId(facilities.data[0].id); }, [facilityId, facilities.data]);
   const [fromDate, setFromDate] = useState(toLocalIsoDate(addDays(-7)));
   const [throughDate, setThroughDate] = useState(toLocalIsoDate(addDays(30)));
   const [eventType, setEventType] = useState("");
   const [status, setStatus] = useState("");
-  const [residentId, setResidentId] = useState("");
   const residents = useListResidents({ facilityId, status: "active" }, { enabled: !!facilityId });
   const employees = useListEmployees({ facilityId, status: "active", organizationId }, { enabled: !!facilityId });
   const profiles = useListProfiles({ organizationId });
   const vehicles = useFacilityTransportVehicles(facilityId);
+  const safeFromDate = fromDate || toLocalIsoDate(addDays(-7));
+  const safeThroughDate = throughDate || toLocalIsoDate(addDays(30));
   const events = useResidentServicesCalendar({
     facilityId: facilityId || undefined,
-    from: new Date(`${fromDate}T00:00:00`).toISOString(),
-    through: new Date(`${throughDate}T23:59:59`).toISOString(),
+    from: new Date(`${safeFromDate}T00:00:00`).toISOString(),
+    through: new Date(`${safeThroughDate}T23:59:59`).toISOString(),
     residentId: residentId || undefined,
     eventType: eventType || undefined,
     status: status || undefined,
@@ -86,7 +88,7 @@ export default function ResidentServicesCalendar() {
 
   return <div className="space-y-6">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="flex items-center gap-2 text-2xl font-bold"><CalendarDays className="h-6 w-6" />Resident Services Calendar</h1><p className="text-muted-foreground">Appointments, transportation, activities, community and family services, preparation, outcomes, and return follow-up.</p></div>{canManage && <Button disabled={!facilityId} onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />Schedule service</Button>}</div>
-    <Card><CardContent className="grid gap-3 pt-6 md:grid-cols-3 xl:grid-cols-6"><Field label="Facility"><Choice value={facilityId} onChange={(value) => { setFacilityId(value); setResidentId(""); }} values={(facilities.data ?? []).map((item) => ({ value: item.id, label: item.name }))} placeholder="Select facility" /></Field><Field label="From"><Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /></Field><Field label="Through"><Input type="date" value={throughDate} onChange={(event) => setThroughDate(event.target.value)} /></Field><Field label="Resident"><Choice value={residentId} onChange={(value) => setResidentId(value === "all" ? "" : value)} values={[{ value: "all", label: "All residents" }, ...(residents.data ?? []).map((item) => ({ value: item.id, label: `${item.last_name}, ${item.first_name}` }))]} placeholder="All residents" /></Field><Field label="Service type"><Choice value={eventType} onChange={(value) => setEventType(value === "all" ? "" : value)} values={[{ value: "all", label: "All types" }, ...EVENT_TYPES]} placeholder="All types" /></Field><Field label="Status"><Choice value={status} onChange={(value) => setStatus(value === "all" ? "" : value)} values={[{ value: "all", label: "All statuses" }, "scheduled", "completed", "canceled", "no_show"]} placeholder="All statuses" /></Field></CardContent></Card>
+    <Card><CardContent className="grid gap-3 pt-6 md:grid-cols-3 xl:grid-cols-6"><Field label="Facility"><Choice value={facilityId} onChange={setFacilityId} values={(facilities.data ?? []).map((item) => ({ value: item.id, label: item.name }))} placeholder="Select facility" /></Field><Field label="From"><Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /></Field><Field label="Through"><Input type="date" value={throughDate} onChange={(event) => setThroughDate(event.target.value)} /></Field><Field label="Resident"><Choice value={residentId} onChange={(value) => setResidentId(value === "all" ? "" : value)} values={[{ value: "all", label: "All residents" }, ...(residents.data ?? []).map((item) => ({ value: item.id, label: `${item.last_name}, ${item.first_name}` }))]} placeholder="All residents" /></Field><Field label="Service type"><Choice value={eventType} onChange={(value) => setEventType(value === "all" ? "" : value)} values={[{ value: "all", label: "All types" }, ...EVENT_TYPES]} placeholder="All types" /></Field><Field label="Status"><Choice value={status} onChange={(value) => setStatus(value === "all" ? "" : value)} values={[{ value: "all", label: "All statuses" }, "scheduled", "completed", "canceled", "no_show"]} placeholder="All statuses" /></Field></CardContent></Card>
     <Tabs defaultValue="agenda" className="space-y-4"><TabsList><TabsTrigger value="agenda"><CalendarDays className="mr-2 h-4 w-4" />Agenda</TabsTrigger><TabsTrigger value="vehicles"><Car className="mr-2 h-4 w-4" />Transportation fleet</TabsTrigger></TabsList>
       <TabsContent value="agenda"><Card><CardHeader><CardTitle>{selectedFacility?.name ?? "Assigned resident services"}</CardTitle><CardDescription>{hasRole(user, "employee") ? "Only events where you are assigned as driver or accompanying staff are shown." : "Calendar events are ordered by service date and time."}</CardDescription></CardHeader><CardContent className="space-y-5">{events.isError ? <p className="text-sm text-destructive">Could not load calendar: {events.error.message}</p> : grouped.length === 0 ? <p className="py-10 text-center text-sm text-muted-foreground">No resident services match this date range.</p> : grouped.map(([day, items]) => <section key={day} className="space-y-2"><h2 className="text-sm font-semibold text-muted-foreground">{new Date(`${day}T00:00:00`).toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}</h2>{items.map((event) => <EventRow key={event.id} event={event} canManage={canManage} canRecord={canRecord} onOutcome={setOutcomeEvent} onReschedule={setRescheduleEvent} />)}</section>)}</CardContent></Card></TabsContent>
       <TabsContent value="vehicles"><VehicleWorkspace facilityId={facilityId} vehicles={vehicles.data ?? []} canManage={canManage} /></TabsContent>

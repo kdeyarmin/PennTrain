@@ -1,17 +1,13 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { AlertTriangle, BedDouble, CalendarClock, ClipboardCheck, FileStack, Gavel, Pill, Search, ShieldCheck } from "lucide-react";
+import { AlertTriangle, BedDouble, Building2, CalendarClock, ChevronRight, ClipboardCheck, FileStack, Gavel, Pill, RefreshCw, Search, ShieldCheck } from "lucide-react";
 import { PCH_ALR_OPERATIONS_ITEMS, buildInspectionDayChecklist, buildPchAlrEvidencePackage, evidencePackageToCsv, evidencePackageToText, searchPchAlrOperations, type OperationsDomain, type PchAlrOperationsItem } from "@/lib/pchAlrOperations";
-import { buildPchAlrOperationsQueue, summarizePchAlrQueue } from "@/lib/pchAlrOperationalSnapshot";
+import { buildPchAlrOperationsQueueFromSnapshot, summarizePchAlrQueue } from "@/lib/pchAlrOperationalSnapshot";
 import { useAuth } from "@/lib/auth";
 import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityTypeLabel, PCH_ALR_ONLY_FACILITY_TYPES, type FacilityType } from "@/lib/facilityTypes";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { useListTrainingRecords } from "@/hooks/useTrainingRecords";
-import { useListEmployeeCredentials } from "@/hooks/useEmployeeCredentials";
-import { useListAllResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
-import { useListIncidents } from "@/hooks/useIncidents";
-import { useListCorrectiveActions } from "@/hooks/useCorrectiveActions";
-import { useListPolicyAttestations } from "@/hooks/usePolicyAttestations";
+import { useOperationsCommandCenter, usePortfolioOperationsCommandCenter, type PortfolioReadinessStatus } from "@/hooks/useOperationsCommandCenter";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,6 +29,27 @@ const DOMAIN_ICONS: Record<OperationsDomain, typeof Gavel> = {
   "Citation-aware templates": FileStack,
 };
 
+const SOURCE_ROUTES: Record<string, string> = {
+  complaint: "/app/complaints",
+  credential: "/app/credentials",
+  dietary_exception: "/app/dietary-operations",
+  food_safety: "/app/dietary-operations",
+  incident: "/app/incidents",
+  inspection: "/app/inspections",
+  policy: "/app/policy-documents",
+  qapi: "/app/qapi",
+  resident_calendar: "/app/resident-services-calendar",
+  resident_finance: "/app/resident-finance",
+  support_plan: "/app/services",
+  training_gap: "/app/training-matrix",
+  violation: "/app/violations",
+};
+
+function sourceLabel(sourceType: string): string {
+  if (sourceType === "qapi") return "QAPI";
+  return sourceType.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 export default function PchAlrOperations() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -44,24 +61,24 @@ export default function PchAlrOperations() {
   const alrCount = PCH_ALR_OPERATIONS_ITEMS.filter((item) => item.programs.includes("ALR")).length;
 
   const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
-  const activeFacilityId = facilityId || facilities?.[0]?.id || "";
-  const { data: trainingRecords } = useListTrainingRecords({ facilityId: activeFacilityId || undefined }, { enabled: Boolean(activeFacilityId) });
-  const { data: credentials } = useListEmployeeCredentials({ facilityId: activeFacilityId || undefined });
-  const { data: residentItems } = useListAllResidentComplianceItems({ facilityId: activeFacilityId || undefined });
-  const { data: incidents } = useListIncidents({ facilityId: activeFacilityId || undefined });
-  const { data: correctiveActions } = useListCorrectiveActions({ facilityId: activeFacilityId || undefined });
-  const { data: policyAttestations } = useListPolicyAttestations({});
-  const operationsQueue = useMemo(() => buildPchAlrOperationsQueue({
-    today: toLocalIsoDate(),
-    trainingRecords,
-    credentials,
-    residentItems,
-    incidents,
-    correctiveActions,
-    policyAttestations: (policyAttestations ?? []).filter((attestation) => !activeFacilityId || attestation.facility_id === activeFacilityId),
-  }), [trainingRecords, credentials, residentItems, incidents, correctiveActions, policyAttestations, activeFacilityId]);
+  const eligibleFacilities = useMemo(
+    () => (facilities ?? []).filter((facility) => PCH_ALR_ONLY_FACILITY_TYPES.includes(facility.facility_type as FacilityType)),
+    [facilities],
+  );
+  const activeFacilityId = facilityId || eligibleFacilities[0]?.id || "";
+  const { data: snapshot, error: snapshotError, isFetching, refetch } = useOperationsCommandCenter(activeFacilityId || undefined);
+  const {
+    data: portfolioSnapshot,
+    error: portfolioError,
+    isFetching: isPortfolioFetching,
+    refetch: refetchPortfolio,
+  } = usePortfolioOperationsCommandCenter();
+  const operationsQueue = useMemo(
+    () => snapshot ? buildPchAlrOperationsQueueFromSnapshot(snapshot.signals, snapshot.workQueue) : [],
+    [snapshot],
+  );
   const queueSummary = useMemo(() => summarizePchAlrQueue(operationsQueue), [operationsQueue]);
-  const activeFacilityName = facilities?.find((facility) => facility.id === activeFacilityId)?.name ?? "Selected facility";
+  const activeFacilityName = snapshot?.facility.name ?? facilities?.find((facility) => facility.id === activeFacilityId)?.name ?? "Selected facility";
   const evidencePackage = useMemo(() => buildPchAlrEvidencePackage({
     facilityName: activeFacilityName,
     asOfDate: toLocalIsoDate(),
@@ -89,6 +106,11 @@ export default function PchAlrOperations() {
     URL.revokeObjectURL(url);
   };
 
+  const openFacilityHuddle = (nextFacilityId: string) => {
+    setFacilityId(nextFacilityId);
+    window.requestAnimationFrame(() => document.getElementById("facility-huddle")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -113,22 +135,77 @@ export default function PchAlrOperations() {
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <CardTitle>72-hour live operations queue</CardTitle>
-              <CardDescription>Facility-scoped gaps pulled from training, credentials, resident state forms, incidents, corrective actions, and policy attestations.</CardDescription>
+              <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5 text-primary" /> Portfolio operations oversight</CardTitle>
+              <CardDescription>Rank every caller-visible PCH and ALF facility by immediate operational risk, then open the facility huddle that needs action.</CardDescription>
             </div>
-            <Select value={activeFacilityId} onValueChange={setFacilityId}>
-              <SelectTrigger className="w-64"><SelectValue placeholder="Select facility" /></SelectTrigger>
-              <SelectContent>
-                {(facilities ?? []).map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Button variant="outline" size="sm" disabled={isPortfolioFetching} onClick={() => void refetchPortfolio()}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${isPortfolioFetching ? "animate-spin" : ""}`} /> Refresh portfolio
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-3">
-            <Metric title="Open queue items" value={queueSummary.totalOpen} detail="Across active PCH/ALF workflows" />
+          {portfolioError ? <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{portfolioError.message}</div> : null}
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <Metric title="Facilities in scope" value={portfolioSnapshot?.summary.facilityCount ?? 0} detail={`${portfolioSnapshot?.summary.activeResidents ?? 0} active residents`} />
+            <Metric title="Critical facilities" value={portfolioSnapshot?.summary.criticalFacilities ?? 0} detail="Emergency, urgent, or high-risk signals" />
+            <Metric title="Open work" value={portfolioSnapshot?.summary.openWork ?? 0} detail={`${portfolioSnapshot?.summary.urgentWork ?? 0} urgent · ${portfolioSnapshot?.summary.overdueWork ?? 0} overdue`} />
+            <Metric title="Readiness gaps" value={(portfolioSnapshot?.summary.residentReadinessGaps ?? 0) + (portfolioSnapshot?.summary.workforceGaps ?? 0)} detail="Resident and workforce requirements" />
+          </div>
+          {portfolioSnapshot?.facilities.length === 0 ? (
+            <p className="rounded-lg border p-4 text-sm text-muted-foreground">No active PCH or ALF facilities are available in your assigned scope.</p>
+          ) : (
+            <div className="space-y-2">
+              {portfolioSnapshot?.facilities.map((facility) => (
+                <div key={facility.facility.id} className="grid gap-3 rounded-lg border p-4 lg:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,0.65fr))_auto] lg:items-center">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate font-semibold">{facility.facility.name}</p>
+                      <Badge variant={portfolioStatusVariant(facility.readinessStatus)}>{portfolioStatusLabel(facility.readinessStatus)}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{facilityTypeLabel(facility.facility.facilityType)} · risk score {facility.riskScore}</p>
+                  </div>
+                  <PortfolioSignal label="Open work" value={facility.workQueue.openCount} detail={`${facility.workQueue.urgentCount} urgent`} />
+                  <PortfolioSignal label="Overdue" value={facility.workQueue.overdueCount} detail={`${facility.workQueue.unassignedCount} unassigned`} />
+                  <PortfolioSignal label="Resident gaps" value={facility.signals.residentReadinessGaps} detail={`${facility.signals.activeResidents} residents`} />
+                  <PortfolioSignal label="Safety signals" value={facility.signals.activeEmergencyEvents + facility.signals.highRiskWorkOrders} detail={`${facility.signals.emergencyUnaccounted} unaccounted`} />
+                  <Button variant="outline" size="sm" onClick={() => openFacilityHuddle(facility.facility.id)}>
+                    Open huddle <ChevronRight className="ml-1 h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          {portfolioSnapshot ? <p className="text-right text-xs text-muted-foreground">Updated {new Date(portfolioSnapshot.generatedAt).toLocaleString()}</p> : null}
+        </CardContent>
+      </Card>
+
+      <Card id="facility-huddle" className="scroll-mt-6">
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle>72-hour live operations queue</CardTitle>
+              <CardDescription>One RLS-scoped snapshot across workforce, resident readiness, rights, emergencies, maintenance, and owned corrective work.</CardDescription>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" disabled={!activeFacilityId || isFetching} onClick={() => void refetch()}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} /> Refresh
+              </Button>
+              <Select value={activeFacilityId} onValueChange={setFacilityId}>
+                <SelectTrigger className="w-64"><SelectValue placeholder="Select facility" /></SelectTrigger>
+                <SelectContent>
+                  {eligibleFacilities.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {snapshotError ? <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{snapshotError.message}</div> : null}
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <Metric title="Owned work open" value={snapshot?.workQueue.openCount ?? 0} detail={`${snapshot?.workQueue.urgentCount ?? 0} urgent · ${snapshot?.workQueue.overdueCount ?? 0} overdue`} />
             <Metric title="Attention buckets" value={queueSummary.attentionCount} detail="Workflow groups with open risk" />
             <Metric title="Ready buckets" value={queueSummary.readyCount} detail="No open records in this view" />
+            <Metric title="Active residents" value={snapshot?.signals.activeResidents ?? 0} detail="Current facility census in scope" />
           </div>
           <div className="grid gap-3 lg:grid-cols-2">
             {operationsQueue.map((item) => (
@@ -144,6 +221,46 @@ export default function PchAlrOperations() {
               </div>
             ))}
           </div>
+          {snapshot ? (
+            <div className="grid gap-4 border-t pt-4 xl:grid-cols-2">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">Priority attention</p>
+                    <p className="text-xs text-muted-foreground">Urgent, overdue, then unassigned work—ordered for the next huddle.</p>
+                  </div>
+                  <Button asChild variant="outline" size="sm"><Link href="/app/work">Open all work</Link></Button>
+                </div>
+                {snapshot.attentionItems.length === 0 ? <p className="rounded-lg border p-3 text-sm text-muted-foreground">No owned work is open for this facility.</p> : snapshot.attentionItems.slice(0, 6).map((item) => (
+                  <Link key={item.id} href={`/app/work/${item.id}`} className="flex items-start justify-between gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{item.title}</p>
+                      <p className="text-xs text-muted-foreground">{sourceLabel(item.sourceType)} · due {new Date(item.dueAt).toLocaleString()}</p>
+                    </div>
+                    <Badge variant={item.priority === "urgent" || new Date(item.dueAt).getTime() < Date.now() ? "destructive" : "outline"}>{item.priority}</Badge>
+                  </Link>
+                ))}
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <p className="font-semibold">Open work by source</p>
+                  <p className="text-xs text-muted-foreground">Every current and future module appears automatically through the shared work queue.</p>
+                </div>
+                {snapshot.sourceBreakdown.length === 0 ? <p className="rounded-lg border p-3 text-sm text-muted-foreground">No source queues are open.</p> : snapshot.sourceBreakdown.map((source) => (
+                  <div key={source.sourceType} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                    <div>
+                      <p className="text-sm font-medium">{sourceLabel(source.sourceType)}</p>
+                      <p className="text-xs text-muted-foreground">{source.urgentCount} urgent · {source.overdueCount} overdue · {source.unassignedCount} unassigned</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={source.overdueCount > 0 || source.urgentCount > 0 ? "destructive" : "secondary"}>{source.openCount}</Badge>
+                      <Button asChild variant="ghost" size="sm"><Link href={SOURCE_ROUTES[source.sourceType] ?? "/app/work"}>Open</Link></Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -230,6 +347,28 @@ function Metric({ title, value, detail }: { title: string; value: number; detail
       <CardContent><p className="text-3xl font-bold">{value}</p><p className="text-xs text-muted-foreground">{detail}</p></CardContent>
     </Card>
   );
+}
+
+function PortfolioSignal({ label, value, detail }: { label: string; value: number; detail: string }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-lg font-semibold">{value}</p>
+      <p className="text-xs text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+function portfolioStatusLabel(status: PortfolioReadinessStatus): string {
+  if (status === "critical") return "Critical";
+  if (status === "attention") return "Needs attention";
+  return "Ready";
+}
+
+function portfolioStatusVariant(status: PortfolioReadinessStatus): "destructive" | "secondary" | "outline" {
+  if (status === "critical") return "destructive";
+  if (status === "attention") return "secondary";
+  return "outline";
 }
 
 function OperationsCard({ item }: { item: PchAlrOperationsItem }) {

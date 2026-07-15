@@ -8,7 +8,7 @@ alter table public.work_item_templates add constraint work_item_templates_source
     'violation', 'inspection', 'incident', 'near_miss', 'training_gap',
     'exclusion_match', 'credential', 'policy', 'rule_exception', 'move_in',
     'complaint', 'support_plan', 'qapi', 'change_of_condition',
-    'dietary_exception', 'food_safety', 'resident_calendar', 'resident_finance'
+    'dietary_exception', 'food_safety', 'emergency', 'resident_calendar', 'resident_finance'
   ));
 
 insert into public.work_item_templates(

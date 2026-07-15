@@ -30,7 +30,12 @@ export function stripAppBaseFromPath(pathname: string, base = APP_BASE): string 
 }
 
 export function postLoginPathFromLocation(pathname: string, search: string, hash: string, base = APP_BASE): string {
-  return `${stripAppBaseFromPath(pathname, base)}${search}${hash}`;
+  return sanitizePostLoginPath(`${stripAppBaseFromPath(pathname, base)}${search}${hash}`);
+}
+
+export function loginPathWithNext(pathname: string, search: string, hash: string, base = APP_BASE): string {
+  const next = postLoginPathFromLocation(pathname, search, hash, base);
+  return `/login?next=${encodeURIComponent(next)}`;
 }
 
 export function absolutePostLoginRedirect(origin: string, path: string, base = APP_BASE): string {
