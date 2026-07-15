@@ -114,16 +114,12 @@ export default function IncidentDetail() {
   const employeeById = new Map((employees ?? []).map((e) => [e.id, e]));
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
   const staffPendingRemoveEmployee = staffPendingRemove ? employeeById.get(staffPendingRemove.employee_id) : undefined;
-  // resident_identifier is a plain text column, not a resident_id FK -- when it holds a real
-  // resident's id (set via the picker on the Incidents.tsx create form) resolve it to a name
-  // instead of showing the raw uuid; legacy/free-text values that don't match any resident on
-  // file at this facility just render as-is, same as before.
-  const matchedResident = incident?.resident_identifier
-    ? facilityResidents?.find((r) => r.id === incident.resident_identifier)
+  const matchedResident = incident?.resident_id
+    ? facilityResidents?.find((r) => r.id === incident.resident_id)
     : undefined;
   const residentDisplay = matchedResident
     ? `${matchedResident.last_name}, ${matchedResident.first_name}${matchedResident.room ? ` — Room ${matchedResident.room}` : ""}`
-    : incident?.resident_identifier;
+    : incident?.resident_identifier_snapshot ?? incident?.resident_identifier;
 
   const confirmRemoveStaff = async () => {
     if (!staffPendingRemove || !incident) return;
@@ -225,7 +221,7 @@ export default function IncidentDetail() {
         <CardContent className="space-y-3">
           <p className="text-sm whitespace-pre-wrap">{incident.narrative}</p>
           <div className="grid grid-cols-2 gap-3 text-sm pt-2 border-t">
-            {incident.resident_identifier && <div><p className="text-xs text-muted-foreground">Resident</p><p>{residentDisplay}</p></div>}
+            {(incident.resident_id || incident.resident_identifier_snapshot || incident.resident_identifier) && <div><p className="text-xs text-muted-foreground">Resident</p><p>{residentDisplay}</p>{incident.resident_id ? <Link href={`/app/residents/${incident.resident_id}`} className="text-xs text-primary hover:underline">Open resident 360</Link> : null}</div>}
             {incident.location_detail && <div><p className="text-xs text-muted-foreground">Location</p><p>{incident.location_detail}</p></div>}
           </div>
         </CardContent>

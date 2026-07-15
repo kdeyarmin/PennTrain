@@ -8,6 +8,7 @@ describe("isPublicPath", () => {
   });
 
   it("allows tokenized public routes without exposing similarly named paths", () => {
+    expect(isPublicPath("/resident-portal")).toBe(true);
     expect(isPublicPath("/verify/certificate-token")).toBe(true);
     expect(isPublicPath("/evidence-access/guest-token")).toBe(true);
     expect(isPublicPath("/evidence-access/guest-token/")).toBe(true);

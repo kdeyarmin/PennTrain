@@ -45,6 +45,7 @@ export function isPublicPath(path: string): boolean {
     p === "/forgot-password" ||
     p === "/reset-password" ||
     p === "/report-safety" ||
+    p === "/resident-portal" ||
     p.startsWith("/evidence-access/") ||
     p.startsWith("/move-in-access/") ||
     p.startsWith("/resident-agreement-access/") ||

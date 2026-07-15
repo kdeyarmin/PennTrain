@@ -12,3 +12,10 @@ condition = "AND"
 regexTarget = "secret"
 regexes = ['''^phase2\.contract$''']
 paths = ['''^supabase/tests/database/phase2_billing_integration\.test\.sql$''']
+
+[[rules.allowlists]]
+description = "Ignore the non-secret medication integration key used in database tests"
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^abc123def456$''']
+paths = ['''^supabase/tests/database/carebase_remediation_plan\.test\.sql$''']
