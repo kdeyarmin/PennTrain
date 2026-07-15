@@ -21,45 +21,6 @@ const assetDirectory = path.resolve(
 // sums every lazy route chunk -- no single page load fetches it -- so it grows with
 // the number of features by design and only guards against wholesale bloat.
 const budgets = {
-<<<<<<< HEAD
-  // Raised 400 -> 410 when the unified operational work queue (resident service
-  // requirements, task instances, My Services, supervisor/manager workflows) landed;
-  // raised 410 -> 412 after registering the resident-services routes in the rebased shell;
-  // raised 412 -> 413 for the role-gated regulatory-copilot route registration.
-  largestJavaScript: 413 * 1024,
-  // Sum of every lazy route chunk, not what any one page load fetches -- the per-load
-  // guardrails are largestJavaScript and initialShell. Raised 2300 -> 2400 when the
-  // end-user-review rounds (evidence room, saved views, confidential console, ...)
-  // and the state-forms/document-analyzer features landed together; raised 2400 -> 2410
-  // when PCH/ALR operations center, regulatory crosswalk, and compliance analytics
-  // features landed; raised 2410 -> 2420 for the responsive-layout/global-search/user-
-  // management updates; raised 2420 -> 2430 for deployment recovery, accessible search,
-  // and mobile operations while initial-shell size decreased; raised 2430 -> 2500 for
-  // the unified operational work queue (resident service requirements/tasks, My Services,
-  // supervisor/manager oversight) while both per-load budgets remain comfortably met;
-  // raised 2500 -> 2600 for formal QAPI quality management (projects, actions, measurements,
-  // meeting notes, RCA, and print-optimized workspace); raised 2600 -> 2700 for the
-  // environmental work-order, QR-location, evidence, and preventive-maintenance routes,
-  // the complaint/grievance case workflow (intake, investigation, corrective actions,
-  // nonretaliation monitoring, incident escalation, and closure approval), and
-  // qualification-aware scheduling previews, bounded overrides, and service workload;
-  // raised 2700 -> 2710 after merging qualification-visibility updates alongside the
-  // environmental work-order features, which together pushed the combined bundle to
-  // ~2706 KiB. The new pages remain lazy routes and do not increase the initial-shell
-  // budget; raised 2710 -> 2740 for the resident administrative master workspace
-  // (identity, contacts, legal, payer, directives, rights, contracts, history); raised
-  // 2740 -> 2750 for resident agreement versioning and external e-signatures; raised
-  // 2750 -> 2800 for the lazy dietary, hydration, nutrition, menu-cycle, food-safety,
-  // and food-service qualification operations workspace; raised 2800 -> 2810 after
-  // synchronizing the stacked scheduling and environmental-work-order routes; raised
-  // 2810 -> 2840 for the lazy resident-services calendar and transportation workflows;
-  // raised 2840 -> 2880 for the lazy resident financial operations workspace; raised
-  // 2880 -> 2885 for the lazy citation-backed regulatory copilot workspace.
-  // These changes keep the initial-shell and per-load limits flat.
-  totalJavaScript: 2885 * 1024,
-  totalCss: 140 * 1024,
-  initialShell: 1200 * 1024,
-=======
   // Measured 409.3 KiB (the entry chunk) when this headroom policy was adopted.
   largestJavaScript: 460 * 1024,
   // Measured 2811.9 KiB when this headroom policy was adopted; raised 3250 -> 3300
@@ -70,7 +31,6 @@ const budgets = {
   totalCss: 160 * 1024,
   // Measured 1095.8 KiB when this headroom policy was adopted.
   initialShell: 1250 * 1024,
->>>>>>> origin/main
 };
 
 // Warn (without failing) once a metric uses this fraction of its budget, so the

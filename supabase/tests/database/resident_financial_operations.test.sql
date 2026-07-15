@@ -1,9 +1,5 @@
 begin;
-<<<<<<< HEAD
-select plan(80);
-=======
 select plan(82);
->>>>>>> origin/main
 
 select has_table('public','resident_financial_accounts','resident receivables use dedicated accounts');
 select has_table('public','resident_rate_agreements','resident rate agreements are versioned financial terms');
@@ -241,15 +237,9 @@ select throws_ok($$
 $$,'23514',null,'personal funds cannot be overdrawn');
 select throws_ok($$
   select public.post_resident_personal_fund_transaction('75000000-0000-4000-8000-000000000201',jsonb_build_object(
-<<<<<<< HEAD
-    'transactionKind','deposit','direction','in','amount',5,'purpose','Backdated cash deposit',
-    'transactionAt',now()+interval '30 seconds','residentAcknowledged',true))
-$$,'22023',null,'personal funds reject out-of-order postings');
-=======
     'transactionKind','deposit','direction','in','amount',5,'purpose','Backdated entry attempt',
     'transactionAt',now()-interval '1 hour','residentAcknowledged',true))
 $$,'22023',null,'backdated personal-funds entries are rejected');
->>>>>>> origin/main
 select throws_ok($$
   select public.post_resident_personal_fund_transaction('75000000-0000-4000-8000-000000000201',jsonb_build_object(
     'transactionKind','adjustment','direction','in','amount',10,'purpose','Unlinked correction',
