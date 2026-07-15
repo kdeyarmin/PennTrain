@@ -43,13 +43,13 @@ const SECTIONS: Section[] = [
   {
     title: "Facilities & Employees",
     paragraphs: [
-      "Facilities (/app/facilities) are the physical locations your organization operates -- personal care homes, assisted living facilities, or other licensed sites. Each facility record carries its own facility type, which controls which compliance modules apply. The facility detail page also provides a governed license workspace for license terms, conditions, waivers, filings, renewal dates, evidence references, and an append-only change history.",
+      "Facilities (/app/facilities) are the physical locations your organization operates -- personal care homes, assisted living facilities, or other licensed sites. Each facility record carries its own facility type, which controls which compliance modules apply. The facility detail page also provides a governed license workspace for license terms, conditions, waivers, filings, renewal dates, documentation references, and an append-only change history.",
       "Employees (/app/employees) is your staff roster. Every employee belongs to a home facility, and can optionally be assigned to work additional facilities for scheduling purposes. Opening an employee's detail page brings together everything about that person in one place: their training record status, credentials, background checks, assigned training items, and practicum progress, so a facility_manager preparing for an inspection doesn't have to hunt across five different pages.",
       "New employees can be added one at a time or in bulk via CSV import, which is useful when onboarding an entire facility's existing staff at once.",
     ],
     bullets: [
       "Add or edit a facility, including its license number and facility type",
-      "Track license conditions, waivers, filings, renewal evidence, and due dates from the facility detail page",
+      "Track license conditions, waivers, filings, renewal documentation, and due dates from the facility detail page",
       "Add employees individually, or bulk-import a CSV of your existing staff",
       "Open any employee's detail page to see their full compliance picture",
     ],
@@ -59,7 +59,7 @@ const SECTIONS: Section[] = [
     paragraphs: [
       "The Schedule module (/app/schedule) provides basic shift scheduling for facility staff. Start at Schedule Setup (/app/schedule/setup) to define the building blocks: facility units (wings or areas of the building), shift definitions (your typical shift time templates, such as 7a-3p or 3p-11p), and each employee's usual recurring pattern by day of week.",
       "Once those are in place, create a new draft schedule for a facility and period, then use the auto-fill action to populate it from every employee's typical pattern. Qualification-aware eligibility checks evaluate active employment, facility scope, credentials, training, conflicts, and required qualifications before a shift is assigned. When the draft looks right, publish it; employees see their own shifts at /me/schedule.",
-      "Employees can request time off, claim eligible open shifts, propose governed shift swaps, and cancel pending requests from My Schedule. Manager approval queues re-evaluate eligibility at decision time and retain the decision reason and eligibility evidence so a staffing change cannot bypass compliance controls.",
+      "Employees can request time off, claim eligible open shifts, propose governed shift swaps, and cancel pending requests from My Schedule. Manager approval queues re-evaluate eligibility at decision time and retain the decision reason and eligibility documentation so a staffing change cannot bypass compliance controls.",
     ],
     bullets: [
       "Set up facility units, shift definitions, and employee shift preferences",
@@ -100,7 +100,7 @@ const SECTIONS: Section[] = [
     paragraphs: [
       "Practicums (/app/practicums) track the hands-on, supervised practicum hours required for certain staff roles at personal care homes and assisted living facilities, alongside their due dates and compliance status. This module only appears for facilities of a type that requires practicums.",
       "The Medication Administration Roster (/app/med-admin-roster) is the authoritative list of which employees are currently certified to administer medications at a given facility, and is one of the first documents a state surveyor will ask to see during an inspection. Keeping it current depends on the underlying training records and credentials staying up to date, since roster eligibility is derived from those records rather than tracked separately.",
-      "Medication Integration (/app/medication-integration) is a separate, read-only interoperability workspace for records received from an external eMAR. It monitors source freshness, resident mappings, external orders, administration evidence, and synchronization exceptions. Clinical orders and administrations cannot be prescribed, changed, or back-entered in CareBase; corrections must be made in the source eMAR.",
+      "Medication Integration (/app/medication-integration) is a separate, read-only interoperability workspace for records received from an external eMAR. It monitors source freshness, resident mappings, external orders, administration records, and synchronization exceptions. Clinical orders and administrations cannot be prescribed, changed, or back-entered in CareBase; corrections must be made in the source eMAR.",
     ],
     bullets: [
       "Track practicum hours and due dates for medication-administration-eligible staff",
@@ -137,7 +137,7 @@ const SECTIONS: Section[] = [
   {
     title: "Residents & Resident Compliance",
     paragraphs: [
-      "For personal care home and assisted living facilities, Residents (/app/residents) maintains a compliance-oriented resident registry. Each resident detail page now includes a Resident 360 summary and chronological operational timeline spanning compliance, incidents, service delivery, financial activity, and external medication evidence while preserving the source and authorization rules of each record.",
+      "For personal care home and assisted living facilities, Residents (/app/residents) maintains a compliance-oriented resident registry. Each resident detail page now includes a Resident 360 summary and chronological operational timeline spanning compliance, incidents, service delivery, financial activity, and external medication records while preserving the source and authorization rules of each record.",
       "Resident Compliance (/app/resident-compliance) reports on resident-level compliance items -- assessments and other resident-specific requirements -- against their due dates, using the same Compliant / Due Soon / Expired / Missing status model used everywhere else in the app. Resident Assessment Forms let you configure the specific assessment content used for a facility's residents.",
       "Authorized managers can issue an expiring, permission-limited designated-person portal from a resident record. The portal stores only a hash of its high-entropy access token, removes the token from the browser URL, requires acceptance of current terms, logs access, and can expose only the selected schedule, finance summary, document index, and routine messaging permissions. It is not an emergency or clinical communication channel.",
       "Like Practicums and the Medication Administration Roster, resident modules only appear for facilities of the applicable type, and are restricted to org_admin, facility_manager, and auditor.",
@@ -153,7 +153,7 @@ const SECTIONS: Section[] = [
     title: "Shift Handoffs & Daily Operations",
     paragraphs: [
       "The Dashboard Today view prioritizes work that needs attention now: overdue and due-today obligations, unresolved handoffs, incidents, staffing gaps, and other operational risks. Links retain facility and resident context so staff land on the relevant record instead of restarting a search.",
-      "Shift Handoffs (/app/shift-handoffs) turns narrative shift reports into an accountable inbox. Managers can triage items, assign owners and due dates, escalate overdue items, or convert an item into the appropriate governed work record while retaining a link back to the handoff evidence.",
+      "Shift Handoffs (/app/shift-handoffs) turns narrative shift reports into an accountable inbox. Managers can triage items, assign owners and due dates, escalate overdue items, or convert an item into the appropriate governed work record while retaining a link back to the handoff documentation.",
     ],
     bullets: [
       "Start each day with the Dashboard Today priorities",
