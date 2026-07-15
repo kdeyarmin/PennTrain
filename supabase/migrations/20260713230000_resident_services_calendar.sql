@@ -191,7 +191,7 @@ begin
     raise exception 'Resident calendar operation is outside caller scope' using errcode = '42501';
   end if;
   return v;
-end
+end;
 $$;
 revoke all on function app_private.assert_calendar_contributor(uuid)
 from public, anon, authenticated, service_role;
@@ -229,7 +229,7 @@ begin
   returning id into v_id;
   if v_id is null then raise exception 'Vehicle not found' using errcode = 'P0002'; end if;
   return v_id;
-end
+end;
 $$;
 
 create or replace function public.create_resident_service_calendar_event(
@@ -349,7 +349,7 @@ begin
       'staffCount', jsonb_array_length(coalesce(p_staff, '[]'::jsonb))), auth.uid()
   );
   return v_id;
-end
+end;
 $$;
 
 create or replace function public.reschedule_resident_service_calendar_event(
@@ -389,7 +389,7 @@ begin
       'startsAt', p_starts_at, 'endsAt', p_ends_at), auth.uid()
   );
   return true;
-end
+end;
 $$;
 
 create or replace function public.record_resident_service_calendar_outcome(
@@ -479,7 +479,7 @@ begin
       'nextAppointmentAt', p_next_appointment_at), auth.uid()
   );
   return v.id;
-end
+end;
 $$;
 
 do $$
@@ -495,7 +495,7 @@ begin
     execute format('grant select on table public.%I to authenticated', t);
     execute format('grant all on table public.%I to service_role', t);
   end loop;
-end
+end;
 $$;
 
 create policy facility_transport_vehicles_select on public.facility_transport_vehicles
@@ -569,7 +569,7 @@ begin
     'appointmentFailures', (select count(*) from public.resident_service_calendar_events where facility_id=v_fac.id and event_type in('medical_appointment','dental_appointment','behavioral_health_appointment','laboratory_visit','therapy') and status in('canceled','no_show') and starts_at::date between p_from and p_through),
     'periodStart', p_from, 'periodEnd', p_through
   );
-end
+end;
 $$;
 revoke all on function public.get_qapi_source_metrics(uuid,date,date)
 from public, anon, authenticated, service_role;
@@ -600,7 +600,7 @@ begin
         and event.ends_at >= now() and event.starts_at < now() + interval '90 days'
     ), '[]'::jsonb)
   );
-end
+end;
 $$;
 revoke all on function public.get_resident_administrative_packet(uuid)
 from public, anon, authenticated, service_role;
