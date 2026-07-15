@@ -13,7 +13,14 @@ describe("normalizeTimeOffRequestWindow", () => {
     expect(getTimeOffRequestWindowError("", "")).toBeNull();
     expect(getTimeOffRequestWindowError("2026-07-15T09:00", "")).toBeNull();
   });
-
+it("rejects missing start/end when normalizing for submission", () => {
+  expect(() => normalizeTimeOffRequestWindow("", "2026-07-15T17:30")).toThrow(
+    "Enter both a start and end date/time for the time-off request."
+  );
+  expect(() => normalizeTimeOffRequestWindow("2026-07-15T09:00", "")).toThrow(
+    "Enter both a start and end date/time for the time-off request."
+  );
+});
   it("rejects invalid date input before attempting ISO conversion", () => {
     expect(() => normalizeTimeOffRequestWindow("not-a-date", "2026-07-15T17:30")).toThrow(
       "Enter a valid start and end date/time for the time-off request."
