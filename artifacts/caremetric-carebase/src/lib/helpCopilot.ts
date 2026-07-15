@@ -362,7 +362,7 @@ function entryRouteMatch(entry: KnowledgeEntry, route: string): boolean {
 function scoreEntry(entry: KnowledgeEntry, question: string, tokens: string[], route: string): number {
   const normalizedQuestion = question.toLowerCase();
   const questionTokens = new Set(tokens);
-  let score = entryRouteMatch(entry, route) ? 3 : 0;
+  let score = entryRouteMatch(entry, route) ? 8 : 0;
   entry.keywords.forEach((keyword) => {
     const keywordTokens = tokenizeHelpQuestion(keyword);
     const matchingTokens = keywordTokens.filter((token) => questionTokens.has(token)).length;
