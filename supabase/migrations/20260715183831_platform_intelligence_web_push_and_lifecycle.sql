@@ -1514,7 +1514,7 @@ on conflict (policy_key) do update set
 create or replace function public.run_data_lifecycle_policy(
   p_policy_key text,
   p_limit integer default 5000,
-  p_request_id text default gen_random_uuid()::text
+  p_request_id text default extensions.gen_random_uuid()::text
 )
 returns jsonb
 language plpgsql
