@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
+import type { Json, Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 
 export type Practicum = Tables<"practicums">;
 export type PracticumInsert = TablesInsert<"practicums">;
@@ -42,7 +42,9 @@ export function useCreatePracticum() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: PracticumInsert) => {
-      const { data, error } = await supabase.from("practicums").insert(payload).select().single();
+      const { data, error } = await supabase.rpc("save_practicum", {
+        p_payload: payload as Json,
+      });
       if (error) throw error;
       return data;
     },
@@ -54,7 +56,10 @@ export function useUpdatePracticum() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...payload }: PracticumUpdate & { id: string }) => {
-      const { data, error } = await supabase.from("practicums").update(payload).eq("id", id).select().single();
+      const { data, error } = await supabase.rpc("save_practicum", {
+        p_practicum_id: id,
+        p_payload: payload as Json,
+      });
       if (error) throw error;
       return data;
     },

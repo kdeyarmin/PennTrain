@@ -43,6 +43,7 @@ declare global {
 export default function Signup() {
   const [form, setForm] = useState<SignupForm>(EMPTY_FORM);
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileError, setTurnstileError] = useState<string | null>(null);
   const [legalAccepted, setLegalAccepted] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
   const turnstileContainerRef = useRef<HTMLDivElement | null>(null);
@@ -62,9 +63,18 @@ export default function Signup() {
       if (cancelled || !window.turnstile || !turnstileContainerRef.current || turnstileWidgetIdRef.current) return;
       turnstileWidgetIdRef.current = window.turnstile.render(turnstileContainerRef.current, {
         sitekey: turnstileSiteKey,
-        callback: setTurnstileToken,
-        "expired-callback": () => setTurnstileToken(""),
-        "error-callback": () => setTurnstileToken(""),
+        callback: (token) => {
+          setTurnstileToken(token);
+          setTurnstileError(null);
+        },
+        "expired-callback": () => {
+          setTurnstileToken("");
+          setTurnstileError("Verification expired. Please complete it again.");
+        },
+        "error-callback": () => {
+          setTurnstileToken("");
+          setTurnstileError("Verification could not load for this domain. Refresh the page or contact support.");
+        },
       });
     };
 
@@ -82,9 +92,12 @@ export default function Signup() {
         document.head.appendChild(script);
       }
       script.addEventListener("load", renderTurnstile);
+      const handleScriptError = () => setTurnstileError("Verification could not load. Check your connection and refresh the page.");
+      script.addEventListener("error", handleScriptError);
       return () => {
         cancelled = true;
         script?.removeEventListener("load", renderTurnstile);
+        script?.removeEventListener("error", handleScriptError);
         if (turnstileWidgetIdRef.current) window.turnstile?.remove?.(turnstileWidgetIdRef.current);
         turnstileWidgetIdRef.current = null;
       };
@@ -100,6 +113,7 @@ export default function Signup() {
   const resetTurnstile = () => {
     if (turnstileWidgetIdRef.current) window.turnstile?.reset(turnstileWidgetIdRef.current);
     setTurnstileToken("");
+    setTurnstileError(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -254,6 +268,11 @@ export default function Signup() {
               {turnstileSiteKey ? (
                 <div className="min-h-[65px]">
                   <div ref={turnstileContainerRef} />
+                  {turnstileError && (
+                    <p role="alert" className="mt-2 text-sm text-destructive">
+                      {turnstileError}
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">

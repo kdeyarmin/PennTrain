@@ -1,5 +1,6 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { resolveAppRedirect } from "../_shared/appRedirect.ts";
+import { requireFreshAal2 } from "../_shared/privilegedIdentity.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -21,7 +22,6 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const DEFAULT_APP_ORIGIN = "https://cmcarebase.com";
 const DEFAULT_ALLOWED_APP_ORIGINS = new Set([
   "https://cmcarebase.com",
-  "https://carebase-production.up.railway.app",
 ]);
 
 function allowedRedirectOrigins(): Set<string> {
@@ -142,6 +142,11 @@ Deno.serve(async (req: Request) => {
   }
 
   const effectiveOrgId = callerRole === "platform_admin" ? (organization_id ?? null) : callerOrgId;
+
+  if (["platform_admin", "org_admin", "facility_manager", "auditor"].includes(role)) {
+    const assurance = await requireFreshAal2(callerClient, "identity_admin");
+    if (!assurance.ok) return json({ error: assurance.error }, assurance.status);
+  }
 
   // Employee self-service depends on employees.profile_id. Inviting an employee without linking
   // that row produces a valid login that can only show "No employee profile is linked" across

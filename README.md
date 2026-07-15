@@ -10,8 +10,7 @@ CareMetric CareBase is a multi-tenant personal care home and assisted living fac
 Row-Level Security, Supabase Auth, Supabase Storage, and Edge Functions. There is no separate API server -- the
 React frontend talks to Supabase directly via `supabase-js`.
 
-**Production**: https://cmcarebase.com (Railway-hosted, service domain
-`carebase-production.up.railway.app`; see `DEPLOYMENT.md`).
+**Production**: https://cmcarebase.com (Railway-hosted; see `DEPLOYMENT.md`).
 
 ## Implementation roadmap
 

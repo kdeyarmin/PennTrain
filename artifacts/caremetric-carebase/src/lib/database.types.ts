@@ -1600,21 +1600,33 @@ export type Database = {
           created_at: string
           expires_at: string
           id: string
+          last_used_at: string | null
+          not_before: string
+          revoked_at: string | null
           token: string
+          token_kind: string
         }
         Insert: {
           class_id: string
           created_at?: string
           expires_at?: string
           id?: string
+          last_used_at?: string | null
+          not_before?: string
+          revoked_at?: string | null
           token?: string
+          token_kind?: string
         }
         Update: {
           class_id?: string
           created_at?: string
           expires_at?: string
           id?: string
+          last_used_at?: string | null
+          not_before?: string
+          revoked_at?: string | null
           token?: string
+          token_kind?: string
         }
         Relationships: [
           {
@@ -17944,6 +17956,7 @@ export type Database = {
           resident_id: string
           revocation_reason: string | null
           revoked_at: string | null
+          signer_role: string
           terms_version: string
           token_sha256: string
         }
@@ -17961,6 +17974,7 @@ export type Database = {
           resident_id: string
           revocation_reason?: string | null
           revoked_at?: string | null
+          signer_role: string
           terms_version: string
           token_sha256: string
         }
@@ -17978,6 +17992,7 @@ export type Database = {
           resident_id?: string
           revocation_reason?: string | null
           revoked_at?: string | null
+          signer_role?: string
           terms_version?: string
           token_sha256?: string
         }
@@ -27756,6 +27771,52 @@ export type Database = {
         Args: { p_destination: string; p_entry_id: string; p_reason: string }
         Returns: Json
       }
+      correct_completed_class_attendee: {
+        Args: {
+          p_action: string
+          p_attended: boolean
+          p_class_id: string
+          p_employee_id: string
+          p_reason: string
+        }
+        Returns: boolean
+      }
+      correct_completed_training_class: {
+        Args: { p_class_id: string; p_patch: Json; p_reason: string }
+        Returns: {
+          cancellation_reason: string | null
+          capacity: number
+          class_date: string
+          class_name: string
+          completion_approved_at: string | null
+          completion_approved_by: string | null
+          created_at: string
+          duration_hours: number
+          ends_at: string | null
+          facility_id: string | null
+          id: string
+          location: string | null
+          lock_version: number
+          makeup_of_class_id: string | null
+          notes: string | null
+          organization_id: string
+          rescheduled_to_class_id: string | null
+          resource_requirements: Json
+          room_name: string | null
+          roster_document_id: string | null
+          starts_at: string | null
+          status: string
+          trainer_profile_id: string
+          training_type_id: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "training_classes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       course_version_is_published: {
         Args: { p_version_id: string }
         Returns: boolean
@@ -28466,6 +28527,14 @@ export type Database = {
         Args: { p_feature_key: string }
         Returns: boolean
       }
+      finalize_confidential_intake_attempt: {
+        Args: {
+          p_attempt_id: number
+          p_error_code?: string
+          p_success: boolean
+        }
+        Returns: boolean
+      }
       finalize_resident_assessment_form: {
         Args: { p_form_id: string }
         Returns: {
@@ -28496,6 +28565,14 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      finalize_signup_attempt: {
+        Args: {
+          p_attempt_id: string
+          p_error_code?: string
+          p_success: boolean
+        }
+        Returns: boolean
       }
       finish_binder_export_job: {
         Args: {
@@ -29093,6 +29170,7 @@ export type Database = {
           p_expires_at: string
           p_guest_label: string
           p_resident_id: string
+          p_signer_role: string
           p_terms_version?: string
           p_version_ids: string[]
         }
@@ -29952,6 +30030,23 @@ export type Database = {
         Args: { p_bed_id: string; p_prospect_id: string }
         Returns: boolean
       }
+      reserve_confidential_intake_attempt: {
+        Args: { p_facility_id: string; p_ip_hash: string; p_limit?: number }
+        Returns: number
+      }
+      reserve_signup_attempt: {
+        Args: {
+          p_baa_version: string
+          p_email_hash: string
+          p_ip_hash: string
+          p_legal_accepted: boolean
+          p_max_email_per_day: number
+          p_max_ip_per_hour: number
+          p_max_orgs_per_day: number
+          p_service_agreement_version: string
+        }
+        Returns: string
+      }
       resolve_medication_integration_exception: {
         Args: {
           p_exception_id: string
@@ -30071,6 +30166,10 @@ export type Database = {
           p_rationale: string
         }
         Returns: boolean
+      }
+      revoke_class_checkin_tokens: {
+        Args: { p_class_id: string; p_reason: string }
+        Returns: number
       }
       revoke_evidence_guest_grant: {
         Args: { p_grant_id: string; p_reason: string }
@@ -30316,6 +30415,48 @@ export type Database = {
         }
         Returns: string
       }
+      save_practicum: {
+        Args: { p_payload?: Json; p_practicum_id?: string }
+        Returns: {
+          certificate_document_id: string | null
+          completion_date: string | null
+          created_at: string
+          direct_observation_completed: boolean
+          due_date: string | null
+          employee_id: string
+          facility_id: string
+          id: string
+          mar_review_completed: boolean
+          notes: string | null
+          observation_document_id: string | null
+          observed_by: string | null
+          organization_id: string
+          practicum_year: number
+          remediation_notes: string | null
+          remediation_required: boolean
+          reminder_days: number
+          status: string
+          updated_at: string
+          verified_at: string | null
+          verified_by_profile_id: string | null
+          window1_evidence_document_id: string | null
+          window1_mar_review_by: string | null
+          window1_mar_review_date: string | null
+          window1_observation_by: string | null
+          window1_observation_date: string | null
+          window2_evidence_document_id: string | null
+          window2_mar_review_by: string | null
+          window2_mar_review_date: string | null
+          window2_observation_by: string | null
+          window2_observation_date: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "practicums"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       save_report_definition: {
         Args: {
           p_columns?: Json
@@ -30348,6 +30489,41 @@ export type Database = {
       save_resident_administrative_master: {
         Args: { p_contacts?: Json; p_profile: Json; p_resident_id: string }
         Returns: boolean
+      }
+      save_training_record: {
+        Args: { p_payload?: Json; p_record_id?: string }
+        Returns: {
+          approval_status: string | null
+          certificate_number: string | null
+          completion_date: string | null
+          completion_method: string | null
+          created_at: string
+          document_required: boolean
+          due_date: string | null
+          employee_id: string
+          external_certificate_document_id: string | null
+          facility_id: string
+          hours: number | null
+          id: string
+          notes: string | null
+          organization_id: string
+          review_comments: string | null
+          score: number | null
+          status: string
+          trainer_credentials: string | null
+          trainer_name: string | null
+          training_provider: string | null
+          training_type_id: string
+          updated_at: string
+          verified_at: string | null
+          verified_by_profile_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employee_training_records"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       schedule_resident_appointment: {
         Args: {
