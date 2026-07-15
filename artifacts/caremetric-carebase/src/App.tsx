@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { queryClient } from "@/lib/queryClient";
 import { AuthProvider } from "@/lib/auth";
+import { loginPathWithNext } from "@/lib/loginRedirect";
 import { ViewingOrgProvider } from "@/lib/viewingOrg";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
@@ -189,7 +190,8 @@ function ProtectedRoute({
   }
 
   if (!isAuthenticated) {
-    return <Redirect to="/login" />;
+    const loginPath = loginPathWithNext(window.location.pathname, window.location.search, window.location.hash);
+    return <Redirect to={loginPath} />;
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role as UserRole)) {
