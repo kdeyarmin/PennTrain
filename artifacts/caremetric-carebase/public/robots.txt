@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /app/
+Disallow: /admin/
+Disallow: /trainer/
+Disallow: /employee/
+Disallow: /reset-password
+Disallow: /forgot-password
+Disallow: /checkin/
+
+Sitemap: https://cmcarebase.com/sitemap.xml

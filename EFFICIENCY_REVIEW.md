@@ -1,4 +1,4 @@
-# CareMetric Train — Efficiency & Usability Review
+# CareMetric CareBase — Efficiency & Usability Review
 
 *July 2026. A follow-up to `ROADMAP.md`'s full-codebase review — that review covered feature completeness,
 correctness, and security, and its entire Tier 1–3 backlog has since shipped. This review assumes every feature
@@ -45,14 +45,14 @@ still-fresh.
 
 ### 3. Bulk actions are almost universally missing wherever a task realistically touches many records
 
-Independently flagged in six of the eight areas reviewed — training records, course assignments, inspection
+Independently flagged in six of the eight areas reviewed — training records, training assignments, inspection
 items, shift/pattern assignment, class attendance, document upload, and notification retries all force
 one-record-at-a-time workflows:
 
 - Recording one training event against a cohort has no batch path (`TrainingMatrix.tsx:145-297`); a 15-person
   group in-service means 15 separate dialogs. `Alerts.tsx:270-289` offers bulk *Dismiss* but not bulk *Resolve*,
   even though `useBulkUpdateAlerts` is already status-agnostic.
-- Course assignment takes one employee per submission (`CourseAssignments.tsx:208-242`) — assigning to 40 people
+- Training assignment takes one employee per submission (`CourseAssignments.tsx:208-242`) — assigning to 40 people
   is 40 dialogs.
 - `InspectionItems.tsx` has no bulk "log inspection" — clearing 10 pieces of equipment after a walkthrough is 10
   dialogs.
@@ -155,7 +155,7 @@ AdministratorQualification, EmployeeCredentials, BackgroundChecks, ExclusionScre
 | Two divergent employee-form definitions have already drifted (one has no Notes field) | `Employees.tsx:28-50` vs `EmployeeDetail.tsx:45-61` | Low-Med × S/M |
 | Forms validate only on submit with one generic toast, no inline/on-blur feedback | `Employees.tsx:191-199` (representative) | Med × M |
 
-### LMS course authoring & delivery
+### Course authoring & delivery
 *Courses, CourseDetail, CourseAssignments, QuizBuilder, AiCourseWizard, AiGenerationLog, TakeCourse, TakeQuiz,
 CompetencyTemplates/Records*
 

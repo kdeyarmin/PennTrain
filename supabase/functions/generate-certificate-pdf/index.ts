@@ -127,7 +127,7 @@ async function buildCertificatePdf(input: {
     0.5,
   ]);
   y -= 16;
-  center(`Verify at caremetrictrain.com/verify/${input.slug}`, y, 9, font, [
+  center(`Verify at cmcarebase.com/verify/${input.slug}`, y, 9, font, [
     0.5,
     0.5,
     0.5,

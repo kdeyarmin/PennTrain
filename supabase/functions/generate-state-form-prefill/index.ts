@@ -30,7 +30,7 @@ function json(body: unknown, status = 200) {
 const DOCUMENTS_BUCKET = "resident-documents";
 const SIGNED_URL_TTL_SECONDS = 60 * 10;
 
-// Mirrors artifacts/caremetric-train/src/lib/residentCompliance.ts's DHS form URLs -- duplicated
+// Mirrors artifacts/caremetric-carebase/src/lib/residentCompliance.ts's DHS form URLs -- duplicated
 // here (a Deno edge function can't import from the frontend package) and must stay in sync if
 // that file's URLs ever change.
 const DHS_PREFILL_TEMPLATES: Record<

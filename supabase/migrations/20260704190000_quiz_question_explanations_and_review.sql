@@ -1,5 +1,5 @@
 -- Quiz question authoring had hooks (useCreateQuizQuestion/useCreateQuizAnswer etc.)
--- but no UI ever built on top of them, and no way for a learner to review *why* an
+-- but no UI ever built on top of them, and no way for an employee to review *why* an
 -- answer was right or wrong after a graded attempt. This migration adds:
 --
 -- 1. quiz_questions.explanation -- optional author-written feedback text.

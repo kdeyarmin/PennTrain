@@ -794,8 +794,8 @@ values
   ),
   (
     'course-status-recalculation',
-    'Course assignment status recalculation',
-    'Reconciles learner assignment due and overdue states',
+    'Training assignment status recalculation',
+    'Reconciles employee training assignment due and overdue states',
     'sql_cron',
     'recalculate-course-assignment-statuses-nightly',
     interval '1 day',
@@ -806,8 +806,8 @@ values
   ),
   (
     'course-continuation-reminders',
-    'Course continuation reminders',
-    'Queues reminders for learners with in-progress courses',
+    'Training continuation reminders',
+    'Queues reminders for employees with in-progress training',
     'sql_cron',
     'course-continuation-reminders-daily',
     interval '1 day',

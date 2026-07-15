@@ -1,4 +1,4 @@
--- Forward-fix (review findings): three compounding gaps let a learner defeat quiz integrity
+-- Forward-fix (review findings): three compounding gaps let an employee defeat quiz integrity
 -- entirely by bypassing the UI and calling supabase-js/PostgREST directly:
 --
 -- 1. quizzes.max_attempts is enforced only by the frontend's Retake-Quiz button -- nothing in RLS
@@ -6,7 +6,7 @@
 --    (assignment_id, quiz_id), even once max_attempts is reached.
 -- 2. grade_quiz_attempt() never checks whether the attempt is already submitted, and
 --    quiz_attempt_answers_update has no restriction requiring the parent quiz_attempts.submitted_at
---    to be null -- so after failing attempt #1, a learner can directly
+--    to be null -- so after failing attempt #1, an employee can directly
 --    `.from('quiz_attempt_answers').update({selected_answer_ids:[...]})` the same still-submitted
 --    attempt's rows for every question still marked incorrect, then call
 --    `rpc('grade_quiz_attempt', ...)` again to recompute is_correct/score_percent/passed on the SAME
@@ -14,7 +14,7 @@
 --    changes, this entirely bypasses max_attempts (which only limits the number of quiz_attempts
 --    ROWS, not re-grading a single row).
 -- 3. get_quiz_review()'s attempt_count CTE counts ALL quiz_attempts rows for the assignment+quiz --
---    submitted or not -- so a learner can pad the count with extra unsubmitted (junk) attempt rows
+--    submitted or not -- so an employee can pad the count with extra unsubmitted (junk) attempt rows
 --    to make `ac.used >= max_attempts` true on a still-failed, still-retriable attempt, and use that
 --    to read every correct answer/explanation via get_quiz_review before ever exhausting a real
 --    attempt -- defeating the "reveal answers only once retries are truly exhausted" design.
@@ -25,7 +25,7 @@
 -- parent attempt is unsubmitted, and count only submitted attempts toward "exhausted my retries".
 
 -- 1. Attempt cap, enforced server-side. Skipped for platform_admin/org_admin/facility_manager/
--- trainer (an admin manually creating/adjusting an attempt on a learner's behalf -- e.g. a
+-- trainer (an admin manually creating/adjusting an attempt on an employee's behalf -- e.g. a
 -- make-up attempt -- is a deliberate, out-of-band decision this trigger shouldn't block).
 create or replace function public.enforce_quiz_attempt_cap()
 returns trigger
@@ -148,7 +148,7 @@ with check (
 );
 
 -- 4. get_quiz_review(): only a genuinely SUBMITTED attempt counts toward "exhausted every retry" --
--- an unsubmitted placeholder row (which a learner can otherwise insert for free, up to the new cap
+-- an unsubmitted placeholder row (which an employee can otherwise insert for free, up to the new cap
 -- above) must not be usable to fake exhaustion and unlock the correct-answer key early.
 create or replace function public.get_quiz_review(p_attempt_id uuid)
 returns table(question_id uuid, answer_id uuid, answer_text text, is_correct boolean, explanation text)

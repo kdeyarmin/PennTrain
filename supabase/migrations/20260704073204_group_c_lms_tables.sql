@@ -82,7 +82,7 @@ create table public.quiz_questions (
   created_at      timestamptz not null default now()
 );
 
--- ---- 1.7 quiz_answers  (is_correct = ANSWER KEY; column-read-hidden from learners, SECTION 4) ----
+-- ---- 1.7 quiz_answers  (is_correct = ANSWER KEY; column-read-hidden from employees, SECTION 4) ----
 create table public.quiz_answers (
   id              uuid primary key default gen_random_uuid(),
   question_id     uuid not null references public.quiz_questions(id) on delete cascade,
@@ -113,7 +113,7 @@ create table public.course_assignments (
     check ((status = 'completed') = (completed_at is not null))
 );
 
--- ---- 1.9 course_progress  (the ONE learner-writable table, conv #9) ----
+-- ---- 1.9 course_progress  (the ONE employee-writable table, conv #9) ----
 create table public.course_progress (
   id               uuid primary key default gen_random_uuid(),
   assignment_id    uuid not null unique references public.course_assignments(id) on delete cascade,

@@ -74,7 +74,7 @@ create trigger stamp_scope before insert on public.competency_records
   for each row execute function public.stamp_scope_from_employee();
 drop function public.stamp_org_from_employee();
 
--- 4. issue_certificate()'s owns_employee() branch let a learner mint a certificate for ANY
+-- 4. issue_certificate()'s owns_employee() branch let an employee mint a certificate for ANY
 --    p_course_id by calling the RPC directly (bypassing the UI), since the function never checked
 --    that p_course_assignment_id existed, was completed, or matched the given employee/course --
 --    it could even be left null. Fix: require a real, completed, matching course_assignment.

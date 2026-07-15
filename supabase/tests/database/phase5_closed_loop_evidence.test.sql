@@ -1,4 +1,4 @@
-begin; select plan(25);
+begin; select plan(26);
 select has_table('public','work_items','reusable owned work exists');
 select has_table('public','confidential_reporter_identities','reporter identity is separated');
 select has_table('public','move_in_workspaces','resident move-in workspace exists');
@@ -28,8 +28,9 @@ insert into p5_ids(key,id) values('work',public.create_deduplicated_work_item('5
 select is(public.create_deduplicated_work_item('55000000-0000-4000-8000-000000000001','55000000-0000-4000-8000-000000000011','incident.followup','incident','55000000-0000-4000-8000-000000000901','incident:901','Investigate incident','Complete investigation','55000000-0000-4000-8000-000000000101','high',now()+interval '1 day'),(select id from p5_ids where key='work'),'configured source creates one deduplicated action');
 select throws_ok($$select public.transition_work_item((select id from p5_ids where key='work'),'closed','Investigation complete')$$,'55000',null,'closure fails without configured evidence');
 reset role;insert into public.work_item_evidence(organization_id,facility_id,work_item_id,evidence_type,linked_record_type,linked_record_id,submitted_by) values('55000000-0000-4000-8000-000000000001','55000000-0000-4000-8000-000000000011',(select id from p5_ids where key='work'),'closure_document','incident','55000000-0000-4000-8000-000000000901','55000000-0000-4000-8000-000000000101');
-select pg_temp.act_as('55000000-0000-4000-8000-000000000101');select lives_ok($$select public.transition_work_item((select id from p5_ids where key='work'),'closed','Evidence reviewed and closure approved')$$,'evidence-backed work can close');
-select is((select count(*)::integer from public.work_item_history where work_item_id=(select id from p5_ids where key='work')),2,'work history retains create and closure');
+select pg_temp.act_as('55000000-0000-4000-8000-000000000101');select lives_ok($$select public.transition_work_item((select id from p5_ids where key='work'),'pending_approval','Evidence submitted for manager review')$$,'evidence-backed work can enter approval');
+select lives_ok($$select public.approve_work_item((select id from p5_ids where key='work'),'Evidence reviewed and closure approved')$$,'approval-required work closes through explicit approval');
+select is((select count(*)::integer from public.work_item_history where work_item_id=(select id from p5_ids where key='work')),3,'work history retains creation, submission, and approval');
 reset role;
 insert into public.confidential_incident_intakes(id,organization_id,facility_id,report_type,severity,reporter_mode,public_summary,resume_secret_sha256,confirmation_token_sha256) values('55000000-0000-4000-8000-000000000401','55000000-0000-4000-8000-000000000001','55000000-0000-4000-8000-000000000011','near_miss','high','anonymous','Medication near miss',repeat('a',64),repeat('b',64));
 insert into public.confidential_incident_details(intake_id,organization_id,resident_id,narrative) values('55000000-0000-4000-8000-000000000401','55000000-0000-4000-8000-000000000001','55000000-0000-4000-8000-000000000201','Protected resident and witness narrative');

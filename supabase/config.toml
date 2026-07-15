@@ -23,6 +23,17 @@ verify_jwt = false
 # shared constant-time secret check used by the other internal workers.
 verify_jwt = false
 
+# Serves both authenticated platform_admin "process this upload now" kicks and the internal
+# document-analyzer cron sweep. pg_net sends no user JWT, so the gateway must not require
+# one; JWT verification is enforced inside the function for user requests, and cron requests
+# are gated by the shared X-CareMetric-Cron-Secret constant-time check -- the same split as
+# generate-compliance-binder and generate-certificate-pdf.
+[functions.analyze-state-form]
+verify_jwt = false
+
+[functions.generate-analyzer-packet]
+verify_jwt = true
+
 [functions.generate-incident-report-pdf]
 verify_jwt = true
 
@@ -96,6 +107,15 @@ verify_jwt = true
 [functions.send-auth-email]
 verify_jwt = false
 
+# Hosted Supabase Auth hooks are configured in the dashboard. For local end-to-end hook
+# testing, opt in by setting enabled=true and SEND_EMAIL_HOOK_SECRET_BASE64 to a base64
+# encoded Standard Webhooks secret; keep disabled by default so `supabase start` works
+# without developer-local email credentials.
+[auth.hook.send_email]
+enabled = false
+uri = "http://host.docker.internal:54321/functions/v1/send-auth-email"
+secrets = "env(SEND_EMAIL_HOOK_SECRET_BASE64)"
+
 # Public, unauthenticated self-service signup endpoint by design -- there is no caller session
 # yet at signup time. The function enforces Turnstile, hashed rate limits, platform signup gates,
 # and invite-email verification before the org_admin can set a password.
@@ -113,6 +133,12 @@ verify_jwt = true
 # only two curated booleans, never the full platform_settings table, so there is no caller-session
 # needed and nothing sensitive to protect with verify_jwt.
 [functions.get-platform-status]
+verify_jwt = false
+
+# Public error intake is available before authentication so login and lazy-chunk failures are
+# observable. The handler accepts only a small allowlisted, length-bounded, server-redacted
+# payload and writes structured events to Supabase function logs; it performs no database writes.
+[functions.report-client-error]
 verify_jwt = false
 
 # Organization/platform administrators create Stripe Checkout or Customer Portal sessions. The

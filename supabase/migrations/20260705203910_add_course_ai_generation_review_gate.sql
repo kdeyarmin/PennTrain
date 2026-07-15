@@ -1,4 +1,4 @@
--- Review-gate for AI-generated course content: an AI-drafted course_version can't be published
+-- Review-gate for AI-generated training content: an AI-drafted course_version can't be published
 -- until a human (platform_admin) has explicitly reviewed it. Manually-authored versions default
 -- ai_generated=false, so this is a no-op for all non-AI content.
 --

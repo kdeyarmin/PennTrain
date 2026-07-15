@@ -402,20 +402,20 @@ insert into public.notification_templates (
   subject_template, body_template, allowed_variables, activated_at
 ) values
   (null, 'default', 'email', 1, 'active',
-   'CareMetric Train notification',
-   'A training or compliance item requires attention. Sign in to CareMetric Train to review it securely.',
+   'CareMetric CareBase notification',
+   'A training or compliance item requires attention. Sign in to CareMetric CareBase to review it securely.',
    '{}'::text[], now()),
   (null, 'default', 'sms', 1, 'active',
-   'CareMetric Train',
+   'CareMetric CareBase',
    'A training or compliance item requires attention. Sign in to review it securely.',
    '{}'::text[], now()),
   (null, 'support_ticket_update', 'email', 1, 'active',
-   'Your CareMetric Train support ticket has an update',
-   'Sign in to CareMetric Train to review the update securely.',
+   'Your CareMetric CareBase support ticket has an update',
+   'Sign in to CareMetric CareBase to review the update securely.',
    '{}'::text[], now()),
   (null, 'resident_compliance_due', 'email', 1, 'active',
-   'CareMetric Train compliance action required',
-   'A compliance item requires attention. Sign in to CareMetric Train to review it securely.',
+   'CareMetric CareBase compliance action required',
+   'A compliance item requires attention. Sign in to CareMetric CareBase to review it securely.',
    '{}'::text[], now());
 
 -- ---------------------------------------------------------------------------

@@ -2,13 +2,14 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "RAILPACK",
-    "buildCommand": "pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-train run typecheck && pnpm --filter @workspace/caremetric-train run build",
+    "buildCommand": "pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-carebase run typecheck && pnpm --filter @workspace/caremetric-carebase run build",
     "watchPatterns": [
-      "artifacts/caremetric-train/**",
+      "artifacts/caremetric-carebase/**",
       "package.json",
       "pnpm-lock.yaml",
       "pnpm-workspace.yaml",
       "railway.json",
+      "railpack.json",
       "tsconfig.base.json",
       ".node-version",
       ".nvmrc",
@@ -16,7 +17,7 @@
     ]
   },
   "deploy": {
-    "startCommand": "pnpm --filter @workspace/caremetric-train run start",
+    "startCommand": "pnpm --filter @workspace/caremetric-carebase run start",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 100,
     "restartPolicyType": "ON_FAILURE",

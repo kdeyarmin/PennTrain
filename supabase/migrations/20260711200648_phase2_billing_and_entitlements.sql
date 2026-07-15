@@ -425,7 +425,7 @@ insert into public.feature_definitions (
   feature_key, display_name, description, value_type, default_value, limit_unit
 )
 values
-  ('limits.learners', 'Learner limit', 'Maximum active learner seats', 'integer', '0'::jsonb, 'learners'),
+  ('limits.learners', 'Employee seat limit', 'Maximum active employee seats', 'integer', '0'::jsonb, 'employees'),
   ('limits.facilities', 'Facility limit', 'Maximum active facilities', 'integer', '0'::jsonb, 'facilities'),
   ('integrations.api', 'Integration API', 'Tenant-scoped versioned API access', 'boolean', 'false'::jsonb, null),
   ('integrations.webhooks', 'Integration webhooks', 'Signed outbound event delivery', 'boolean', 'false'::jsonb, null),

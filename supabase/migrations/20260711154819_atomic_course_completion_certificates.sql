@@ -1,4 +1,4 @@
--- Phase 1 / recommendation #1: make course completion, certificate issuance, and the
+-- Phase 1 / recommendation #1: make training completion, certificate issuance, and the
 -- durable follow-up work one replay-safe transaction.
 --
 -- The previous browser flow called complete_course_assignment() and issue_certificate()
@@ -135,7 +135,7 @@ create trigger set_updated_at before update on public.certificate_pdf_jobs
 alter table public.certificate_lifecycle_events enable row level security;
 alter table public.certificate_pdf_jobs enable row level security;
 
--- Learners and facility-scoped staff may observe lifecycle state for certificates they can
+-- Employees and facility-scoped staff may observe lifecycle state for certificates they can
 -- already select. No browser role can create, claim, or finish jobs/events.
 create policy certificate_lifecycle_events_select
 on public.certificate_lifecycle_events for select to authenticated
@@ -321,7 +321,7 @@ begin
   v_was_completed := v_assignment.status = 'completed';
   select * into v_course from public.courses where id = v_assignment.course_id;
 
-  -- Integrity gates apply only to a learner's first transition. A replay of an already-valid
+  -- Integrity gates apply only to an employee's first transition. A replay of an already-valid
   -- completion must be able to repair a missing certificate without rewriting evidence dates.
   if v_is_self and not v_was_completed then
     select * into v_progress
@@ -342,7 +342,7 @@ begin
       raise exception 'This course needs to stay open for at least % minute(s) before it can be marked complete -- % minute(s) have elapsed so far.',
         ceil(v_min_seconds / 60.0),
         floor(extract(epoch from (now() - v_progress.started_at)) / 60.0)
-        using errcode = 'check_violation', hint = 'Continue through the course content, then try again.';
+        using errcode = 'check_violation', hint = 'Continue through the training content, then try again.';
     end if;
 
     if exists (
@@ -387,7 +387,7 @@ begin
         set completion_date = current_date,
             status = 'compliant',
             completion_method = 'online',
-            training_provider = 'CareMetric Train LMS',
+            training_provider = 'CareMetric CareBase Training Suite',
             hours = round(coalesce(v_course.estimated_duration_minutes, 0) / 60.0, 2),
             notes = 'Auto-recorded on completion of course "' || v_course.title || '".'
         where id = v_record_id;
@@ -405,7 +405,7 @@ begin
           'compliant',
           round(coalesce(v_course.estimated_duration_minutes, 0) / 60.0, 2),
           'online',
-          'CareMetric Train LMS',
+          'CareMetric CareBase Training Suite',
           'Auto-recorded on completion of course "' || v_course.title || '".'
         );
       end if;

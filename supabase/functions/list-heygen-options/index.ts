@@ -13,7 +13,7 @@ function json(body: unknown, status = 200) {
   });
 }
 
-const WRITER_ROLES = ["platform_admin", "org_admin", "trainer"];
+const WRITER_ROLES = ["platform_admin"];
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
@@ -57,12 +57,23 @@ Deno.serve(async (req: Request) => {
   if (!avatarsRes.ok) return json({ error: avatarsBody?.message ?? "failed to list HeyGen avatars" }, 502);
   if (!voicesRes.ok) return json({ error: voicesBody?.message ?? "failed to list HeyGen voices" }, 502);
 
-  const avatars = (avatarsBody?.data ?? []).map((a: Record<string, unknown>) => ({
-    id: a.id,
-    name: a.name,
-    preview_image_url: a.preview_image_url,
-    gender: a.gender,
-  }));
+  const avatars = (avatarsBody?.data ?? [])
+    .map((a: Record<string, unknown>) => {
+      const name = String(a.name ?? "");
+      const avatarType = String(a.avatar_type ?? a.type ?? a.category ?? "");
+      const groupName = String(a.group_name ?? a.avatar_group_name ?? "");
+      const isAiTwin = /twin|instant|custom/i.test(`${name} ${avatarType} ${groupName}`);
+      return {
+        id: a.id,
+        name: a.name,
+        preview_image_url: a.preview_image_url,
+        gender: a.gender,
+        avatar_type: avatarType || null,
+        group_name: groupName || null,
+        is_ai_twin: isAiTwin,
+      };
+    })
+    .sort((a: Record<string, unknown>, b: Record<string, unknown>) => Number(b.is_ai_twin) - Number(a.is_ai_twin));
   const voices = (voicesBody?.data ?? []).map((v: Record<string, unknown>) => ({
     voice_id: v.voice_id,
     name: v.name,

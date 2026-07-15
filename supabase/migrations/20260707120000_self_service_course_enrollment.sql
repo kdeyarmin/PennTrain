@@ -17,7 +17,7 @@
 --
 -- self_enroll_course() is the actual self-service RPC, letting any role start a published
 -- course on their own, the same way start_course_assignment()/complete_course_assignment()
--- already let a learner self-serve the rest of the course lifecycle.
+-- already let an employee self-serve the rest of the training lifecycle.
 
 create or replace function public.ensure_employee_record(p_profile_id uuid)
 returns void language plpgsql security definer set search_path to 'public' as $$
@@ -49,10 +49,10 @@ begin
     -- organizations_slug_key's unique constraint instead of just reusing the winner's row.
     perform pg_advisory_xact_lock(hashtext('ensure_employee_record:internal-org-bootstrap'));
 
-    select id into v_org_id from public.organizations where slug = 'caremetric-train-internal';
+    select id into v_org_id from public.organizations where slug = 'caremetric-carebase-internal';
     if v_org_id is null then
       insert into public.organizations (name, slug, subscription_status)
-      values ('CareMetric Train (Internal)', 'caremetric-train-internal', 'active')
+      values ('CareMetric CareBase (Internal)', 'caremetric-carebase-internal', 'active')
       returning id into v_org_id;
     end if;
 

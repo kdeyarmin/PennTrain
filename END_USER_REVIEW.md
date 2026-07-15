@@ -1,4 +1,4 @@
-# CareMetric Train — End-User Experience Review
+# CareMetric CareBase — End-User Experience Review
 
 *July 2026. A whole-codebase review asking one question: what would most improve this app for the
 people who use it — org admins, facility managers, trainers, employees taking training, and
@@ -20,7 +20,7 @@ ground** and does not restate their findings.
 | `IMPLEMENTATION_PLAN.md` (29 approved improvements, Phases 1–5) | **All code-complete** in this tree (migrations dated 2026-07-11/12); pending GA exit gates (CI + pilots) | Nothing below recommends re-building any of the 29. Several findings instead recommend **exposing** Phase 4/5 backends that have no UI yet. |
 | `EFFICIENCY_REVIEW.md` (~40 usability findings, Pass 1–3 backlog) | **Partially implemented** since it was written — e.g. React Query now has default `staleTime`/`refetchOnWindowFocus` policy (`src/lib/queryClient.ts`), and `Employees.tsx` uses real server pagination (`useListEmployeesPaginated`) | Its remaining backlog (server pagination on other high-row tables, bulk actions, broader GlobalSearch, shared DataTable, course-version cloning, etc.) is still the right list; it is referenced, not restated. |
 
-All paths below are relative to `artifacts/caremetric-train/src/` unless they start with
+All paths below are relative to `artifacts/caremetric-carebase/src/` unless they start with
 `supabase/`.
 
 ---

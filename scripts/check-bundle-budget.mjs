@@ -3,20 +3,39 @@ import path from "node:path";
 
 const assetDirectory = path.resolve(
   process.cwd(),
-  "artifacts/caremetric-train/dist/public/assets",
+  "artifacts/caremetric-carebase/dist/public/assets",
 );
 
+// These budgets are regression tripwires, not exact ledgers. They exist to catch
+// step changes -- an accidentally eager import, a heavyweight dependency, a chunk
+// that stops code-splitting -- not the few KiB of organic growth every feature adds.
+// Keep each budget at least ~10% above the current measurement on main; small
+// metrics can carry more headroom for the sake of a round number. When organic
+// growth pushes a metric past the warning threshold below, raise that budget in
+// one step that restores that headroom, in the same PR (git history records when
+// and why). Do not raise budgets per-feature or shave them to the current measurement:
+// a budget within a few KiB of actual fails on nearly every branch and gates
+// merges on noise instead of regressions.
+//
+// Per-page-load guardrails are largestJavaScript and initialShell. totalJavaScript
+// sums every lazy route chunk -- no single page load fetches it -- so it grows with
+// the number of features by design and only guards against wholesale bloat.
 const budgets = {
-  largestJavaScript: 400 * 1024,
-  // Sum of every lazy route chunk, not what any one page load fetches -- the per-load
-  // guardrails are largestJavaScript and initialShell. Raised 2300 -> 2400 when the
-  // end-user-review rounds (evidence room, saved views, confidential console, ...)
-  // and the state-forms/document-analyzer features landed together; both per-load
-  // budgets were still comfortably met (largest 388 KiB, shell 1062 KiB).
-  totalJavaScript: 2400 * 1024,
-  totalCss: 140 * 1024,
-  initialShell: 1200 * 1024,
+  // Measured 409.3 KiB (the entry chunk) when this headroom policy was adopted.
+  largestJavaScript: 460 * 1024,
+  // Measured 2811.9 KiB when this headroom policy was adopted; raised 3250 -> 3300
+  // when the dietary food-safety operations and document-analyzer branches merged
+  // together and the combined measurement reached 2937.0 KiB (past the warning band).
+  totalJavaScript: 3300 * 1024,
+  // Measured 129.3 KiB when this headroom policy was adopted.
+  totalCss: 160 * 1024,
+  // Measured 1095.8 KiB when this headroom policy was adopted.
+  initialShell: 1250 * 1024,
 };
+
+// Warn (without failing) once a metric uses this fraction of its budget, so the
+// budget gets raised deliberately on main instead of failing feature branches.
+const warningRatio = 0.9;
 
 const initialShellPattern =
   /^(index|router|query|radix|supabase|motion|icons)-.+\.(?:js|css)$/;
@@ -56,7 +75,7 @@ const initialShell = assets
   .filter(({ name }) => initialShellPattern.test(name))
   .reduce((sum, asset) => sum + asset.bytes, 0);
 
-const failures = [
+const measurements = [
   {
     label: `largest JavaScript chunk (${largestJavaScript.name})`,
     actual: largestJavaScript.bytes,
@@ -73,17 +92,27 @@ const failures = [
     actual: initialShell,
     budget: budgets.initialShell,
   },
-].filter(({ actual, budget }) => actual > budget);
+];
 
-for (const measurement of [
-  ["Largest JavaScript", largestJavaScript.bytes],
-  ["Total JavaScript", totalJavaScript],
-  ["Total CSS", totalCss],
-  ["Initial shell", initialShell],
-]) {
-  console.log(`${measurement[0]}: ${formatBytes(measurement[1])}`);
+for (const { label, actual, budget } of measurements) {
+  const used = ((actual / budget) * 100).toFixed(1);
+  console.log(
+    `${label}: ${formatBytes(actual)} (${used}% of ${formatBytes(budget)} budget)`,
+  );
 }
 
+const warnings = measurements.filter(
+  ({ actual, budget }) => actual > budget * warningRatio && actual <= budget,
+);
+for (const { label, actual, budget } of warnings) {
+  console.warn(
+    `Warning: ${label} is ${formatBytes(actual)}, over ${warningRatio * 100}% of its ` +
+      `${formatBytes(budget)} budget. Raise the budget to restore at least ~10% ` +
+      `headroom (see scripts/check-bundle-budget.mjs) before it starts failing branches.`,
+  );
+}
+
+const failures = measurements.filter(({ actual, budget }) => actual > budget);
 if (failures.length > 0) {
   const details = failures
     .map(

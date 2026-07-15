@@ -441,12 +441,12 @@ declare
   v_new public.course_blocks%rowtype;
 begin
   if not public.is_platform_admin() then
-    raise exception 'Only platform admins can make emergency course content corrections.'
+    raise exception 'Only platform admins can make emergency training content corrections.'
       using errcode = 'insufficient_privilege';
   end if;
 
   if length(coalesce(btrim(p_reason), '')) < 10 then
-    raise exception 'A reason of at least 10 characters is required for emergency course content corrections.'
+    raise exception 'A reason of at least 10 characters is required for emergency training content corrections.'
       using errcode = 'check_violation';
   end if;
 
@@ -491,7 +491,7 @@ end;
 $function$;
 
 -- Course document rows should be readable anywhere their storage object is
--- readable: system-catalog documents for every authenticated learner and
+-- readable: system-catalog documents for every authenticated employee and
 -- org-scoped course documents for that organization.
 alter policy training_documents_select on public.training_documents using (
   public.is_platform_admin()

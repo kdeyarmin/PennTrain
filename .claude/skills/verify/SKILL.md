@@ -1,21 +1,21 @@
 ---
 name: verify
-description: Build, run, and probe the caremetric-train production server the way Railway does. Use when verifying changes to artifacts/caremetric-train (server, vite config, build) or the Railway deploy config.
+description: Build, run, and probe the caremetric-carebase production server the way Railway does. Use when verifying changes to artifacts/caremetric-carebase (server, vite config, build) or the Railway deploy config.
 ---
 
-# Verify caremetric-train / Railway deploy path
+# Verify caremetric-carebase / Railway deploy path
 
-The deployable surface is the Node static server (`artifacts/caremetric-train/server/index.mjs`)
+The deployable surface is the Node static server (`artifacts/caremetric-carebase/server/index.mjs`)
 serving the Vite build. Verify by running the exact Railway commands and probing the socket.
 
 ## Build (Railway's buildCommand)
 
 ```bash
-# The vite.config.ts guard fails production builds without these two vars (by design).
-export VITE_SUPABASE_URL=https://dummy-project.supabase.co VITE_SUPABASE_ANON_KEY=dummy-key
+# The vite.config.ts guard fails production builds without these vars (by design).
+export VITE_SUPABASE_URL=https://dummy-project.supabase.co VITE_SUPABASE_ANON_KEY=dummy-key VITE_TURNSTILE_SITE_KEY=1x00000000000000000000AA
 pnpm install --frozen-lockfile --prod=false \
-  && pnpm --filter @workspace/caremetric-train run typecheck \
-  && pnpm --filter @workspace/caremetric-train run build
+  && pnpm --filter @workspace/caremetric-carebase run typecheck \
+  && pnpm --filter @workspace/caremetric-carebase run build
 # Build must end with: "precompress: N compressible files scanned, M variants written" (M can be < 2N)
 # and dist/public/assets should contain .br and/or .gz siblings next to each js/css file where compression shrinks it.
 ```
@@ -23,7 +23,7 @@ pnpm install --frozen-lockfile --prod=false \
 ## Run + probe
 
 ```bash
-cd artifacts/caremetric-train && PORT=8090 node server/index.mjs &   # capture $! for later kill
+cd artifacts/caremetric-carebase && PORT=8090 node server/index.mjs &   # capture $! for later kill
 ```
 
 Worth probing (all against `http://127.0.0.1:8090`):

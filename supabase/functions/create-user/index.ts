@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { requireFreshAal2 } from "../_shared/privilegedIdentity.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -108,6 +109,11 @@ Deno.serve(async (req: Request) => {
   }
 
   const effectiveOrgId = callerRole === "platform_admin" ? (organization_id ?? null) : callerOrgId;
+
+  // Every account created here is immediately confirmed and can receive privileged
+  // app metadata, so require step-up directly before the irreversible Admin API call.
+  const assurance = await requireFreshAal2(callerClient, "identity_admin");
+  if (!assurance.ok) return json({ error: assurance.error }, assurance.status);
 
   // Service-role admin client: the ONLY place the service-role key is used in this function.
   const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);

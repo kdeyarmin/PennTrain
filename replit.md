@@ -1,12 +1,8 @@
-# CareMetric Train — Workspace
+# CareMetric CareBase — Workspace
 
 ## Overview
 
-CareMetric Train (formerly "PA MedTrack") is a multi-tenant SaaS compliance-training platform for healthcare
-organizations (originally scoped to Pennsylvania Personal Care Homes / Assisted Living Residences, now broader). It
-tracks medication administration training, certifications, annual practicums, training hours, documents, alerts, and
-compliance reporting, plus a full LMS layer: a course/quiz/certificate authoring and delivery system, training plans,
-and competency checklists.
+CareMetric CareBase (formerly "PA MedTrack") is a multi-tenant SaaS management platform for personal care homes, assisted living residences, and adjacent long-term-care providers. It tracks facility operations, employee compliance, resident assessments, incidents, inspections, scheduling, credentials, medication administration training, annual practicums, training hours, documents, alerts, audit evidence, and survey-ready compliance reporting, plus an integrated training layer for training content, quizzes, certificates, training plans, live classes, and competency checklists.
 
 The app is built directly on Supabase: Postgres + Row-Level Security, Supabase Auth, Supabase Storage, and Edge
 Functions. There is no separate backend API server — the React frontend talks to Supabase directly via `supabase-js`.
@@ -14,7 +10,7 @@ Functions. There is no separate backend API server — the React frontend talks 
 ## Architecture
 
 pnpm workspace monorepo. Single frontend package (`artifacts/pa-medtrack`) plus a design mockup sandbox; all
-backend logic lives in the Supabase project (`xsqobvvreaovwibxwyvv`, "CM Train").
+backend logic lives in the Supabase project (`xsqobvvreaovwibxwyvv`, "CM CareBase").
 
 ### Packages
 
@@ -42,14 +38,14 @@ Six roles on `profiles.role`: `platform_admin`, `org_admin`, `facility_manager`,
 - `platform_admin` — confined to `/admin/*`. Broad, unrestricted RLS access to every table (no impersonation --
   see "Viewing as Org" below). Routes: `/admin`, `/admin/organizations(/:id)`, `/admin/facilities(/:id)`,
   `/admin/employees(/:id)`, `/admin/alerts`, `/admin/users`, `/admin/audit`, `/admin/caremetric`, `/admin/packages`
-- `org_admin` / `facility_manager` — `/app/*`: dashboard, facilities, employees, training matrix, courses, course
+- `org_admin` / `facility_manager` — `/app/*`: dashboard, facilities, employees, training matrix, training content, training
   assignments, training plans, competency templates/records, practicums, alerts, reports, compliance binder,
   documents, pending approvals, users (org-scoped), settings, audit log
-- `auditor` — `/app/*`, read-only subset: dashboard, facilities, employees, training matrix, course assignments,
+- `auditor` — `/app/*`, read-only subset: dashboard, facilities, employees, training matrix, training assignments,
   training plans, competency records, practicums, alerts, reports, compliance binder, documents, audit log. Every
   write action across these pages is gated by a role allowlist that excludes auditor; RLS is the actual backstop
 - `trainer` — `/trainer/*`: dashboard, classes, retraining monitor, facilities, employees (read)
-- `employee` — `/me/*`: my training, course center, certificates, documents
+- `employee` — `/me/*`: my training, training workspace, certificates, documents
 
 Public (no auth): `/verify/:slug` — certificate verification.
 
@@ -63,7 +59,7 @@ Public (no auth): `/verify/:slug` — certificate verification.
 - Compliance-determining fields (`quiz_attempts`, `course_assignments.status`, `certificates`,
   `quiz_answers.is_correct`) are never directly client-writable -- they only change via `SECURITY DEFINER` RPCs or
   Edge Functions, using an `app.privileged_write` GUC escape hatch set only from trusted server-side code.
-- Course content is immutable once `course_versions.status = 'published'` (enforced by trigger, overridable only by
+- Training content is immutable once `course_versions.status = 'published'` (enforced by trigger, overridable only by
   a genuine platform_admin).
 - "Viewing as Org X" (header selector, platform_admin only) is a **UX-only convenience** — it is not a security
   boundary. `is_platform_admin()` already grants full RLS access regardless of this selection; the selector only
@@ -111,7 +107,7 @@ policy -- generation is Edge-Function-only, downloaded via a short-lived signed 
 Tenancy/identity: `organizations`, `organization_settings`, `facilities`, `profiles`, `facility_assignments`,
 `employees`, `packages`. Compliance core: `training_types`, `employee_training_records`,
 `employee_training_hour_buckets`, `practicums`, `training_documents`, `alerts`, `audit_logs`, `training_classes`,
-`training_class_attendees`. LMS: `courses`, `course_versions`, `course_blocks`, `quizzes`, `quiz_questions`,
+`training_class_attendees`. Training content: `courses`, `course_versions`, `course_blocks`, `quizzes`, `quiz_questions`,
 `quiz_answers`, `course_assignments`, `course_progress`, `quiz_attempts`, `quiz_attempt_answers`, `training_plans`,
 `training_plan_items`, `competency_templates`, `competency_template_items`, `competency_records`,
 `competency_record_items`, `certificates`.

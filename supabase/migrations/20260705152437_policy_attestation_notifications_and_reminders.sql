@@ -1,5 +1,5 @@
 -- Widen the notification-type rail to carry policy-attestation events, mirroring the
--- course_assigned / training_due_soon pattern already established for the LMS and
+-- course_assigned / training_due_soon pattern already established for the training suite and
 -- compliance-alert engines.
 alter table public.notifications drop constraint notifications_notification_type_check;
 alter table public.notifications add constraint notifications_notification_type_check

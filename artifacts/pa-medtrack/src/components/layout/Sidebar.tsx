@@ -49,7 +49,7 @@ export function Sidebar() {
           { href: "/admin/facilities", label: "Facilities", icon: Grid },
           { href: "/admin/employees", label: "Employees", icon: Users },
           { href: "/admin/users", label: "Users", icon: Users },
-          { href: "/admin/caremetric", label: "LMS Suite", icon: BookOpen },
+          { href: "/admin/caremetric", label: "Facility Suite", icon: BookOpen },
           { href: "/admin/packages", label: "Packages", icon: Package },
         ]
       },
@@ -74,7 +74,7 @@ export function Sidebar() {
           { href: "/app/facilities", label: "Facilities", icon: Building2 },
           { href: "/app/employees", label: "Employees", icon: Users },
           { href: "/app/training-matrix", label: "Training Matrix", icon: Grid },
-          { href: "/app/caremetric", label: "LMS Suite", icon: BookOpen },
+          { href: "/app/caremetric", label: "Facility Suite", icon: BookOpen },
           { href: "/app/courses", label: "Courses", icon: GraduationCap },
           { href: "/app/course-assignments", label: "Course Assignments", icon: FileCheck },
           { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
@@ -104,7 +104,7 @@ export function Sidebar() {
         items: [
           { href: "/app/users", label: "Users", icon: Users },
           { href: "/app/settings", label: "Settings", icon: Settings },
-          { href: "/app/caremetric-settings", label: "LMS Settings", icon: Settings },
+          { href: "/app/caremetric-settings", label: "Facility Settings", icon: Settings },
           { href: "/app/audit", label: "Audit Log", icon: ShieldAlert },
         ]
       }
@@ -182,7 +182,7 @@ export function Sidebar() {
           <ShieldCheck className="h-5 w-5 text-sidebar-primary-foreground" />
         </div>
         <div className="flex flex-col">
-          <span className="font-bold text-[15px] text-sidebar-foreground leading-tight">CareMetric Train</span>
+          <span className="font-bold text-[15px] text-sidebar-foreground leading-tight">CareMetric CareBase</span>
           <span className="text-[11px] text-sidebar-foreground/50 font-medium">Compliance Platform</span>
         </div>
       </div>

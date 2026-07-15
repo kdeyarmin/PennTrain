@@ -1,0 +1,514 @@
+import { useMemo, useRef, useState } from "react";
+import { Link, useLocation } from "wouter";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  useListHelpArticles, findArticleForRoute, LAST_VISITED_ROUTE_KEY,
+  type HelpArticle, type FaqContent, type JobAideContent,
+} from "@/hooks/useHelpArticles";
+import {
+  useListSupportTickets, useCreateSupportTicket,
+  SUPPORT_TICKET_CATEGORIES, SUPPORT_TICKET_PRIORITIES,
+} from "@/hooks/useSupportTickets";
+import { useAuth } from "@/lib/auth";
+import { viewablePathForRole } from "@/lib/appDomains";
+import { filterHelpArticlesForRole } from "@/lib/helpArticleVisibility";
+import { useToast } from "@/hooks/use-toast";
+import { Search, FileDown, Plus, ChevronRight, Lightbulb, ExternalLink, Paperclip, X, Sparkles } from "lucide-react";
+
+const STATUS_DISPLAY: Record<string, { color: string; label: string }> = {
+  open: { color: "bg-blue-100 text-blue-800", label: "Open" },
+  in_progress: { color: "bg-amber-100 text-amber-800", label: "In Progress" },
+  resolved: { color: "bg-green-100 text-green-800", label: "Resolved" },
+  closed: { color: "bg-gray-100 text-gray-600", label: "Closed" },
+};
+
+function searchArticles(articles: HelpArticle[], query: string): HelpArticle[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return articles;
+  return articles.filter(
+    (a) =>
+      a.title.toLowerCase().includes(q) ||
+      a.category.toLowerCase().includes(q) ||
+      JSON.stringify(a.content).toLowerCase().includes(q)
+  );
+}
+
+function articleCategories(articles: HelpArticle[]): string[] {
+  return [...new Set(articles.map((a) => a.category))];
+}
+
+function FaqTab() {
+  const [query, setQuery] = useState("");
+  const { data, isLoading } = useListHelpArticles("faq");
+  const articles = useMemo(() => data ?? [], [data]);
+  const filtered = useMemo(() => searchArticles(articles, query), [articles, query]);
+  const categories = useMemo(() => articleCategories(articles), [articles]);
+  const isSearching = query.trim().length > 0;
+
+  if (isLoading) {
+    return <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search FAQs..." className="pl-9" />
+      </div>
+
+      {isSearching ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{filtered.length} result{filtered.length === 1 ? "" : "s"}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {filtered.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No FAQs match your search.</p>
+            ) : (
+              <Accordion type="multiple" className="space-y-2">
+                {filtered.map((f) => (
+                  <AccordionItem key={f.id} value={f.id} className="border rounded-lg px-4">
+                    <AccordionTrigger className="text-left text-sm font-medium hover:no-underline">{f.title}</AccordionTrigger>
+                    <AccordionContent className="text-sm text-muted-foreground">{(f.content as unknown as FaqContent).answer}</AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Accordion type="multiple" defaultValue={categories.slice(0, 1)} className="space-y-3">
+          {categories.map((category) => {
+            const entries = articles.filter((f) => f.category === category);
+            if (!entries.length) return null;
+            return (
+              <AccordionItem key={category} value={category} className="border rounded-lg px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    {category}
+                    <Badge variant="outline" className="text-xs font-normal">{entries.length}</Badge>
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <Accordion type="multiple" className="space-y-2">
+                    {entries.map((f) => (
+                      <AccordionItem key={f.id} value={f.id} className="border rounded-lg px-3">
+                        <AccordionTrigger className="text-left text-sm font-medium hover:no-underline">{f.title}</AccordionTrigger>
+                        <AccordionContent className="text-sm text-muted-foreground">{(f.content as unknown as FaqContent).answer}</AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                </AccordionContent>
+              </AccordionItem>
+            );
+          })}
+        </Accordion>
+      )}
+    </div>
+  );
+}
+
+function JobAideItem({ article }: { article: HelpArticle }) {
+  const { user } = useAuth();
+  const aide = article.content as unknown as JobAideContent;
+  const relatedHref = aide.relatedRoute
+    ? viewablePathForRole(aide.relatedRoute.href, user?.role)
+    : null;
+  const showRelatedRoute = !!relatedHref;
+
+  return (
+    <AccordionItem value={article.id} className="border rounded-lg px-4">
+      <AccordionTrigger className="hover:no-underline text-left">
+        <div>
+          <p className="text-sm font-semibold">{article.title}</p>
+          <p className="text-xs text-muted-foreground font-normal mt-0.5">{aide.summary}</p>
+        </div>
+      </AccordionTrigger>
+      <AccordionContent>
+        <ol className="list-decimal list-inside space-y-1.5 text-sm text-muted-foreground">
+          {aide.steps.map((step, i) => <li key={i}>{step}</li>)}
+        </ol>
+        {!!aide.tips?.length && (
+          <div className="mt-3 rounded-md bg-amber-50 border border-amber-200 p-3 space-y-1.5">
+            {aide.tips.map((tip, i) => (
+              <p key={i} className="flex items-start gap-1.5 text-xs text-amber-900">
+                <Lightbulb className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {tip}
+              </p>
+            ))}
+          </div>
+        )}
+        {showRelatedRoute && aide.relatedRoute && relatedHref && (
+          <Link href={relatedHref}>
+            <Button variant="outline" size="sm" className="mt-3 gap-1.5">
+              {aide.relatedRoute.label} <ExternalLink className="h-3.5 w-3.5" />
+            </Button>
+          </Link>
+        )}
+      </AccordionContent>
+    </AccordionItem>
+  );
+}
+
+function JobAidesTab({ pinnedArticleId }: { pinnedArticleId?: string }) {
+  const { user } = useAuth();
+  const [query, setQuery] = useState("");
+  const { data, isLoading } = useListHelpArticles("job_aide");
+  const articles = useMemo(() => filterHelpArticlesForRole(data ?? [], user?.role), [data, user?.role]);
+  const filtered = useMemo(() => searchArticles(articles, query), [articles, query]);
+  const categories = useMemo(() => articleCategories(articles), [articles]);
+  const isSearching = query.trim().length > 0;
+  const pinnedArticle = useMemo(
+    () => (pinnedArticleId ? articles.find((a) => a.id === pinnedArticleId) : undefined),
+    [articles, pinnedArticleId]
+  );
+
+  if (isLoading) {
+    return <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Pinned above the search box/category list -- see findArticleForRoute -- so the one job
+          aide relevant to wherever the user came from doesn't get lost in the rest. Hidden while
+          actively searching since it'd otherwise duplicate/compete with results the user explicitly
+          asked for. */}
+      {pinnedArticle && !isSearching && (
+        <div>
+          <p className="flex items-center gap-1.5 px-1 pb-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
+            <Sparkles className="h-3.5 w-3.5" /> Related to where you came from
+          </p>
+          <Accordion type="multiple" defaultValue={[pinnedArticle.id]}>
+            <div className="rounded-lg ring-2 ring-primary/30">
+              <JobAideItem article={pinnedArticle} />
+            </div>
+          </Accordion>
+        </div>
+      )}
+
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search job aides..." className="pl-9" />
+      </div>
+
+      {isSearching ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{filtered.length} result{filtered.length === 1 ? "" : "s"}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {filtered.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No job aides match your search.</p>
+            ) : (
+              <Accordion type="multiple" className="space-y-2">
+                {filtered.map((a) => <JobAideItem key={a.id} article={a} />)}
+              </Accordion>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Accordion type="multiple" defaultValue={categories.slice(0, 1)} className="space-y-3">
+          {categories.map((category) => {
+            // Excludes the pinned article (if any) -- it's already shown, expanded, above -- so it
+            // doesn't also show up a second time buried in its normal category.
+            const aides = articles.filter((a) => a.category === category && a.id !== pinnedArticle?.id);
+            if (!aides.length) return null;
+            return (
+              <AccordionItem key={category} value={category} className="border rounded-lg px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    {category}
+                    <Badge variant="outline" className="text-xs font-normal">{aides.length}</Badge>
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <Accordion type="multiple" className="space-y-2">
+                    {aides.map((a) => <JobAideItem key={a.id} article={a} />)}
+                  </Accordion>
+                </AccordionContent>
+              </AccordionItem>
+            );
+          })}
+        </Accordion>
+      )}
+    </div>
+  );
+}
+
+function ManualTab() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <FileDown className="h-5 w-5" /> User Manual
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground max-w-2xl">
+          A complete PDF walkthrough of every module in CareMetric CareBase -- roles and permissions, facilities and
+          employees, scheduling, courses and certificates, compliance tracking, reports, and more. Download it to
+          keep on hand or share with a new team member during onboarding.
+        </p>
+        <Button asChild>
+          <a href="/CareMetric-CareBase-User-Manual.pdf" target="_blank" rel="noopener noreferrer" download>
+            <FileDown className="mr-2 h-4 w-4" /> Download User Manual (PDF)
+          </a>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SupportTab({ base }: { base: string }) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const [showForm, setShowForm] = useState(false);
+  const [subject, setSubject] = useState("");
+  const [category, setCategory] = useState<string>("general");
+  const [priority, setPriority] = useState<string>("normal");
+  const [message, setMessage] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: ticketsData, isLoading } = useListSupportTickets();
+  const { mutate: createTicket, isPending: creating } = useCreateSupportTicket();
+
+  const tickets = ticketsData ?? [];
+
+  const handleSubmit = () => {
+    if (!subject.trim() || !message.trim()) return;
+    // organizationId can transiently be null (e.g. mid-provisioning) even for a non-admin profile
+    // that has otherwise reached this page -- surface that clearly instead of a silent no-op, since
+    // the button itself stays enabled (subject/message are the only things it disables on).
+    if (!user?.organizationId) {
+      toast({
+        title: "Can't submit ticket yet",
+        description: "Your account isn't fully linked to an organization yet. Please try again shortly.",
+        variant: "destructive",
+      });
+      return;
+    }
+    createTicket(
+      {
+        organizationId: user.organizationId,
+        createdBy: user.id,
+        subject: subject.trim(),
+        category,
+        priority,
+        message: message.trim(),
+        file: file ?? undefined,
+      },
+      {
+        onSuccess: (ticket) => {
+          toast({ title: "Ticket submitted", description: "Our team will respond soon." });
+          setShowForm(false);
+          setSubject("");
+          setMessage("");
+          setCategory("general");
+          setPriority("normal");
+          setFile(null);
+          setLocation(`${base}/help/tickets/${ticket.id}`);
+        },
+        onError: (e: Error) => toast({ title: "Failed to submit ticket", description: e.message, variant: "destructive" }),
+      }
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Submit a Ticket</CardTitle>
+          {!showForm && (
+            <Button size="sm" onClick={() => setShowForm(true)}>
+              <Plus className="h-4 w-4 mr-1" /> New Ticket
+            </Button>
+          )}
+        </CardHeader>
+        {showForm && (
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Subject</label>
+                <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Briefly describe the issue" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Category</label>
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SUPPORT_TICKET_CATEGORIES.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5 max-w-[10rem]">
+              <label className="text-sm font-medium">Priority</label>
+              <Select value={priority} onValueChange={setPriority}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SUPPORT_TICKET_PRIORITIES.map((p) => (
+                    <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Message</label>
+              <Textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                rows={5}
+                placeholder="What's going on? Include any steps to reproduce, or what you expected to happen."
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Attachment (optional)</label>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                  <Paperclip className="h-3.5 w-3.5 mr-1.5" /> {file ? "Replace File" : "Attach File"}
+                </Button>
+                {file && (
+                  <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground bg-muted rounded px-2 py-1">
+                    {file.name}
+                    <button type="button" onClick={() => setFile(null)} aria-label="Remove attachment">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button onClick={handleSubmit} disabled={creating || !subject.trim() || !message.trim()}>
+                Submit Ticket
+              </Button>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">My Tickets</CardTitle></CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[...Array(3)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded-md" />)}
+            </div>
+          ) : !tickets.length ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              You haven't submitted any support tickets yet.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {tickets.map((t) => {
+                const status = STATUS_DISPLAY[t.status] ?? { color: "bg-gray-100 text-gray-800", label: t.status };
+                return (
+                  <Link key={t.id} href={`${base}/help/tickets/${t.id}`}>
+                    <div className="flex items-center justify-between gap-3 p-3 rounded-lg border hover:bg-accent/5 cursor-pointer">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-sm truncate">{t.subject}</p>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${status.color}`}>
+                            {status.label}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">
+                          {SUPPORT_TICKET_CATEGORIES.find((c) => c.value === t.category)?.label ?? t.category}
+                          {" · "}Updated {new Date(t.last_message_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export default function HelpCenter() {
+  const { user } = useAuth();
+  const [location] = useLocation();
+  const base = location.startsWith("/me") ? "/me" : "/app";
+  const [activeTab, setActiveTab] = useState("faq");
+
+  // Read once per mount rather than tracked live -- this page is about where the user *came from*
+  // on the way in, so it shouldn't shift under them while they're sitting here (it wouldn't anyway,
+  // since Header excludes /app/help and /me/help from what it records, but this keeps that
+  // invariant explicit rather than relying on it implicitly).
+  const [originRoute] = useState<string | null>(() => {
+    try {
+      return window.sessionStorage.getItem(LAST_VISITED_ROUTE_KEY);
+    } catch {
+      return null;
+    }
+  });
+  const { data: jobAides } = useListHelpArticles("job_aide");
+  const visibleJobAides = useMemo(
+    () => filterHelpArticlesForRole(jobAides ?? [], user?.role),
+    [jobAides, user?.role]
+  );
+  const contextualArticle = useMemo(
+    () => findArticleForRoute(visibleJobAides, originRoute, user?.role),
+    [visibleJobAides, originRoute, user?.role]
+  );
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Help Center</h1>
+        <p className="text-muted-foreground">
+          Answers to common questions, step-by-step job aides, the full user manual, and support if you're still stuck.
+        </p>
+      </div>
+
+      {contextualArticle && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="flex flex-wrap items-center gap-3 py-4">
+            <Sparkles className="h-5 w-5 text-primary shrink-0" />
+            <div className="flex-1 min-w-[12rem]">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">Related to where you came from</p>
+              <p className="text-sm font-medium mt-0.5">{contextualArticle.title}</p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setActiveTab("job-aides")}>
+              View job aide <ChevronRight className="h-3.5 w-3.5 ml-1" />
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="faq">FAQ</TabsTrigger>
+          <TabsTrigger value="job-aides">Job Aides</TabsTrigger>
+          <TabsTrigger value="manual">User Manual</TabsTrigger>
+          <TabsTrigger value="support">Support</TabsTrigger>
+        </TabsList>
+        <TabsContent value="faq" className="mt-4"><FaqTab /></TabsContent>
+        <TabsContent value="job-aides" className="mt-4"><JobAidesTab pinnedArticleId={contextualArticle?.id} /></TabsContent>
+        <TabsContent value="manual" className="mt-4"><ManualTab /></TabsContent>
+        <TabsContent value="support" className="mt-4"><SupportTab base={base} /></TabsContent>
+      </Tabs>
+    </div>
+  );
+}

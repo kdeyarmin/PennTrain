@@ -3,6 +3,7 @@ import {
   encodePhase2Cursor,
   parsePhase2ApiCredential,
   phase2CredentialIsUsable,
+  phase2PinnedWebhookRequest,
   phase2RetryableWebhookStatus,
   signPhase2IntegrationWebhook,
   verifyPhase2IntegrationWebhook,
@@ -30,7 +31,7 @@ Deno.test("outbound signatures bind id, timestamp, and exact body with replay pr
 });
 
 Deno.test("credentials are strict, expiring, scoped, and rotation/revocation aware", () => {
-  const key = `cmt_live_abcdef012345.${"a".repeat(64)}`;
+  const key = `ccb_live_abcdef012345.${"a".repeat(64)}`;
   assertEquals(parsePhase2ApiCredential(`Bearer ${key}`), key);
   assertEquals(parsePhase2ApiCredential("Bearer service-role-secret"), null);
   assertEquals(phase2CredentialIsUsable({
@@ -72,4 +73,34 @@ Deno.test("webhook destinations reject SSRF targets and fail closed on DNS", asy
   assertEquals((await validatePhase2WebhookDestination("https://unresolved.example/events", async () => {
     throw new Error("NXDOMAIN");
   })).valid, false);
+});
+
+Deno.test("pinned webhook transport connects to the validated IP with the TLS hostname", async () => {
+  const calls: unknown[] = [];
+  let read = false;
+  const connector = async (address: string, tlsHostname: string, port: number) => {
+    calls.push({ address, tlsHostname, port });
+    return {
+      write: async (bytes: Uint8Array) => bytes.length,
+      read: async (buffer: Uint8Array) => {
+        if (read) return null;
+        read = true;
+        const response = new TextEncoder().encode(
+          "HTTP/1.1 302 Found\r\nLocation: https://127.0.0.1/private\r\nContent-Length: 0\r\n\r\n",
+        );
+        buffer.set(response);
+        return response.length;
+      },
+      close: () => {},
+    };
+  };
+  const response = await phase2PinnedWebhookRequest(
+    "https://hooks.example.test/events?source=test",
+    { body: "{}" },
+    ["8.8.8.8"],
+    connector,
+  );
+  assertEquals(calls, [{ address: "8.8.8.8", tlsHostname: "hooks.example.test", port: 443 }]);
+  assertEquals(response.status, 302);
+  assertEquals(response.ok, false);
 });

@@ -1,8 +1,8 @@
 -- get_advisors (security, ERROR) flagged quiz_answer_choices as a "Security Definer View": a plain
 -- view with no security_invoker=true implicitly runs as its owner, bypassing quiz_answers' author-only
--- RLS -- which was the deliberate point (letting a learner read answer *choices* without is_correct,
+-- RLS -- which was the deliberate point (letting an employee read answer *choices* without is_correct,
 -- which base-table RLS otherwise hides entirely). security_invoker=true is not viable here: it would
--- make the view subject to quiz_answers' author-only SELECT policy, returning zero rows for a learner
+-- make the view subject to quiz_answers' author-only SELECT policy, returning zero rows for an employee
 -- and defeating the view's purpose. Converting to an explicit SECURITY DEFINER function is the
 -- Supabase-idiomatic fix for this exact lint -- it matches verify_certificate()/grade_quiz_attempt()
 -- already in this project, which draw only the already-accepted WARN "anon/authenticated can execute"

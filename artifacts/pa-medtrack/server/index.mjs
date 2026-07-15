@@ -83,7 +83,7 @@ async function handleHealth(_req, res) {
   const supabaseReachable = await checkSupabaseReachable();
   const body = JSON.stringify({
     status: "ok",
-    service: "caremetric-train",
+    service: "caremetric-carebase",
     timestamp: new Date().toISOString(),
     supabase: isSupabaseConfigured() ? "configured" : "not_configured",
     supabaseReachable,
@@ -162,6 +162,6 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`caremetric-train server listening on http://${HOST}:${PORT}`);
+  console.log(`caremetric-carebase server listening on http://${HOST}:${PORT}`);
   console.log(`Serving static files from ${DIST_DIR}`);
 });

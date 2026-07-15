@@ -8,9 +8,9 @@ import {
   rgb,
 } from "npm:pdf-lib@1.17.1";
 import {
-  checkFirstMatchingBox,
   fetchDhsTemplate,
   normalizeFieldName,
+  selectFirstMatchingRadioOption,
   setFirstMatchingTextField,
 } from "../_shared/dhsStateFormFill.ts";
 
@@ -67,7 +67,7 @@ function formatContact(name: string | null, phone: string | null): string {
   return phone ? `${name} (${phone})` : name;
 }
 
-// Mirrors artifacts/caremetric-train/src/lib/residentAssessmentFormSchema.ts's item lists --
+// Mirrors artifacts/caremetric-carebase/src/lib/residentAssessmentFormSchema.ts's item lists --
 // duplicated here (a Deno edge function can't import from the frontend package) and must stay in
 // sync if that file's item lists ever change.
 const ADL_ITEMS = [
@@ -165,7 +165,7 @@ const BEHAVIORAL_DEGREE_LABELS: Record<string, string> = {
 // deno-lint-ignore no-explicit-any
 type AnyRecord = Record<string, any>;
 
-// Mirrors artifacts/caremetric-train/src/lib/residentAssessmentFormSchema.ts's getIncompleteSections
+// Mirrors artifacts/caremetric-carebase/src/lib/residentAssessmentFormSchema.ts's getIncompleteSections
 // -- advisory only, never blocks finalize/PDF export (see that function's comment for why). Printed
 // on the PDF itself so a gap left at finalization stays visible on the document DHS/an auditor sees,
 // not just in the CareMetric editor.
@@ -275,11 +275,15 @@ function getIncompleteSections(formType: string, content: AnyRecord): string[] {
 // normalizeFieldName / setFirstMatchingTextField / checkFirstMatchingBox live in
 // ../_shared/dhsStateFormFill.ts, shared with generate-state-form-prefill.
 
-function reasonWords(reason: string | null | undefined): string[] | null {
-  if (reason === "initial") return ["initial"];
-  if (reason === "annual") return ["annual"];
-  if (reason === "significant_change") return ["significant", "change"];
-  if (reason === "department_request") return ["department", "request"];
+// Widget option values on AssessmentReasonRadioButtonList / SupportPlanReasonRadioButtonList,
+// verified against the live DHS RASP template (form1[0].#subform[0].*) by rendering each option
+// and confirming which visual checkbox it marks: "1" is the top (Initial) widget through "4" the
+// bottom (Department Request) widget, matching REASON_OPTIONS' display order.
+function reasonOptionValue(reason: string | null | undefined): string | null {
+  if (reason === "initial") return "1";
+  if (reason === "annual") return "2";
+  if (reason === "significant_change") return "3";
+  if (reason === "department_request") return "4";
   return null;
 }
 
@@ -318,8 +322,13 @@ function tryPopulateStateTemplate(
     if (setFirstMatchingTextField(form, wordSets, value))
       stats.textFieldsFilled += 1;
   };
-  const checkBox = (wordSets: string[][]) => {
-    if (checkFirstMatchingBox(form, wordSets)) stats.checkboxesChecked += 1;
+  // "Reason for assessment/support plan" are PDFRadioGroup fields (AssessmentReasonRadioButtonList
+  // / SupportPlanReasonRadioButtonList), not checkboxes -- selectRadio picks the option by its
+  // numeric widget value (see reasonOptionValue), which checkFirstMatchingBox can never do since
+  // it only calls the PDFCheckBox-only .check() method.
+  const selectRadio = (wordSets: string[][], optionValue: string) => {
+    if (selectFirstMatchingRadioOption(form, wordSets, optionValue))
+      stats.checkboxesChecked += 1;
   };
   try {
     form = doc.getForm();
@@ -399,16 +408,16 @@ function tryPopulateStateTemplate(
     );
   });
 
-  const assessmentReasonWords = reasonWords(
+  const assessmentReasonOption = reasonOptionValue(
     input.content.assessmentInfo?.assessmentReason,
   );
-  if (assessmentReasonWords)
-    checkBox([["assessment", ...assessmentReasonWords], assessmentReasonWords]);
-  const supportReasonWords = reasonWords(
+  if (assessmentReasonOption)
+    selectRadio([["assessment", "reason"]], assessmentReasonOption);
+  const supportReasonOption = reasonOptionValue(
     input.content.assessmentInfo?.supportPlanReason,
   );
-  if (supportReasonWords)
-    checkBox([["support", "plan", ...supportReasonWords], supportReasonWords]);
+  if (supportReasonOption)
+    selectRadio([["support", "plan", "reason"]], supportReasonOption);
   fillText(
     [["last", "assessment"]],
     input.content.assessmentInfo?.lastAssessmentDate,
@@ -484,134 +493,79 @@ function drawReasonCheck(
   return drawTemplateCheck(page, font, x, y);
 }
 
+// Coordinate overlay for the ASP template's "PART I: RESIDENT INFORMATION" page (template page
+// index 3 -- see firstStateFormPage in PdfWriter.init). ASP-only: the ASP PDF DHS publishes has no
+// AcroForm at all (0 fields; verified by loading the live template), unlike RASP, which carries a
+// full LiveCycle AcroForm that tryPopulateStateTemplate fills directly. Coordinates below were
+// read off the live ASP template's actual text/checkbox positions on that page (word and vector
+// extraction), not estimated -- the ASP PDF is a moving target (DHS reposts it periodically) so if
+// a future revision shifts the layout, re-derive these the same way rather than nudging by eye.
 function overlayKnownFieldsOnStateTemplatePage(
   page: PDFPage,
   font: PDFFont,
   input: Parameters<typeof tryPopulateStateTemplate>[1],
 ) {
-  // Coordinate overlay for the first official state-form page. This complements AcroForm filling
-  // because the DHS PDFs may be posted as flattened/non-fillable templates. The original page is
-  // still the background; these values are only drawn into the existing blanks.
-  const isAsp = input.formType === "ASP";
   const content = input.content ?? {};
   const stats = { overlayPlacements: 0 };
   const drawText = (...args: Parameters<typeof drawTemplateText>) => {
     if (drawTemplateText(...args)) stats.overlayPlacements += 1;
   };
-  const drawCheck = (...args: Parameters<typeof drawTemplateCheck>) => {
-    if (drawTemplateCheck(...args)) stats.overlayPlacements += 1;
-  };
   const drawReason = (...args: Parameters<typeof drawReasonCheck>) => {
     if (drawReasonCheck(...args)) stats.overlayPlacements += 1;
   };
-  if (isAsp) {
-    drawText(page, font, input.residentName, 28, 493);
-    drawText(page, font, input.residentDob, 28, 435, 8.5, 18);
-    drawText(page, font, input.admissionDate, 28, 385, 8.5, 18);
-    drawText(page, font, input.primaryPhysicianName, 238, 463, 8, 28);
-    drawText(page, font, input.primaryPhysicianPhone, 357, 463, 8, 18);
-    drawText(page, font, input.dentistName, 238, 437, 8, 28);
-    drawText(page, font, input.dentistPhone, 357, 437, 8, 18);
-    drawText(page, font, input.caseManagerName, 238, 411, 8, 28);
-    drawText(page, font, input.caseManagerPhone, 357, 411, 8, 18);
-    drawText(page, font, input.designatedPersonName, 470, 463, 8, 26);
-    input.informalSupports.slice(0, 4).forEach((support, index) => {
-      const y = 437 - index * 26;
-      drawText(page, font, support.name, 470, y, 8, 24);
-      drawText(page, font, support.relationship, 570, y, 8, 20);
-      drawText(page, font, support.phone, 672, y, 8, 18);
-    });
-    drawText(page, font, content.residentInfo?.comments, 28, 314, 8, 130);
-    drawText(page, font, input.admissionDate, 28, 225, 8.5, 18);
-    drawText(page, font, input.admissionDate, 28, 166, 8.5, 18);
-    drawText(
-      page,
-      font,
-      content.assessmentInfo?.lastAssessmentDate ||
-        content.assessmentInfo?.lastSupportPlanDate,
-      28,
-      110,
-      8.5,
-      18,
-    );
-    drawReason(
-      page,
-      font,
-      content.assessmentInfo?.assessmentReason ||
-        content.assessmentInfo?.supportPlanReason,
-      {
-        initial: [156, 206],
-        annual: [156, 184],
-        significant_change: [156, 162],
-        department_request: [156, 140],
-      },
-    );
-    drawText(
-      page,
-      font,
-      content.assessmentInfo?.changeDescription,
-      28,
-      72,
-      8,
-      150,
-    );
-    return stats;
-  }
-
-  drawText(page, font, input.residentName, 38, 497);
-  drawText(page, font, input.residentDob, 38, 405, 8.5, 18);
-  drawText(page, font, input.admissionDate, 38, 352, 8.5, 18);
-  drawText(page, font, input.primaryPhysicianName, 238, 464, 8, 28);
-  drawText(page, font, input.primaryPhysicianPhone, 357, 464, 8, 18);
-  drawText(page, font, input.dentistName, 238, 436, 8, 28);
-  drawText(page, font, input.dentistPhone, 357, 436, 8, 18);
-  drawText(page, font, input.caseManagerName, 238, 409, 8, 28);
-  drawText(page, font, input.caseManagerPhone, 357, 409, 8, 18);
-  input.informalSupports.slice(0, 5).forEach((support, index) => {
-    const y = 464 - index * 28;
-    drawText(page, font, support.name, 448, y, 8, 25);
-    drawText(page, font, support.relationship, 580, y, 8, 20);
-    drawText(page, font, support.phone, 690, y, 8, 18);
+  drawText(page, font, input.residentName, 28, 493);
+  drawText(page, font, input.residentDob, 28, 435, 8.5, 18);
+  drawText(page, font, input.admissionDate, 28, 385, 8.5, 18);
+  drawText(page, font, input.primaryPhysicianName, 238, 478, 8, 28);
+  drawText(page, font, input.primaryPhysicianPhone, 357, 478, 8, 18);
+  drawText(page, font, input.dentistName, 238, 455, 8, 28);
+  drawText(page, font, input.dentistPhone, 357, 455, 8, 18);
+  drawText(page, font, input.caseManagerName, 238, 432, 8, 28);
+  drawText(page, font, input.caseManagerPhone, 357, 432, 8, 18);
+  drawText(page, font, input.designatedPersonName, 470, 478, 8, 26);
+  // Rows below Primary Physician/Designated Person (Dentist, Case Manager, then the two
+  // "Other (specify)" rows) double as the Informal Supports grid's remaining entries.
+  const informalRowY = [455, 432, 408, 386];
+  input.informalSupports.slice(0, 4).forEach((support, index) => {
+    const y = informalRowY[index];
+    drawText(page, font, support.name, 470, y, 8, 24);
+    drawText(page, font, support.relationship, 569, y, 8, 20);
+    drawText(page, font, support.phone, 668, y, 8, 18);
   });
-  if (!input.informalSupports.length) drawCheck(page, font, 650, 503);
-  drawText(page, font, content.residentInfo?.comments, 28, 306, 8, 130);
-  drawText(page, font, input.admissionDate, 38, 220, 8.5, 18);
+  drawText(page, font, content.residentInfo?.comments, 28, 343, 8, 130);
+  // "Date of Admission (Proposed):" / "(Actual):" are two-line labels with almost no blank space
+  // below them before the next row starts, unlike the single-line labels elsewhere on this page --
+  // the value goes inline after the parenthetical instead.
+  drawText(page, font, input.admissionDate, 88, 287, 8, 16);
+  drawText(page, font, input.admissionDate, 72, 254, 8, 16);
   drawText(
     page,
     font,
-    content.assessmentInfo?.lastAssessmentDate,
-    38,
-    160,
+    content.assessmentInfo?.lastAssessmentDate ||
+      content.assessmentInfo?.lastSupportPlanDate,
+    28,
+    200,
     8.5,
     18,
   );
-  drawText(
+  drawReason(
     page,
     font,
-    content.assessmentInfo?.lastSupportPlanDate,
-    38,
-    104,
-    8.5,
-    18,
+    content.assessmentInfo?.assessmentReason ||
+      content.assessmentInfo?.supportPlanReason,
+    {
+      initial: [156, 276],
+      annual: [156, 254],
+      significant_change: [156, 232],
+      department_request: [156, 211],
+    },
   );
-  drawReason(page, font, content.assessmentInfo?.assessmentReason, {
-    initial: [129, 204],
-    annual: [129, 184],
-    significant_change: [129, 164],
-    department_request: [129, 144],
-  });
-  drawReason(page, font, content.assessmentInfo?.supportPlanReason, {
-    initial: [275, 196],
-    annual: [275, 176],
-    significant_change: [275, 156],
-    department_request: [275, 136],
-  });
   drawText(
     page,
     font,
     content.assessmentInfo?.changeDescription,
     28,
-    58,
+    95,
     8,
     150,
   );
@@ -652,10 +606,11 @@ class PdfWriter {
         template,
         template.getPageIndices(),
       );
-      if (inputForTemplateFill) {
-        const firstStateFormPageIndex =
-          inputForTemplateFill.formType === "ASP" ? 3 : 0;
-        const firstStateFormPage = pages[firstStateFormPageIndex];
+      // Overlay is ASP-only: RASP's AcroForm fill (above) already places every one of these
+      // fields correctly via its real widget positions, so overlaying hardcoded coordinates on
+      // top would only risk drawing a second, misaligned copy over the correct one.
+      if (inputForTemplateFill?.formType === "ASP") {
+        const firstStateFormPage = pages[3];
         if (firstStateFormPage) {
           const overlayStats = overlayKnownFieldsOnStateTemplatePage(
             firstStateFormPage,
