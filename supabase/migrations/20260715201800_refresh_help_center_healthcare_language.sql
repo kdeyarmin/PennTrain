@@ -85,7 +85,7 @@ $$;
 
 update public.help_articles
 set content = public._refresh_help_center_healthcare_json(content)
-where content::text ~* '\mevidence\M';
+where content::text ~* E'\\mevidence\\M';
 
 drop function public._refresh_help_center_healthcare_json(jsonb);
 drop function public._refresh_help_center_healthcare_text(text);
