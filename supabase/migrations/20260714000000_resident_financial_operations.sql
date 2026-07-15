@@ -656,9 +656,13 @@ begin
     where resident_id=v_resident.id for update;
   if not found then raise exception 'Personal funds account is not open' using errcode = 'P0002'; end if;
   v_kind := p_entry->>'transactionKind'; v_direction := p_entry->>'direction';
-  begin v_amount := (p_entry->>'amount')::numeric; v_ack := coalesce((p_entry->>'residentAcknowledged')::boolean,false);
-  exception when others then raise exception 'Personal funds entry is invalid' using errcode = '22023'; end;
-  v_transaction_at := (p_entry->>'transactionAt')::timestamptz;
+  begin
+    v_amount := (p_entry->>'amount')::numeric;
+    v_ack := coalesce((p_entry->>'residentAcknowledged')::boolean,false);
+    v_transaction_at := nullif(p_entry->>'transactionAt','')::timestamptz;
+  exception when others then
+    raise exception 'Personal funds entry is invalid' using errcode = '22023';
+  end;
   if v_kind not in ('deposit','withdrawal','adjustment') or v_direction not in ('in','out')
     or v_amount <= 0 or length(btrim(coalesce(p_entry->>'purpose',''))) < 3
     or nullif(p_entry->>'transactionAt','') is null
