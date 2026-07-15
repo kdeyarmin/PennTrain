@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Lock } from "lucide-react";
 import { EMPTY_VIDEO_STATE, type VideoBlockState } from "@/lib/videoWatchState";
+import { useCourseVideoUrl } from "@/hooks/useCourseVideoUrl";
 
 // "Watched through" tolerates outros/rounding: 95% of duration or the ended event.
 const WATCHED_FRACTION = 0.95;
@@ -37,6 +38,7 @@ interface CourseVideoPlayerProps {
  * complete_course_assignment(); this keeps honest employees honest and their place saved.
  */
 export function CourseVideoPlayer({ src, state, gated, onChange }: CourseVideoPlayerProps) {
+  const resolved = useCourseVideoUrl(src);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const stateRef = useRef<VideoBlockState>({ ...(state ?? EMPTY_VIDEO_STATE) });
   const restoredRef = useRef(false);
@@ -131,13 +133,15 @@ export function CourseVideoPlayer({ src, state, gated, onChange }: CourseVideoPl
       video.removeEventListener("ended", handleEnded);
       window.clearInterval(interval);
     };
-  }, [gated, onChange, src]);
+  }, [gated, onChange, resolved.url, src]);
 
   return (
     <div className="space-y-2">
-      <video ref={videoRef} controls className="w-full rounded-lg border" src={src}>
+      {resolved.isLoading && <div className="aspect-video w-full animate-pulse rounded-lg bg-muted" />}
+      {resolved.error && <p className="text-sm text-destructive">Video unavailable: {resolved.error}</p>}
+      {resolved.url && <video ref={videoRef} controls className="w-full rounded-lg border" src={resolved.url}>
         Your browser does not support embedded video.
-      </video>
+      </video>}
       {gated && (
         completed ? (
           <p className="flex items-center gap-1.5 text-xs text-green-600">

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
+import type { Json, Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 
 export type TrainingRecord = Tables<"employee_training_records">;
 export type TrainingRecordInsert = TablesInsert<"employee_training_records">;
@@ -42,7 +42,9 @@ export function useCreateTrainingRecord() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: TrainingRecordInsert) => {
-      const { data, error } = await supabase.from("employee_training_records").insert(payload).select().single();
+      const { data, error } = await supabase.rpc("save_training_record", {
+        p_payload: payload as Json,
+      });
       if (error) throw error;
       return data;
     },
@@ -54,7 +56,10 @@ export function useUpdateTrainingRecord() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...payload }: TrainingRecordUpdate & { id: string }) => {
-      const { data, error } = await supabase.from("employee_training_records").update(payload).eq("id", id).select().single();
+      const { data, error } = await supabase.rpc("save_training_record", {
+        p_record_id: id,
+        p_payload: payload as Json,
+      });
       if (error) throw error;
       return data;
     },

@@ -30,7 +30,6 @@ const DEFAULT_APP_ORIGIN = "https://cmcarebase.com";
 // arbitrary attacker domain in the check-in QR code printed on the class notice.
 const ALLOWED_APP_ORIGINS = new Set([
   "https://cmcarebase.com",
-  "https://carebase-production.up.railway.app",
 ]);
 
 class PdfWriter {

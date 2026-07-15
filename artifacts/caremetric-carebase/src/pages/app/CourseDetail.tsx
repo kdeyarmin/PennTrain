@@ -43,6 +43,14 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { coursesListPath, quizBuilderPath } from "@/lib/courseRoutes";
+import { useCourseVideoUrl } from "@/hooks/useCourseVideoUrl";
+
+function CourseVideoPreview({ src }: { src: string }) {
+  const resolved = useCourseVideoUrl(src);
+  if (resolved.isLoading) return <Skeleton className="aspect-video w-full" />;
+  if (!resolved.url) return <p className="p-3 text-sm text-destructive">Video unavailable: {resolved.error}</p>;
+  return <video className="aspect-video w-full bg-black" src={resolved.url} controls />;
+}
 
 interface CourseFormState {
   title: string;
@@ -1428,7 +1436,7 @@ export default function CourseDetail() {
                       <div className="space-y-3">
                         {block.video_url ? (
                           <div className="overflow-hidden rounded-md border bg-muted">
-                            <video className="aspect-video w-full bg-black" src={block.video_url} controls />
+                            <CourseVideoPreview src={block.video_url} />
                           </div>
                         ) : (
                           <p className="text-sm text-muted-foreground">No video URL set.</p>

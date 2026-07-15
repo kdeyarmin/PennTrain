@@ -2,6 +2,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
 import {
   phase2IntegrationSha256,
+  phase2PinnedWebhookRequest,
   phase2RetryableWebhookStatus,
   sanitizePhase2IntegrationError,
   signPhase2IntegrationWebhook,
@@ -139,7 +140,7 @@ Deno.serve(async (req: Request) => {
       if (!destination.valid) {
         throw new TypeError(`Unsafe webhook destination: ${destination.reason ?? "rejected"}`);
       }
-      const outbound = await fetch(delivery.destination_url, {
+      const outbound = await phase2PinnedWebhookRequest(delivery.destination_url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -151,9 +152,8 @@ Deno.serve(async (req: Request) => {
           "X-Event-Schema-Version": delivery.event_schema_version,
         },
         body: rawBody,
-        redirect: "error",
-        signal: AbortSignal.timeout(delivery.timeout_ms),
-      });
+        timeoutMs: delivery.timeout_ms,
+      }, destination.addresses);
       httpStatus = outbound.status;
       const responseText = (await outbound.text()).slice(0, 64 * 1024);
       responseSha = await phase2IntegrationSha256(responseText);

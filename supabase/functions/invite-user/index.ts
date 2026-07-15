@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { resolveAppRedirect } from "../_shared/appRedirect.ts";
+import { requireFreshAal2 } from "../_shared/privilegedIdentity.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -21,7 +22,6 @@ const VALID_ROLES = ["platform_admin", "org_admin", "facility_manager", "trainer
 const DEFAULT_APP_ORIGIN = "https://cmcarebase.com";
 const DEFAULT_ALLOWED_APP_ORIGINS = new Set([
   "https://cmcarebase.com",
-  "https://carebase-production.up.railway.app",
 ]);
 
 function allowedRedirectOrigins(): Set<string> {
@@ -133,6 +133,11 @@ const redirect_to = typeof body.redirect_to === "string" ? body.redirect_to.trim
   }
 
   const effectiveOrgId = callerRole === "platform_admin" ? (organization_id ?? null) : callerOrgId;
+
+  if (["platform_admin", "org_admin", "facility_manager", "auditor"].includes(role)) {
+    const assurance = await requireFreshAal2(callerClient, "identity_admin");
+    if (!assurance.ok) return json({ error: assurance.error }, assurance.status);
+  }
 
   const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
   let redirectTo: string;

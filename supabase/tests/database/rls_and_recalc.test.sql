@@ -93,11 +93,12 @@ $$ language plpgsql;
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000a3'); -- org_admin, org A
 
 select lives_ok(
-  $$ insert into public.employee_training_records
-     (organization_id, facility_id, employee_id, training_type_id, status)
-     values ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000a2',
-             '00000000-0000-0000-0000-0000000000a6', '00000000-0000-0000-0000-0000000000a7', 'missing') $$,
-  'org_admin can insert a training record in their own org'
+  $$ select public.save_training_record(null, jsonb_build_object(
+       'employee_id','00000000-0000-0000-0000-0000000000a6',
+       'training_type_id','00000000-0000-0000-0000-0000000000a7',
+       'status','missing'
+     )) $$,
+  'org_admin can insert a training record through the controlled RPC'
 );
 
 select isnt_empty(
@@ -179,10 +180,12 @@ select throws_ok(
 
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000a3');
 
-update public.employee_training_records
-set completion_date = current_date - 400 -- completed 400 days ago; renewal_interval_days = 365
-where employee_id = '00000000-0000-0000-0000-0000000000a6'
-  and training_type_id = '00000000-0000-0000-0000-0000000000a7';
+select public.save_training_record(
+  (select id from public.employee_training_records
+   where employee_id = '00000000-0000-0000-0000-0000000000a6'
+     and training_type_id = '00000000-0000-0000-0000-0000000000a7'),
+  jsonb_build_object('completion_date', current_date - 400)
+);
 
 select recalculate_org_compliance('00000000-0000-0000-0000-0000000000a1');
 
@@ -198,10 +201,12 @@ select results_eq(
   'a record whose due_date has passed is marked expired'
 );
 
-update public.employee_training_records
-set completion_date = current_date - 300 -- due_date = current_date + 65, inside the 90-day warning window
-where employee_id = '00000000-0000-0000-0000-0000000000a6'
-  and training_type_id = '00000000-0000-0000-0000-0000000000a7';
+select public.save_training_record(
+  (select id from public.employee_training_records
+   where employee_id = '00000000-0000-0000-0000-0000000000a6'
+     and training_type_id = '00000000-0000-0000-0000-0000000000a7'),
+  jsonb_build_object('completion_date', current_date - 300)
+);
 
 select recalculate_org_compliance('00000000-0000-0000-0000-0000000000a1');
 

@@ -1,5 +1,5 @@
 begin;
-select plan(50);
+select plan(53);
 
 select has_table('public', 'resident_agreements', 'resident agreements are first-class records');
 select has_table('public', 'resident_agreement_versions', 'agreement versions are retained');
@@ -115,7 +115,8 @@ insert into agreement_ids(key, id, value)
 select 'guest', (result->>'grantId')::uuid, result->>'token'
 from (select public.issue_resident_agreement_guest_grant(
   '62000000-0000-4000-8000-000000000201', 'Taylor Designated Person',
-  array[(select id from agreement_ids where key = 'version1')], now() + interval '2 days'
+  array[(select id from agreement_ids where key = 'version1')], now() + interval '2 days',
+  'designated_person'
 ) result) issued;
 select ok(length((select value from agreement_ids where key = 'guest')) = 64, 'external grant returns a one-time high-entropy token');
 
@@ -130,10 +131,37 @@ select lives_ok($$
 $$, 'external signer accepts versioned terms');
 select is(jsonb_array_length(public.get_resident_agreement_guest_workspace((select value from agreement_ids where key = 'guest'))->'agreements'), 1, 'external signer sees only explicitly scoped agreement versions');
 select is(public.get_resident_agreement_guest_workspace((select value from agreement_ids where key = 'guest')) #>> '{agreements,0,versionLabel}', '2026.1', 'external portal identifies the exact agreement version');
+select throws_ok($$
+  select public.respond_to_resident_agreement_guest(
+    (select value from agreement_ids where key = 'guest'),
+    (select id from agreement_ids where key = 'version1'), 'signed', 'Taylor Representative',
+    'power_of_attorney', 'Daughter', 'POA',
+    'I reviewed and electronically sign the exact agreement version shown above.',
+    null, null, null, 'Mozilla/Agreement-Test', null
+  )
+$$, '42501', null, 'bearer cannot choose a signer role different from the issued grant');
+select throws_ok($$
+  select public.respond_to_resident_agreement_guest(
+    (select value from agreement_ids where key = 'guest'),
+    (select id from agreement_ids where key = 'version1'), 'refused', 'Taylor Representative',
+    'designated_person', 'Daughter', 'Designated person',
+    'I reviewed the exact agreement version shown above.',
+    'I do not agree to these terms', null, null, 'Mozilla/Agreement-Test', null
+  )
+$$, '42501', null, 'public bearer cannot record an agreement-wide refusal');
+select throws_ok($$
+  select public.respond_to_resident_agreement_guest(
+    (select value from agreement_ids where key = 'guest'),
+    (select id from agreement_ids where key = 'version1'), 'unable_to_sign', 'Taylor Representative',
+    'designated_person', 'Daughter', 'Designated person',
+    'I reviewed the exact agreement version shown above.',
+    'Signer is unable to sign', 'Morgan Witness', 'Staff witness', 'Mozilla/Agreement-Test', null
+  )
+$$, '42501', null, 'public bearer cannot record an agreement-wide unable-to-sign outcome');
 insert into agreement_ids(key, id) values ('designated_signature', public.respond_to_resident_agreement_guest(
   (select value from agreement_ids where key = 'guest'),
   (select id from agreement_ids where key = 'version1'), 'signed', 'Taylor Representative',
-  'power_of_attorney', 'Daughter', 'Durable financial power of attorney',
+  'designated_person', 'Daughter', 'Designated person',
   'I reviewed and electronically sign the exact agreement version shown above.',
   null, null, null, 'Mozilla/Agreement-Test', null
 ));
@@ -141,7 +169,7 @@ select throws_ok($$
   select public.respond_to_resident_agreement_guest(
     (select value from agreement_ids where key = 'guest'),
     (select id from agreement_ids where key = 'version1'), 'signed', 'Taylor Representative',
-    'power_of_attorney', 'Daughter', 'POA', 'Duplicate response is not allowed.',
+    'designated_person', 'Daughter', 'Designated person', 'Duplicate response is not allowed.',
     null, null, null, 'Mozilla/Agreement-Test', null
   )
 $$, '42501', null, 'one external grant cannot respond twice to the same version');

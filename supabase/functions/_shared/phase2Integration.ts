@@ -182,3 +182,117 @@ export async function validatePhase2WebhookDestination(
   }
   return { valid: true, addresses };
 }
+
+export type Phase2PinnedConnection = Pick<Deno.Conn, "read" | "write" | "close">;
+export type Phase2PinnedConnector = (
+  address: string,
+  tlsHostname: string,
+  port: number,
+) => Promise<Phase2PinnedConnection>;
+
+async function phase2DefaultPinnedConnector(
+  address: string,
+  tlsHostname: string,
+  port: number,
+): Promise<Phase2PinnedConnection> {
+  const tcp = await Deno.connect({ hostname: address, port, transport: "tcp" });
+  try {
+    return await Deno.startTls(tcp, {
+      hostname: tlsHostname,
+      alpnProtocols: ["http/1.1"],
+    });
+  } catch (error) {
+    tcp.close();
+    throw error;
+  }
+}
+
+async function phase2WriteAll(connection: Phase2PinnedConnection, bytes: Uint8Array) {
+  let offset = 0;
+  while (offset < bytes.length) offset += await connection.write(bytes.subarray(offset));
+}
+
+/**
+ * Send an HTTPS request to one of the DNS addresses that was already validated.
+ * The TCP destination never re-resolves, while TLS SNI/certificate checks still use
+ * the original hostname. Redirects are returned as ordinary 3xx responses.
+ */
+export async function phase2PinnedWebhookRequest(
+  destinationUrl: string,
+  init: { method?: string; headers?: Record<string, string>; body?: string; timeoutMs?: number },
+  validatedAddresses?: string[],
+  connector: Phase2PinnedConnector = phase2DefaultPinnedConnector,
+): Promise<{ status: number; ok: boolean; text: () => Promise<string> }> {
+  const url = new URL(destinationUrl);
+  let addresses = validatedAddresses;
+  if (!addresses?.length) {
+    const validation = await validatePhase2WebhookDestination(destinationUrl);
+    if (!validation.valid || !validation.addresses?.length) {
+      throw new TypeError(`Unsafe webhook destination: ${validation.reason ?? "rejected"}`);
+    }
+    addresses = validation.addresses;
+  }
+  if (addresses.some((address) => !phase2PublicIp(address))) {
+    throw new TypeError("Unsafe webhook destination: non_public_address");
+  }
+
+  const address = addresses[crypto.getRandomValues(new Uint32Array(1))[0] % addresses.length];
+  const timeoutMs = Math.min(Math.max(init.timeoutMs ?? 10_000, 100), 120_000);
+  let connection: Phase2PinnedConnection | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    connection = await Promise.race([
+      connector(address, url.hostname, 443),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new DOMException("Webhook request timed out", "TimeoutError")), timeoutMs);
+      }),
+    ]);
+    if (timer !== undefined) clearTimeout(timer);
+
+    const body = init.body ?? "";
+    const bodyBytes = new TextEncoder().encode(body);
+    const headers = new Headers(init.headers ?? {});
+    headers.set("Host", url.hostname);
+    headers.set("Connection", "close");
+    headers.set("Content-Length", String(bodyBytes.length));
+    for (const [name, value] of headers) {
+      if (/[\r\n]/.test(name) || /[\r\n]/.test(value)) throw new TypeError("Unsafe webhook header");
+    }
+    const target = `${url.pathname || "/"}${url.search}`;
+    const head = `${init.method ?? "POST"} ${target} HTTP/1.1\r\n${
+      Array.from(headers, ([name, value]) => `${name}: ${value}`).join("\r\n")
+    }\r\n\r\n`;
+    await phase2WriteAll(connection, new TextEncoder().encode(head));
+    if (bodyBytes.length) await phase2WriteAll(connection, bodyBytes);
+
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    const maxResponseBytes = 64 * 1024 + 32 * 1024;
+    const buffer = new Uint8Array(8192);
+    while (total < maxResponseBytes) {
+      const count = await Promise.race([
+        connection.read(buffer),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new DOMException("Webhook request timed out", "TimeoutError")), timeoutMs);
+        }),
+      ]);
+      if (timer !== undefined) clearTimeout(timer);
+      if (count === null) break;
+      chunks.push(buffer.slice(0, count));
+      total += count;
+    }
+    const bytes = new Uint8Array(total);
+    let cursor = 0;
+    for (const chunk of chunks) { bytes.set(chunk, cursor); cursor += chunk.length; }
+    const raw = new TextDecoder().decode(bytes);
+    const headerEnd = raw.indexOf("\r\n\r\n");
+    if (headerEnd < 0) throw new Error("Malformed webhook HTTP response");
+    const status = Number(raw.slice(0, raw.indexOf("\r\n")).match(/^HTTP\/1\.[01] ([0-9]{3})/)?.[1]);
+    if (!Number.isInteger(status)) throw new Error("Malformed webhook HTTP status");
+    const responseBody = raw.slice(headerEnd + 4, headerEnd + 4 + 64 * 1024);
+    return { status, ok: status >= 200 && status < 300, text: async () => responseBody };
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    try { connection?.close(); } catch { /* already closed */ }
+  }
+}
