@@ -37,8 +37,8 @@ as $$
               'evidence records', 'supporting records'),
             'Evidence captured', 'Supporting documentation captured'),
           'evidence captured', 'supporting documentation captured'),
-        '\mEvidence\M', 'Documentation', 'g'),
-      '\mevidence\M', 'documentation', 'g'),
+        E'\\mEvidence\\M', 'Documentation', 'g'),
+      E'\\mevidence\\M', 'documentation', 'g'),
     '__CAREBASE_REVIEW_ROUTE__', '/app/evidence'
   );
 $$;
