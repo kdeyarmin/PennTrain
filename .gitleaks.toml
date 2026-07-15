@@ -19,3 +19,13 @@ condition = "AND"
 regexTarget = "secret"
 regexes = ['''^abc123def456$''']
 paths = ['''^supabase/tests/database/carebase_remediation_plan\.test\.sql$''']
+
+[[rules.allowlists]]
+description = "Ignore the non-secret Ohio personnel rule-pack identifier"
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^oh\.rcf\.3701-16\.personnel$''']
+paths = [
+  '''^artifacts/caremetric-carebase/src/pages/admin/EnterpriseFoundation\.tsx$''',
+  '''^supabase/tests/database/platform_intelligence_web_push_and_lifecycle\.test\.sql$''',
+]
