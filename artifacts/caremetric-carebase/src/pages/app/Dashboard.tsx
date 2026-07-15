@@ -8,6 +8,7 @@ import { summarizeResidentComplianceAnalytics } from "@/lib/residentComplianceAn
 import { facilityTypeLabel, hasAnyFacilityType, PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { useAuth } from "@/lib/auth";
+import { useDailyOperationsCommandCenter } from "@/hooks/useDailyOperations";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -213,6 +214,7 @@ export default function OrgDashboard() {
   const { data: residentItems } = useListAllResidentComplianceItems({ status: ["expired", "missing", "due_soon"] });
   const { data: residents } = useListResidents();
   const { facilityTypes } = useVisibleFacilityTypes();
+  const dailyOperations = useDailyOperationsCommandCenter();
 
   const summary: DashboardSummary = useMemo(() => ({
     compliantCount: dashboard?.compliance.compliantCount ?? 0,
@@ -323,6 +325,21 @@ export default function OrgDashboard() {
         <h1>Compliance Dashboard</h1>
         <p>Welcome back, {user?.firstName}. Here's your compliance overview.</p>
       </div>
+
+      {["org_admin", "facility_manager"].includes(user?.role ?? "") ? (
+        <div className="premium-card p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div><p className="text-lg font-semibold">Today</p><p className="text-sm text-muted-foreground">Operational work that needs a manager decision now.</p></div>
+            <Button asChild variant="outline" size="sm"><Link href="/app/pch-alr-operations">Open full operations center</Link></Button>
+          </div>
+          {dailyOperations.isError ? <div className="mt-4"><QueryError what="today's operations" error={dailyOperations.error} onRetry={() => dailyOperations.refetch()} /></div> : dailyOperations.isLoading ? <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[0,1,2,3].map((item) => <Skeleton key={item} className="h-20" />)}</div> : <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Link href="/app/shift-handoffs" className="rounded-lg border p-3 hover:bg-muted"><p className="text-xs text-muted-foreground">Open handoffs</p><p className="text-2xl font-semibold">{dailyOperations.data?.dailyExecution.openHandoffItems ?? 0}</p><p className="text-xs text-destructive">{dailyOperations.data?.dailyExecution.urgentHandoffItems ?? 0} urgent</p></Link>
+            <Link href="/app/workforce-operations" className="rounded-lg border p-3 hover:bg-muted"><p className="text-xs text-muted-foreground">Time-off decisions</p><p className="text-2xl font-semibold">{dailyOperations.data?.dailyExecution.pendingTimeOff ?? 0}</p><p className="text-xs text-muted-foreground">Manager queue</p></Link>
+            <Link href="/app/schedule" className="rounded-lg border p-3 hover:bg-muted"><p className="text-xs text-muted-foreground">Open shift offers</p><p className="text-2xl font-semibold">{dailyOperations.data?.dailyExecution.openShiftOffers ?? 0}</p><p className="text-xs text-muted-foreground">Coverage opportunities</p></Link>
+            <Link href="/app/work" className="rounded-lg border p-3 hover:bg-muted"><p className="text-xs text-muted-foreground">Unfilled shifts</p><p className="text-2xl font-semibold">{dailyOperations.data?.dailyExecution.unfilledShifts ?? 0}</p><p className="text-xs text-muted-foreground">Owned work items</p></Link>
+          </div>}
+        </div>
+      ) : null}
 
       {criticalAlertsCount > 0 && (
         <div className="rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 p-5 flex flex-col gap-4 sm:flex-row sm:items-start">

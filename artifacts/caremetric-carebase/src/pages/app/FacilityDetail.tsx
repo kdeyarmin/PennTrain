@@ -33,6 +33,7 @@ import { useListAdministratorProfiles } from "@/hooks/useAdministratorProfiles";
 import { buildAdministratorRulePack, summarizeAdministratorRulePack } from "@/lib/administratorRulePacks";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { buildSpecialCareComplianceSummary } from "@/lib/specialCareCompliance";
+import { FacilityLicensingWorkspace } from "@/components/facilities/FacilityLicensingWorkspace";
 
 interface FacilityFormData {
   name: string;
@@ -302,6 +303,12 @@ export default function FacilityDetail() {
           </Card>
         )}
       </div>
+
+      <FacilityLicensingWorkspace
+        facilityId={facility.id}
+        facilityType={facility.facility_type}
+        canManage={["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "")}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {PCH_ALR_ONLY_FACILITY_TYPES.includes(facility.facility_type as FacilityType) && (

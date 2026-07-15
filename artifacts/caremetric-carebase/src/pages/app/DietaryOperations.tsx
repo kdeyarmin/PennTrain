@@ -6,6 +6,7 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useListResidents } from "@/hooks/useResidents";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListProfiles } from "@/hooks/useProfiles";
+import { useResidentNavigationContext } from "@/hooks/useResidentNavigationContext";
 import {
   useAssignWeightMonitoring,
   useCreateMenuCycle,
@@ -51,14 +52,13 @@ export default function DietaryOperations() {
   const canManage = hasRole(user, "platform_admin", "org_admin", "facility_manager");
   const canRecord = !hasRole(user, "auditor");
   const facilities = useListFacilities({ organizationId });
-  const [facilityId, setFacilityId] = useState("");
+  const { facilityId, residentId, setFacilityId, setResidentId } = useResidentNavigationContext();
   useEffect(() => {
     if (!facilityId && facilities.data?.length === 1) setFacilityId(facilities.data[0].id);
   }, [facilities.data, facilityId]);
   const residents = useListResidents({ facilityId, status: "active" }, { enabled: !!facilityId });
   const employees = useListEmployees({ facilityId, status: "active", organizationId }, { enabled: !!facilityId });
   const profiles = useListProfiles({ organizationId });
-  const [residentId, setResidentId] = useState("");
   const operations = useDietaryOperations(facilityId, residentId);
   const resident = residents.data?.find((item) => item.id === residentId);
   const report = (title: string) => ({
@@ -77,7 +77,7 @@ export default function DietaryOperations() {
     <Card>
       <CardContent className="grid gap-3 pt-6 md:grid-cols-2">
         <Field label="Facility">
-          <Select value={facilityId} onValueChange={(value) => { setFacilityId(value); setResidentId(""); }}>
+          <Select value={facilityId} onValueChange={setFacilityId}>
             <SelectTrigger><SelectValue placeholder="Select facility" /></SelectTrigger>
             <SelectContent>{facilities.data?.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent>
           </Select>
