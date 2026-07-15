@@ -1,4 +1,4 @@
-begin; select plan(25);
+begin; select plan(26);
 select has_table('public','work_items','reusable owned work exists');
 select has_table('public','confidential_reporter_identities','reporter identity is separated');
 select has_table('public','move_in_workspaces','resident move-in workspace exists');
@@ -9,6 +9,7 @@ select ok(not has_table_privilege('authenticated','public.confidential_reporter_
 select ok(has_table_privilege('authenticated','public.report_schedules','SELECT'),'authenticated reporting roles can read report schedules through RLS');
 select ok(not has_function_privilege('anon','public.create_deduplicated_work_item(uuid,uuid,text,text,uuid,text,text,text,uuid,text,timestamp with time zone)','EXECUTE'),'anonymous callers cannot create internal work');
 select ok(has_function_privilege('anon','public.authorize_evidence_guest_artifact(text,uuid,text,text)','EXECUTE'),'external artifact authorization is an explicit narrow API');
+select ok(has_function_privilege('service_role','public.authorize_evidence_guest_artifact(text,uuid,text,text)','EXECUTE'),'trusted evidence guest download backend can execute artifact authorization');
 select ok(not has_function_privilege('anon','public.start_confidential_incident_intake(uuid,text,timestamp with time zone,boolean,text,text,text,text,uuid,jsonb,text,text)','EXECUTE'),'anonymous intake cannot bypass Turnstile Edge boundary');
 select ok(not exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in('work_items','work_item_history','confidential_incident_intakes','confidential_incident_details','confidential_reporter_identities','move_in_workspaces','move_in_guest_grants','saved_report_definitions','report_snapshots','evidence_collections','evidence_guest_grants','evidence_guest_access_events') and not c.relrowsecurity),'all Phase 5 exposed tables enable RLS');
 
