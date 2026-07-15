@@ -191,6 +191,10 @@ begin
     v_candidate := jsonb_populate_record(v_existing, p_payload);
     v_candidate.id := v_existing.id;
     v_candidate.created_at := v_existing.created_at;
+    if v_candidate.employee_id is distinct from v_existing.employee_id
+       or v_candidate.practicum_year is distinct from v_existing.practicum_year then
+      raise exception 'practicum identity fields cannot be changed' using errcode = '22023';
+    end if;
   else
     v_candidate := jsonb_populate_record(null::public.practicums, p_payload);
     v_candidate.id := extensions.gen_random_uuid();
