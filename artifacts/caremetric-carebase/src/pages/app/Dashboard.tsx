@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useOrgDashboardSummary } from "@/hooks/useDashboardSummary";
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { useListAllResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
@@ -15,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Building2, Users, AlertTriangle, CheckCircle, Clock, XCircle, AlertCircle, ChevronRight, TrendingUp, Shield, Activity, UserPlus, FileText, LayoutGrid, Bell, GraduationCap, Upload, Download, Info, type LucideIcon } from "lucide-react";
 import { Link } from "wouter";
+import { supabase } from "@/lib/supabase";
 
 interface RecentUpload {
   id: string;
@@ -278,6 +280,39 @@ export default function OrgDashboard() {
     criticalAlertsCount,
     facilities: summary.facilityCompliance,
   });
+  const benchmarkFacility = summary.facilityCompliance[0];
+  const benchmarkQuery = useQuery({
+    queryKey: ["facility-benchmark-comparison", benchmarkFacility?.facilityId],
+    enabled: Boolean(benchmarkFacility?.facilityId && ["platform_admin","org_admin","facility_manager","auditor"].includes(user?.role ?? "")),
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_facility_benchmark_comparison", { p_facility_id: benchmarkFacility!.facilityId });
+      if (error) return { available: false } as const;
+      return data as {
+        available: boolean;
+        cohort?: { organizationCount: number; facilityCount: number; kThreshold: number; jurisdictionCode: string };
+        metrics?: {
+          trainingComplianceRate?: { p25: number; p50: number; p75: number };
+          medianCredentialRenewalDays?: { p50: number };
+          incidentsPer100OccupiedBeds?: { p50: number };
+          topCitationTopics?: Array<{ citationRef: string | null; title: string; organizationCount: number; violationCount: number }>;
+        };
+        facilityMetrics?: {
+          trainingComplianceRate: number;
+          medianCredentialRenewalDays: number;
+          incidentsPer100OccupiedBeds: number;
+          topCitationTopics: Array<{ citationRef: string | null; title: string; violationCount: number }>;
+        };
+      };
+    },
+  });
+
+  useEffect(() => {
+    if (!benchmarkQuery.data?.available) return;
+    void supabase.functions.invoke("capture-product-event", {
+      body: { eventName: "benchmark_viewed", route: "/app/dashboard", properties: { surface: "dashboard" } },
+    });
+  }, [benchmarkQuery.data?.available]);
 
   const exportActionPlan = () => {
     const rows = [
@@ -338,6 +373,34 @@ export default function OrgDashboard() {
             <Link href="/app/schedule" className="rounded-lg border p-3 hover:bg-muted"><p className="text-xs text-muted-foreground">Open shift offers</p><p className="text-2xl font-semibold">{dailyOperations.data?.dailyExecution.openShiftOffers ?? 0}</p><p className="text-xs text-muted-foreground">Coverage opportunities</p></Link>
             <Link href="/app/work" className="rounded-lg border p-3 hover:bg-muted"><p className="text-xs text-muted-foreground">Unfilled shifts</p><p className="text-2xl font-semibold">{dailyOperations.data?.dailyExecution.unfilledShifts ?? 0}</p><p className="text-xs text-muted-foreground">Owned work items</p></Link>
           </div>}
+        </div>
+      ) : null}
+
+      {benchmarkQuery.data?.available && benchmarkFacility ? (
+        <div className="premium-card p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-lg font-semibold">Your facility vs. peers</p>
+              <p className="text-sm text-muted-foreground">Anonymized aggregate cohort; cohorts smaller than k={benchmarkQuery.data.cohort?.kThreshold ?? 10} are suppressed.</p>
+            </div>
+            <Badge variant="outline">{benchmarkQuery.data.cohort?.organizationCount} organizations / {benchmarkQuery.data.cohort?.facilityCount} facilities</Badge>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+            <div><p className="text-2xl font-semibold">{Math.round(benchmarkQuery.data.facilityMetrics?.trainingComplianceRate ?? benchmarkFacility.complianceScore)}%</p><p className="text-xs text-muted-foreground">your training compliance</p></div>
+            <div><p className="text-2xl font-semibold">{Math.round(benchmarkQuery.data.metrics?.trainingComplianceRate?.p50 ?? 0)}%</p><p className="text-xs text-muted-foreground">peer median compliance</p></div>
+            <div><p className="text-2xl font-semibold">{Math.round(benchmarkQuery.data.facilityMetrics?.medianCredentialRenewalDays ?? 0)}</p><p className="text-xs text-muted-foreground">your renewal runway days</p></div>
+            <div><p className="text-2xl font-semibold">{Math.round(benchmarkQuery.data.metrics?.medianCredentialRenewalDays?.p50 ?? 0)}</p><p className="text-xs text-muted-foreground">peer renewal runway days</p></div>
+            <div><p className="text-2xl font-semibold">{Number(benchmarkQuery.data.facilityMetrics?.incidentsPer100OccupiedBeds ?? 0).toFixed(1)}</p><p className="text-xs text-muted-foreground">your incidents / 100 beds</p></div>
+            <div><p className="text-2xl font-semibold">{Number(benchmarkQuery.data.metrics?.incidentsPer100OccupiedBeds?.p50 ?? 0).toFixed(1)}</p><p className="text-xs text-muted-foreground">peer incidents / 100 beds</p></div>
+          </div>
+          {benchmarkQuery.data.metrics?.topCitationTopics?.length ? <div className="mt-4 rounded-lg border p-3">
+            <p className="text-sm font-medium">Peer citation topics meeting the same k-anonymity threshold</p>
+            <div className="mt-2 flex flex-wrap gap-2">{benchmarkQuery.data.metrics.topCitationTopics.map((topic) => (
+              <Badge key={`${topic.citationRef ?? "topic"}-${topic.title}`} variant="secondary">
+                {topic.citationRef ? `${topic.citationRef} · ` : ""}{topic.title} ({topic.violationCount})
+              </Badge>
+            ))}</div>
+          </div> : null}
         </div>
       ) : null}
 

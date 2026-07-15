@@ -1195,6 +1195,11 @@ export default function Reports() {
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
+  const [payPeriodStart, setPayPeriodStart] = useState(() => {
+    const date = new Date(); date.setDate(date.getDate() - 13); return toLocalIsoDate(date);
+  });
+  const [payPeriodEnd, setPayPeriodEnd] = useState(() => toLocalIsoDate());
+  const [exportingPayroll, setExportingPayroll] = useState(false);
   const [pendingReport, setPendingReport] = useState<ReportDef | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("none");
   // The report the shared date-range control (and the per-report query gating below) currently
@@ -1405,6 +1410,42 @@ export default function Reports() {
   }
 
   const facilityName = facilityId !== "all" ? facilities.find((f) => f.id === facilityId)?.name : undefined;
+
+  const retentionQuery = useQuery({
+    queryKey: ["workforce-retention-metrics", facilityId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_workforce_retention_metrics", {
+        p_facility_id: facilityId === "all" ? undefined : facilityId,
+      });
+      if (error) throw error;
+      return data as { segments?: Array<{ role: string; annualizedTurnoverRate: number | null; ninetyDayRetentionRate: number | null; averageTenureDays: number | null; currentHeadcount: number }> };
+    },
+  });
+  const retentionTotal = retentionQuery.data?.segments?.find((segment) => segment.role === "All roles");
+
+  const exportPaidTrainingPayroll = async () => {
+    if (facilityId === "all") {
+      toast({ title: "Select one facility for a payroll export", variant: "destructive" });
+      return;
+    }
+    setExportingPayroll(true);
+    try {
+      const { data, error } = await supabase.rpc("get_paid_training_payroll_export", {
+        p_facility_id: facilityId, p_period_start: payPeriodStart, p_period_end: payPeriodEnd,
+      });
+      if (error) throw error;
+      const rows = (data ?? []).map((row) => [
+        row.employee_number ?? "", row.employee_name, row.work_date, row.course_or_class,
+        row.training_code, String(row.verified_hours), row.source,
+      ]);
+      downloadCsv(toCsv(["Employee Number","Employee","Work Date","Course/Class","Training Code","Verified Hours","Source"], rows),
+        `paid-training-payroll-${payPeriodStart}-${payPeriodEnd}.csv`);
+      void supabase.functions.invoke("capture-product-event", { body: { eventName: "payroll_exported", route: "/app/reports", properties: { count: rows.length, surface: "reports" } } });
+      toast({ title: "Paid training payroll CSV exported", description: `${rows.length} verified training row(s).` });
+    } catch (error) {
+      toast({ title: "Payroll export failed", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    } finally { setExportingPayroll(false); }
+  };
 
   const visibleReports = ALL_REPORTS.filter((r) => {
     if (r.roles && !r.roles.includes(user?.role ?? "")) return false;
@@ -1702,6 +1743,28 @@ export default function Reports() {
           </SelectContent>
         </Select>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Workforce analytics and payroll</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-4">
+            <div><p className="text-2xl font-bold">{retentionTotal?.annualizedTurnoverRate ?? "--"}{retentionTotal?.annualizedTurnoverRate != null ? "%" : ""}</p><p className="text-xs text-muted-foreground">annualized turnover</p></div>
+            <div><p className="text-2xl font-bold">{retentionTotal?.ninetyDayRetentionRate ?? "--"}{retentionTotal?.ninetyDayRetentionRate != null ? "%" : ""}</p><p className="text-xs text-muted-foreground">90-day retention</p></div>
+            <div><p className="text-2xl font-bold">{retentionTotal?.averageTenureDays ?? "--"}</p><p className="text-xs text-muted-foreground">average tenure days</p></div>
+            <div><p className="text-2xl font-bold">{retentionTotal?.currentHeadcount ?? "--"}</p><p className="text-xs text-muted-foreground">current headcount</p></div>
+          </div>
+          <p className="text-xs text-muted-foreground">Turnover uses trailing-12-month separations divided by average starting/current headcount. Select a facility above for facility-level results; role segments are included in the underlying report response.</p>
+          <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+            <div><Label htmlFor="payroll-from">Pay period start</Label><Input id="payroll-from" type="date" value={payPeriodStart} onChange={(event) => setPayPeriodStart(event.target.value)} /></div>
+            <div><Label htmlFor="payroll-to">Pay period end</Label><Input id="payroll-to" type="date" value={payPeriodEnd} onChange={(event) => setPayPeriodEnd(event.target.value)} /></div>
+            <Button onClick={() => void exportPaidTrainingPayroll()} disabled={exportingPayroll || facilityId === "all" || !payPeriodStart || !payPeriodEnd}>
+              {exportingPayroll ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />} Export paid training CSV
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="rounded-xl border border-border/60 bg-card p-3 shadow-sm sm:p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center">

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { Link } from "wouter";
 import {
@@ -423,6 +424,70 @@ function RegulatoryRuleCommand() {
           </div>
         ) : null}
         <div className="md:col-span-2"><Button onClick={() => void submit()} disabled={command.isPending}>Run guarded rule action</Button></div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RegulatoryExpansionPanel() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [installing, setInstalling] = useState(false);
+  const proposals = useQuery({
+    queryKey: ["regulatory-change-proposals"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("regulatory_change_proposals")
+        .select("id,state,change_summary,drafted_rule_version_id,created_at,regulatory_source_snapshots(fetched_at,regulatory_update_sources(source_key,source_uri))")
+        .order("created_at", { ascending: false }).limit(20);
+      if (error) throw error;
+      return data;
+    },
+  });
+  const installOhio = async () => {
+    setInstalling(true);
+    try {
+      const { data, error } = await supabase.rpc("install_regulatory_rule_pack_template", { p_template_key: "oh.rcf.3701-16.personnel" });
+      if (error) throw error;
+      toast({ title: "Ohio rule pack installed as a draft", description: `Version ${data} must complete fixture, independent review, shadow, and activation gates.` });
+      await queryClient.invalidateQueries({ queryKey: ["enterprise-foundation"] });
+    } catch (error) {
+      toast({ title: "Ohio draft could not be installed", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    } finally { setInstalling(false); }
+  };
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Multi-state packs and official-source feed</CardTitle>
+        <CardDescription>Templates and automated source changes create drafts only. The guarded workflow above remains the only activation path.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+          <div><p className="font-medium">Ohio residential care facility personnel training</p><p className="text-xs text-muted-foreground">Ohio Admin. Code 3701-16-06, effective July 12, 2024. Install for legal and operational validation.</p></div>
+          <Button onClick={() => void installOhio()} disabled={installing}>{installing ? "Installing draft..." : "Install Ohio draft"}</Button>
+        </div>
+        <div>
+          <p className="mb-2 text-sm font-medium">Detected official-source changes</p>
+          {proposals.isLoading ? <p className="text-sm text-muted-foreground">Loading source feed...</p> : proposals.data?.length ? (
+            <div className="space-y-2">{proposals.data.map((proposal) => {
+              const snapshot = proposal.regulatory_source_snapshots as { fetched_at?: string; regulatory_update_sources?: { source_key?: string; source_uri?: string } | null } | null;
+              const summary = proposal.change_summary as {
+                addedTokenCount?: number;
+                removedTokenCount?: number;
+                addedTokenSample?: string[];
+                removedTokenSample?: string[];
+              } | null;
+              return <div key={proposal.id} className="rounded-lg border p-3 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium">{snapshot?.regulatory_update_sources?.source_key ?? "Official source"}</span><Badge variant={proposal.state === "drafted" ? "secondary" : "outline"}>{proposal.state}</Badge></div>
+                <p className="mt-1 text-xs text-muted-foreground">Detected {new Date(proposal.created_at).toLocaleString()} {proposal.drafted_rule_version_id ? `| Draft version ${proposal.drafted_rule_version_id}` : "| No matching active pack; review required"}</p>
+                {summary?.addedTokenCount != null ? <div className="mt-2 rounded bg-muted/50 p-2 text-xs">
+                  <p className="font-medium">Grounded source diff: {summary.addedTokenCount} added / {summary.removedTokenCount ?? 0} removed terms</p>
+                  {summary.addedTokenSample?.length ? <p className="mt-1 text-muted-foreground">Added sample: {summary.addedTokenSample.join(", ")}</p> : null}
+                  {summary.removedTokenSample?.length ? <p className="mt-1 text-muted-foreground">Removed sample: {summary.removedTokenSample.join(", ")}</p> : null}
+                </div> : null}
+              </div>;
+            })}</div>
+          ) : <p className="text-sm text-muted-foreground">No changed official sources have been detected. The first successful poll establishes each baseline.</p>}
+        </div>
       </CardContent>
     </Card>
   );
@@ -1232,7 +1297,7 @@ export default function EnterpriseFoundation() {
           </TabsList>
           <TabsContent value="scope" className="space-y-4"><ControlPlanePanel title="Hierarchy and permissions" description="Effective portfolio, regional, organization, and facility scope with explicit governed permissions." data={data.scope} /><ScopeGrantCommand /></TabsContent>
           <TabsContent value="workforce" className="space-y-4"><ControlPlanePanel title="Workforce lifecycle and compliance profiles" description="Effective employment state, retained evidence, profile explanations, and unresolved mappings." data={data.workforce} /><LifecycleCommand /><ComplianceProfileAssignmentCommand /></TabsContent>
-          <TabsContent value="rules" className="space-y-4"><ControlPlanePanel title="Approved regulatory rule packs" description="Sourced versions, approval separation, golden fixtures, shadow comparisons, and activation readiness." data={data.rules} />{user?.role === "platform_admin" ? <RegulatoryRuleCommand /> : null}</TabsContent>
+          <TabsContent value="rules" className="space-y-4"><ControlPlanePanel title="Approved regulatory rule packs" description="Sourced versions, approval separation, golden fixtures, shadow comparisons, and activation readiness." data={data.rules} />{user?.role === "platform_admin" ? <><RegulatoryExpansionPanel /><RegulatoryRuleCommand /></> : null}</TabsContent>
           <TabsContent value="identity" className="space-y-4">
             <ControlPlanePanel title="Enterprise identity" description="Verified domains, SAML connections, AAL2 policy, SCIM replay safety, and session revocation evidence." data={data.identity} />
             <IdentityDomainCommand />

@@ -9,14 +9,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateForDisplay } from "@/lib/dateUtils";
-import { Bell, Loader2, MessageSquareText, UserRound } from "lucide-react";
+import { disableWebPush, enableWebPush, getPushPermissionState, hasActiveWebPushSubscription } from "@/lib/pushSubscriptions";
+import { Bell, BellRing, Loader2, MessageSquareText, UserRound } from "lucide-react";
 
 interface ContactFormData {
   firstName: string;
   lastName: string;
   phone: string;
   smsOptIn: boolean;
-  preferredNotificationChannel: "email" | "sms";
+  preferredNotificationChannel: "email" | "sms" | "web_push";
 }
 
 export default function NotificationSettings() {
@@ -24,6 +25,9 @@ export default function NotificationSettings() {
   const { toast } = useToast();
   const { data: profile, isLoading, isError, error, refetch } = useMyProfile(user?.id);
   const { mutate: updateProfile, isPending: saving } = useUpdateProfile();
+  const [pushActive, setPushActive] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const pushPermission = getPushPermissionState();
 
   const [form, setForm] = useState<ContactFormData>({
     firstName: "",
@@ -42,10 +46,44 @@ export default function NotificationSettings() {
       lastName: profile.last_name ?? "",
       phone: profile.phone ?? "",
       smsOptIn: profile.sms_opt_in,
-      preferredNotificationChannel: profile.preferred_notification_channel === "sms" ? "sms" : "email",
+      preferredNotificationChannel: ["sms", "web_push"].includes(profile.preferred_notification_channel)
+        ? profile.preferred_notification_channel as "sms" | "web_push"
+        : "email",
     });
     setHydratedProfileId(profile.id);
   }, [profile, hydratedProfileId]);
+
+  useEffect(() => {
+    void hasActiveWebPushSubscription().then(setPushActive).catch(() => setPushActive(false));
+  }, []);
+
+  const handleEnablePush = async () => {
+    setPushBusy(true);
+    try {
+      await enableWebPush();
+      setPushActive(true);
+      setForm((current) => ({ ...current, preferredNotificationChannel: "web_push" }));
+      toast({ title: "Browser notifications enabled", description: "Save changes to make web push your preferred channel." });
+    } catch (e) {
+      toast({ title: "Could not enable browser notifications", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const handleDisablePush = async () => {
+    setPushBusy(true);
+    try {
+      await disableWebPush();
+      setPushActive(false);
+      setForm((current) => ({ ...current, preferredNotificationChannel: current.preferredNotificationChannel === "web_push" ? "email" : current.preferredNotificationChannel }));
+      toast({ title: "Browser notifications disabled", description: "Choose email or SMS and save your preferences." });
+    } catch (e) {
+      toast({ title: "Could not disable browser notifications", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const handleSave = () => {
     if (!user) return;
@@ -59,6 +97,14 @@ export default function NotificationSettings() {
     }
     if (form.preferredNotificationChannel === "sms" && (!form.smsOptIn || !form.phone.trim())) {
       toast({ title: "SMS can be preferred only after phone consent is enabled", variant: "destructive" });
+      return;
+    }
+    if (
+      form.preferredNotificationChannel === "web_push"
+      && !pushActive
+      && profile?.preferred_notification_channel !== "web_push"
+    ) {
+      toast({ title: "Enable browser notifications before choosing web push", variant: "destructive" });
       return;
     }
     updateProfile(
@@ -193,13 +239,37 @@ export default function NotificationSettings() {
                   </p>
                 </label>
               </div>
+              <div className="flex flex-wrap items-start justify-between gap-3 rounded-md border p-3">
+                <div className="max-w-2xl text-[13px]">
+                  <span className="font-medium flex items-center gap-1.5">
+                    <BellRing className="h-3.5 w-3.5" /> Browser and lock-screen notifications
+                  </span>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Receive course assignments, published schedules, and shift reminders through this installed browser.
+                    Compliance-critical expiry alerts can still use your organization's approved email and SMS paths.
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Status: {pushPermission === "unsupported" ? "not supported by this browser" : pushActive ? "enabled on this browser" : pushPermission === "denied" ? "blocked in browser settings" : "not enabled"}.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={pushBusy || pushPermission === "unsupported" || (!pushActive && pushPermission === "denied")}
+                  onClick={() => void (pushActive ? handleDisablePush() : handleEnablePush())}
+                >
+                  {pushBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {pushActive ? "Disable" : "Enable"}
+                </Button>
+              </div>
               <div className="space-y-1.5">
                 <Label className="text-[13px]">Preferred notification channel</Label>
                 <Select
                   value={form.preferredNotificationChannel}
                   onValueChange={value => setForm(f => ({
                     ...f,
-                    preferredNotificationChannel: value as "email" | "sms",
+                    preferredNotificationChannel: value as "email" | "sms" | "web_push",
                   }))}
                 >
                   <SelectTrigger className="h-9 w-full sm:w-64"><SelectValue /></SelectTrigger>
@@ -208,10 +278,11 @@ export default function NotificationSettings() {
                     <SelectItem value="sms" disabled={!form.smsOptIn || !form.phone.trim()}>
                       SMS first
                     </SelectItem>
+                    <SelectItem value="web_push" disabled={!pushActive}>Web push first</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-muted-foreground">
-                  SMS becomes available only after a mobile number and consent are recorded above.
+                  SMS requires a mobile number and consent. Web push requires permission on this browser.
                 </p>
               </div>
             </CardContent>

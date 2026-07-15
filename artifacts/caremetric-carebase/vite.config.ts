@@ -69,6 +69,10 @@ export default defineConfig(({ command, mode }) => {
           ],
         },
         workbox: {
+          // The generated Workbox service worker owns caching; this small, versioned script
+          // adds only push and notification-click handlers so protected API responses are
+          // never moved into a client cache.
+          importScripts: ["push-sw.js"],
           // Navigation must check the network before using a cached shell. Otherwise a deploy can
           // leave an open tab pinned to index.html that references hashes the new release removed.
           navigateFallback: null,

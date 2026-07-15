@@ -27,6 +27,7 @@ import { AlertTriangle, ClipboardCheck, Copy, Download, FileArchive, Loader2, Sh
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { buildAdministratorRulePack, summarizeAdministratorRulePack } from "@/lib/administratorRulePacks";
 import { buildSpecialCareComplianceSummary } from "@/lib/specialCareCompliance";
+import { supabase } from "@/lib/supabase";
 
 const BACKGROUND_CHECK_CREDENTIAL_TYPES = ["act34_criminal_history", "act73_fbi_fingerprint", "act33_child_abuse"];
 const HEALTH_CREDENTIAL_TYPES = ["tb_screening", "immunization"];
@@ -54,6 +55,9 @@ export default function InspectionReadiness() {
   const { toast } = useToast();
   const [facilityId, setFacilityId] = useState<string>("");
   const [showDraftPlan, setShowDraftPlan] = useState(false);
+  const [mockInspectionRunning, setMockInspectionRunning] = useState(false);
+  const [mockInspectionRunId, setMockInspectionRunId] = useState<string | null>(null);
+  const [mockInspectionSummary, setMockInspectionSummary] = useState<{ passed: number; attention: number; indeterminate: number } | null>(null);
 
   const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   const activeFacilityId = facilityId || facilities?.[0]?.id || "";
@@ -212,6 +216,39 @@ export default function InspectionReadiness() {
     }
   };
 
+  const handleRunMockInspection = async () => {
+    if (!activeFacilityId) return;
+    setMockInspectionRunning(true);
+    setMockInspectionRunId(null);
+    void supabase.functions.invoke("capture-product-event", { body: { eventName: "mock_inspection_started", route: "/app/inspection-readiness", properties: { surface: "inspection_readiness" } } });
+    try {
+      const { data, error } = await supabase.functions.invoke("run-mock-inspection", {
+        body: { facilityId: activeFacilityId, asOfDate: today },
+      });
+      if (error) throw error;
+      setMockInspectionRunId(data.runId);
+      setMockInspectionSummary({ passed: data.passed, attention: data.attention, indeterminate: data.indeterminate });
+      void supabase.functions.invoke("capture-product-event", { body: { eventName: "mock_inspection_completed", route: "/app/inspection-readiness", properties: { result: data.attention > 0 ? "attention" : "ready", count: data.attention, surface: "inspection_readiness" } } });
+      toast({ title: "Mock inspection completed", description: `${data.attention} attention item(s), ${data.indeterminate} manual review item(s).` });
+    } catch (error) {
+      toast({ title: "Mock inspection failed", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    } finally { setMockInspectionRunning(false); }
+  };
+
+  const handleDownloadMockInspection = async () => {
+    if (!mockInspectionRunId) return;
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-mock-inspection-report", { body: { runId: mockInspectionRunId } });
+      if (error) throw error;
+      const blob = data instanceof Blob ? data : new Blob([data], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob); const link = document.createElement("a");
+      link.href = url; link.download = `mock-inspection-${today}.pdf`; document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (error) {
+      toast({ title: "Gap report download failed", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    }
+  };
+
   const groupedChecklist = useMemo(() => {
     const groups = new Map<string, EntranceConferenceItem[]>();
     for (const item of checklistItems ?? []) {
@@ -231,19 +268,24 @@ export default function InspectionReadiness() {
             A live, per-facility readiness score by DHS citation topic, plus a mock entrance-conference walkthrough.
           </p>
         </div>
-        <Select value={activeFacilityId} onValueChange={setFacilityId}>
-          <SelectTrigger className="w-56">
-            <SelectValue placeholder="Select facility" />
-          </SelectTrigger>
-          <SelectContent>
-            {(facilities ?? []).map((f) => (
-              <SelectItem key={f.id} value={f.id}>
-                {f.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={activeFacilityId} onValueChange={setFacilityId}>
+            <SelectTrigger className="w-56"><SelectValue placeholder="Select facility" /></SelectTrigger>
+            <SelectContent>{(facilities ?? []).map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button onClick={() => void handleRunMockInspection()} disabled={!activeFacilityId || mockInspectionRunning}>
+            {mockInspectionRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+            {mockInspectionRunning ? "Running grounded checks..." : "Run mock inspection"}
+          </Button>
+          {mockInspectionRunId ? <Button variant="outline" onClick={() => void handleDownloadMockInspection()}><Download className="mr-2 h-4 w-4" /> Gap report PDF</Button> : null}
+        </div>
       </div>
+
+      {mockInspectionSummary ? (
+        <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+          Latest mock inspection: <strong>{mockInspectionSummary.passed} pass</strong>, <strong>{mockInspectionSummary.attention} attention</strong>, and <strong>{mockInspectionSummary.indeterminate} manual review</strong>. Each result retains its governed source and row evidence IDs.
+        </div>
+      ) : null}
 
       <Card>
         <CardHeader>

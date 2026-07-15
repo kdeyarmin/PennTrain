@@ -18,12 +18,12 @@ import path from "node:path";
 // We stop at the `snapshots:` block, which reuses the same syntax with peer-dep
 // suffixes like '@scope/name@x.y.z(peer@v):' that would produce bogus version strings.
 function parsePackagesFromLockfile(content) {
-  const packagesMatch = /(^|\n)packages:\n/.exec(content);
+  const packagesMatch = /(^|\r?\n)packages:\r?\n/.exec(content);
   if (!packagesMatch) {
     throw new Error("pnpm-lock.yaml is missing a top-level packages: section.");
   }
   const packagesStart = packagesMatch.index + packagesMatch[1].length;
-  const snapshotsMatch = /(^|\n)snapshots:\n/.exec(content);
+  const snapshotsMatch = /(^|\r?\n)snapshots:\r?\n/.exec(content);
   const snapshotsStart = snapshotsMatch ? snapshotsMatch.index + snapshotsMatch[1].length : -1;
   const section =
     snapshotsStart === -1

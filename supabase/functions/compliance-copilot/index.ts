@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
 import {
@@ -35,6 +34,8 @@ interface CopilotRequest {
   citationQuery?: string;
   asOfDate?: string;
 }
+
+type QueryRow = Record<string, any>;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -227,7 +228,7 @@ async function collectDue(client: any, facilityId: string, asOf: string) {
     queryOrThrow(client.from("resident_compliance_items").select("id,resident_id,item_type,status,due_date").eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through).limit(100), "resident compliance due dates"),
     queryOrThrow(client.from("work_items").select("id,title,state,priority,due_at,source_type").eq("facility_id", facilityId).neq("state", "closed").gte("due_at", `${asOf}T00:00:00Z`).lte("due_at", `${through}T23:59:59Z`).limit(100), "work item due dates"),
     queryOrThrow(client.from("inspection_items").select("id,label,status,next_due_date,item_type").eq("facility_id", facilityId).eq("is_active", true).gte("next_due_date", asOf).lte("next_due_date", through).limit(100), "inspection due dates"),
-  ]) as any[];
+  ]) as QueryRow[][];
   const [employees, residents] = await Promise.all([
     employeeNames(client, [...training, ...credentials].map((row) => row.employee_id)),
     residentNames(client, residentItems.map((row) => row.resident_id)),
@@ -282,7 +283,7 @@ async function collectCitationEvidence(client: any, facilityId: string, citation
     topicIds.length ? queryOrThrow(client.from("resident_compliance_items").select("id,resident_id,item_type,status,due_date,citation_topic_id").eq("facility_id", facilityId).in("citation_topic_id", topicIds).limit(100), "citation resident items") : [],
     topicIds.length ? queryOrThrow(client.from("inspection_items").select("id,label,item_type,status,next_due_date,citation_topic_id").eq("facility_id", facilityId).in("citation_topic_id", topicIds).limit(100), "citation inspections") : [],
     topicIds.length ? queryOrThrow(client.from("training_types").select("id,name,citation_note,citation_topic_id").in("citation_topic_id", topicIds).limit(100), "citation training types") : [],
-  ]) as any[];
+  ]) as QueryRow[][];
   const matchingViolations = violations.filter((row) => topicIds.includes(row.citation_topic_id) || String(row.citation_ref ?? "").toLowerCase().includes(query));
   const trainingTypeIds = trainingTypes.map((row) => row.id);
   const training = trainingTypeIds.length ? await queryOrThrow(
@@ -461,13 +462,15 @@ Deno.serve(async (req: Request) => {
   if (!body.facilityId || !isCopilotIntent(body.intent)) return json({ error: "facilityId and a supported intent are required" }, 400);
   const question = body.question?.trim();
   if (!question || question.length < 3 || question.length > 2000) return json({ error: "question must be between 3 and 2000 characters" }, 400);
-  const asOf = isoDate(body.asOfDate);
+  const asOf = isoDate(body.asOfDate) ?? new Date().toISOString().slice(0, 10);
 
   const { data: facility, error: facilityError } = await callerClient.from("facilities").select("id,organization_id,name,facility_type,state").eq("id", body.facilityId).single();
   if (facilityError || !facility) return json({ error: "Facility not found or outside caller scope" }, 404);
   if (!["PCH", "ALR"].includes(facility.facility_type)) {
     return json({ error: "The compliance copilot is limited to PCH and ALF facilities." }, 400);
   }
+  const authorizedUser = user;
+  const scopedFacility = facility;
   const intent = body.intent;
   const determinationKind = determinationKindForIntent(intent);
   const subjectType = intent === "employee_blocked" ? "employee" : intent === "draft_plan_of_correction" ? "violation" : intent === "citation_evidence" ? "citation" : null;
@@ -485,15 +488,15 @@ Deno.serve(async (req: Request) => {
 
   async function recordFailure(message: string, model: string | null = null) {
     await adminClient.from("compliance_copilot_runs").insert({
-      organization_id: facility.organization_id,
-      facility_id: facility.id,
-      requested_by: user.id,
+      organization_id: scopedFacility.organization_id,
+      facility_id: scopedFacility.id,
+      requested_by: authorizedUser.id,
       intent,
       question,
       subject_type: subjectType,
       subject_reference: subjectReference,
       jurisdiction_code: jurisdictionCode,
-      facility_type: facility.facility_type,
+      facility_type: scopedFacility.facility_type,
       as_of_date: asOf,
       determination_kind: determinationKind,
       status: "failed",

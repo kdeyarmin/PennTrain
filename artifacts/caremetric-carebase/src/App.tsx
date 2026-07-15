@@ -9,6 +9,7 @@ import { loginPathWithNext } from "@/lib/loginRedirect";
 import { ViewingOrgProvider } from "@/lib/viewingOrg";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
+import { ProductTelemetry } from "@/components/ProductTelemetry";
 
 import Features from "@/pages/marketing/Features";
 import WhoItsFor from "@/pages/marketing/WhoItsFor";
@@ -837,6 +838,7 @@ function AppInner() {
     <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
       <MaintenanceBanner />
       <AuthProvider>
+        <ProductTelemetry />
         <ViewingOrgProvider>
           <Router />
         </ViewingOrgProvider>

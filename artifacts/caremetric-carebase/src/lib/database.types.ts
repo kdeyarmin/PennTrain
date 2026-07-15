@@ -669,6 +669,48 @@ export type Database = {
           },
         ]
       }
+      benchmark_snapshots: {
+        Row: {
+          cohort_checksum_sha256: string
+          facility_count: number
+          facility_type: string
+          generated_at: string
+          id: string
+          jurisdiction_code: string
+          k_threshold: number
+          metrics: Json
+          organization_count: number
+          period_end: string
+          period_start: string
+        }
+        Insert: {
+          cohort_checksum_sha256: string
+          facility_count: number
+          facility_type: string
+          generated_at?: string
+          id?: string
+          jurisdiction_code: string
+          k_threshold?: number
+          metrics: Json
+          organization_count: number
+          period_end: string
+          period_start: string
+        }
+        Update: {
+          cohort_checksum_sha256?: string
+          facility_count?: number
+          facility_type?: string
+          generated_at?: string
+          id?: string
+          jurisdiction_code?: string
+          k_threshold?: number
+          metrics?: Json
+          organization_count?: number
+          period_end?: string
+          period_start?: string
+        }
+        Relationships: []
+      }
       billing_accounts: {
         Row: {
           billing_state: string
@@ -3038,6 +3080,7 @@ export type Database = {
           id: string
           kind: string
           model: string
+          organization_id: string | null
           request_params: Json
           requested_by: string
           response_summary: Json | null
@@ -3054,6 +3097,7 @@ export type Database = {
           id?: string
           kind: string
           model: string
+          organization_id?: string | null
           request_params: Json
           requested_by: string
           response_summary?: Json | null
@@ -3070,6 +3114,7 @@ export type Database = {
           id?: string
           kind?: string
           model?: string
+          organization_id?: string | null
           request_params?: Json
           requested_by?: string
           response_summary?: Json | null
@@ -3097,6 +3142,13 @@ export type Database = {
             columns: ["course_version_id"]
             isOneToOne: false
             referencedRelation: "course_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_ai_generations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
@@ -3689,6 +3741,171 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      data_lifecycle_holds: {
+        Row: {
+          created_at: string
+          ends_at: string
+          id: string
+          organization_id: string | null
+          placed_by: string
+          reason: string
+          release_reason: string | null
+          released_at: string | null
+          released_by: string | null
+          source_table: string | null
+          starts_at: string
+        }
+        Insert: {
+          created_at?: string
+          ends_at?: string
+          id?: string
+          organization_id?: string | null
+          placed_by: string
+          reason: string
+          release_reason?: string | null
+          released_at?: string | null
+          released_by?: string | null
+          source_table?: string | null
+          starts_at?: string
+        }
+        Update: {
+          created_at?: string
+          ends_at?: string
+          id?: string
+          organization_id?: string | null
+          placed_by?: string
+          reason?: string
+          release_reason?: string | null
+          released_at?: string | null
+          released_by?: string | null
+          source_table?: string | null
+          starts_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_lifecycle_holds_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "data_lifecycle_holds_placed_by_fkey"
+            columns: ["placed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "data_lifecycle_holds_released_by_fkey"
+            columns: ["released_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      data_lifecycle_policies: {
+        Row: {
+          archive_after_days: number
+          created_at: string
+          delete_after_days: number | null
+          disposition: string
+          evidence_class: string
+          is_active: boolean
+          organization_column: string | null
+          policy_key: string
+          policy_rationale: string
+          source_schema: string
+          source_table: string
+          time_column: string
+          updated_at: string
+        }
+        Insert: {
+          archive_after_days: number
+          created_at?: string
+          delete_after_days?: number | null
+          disposition: string
+          evidence_class: string
+          is_active?: boolean
+          organization_column?: string | null
+          policy_key: string
+          policy_rationale: string
+          source_schema?: string
+          source_table: string
+          time_column: string
+          updated_at?: string
+        }
+        Update: {
+          archive_after_days?: number
+          created_at?: string
+          delete_after_days?: number | null
+          disposition?: string
+          evidence_class?: string
+          is_active?: boolean
+          organization_column?: string | null
+          policy_key?: string
+          policy_rationale?: string
+          source_schema?: string
+          source_table?: string
+          time_column?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      data_lifecycle_runs: {
+        Row: {
+          completed_at: string | null
+          cutoff_at: string
+          error_message: string | null
+          id: string
+          policy_key: string
+          request_id: string
+          rows_archived: number
+          rows_deleted: number
+          rows_examined: number
+          rows_held: number
+          started_at: string
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          cutoff_at: string
+          error_message?: string | null
+          id?: string
+          policy_key: string
+          request_id: string
+          rows_archived?: number
+          rows_deleted?: number
+          rows_examined?: number
+          rows_held?: number
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          cutoff_at?: string
+          error_message?: string | null
+          id?: string
+          policy_key?: string
+          request_id?: string
+          rows_archived?: number
+          rows_deleted?: number
+          rows_examined?: number
+          rows_held?: number
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_lifecycle_runs_policy_key_fkey"
+            columns: ["policy_key"]
+            isOneToOne: false
+            referencedRelation: "data_lifecycle_policies"
+            referencedColumns: ["policy_key"]
           },
         ]
       }
@@ -12915,6 +13132,88 @@ export type Database = {
           },
         ]
       }
+      mock_inspection_runs: {
+        Row: {
+          as_of_date: string
+          attention_count: number
+          checklist_version_sha256: string
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          error_message: string | null
+          evidence_snapshot: Json
+          facility_id: string
+          findings: Json
+          id: string
+          indeterminate_count: number
+          model: string | null
+          organization_id: string
+          passed_count: number
+          started_at: string
+          status: string
+        }
+        Insert: {
+          as_of_date?: string
+          attention_count?: number
+          checklist_version_sha256: string
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          error_message?: string | null
+          evidence_snapshot?: Json
+          facility_id: string
+          findings?: Json
+          id?: string
+          indeterminate_count?: number
+          model?: string | null
+          organization_id: string
+          passed_count?: number
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          as_of_date?: string
+          attention_count?: number
+          checklist_version_sha256?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          error_message?: string | null
+          evidence_snapshot?: Json
+          facility_id?: string
+          findings?: Json
+          id?: string
+          indeterminate_count?: number
+          model?: string | null
+          organization_id?: string
+          passed_count?: number
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mock_inspection_runs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_inspection_runs_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_inspection_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       move_in_guest_access_events: {
         Row: {
           event_type: string
@@ -14917,6 +15216,7 @@ export type Database = {
           organization_id: string
           sms_notifications_enabled: boolean
           updated_at: string
+          web_push_notifications_enabled: boolean
         }
         Insert: {
           branding_accent_color?: string | null
@@ -14931,6 +15231,7 @@ export type Database = {
           organization_id: string
           sms_notifications_enabled?: boolean
           updated_at?: string
+          web_push_notifications_enabled?: boolean
         }
         Update: {
           branding_accent_color?: string | null
@@ -14945,6 +15246,7 @@ export type Database = {
           organization_id?: string
           sms_notifications_enabled?: boolean
           updated_at?: string
+          web_push_notifications_enabled?: boolean
         }
         Relationships: [
           {
@@ -16115,6 +16417,60 @@ export type Database = {
           },
         ]
       }
+      product_events: {
+        Row: {
+          actor_profile_id: string | null
+          actor_role: string
+          event_name: string
+          id: string
+          occurred_at: string
+          organization_id: string | null
+          properties: Json
+          received_at: string
+          route_template: string | null
+          session_hash: string | null
+        }
+        Insert: {
+          actor_profile_id?: string | null
+          actor_role: string
+          event_name: string
+          id?: string
+          occurred_at?: string
+          organization_id?: string | null
+          properties?: Json
+          received_at?: string
+          route_template?: string | null
+          session_hash?: string | null
+        }
+        Update: {
+          actor_profile_id?: string | null
+          actor_role?: string
+          event_name?: string
+          id?: string
+          occurred_at?: string
+          organization_id?: string | null
+          properties?: Json
+          received_at?: string
+          route_template?: string | null
+          session_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_events_actor_profile_id_fkey"
+            columns: ["actor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -16179,6 +16535,72 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_subscriptions: {
+        Row: {
+          auth_key: string
+          created_at: string
+          disabled_at: string | null
+          disabled_reason: string | null
+          endpoint: string
+          endpoint_hash: string
+          expiration_time: string | null
+          id: string
+          last_used_at: string | null
+          organization_id: string
+          p256dh_key: string
+          profile_id: string
+          updated_at: string
+          user_agent_hash: string | null
+        }
+        Insert: {
+          auth_key: string
+          created_at?: string
+          disabled_at?: string | null
+          disabled_reason?: string | null
+          endpoint: string
+          endpoint_hash: string
+          expiration_time?: string | null
+          id?: string
+          last_used_at?: string | null
+          organization_id: string
+          p256dh_key: string
+          profile_id: string
+          updated_at?: string
+          user_agent_hash?: string | null
+        }
+        Update: {
+          auth_key?: string
+          created_at?: string
+          disabled_at?: string | null
+          disabled_reason?: string | null
+          endpoint?: string
+          endpoint_hash?: string
+          expiration_time?: string | null
+          id?: string
+          last_used_at?: string | null
+          organization_id?: string
+          p256dh_key?: string
+          profile_id?: string
+          updated_at?: string
+          user_agent_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "push_subscriptions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -17016,6 +17438,74 @@ export type Database = {
           },
         ]
       }
+      regulatory_change_proposals: {
+        Row: {
+          change_summary: Json
+          created_at: string
+          drafted_rule_version_id: string | null
+          id: string
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          rule_pack_id: string | null
+          source_snapshot_id: string
+          state: string
+        }
+        Insert: {
+          change_summary?: Json
+          created_at?: string
+          drafted_rule_version_id?: string | null
+          id?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          rule_pack_id?: string | null
+          source_snapshot_id: string
+          state?: string
+        }
+        Update: {
+          change_summary?: Json
+          created_at?: string
+          drafted_rule_version_id?: string | null
+          id?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          rule_pack_id?: string | null
+          source_snapshot_id?: string
+          state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "regulatory_change_proposals_drafted_rule_version_id_fkey"
+            columns: ["drafted_rule_version_id"]
+            isOneToOne: false
+            referencedRelation: "regulatory_rule_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regulatory_change_proposals_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regulatory_change_proposals_rule_pack_id_fkey"
+            columns: ["rule_pack_id"]
+            isOneToOne: false
+            referencedRelation: "regulatory_rule_packs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regulatory_change_proposals_source_snapshot_id_fkey"
+            columns: ["source_snapshot_id"]
+            isOneToOne: true
+            referencedRelation: "regulatory_source_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       regulatory_rule_fixture_runs: {
         Row: {
           actual_result_checksum_sha256: string
@@ -17133,6 +17623,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      regulatory_rule_pack_templates: {
+        Row: {
+          applicability: Json
+          authority_name: string
+          calculation_parameters: Json
+          citation: string
+          created_at: string
+          description: string
+          effective_from: string
+          golden_fixtures: Json
+          jurisdiction_code: string
+          name: string
+          source_checksum_sha256: string
+          source_uri: string
+          template_key: string
+          updated_at: string
+        }
+        Insert: {
+          applicability: Json
+          authority_name: string
+          calculation_parameters: Json
+          citation: string
+          created_at?: string
+          description: string
+          effective_from: string
+          golden_fixtures: Json
+          jurisdiction_code: string
+          name: string
+          source_checksum_sha256: string
+          source_uri: string
+          template_key: string
+          updated_at?: string
+        }
+        Update: {
+          applicability?: Json
+          authority_name?: string
+          calculation_parameters?: Json
+          citation?: string
+          created_at?: string
+          description?: string
+          effective_from?: string
+          golden_fixtures?: Json
+          jurisdiction_code?: string
+          name?: string
+          source_checksum_sha256?: string
+          source_uri?: string
+          template_key?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       regulatory_rule_packs: {
         Row: {
@@ -17344,7 +17885,9 @@ export type Database = {
           applicability: Json
           approved_at: string | null
           authored_by: string
+          authored_by_automation: boolean
           authority_name: string
+          automation_source_snapshot_id: string | null
           calculation_parameters: Json
           citation: string
           content_checksum_sha256: string
@@ -17376,7 +17919,9 @@ export type Database = {
           applicability?: Json
           approved_at?: string | null
           authored_by: string
+          authored_by_automation?: boolean
           authority_name: string
+          automation_source_snapshot_id?: string | null
           calculation_parameters?: Json
           citation: string
           content_checksum_sha256: string
@@ -17408,7 +17953,9 @@ export type Database = {
           applicability?: Json
           approved_at?: string | null
           authored_by?: string
+          authored_by_automation?: boolean
           authority_name?: string
+          automation_source_snapshot_id?: string | null
           calculation_parameters?: Json
           citation?: string
           content_checksum_sha256?: string
@@ -17441,6 +17988,13 @@ export type Database = {
             columns: ["authored_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regulatory_rule_versions_automation_source_snapshot_id_fkey"
+            columns: ["automation_source_snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "regulatory_source_snapshots"
             referencedColumns: ["id"]
           },
           {
@@ -17479,6 +18033,98 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      regulatory_source_snapshots: {
+        Row: {
+          changed_from_previous: boolean
+          fetch_succeeded: boolean
+          fetched_at: string
+          http_status: number
+          id: string
+          normalized_content: string | null
+          response_metadata: Json
+          source_checksum_sha256: string | null
+          source_id: string
+        }
+        Insert: {
+          changed_from_previous?: boolean
+          fetch_succeeded: boolean
+          fetched_at?: string
+          http_status: number
+          id?: string
+          normalized_content?: string | null
+          response_metadata?: Json
+          source_checksum_sha256?: string | null
+          source_id: string
+        }
+        Update: {
+          changed_from_previous?: boolean
+          fetch_succeeded?: boolean
+          fetched_at?: string
+          http_status?: number
+          id?: string
+          normalized_content?: string | null
+          response_metadata?: Json
+          source_checksum_sha256?: string | null
+          source_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "regulatory_source_snapshots_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "regulatory_update_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      regulatory_update_sources: {
+        Row: {
+          authority_name: string
+          consecutive_failures: number
+          created_at: string
+          id: string
+          is_active: boolean
+          jurisdiction_code: string
+          last_changed_at: string | null
+          last_checked_at: string | null
+          rule_key: string
+          source_key: string
+          source_kind: string
+          source_uri: string
+          updated_at: string
+        }
+        Insert: {
+          authority_name: string
+          consecutive_failures?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          jurisdiction_code: string
+          last_changed_at?: string | null
+          last_checked_at?: string | null
+          rule_key: string
+          source_key: string
+          source_kind: string
+          source_uri: string
+          updated_at?: string
+        }
+        Update: {
+          authority_name?: string
+          consecutive_failures?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          jurisdiction_code?: string
+          last_changed_at?: string | null
+          last_checked_at?: string | null
+          rule_key?: string
+          source_key?: string
+          source_kind?: string
+          source_uri?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       release_cohorts: {
         Row: {
@@ -27063,7 +27709,9 @@ export type Database = {
           applicability: Json
           approved_at: string | null
           authored_by: string
+          authored_by_automation: boolean
           authority_name: string
+          automation_source_snapshot_id: string | null
           calculation_parameters: Json
           citation: string
           content_checksum_sha256: string
@@ -27357,7 +28005,9 @@ export type Database = {
           applicability: Json
           approved_at: string | null
           authored_by: string
+          authored_by_automation: boolean
           authority_name: string
+          automation_source_snapshot_id: string | null
           calculation_parameters: Json
           citation: string
           content_checksum_sha256: string
@@ -28540,6 +29190,15 @@ export type Database = {
         }
         Returns: string
       }
+      enqueue_push_first_notification_delivery: {
+        Args: {
+          p_delivery_type: string
+          p_notification_id: string
+          p_organization_id: string
+          p_profile_id: string
+        }
+        Returns: string
+      }
       ensure_employee_record: {
         Args: { p_profile_id: string }
         Returns: undefined
@@ -28805,6 +29464,7 @@ export type Database = {
         Args: { p_facility_id?: string }
         Returns: Json
       }
+      get_data_lifecycle_status: { Args: never; Returns: Json }
       get_effective_access: {
         Args: { p_at?: string }
         Returns: {
@@ -28841,6 +29501,10 @@ export type Database = {
       get_enterprise_scope_control_plane: { Args: never; Returns: Json }
       get_evidence_guest_room: {
         Args: { p_fingerprint?: string; p_token: string }
+        Returns: Json
+      }
+      get_facility_benchmark_comparison: {
+        Args: { p_facility_id: string }
         Returns: Json
       }
       get_facility_readiness_breakdown: {
@@ -28898,6 +29562,22 @@ export type Database = {
         Returns: Json
       }
       get_org_dashboard_summary: { Args: never; Returns: Json }
+      get_paid_training_payroll_export: {
+        Args: {
+          p_facility_id: string
+          p_period_end: string
+          p_period_start: string
+        }
+        Returns: {
+          course_or_class: string
+          employee_name: string
+          employee_number: string
+          source: string
+          training_code: string
+          verified_hours: number
+          work_date: string
+        }[]
+      }
       get_platform_health: { Args: never; Returns: Json }
       get_portfolio_operations_command_center: { Args: never; Returns: Json }
       get_qapi_source_metrics: {
@@ -29118,6 +29798,10 @@ export type Database = {
         }[]
       }
       get_workforce_compliance_control_plane: { Args: never; Returns: Json }
+      get_workforce_retention_metrics: {
+        Args: { p_facility_id?: string }
+        Returns: Json
+      }
       grade_quiz_attempt: { Args: { p_attempt_id: string }; Returns: undefined }
       grant_enterprise_role: {
         Args: {
@@ -29188,6 +29872,10 @@ export type Database = {
           p_statement_id: string
           p_verb_iri: string
         }
+        Returns: string
+      }
+      install_regulatory_rule_pack_template: {
+        Args: { p_template_key: string }
         Returns: string
       }
       instantiate_employee_onboarding_checklist: {
@@ -29729,6 +30417,17 @@ export type Database = {
         }
         Returns: string
       }
+      record_mock_inspection_run: {
+        Args: {
+          p_as_of_date: string
+          p_checklist_version_sha256: string
+          p_evidence_snapshot: Json
+          p_facility_id: string
+          p_findings: Json
+          p_model?: string
+        }
+        Returns: string
+      }
       record_notification_consent_event: {
         Args: {
           p_action: string
@@ -29815,6 +30514,16 @@ export type Database = {
           p_rule_version_id: string
         }
         Returns: string
+      }
+      record_regulatory_source_snapshot: {
+        Args: {
+          p_http_status: number
+          p_normalized_content: string
+          p_response_metadata?: Json
+          p_source_checksum_sha256: string
+          p_source_key: string
+        }
+        Returns: Json
       }
       record_report_snapshot: {
         Args: {
@@ -29978,6 +30687,10 @@ export type Database = {
       record_work_item_effectiveness: {
         Args: { p_result: string; p_work_item_id: string }
         Returns: boolean
+      }
+      refresh_benchmark_snapshots: {
+        Args: { p_k_threshold?: number; p_period_end?: string }
+        Returns: number
       }
       refresh_move_in_readiness: {
         Args: { p_workspace_id: string }
@@ -30361,6 +31074,10 @@ export type Database = {
           connection_key: string
           credential_secret: string
         }[]
+      }
+      run_data_lifecycle_policy: {
+        Args: { p_limit?: number; p_policy_key: string; p_request_id?: string }
+        Returns: Json
       }
       run_facility_license_due_evaluator: { Args: never; Returns: number }
       run_medication_integration_freshness_evaluator: {
@@ -30934,7 +31651,9 @@ export type Database = {
           applicability: Json
           approved_at: string | null
           authored_by: string
+          authored_by_automation: boolean
           authority_name: string
+          automation_source_snapshot_id: string | null
           calculation_parameters: Json
           citation: string
           content_checksum_sha256: string
@@ -31014,7 +31733,9 @@ export type Database = {
           applicability: Json
           approved_at: string | null
           authored_by: string
+          authored_by_automation: boolean
           authority_name: string
+          automation_source_snapshot_id: string | null
           calculation_parameters: Json
           citation: string
           content_checksum_sha256: string
@@ -31569,7 +32290,9 @@ export type Database = {
           applicability: Json
           approved_at: string | null
           authored_by: string
+          authored_by_automation: boolean
           authority_name: string
+          automation_source_snapshot_id: string | null
           calculation_parameters: Json
           citation: string
           content_checksum_sha256: string
