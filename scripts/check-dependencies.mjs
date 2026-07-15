@@ -66,9 +66,17 @@ function postJson(hostname, urlPath, body) {
               ),
             );
           } else {
-            resolve(JSON.parse(raw));
+            try {
+              resolve(JSON.parse(raw));
+            } catch (parseError) {
+              reject(
+                new Error(
+                  `Failed to parse advisory response JSON: ${parseError.message}`,
+                  { cause: parseError },
+                ),
+              );
+            }
           }
-        });
       },
     );
     req.on("error", reject);
