@@ -175,10 +175,9 @@ export default function Employees() {
     setSendPortalInvite(false);
   };
 
-  // Dashboard's "Add Employee" quick action links here with ?action=add, expecting this
-  // dialog to open automatically. Runs once on mount only -- a single deep-link action
-  // shouldn't reopen the dialog every time the query string changes while the user is
-  // already working on this page.
+  // Dashboard's "Add Employee" quick action and the "Onboard Employee" sidebar item link here
+  // with ?action=add. Re-run whenever the query string changes so navigating back to this page
+  // while already mounted (Wouter only updates the query string, no remount) still opens the dialog.
   useEffect(() => {
     const params = new URLSearchParams(locationSearch);
     const action = params.get("action");
@@ -189,8 +188,7 @@ export default function Employees() {
     } else if (action === "bulk-import" && canManage) {
       openBulkImport();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [locationSearch]);
 
   const openEdit = (e: React.MouseEvent, emp: Employee) => {
     e.preventDefault();

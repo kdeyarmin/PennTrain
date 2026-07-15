@@ -227,7 +227,7 @@ Deno.serve(async (req: Request) => {
     // The invite creates auth.users (and therefore a default employee profile) before this RPC
     // applies the intended tenant and role. Compensate on failure so a retry cannot leave behind
     // a usable, mis-provisioned account or fail because the email already exists.
-    const { error: cleanupError } = await adminClient.auth.admin.deleteUser(invited.user.id, true);
+    const { error: cleanupError } = await adminClient.auth.admin.deleteUser(invited.user.id);
     if (cleanupError) {
       console.error("invite-user cleanup failed", {
         user_id: invited.user.id,
