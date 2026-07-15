@@ -169,7 +169,7 @@ can see the whole workspace and lockfile.
      trigger a deploy, so pushes touching e.g. `artifacts/mockup-sandbox` or `scripts/` don't
      redeploy production.
    Railpack resolves Node from `engines.node` in package.json / `.nvmrc` / `.node-version` (all
-   pinned to Node 24 here; `RAILPACK_NODE_VERSION` would override) and installs pnpm 10.28.1 via
+   pinned to Node 24 here; `RAILPACK_NODE_VERSION` would override) and installs pnpm 11.13.0 via
    the package manager declared by the `packageManager` field.
    **`railpack.json` (repo root) pins `"provider": "node"` and must stay.** The repo root also
    contains `deno.json`/`deno.lock` (Deno tooling for the Supabase Edge Functions), and Railpack's
