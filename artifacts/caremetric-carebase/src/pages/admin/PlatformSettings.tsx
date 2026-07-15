@@ -43,6 +43,11 @@ const SETTINGS_CONFIG: Record<string, SettingConfig> = {
     description: "Resident assessment summary drafting via Claude. Keep disabled until the PHI/BAA review is complete.",
     type: "boolean",
   },
+  ai_compliance_copilot_enabled: {
+    label: "Citation-Backed Regulatory Copilot",
+    description: "Read-only compliance synthesis via Claude. Keep disabled until regulated-data, provider-contract, and governed-rule-source reviews are complete.",
+    type: "boolean",
+  },
   ai_document_analyzer_enabled: {
     label: "AI Document Analyzer",
     description: "State form extraction from scanned PDFs via Claude. Keep disabled until the PHI/BAA review is complete.",
@@ -93,9 +98,9 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
   },
   {
     title: "AI Features",
-    description: "Platform-wide switches for AI-powered training-content authoring, gated here to control API spend.",
+    description: "Platform-wide switches for AI drafting and synthesis, including features that require regulated-data and provider-contract review.",
     icon: Sparkles,
-    keys: ["ai_course_generation_enabled", "ai_video_generation_enabled"],
+    keys: ["ai_course_generation_enabled", "ai_wellness_summary_generation_enabled", "ai_compliance_copilot_enabled", "ai_video_generation_enabled"],
   },
 ];
 

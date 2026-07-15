@@ -202,6 +202,16 @@ describe("role-based page visibility", () => {
     expect(canViewPage("/app/resident-finance", "trainer")).toBe(false);
   });
 
+  it("restricts the regulatory copilot to compliance reporting roles", () => {
+    expect(canViewPage("/admin/regulatory-copilot", "platform_admin")).toBe(true);
+    expect(canViewPage("/app/regulatory-copilot", "platform_admin")).toBe(false);
+    expect(canViewPage("/app/regulatory-copilot", "org_admin")).toBe(true);
+    expect(canViewPage("/app/regulatory-copilot", "facility_manager")).toBe(true);
+    expect(canViewPage("/app/regulatory-copilot", "auditor")).toBe(true);
+    expect(canViewPage("/app/regulatory-copilot", "trainer")).toBe(false);
+    expect(canViewPage("/app/regulatory-copilot", "employee")).toBe(false);
+  });
+
   it("makes account MFA settings available to every authenticated role", () => {
     for (const role of ["platform_admin", "org_admin", "facility_manager", "trainer", "auditor", "employee"] as const) {
       expect(canViewPage("/account/security", role)).toBe(true);
