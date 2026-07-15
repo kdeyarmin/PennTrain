@@ -4,6 +4,8 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { canViewPath } from "@/lib/appDomains";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
+import { useGetOrganizationSettings } from "@/hooks/useOrganizationSettings";
+import { useNavigationWorkspace } from "@/hooks/useProductExperience";
 import { PCH_ALR_ONLY_FACILITY_TYPES, hasAnyFacilityType } from "@/lib/facilityTypes";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { AuthUser } from "@/lib/auth";
@@ -71,6 +73,8 @@ import {
   Landmark,
   Siren,
   HeartPulse,
+  History,
+  Megaphone,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -479,10 +483,6 @@ function collapsedSectionsStorageKey(userId: string): string {
   return `cmtrain.sidebar.collapsedSections.${userId}`;
 }
 
-function pinnedPagesStorageKey(userId: string): string {
-  return `cmtrain.sidebar.pinnedPages.${userId}`;
-}
-
 function loadCollapsedSections(userId: string): Set<string> {
   try {
     const raw = window.localStorage.getItem(collapsedSectionsStorageKey(userId));
@@ -500,23 +500,6 @@ function saveCollapsedSections(userId: string, titles: Set<string>): void {
   }
 }
 
-function loadPinnedPages(userId: string): Set<string> {
-  try {
-    const raw = window.localStorage.getItem(pinnedPagesStorageKey(userId));
-    return raw ? new Set(JSON.parse(raw)) : new Set();
-  } catch {
-    return new Set();
-  }
-}
-
-function savePinnedPages(userId: string, hrefs: Set<string>): void {
-  try {
-    window.localStorage.setItem(pinnedPagesStorageKey(userId), JSON.stringify([...hrefs]));
-  } catch {
-    // localStorage unavailable -- pinned pages just won't persist.
-  }
-}
-
 /**
  * The sidebar's inner content (logo, filter, nav sections, user footer). Shared by the
  * desktop `<aside>` and the mobile drawer. `onNavigate` lets the mobile drawer
@@ -527,10 +510,11 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const [location] = useLocation();
   const handleLogout = useSignOut();
   const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
+  const organizationSettings = useGetOrganizationSettings(user?.organizationId ?? undefined);
+  const navigation = useNavigationWorkspace();
   const [filter, setFilter] = useState("");
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => (user ? loadCollapsedSections(user.id) : new Set()));
   const [collapsedSectionsUserId, setCollapsedSectionsUserId] = useState<string | null>(() => user?.id ?? null);
-  const [pinnedPages, setPinnedPages] = useState<Set<string>>(() => (user ? loadPinnedPages(user.id) : new Set()));
 
   useEffect(() => {
     if (!user) return;
@@ -542,10 +526,6 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
     saveCollapsedSections(user.id, collapsedSections);
   }, [user, collapsedSections, collapsedSectionsUserId]);
 
-  useEffect(() => {
-    if (user) savePinnedPages(user.id, pinnedPages);
-  }, [user, pinnedPages]);
-
   if (!user) return null;
 
   // Fail open (show) while the facility-type data is still loading or failed to load, rather
@@ -553,7 +533,9 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   // section flicker out on every fresh page load, and a query error would permanently hide it.
   const showPchAlrModules = facilityTypesLoading || facilityTypesError
     || hasAnyFacilityType(facilityTypes, PCH_ALR_ONLY_FACILITY_TYPES);
+  const hiddenSections = new Set(organizationSettings.data?.hidden_navigation_sections ?? []);
   const navSections = getNavSections(user.role, showPchAlrModules)
+    .filter((section) => !section.title || !hiddenSections.has(section.title))
     .map((section) => ({
       ...section,
       // Guided links may include an action query (for example
@@ -574,14 +556,13 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 
   const flattenedNavItems = navSections.flatMap((section) => section.items);
   const currentNavItem = flattenedNavItems.find((item) => isNavItemActive(item, location));
+  const pinnedPages = new Set(navigation.favoritePaths);
   const isCurrentPagePinned = !!currentNavItem && pinnedPages.has(currentNavItem.href);
   const toggleCurrentPagePin = () => {
     if (!currentNavItem) return;
-    setPinnedPages((prev) => {
-      const next = new Set(prev);
-      if (next.has(currentNavItem.href)) next.delete(currentNavItem.href); else next.add(currentNavItem.href);
-      return next;
-    });
+    const next = new Set(pinnedPages);
+    if (next.has(currentNavItem.href)) next.delete(currentNavItem.href); else next.add(currentNavItem.href);
+    navigation.setFavorites.mutate([...next]);
   };
 
   const trimmedFilter = filter.trim().toLowerCase();
@@ -596,10 +577,26 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
       }
     : null;
 
+  const recentSection: NavSection | null = !isFiltering
+    ? {
+        title: "Recent",
+        items: navigation.recentPaths
+          .filter((recent) => !pinnedPages.has(recent.path))
+          .map((recent) => flattenedNavItems.find((item) => item.href === recent.path) ?? {
+            href: recent.path,
+            label: recent.label,
+            icon: History,
+          })
+          .filter((item, index, all) => all.findIndex((candidate) => candidate.href === item.href) === index)
+          .slice(0, 5),
+      }
+    : null;
+
   // While filtering, only show matching items so a long list narrows down to what was typed.
   // Otherwise show every item, and let each section's own collapsed/expanded state decide.
   const visibleSections = [
     ...(pinnedSection?.items.length ? [pinnedSection] : []),
+    ...(recentSection?.items.length ? [recentSection] : []),
     ...navSections
       .map((section) => ({
         ...section,
@@ -743,6 +740,18 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
               <Link href="/account/notifications" className="cursor-pointer" onClick={onNavigate}>
                 <Bell className="mr-2 h-4 w-4" />
                 <span>Notification settings</span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/account/announcements" className="cursor-pointer" onClick={onNavigate}>
+                <Megaphone className="mr-2 h-4 w-4" />
+                <span>Announcements</span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/account/whats-new" className="cursor-pointer" onClick={onNavigate}>
+                <Sparkles className="mr-2 h-4 w-4" />
+                <span>What&apos;s new</span>
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />

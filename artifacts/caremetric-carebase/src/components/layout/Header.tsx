@@ -3,6 +3,7 @@ import { useAuth, useSignOut } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useListOrganizations } from "@/hooks/useOrganizations";
 import { isHelpRoute, LAST_VISITED_ROUTE_KEY } from "@/hooks/useHelpArticles";
+import { useProductChangelog } from "@/hooks/useProductExperience";
 import {
   useListNotifications,
   useUnreadNotificationCount,
@@ -13,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { LogOut, Bell, Building2, CheckCheck, Menu, HelpCircle, ChevronDown, Search } from "lucide-react";
+import { LogOut, Bell, Building2, CheckCheck, Menu, HelpCircle, ChevronDown, Search, Sparkles, Megaphone, ShieldCheck } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -216,6 +217,7 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   const [location, navigate] = useLocation();
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const handleLogout = useSignOut();
+  const productChangelog = useProductChangelog();
 
   // Stash the route on every navigation (skipping Help's own pages) so HelpCenter can contextually
   // pin whichever job aide's relatedRoute matches wherever the user came from -- see
@@ -308,19 +310,39 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
           </>
         )}
         {user?.role === "platform_admin" && <ViewingOrgSelector />}
-        {/* platform_admin has no HelpCenter route -- it's gated to ORG_ROLES + employee in
-            App.tsx, and platform_admin's equivalent is the separate /admin/help-content authoring
-            tool -- so this stays scoped to roles that can actually land on /app/help or /me/help. */}
-        {!!user && user.role !== "platform_admin" && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground"
-            aria-label="Help"
-            onClick={() => navigate(user.role === "employee" ? "/me/help" : "/app/help")}
-          >
-            <HelpCircle className="h-[18px] w-[18px]" />
-          </Button>
+        {!!user && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground"
+                aria-label={productChangelog.data?.unreadCount ? `Help and updates (${productChangelog.data.unreadCount} new)` : "Help and updates"}
+              >
+                <HelpCircle className="h-[18px] w-[18px]" />
+                {!!productChangelog.data?.unreadCount && (
+                  <Badge className="absolute -top-1 -right-1 h-4 min-w-4 px-1 justify-center text-[10px] leading-none">
+                    {productChangelog.data.unreadCount > 9 ? "9+" : productChangelog.data.unreadCount}
+                  </Badge>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              {user.role !== "platform_admin" && (
+                <DropdownMenuItem onClick={() => navigate(user.role === "employee" ? "/me/help" : "/app/help")}>
+                  <HelpCircle className="mr-2 h-4 w-4" /> Help center
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => navigate("/account/whats-new")}>
+                <Sparkles className="mr-2 h-4 w-4" />
+                <span className="flex-1">What&apos;s new</span>
+                {!!productChangelog.data?.unreadCount && <Badge variant="secondary">{productChangelog.data.unreadCount}</Badge>}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/account/announcements")}>
+                <Megaphone className="mr-2 h-4 w-4" /> Announcements
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
         <NotificationsMenu />
 
@@ -349,6 +371,19 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
                 </div>
               </div>
             </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate("/account/security")} className="cursor-pointer p-2.5">
+              <ShieldCheck className="mr-2 h-4 w-4" />
+              <span>Account security</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/account/announcements")} className="cursor-pointer p-2.5">
+              <Megaphone className="mr-2 h-4 w-4" />
+              <span>Announcements</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/account/whats-new")} className="cursor-pointer p-2.5">
+              <Sparkles className="mr-2 h-4 w-4" />
+              <span>What&apos;s new</span>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive cursor-pointer p-2.5">
               <LogOut className="mr-2 h-4 w-4" />

@@ -172,6 +172,9 @@ const APP_COMMAND_ACTIONS: AppCommandAction[] = [
 export const APP_PAGES: AppPageDefinition[] = [
   { path: "/account/security", label: "Account security", domain: "self_service", roles: ANY_ROLE, keywords: ["mfa", "aal2", "authenticator", "two factor"] },
   { path: "/account/notifications", label: "Notification settings", domain: "self_service", roles: ANY_ROLE, keywords: ["sms", "email", "phone", "consent", "preferences", "text", "reminders"] },
+  { path: "/account/announcements", label: "Announcements", domain: "support", roles: ANY_ROLE, keywords: ["broadcast", "manager message", "notice", "read receipt"] },
+  { path: "/account/whats-new", label: "What's new", domain: "support", roles: ANY_ROLE, keywords: ["changelog", "release", "new feature", "updates"] },
+  { path: "/account/manager-digest/:id", label: "Weekly manager digest", domain: "support", roles: ANY_ROLE, keywords: ["weekly", "digest", "manager priorities"] },
   { path: "/admin", label: "Platform dashboard", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["super admin", "command center", "health"] },
   { path: "/admin/organizations", label: "Organizations", domain: "tenant", roles: PLATFORM_ADMIN, keywords: ["tenant", "customer", "subscription"] },
   { path: "/admin/packages", label: "Packages", domain: "tenant", roles: PLATFORM_ADMIN, keywords: ["plans", "subscriptions", "billing"] },

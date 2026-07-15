@@ -203,7 +203,7 @@ export default function Facilities() {
                     <Building2 className="h-5 w-5 text-primary/70" />
                   </div>
                   <div className="flex items-center gap-1.5">
-                    {canManage && (
+                    {canManage && !facility.is_sandbox && (
                       <>
                         <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-7 sm:w-7 sm:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-foreground" onClick={(e) => openEdit(e, facility)} aria-label={`Edit ${facility.name}`}>
                           <Pencil className="h-3.5 w-3.5" />
@@ -229,6 +229,7 @@ export default function Facilities() {
                   <Badge variant="outline" className={`text-[10px] font-medium ${facilityTypeBadgeClass(facility.facility_type)}`}>
                     {facilityTypeLabel(facility.facility_type)}
                   </Badge>
+                  {facility.is_sandbox && <Badge className="border-violet-200 bg-violet-50 text-[10px] font-medium text-violet-700 hover:bg-violet-50" variant="outline">Training sandbox</Badge>}
                   <Badge variant="outline" className={`text-[10px] font-medium ${
                     facility.is_active
                       ? "border-emerald-200 text-emerald-700 bg-emerald-50"

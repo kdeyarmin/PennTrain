@@ -50,6 +50,7 @@ export function isPublicPath(path: string): boolean {
     p.startsWith("/move-in-access/") ||
     p.startsWith("/resident-agreement-access/") ||
     p.startsWith("/verify/") ||
+    p.startsWith("/passport/") ||
     MARKETING_PATHS.includes(p)
   );
 }

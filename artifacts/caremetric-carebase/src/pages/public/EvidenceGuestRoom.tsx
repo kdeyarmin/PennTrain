@@ -64,7 +64,7 @@ export default function EvidenceGuestRoom() {
       <Shell>
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle role="heading" aria-level={1} className="flex items-center gap-2">
               <ShieldX className="h-5 w-5 text-red-600" /> This link is no longer available
             </CardTitle>
             <CardDescription>
@@ -88,7 +88,7 @@ export default function EvidenceGuestRoom() {
       <Shell>
         <Card>
           <CardHeader>
-            <CardTitle>{room.collection?.name}</CardTitle>
+            <CardTitle role="heading" aria-level={1}>{room.collection?.name}</CardTitle>
             <CardDescription>{room.collection?.purpose}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -150,7 +150,7 @@ export default function EvidenceGuestRoom() {
     <Shell>
       <Card>
         <CardHeader>
-          <CardTitle>{room.collection?.name}</CardTitle>
+          <CardTitle role="heading" aria-level={1}>{room.collection?.name}</CardTitle>
           <CardDescription>{room.collection?.purpose}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

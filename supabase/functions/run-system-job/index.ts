@@ -24,6 +24,10 @@ const EDGE_JOBS: Record<
     functionName: "dispatch-integration-webhooks",
     body: { batchSize: 50 },
   },
+  "organization-data-export": {
+    functionName: "process-organization-export-jobs",
+    body: {},
+  },
 };
 
 function json(body: unknown, status = 200) {

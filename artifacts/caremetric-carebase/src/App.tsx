@@ -25,6 +25,9 @@ const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 const FacilitySignupLegal = lazy(() => import("@/pages/legal/FacilitySignupLegal"));
 const MfaSettings = lazy(() => import("@/pages/auth/MfaSettings"));
 const NotificationSettings = lazy(() => import("@/pages/auth/NotificationSettings"));
+const Announcements = lazy(() => import("@/pages/app/Announcements"));
+const ProductChangelog = lazy(() => import("@/pages/app/ProductChangelog"));
+const ManagerDigest = lazy(() => import("@/pages/app/ManagerDigest"));
 
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
 const Organizations = lazy(() => import("@/pages/admin/Organizations"));
@@ -77,6 +80,7 @@ const WorkItemDetail = lazy(() => import("@/pages/app/WorkItemDetail"));
 const EvidenceRoom = lazy(() => import("@/pages/app/EvidenceRoom"));
 const EvidenceCollectionDetail = lazy(() => import("@/pages/app/EvidenceCollectionDetail"));
 const EvidenceGuestRoom = lazy(() => import("@/pages/public/EvidenceGuestRoom"));
+const TrainingPassport = lazy(() => import("@/pages/public/TrainingPassport"));
 const Violations = lazy(() => import("@/pages/app/Violations"));
 const ViolationDetail = lazy(() => import("@/pages/app/ViolationDetail"));
 const Residents = lazy(() => import("@/pages/app/Residents"));
@@ -340,6 +344,7 @@ function Router() {
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/legal/facility-signup" component={FacilitySignupLegal} />
       <Route path="/verify/:slug" component={VerifyCertificate} />
+      <Route path="/passport/:slug" component={TrainingPassport} />
       <Route path="/report-safety" component={SafetyReport} />
       {/* Bare, chrome-less public page intentionally left outside ProtectedRoute/MainLayout so
           signed-out visitors can open it directly after scanning a QR code. */}
@@ -357,6 +362,18 @@ function Router() {
 
       <Route path="/account/notifications">
         {() => <ProtectedRoute component={NotificationSettings} allowedRoles={ANY_ROLE} />}
+      </Route>
+
+      <Route path="/account/announcements">
+        {() => <ProtectedRoute component={Announcements} allowedRoles={ANY_ROLE} />}
+      </Route>
+
+      <Route path="/account/whats-new">
+        {() => <ProtectedRoute component={ProductChangelog} allowedRoles={ANY_ROLE} />}
+      </Route>
+
+      <Route path="/account/manager-digest/:id">
+        {() => <ProtectedRoute component={ManagerDigest} allowedRoles={ANY_ROLE} />}
       </Route>
 
       {/* Public marketing pages (nav targets from the landing page) */}

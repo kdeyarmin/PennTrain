@@ -6616,6 +6616,7 @@ export type Database = {
           first_name: string
           hire_date: string | null
           id: string
+          is_synthetic: boolean
           job_title: string
           last_name: string
           notes: string | null
@@ -6641,6 +6642,7 @@ export type Database = {
           first_name: string
           hire_date?: string | null
           id?: string
+          is_synthetic?: boolean
           job_title: string
           last_name: string
           notes?: string | null
@@ -6666,6 +6668,7 @@ export type Database = {
           first_name?: string
           hire_date?: string | null
           id?: string
+          is_synthetic?: boolean
           job_title?: string
           last_name?: string
           notes?: string | null
@@ -8512,10 +8515,13 @@ export type Database = {
           facility_type: string
           id: string
           is_active: boolean
+          is_sandbox: boolean
           license_number: string | null
           name: string
           organization_id: string
           phone: string | null
+          sandbox_reset_at: string | null
+          sandbox_seed_version: number | null
           state: string | null
           updated_at: string
           zip: string | null
@@ -8531,10 +8537,13 @@ export type Database = {
           facility_type: string
           id?: string
           is_active?: boolean
+          is_sandbox?: boolean
           license_number?: string | null
           name: string
           organization_id: string
           phone?: string | null
+          sandbox_reset_at?: string | null
+          sandbox_seed_version?: number | null
           state?: string | null
           updated_at?: string
           zip?: string | null
@@ -8550,10 +8559,13 @@ export type Database = {
           facility_type?: string
           id?: string
           is_active?: boolean
+          is_sandbox?: boolean
           license_number?: string | null
           name?: string
           organization_id?: string
           phone?: string | null
+          sandbox_reset_at?: string | null
+          sandbox_seed_version?: number | null
           state?: string | null
           updated_at?: string
           zip?: string | null
@@ -12879,6 +12891,48 @@ export type Database = {
           },
         ]
       }
+      manager_digest_snapshots: {
+        Row: {
+          created_at: string
+          id: string
+          items: Json
+          organization_id: string
+          profile_id: string
+          week_started_on: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          items: Json
+          organization_id: string
+          profile_id: string
+          week_started_on: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          items?: Json
+          organization_id?: string
+          profile_id?: string
+          week_started_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manager_digest_snapshots_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manager_digest_snapshots_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       medication_integration_exceptions: {
         Row: {
           command_receipt_id: string | null
@@ -13691,6 +13745,48 @@ export type Database = {
             columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "move_in_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      navigation_preferences: {
+        Row: {
+          created_at: string
+          favorite_paths: string[]
+          organization_id: string | null
+          profile_id: string
+          recent_paths: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          favorite_paths?: string[]
+          organization_id?: string | null
+          profile_id: string
+          recent_paths?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          favorite_paths?: string[]
+          organization_id?: string | null
+          profile_id?: string
+          recent_paths?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "navigation_preferences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "navigation_preferences_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -14983,6 +15079,106 @@ export type Database = {
           },
         ]
       }
+      org_announcement_receipts: {
+        Row: {
+          announcement_id: string
+          organization_id: string
+          profile_id: string
+          seen_at: string
+        }
+        Insert: {
+          announcement_id: string
+          organization_id: string
+          profile_id: string
+          seen_at?: string
+        }
+        Update: {
+          announcement_id?: string
+          organization_id?: string
+          profile_id?: string
+          seen_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_announcement_receipts_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "org_announcements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_announcement_receipts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_announcement_receipts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      org_announcements: {
+        Row: {
+          audience_facility_ids: string[]
+          audience_roles: string[]
+          body: string
+          created_at: string
+          created_by: string
+          expires_at: string | null
+          id: string
+          organization_id: string
+          published_at: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          audience_facility_ids?: string[]
+          audience_roles?: string[]
+          body: string
+          created_at?: string
+          created_by: string
+          expires_at?: string | null
+          id?: string
+          organization_id: string
+          published_at?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          audience_facility_ids?: string[]
+          audience_roles?: string[]
+          body?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string | null
+          id?: string
+          organization_id?: string
+          published_at?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_announcements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_announcements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_entitlement_grants: {
         Row: {
           approved_by: string | null
@@ -15056,6 +15252,96 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_export_jobs: {
+        Row: {
+          attempt_count: number
+          available_at: string
+          byte_size: number | null
+          completed_at: string | null
+          content_sha256: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          last_error_code: string | null
+          last_error_message: string | null
+          lock_token: string | null
+          locked_at: string | null
+          max_attempts: number
+          organization_id: string
+          requested_at: string
+          requested_by: string
+          row_count: number | null
+          status: string
+          storage_bucket: string | null
+          storage_path: string | null
+          table_count: number | null
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          available_at?: string
+          byte_size?: number | null
+          completed_at?: string | null
+          content_sha256?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          lock_token?: string | null
+          locked_at?: string | null
+          max_attempts?: number
+          organization_id: string
+          requested_at?: string
+          requested_by: string
+          row_count?: number | null
+          status?: string
+          storage_bucket?: string | null
+          storage_path?: string | null
+          table_count?: number | null
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          available_at?: string
+          byte_size?: number | null
+          completed_at?: string | null
+          content_sha256?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          lock_token?: string | null
+          locked_at?: string | null
+          max_attempts?: number
+          organization_id?: string
+          requested_at?: string
+          requested_by?: string
+          row_count?: number | null
+          status?: string
+          storage_bucket?: string | null
+          storage_path?: string | null
+          table_count?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_export_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_export_jobs_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -15210,7 +15496,10 @@ export type Database = {
           created_at: string
           default_warning_days: Json | null
           email_notifications_enabled: boolean
+          hidden_navigation_sections: string[]
           id: string
+          idle_timeout_minutes: number
+          kiosk_idle_timeout_minutes: number
           oapsa_provisional_days_nonresident: number
           oapsa_provisional_days_resident: number
           organization_id: string
@@ -15225,7 +15514,10 @@ export type Database = {
           created_at?: string
           default_warning_days?: Json | null
           email_notifications_enabled?: boolean
+          hidden_navigation_sections?: string[]
           id?: string
+          idle_timeout_minutes?: number
+          kiosk_idle_timeout_minutes?: number
           oapsa_provisional_days_nonresident?: number
           oapsa_provisional_days_resident?: number
           organization_id: string
@@ -15240,7 +15532,10 @@ export type Database = {
           created_at?: string
           default_warning_days?: Json | null
           email_notifications_enabled?: boolean
+          hidden_navigation_sections?: string[]
           id?: string
+          idle_timeout_minutes?: number
+          kiosk_idle_timeout_minutes?: number
           oapsa_provisional_days_nonresident?: number
           oapsa_provisional_days_resident?: number
           organization_id?: string
@@ -16413,6 +16708,32 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_changelog_reads: {
+        Row: {
+          last_seen_at: string
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          last_seen_at?: string
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          last_seen_at?: string
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_changelog_reads_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -18176,34 +18497,46 @@ export type Database = {
       release_flags: {
         Row: {
           change_reason: string
+          changelog_summary: string | null
+          changelog_title: string | null
           created_at: string
           created_by: string | null
           expires_at: string | null
           feature_key: string
+          help_path: string | null
           is_enabled: boolean
           owner: string
+          released_at: string | null
           rollout_mode: string
           updated_at: string
         }
         Insert: {
           change_reason: string
+          changelog_summary?: string | null
+          changelog_title?: string | null
           created_at?: string
           created_by?: string | null
           expires_at?: string | null
           feature_key: string
+          help_path?: string | null
           is_enabled?: boolean
           owner: string
+          released_at?: string | null
           rollout_mode?: string
           updated_at?: string
         }
         Update: {
           change_reason?: string
+          changelog_summary?: string | null
+          changelog_title?: string | null
           created_at?: string
           created_by?: string | null
           expires_at?: string | null
           feature_key?: string
+          help_path?: string | null
           is_enabled?: boolean
           owner?: string
+          released_at?: string | null
           rollout_mode?: string
           updated_at?: string
         }
@@ -23377,6 +23710,7 @@ export type Database = {
           insurance_group_number: string | null
           insurance_member_id: string | null
           insurance_payer_name: string | null
+          is_synthetic: boolean
           last_name: string
           mobility_summary: string | null
           organization_id: string
@@ -23431,6 +23765,7 @@ export type Database = {
           insurance_group_number?: string | null
           insurance_member_id?: string | null
           insurance_payer_name?: string | null
+          is_synthetic?: boolean
           last_name: string
           mobility_summary?: string | null
           organization_id: string
@@ -23485,6 +23820,7 @@ export type Database = {
           insurance_group_number?: string | null
           insurance_member_id?: string | null
           insurance_payer_name?: string | null
+          is_synthetic?: boolean
           last_name?: string
           mobility_summary?: string | null
           organization_id?: string
@@ -24608,6 +24944,51 @@ export type Database = {
           {
             foreignKeyName: "service_workload_profiles_updated_by_fkey"
             columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_lock_events: {
+        Row: {
+          id: string
+          lock_reason: string
+          locked_at: string
+          organization_id: string | null
+          profile_id: string
+          route_path: string
+          unlocked_at: string | null
+        }
+        Insert: {
+          id?: string
+          lock_reason: string
+          locked_at?: string
+          organization_id?: string | null
+          profile_id: string
+          route_path: string
+          unlocked_at?: string | null
+        }
+        Update: {
+          id?: string
+          lock_reason?: string
+          locked_at?: string
+          organization_id?: string | null
+          profile_id?: string
+          route_path?: string
+          unlocked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_lock_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_lock_events_profile_id_fkey"
+            columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -26005,6 +26386,70 @@ export type Database = {
             foreignKeyName: "training_documents_uploaded_by_profile_id_fkey"
             columns: ["uploaded_by_profile_id"]
             isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_passports: {
+        Row: {
+          created_at: string
+          employee_id: string
+          id: string
+          include_expired: boolean
+          is_active: boolean
+          last_shared_at: string | null
+          organization_id: string
+          profile_id: string
+          revoked_at: string | null
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          id?: string
+          include_expired?: boolean
+          is_active?: boolean
+          last_shared_at?: string | null
+          organization_id: string
+          profile_id: string
+          revoked_at?: string | null
+          slug?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          id?: string
+          include_expired?: boolean
+          is_active?: boolean
+          last_shared_at?: string | null
+          organization_id?: string
+          profile_id?: string
+          revoked_at?: string | null
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_passports_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: true
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_passports_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_passports_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -28341,6 +28786,16 @@ export type Database = {
           shift_assignment_id: string
         }[]
       }
+      claim_organization_export_jobs: {
+        Args: { p_batch_size?: number }
+        Returns: {
+          attempt_count: number
+          job_id: string
+          lock_token: string
+          organization_id: string
+          requested_by: string
+        }[]
+      }
       claim_pending_notification_deliveries: {
         Args: { p_batch_size: number; p_stale_after_seconds: number }
         Returns: {
@@ -29113,6 +29568,28 @@ export type Database = {
         }
         Returns: boolean
       }
+      enable_my_training_passport: {
+        Args: { p_include_expired?: boolean }
+        Returns: {
+          created_at: string
+          employee_id: string
+          id: string
+          include_expired: boolean
+          is_active: boolean
+          last_shared_at: string | null
+          organization_id: string
+          profile_id: string
+          revoked_at: string | null
+          slug: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "training_passports"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       end_enterprise_role_grant: {
         Args: { p_effective_to?: string; p_grant_id: string; p_reason?: string }
         Returns: undefined
@@ -29203,6 +29680,7 @@ export type Database = {
         Args: { p_profile_id: string }
         Returns: undefined
       }
+      ensure_organization_sandbox: { Args: never; Returns: Json }
       ensure_training_requirement_record: {
         Args: { p_employee_id: string; p_training_type_id: string }
         Returns: undefined
@@ -29280,6 +29758,15 @@ export type Database = {
       explain_employee_compliance_profile: {
         Args: { p_employee_id: string; p_on?: string }
         Returns: Json
+      }
+      export_organization_table: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_organization_id: string
+          p_table_name: string
+        }
+        Returns: Json[]
       }
       fail_exclusion_source_refresh: {
         Args: { p_error: string; p_run_id: string }
@@ -29380,6 +29867,22 @@ export type Database = {
         }
         Returns: boolean
       }
+      finish_organization_export_job: {
+        Args: {
+          p_byte_size?: number
+          p_content_sha256?: string
+          p_error_code?: string
+          p_error_message?: string
+          p_job_id: string
+          p_lock_token: string
+          p_row_count?: number
+          p_storage_bucket?: string
+          p_storage_path?: string
+          p_succeeded: boolean
+          p_table_count?: number
+        }
+        Returns: boolean
+      }
       finish_system_job: {
         Args: {
           p_attempted_count?: number
@@ -29421,6 +29924,10 @@ export type Database = {
       generate_support_plan_proposal: {
         Args: { p_assessment_form_id: string; p_reason?: string }
         Returns: string
+      }
+      get_announcement_read_summary: {
+        Args: { p_announcement_id: string }
+        Returns: Json
       }
       get_audit_coverage: {
         Args: never
@@ -29543,6 +30050,7 @@ export type Database = {
         Returns: Json
       }
       get_move_in_guest_workspace: { Args: { p_token: string }; Returns: Json }
+      get_my_mfa_policy: { Args: never; Returns: Json }
       get_my_shift_workspace: { Args: never; Returns: Json }
       get_notification_delivery_evidence: {
         Args: { p_delivery_id: string }
@@ -29562,6 +30070,12 @@ export type Database = {
         Returns: Json
       }
       get_org_dashboard_summary: { Args: never; Returns: Json }
+      get_organization_export_catalog: {
+        Args: never
+        Returns: {
+          table_name: string
+        }[]
+      }
       get_paid_training_payroll_export: {
         Args: {
           p_facility_id: string
@@ -29580,6 +30094,7 @@ export type Database = {
       }
       get_platform_health: { Args: never; Returns: Json }
       get_portfolio_operations_command_center: { Args: never; Returns: Json }
+      get_product_changelog: { Args: { p_limit?: number }; Returns: Json }
       get_qapi_source_metrics: {
         Args: { p_facility_id: string; p_from: string; p_through: string }
         Returns: Json
@@ -30114,6 +30629,11 @@ export type Database = {
         }
       }
       mark_notification_read: { Args: { p_id: string }; Returns: undefined }
+      mark_org_announcement_seen: {
+        Args: { p_announcement_id: string }
+        Returns: string
+      }
+      mark_product_changelog_seen: { Args: never; Returns: string }
       mark_resident_agreement_copy_delivered: {
         Args: {
           p_delivered_at: string
@@ -30278,6 +30798,34 @@ export type Database = {
         Args: { p_reason: string; p_revision_id: string }
         Returns: string
       }
+      publish_org_announcement: {
+        Args: {
+          p_audience_facility_ids?: string[]
+          p_audience_roles?: string[]
+          p_body: string
+          p_expires_at?: string
+          p_title: string
+        }
+        Returns: {
+          audience_facility_ids: string[]
+          audience_roles: string[]
+          body: string
+          created_at: string
+          created_by: string
+          expires_at: string | null
+          id: string
+          organization_id: string
+          published_at: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "org_announcements"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       publish_resident_agreement_version: {
         Args: {
           p_agreement_id?: string
@@ -30304,6 +30852,7 @@ export type Database = {
         }
         Returns: Json
       }
+      queue_manager_weekly_digests: { Args: never; Returns: number }
       recalculate_all_compliance: { Args: never; Returns: undefined }
       recalculate_compliance_core: {
         Args: { p_organization_id?: string }
@@ -30417,6 +30966,14 @@ export type Database = {
         }
         Returns: string
       }
+      record_idle_session_lock: {
+        Args: { p_lock_reason: string; p_route_path: string }
+        Returns: string
+      }
+      record_idle_session_unlock: {
+        Args: { p_lock_event_id: string }
+        Returns: undefined
+      }
       record_mock_inspection_run: {
         Args: {
           p_as_of_date: string
@@ -30427,6 +30984,23 @@ export type Database = {
           p_model?: string
         }
         Returns: string
+      }
+      record_navigation_visit: {
+        Args: { p_label: string; p_path: string }
+        Returns: {
+          created_at: string
+          favorite_paths: string[]
+          organization_id: string | null
+          profile_id: string
+          recent_paths: Json
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "navigation_preferences"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       record_notification_consent_event: {
         Args: {
@@ -30802,6 +31376,39 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      request_organization_export: {
+        Args: never
+        Returns: {
+          attempt_count: number
+          available_at: string
+          byte_size: number | null
+          completed_at: string | null
+          content_sha256: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          last_error_code: string | null
+          last_error_message: string | null
+          lock_token: string | null
+          locked_at: string | null
+          max_attempts: number
+          organization_id: string
+          requested_at: string
+          requested_by: string
+          row_count: number | null
+          status: string
+          storage_bucket: string | null
+          storage_path: string | null
+          table_count: number | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "organization_export_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       request_shift_swap: {
         Args: {
           p_reason: string
@@ -30863,6 +31470,7 @@ export type Database = {
         }
         Returns: string
       }
+      reset_organization_sandbox: { Args: never; Returns: Json }
       resolve_medication_integration_exception: {
         Args: {
           p_exception_id: string
@@ -31043,6 +31651,7 @@ export type Database = {
         Args: { p_grant_id: string; p_reason: string }
         Returns: boolean
       }
+      revoke_my_training_passport: { Args: never; Returns: undefined }
       revoke_resident_agreement_guest_grant: {
         Args: { p_grant_id: string; p_reason: string }
         Returns: boolean
@@ -31895,6 +32504,29 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      unpublish_course: {
+        Args: { p_course_id: string; p_reason: string }
+        Returns: {
+          category: string | null
+          created_at: string
+          created_by: string | null
+          current_version_id: string | null
+          description: string | null
+          estimated_duration_minutes: number | null
+          id: string
+          organization_id: string | null
+          status: string
+          title: string
+          training_type_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "courses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       unpublish_schedule: {
         Args: { p_schedule_id: string }
         Returns: undefined
@@ -32254,6 +32886,7 @@ export type Database = {
         Args: { p_domain_id: string; p_observed_challenge_sha256: string }
         Returns: boolean
       }
+      verify_training_passport: { Args: { p_slug: string }; Returns: Json }
       verify_work_order: {
         Args: {
           p_decision: string

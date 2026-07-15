@@ -19,12 +19,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft, ArrowUp, ArrowDown, BookOpen, Pencil, Plus, Rocket, FileText, Video, File as FileIcon,
   ListChecks, Trash2, Lock, Layers, Sparkles, RefreshCw, Star, Wand2, Play, Loader2, Upload,
-  Eye, CheckCircle2, CircleAlert,
+  Eye, CheckCircle2, CircleAlert, Archive,
   type LucideIcon,
 } from "lucide-react";
 import {
   useGetCourse, useUpdateCourse,
-  useListCourseVersions, useCreateCourseVersion, useCloneCourseVersion, usePublishCourseVersion,
+  useListCourseVersions, useCreateCourseVersion, useCloneCourseVersion, usePublishCourseVersion, useUnpublishCourse,
   useListCourseBlocks, useCreateCourseBlock, useUpdateCourseBlock, useDeleteCourseBlock,
   canEnrollInCourse, getCourseVersionPublishIssues, isCourseVersionLearnerReady, useCourseVersionPublishIssues,
   type CourseVersion, type CourseBlock, type CourseBlockInsert,
@@ -199,6 +199,9 @@ export default function CourseDetail() {
   const canManage = user?.role === "platform_admin";
 
   const { data: course, isLoading: courseLoading } = useGetCourse(id);
+  const [showUnpublishCourse, setShowUnpublishCourse] = useState(false);
+  const [unpublishReason, setUnpublishReason] = useState("");
+  const unpublishCourse = useUnpublishCourse();
   // Only actually matters for platform_admin: courses_select RLS lets that role open any
   // organization's course (see canEnrollInCourse's own comment), but self_enroll_course rejects
   // enrolling in one that isn't system-catalog or the caller's own org -- every other role can
@@ -209,6 +212,22 @@ export default function CourseDetail() {
   // org_admin/auditor who haven't self-enrolled yet (no employees row) still see the
   // "Start Training" button for their org's published training content.
   const effectiveOrgId = employee?.organization_id ?? user?.organizationId ?? undefined;
+  const canUnpublishCourse = course?.status === "published" && (
+    user?.role === "platform_admin"
+    || (user?.role === "org_admin" && course.organization_id === user.organizationId)
+  );
+
+  const handleUnpublishCourse = () => {
+    if (!course || unpublishReason.trim().length < 8) return;
+    unpublishCourse.mutate({ courseId: course.id, reason: unpublishReason.trim() }, {
+      onSuccess: () => {
+        toast({ title: "Course unpublished", description: "The course is archived and no longer available for new enrollment." });
+        setShowUnpublishCourse(false);
+        setUnpublishReason("");
+      },
+      onError: (error: Error) => toast({ title: "Unable to unpublish course", description: error.message, variant: "destructive" }),
+    });
+  };
 
   const { mutate: selfEnroll, isPending: enrolling } = useSelfEnrollCourse();
   const handleTakeCourse = () => {
@@ -941,6 +960,11 @@ export default function CourseDetail() {
           {canManage && (
             <Button variant="outline" size="sm" onClick={openEditCourse}>
               <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+            </Button>
+          )}
+          {canUnpublishCourse && (
+            <Button variant="destructive" size="sm" onClick={() => setShowUnpublishCourse(true)}>
+              <Archive className="mr-2 h-3.5 w-3.5" /> Unpublish
             </Button>
           )}
         </div>
@@ -1791,6 +1815,32 @@ export default function CourseDetail() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setRegenerateBlock(null)}>Cancel</Button>
             <Button onClick={handleRegenerateBlock} disabled={regeneratingBlock}>{regeneratingBlock ? "Generating..." : "Generate"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showUnpublishCourse} onOpenChange={setShowUnpublishCourse}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Unpublish this course?</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">
+              This archives the course for new enrollment. Multi-factor verification is required and the action is recorded in the audit log.
+            </p>
+            <div className="space-y-1.5">
+              <Label htmlFor="unpublish-reason">Reason</Label>
+              <Textarea
+                id="unpublish-reason"
+                value={unpublishReason}
+                onChange={(event) => setUnpublishReason(event.target.value)}
+                placeholder="Explain why this course must be removed (at least 8 characters)."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUnpublishCourse(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleUnpublishCourse} disabled={unpublishCourse.isPending || unpublishReason.trim().length < 8}>
+              {unpublishCourse.isPending ? "Unpublishing..." : "Unpublish course"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

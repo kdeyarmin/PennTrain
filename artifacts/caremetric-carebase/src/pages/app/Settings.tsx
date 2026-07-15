@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Settings as SettingsIcon, Palette, Bell, Clock, Upload, Building2, Send, RefreshCw } from "lucide-react";
+import { Settings as SettingsIcon, Palette, Bell, Clock, Upload, Building2, Send, RefreshCw, Database, FlaskConical, LockKeyhole, PanelLeftClose, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,8 @@ import { useGetOrganizationSettings, useUpsertOrganizationSettings } from "@/hoo
 import { useListNotificationDeliveries } from "@/hooks/useNotifications";
 import { useRecalculateOrgCompliance } from "@/hooks/useTrainingRecords";
 import { QueryError, QueryLoading } from "@/components/QueryState";
+import { useOrganizationExports, useSandboxActions } from "@/hooks/useProductExperience";
+import { useListFacilities } from "@/hooks/useFacilities";
 
 const DEFAULT_WARNING_DAYS = 90;
 const DEFAULT_OAPSA_DAYS_RESIDENT = 30;
@@ -26,6 +28,9 @@ interface SettingsFormData {
   defaultWarningDays: string;
   oapsaProvisionalDaysResident: string;
   oapsaProvisionalDaysNonresident: string;
+  idleTimeoutMinutes: string;
+  kioskIdleTimeoutMinutes: string;
+  hiddenNavigationSections: string[];
 }
 
 const EMPTY_FORM: SettingsFormData = {
@@ -35,7 +40,19 @@ const EMPTY_FORM: SettingsFormData = {
   defaultWarningDays: String(DEFAULT_WARNING_DAYS),
   oapsaProvisionalDaysResident: String(DEFAULT_OAPSA_DAYS_RESIDENT),
   oapsaProvisionalDaysNonresident: String(DEFAULT_OAPSA_DAYS_NONRESIDENT),
+  idleTimeoutMinutes: "30",
+  kioskIdleTimeoutMinutes: "5",
+  hiddenNavigationSections: [],
 };
+
+const TAILORABLE_SECTIONS = [
+  "Staff Training & Requirements",
+  "Competency & Qualifications",
+  "Credentialing & Screening",
+  "Residents",
+  "Incidents & Alerts",
+  "Reporting & Documents",
+] as const;
 
 function parseDefaultWarningDays(json: unknown): number {
   if (json && typeof json === "object" && !Array.isArray(json) && "default" in (json as Record<string, unknown>)) {
@@ -55,6 +72,10 @@ export default function Settings() {
   const { mutate: upsertSettings, isPending: saving } = useUpsertOrganizationSettings();
   const { data: deliveries } = useListNotificationDeliveries(15);
   const { mutate: recalculateCompliance, isPending: recalculating } = useRecalculateOrgCompliance();
+  const exports = useOrganizationExports(user?.organizationId);
+  const sandboxActions = useSandboxActions();
+  const { data: facilities = [] } = useListFacilities({ organizationId: user?.organizationId ?? undefined }, !!user?.organizationId);
+  const sandbox = facilities.find((facility) => facility.is_sandbox && facility.is_active);
 
   const [form, setForm] = useState<SettingsFormData>(EMPTY_FORM);
   const [logoPath, setLogoPath] = useState<string | null>(null);
@@ -70,6 +91,9 @@ export default function Settings() {
         defaultWarningDays: String(parseDefaultWarningDays(settings.default_warning_days)),
         oapsaProvisionalDaysResident: String(settings.oapsa_provisional_days_resident ?? DEFAULT_OAPSA_DAYS_RESIDENT),
         oapsaProvisionalDaysNonresident: String(settings.oapsa_provisional_days_nonresident ?? DEFAULT_OAPSA_DAYS_NONRESIDENT),
+        idleTimeoutMinutes: String(settings.idle_timeout_minutes ?? 30),
+        kioskIdleTimeoutMinutes: String(settings.kiosk_idle_timeout_minutes ?? 5),
+        hiddenNavigationSections: settings.hidden_navigation_sections ?? [],
       });
       setLogoPath(settings.branding_logo_path ?? null);
     } else {
@@ -144,6 +168,8 @@ export default function Settings() {
     const parsedDays = parseInt(form.defaultWarningDays, 10);
     const parsedOapsaResident = parseInt(form.oapsaProvisionalDaysResident, 10);
     const parsedOapsaNonresident = parseInt(form.oapsaProvisionalDaysNonresident, 10);
+    const idleTimeoutMinutes = parseInt(form.idleTimeoutMinutes, 10);
+    const kioskIdleTimeoutMinutes = parseInt(form.kioskIdleTimeoutMinutes, 10);
     upsertSettings(
       {
         organization_id: user.organizationId,
@@ -153,6 +179,9 @@ export default function Settings() {
         default_warning_days: { default: Number.isFinite(parsedDays) ? parsedDays : DEFAULT_WARNING_DAYS },
         oapsa_provisional_days_resident: Number.isFinite(parsedOapsaResident) ? parsedOapsaResident : DEFAULT_OAPSA_DAYS_RESIDENT,
         oapsa_provisional_days_nonresident: Number.isFinite(parsedOapsaNonresident) ? parsedOapsaNonresident : DEFAULT_OAPSA_DAYS_NONRESIDENT,
+        idle_timeout_minutes: Number.isFinite(idleTimeoutMinutes) ? idleTimeoutMinutes : 30,
+        kiosk_idle_timeout_minutes: Number.isFinite(kioskIdleTimeoutMinutes) ? kioskIdleTimeoutMinutes : 5,
+        hidden_navigation_sections: form.hiddenNavigationSections,
       },
       {
         onSuccess: () => toast({ title: "Settings saved" }),
@@ -421,6 +450,57 @@ export default function Settings() {
               )}
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><LockKeyhole className="h-5 w-5" />Shared-device session security</CardTitle>
+              <CardDescription>Soft-lock an unattended session without discarding the user’s work. Kiosk routes use the shorter timeout.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5"><Label htmlFor="idle-timeout">Standard idle timeout</Label><div className="flex items-center gap-2"><Input id="idle-timeout" type="number" min={5} max={480} value={form.idleTimeoutMinutes} onChange={(event) => field("idleTimeoutMinutes", event.target.value)} disabled={!canManage} className="w-28" /><span className="text-sm text-muted-foreground">minutes</span></div></div>
+              <div className="space-y-1.5"><Label htmlFor="kiosk-idle-timeout">Kiosk idle timeout</Label><div className="flex items-center gap-2"><Input id="kiosk-idle-timeout" type="number" min={1} max={60} value={form.kioskIdleTimeoutMinutes} onChange={(event) => field("kioskIdleTimeoutMinutes", event.target.value)} disabled={!canManage} className="w-28" /><span className="text-sm text-muted-foreground">minutes</span></div></div>
+              <p className="text-xs text-muted-foreground sm:col-span-2">Organization administrators and facility managers must enroll and verify TOTP MFA. Irreversible actions—including deactivation, evidence-grant revocation, and unpublishing—require a fresh AAL2 session.</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><PanelLeftClose className="h-5 w-5" />Navigation module tailoring</CardTitle>
+              <CardDescription>Hide modules your facilities do not use. This changes navigation only; server-side entitlements and permissions remain authoritative.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-2">
+              {TAILORABLE_SECTIONS.map((section) => {
+                const hidden = form.hiddenNavigationSections.includes(section);
+                return <div key={section} className="flex items-center justify-between rounded-lg border p-3"><span className="text-sm font-medium">{section}</span><Switch checked={!hidden} onCheckedChange={(visible) => field("hiddenNavigationSections", visible ? form.hiddenNavigationSections.filter((item) => item !== section) : Array.from(new Set([...form.hiddenNavigationSections, section])))} disabled={!canManage} aria-label={`${hidden ? "Show" : "Hide"} ${section}`} /></div>;
+              })}
+            </CardContent>
+          </Card>
+
+          {user?.role === "org_admin" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><FlaskConical className="h-5 w-5" />Training sandbox</CardTitle>
+                <CardDescription>A visually flagged facility with synthetic employees and residents. It is excluded from binders, reports, and peer benchmarks.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap items-center justify-between gap-4">
+                <div><p className="text-sm font-medium">{sandbox ? sandbox.name : "No sandbox created"}</p><p className="text-xs text-muted-foreground">{sandbox?.sandbox_reset_at ? `Last reset ${new Date(sandbox.sandbox_reset_at).toLocaleString()}` : "Create it before manager onboarding or practice sessions."}</p></div>
+                <Button variant="outline" disabled={sandboxActions.ensure.isPending || sandboxActions.reset.isPending} onClick={() => (sandbox ? sandboxActions.reset : sandboxActions.ensure).mutate(undefined, { onSuccess: () => toast({ title: sandbox ? "Sandbox reset" : "Sandbox created" }), onError: (error: Error) => toast({ title: "Sandbox action failed", description: error.message, variant: "destructive" }) })}><RefreshCw className={`mr-2 h-4 w-4 ${(sandboxActions.ensure.isPending || sandboxActions.reset.isPending) ? "animate-spin" : ""}`} />{sandbox ? "Reset synthetic data" : "Create sandbox"}</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {user?.role === "org_admin" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Database className="h-5 w-5" />Complete organization export</CardTitle>
+                <CardDescription>Request a ZIP containing per-table CSVs and a document manifest with short-lived signed URLs. Completed archives expire after seven days.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button disabled={exports.request.isPending || exports.data?.some((job) => ["pending", "processing"].includes(job.status))} onClick={() => exports.request.mutate(undefined, { onSuccess: () => toast({ title: "Organization export queued" }), onError: (error: Error) => toast({ title: "Export could not be queued", description: error.message, variant: "destructive" }) })}><Database className="mr-2 h-4 w-4" />Request complete export</Button>
+                <div className="space-y-2">{exports.data?.map((job) => <div key={job.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div><p className="text-sm font-medium">Requested {new Date(job.requested_at).toLocaleString()}</p><p className="text-xs text-muted-foreground">{job.status === "succeeded" ? `${job.table_count} tables · ${job.row_count} rows · expires ${new Date(job.expires_at!).toLocaleString()}` : job.last_error_message ?? "The background worker is preparing the archive."}</p></div><div className="flex items-center gap-2"><Badge variant={job.status === "failed" ? "destructive" : "outline"}>{job.status}</Badge>{job.status === "succeeded" && <Button size="sm" variant="outline" disabled={exports.download.isPending} onClick={() => exports.download.mutate(job, { onSuccess: (url) => window.open(url, "_blank", "noopener,noreferrer"), onError: (error: Error) => toast({ title: "Download failed", description: error.message, variant: "destructive" }) })}><Download className="mr-2 h-4 w-4" />Download</Button>}</div></div>)}</div>
+              </CardContent>
+            </Card>
+          )}
 
           {!canManage && (
             <p className="flex items-center gap-2 text-xs text-muted-foreground">
