@@ -36,6 +36,11 @@ const AuthContext = createContext<AuthContextType>({
   hasRole: () => false,
 });
 
+function clearImpersonationSession() {
+  sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY);
+  window.dispatchEvent(new Event(IMPERSONATION_CHANGE_EVENT));
+}
+
 // Centralized role check -- prefer this (or the useAuth().hasRole shortcut)
 // over inline `user.role === "..."` comparisons in new code. This is a UX
 // convenience only; Postgres RLS is the real authorization boundary.
@@ -290,6 +295,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         onSignOut={() => {
           void (async () => {
             await supabase.auth.signOut();
+            clearImpersonationSession();
             queryClient.clear();
             await clearSupabaseRuntimeCache();
             setLocation("/login");
@@ -325,8 +331,7 @@ export function useSignOut() {
     // Always clear, impersonating or not -- otherwise a plain sign-out during impersonation
     // leaves the admin's origin access/refresh tokens in sessionStorage, reusable by the next
     // person to use this browser tab to silently restore that platform_admin session.
-    sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY);
-    window.dispatchEvent(new Event(IMPERSONATION_CHANGE_EVENT));
+    clearImpersonationSession();
     queryClient.clear();
     await clearSupabaseRuntimeCache();
     setLocation("/login");
