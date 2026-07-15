@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   absolutePostLoginRedirect,
+  loginPathWithNext,
   postLoginPathFromLocation,
   postLoginPathFromSearch,
   sanitizePostLoginPath,
@@ -18,6 +19,12 @@ describe("post-login redirects", () => {
     expect(sanitizePostLoginPath("//evil.example/app")).toBe("/");
     expect(sanitizePostLoginPath("/login?next=%2Fapp")).toBe("/");
     expect(postLoginPathFromSearch("?next=https%3A%2F%2Fevil.example%2Fapp")).toBe("/");
+    expect(postLoginPathFromLocation("/login", "?next=%2Fapp", "")).toBe("/");
+  });
+
+  it("builds login paths that preserve protected-route deep links before redirects", () => {
+    expect(loginPathWithNext("/app/reports", "?q=abc", "#saved")).toBe("/login?next=%2Fapp%2Freports%3Fq%3Dabc%23saved");
+    expect(loginPathWithNext("/train/trainer/classes/123", "", "#attendance", "/train")).toBe("/login?next=%2Ftrainer%2Fclasses%2F123%23attendance");
   });
 
   it("normalizes app-base paths before storing next destinations", () => {
