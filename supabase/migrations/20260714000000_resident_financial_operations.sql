@@ -649,7 +649,7 @@ declare
   v_resident public.residents%rowtype; v_account public.resident_personal_fund_accounts%rowtype;
   v_target public.resident_personal_fund_transactions%rowtype; v_document public.resident_documents%rowtype;
   v_employee public.employees%rowtype; v_kind text; v_direction text; v_amount numeric;
-  v_balance numeric; v_new_balance numeric; v_id uuid; v_ack boolean;
+  v_balance numeric; v_new_balance numeric; v_id uuid; v_ack boolean; v_transaction_at timestamptz;
 begin
   v_resident := app_private.assert_resident_finance_manager(p_resident_id);
   select * into v_account from public.resident_personal_fund_accounts
@@ -658,6 +658,7 @@ begin
   v_kind := p_entry->>'transactionKind'; v_direction := p_entry->>'direction';
   begin v_amount := (p_entry->>'amount')::numeric; v_ack := coalesce((p_entry->>'residentAcknowledged')::boolean,false);
   exception when others then raise exception 'Personal funds entry is invalid' using errcode = '22023'; end;
+  v_transaction_at := (p_entry->>'transactionAt')::timestamptz;
   if v_kind not in ('deposit','withdrawal','adjustment') or v_direction not in ('in','out')
     or v_amount <= 0 or length(btrim(coalesce(p_entry->>'purpose',''))) < 3
     or nullif(p_entry->>'transactionAt','') is null
@@ -695,6 +696,12 @@ begin
   select coalesce((select balance_after from public.resident_personal_fund_transactions
     where personal_fund_account_id=v_account.id order by transaction_at desc, posted_at desc, id desc limit 1),0)
     into v_balance;
+  if exists (
+    select 1 from public.resident_personal_fund_transactions
+    where personal_fund_account_id=v_account.id and transaction_at > v_transaction_at
+  ) then
+    raise exception 'Personal funds entries must be posted in chronological order' using errcode = '22023';
+  end if;
   v_new_balance := v_balance + case when v_direction='in' then v_amount else -v_amount end;
   if v_new_balance < 0 then raise exception 'Personal funds cannot be overdrawn' using errcode = '23514'; end if;
   insert into public.resident_personal_fund_transactions(
@@ -706,7 +713,7 @@ begin
   ) values (
     v_resident.organization_id, v_resident.facility_id, v_resident.id, v_account.id,
     v_kind, v_direction, round(v_amount,2), btrim(p_entry->>'purpose'),
-    (p_entry->>'transactionAt')::timestamptz, v_document.id, v_employee.id, v_ack,
+    v_transaction_at, v_document.id, v_employee.id, v_ack,
     case when v_ack then coalesce(nullif(p_entry->>'residentAcknowledgedAt','')::timestamptz, now()) end,
     nullif(btrim(p_entry->>'acknowledgementNote'),''), v_target.id,
     nullif(btrim(p_entry->>'adjustmentReason'),''), round(v_new_balance,2), auth.uid()
