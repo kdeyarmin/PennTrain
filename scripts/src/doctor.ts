@@ -34,8 +34,9 @@ function run(
   // shell lookup ambiguity and the spawn `shell: true` argument-concatenation warning.
   if (process.platform === "win32" && [".cmd", ".bat"].includes(extname(executable).toLowerCase())) {
     const shim = executable;
+    const shimArg = `"${shim}"`;
     executable = process.env.ComSpec ?? "cmd.exe";
-    executableArgs = ["/d", "/c", "call", shim, ...args];
+    executableArgs = ["/d", "/c", "call", shimArg, ...args];
   }
 
   const result = spawnSync(executable, executableArgs, { encoding: "utf8" });
