@@ -649,7 +649,8 @@ declare
   v_resident public.residents%rowtype; v_account public.resident_personal_fund_accounts%rowtype;
   v_target public.resident_personal_fund_transactions%rowtype; v_document public.resident_documents%rowtype;
   v_employee public.employees%rowtype; v_kind text; v_direction text; v_amount numeric;
-  v_balance numeric; v_new_balance numeric; v_id uuid; v_ack boolean; v_transaction_at timestamptz;
+  v_transaction_at timestamptz; v_latest_transaction_at timestamptz;
+  v_balance numeric; v_new_balance numeric; v_id uuid; v_ack boolean;
 begin
   v_resident := app_private.assert_resident_finance_manager(p_resident_id);
   select * into v_account from public.resident_personal_fund_accounts
@@ -697,14 +698,13 @@ begin
   if v_kind='withdrawal' and v_employee.id is null then
     raise exception 'Withdrawals require a staff person' using errcode = '22023';
   end if;
-  select coalesce((select balance_after from public.resident_personal_fund_transactions
-    where personal_fund_account_id=v_account.id order by transaction_at desc, posted_at desc, id desc limit 1),0)
-    into v_balance;
-  if exists (
-    select 1 from public.resident_personal_fund_transactions
-    where personal_fund_account_id=v_account.id and transaction_at > v_transaction_at
-  ) then
-    raise exception 'Personal funds entries must be posted in chronological order' using errcode = '22023';
+  select balance_after, transaction_at into v_balance, v_latest_transaction_at
+    from public.resident_personal_fund_transactions
+    where personal_fund_account_id=v_account.id
+    order by transaction_at desc, posted_at desc, id desc limit 1;
+  v_balance := coalesce(v_balance,0);
+  if v_latest_transaction_at is not null and v_transaction_at < v_latest_transaction_at then
+    raise exception 'Personal funds entries must not be dated before the current ledger balance' using errcode = '22023';
   end if;
   v_new_balance := v_balance + case when v_direction='in' then v_amount else -v_amount end;
   if v_new_balance < 0 then raise exception 'Personal funds cannot be overdrawn' using errcode = '23514'; end if;
