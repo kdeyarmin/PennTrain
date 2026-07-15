@@ -19,6 +19,7 @@ import {
   useRevokeResidentPortalGrant,
   useShareResidentPortalDocument,
 } from "@/hooks/useResidentPortal";
+import { toLocalIsoDate } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 
 const PERMISSION_OPTIONS = [
@@ -31,7 +32,7 @@ const PERMISSION_OPTIONS = [
 function defaultExpiry() {
   const date = new Date();
   date.setDate(date.getDate() + 30);
-  return date.toISOString().slice(0, 10);
+  return toLocalIsoDate(date);
 }
 
 function grantStatus(grant: ResidentPortalGrant) {
@@ -81,7 +82,8 @@ export function ResidentPortalWorkspace({ residentId }: { residentId: string }) 
         permissions,
         expiresAt: new Date(`${expiresOn}T23:59:59`).toISOString(),
       });
-      const link = `${window.location.origin}/resident-portal?access=${encodeURIComponent(result.access_token)}`;
+      const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const link = `${window.location.origin}${basePath}/resident-portal?access=${encodeURIComponent(result.access_token)}`;
       setGeneratedLink(link);
       toast({ title: "Designated-person access created", description: "Copy the one-time link before closing this dialog." });
     } catch (error) {

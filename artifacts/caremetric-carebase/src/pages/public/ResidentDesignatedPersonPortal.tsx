@@ -18,10 +18,12 @@ import {
 const SESSION_TOKEN_KEY = "carebase-resident-portal-token";
 
 function loadAccessToken() {
-  const queryToken = new URLSearchParams(window.location.search).get("access")?.trim() ?? "";
+  const url = new URL(window.location.href);
+  const queryToken = url.searchParams.get("access")?.trim() ?? "";
   if (queryToken) {
     sessionStorage.setItem(SESSION_TOKEN_KEY, queryToken);
-    window.history.replaceState(null, "", "/resident-portal");
+    url.searchParams.delete("access");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
     return queryToken;
   }
   return sessionStorage.getItem(SESSION_TOKEN_KEY) ?? "";
