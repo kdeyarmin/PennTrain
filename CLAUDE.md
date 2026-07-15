@@ -11,7 +11,7 @@ Pennsylvania's own regulation uses.
   options, report labels, page titles/meta descriptions) must say "Assisted
   Living Facility" / "ALF".
 - **The internal/stored code stays `"ALR"`.** It's a literal value in the
-  `facility_type` column (`artifacts/caremetric-train/src/lib/facilityTypes.ts`
+  `facility_type` column (`artifacts/caremetric-carebase/src/lib/facilityTypes.ts`
   `FacilityType` type), referenced throughout Supabase migrations, RLS
   policies, and existing data rows. Do not rename this value in code or the
   database without a real, reviewed migration -- that's a schema/data change,
@@ -21,5 +21,5 @@ Pennsylvania's own regulation uses.
   the regulation's real name/structure -- that's describing the law, not the
   product's terminology choice.
 
-See `artifacts/caremetric-train/src/lib/facilityTypes.ts` for the canonical
+See `artifacts/caremetric-carebase/src/lib/facilityTypes.ts` for the canonical
 label definition every other display list should derive from or match.

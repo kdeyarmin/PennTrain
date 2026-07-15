@@ -1,0 +1,19 @@
+name: DHS source freshness
+
+on:
+  schedule:
+    - cron: "17 13 * * 1"
+  workflow_dispatch:
+
+jobs:
+  official-source-health:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+      - name: Verify official PA DHS links and human-review freshness
+        run: node scripts/check-dhs-sources.mjs

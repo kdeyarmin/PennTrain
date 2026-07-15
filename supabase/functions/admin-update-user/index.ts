@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { requireFreshAal2 } from "../_shared/privilegedIdentity.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -100,6 +101,9 @@ Deno.serve(async (req: Request) => {
   } else {
     return json({ error: "not authorized to manage users" }, 403);
   }
+
+  const assurance = await requireFreshAal2(callerClient, "identity_admin");
+  if (!assurance.ok) return json({ error: assurance.error }, assurance.status);
 
   // auth.users-level changes (email/password) via the Admin API.
   if (email !== undefined || password !== undefined) {

@@ -2,6 +2,7 @@ import {
   checkFirstMatchingBox,
   includesEvery,
   normalizeFieldName,
+  selectFirstMatchingRadioOption,
   setFirstMatchingTextField,
 } from "./dhsStateFormFill.ts";
 
@@ -25,10 +26,13 @@ Deno.test("includesEvery requires every word of a set", () => {
 type FakeField = {
   name: string;
   value?: string;
+  fontSize?: number;
   checked?: boolean;
+  selected?: string;
   readOnly?: boolean;
   text?: boolean;
   box?: boolean;
+  radio?: boolean;
 };
 
 function fakeForm(fields: FakeField[]) {
@@ -41,12 +45,22 @@ function fakeForm(fields: FakeField[]) {
             setText: (v: string) => {
               f.value = v;
             },
+            setFontSize: (size: number) => {
+              f.fontSize = size;
+            },
           }
           : {}),
         ...(f.box
           ? {
             check: () => {
               f.checked = true;
+            },
+          }
+          : {}),
+        ...(f.radio
+          ? {
+            select: (v: string) => {
+              f.selected = v;
             },
           }
           : {}),
@@ -86,6 +100,55 @@ Deno.test("checkFirstMatchingBox only checks checkbox-shaped fields", () => {
   assertEquals(checkFirstMatchingBox(fakeForm(fields), [["hospice"]], false), true);
   assertEquals(fields[1].checked, true);
   assertEquals(fields[1].readOnly, undefined);
+});
+
+Deno.test("checkFirstMatchingBox never matches a radio-group field (no .check method)", () => {
+  // Regression: AssessmentReasonRadioButtonList-style fields expose .select(), not .check() --
+  // checkFirstMatchingBox must silently no-op on them rather than throwing or mismatching.
+  const fields: FakeField[] = [{ name: "AssessmentReasonRadioButtonList", radio: true }];
+  assertEquals(checkFirstMatchingBox(fakeForm(fields), [["assessment", "reason"]], false), false);
+  assertEquals(fields[0].selected, undefined);
+});
+
+Deno.test("selectFirstMatchingRadioOption selects the option on the first matching radio group", () => {
+  const fields: FakeField[] = [
+    { name: "AssessmentReasonRadioButtonList", radio: true },
+    { name: "SupportPlanReasonRadioButtonList", radio: true },
+  ];
+  assertEquals(
+    selectFirstMatchingRadioOption(fakeForm(fields), [["assessment", "reason"]], "2", false),
+    true,
+  );
+  assertEquals(fields[0].selected, "2");
+  assertEquals(fields[1].selected, undefined);
+});
+
+Deno.test("selectFirstMatchingRadioOption ignores text/checkbox fields sharing a matching name", () => {
+  const fields: FakeField[] = [
+    { name: "2380 2390 2600 2800 Regulatory Chapter Notes", text: true },
+    { name: "2600", box: true },
+  ];
+  // Neither fake field exposes .select(), so a name match alone must not be treated as a hit.
+  assertEquals(selectFirstMatchingRadioOption(fakeForm(fields), [["2600"]], "1", false), false);
+});
+
+Deno.test("selectFirstMatchingRadioOption locks by default", () => {
+  const fields: FakeField[] = [{ name: "ReasonRadioButtonList", radio: true }];
+  selectFirstMatchingRadioOption(fakeForm(fields), [["reason"]], "1");
+  assertEquals(fields[0].readOnly, true);
+});
+
+Deno.test("setFirstMatchingTextField applies an explicit fontSize before setText when given", () => {
+  const fields: FakeField[] = [{ name: "Description of Incident", text: true }];
+  setFirstMatchingTextField(fakeForm(fields), [["description"]], "Long narrative text", false, 9);
+  assertEquals(fields[0].fontSize, 9);
+  assertEquals(fields[0].value, "Long narrative text");
+});
+
+Deno.test("setFirstMatchingTextField leaves the field's own font size alone when fontSize is omitted", () => {
+  const fields: FakeField[] = [{ name: "License Number", text: true }];
+  setFirstMatchingTextField(fakeForm(fields), [["license", "number"]], "PCH-123", false);
+  assertEquals(fields[0].fontSize, undefined);
 });
 
 function assertEquals(actual: unknown, expected: unknown): void {

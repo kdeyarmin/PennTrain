@@ -1,11 +1,11 @@
 {
-  "name": "PennTrain full-stack dev/test",
+  "name": "CareMetric CareBase full-stack dev/test",
   "build": {
     "dockerfile": "Dockerfile",
     "context": ".."
   },
   "remoteUser": "node",
-  "workspaceFolder": "/workspace/PennTrain",
+  "workspaceFolder": "/workspace/CareMetricCareBase",
   "postCreateCommand": "pnpm install --frozen-lockfile && pnpm run doctor",
   "forwardPorts": [
     5173,

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 
-const checkedInPath = "artifacts/caremetric-train/src/lib/database.types.ts";
+const checkedInPath = "artifacts/caremetric-carebase/src/lib/database.types.ts";
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 const supabaseArgs = [
   "--yes", "supabase@2.109.1", "gen", "types", "typescript", "--local",
