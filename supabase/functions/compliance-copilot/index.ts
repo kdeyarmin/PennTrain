@@ -461,8 +461,7 @@ Deno.serve(async (req: Request) => {
   if (!body.facilityId || !isCopilotIntent(body.intent)) return json({ error: "facilityId and a supported intent are required" }, 400);
   const question = body.question?.trim();
   if (!question || question.length < 3 || question.length > 2000) return json({ error: "question must be between 3 and 2000 characters" }, 400);
-  const asOf = body.asOfDate ? isoDate(body.asOfDate) : new Date().toISOString().slice(0, 10);
-  if (!asOf) return json({ error: "asOfDate must be a valid ISO date" }, 400);
+  const asOf = isoDate(body.asOfDate);
 
   const { data: facility, error: facilityError } = await callerClient.from("facilities").select("id,organization_id,name,facility_type,state").eq("id", body.facilityId).single();
   if (facilityError || !facility) return json({ error: "Facility not found or outside caller scope" }, 404);
