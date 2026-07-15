@@ -80,6 +80,9 @@ function postJson(hostname, urlPath, body) {
       },
     );
     req.on("error", reject);
+    req.setTimeout(30_000, () => {
+      req.destroy(new Error("Advisory request timed out after 30s"));
+    });
     req.write(data);
     req.end();
   });
