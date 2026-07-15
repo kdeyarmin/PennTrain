@@ -1,5 +1,6 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
+import { summarizeRegulatorySourceChange } from "../_shared/regulatoryDiff.ts";
 
 const HEADERS = withCronCorsHeader({ "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
 
@@ -26,10 +27,14 @@ Deno.serve(async (req: Request) => {
   if (!url || !key) return new Response(JSON.stringify({ error: "Supabase service credentials are missing" }), { status: 500, headers: HEADERS });
   const admin = createClient(url, key);
   const { data: sources, error } = await admin.from("regulatory_update_sources")
-    .select("source_key,source_uri").eq("is_active", true).order("source_key");
+    .select("id,source_key,source_uri").eq("is_active", true).order("source_key");
   if (error) return new Response(JSON.stringify({ error: "Failed to load regulatory sources" }), { status: 500, headers: HEADERS });
   const results: Array<Record<string, unknown>> = [];
   for (const source of sources ?? []) {
+    const { data: previousSnapshot } = await admin.from("regulatory_source_snapshots")
+      .select("source_checksum_sha256,normalized_content")
+      .eq("source_id", source.id).eq("fetch_succeeded", true)
+      .order("fetched_at", { ascending: false }).limit(1).maybeSingle();
     let status = 599;
     let normalized = "";
     let metadata: Record<string, unknown> = {};
@@ -59,6 +64,21 @@ Deno.serve(async (req: Request) => {
       p_normalized_content: normalized || null,
       p_response_metadata: metadata,
     });
+    if (!recordError && data?.changed && data?.snapshotId && previousSnapshot?.normalized_content) {
+      const changeSummary = {
+        sourceKey: source.source_key,
+        previousChecksum: previousSnapshot.source_checksum_sha256,
+        newChecksum: checksum,
+        detectedAt: new Date().toISOString(),
+        ...summarizeRegulatorySourceChange(previousSnapshot.normalized_content, normalized),
+      };
+      const { error: summaryError } = await admin.from("regulatory_change_proposals")
+        .update({ change_summary: changeSummary }).eq("source_snapshot_id", data.snapshotId);
+      if (summaryError) {
+        results.push({ sourceKey: source.source_key, httpStatus: status, error: "Source change was recorded, but its grounded diff summary could not be saved" });
+        continue;
+      }
+    }
     results.push({ sourceKey: source.source_key, httpStatus: status, ...(recordError ? { error: recordError.message } : { result: data }) });
   }
   const failed = results.filter((result) => "error" in result).length;

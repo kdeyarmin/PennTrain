@@ -1,5 +1,5 @@
 begin;
-select plan(36);
+select plan(43);
 
 select has_table('public', 'push_subscriptions', 'web-push subscriptions are first-class records');
 select has_table('public', 'regulatory_rule_pack_templates', 'regulatory templates are governed data');
@@ -18,6 +18,16 @@ select has_column('public', 'organization_settings', 'web_push_notifications_ena
   'organizations can govern web-push delivery');
 select has_column('public', 'course_ai_generations', 'organization_id',
   'course AI generations are lifecycle-scopeable');
+select has_column('public', 'push_subscriptions', 'user_agent_hash',
+  'push subscriptions retain only a hashed browser identifier');
+select ok(
+  not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'push_subscriptions'
+      and column_name = 'user_agent_sha256'
+  ),
+  'push subscription writers must use the canonical user-agent hash column'
+);
 
 select has_function('public', 'install_regulatory_rule_pack_template',
   'platform administrators can install a draft rule-pack template');
@@ -35,6 +45,31 @@ select has_function('public', 'get_paid_training_payroll_export',
   'verified training time can be exported for payroll');
 select has_function('public', 'run_data_lifecycle_policy',
   'the trusted lifecycle worker has a bounded policy command');
+select ok(
+  pg_get_functiondef('public.refresh_benchmark_snapshots(date,integer)'::regprocedure)
+    like '%topCitationTopics%',
+  'benchmark refreshes include k-anonymous citation-topic aggregates'
+);
+select ok(
+  pg_get_functiondef('public.get_facility_benchmark_comparison(uuid)'::regprocedure)
+    like '%facilityMetrics%',
+  'benchmark comparisons include the facility values shown beside peer medians'
+);
+select ok(
+  pg_get_functiondef('public.get_workforce_retention_metrics(uuid)'::regprocedure)
+    like '%ended_on between current_date - 364 and current_date%',
+  'future termination dates are excluded from historical turnover'
+);
+select ok(
+  pg_get_functiondef('public.refresh_benchmark_snapshots(date,integer)'::regprocedure)
+    like '%delete from public.benchmark_snapshots%',
+  'benchmark refreshes remove stale cohorts that no longer meet k-anonymity'
+);
+select ok(
+  pg_get_functiondef('public.update_profile_contact_preferences(uuid,text,text,text,boolean,text)'::regprocedure)
+    like '%preferred_notification_channel is distinct from ''web_push''%',
+  'existing web-push preferences survive unrelated cross-browser profile edits'
+);
 
 select ok(
   not has_table_privilege('authenticated', 'public.push_subscriptions', 'INSERT'),

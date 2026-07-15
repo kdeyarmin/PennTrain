@@ -99,7 +99,11 @@ export default function NotificationSettings() {
       toast({ title: "SMS can be preferred only after phone consent is enabled", variant: "destructive" });
       return;
     }
-    if (form.preferredNotificationChannel === "web_push" && !pushActive) {
+    if (
+      form.preferredNotificationChannel === "web_push"
+      && !pushActive
+      && profile?.preferred_notification_channel !== "web_push"
+    ) {
       toast({ title: "Enable browser notifications before choosing web push", variant: "destructive" });
       return;
     }

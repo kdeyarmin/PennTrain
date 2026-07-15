@@ -76,7 +76,7 @@ interface EditFormData {
   lastName: string;
   phone: string;
   smsOptIn: boolean;
-  preferredNotificationChannel: "email" | "sms";
+  preferredNotificationChannel: "email" | "sms" | "web_push";
 }
 
 const PAGE_SIZE = 15;
@@ -277,7 +277,9 @@ export default function Users() {
       lastName: p.last_name,
       phone: p.phone ?? "",
       smsOptIn: p.sms_opt_in,
-      preferredNotificationChannel: p.preferred_notification_channel === "sms" ? "sms" : "email",
+      preferredNotificationChannel: ["sms", "web_push"].includes(p.preferred_notification_channel)
+        ? p.preferred_notification_channel as "sms" | "web_push"
+        : "email",
     });
   };
 
@@ -753,7 +755,9 @@ export default function Users() {
                 onChange={e => setEditForm(f => ({
                   ...f,
                   smsOptIn: e.target.checked,
-                  preferredNotificationChannel: e.target.checked ? f.preferredNotificationChannel : "email",
+                  preferredNotificationChannel: !e.target.checked && f.preferredNotificationChannel === "sms"
+                    ? "email"
+                    : f.preferredNotificationChannel,
                 }))}
                 className="h-4 w-4 mt-0.5"
               />
@@ -771,7 +775,7 @@ export default function Users() {
                 value={editForm.preferredNotificationChannel}
                 onValueChange={value => setEditForm(f => ({
                   ...f,
-                  preferredNotificationChannel: value as "email" | "sms",
+                  preferredNotificationChannel: value as "email" | "sms" | "web_push",
                 }))}
               >
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
@@ -780,11 +784,12 @@ export default function Users() {
                   <SelectItem value="sms" disabled={!editForm.smsOptIn || !editForm.phone.trim()}>
                     SMS first
                   </SelectItem>
+                  <SelectItem value="web_push" disabled>Web push first (managed by user)</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-[11px] text-muted-foreground">
-                SMS becomes available only after a phone number and explicit consent are recorded.
-                A permanent provider failure can use the configured alternate-channel fallback.
+                SMS becomes available only after a phone number and explicit consent are recorded. Web push is
+                enabled by the user on their own browser; editing another field preserves that preference.
               </p>
             </div>
             <div className="col-span-full space-y-1.5">

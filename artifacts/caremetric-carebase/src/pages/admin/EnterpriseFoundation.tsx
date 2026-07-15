@@ -470,9 +470,20 @@ function RegulatoryExpansionPanel() {
           {proposals.isLoading ? <p className="text-sm text-muted-foreground">Loading source feed...</p> : proposals.data?.length ? (
             <div className="space-y-2">{proposals.data.map((proposal) => {
               const snapshot = proposal.regulatory_source_snapshots as { fetched_at?: string; regulatory_update_sources?: { source_key?: string; source_uri?: string } | null } | null;
+              const summary = proposal.change_summary as {
+                addedTokenCount?: number;
+                removedTokenCount?: number;
+                addedTokenSample?: string[];
+                removedTokenSample?: string[];
+              } | null;
               return <div key={proposal.id} className="rounded-lg border p-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium">{snapshot?.regulatory_update_sources?.source_key ?? "Official source"}</span><Badge variant={proposal.state === "drafted" ? "secondary" : "outline"}>{proposal.state}</Badge></div>
                 <p className="mt-1 text-xs text-muted-foreground">Detected {new Date(proposal.created_at).toLocaleString()} {proposal.drafted_rule_version_id ? `| Draft version ${proposal.drafted_rule_version_id}` : "| No matching active pack; review required"}</p>
+                {summary?.addedTokenCount != null ? <div className="mt-2 rounded bg-muted/50 p-2 text-xs">
+                  <p className="font-medium">Grounded source diff: {summary.addedTokenCount} added / {summary.removedTokenCount ?? 0} removed terms</p>
+                  {summary.addedTokenSample?.length ? <p className="mt-1 text-muted-foreground">Added sample: {summary.addedTokenSample.join(", ")}</p> : null}
+                  {summary.removedTokenSample?.length ? <p className="mt-1 text-muted-foreground">Removed sample: {summary.removedTokenSample.join(", ")}</p> : null}
+                </div> : null}
               </div>;
             })}</div>
           ) : <p className="text-sm text-muted-foreground">No changed official sources have been detected. The first successful poll establishes each baseline.</p>}

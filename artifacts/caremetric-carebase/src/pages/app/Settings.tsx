@@ -22,6 +22,7 @@ const LOGO_BUCKET = "org-branding";
 interface SettingsFormData {
   emailNotificationsEnabled: boolean;
   smsNotificationsEnabled: boolean;
+  webPushNotificationsEnabled: boolean;
   defaultWarningDays: string;
   oapsaProvisionalDaysResident: string;
   oapsaProvisionalDaysNonresident: string;
@@ -30,6 +31,7 @@ interface SettingsFormData {
 const EMPTY_FORM: SettingsFormData = {
   emailNotificationsEnabled: true,
   smsNotificationsEnabled: false,
+  webPushNotificationsEnabled: true,
   defaultWarningDays: String(DEFAULT_WARNING_DAYS),
   oapsaProvisionalDaysResident: String(DEFAULT_OAPSA_DAYS_RESIDENT),
   oapsaProvisionalDaysNonresident: String(DEFAULT_OAPSA_DAYS_NONRESIDENT),
@@ -64,6 +66,7 @@ export default function Settings() {
       setForm({
         emailNotificationsEnabled: settings.email_notifications_enabled,
         smsNotificationsEnabled: settings.sms_notifications_enabled,
+        webPushNotificationsEnabled: settings.web_push_notifications_enabled,
         defaultWarningDays: String(parseDefaultWarningDays(settings.default_warning_days)),
         oapsaProvisionalDaysResident: String(settings.oapsa_provisional_days_resident ?? DEFAULT_OAPSA_DAYS_RESIDENT),
         oapsaProvisionalDaysNonresident: String(settings.oapsa_provisional_days_nonresident ?? DEFAULT_OAPSA_DAYS_NONRESIDENT),
@@ -146,6 +149,7 @@ export default function Settings() {
         organization_id: user.organizationId,
         email_notifications_enabled: form.emailNotificationsEnabled,
         sms_notifications_enabled: form.smsNotificationsEnabled,
+        web_push_notifications_enabled: form.webPushNotificationsEnabled,
         default_warning_days: { default: Number.isFinite(parsedDays) ? parsedDays : DEFAULT_WARNING_DAYS },
         oapsa_provisional_days_resident: Number.isFinite(parsedOapsaResident) ? parsedOapsaResident : DEFAULT_OAPSA_DAYS_RESIDENT,
         oapsa_provisional_days_nonresident: Number.isFinite(parsedOapsaNonresident) ? parsedOapsaNonresident : DEFAULT_OAPSA_DAYS_NONRESIDENT,
@@ -264,6 +268,19 @@ export default function Settings() {
                   disabled={!canManage}
                 />
               </div>
+              <div className="flex items-center justify-between rounded-lg border border-border/60 p-3.5">
+                <div>
+                  <p className="text-sm font-medium">Web Push Notifications</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Send low-cost browser and lock-screen reminders to staff who granted permission.
+                  </p>
+                </div>
+                <Switch
+                  checked={form.webPushNotificationsEnabled}
+                  onCheckedChange={v => field("webPushNotificationsEnabled", v)}
+                  disabled={!canManage}
+                />
+              </div>
             </CardContent>
           </Card>
 
@@ -274,14 +291,14 @@ export default function Settings() {
                 Recent Notification Deliveries
               </CardTitle>
               <CardDescription>
-                Email/SMS attempts for training due-soon and expired alerts, sent every 15 minutes by the delivery engine.
+                Email, SMS, and web-push attempts recorded by the delivery engine.
               </CardDescription>
             </CardHeader>
             <CardContent>
               {!deliveries?.length ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">
-                  No deliveries yet -- these appear once email or SMS notifications above are turned on and a staff
-                  member has a training due-soon or expired alert.
+                  No deliveries yet -- these appear once a notification channel above is enabled and a staff member
+                  receives an eligible alert or reminder.
                 </p>
               ) : (
                 <div className="space-y-2">

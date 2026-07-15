@@ -1,6 +1,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import webpush from "npm:web-push@3.6.7";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
+import { buildDisabledPushSubscriptionPatch } from "../_shared/webPush.ts";
 import {
   classifyNotificationDispatchStatus,
   isRetryableProviderStatus,
@@ -246,6 +247,7 @@ async function sendSms(
 
 async function sendWebPush(
   adminClient: ReturnType<typeof createClient<any>>,
+  subscriptionId: string,
   profileId: string,
   title: string,
   body: string,
@@ -259,7 +261,7 @@ async function sendWebPush(
   }
   const { data, error } = await adminClient.from("push_subscriptions")
     .select("id,endpoint,p256dh_key,auth_key")
-    .eq("profile_id", profileId).is("disabled_at", null)
+    .eq("id", subscriptionId).eq("profile_id", profileId).is("disabled_at", null)
     .or(`expiration_time.is.null,expiration_time.gt.${new Date().toISOString()}`)
     .order("last_used_at", { ascending: false }).limit(1).maybeSingle();
   if (error || !data) {
@@ -280,7 +282,9 @@ async function sendWebPush(
   } catch (error) {
     const status = typeof error === "object" && error && "statusCode" in error ? Number(error.statusCode) : undefined;
     if (status === 404 || status === 410) {
-      await adminClient.from("push_subscriptions").update({ disabled_at: new Date().toISOString() }).eq("id", subscription.id);
+      await adminClient.from("push_subscriptions")
+        .update(buildDisabledPushSubscriptionPatch("provider_subscription_expired"))
+        .eq("id", subscription.id);
     }
     return {
       ok: false,
@@ -526,6 +530,7 @@ Deno.serve(async (req: Request) => {
         twilioStatusCallbackUrl(supabaseUrl, attempt.callback_token),
       ) : await sendWebPush(
         adminClient,
+        row.recipient,
         row.profile_id,
         rendered.subject,
         outboundBody,

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useOrgDashboardSummary } from "@/hooks/useDashboardSummary";
 import { QueryError, QueryLoading } from "@/components/QueryState";
@@ -288,9 +288,31 @@ export default function OrgDashboard() {
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_facility_benchmark_comparison", { p_facility_id: benchmarkFacility!.facilityId });
       if (error) return { available: false } as const;
-      return data as { available: boolean; cohort?: { organizationCount: number; facilityCount: number; kThreshold: number; jurisdictionCode: string }; metrics?: { trainingComplianceRate?: { p25: number; p50: number; p75: number }; medianCredentialRenewalDays?: { p50: number }; incidentsPer100OccupiedBeds?: { p50: number } } };
+      return data as {
+        available: boolean;
+        cohort?: { organizationCount: number; facilityCount: number; kThreshold: number; jurisdictionCode: string };
+        metrics?: {
+          trainingComplianceRate?: { p25: number; p50: number; p75: number };
+          medianCredentialRenewalDays?: { p50: number };
+          incidentsPer100OccupiedBeds?: { p50: number };
+          topCitationTopics?: Array<{ citationRef: string | null; title: string; organizationCount: number; violationCount: number }>;
+        };
+        facilityMetrics?: {
+          trainingComplianceRate: number;
+          medianCredentialRenewalDays: number;
+          incidentsPer100OccupiedBeds: number;
+          topCitationTopics: Array<{ citationRef: string | null; title: string; violationCount: number }>;
+        };
+      };
     },
   });
+
+  useEffect(() => {
+    if (!benchmarkQuery.data?.available) return;
+    void supabase.functions.invoke("capture-product-event", {
+      body: { eventName: "benchmark_viewed", route: "/app/dashboard", properties: { surface: "dashboard" } },
+    });
+  }, [benchmarkQuery.data?.available]);
 
   const exportActionPlan = () => {
     const rows = [
@@ -363,12 +385,22 @@ export default function OrgDashboard() {
             </div>
             <Badge variant="outline">{benchmarkQuery.data.cohort?.organizationCount} organizations / {benchmarkQuery.data.cohort?.facilityCount} facilities</Badge>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-4">
-            <div><p className="text-2xl font-semibold">{benchmarkFacility.complianceScore}%</p><p className="text-xs text-muted-foreground">your training compliance</p></div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+            <div><p className="text-2xl font-semibold">{Math.round(benchmarkQuery.data.facilityMetrics?.trainingComplianceRate ?? benchmarkFacility.complianceScore)}%</p><p className="text-xs text-muted-foreground">your training compliance</p></div>
             <div><p className="text-2xl font-semibold">{Math.round(benchmarkQuery.data.metrics?.trainingComplianceRate?.p50 ?? 0)}%</p><p className="text-xs text-muted-foreground">peer median compliance</p></div>
-            <div><p className="text-2xl font-semibold">{Math.round(benchmarkQuery.data.metrics?.medianCredentialRenewalDays?.p50 ?? 0)}</p><p className="text-xs text-muted-foreground">peer median renewal runway days</p></div>
-            <div><p className="text-2xl font-semibold">{Number(benchmarkQuery.data.metrics?.incidentsPer100OccupiedBeds?.p50 ?? 0).toFixed(1)}</p><p className="text-xs text-muted-foreground">peer incidents per 100 occupied beds</p></div>
+            <div><p className="text-2xl font-semibold">{Math.round(benchmarkQuery.data.facilityMetrics?.medianCredentialRenewalDays ?? 0)}</p><p className="text-xs text-muted-foreground">your renewal runway days</p></div>
+            <div><p className="text-2xl font-semibold">{Math.round(benchmarkQuery.data.metrics?.medianCredentialRenewalDays?.p50 ?? 0)}</p><p className="text-xs text-muted-foreground">peer renewal runway days</p></div>
+            <div><p className="text-2xl font-semibold">{Number(benchmarkQuery.data.facilityMetrics?.incidentsPer100OccupiedBeds ?? 0).toFixed(1)}</p><p className="text-xs text-muted-foreground">your incidents / 100 beds</p></div>
+            <div><p className="text-2xl font-semibold">{Number(benchmarkQuery.data.metrics?.incidentsPer100OccupiedBeds?.p50 ?? 0).toFixed(1)}</p><p className="text-xs text-muted-foreground">peer incidents / 100 beds</p></div>
           </div>
+          {benchmarkQuery.data.metrics?.topCitationTopics?.length ? <div className="mt-4 rounded-lg border p-3">
+            <p className="text-sm font-medium">Peer citation topics meeting the same k-anonymity threshold</p>
+            <div className="mt-2 flex flex-wrap gap-2">{benchmarkQuery.data.metrics.topCitationTopics.map((topic) => (
+              <Badge key={`${topic.citationRef ?? "topic"}-${topic.title}`} variant="secondary">
+                {topic.citationRef ? `${topic.citationRef} · ` : ""}{topic.title} ({topic.violationCount})
+              </Badge>
+            ))}</div>
+          </div> : null}
         </div>
       ) : null}
 

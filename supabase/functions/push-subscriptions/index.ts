@@ -1,4 +1,8 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import {
+  buildDisabledPushSubscriptionPatch,
+  buildPushSubscriptionRow,
+} from "../_shared/webPush.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -55,7 +59,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "DELETE") {
     if (!validEndpoint(body.endpoint)) return json({ error: "A valid HTTPS endpoint is required" }, 400);
     const { error } = await admin.from("push_subscriptions")
-      .update({ disabled_at: new Date().toISOString() })
+      .update(buildDisabledPushSubscriptionPatch("user_unsubscribed"))
       .eq("profile_id", user.id).eq("endpoint_hash", await sha256(body.endpoint));
     return error ? json({ error: "Failed to disable push subscription" }, 500) : json({ disabled: true });
   }
@@ -63,7 +67,7 @@ Deno.serve(async (req: Request) => {
   const subscription = body.subscription;
   if (!validEndpoint(subscription?.endpoint)
       || typeof subscription?.keys?.p256dh !== "string"
-      || subscription.keys.p256dh.length < 20
+      || subscription.keys.p256dh.length < 40
       || typeof subscription.keys.auth !== "string"
       || subscription.keys.auth.length < 8) {
     return json({ error: "A valid browser PushSubscription is required" }, 400);
@@ -71,17 +75,19 @@ Deno.serve(async (req: Request) => {
   const expiration = typeof subscription.expirationTime === "number"
     ? new Date(subscription.expirationTime).toISOString() : null;
   const userAgent = req.headers.get("user-agent") || "unknown";
-  const { error } = await admin.from("push_subscriptions").upsert({
-    organization_id: profile.organization_id,
-    profile_id: user.id,
-    endpoint: subscription.endpoint,
-    endpoint_hash: await sha256(subscription.endpoint),
-    p256dh_key: subscription.keys.p256dh,
-    auth_key: subscription.keys.auth,
-    expiration_time: expiration,
-    user_agent_sha256: await sha256(userAgent),
-    disabled_at: null,
-    last_used_at: new Date().toISOString(),
-  }, { onConflict: "endpoint_hash" });
+  const { error } = await admin.from("push_subscriptions").upsert(
+    buildPushSubscriptionRow({
+      organizationId: profile.organization_id,
+      profileId: user.id,
+      endpoint: subscription.endpoint,
+      endpointHash: await sha256(subscription.endpoint),
+      p256dhKey: subscription.keys.p256dh,
+      authKey: subscription.keys.auth,
+      expirationTime: expiration,
+      userAgentHash: await sha256(userAgent),
+      now: new Date().toISOString(),
+    }),
+    { onConflict: "endpoint_hash" },
+  );
   return error ? json({ error: "Failed to save push subscription" }, 500) : json({ active: true }, 201);
 });
