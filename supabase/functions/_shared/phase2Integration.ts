@@ -209,7 +209,11 @@ async function phase2DefaultPinnedConnector(
 
 async function phase2WriteAll(connection: Phase2PinnedConnection, bytes: Uint8Array) {
   let offset = 0;
-  while (offset < bytes.length) offset += await connection.write(bytes.subarray(offset));
+  while (offset < bytes.length) {
+    const written = await connection.write(bytes.subarray(offset));
+    if (!written) throw new Error("Pinned webhook write failed");
+    offset += written;
+  }
 }
 
 /**
