@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { resolveAppRedirect } from "../_shared/appRedirect.ts";
 import { requireFreshAal2 } from "../_shared/privilegedIdentity.ts";
