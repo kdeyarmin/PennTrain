@@ -207,7 +207,7 @@ const KNOWLEDGE_BASE: KnowledgeEntry[] = [
     contextLabel: "staffing or scheduling page",
     keywords: [
       "staffing", "schedule", "shift", "coverage", "open shift", "call off", "overtime", "ratio",
-      "hours gap", "swap", "availability", "time off",
+      "coverage gap", "hours gap", "swap", "availability", "time off",
     ],
     routePrefixes: ["/app/schedule", "/app/workforce-operations", "/me/schedule", "/me/shift"],
     answer: "Review the coverage window, required roles, and employee eligibility before changing a shift. Resolve uncovered time with a qualified available employee and document any approval required by your organization.",
