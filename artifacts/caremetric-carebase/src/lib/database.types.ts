@@ -31522,6 +31522,7 @@ export type Database = {
         Args: { p_payload?: Json; p_record_id?: string }
         Returns: {
           approval_status: string | null
+          audience_decision_at: string | null
           certificate_number: string | null
           completion_date: string | null
           completion_method: string | null
