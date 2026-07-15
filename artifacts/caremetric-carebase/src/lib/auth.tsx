@@ -276,6 +276,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!profile || profile.is_active) return;
     (async () => {
       await supabase.auth.signOut();
+      clearImpersonationSession();
       queryClient.clear();
       toast({
         variant: "destructive",
