@@ -144,13 +144,13 @@ export default function Savings() {
     path: "/savings",
   });
 
-const setInput = (key: keyof SavingsInputs, value: string) => {
-  const parsed = Number(value);
-  setInputs((current) => ({
-    ...current,
-    [key]: value === "" ? 0 : Number.isFinite(parsed) ? parsed : 0,
-  }));
-};
+  const setInput = (key: keyof SavingsInputs, value: string) => {
+    const parsed = Number(value);
+    setInputs((current) => ({
+      ...current,
+      [key]: value === "" ? 0 : Number.isFinite(parsed) ? parsed : 0,
+    }));
+  };
 
   return (
     <MarketingLayout>

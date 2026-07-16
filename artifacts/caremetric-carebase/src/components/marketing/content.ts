@@ -627,7 +627,7 @@ export const FAQS = [
   {
     question: "Which regulations does it help us comply with?",
     answer:
-      "CareMetric CareBase is anchored to Pennsylvania's 55 Pa. Code Chapter 2600 personal care home and Chapter 2800 Assisted Living Facility (ALF) requirements, including staff orientation and annual training, resident assessments and support-plan follow-up, administrator qualifications, medication-practicum evidence, fire drills and emergency preparedness, incidents, complaints, resident rights, and survey evidence. Its training catalog also supports Chapter 6400 and selected federal aide in-service pathways. The platform tracks, routes, and preserves evidence; it does not replace legal advice, official DHS forms, required professional judgment, or the facility's responsibility to comply.",
+      "CareMetric CareBase is anchored to Pennsylvania's 55 Pa. Code Chapter 2600 personal care home and Chapter 2800 Assisted Living Residence (ALR) requirements, including staff orientation and annual training, resident assessments and support-plan follow-up, administrator qualifications, medication-practicum evidence, fire drills and emergency preparedness, incidents, complaints, resident rights, and survey evidence. Its training catalog also supports Chapter 6400 and selected federal aide in-service pathways. The platform tracks, routes, and preserves evidence; it does not replace legal advice, official DHS forms, required professional judgment, or the facility's responsibility to comply.",
   },
   {
     question: "Does using CareMetric CareBase guarantee compliance or a deficiency-free survey?",
