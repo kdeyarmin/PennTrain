@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, CheckCircle2, PlayCircle, type LucideIcon } from "lucide-react";
+import { ArrowRight, CheckCircle2, LogIn, type LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { DEMO_MAILTO } from "@/components/marketing/content";
@@ -8,7 +8,7 @@ import { DEMO_MAILTO } from "@/components/marketing/content";
 /** Presentational primitives shared across every public marketing page. */
 
 /**
- * Reveals content on scroll -- a single quiet fade/rise, not a barrage of
+ * Reveals content on scroll — a single quiet fade/rise, not a barrage of
  * effects. Falls back to a static div for prefers-reduced-motion.
  */
 export function Reveal({
@@ -101,7 +101,7 @@ export function PageHero({
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Button asChild size="lg" variant="secondary" className="gap-2">
             <a href={DEMO_MAILTO}>
-              Map Your Workflow
+              Request a Demo
               <ArrowRight className="h-4 w-4" />
             </a>
           </Button>
@@ -112,8 +112,8 @@ export function PageHero({
             className="gap-2 border-white/20 bg-white/[0.04] text-white hover:bg-white/10 hover:text-white"
           >
             <Link href="/demo">
-              <PlayCircle className="h-4 w-4" />
-              Explore the Demo
+              <LogIn className="h-4 w-4" />
+              Demo Sign-In
             </Link>
           </Button>
         </div>

@@ -11,8 +11,15 @@ import { markExplicitPasswordSignIn } from "@/lib/auth";
 import { absolutePostLoginRedirect, postLoginPathFromSearch } from "@/lib/loginRedirect";
 import { Loader2, ArrowRight, ShieldCheck } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 export default function Login() {
+  usePageMeta({
+    title: "Log In — CareMetric CareBase",
+    description:
+      "Sign in to CareMetric CareBase to manage operations, workforce compliance, training, and survey evidence for your facility.",
+    path: "/login",
+  });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [, setLocation] = useLocation();
@@ -97,7 +104,7 @@ export default function Login() {
             <h1 className="text-[28px] font-bold tracking-tight" style={{ color: BRAND_BLUE }}>
               <BrandName />
             </h1>
-            <p className="text-sm text-muted-foreground">Healthcare Learning &amp; Compliance Platform</p>
+            <p className="text-sm text-muted-foreground">Operations &amp; Compliance Platform</p>
           </div>
         </div>
 
@@ -187,7 +194,7 @@ export default function Login() {
         </Card>
 
         <p className="text-center text-[11px] text-muted-foreground/60">
-          55 Pa. Code Chapter 2600 Compliance Platform
+          55 Pa. Code Chapters 2600 &amp; 2800 Compliance Platform
         </p>
       </div>
     </div>

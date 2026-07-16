@@ -74,37 +74,37 @@ export const SETTINGS: IconItem[] = [
     icon: Building2,
     title: "Personal Care Homes",
     description:
-      "12 hours of yearly in-service per direct care worker (up to 6 may be supervised on-the-job training), plus 6 more for staff on a secured dementia unit -- 55 Pa. Code Section 2600.65, tracked automatically per employee. Also includes RASP resident assessment tracking under Section 2600.225/.227.",
+      "12 hours of yearly in-service per direct care worker (up to 6 may be supervised on-the-job training) under 55 Pa. Code Section 2600.65, plus 6 more for staff on a secured dementia unit under Section 2600.236 — tracked per employee, with regulatory credit applied once the operator verifies each completion. Also includes Resident Assessment and Support Plan (RASP) tracking under Section 2600.225/.227.",
   },
   {
     icon: HeartHandshake,
     title: "Assisted Living Facilities",
     description:
-      "16 hours of yearly in-service per direct care worker, plus 4 hours of dementia-specific training within 30 days of hire and 2 hours every year after -- 55 Pa. Code Section 2800.65/.69, tracked as separate requirements. Also includes ASP resident assessment tracking, with an expedited track for hospital transfers and other DHS-recognized exceptions.",
+      "16 hours of yearly in-service per direct care worker, plus 4 hours of dementia-specific training within 30 days of hire and 2 hours every year after — 55 Pa. Code Section 2800.65/.69, tracked as separate requirements. Also includes Assessment and Support Plan (ASP) tracking, with an expedited track for hospital transfers and other DHS-recognized exceptions.",
   },
   {
     icon: Accessibility,
     title: "Group Homes",
     description:
-      "24 hours of yearly training for direct service workers and their supervisors, 12 hours for every other staff role -- 55 Pa. Code Section 6400.52, each role's requirement tracked separately and automatically.",
+      "24 hours of yearly training for direct service workers, their supervisors, and program specialists, and 12 hours for most other staff roles per the Section 6400.52(b) role list — 55 Pa. Code Section 6400.52, each role's requirement tracked separately.",
   },
   {
     icon: BedDouble,
     title: "Nursing Homes",
     description:
-      "12 hours of yearly in-service per nurse aide under federal OBRA rules (42 CFR 483.95), targeted to each employee's most recent performance review -- not just a generic annual class.",
+      "12 hours of yearly in-service per nurse aide under federal OBRA rules (42 CFR 483.95), targeted to each employee's most recent performance review — not just a generic annual class.",
   },
   {
     icon: HomeIcon,
     title: "Home Health Agencies",
     description:
-      "12 hours of yearly in-service per home health aide, RN-supervised and documented under 42 CFR 484.80 -- tracked automatically across your whole field staff.",
+      "12 hours of yearly in-service per home health aide, RN-supervised and documented under 42 CFR 484.80 — tracked across your whole field staff.",
   },
   {
     icon: Stethoscope,
     title: "Hospice Agencies",
     description:
-      "12 hours of yearly in-service per hospice aide, RN-supervised and documented under 42 CFR 418.76, across every discipline on your interdisciplinary team.",
+      "12 hours of yearly in-service per hospice aide, RN-supervised and documented under 42 CFR 418.76, with a complete aide curriculum built in.",
   },
 ];
 
@@ -144,13 +144,13 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: ListChecks,
         title: "Training Plans, Built Per Role",
         description:
-          "Assign the right plan to each role once -- or roll it out to an entire facility roster in a single action -- and CareMetric CareBase tracks every employee's progress against it automatically.",
+          "Assign the right plan to each role once — or roll it out to an entire facility roster in a single action — and CareMetric CareBase tracks every employee's progress against it automatically.",
       },
       {
         icon: SlidersHorizontal,
         title: "Custom Requirement Catalog",
         description:
-          "Beyond the built-in Pennsylvania training types, org admins can define their own -- scoped to a specific facility type or all of them -- with its own required hours, renewal interval, warning window, evidence-document requirement, and regulatory citation.",
+          "Beyond the built-in Pennsylvania training types, org admins can define their own — scoped to a specific facility type or all of them — with its own required hours, renewal interval, warning window, evidence-document requirement, and regulatory citation.",
       },
       {
         icon: LayoutGrid,
@@ -162,7 +162,7 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: BarChart3,
         title: "Compliance Reporting Center",
         description:
-          "Roll up staff compliance, certifications, practicums, and facility evidence by facility, requirement type, or employee -- scoped to what each role is allowed to see.",
+          "Roll up staff compliance, certifications, practicums, and facility evidence by facility, requirement type, or employee — scoped to what each role is allowed to see.",
       },
       {
         icon: FolderLock,
@@ -175,25 +175,25 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
   {
     id: "ai-course-creation",
     category: "AI-Powered Course Creation",
-    blurb: "Draft a complete course from your own source material, then attach an AI presenter video -- reviewed by a real person before anyone sees it.",
+    blurb: "Draft a complete course from your own source material, then attach an AI presenter video — reviewed by a real person before anyone sees it.",
     items: [
       {
         icon: Sparkles,
         title: "AI Course Curriculum Generation",
         description:
-          "Paste in a regulation, policy, or reference document and get a complete draft course back -- modules, lesson text or video scripts, and knowledge-check quizzes with answer keys -- grounded strictly in that source material. The model is instructed to flag gaps rather than invent a regulation citation it can't verify.",
+          "Paste in a regulation, policy, or reference document and get a complete draft course back — modules, lesson text or video scripts, and knowledge-check quizzes with answer keys — grounded strictly in that source material. The model is instructed to flag gaps rather than invent a regulation citation it can't verify.",
       },
       {
         icon: Video,
         title: "AI Avatar Video Generation",
         description:
-          "Turn a lesson script into a talking-avatar training video instead of recording your own footage -- pick an avatar and voice, and CareMetric CareBase submits the job, tracks it to completion, and hosts the finished video in your organization's private storage.",
+          "Turn a lesson script into a talking-avatar training video instead of recording your own footage — pick an avatar and voice, and CareMetric CareBase submits the job, tracks it to completion, and hosts the finished video in your organization's private storage.",
       },
       {
         icon: RefreshCw,
         title: "Targeted AI Content Regeneration",
         description:
-          "Don't like a single lesson, video script, or quiz question set? Point at just that block, describe what to change, and AI rewrites it alone -- under the same no-fabricated-citation rules as the initial draft.",
+          "Don't like a single lesson, video script, or quiz question set? Point at just that block, describe what to change, and AI rewrites it alone — under the same no-fabricated-citation rules as the initial draft.",
       },
     ],
   },
@@ -212,13 +212,13 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: QrCode,
         title: "QR & Kiosk Check-In",
         description:
-          "Each class shows a QR code that rotates every 30 seconds for staff to scan with their own phone, or runs in a shared-device Kiosk Mode where an employee finds their name and enters a personal PIN -- no app to install either way.",
+          "Each class shows a QR code that rotates every 30 seconds for staff to scan with their own phone, or runs in a shared-device Kiosk Mode where an employee finds their name and enters a personal PIN — no app to install either way.",
       },
       {
         icon: Printer,
         title: "Printable Meeting Notice",
         description:
-          "Generate a one-page PDF with the class details and an embedded QR code staff can scan to check in, plus a paper sign-in table as backup for anyone who can't scan -- post it, hand it out, or upload the completed sheet back into the class record.",
+          "Generate a one-page PDF with the class details and an embedded QR code staff can scan to check in, plus a paper sign-in table as backup for anyone who can't scan — post it, hand it out, or upload the completed sheet back into the class record.",
       },
     ],
   },
@@ -231,13 +231,13 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: FilePenLine,
         title: "Digital RASP/ASP Assessment Prep",
         description:
-          "Draft the resident assessment on-screen -- every ADL, sensory, and behavioral item, mirroring the DHS RASP/ASP structure -- with autosaving drafts and a reference PDF on finalize. The signed, DHS-prescribed RASP/ASP form is still what satisfies 55 Pa. Code Section 2600.225/.227 and the parallel Chapter 2800 clause -- attach it on the resident's record to close out the requirement.",
+          "Draft the resident assessment on-screen — every ADL, sensory, and behavioral item, mirroring the DHS RASP/ASP structure — with autosaving drafts and a reference PDF on finalize. The signed, DHS-prescribed RASP/ASP form is still what satisfies 55 Pa. Code Section 2600.225/.227 and the parallel Chapter 2800 clause — attach it on the resident's record to close out the requirement.",
       },
       {
         icon: GitBranch,
         title: "Automatic Reassessment & Support-Plan Triggers",
         description:
-          "Preadmission screening, the 15-day initial assessment, annual reassessment, and any significant-change reassessment are each tracked to their own due date -- and completing a reassessment automatically opens the support-plan update it requires.",
+          "Preadmission screening, the initial assessment (due 15 days after admission for personal care homes; normally 30 days before admission for assisted living facilities), annual reassessment, and any significant-change reassessment are each tracked to their own due date — and completing a reassessment automatically opens the support-plan update it requires.",
       },
       {
         icon: ClipboardList,
@@ -309,33 +309,33 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
       },
       {
         icon: Gauge,
-        title: "Citation-Weighted Survey Readiness Score",
+        title: "Weighted Survey Readiness Score",
         description:
-          "A live, per-facility readiness score weighted by how often DHS actually cites each regulation rolls up training, credentials, background checks, inspections, incidents, and policy attestations into one number -- sorted so the topics most likely to be cited surface first.",
+          "A live, per-facility readiness score rolls training, credentials, background checks, inspections, incidents, and policy attestations into one number. Topics are weighted toward the areas DHS most commonly cites — configurable planning weights, not a live citation feed — so the areas most worth your attention surface first.",
       },
       {
         icon: Siren,
         title: "Incident & Complaint Tracking",
         description:
-          "Log reportable incidents with severity and status, and CareMetric CareBase schedules the required regulatory notifications -- state hotline, law enforcement, licensing agency -- each with its own due-by clock. One click generates a formatted incident report PDF with the narrative, investigation findings, and notification log.",
+          "Log reportable incidents with severity and status, and CareMetric CareBase schedules the required regulatory notifications — state hotline, law enforcement, licensing agency — each with its own due-by clock. One click generates a formatted incident report PDF with the narrative, investigation findings, and notification log.",
       },
       {
         icon: ShieldAlert,
         title: "Violation & Plan-of-Correction Workflow",
         description:
-          "Record a DHS-cited violation against its specific citation and due date, attach evidence for the follow-up visit, and generate a formatted Plan of Correction PDF -- status moves through Open, POC Submitted, Corrected, and Verified as the case closes out.",
+          "Record a DHS-cited violation against its specific citation and due date, attach evidence for the follow-up visit, and generate a formatted Plan of Correction PDF — status moves through Open, POC Submitted, Corrected, and Verified as the case closes out.",
       },
       {
         icon: Flame,
         title: "Life-Safety & Fire-Drill Records",
         description:
-          "Track inspection cadence for fire extinguishers, alarms, sprinklers, generators, and emergency lighting, and log every field 55 Pa. Code Section 2600.132/2800.132 requires for a fire drill -- shift, exit route, evacuation duration, and the twice-yearly sleeping-hours drill.",
+          "Track inspection cadence for fire extinguishers, alarms, sprinklers, generators, and emergency lighting, and log every field 55 Pa. Code Section 2600.132/2800.132 requires for a fire drill — shift, exit route, evacuation duration, and the twice-yearly sleeping-hours drill.",
       },
       {
         icon: Library,
         title: "Template Document Library",
         description:
-          "A built-in library of 60+ printable survey-readiness forms -- entrance handoff packets, resident chart and medication audits, training trackers, and walkthrough logs -- adapted from a real PA Personal Care Home Survey Readiness Binder and organized into searchable categories.",
+          "A built-in library of 60+ printable survey-readiness forms — entrance handoff packets, resident chart and medication audits, training trackers, and walkthrough logs — adapted from a real PA Personal Care Home Survey Readiness Binder and organized into searchable categories.",
       },
     ],
   },
@@ -366,7 +366,7 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: BarChart3,
         title: "QAPI & Quality Improvement",
         description:
-          "Run quality projects with a defined problem, root-cause analysis, measures, audit samples, interventions, ownership, and sustainment review instead of a standalone QAPI workbook.",
+          "Run quality assurance and performance improvement (QAPI) projects with a defined problem, root-cause analysis, measures, audit samples, interventions, ownership, and sustainment review instead of a standalone workbook.",
       },
       {
         icon: ClipboardList,
@@ -391,25 +391,25 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: BadgeCheck,
         title: "Credentials & Clearances Tracking",
         description:
-          "Tracks background clearances and professional licensure separately from training records -- Act 34 criminal history, Act 73 FBI fingerprint, and Act 33 child abuse clearances, RN/LPN licenses, PA Nurse Aide Registry status, TB screening, and I-9 eligibility -- each with its own expiration, verification method, and evidence document.",
+          "Tracks background clearances and professional licensure separately from training records — Act 34 criminal history, Act 73 FBI fingerprint, and Act 33 child abuse clearances, RN/LPN licenses, PA Nurse Aide Registry status, TB screening, and I-9 eligibility — each with its own expiration, verification method, and evidence document.",
       },
       {
         icon: ShieldQuestion,
         title: "Background-Check & Suitability Tracking",
         description:
-          "Runs the OAPSA provisional-employment countdown -- 30 days for PA residents, 90 for non-residents, configurable per organization -- alongside the required non-disqualification statement, documented supervision, and a final suitability determination, and flags when a new hire's residency history requires an Act 73 FBI clearance.",
+          "Runs the Older Adults Protective Services Act (OAPSA) provisional-employment countdown — 30 days for PA residents, 90 for non-residents, configurable per organization — alongside the required non-disqualification statement, documented supervision, and a final suitability determination, and flags when a new hire's residency history requires an Act 73 FBI clearance.",
       },
       {
         icon: ShieldAlert,
         title: "Federal Exclusion List Screening",
         description:
-          "Every active employee is automatically screened each month against the OIG's List of Excluded Individuals/Entities and, when configured, SAM.gov -- fuzzy matches land in a review queue for a human to confirm or dismiss, never acted on automatically.",
+          "Every active employee is automatically screened each month against the OIG's List of Excluded Individuals/Entities and, when configured, SAM.gov — fuzzy matches land in a review queue for a human to confirm or dismiss, never acted on automatically.",
       },
       {
         icon: Award,
         title: "Administrator Qualification & CE Tracking",
         description:
-          "Tracks an administrator's qualification path -- the 100-hour DHS-approved course and competency test, or an NHA license exemption -- plus the regional-office qualification notice and a rolling 24-hour annual continuing-education log.",
+          "Tracks an administrator's qualification path — the 100-hour DHS-approved course and competency test, or an NHA license exemption — plus the regional-office qualification notice and a rolling 24-hour annual continuing-education log.",
       },
       {
         icon: Pill,
@@ -434,13 +434,13 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: CalendarClock,
         title: "Shift Scheduling & Auto-Fill",
         description:
-          "Build a weekly or two-week staff shift schedule for any facility and auto-fill it in one click from each employee's typical shift, unit, and days-of-week pattern -- managers only touch the exceptions. Schedules stay editable in draft until published, when employees see their upcoming shifts under My Schedule.",
+          "Build a weekly or two-week staff shift schedule for any facility and auto-fill it in one click from each employee's typical shift, unit, and days-of-week pattern — managers only touch the exceptions. Schedules stay editable in draft until published, when employees see their upcoming shifts under My Schedule.",
       },
       {
         icon: Shuffle,
         title: "Cross-Facility Float Staff",
         description:
-          "Employees can be assigned to more than one facility, and the scheduling roster draws from all of them -- but every employee is capped at one shift per date across the whole organization, so a float aide can never be double-booked.",
+          "Employees can be assigned to more than one facility, and the scheduling roster draws from all of them — but every employee is capped at one shift per date across the whole organization, so a float aide can never be double-booked.",
       },
     ],
   },
@@ -453,7 +453,7 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: Users,
         title: "Role-Based Access",
         description:
-          "Six built-in roles -- from platform admin down to employee -- enforced at the database layer, not just the UI.",
+          "Six built-in roles — from platform admin down to employee — enforced at the database layer, not just the UI.",
       },
       {
         icon: FileCheck,
@@ -471,19 +471,19 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: BellRing,
         title: "Alerts & Retraining Reminders",
         description:
-          "Get ahead of expiring certifications and overdue retraining with alerts that escalate to admins if left unactioned -- delivered in-app, by email, and by text message, with a weekly digest and per-message delivery confirmation.",
+          "Get ahead of expiring certifications and overdue retraining with alerts that escalate to admins if left unactioned — delivered in-app, by email, and by text message, with a weekly digest and per-message delivery confirmation.",
       },
       {
         icon: MailPlus,
         title: "Email-Invite User Provisioning",
         description:
-          "Send a role-scoped email invite instead of setting a password yourself -- the recipient lands on the same secure reset-password flow used for forgotten passwords, so no admin ever handles or transmits a credential.",
+          "Send a role-scoped email invite instead of setting a password yourself — the recipient lands on the same secure reset-password flow used for forgotten passwords, so no admin ever handles or transmits a credential.",
       },
       {
         icon: Rocket,
         title: "Instant Self-Service Signup",
         description:
-          "A facility can create its own organization at sign-up with just a name, admin contact, and password -- no sales call required -- live immediately with a trial period, so a prospect can start entering employees and training records the same day.",
+          "A facility can create its own organization at sign-up with just an organization name and admin contact — no sales call required. Verify the admin email, set a password, and start entering employees and training records the same day under a free trial.",
       },
       {
         icon: Smartphone,
@@ -527,7 +527,7 @@ export const OLD_WAY = [
   "Re-checking each employee's hours against their license type's rules by hand, every renewal cycle",
   "Resident assessments, incident reports, and inspection findings living in separate binders with no link to a plan of correction",
   "Building a new course from scratch, or paying a vendor, every time a policy or regulation changes",
-  "Admissions, resident services, food-safety rounds, maintenance, emergency logs, and QAPI work split across separate spreadsheets",
+  "Admissions, resident services, food-safety rounds, maintenance, emergency logs, and quality-improvement (QAPI) work split across separate spreadsheets",
 ];
 
 export const NEW_WAY = [
@@ -536,7 +536,7 @@ export const NEW_WAY = [
   "Digital competency checklists tied to each employee's role",
   "A facility or organization compliance binder PDF rebuilt from live records on request",
   "Real-time compliance dashboards across every facility, org-wide",
-  "Training types configured once per organization -- hours, renewal windows, and which facility types they apply to -- instead of re-explained to every new hire",
+  "Training types configured once per organization — hours, renewal windows, and which facility types they apply to — instead of re-explained to every new hire",
   "Resident assessments, incidents, and DHS-cited violations tracked to a corrective action and a survey-ready plan of correction",
   "AI-drafted courses from your own source material, reviewed and approved by a real person before anyone sees them",
   "Admissions, resident services, safety, maintenance, quality, and facility evidence routed through accountable work queues",
@@ -547,13 +547,13 @@ export const SECURITY_FEATURES: IconItem[] = [
     icon: Database,
     title: "Row-Level Security by Design",
     description:
-      "Caller-facing operational records use Postgres Row-Level Security, so organization, facility, role, and record-scope rules are enforced at the database boundary as well as in the interface.",
+      "Even a bug in a screen can't show one organization another's records: organization, facility, role, and record-scope rules are enforced inside the database itself (Postgres Row-Level Security), not just in the interface.",
   },
   {
     icon: Users,
     title: "Six Enforced Access Levels",
     description:
-      "Platform admin, org admin, facility manager, trainer, employee, and auditor -- each scoped to exactly the data their role should touch.",
+      "Platform admin, org admin, facility manager, trainer, employee, and auditor — each scoped to exactly the data their role should touch.",
   },
   {
     icon: Lock,
@@ -565,13 +565,13 @@ export const SECURITY_FEATURES: IconItem[] = [
     icon: History,
     title: "Immutable Audit Trail",
     description:
-      "Compliance-determining actions -- quiz grading, certificate issuance, course publishing -- are logged and can't be altered after the fact.",
+      "Compliance-determining actions — quiz grading, certificate issuance, course publishing — are logged and can't be altered after the fact.",
   },
   {
     icon: UserCheck,
     title: "Human Review Gate on AI Content",
     description:
-      "A training content version drafted or touched by AI can't be published until a named reviewer explicitly signs off, and that approval is cleared automatically the moment any block is AI-regenerated -- a stale sign-off can never cover new content.",
+      "A training content version drafted or touched by AI can't be published until a named reviewer explicitly signs off, and that approval is cleared automatically the moment any block is AI-regenerated — a stale sign-off can never cover new content.",
   },
   {
     icon: Eye,
@@ -583,13 +583,13 @@ export const SECURITY_FEATURES: IconItem[] = [
     icon: Fingerprint,
     title: "Version-Bound E-Signature Evidence",
     description:
-      "Policy attestations are written through a dedicated function that captures the signer, timestamp, IP address, user agent, and a content hash of the exact document version reviewed -- evidence designed to support ESIGN/UETA recordkeeping, not a generic checkbox.",
+      "Policy attestations are written through a dedicated function that captures the signer, timestamp, IP address, user agent, and a content hash of the exact document version reviewed — evidence designed to support ESIGN/UETA recordkeeping, not a generic checkbox.",
   },
   {
     icon: KeyRound,
     title: "Hashed, Never-Plaintext Secrets",
     description:
-      "Class check-in PINs are bcrypt-hashed at rest and verified inside the database itself -- the plaintext value is never stored, and only an authorized admin, manager, or trainer can set one for an employee.",
+      "Class check-in PINs are bcrypt-hashed at rest and verified inside the database itself — the plaintext value is never stored, and only an authorized admin, manager, or trainer can set one for an employee.",
   },
 ];
 
@@ -602,7 +602,7 @@ export const FAQS = [
   {
     question: "What software and manual systems can CareMetric CareBase replace?",
     answer:
-      "Depending on how your organization works today, CareBase can consolidate a training LMS or course-delivery tool, training and credential spreadsheets, shared-drive compliance folders, paper survey binders, resident assessment due-date calendars, basic staff scheduling, admissions and census trackers, incident and plan-of-correction logs, policy acknowledgment tools, maintenance work-order sheets, resident-service calendars, QAPI workbooks, and basic resident receivable or personal-funds ledgers. The savings page separates full replacements from systems that should remain connected.",
+      "Depending on how your organization works today, CareBase can consolidate a training LMS or course-delivery tool, training and credential spreadsheets, shared-drive compliance folders, paper survey binders, resident assessment due-date calendars, basic staff scheduling, admissions and census trackers, incident and plan-of-correction logs, policy acknowledgment tools, maintenance work-order sheets, resident-service calendars, quality-improvement (QAPI) workbooks, and basic resident receivable or personal-funds ledgers. The savings page separates full replacements from systems that should remain connected.",
   },
   {
     question: "Where do the time and cost savings come from?",
@@ -617,7 +617,7 @@ export const FAQS = [
   {
     question: "How does CareMetric CareBase track our staff's yearly in-services?",
     answer:
-      "Every employee gets a training plan built from the in-service hours, topics, and renewal windows your facility requires. As staff complete assigned training items, live classes, or outside training, CareMetric CareBase logs the hours automatically, flags anyone falling behind before their deadline, and rolls it all up into one facility-wide view -- no more reconciling paper sign-in sheets once a year to see who's actually current.",
+      "Every employee gets a training plan built from the in-service hours, topics, and renewal windows your facility requires. As staff complete assigned training items, live classes, or outside training, CareMetric CareBase logs the hours against the right requirement — with regulatory credit applied once the operator verifies each completion — flags anyone falling behind before their deadline, and rolls it all up into one facility-wide view. No more reconciling paper sign-in sheets once a year to see who's actually current.",
   },
   {
     question: "How many yearly in-service hours does my type of provider actually need?",
@@ -627,7 +627,7 @@ export const FAQS = [
   {
     question: "Which regulations does it help us comply with?",
     answer:
-      "CareMetric CareBase is anchored to Pennsylvania's 55 Pa. Code Chapter 2600 personal care home and Chapter 2800 Assisted Living Residence (ALR) requirements, including staff orientation and annual training, resident assessments and support-plan follow-up, administrator qualifications, medication-practicum evidence, fire drills and emergency preparedness, incidents, complaints, resident rights, and survey evidence. Its training catalog also supports Chapter 6400 and selected federal aide in-service pathways. The platform tracks, routes, and preserves evidence; it does not replace legal advice, official DHS forms, required professional judgment, or the facility's responsibility to comply.",
+      "CareMetric CareBase is anchored to Pennsylvania's 55 Pa. Code Chapter 2600 personal care home and Chapter 2800 Assisted Living Facility (ALF) requirements, including staff orientation and annual training, resident assessments and support-plan follow-up, administrator qualifications, medication-practicum evidence, fire drills and emergency preparedness, incidents, complaints, resident rights, and survey evidence. Its training catalog also supports Chapter 6400 and selected federal aide in-service pathways. The platform tracks, routes, and preserves evidence; it does not replace legal advice, official DHS forms, required professional judgment, or the facility's responsibility to comply.",
   },
   {
     question: "Does using CareMetric CareBase guarantee compliance or a deficiency-free survey?",
@@ -637,17 +637,17 @@ export const FAQS = [
   {
     question: "Do our employees need to install anything?",
     answer:
-      "No. CareMetric CareBase runs in the browser on any device, and the employee training player can also be installed to a phone's home screen as a lightweight app for faster access. Employees sign in to their self-service workspace to complete assigned training, take quizzes, view schedules, and download their own certificates -- no app store required.",
+      "No. CareMetric CareBase runs in the browser on any device, and the employee training player can also be installed to a phone's home screen as a lightweight app for faster access. Employees sign in to their self-service workspace to complete assigned training, take quizzes, view schedules, and download their own certificates — no app store required.",
   },
   {
     question: "How does the compliance binder actually work?",
     answer:
-      "One click generates a real PDF -- not a print-to-PDF workaround -- pulling each facility's current training compliance, practicums, certificates, resident assessments, incidents, inspection items, and a citation-weighted readiness score into a survey-ready binder, delivered through a short-lived secure link.",
+      "One click generates a real PDF — not a print-to-PDF workaround — pulling each facility's current training compliance, practicums, certificates, resident assessments, incidents, inspection items, and a weighted readiness score into a survey-ready binder, delivered through a short-lived secure link.",
   },
   {
     question: "Can our auditor or surveyor get read-only access?",
     answer:
-      "Yes. The built-in auditor role sees the same compliance data your team does -- dashboards, training matrix, reports, documents, audit log -- with zero ability to edit or delete anything.",
+      "Yes. The built-in auditor role sees the same compliance data your team does — dashboards, training matrix, reports, documents, audit log — with zero ability to edit or delete anything.",
   },
   {
     question: "Can we bring over our existing employee roster?",
@@ -657,32 +657,32 @@ export const FAQS = [
   {
     question: "Do you support in-person, instructor-led training as well as assigned training items?",
     answer:
-      "Both. Trainers can schedule live classes and capture attendance with a rotating QR code, a shared-device kiosk mode, or a printed sign-in sheet -- so instructor-led sessions count toward each employee's in-service hours right alongside their assigned training item progress.",
+      "Both. Trainers can schedule live classes and capture attendance with a rotating QR code, a shared-device kiosk mode, or a printed sign-in sheet — so instructor-led sessions count toward each employee's in-service hours right alongside their assigned training item progress.",
   },
   {
     question: "Can one organization manage more than one facility?",
     answer:
-      "Yes -- CareMetric CareBase is multi-facility from the ground up. An org admin sees compliance status across every facility in the organization, while a facility manager's view is scoped to just the facility (or facilities) they're assigned to.",
+      "Yes — CareMetric CareBase is multi-facility from the ground up. An org admin sees compliance status across every facility in the organization, while a facility manager's view is scoped to just the facility (or facilities) they're assigned to.",
   },
   {
     question: "Can we run compliance reports across the whole organization, not just one facility at a time?",
     answer:
-      "Yes. The report center rolls up training compliance, certifications, and practicums by facility, training type, or employee, and it respects the same role-based scoping as the rest of the app -- an org admin sees every facility, a facility manager sees their own.",
+      "Yes. The report center rolls up training compliance, certifications, and practicums by facility, training type, or employee, and it respects the same role-based scoping as the rest of the app — an org admin sees every facility, a facility manager sees their own.",
   },
   {
     question: "Does CareMetric CareBase track resident-level compliance, not just staff requirements?",
     answer:
-      "Yes, for personal care homes and assisted living facilities. CareMetric CareBase tracks each resident's RASP/ASP preadmission screening, 15-day initial assessment, annual reassessment, significant-change reassessment, and support-plan updates -- each with its own due date -- alongside a digital drafting tool mirroring the DHS assessment structure. Every item still requires the signed, DHS-prescribed form on file to be marked complete; there's no substitute.",
+      "Yes, for personal care homes and assisted living facilities. CareMetric CareBase tracks each resident's Resident Assessment and Support Plan (RASP/ASP) preadmission screening, initial assessment (due 15 days after admission for PCH; normally 30 days before admission for ALF), annual reassessment, significant-change reassessment, and support-plan updates — each with its own due date — alongside a digital drafting tool mirroring the DHS assessment structure. Every item still requires the signed, DHS-prescribed form on file to be marked complete; there's no substitute.",
   },
   {
     question: "Do you screen employees against background-check and exclusion requirements?",
     answer:
-      "Yes. CareMetric CareBase tracks OAPSA-driven background-check status and the provisional-employment countdown for new hires, and automatically screens every active employee each month against the federal OIG exclusion list (and SAM.gov, when configured) -- fuzzy matches go to a human review queue rather than being acted on automatically.",
+      "Yes. CareMetric CareBase tracks OAPSA-driven background-check status and the provisional-employment countdown for new hires, and automatically screens every active employee each month against the federal OIG exclusion list (and SAM.gov, when configured) — fuzzy matches go to a human review queue rather than being acted on automatically.",
   },
   {
     question: "Does it track administrator licensing and continuing education?",
     answer:
-      "Yes -- separate from staff in-service hours, CareMetric CareBase tracks each administrator's qualification path (the 100-hour DHS-approved course plus competency test, or an NHA license exemption), the regional-office qualification notice, and a rolling 24-hour annual continuing-education requirement, with supporting documents attached to each record.",
+      "Yes — separate from staff in-service hours, CareMetric CareBase tracks each administrator's qualification path (the 100-hour DHS-approved course plus competency test, or an NHA license exemption), the regional-office qualification notice, and a rolling 24-hour annual continuing-education requirement, with supporting documents attached to each record.",
   },
   {
     question: "Can CareMetric CareBase schedule staff shifts too?",
@@ -692,7 +692,7 @@ export const FAQS = [
   {
     question: "How does the AI training-content generation work, and who reviews it?",
     answer:
-      "Paste in a regulation, policy, or reference document and CareMetric CareBase drafts complete training content -- lesson content, video scripts, and quizzes -- grounded in that source text, with an optional AI avatar video for any lesson. The model is instructed to flag gaps instead of inventing a citation, and no AI-touched training content can publish until a named reviewer explicitly signs off.",
+      "Paste in a regulation, policy, or reference document and CareMetric CareBase drafts complete training content — lesson content, video scripts, and quizzes — grounded in that source text, with an optional AI avatar video for any lesson. The model is instructed to flag gaps instead of inventing a citation, and no AI-touched training content can publish until a named reviewer explicitly signs off.",
   },
   {
     question: "How do you handle incidents, DHS violations, and plans of correction?",
@@ -702,11 +702,11 @@ export const FAQS = [
   {
     question: "Can employees get text or email reminders, not just in-app alerts?",
     answer:
-      "Yes. A background dispatcher sends training due-soon and expired alerts by email and, once an organization turns it on, by text message too -- with unresolved alerts automatically escalating to admins, a weekly compliance digest, and a delivery log on the Settings page so you can confirm a reminder actually went out.",
+      "Yes. A background dispatcher sends training due-soon and expired alerts by email and, once an organization turns it on, by text message too — with unresolved alerts automatically escalating to admins, a weekly compliance digest, and a delivery log on the Settings page so you can confirm a reminder actually went out.",
   },
   {
     question: "Can a new organization sign up and start using it immediately?",
     answer:
-      "Yes. A facility can create its own organization at sign-up with just a name, admin contact, and password -- no sales call required -- and start entering employees and training records immediately under a trial period.",
+      "Yes. A facility can create its own organization at sign-up with just an organization name and admin contact — no sales call required. Verify the admin email, set a password, and start entering employees and training records immediately under a free trial.",
   },
 ];
