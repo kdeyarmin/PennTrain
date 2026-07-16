@@ -59,8 +59,8 @@ const ROLE_WORKSPACES = [
 ] as const;
 
 const RESIDENT_CARE_POINTS = [
-  "Preadmission screening, 15-day initial assessment, annual reassessment, and significant-change reassessment, each on its own due date.",
-  "A digital drafting tool mirroring the DHS assessment structure, with autosave, finalize-and-lock, and one-click reference PDF generation -- the signed DHS-prescribed form is still what's required on file.",
+  "Preadmission screening, initial assessment (15 days after admission for PCH; normally 30 days before admission for ALF), annual reassessment, and significant-change reassessment, each on its own due date.",
+  "A digital drafting tool mirroring the DHS assessment structure, with autosave, finalize-and-lock, and one-click reference PDF generation — the signed DHS-prescribed form is still what's required on file.",
   "Automatic support-plan follow-ups whenever a reassessment is completed.",
 ];
 
@@ -73,13 +73,13 @@ const OPERATING_MODES = [
 const PCH_ALF_OPERATIONS = [
   "Workforce training, competencies, credentials, background and exclusion screening, medication practicums, policy attestations, and shift scheduling.",
   "Admissions and census, resident assessments and state-form workflow, services, change-of-condition follow-up, dietary rounds, appointments, transportation, and resident financial operations.",
-  "Incidents, complaints, resident rights, inspections, fire drills, emergency operations, maintenance work orders, plans of correction, and QAPI projects.",
+  "Incidents, complaints, resident rights, inspections, fire drills, emergency operations, maintenance work orders, plans of correction, and quality-improvement (QAPI) projects.",
   "Alerts, work queues, approvals, regulatory crosswalks, reports, controlled evidence rooms, audit history, and facility or organization binder exports.",
 ];
 
 export default function WhoItsFor() {
   usePageMeta({
-    title: "Who It's For — CareMetric CareBase for PCH & Assisted Living",
+    title: "Who It's For — CareMetric CareBase for Pennsylvania PCH & Assisted Living",
     description:
       "CareMetric CareBase provides full operations and compliance workflows for Pennsylvania personal care homes and assisted living facilities, plus matched workforce-training pathways for adjacent providers.",
     path: "/who-its-for",
@@ -93,7 +93,7 @@ export default function WhoItsFor() {
         highlights={[
           "Single-site and multi-site operations",
           "Separate views for every role",
-          "PCH and ALR regulatory workflows",
+          "PCH and ALF regulatory workflows",
         ]}
       />
 
@@ -257,9 +257,10 @@ export default function WhoItsFor() {
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               Beyond staff requirements, CareMetric CareBase tracks the resident-side
-              regulatory deadlines Chapter 2600 and Chapter 2800 require -- RASP
-              and ASP assessments -- as their own compliance domain, not
-              employee records mislabeled as resident data.
+              regulatory deadlines Chapter 2600 and Chapter 2800 require —
+              Resident Assessment and Support Plan (RASP/ASP) assessments — as
+              their own compliance domain, not employee records mislabeled as
+              resident data.
             </p>
             <Link
               href="/features#resident-care"

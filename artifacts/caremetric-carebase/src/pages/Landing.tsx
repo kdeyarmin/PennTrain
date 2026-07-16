@@ -75,7 +75,7 @@ const HIGHLIGHTS: {
     icon: Lock,
     title: "Protected by role and facility",
     blurb:
-      "Admins, managers, trainers, employees, and auditors see the exact records they should -- enforced by database policies.",
+      "Admins, managers, trainers, employees, and auditors see the exact records they should — enforced by database policies.",
   },
   {
     href: "/how-it-works",
@@ -91,13 +91,13 @@ const BEYOND_TRAINING: { icon: LucideIcon; title: string; blurb: string }[] = [
     icon: BedDouble,
     title: "Resident Assessment Compliance",
     blurb:
-      "RASP/ASP preadmission screening, initial assessment, and reassessments tracked with their own due dates -- resident-level compliance, not just staff requirements.",
+      "Resident Assessment and Support Plan (RASP/ASP) screening, initial assessment, and reassessments tracked with their own due dates — resident-level compliance, not just staff requirements.",
   },
   {
     icon: Gauge,
-    title: "Citation-Weighted Survey Readiness",
+    title: "Weighted Survey Readiness",
     blurb:
-      "A live per-facility score weighted by how often DHS actually cites each regulation, so you see what a surveyor is most likely to flag before they do.",
+      "A live per-facility score weighted toward the topic areas DHS most commonly cites — configurable planning weights, not a live citation feed — so the riskiest areas surface first.",
   },
   {
     icon: Siren,
@@ -121,7 +121,7 @@ const BEYOND_TRAINING: { icon: LucideIcon; title: string; blurb: string }[] = [
     icon: CalendarClock,
     title: "Shift Scheduling & Auto-Fill",
     blurb:
-      "Build a staff shift schedule per facility and auto-fill it from each employee's typical pattern -- managers only touch the exceptions.",
+      "Build a staff shift schedule per facility and auto-fill it from each employee's typical pattern — managers only touch the exceptions.",
   },
 ];
 
@@ -154,6 +154,7 @@ const APP_FLOW = [
 ];
 
 const ROLE_VIEWS = [
+  "Platform admins (CareMetric support) can only step into an account with a written reason, and every session is audited.",
   "Org admins see compliance across every facility, including resident assessments where required.",
   "Facility managers focus on assigned sites, overdue staff, and shift coverage.",
   "Trainers schedule classes with QR/kiosk check-in, draft AI-assisted courses, and monitor retraining.",
@@ -178,7 +179,7 @@ const BUYER_PROMISES: { icon: LucideIcon; title: string; blurb: string }[] = [
     icon: UsersRound,
     title: "Every role gets a focused workflow",
     blurb:
-      "Executives see rollups, managers see action lists, trainers run classes, employees complete assignments, and auditors review evidence without accidental edits.",
+      "One login, six scoped experiences — from org-wide rollups down to an employee's own assignments — so nobody wades through screens meant for someone else's job.",
   },
 ];
 
@@ -204,9 +205,9 @@ const PLATFORM_STATS = [
 
 export default function Landing() {
   usePageMeta({
-    title: "CareMetric CareBase — PCH & Assisted Living Operations Software",
+    title: "CareMetric CareBase — Personal Care Home & Assisted Living Software for Pennsylvania",
     description:
-      "CareMetric CareBase connects workforce compliance, resident and facility operations, training, deadlines, work queues, documents, and survey evidence for personal care homes and assisted living facilities.",
+      "Operations, workforce compliance, training, and survey-evidence software for Pennsylvania personal care homes and assisted living facilities under 55 Pa. Code Chapters 2600 and 2800.",
     path: "/",
   });
   return (
@@ -218,33 +219,32 @@ export default function Landing() {
 
         <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24">
           <div className="grid items-center gap-12 lg:grid-cols-[1.02fr_0.98fr]">
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-700">
+            <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-700">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-[#b9e4ff] shadow-sm backdrop-blur">
                 <Sparkles className="h-3.5 w-3.5" />
                 PCH and assisted living operations, compliance, and evidence
               </div>
-              <h1 className="mt-6 text-balance text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-[58px] lg:leading-[1.02]">
+              <h1 className="mt-6 text-balance text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-[3.625rem] lg:leading-[1.02]">
                 Run the facility. See the risk. Prove the work.
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-white/74">
                 CareMetric CareBase is an operations, workforce-compliance, and
                 survey-readiness platform built first for Pennsylvania personal
-                care homes and assisted living facilities. Training, staff
-                qualifications, resident requirements, daily work, incidents,
-                maintenance, emergency readiness, documents, and follow-up stay
-                connected to the employee, resident, facility, deadline, and proof.
+                care homes and assisted living facilities. It connects every
+                staff, resident, and facility requirement to the deadline it
+                carries — and to the evidence a surveyor will ask for.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Button
                   asChild
                   size="lg"
                   className="gap-2 shadow-lg shadow-blue-950/30"
-                  data-testid="button-hero-demo"
+                  data-testid="button-hero-trial"
                 >
-                  <a href="#contact">
-                    Request a Demo
+                  <Link href="/signup">
+                    Start a Free Trial
                     <ArrowRight className="h-4 w-4" />
-                  </a>
+                  </Link>
                 </Button>
                 <Button
                   asChild
@@ -253,32 +253,33 @@ export default function Landing() {
                   className="gap-2 border-white/25 bg-white/5 text-white hover:bg-white/12"
                   data-testid="button-hero-tour"
                 >
-                  <Link href="/features">
+                  <a href="#product-tour">
                     <PlayCircle className="h-4 w-4" />
                     See what it does
-                  </Link>
+                  </a>
                 </Button>
               </div>
               <p className="mt-4 text-sm text-white/60">
-                Prefer to try it yourself?{" "}
-                <Link
-                  href="/signup"
+                Self-serve setup, no sales call required. Prefer a guided
+                walkthrough?{" "}
+                <a
+                  href="#contact"
                   className="font-medium text-[#b9e4ff] hover:underline"
                 >
-                  Create your organization
-                </Link>{" "}
-                and start a free trial -- no sales call required.
+                  Request a demo
+                </a>
+                .
               </p>
             </div>
 
-            <div className="relative animate-in fade-in slide-in-from-bottom-4 duration-700 [animation-delay:150ms] [animation-fill-mode:backwards]">
+            <div className="relative motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-4 motion-safe:duration-700 motion-safe:[animation-delay:150ms] motion-safe:[animation-fill-mode:backwards]">
               <div className="absolute -inset-4 rounded-[2rem] bg-gradient-to-br from-[#59b2ff]/20 to-orange-400/10 blur-2xl" />
               <Card className="relative overflow-hidden border-white/10 shadow-2xl shadow-black/30 ring-1 ring-white/10">
                 <div className="flex items-center gap-1.5 border-b border-border/60 bg-muted/40 px-4 py-2.5">
                   <span className="h-2.5 w-2.5 rounded-full bg-destructive/40" />
                   <span className="h-2.5 w-2.5 rounded-full bg-warning/40" />
                   <span className="h-2.5 w-2.5 rounded-full bg-success/40" />
-                  <span className="ml-2 font-mono text-[10px] tracking-wide text-muted-foreground/70">
+                  <span className="ml-2 font-mono text-[10px] tracking-wide text-muted-foreground">
                     CareMetric CareBase / Facility Command Center
                   </span>
                 </div>
@@ -290,7 +291,7 @@ export default function Landing() {
                         <CardTitle className="text-base">
                           Sunrise Healthcare Group
                         </CardTitle>
-                        <div className="font-mono text-[10px] tracking-wide text-muted-foreground/70">
+                        <div className="font-mono text-[10px] tracking-wide text-muted-foreground">
                           4 facilities · 186 employees · survey binder ready
                         </div>
                       </div>
@@ -331,12 +332,16 @@ export default function Landing() {
                             {row.status}
                           </span>
                         </div>
-                        <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-2.5 w-full overflow-hidden rounded-full bg-muted"
+                          aria-hidden="true"
+                        >
                           <div
                             className="h-full rounded-full bg-gradient-to-r from-primary to-[#59b2ff]"
                             style={{ width: `${row.value}%` }}
                           />
                         </div>
+                        <span className="sr-only">{row.value}% complete</span>
                       </div>
                     ))}
                   </div>
@@ -348,7 +353,7 @@ export default function Landing() {
                   Evidence packet generated
                 </div>
                 <div className="mt-0.5 font-mono text-[11px] tabular-nums text-muted-foreground">
-                  Maple Grove Senior Living -- certificates, sign-ins, audits
+                  Maple Grove Senior Living — certificates, sign-ins, audits
                 </div>
               </div>
             </div>
@@ -371,6 +376,7 @@ export default function Landing() {
 
       <section className="border-b border-border/60 bg-background">
         <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+          <h2 className="sr-only">How CareMetric CareBase works, end to end</h2>
           <Reveal className="grid gap-4 md:grid-cols-5">
             {APP_FLOW.map((step, i) => (
               <div
@@ -393,16 +399,18 @@ export default function Landing() {
         </div>
       </section>
 
-      <Suspense
-        fallback={
-          <section
-            aria-label="Loading interactive workflow tour"
-            className="min-h-[36rem] border-y border-white/5 bg-[#071626]"
-          />
-        }
-      >
-        <ProductTour />
-      </Suspense>
+      <div id="product-tour">
+        <Suspense
+          fallback={
+            <section
+              aria-label="Loading interactive workflow tour"
+              className="min-h-[36rem] border-y border-white/5 bg-[#071626]"
+            />
+          }
+        >
+          <ProductTour />
+        </Suspense>
+      </div>
 
       <section className="border-b border-border/60 bg-background">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
@@ -419,7 +427,7 @@ export default function Landing() {
               CareMetric CareBase gives operators one place to see risk, assign the
               work, capture evidence, and hand a defensible record to leadership
               or an auditor. It is not a training catalog with a dashboard bolted
-              on -- it is the workflow that keeps daily operations, resident
+              on — it is the workflow that keeps daily operations, resident
               documentation, and survey evidence aligned.
             </p>
           </Reveal>
@@ -545,15 +553,14 @@ export default function Landing() {
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <Reveal className="mx-auto max-w-3xl text-center">
           <h2 className="text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
-            What the app actually does
+            What CareMetric CareBase actually does
           </h2>
           <p className="mt-4 text-muted-foreground">
-            CareMetric CareBase combines workforce training and qualification,
-            admissions and census, resident services, regulatory assessments,
-            incidents and complaints, scheduling, dietary and medication-event
-            follow-up, emergency and maintenance work, resident finance, QAPI,
-            secure documents, and survey evidence so every role works from the
-            same operational record.
+            Four kinds of work live in one operational record: workforce
+            training and qualification; resident admissions, services, and
+            regulatory assessments; facility safety, maintenance, and emergency
+            work; and the documents, quality projects, and survey evidence that
+            prove all of it. Every role works from the same record.
           </p>
         </Reveal>
 
@@ -640,9 +647,9 @@ export default function Landing() {
               training, and inspections.
             </h2>
             <p className="mt-4 text-white/68">
-              The app is not just a training portal or content catalog. It is a
-              multi-role facility workflow where each person gets the screens,
-              actions, and evidence they need.
+              CareMetric CareBase is not just a training portal or content
+              catalog. It is a multi-role facility workflow where each person
+              gets the screens, actions, and evidence they need.
             </p>
           </Reveal>
           <Reveal delay={0.1} className="grid gap-3">

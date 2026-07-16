@@ -93,8 +93,6 @@ export default defineConfig(({ command, mode }) => {
             "**/query-*.js",
             "**/radix-*.js",
             "**/supabase-*.js",
-            "**/motion-*.js",
-            "**/icons-*.js",
             "**/*.css",
           ],
           runtimeCaching: [
@@ -154,8 +152,6 @@ export default defineConfig(({ command, mode }) => {
             ],
             query: ["@tanstack/react-query"],
             supabase: ["@supabase/supabase-js"],
-            motion: ["framer-motion"],
-            icons: ["lucide-react"],
           },
         },
       },
