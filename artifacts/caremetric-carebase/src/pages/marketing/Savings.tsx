@@ -133,6 +133,15 @@ const money = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 });
 
+const percent = new Intl.NumberFormat("en-US", {
+  style: "percent",
+  maximumFractionDigits: 1,
+});
+
+const decimal = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 1,
+});
+
 export default function Savings() {
   const [inputs, setInputs] = useState<SavingsInputs>(INITIAL_INPUTS);
   const result = calculateSavingsModel(inputs);
@@ -155,8 +164,14 @@ export default function Savings() {
   return (
     <MarketingLayout>
       <PageHero
+        eyebrow="Value, replacement, and boundaries"
         title="Know what CareBase replaces—and build the savings case with your own numbers"
         subtitle="Consolidate the operational tools and manual trackers CareBase actually covers, keep clinical and financial systems where they remain authoritative, and model the opportunity without relying on a generic ROI promise."
+        highlights={[
+          "Editable assumptions",
+          "Explicit system boundaries",
+          "Risk avoidance excluded from the model",
+        ]}
       />
 
       <section className="border-b border-border/60 bg-muted/30">
@@ -304,6 +319,35 @@ export default function Savings() {
                       : `Net modeled opportunity after CareBase: ${money.format(result.netAnnualOpportunity)}.`}
                   </p>
                 </div>
+
+                {result.modeledRoiPercent !== null && (
+                  <div className="grid gap-3 sm:grid-cols-2" aria-live="polite">
+                    <div className="rounded-xl border bg-background p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Modeled first-year ROI
+                      </p>
+                      <p className="mt-2 font-mono text-2xl font-bold tabular-nums">
+                        {percent.format(result.modeledRoiPercent / 100)}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        Net modeled opportunity divided by annual price.
+                      </p>
+                    </div>
+                    <div className="rounded-xl border bg-background p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Modeled payback
+                      </p>
+                      <p className="mt-2 font-mono text-2xl font-bold tabular-nums">
+                        {result.modeledPaybackMonths === null
+                          ? "Not reached"
+                          : `${decimal.format(result.modeledPaybackMonths)} months`}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        Annual price divided by gross modeled opportunity.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 <p className="text-xs leading-5 text-muted-foreground">
                   This model applies your chosen reduction only to labor and assumes the tool spend

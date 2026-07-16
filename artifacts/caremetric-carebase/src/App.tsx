@@ -11,12 +11,12 @@ import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
 import { ProductTelemetry } from "@/components/ProductTelemetry";
 
-import Features from "@/pages/marketing/Features";
-import WhoItsFor from "@/pages/marketing/WhoItsFor";
-import Security from "@/pages/marketing/Security";
-import HowItWorks from "@/pages/marketing/HowItWorks";
-import Savings from "@/pages/marketing/Savings";
-import Faq from "@/pages/marketing/Faq";
+const Features = lazy(() => import("@/pages/marketing/Features"));
+const WhoItsFor = lazy(() => import("@/pages/marketing/WhoItsFor"));
+const Security = lazy(() => import("@/pages/marketing/Security"));
+const HowItWorks = lazy(() => import("@/pages/marketing/HowItWorks"));
+const Savings = lazy(() => import("@/pages/marketing/Savings"));
+const Faq = lazy(() => import("@/pages/marketing/Faq"));
 
 const Login = lazy(() => import("@/pages/auth/Login"));
 const Demo = lazy(() => import("@/pages/auth/Demo"));

@@ -1,4 +1,12 @@
-import { ArrowRight, CheckCircle2, Clock3 } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  ClipboardList,
+  Clock3,
+  FileStack,
+  Network,
+  Target,
+} from "lucide-react";
 import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
@@ -21,6 +29,33 @@ const DELIVERABLES = [
   "Dashboards, alerts, certificates, documents, regulatory crosswalks, evidence rooms, audit history, reports, and binder exports",
 ];
 
+const DEMO_PREP = [
+  {
+    icon: FileStack,
+    title: "Your current tool list",
+    description:
+      "Bring the spreadsheets, shared folders, calendars, LMS, logs, and point tools involved in the workflow.",
+  },
+  {
+    icon: Target,
+    title: "One high-risk workflow",
+    description:
+      "Choose a real example such as new-hire readiness, resident reassessment, incident follow-up, or survey evidence.",
+  },
+  {
+    icon: Network,
+    title: "Your role and access map",
+    description:
+      "Identify who starts the work, who completes it, who verifies it, and who should only review the result.",
+  },
+  {
+    icon: ClipboardList,
+    title: "One finished record",
+    description:
+      "Use a de-identified binder, report, checklist, or packet to define what defensible completion looks like.",
+  },
+] as const;
+
 export default function HowItWorks() {
   usePageMeta({
     title: "How It Works — CareMetric CareBase",
@@ -31,8 +66,14 @@ export default function HowItWorks() {
   return (
     <MarketingLayout>
       <PageHero
+        eyebrow="One closed-loop operating model"
         title="From facility setup to daily work to defensible evidence"
         subtitle="Configure what applies, route each action to the right role, capture proof as the work happens, and use live risk views to decide what needs attention next."
+        highlights={[
+          "Configure what applies",
+          "Assign owners and deadlines",
+          "Preserve the evidence trail",
+        ]}
       />
 
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
@@ -53,6 +94,44 @@ export default function HowItWorks() {
               )}
             </Reveal>
           ))}
+        </div>
+      </section>
+
+      <section className="border-y border-border/60 bg-muted/30">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <Reveal className="mx-auto max-w-3xl text-center">
+            <p className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+              Make the demo specific
+            </p>
+            <h2 className="mt-3 text-2xl font-extrabold tracking-tight">
+              Bring four things to a workflow-mapping session
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              The most useful evaluation follows one of your records from trigger
+              to proof. These inputs let the team show what CareBase replaces,
+              what remains connected, and where ownership changes.
+            </p>
+          </Reveal>
+          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {DEMO_PREP.map((item, index) => (
+              <Reveal key={item.title} delay={index * 0.05}>
+                <Card className="h-full border-border/60 p-6 shadow-sm">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10">
+                    <item.icon className="h-5 w-5 text-primary" />
+                  </div>
+                  <h3 className="mt-4 text-base font-semibold">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    {item.description}
+                  </p>
+                </Card>
+              </Reveal>
+            ))}
+          </div>
+          <Reveal className="mx-auto mt-8 max-w-3xl rounded-2xl border border-primary/20 bg-primary/[0.035] p-5 text-center text-sm leading-6 text-muted-foreground">
+            The output is a workflow map: source record, responsible roles,
+            deadlines, review gates, evidence, replacement candidates, and known
+            system boundaries. It is an evaluation aid—not a fixed implementation timeline.
+          </Reveal>
         </div>
       </section>
 
