@@ -3,7 +3,6 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, CheckCircle2, LogIn, type LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { DEMO_MAILTO } from "@/components/marketing/content";
 
 /** Presentational primitives shared across every public marketing page. */
 
@@ -100,10 +99,10 @@ export function PageHero({
         )}
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Button asChild size="lg" variant="secondary" className="gap-2">
-            <a href={DEMO_MAILTO}>
+            <Link href="/request-demo">
               Request a Demo
               <ArrowRight className="h-4 w-4" />
-            </a>
+            </Link>
           </Button>
           <Button
             asChild

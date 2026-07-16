@@ -6,7 +6,6 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
-import { DEMO_MAILTO } from "@/components/marketing/content";
 import { MARKETING_NAV } from "@/lib/publicPaths";
 
 /**
@@ -186,7 +185,7 @@ function MarketingHeader() {
             </>
           )}
           <Button asChild size="sm" data-testid="button-request-demo">
-            <a href={DEMO_MAILTO}>Request a Demo</a>
+            <Link href="/request-demo">Request a Demo</Link>
           </Button>
         </div>
 
@@ -247,9 +246,9 @@ function MarketingHeader() {
                 </>
               )}
               <Button asChild className="w-full">
-                <a href={DEMO_MAILTO} onClick={() => setMenuOpen(false)}>
+                <Link href="/request-demo" onClick={() => setMenuOpen(false)}>
                   Request a Demo
-                </a>
+                </Link>
               </Button>
             </div>
           </SheetContent>
@@ -297,7 +296,7 @@ function MarketingFooter() {
               <ul className="mt-3 space-y-2 text-sm">
                 <li><Link href="/login" className="text-muted-foreground hover:text-foreground">Log In</Link></li>
                 <li><Link href="/signup" className="text-muted-foreground hover:text-foreground">Sign Up</Link></li>
-                <li><a href={DEMO_MAILTO} className="text-muted-foreground hover:text-foreground">Request a Demo</a></li>
+                <li><Link href="/request-demo" className="text-muted-foreground hover:text-foreground">Request a Demo</Link></li>
               </ul>
             </div>
             <div>

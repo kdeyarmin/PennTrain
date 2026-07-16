@@ -10,6 +10,7 @@ import { useSignupOrganization } from "@/hooks/useSignup";
 import { Loader2, ArrowRight, CheckCircle2 } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 import { BAA_VERSION, SERVICE_AGREEMENT_VERSION } from "@/lib/legalAgreements";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 interface SignupForm {
@@ -42,12 +43,7 @@ declare global {
 }
 
 export default function Signup() {
-  usePageMeta({
-    title: "Sign Up — Start Your Free Trial — CareMetric CareBase",
-    description:
-      "Create your organization and start a free trial of CareMetric CareBase for Pennsylvania personal care homes and assisted living facilities.",
-    path: "/signup",
-  });
+  usePageMeta({ ...MARKETING_ROUTE_META["/signup"], path: "/signup" });
   const [form, setForm] = useState<SignupForm>(EMPTY_FORM);
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileError, setTurnstileError] = useState<string | null>(null);

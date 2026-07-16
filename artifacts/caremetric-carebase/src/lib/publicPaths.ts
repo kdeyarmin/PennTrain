@@ -42,6 +42,7 @@ export function isPublicPath(path: string): boolean {
     p === "/" ||
     p === "/login" ||
     p === "/demo" ||
+    p === "/request-demo" ||
     p === "/signup" ||
     p === "/forgot-password" ||
     p === "/reset-password" ||

@@ -17,6 +17,7 @@ import {
   TechIcon,
 } from "@/components/marketing/primitives";
 import { SECURITY_FEATURES } from "@/components/marketing/content";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 const SECURITY_CHECKLIST = [
@@ -61,12 +62,7 @@ const DUE_DILIGENCE_AREAS = [
 ] as const;
 
 export default function Security() {
-  usePageMeta({
-    title: "Security — CareMetric CareBase",
-    description:
-      "See the database-enforced roles, private storage, audit controls, MFA support, review gates, and evidence boundaries built into CareMetric CareBase.",
-    path: "/security",
-  });
+  usePageMeta({ ...MARKETING_ROUTE_META["/security"], path: "/security" });
   return (
     <MarketingLayout>
       <PageHero

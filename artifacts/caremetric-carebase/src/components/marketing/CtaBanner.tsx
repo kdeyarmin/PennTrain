@@ -2,7 +2,6 @@ import { Link } from "wouter";
 import { Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
-import { DEMO_MAILTO } from "@/components/marketing/content";
 
 /**
  * The closing "Request a Demo" banner. Shared by the landing page (where it
@@ -40,10 +39,10 @@ export function CtaBanner({
             className="gap-2 border-white/30 bg-transparent text-white hover:bg-white/10"
             data-testid="button-cta-demo"
           >
-            <a href={DEMO_MAILTO}>
+            <Link href="/request-demo">
               <Mail className="h-4 w-4" />
               Request a Demo
-            </a>
+            </Link>
           </Button>
         </div>
       </Reveal>

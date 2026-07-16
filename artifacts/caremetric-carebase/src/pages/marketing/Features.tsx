@@ -16,6 +16,7 @@ import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { PageHero, Reveal } from "@/components/marketing/primitives";
 import { FEATURE_CATEGORIES } from "@/components/marketing/content";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 const PROOF_CHAIN = [
@@ -73,12 +74,7 @@ export default function Features() {
     0,
   );
 
-  usePageMeta({
-    title: "Features — CareMetric CareBase Operations & Compliance Software",
-    description:
-      "See CareMetric CareBase features across staff compliance, training, resident and facility operations, quality, safety, scheduling, documents, and survey evidence.",
-    path: "/features",
-  });
+  usePageMeta({ ...MARKETING_ROUTE_META["/features"], path: "/features" });
   return (
     <MarketingLayout>
       <PageHero
