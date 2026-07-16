@@ -15,6 +15,8 @@ export interface SavingsResult {
   modeledLaborOpportunity: number;
   grossAnnualOpportunity: number;
   netAnnualOpportunity: number | null;
+  modeledRoiPercent: number | null;
+  modeledPaybackMonths: number | null;
 }
 
 function nonNegative(value: number): number {
@@ -38,6 +40,7 @@ export function calculateSavingsModel(inputs: SavingsInputs): SavingsResult {
   const currentAddressableCost = annualLaborCost + annualReplaceableToolSpend;
   const modeledLaborOpportunity = annualLaborCost * (expectedLaborReductionPercent / 100);
   const grossAnnualOpportunity = modeledLaborOpportunity + annualReplaceableToolSpend;
+  const hasPrice = annualCareBasePrice > 0;
 
   return {
     annualCoordinationHours,
@@ -46,7 +49,15 @@ export function calculateSavingsModel(inputs: SavingsInputs): SavingsResult {
     currentAddressableCost,
     modeledLaborOpportunity,
     grossAnnualOpportunity,
-    netAnnualOpportunity:
-      annualCareBasePrice > 0 ? grossAnnualOpportunity - annualCareBasePrice : null,
+    netAnnualOpportunity: hasPrice
+      ? grossAnnualOpportunity - annualCareBasePrice
+      : null,
+    modeledRoiPercent: hasPrice
+      ? ((grossAnnualOpportunity - annualCareBasePrice) / annualCareBasePrice) * 100
+      : null,
+    modeledPaybackMonths:
+      hasPrice && grossAnnualOpportunity > 0
+        ? (annualCareBasePrice / grossAnnualOpportunity) * 12
+        : null,
   };
 }

@@ -19,6 +19,8 @@ describe("calculateSavingsModel", () => {
     expect(result.modeledLaborOpportunity).toBe(4900);
     expect(result.grossAnnualOpportunity).toBe(9700);
     expect(result.netAnnualOpportunity).toBe(3700);
+    expect(result.modeledRoiPercent).toBeCloseTo(61.67, 2);
+    expect(result.modeledPaybackMonths).toBeCloseTo(7.42, 2);
   });
 
   it("clamps negative inputs and percentages above one hundred", () => {
@@ -35,5 +37,21 @@ describe("calculateSavingsModel", () => {
     expect(result.currentAddressableCost).toBe(200);
     expect(result.grossAnnualOpportunity).toBe(200);
     expect(result.netAnnualOpportunity).toBeNull();
+    expect(result.modeledRoiPercent).toBeNull();
+    expect(result.modeledPaybackMonths).toBeNull();
+  });
+
+  it("does not claim payback when the modeled gross opportunity is zero", () => {
+    const result = calculateSavingsModel({
+      weeklyCoordinationHours: 0,
+      annualBinderHours: 0,
+      loadedHourlyRate: 0,
+      monthlyReplaceableToolSpend: 0,
+      expectedLaborReductionPercent: 0,
+      annualCareBasePrice: 6000,
+    });
+
+    expect(result.modeledRoiPercent).toBe(-100);
+    expect(result.modeledPaybackMonths).toBeNull();
   });
 });

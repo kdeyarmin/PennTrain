@@ -34,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
+import { ProductTour } from "@/components/marketing/ProductTour";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { LogoMark } from "@/components/brand/Logo";
 import {
@@ -385,6 +386,8 @@ export default function Landing() {
           </Reveal>
         </div>
       </section>
+
+      <ProductTour />
 
       <section className="border-b border-border/60 bg-background">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">

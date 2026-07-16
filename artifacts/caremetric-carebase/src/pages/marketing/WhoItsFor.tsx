@@ -2,6 +2,7 @@ import { ArrowRight, CheckCircle2, FilePenLine, Handshake } from "lucide-react";
 import { Link } from "wouter";
 import {
   Card,
+  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
@@ -17,6 +18,45 @@ const BUYING_COMMITTEE_OUTCOMES = [
   "Administrators and managers get the next actions that reduce survey risk this week.",
   "Trainers and employees get simple workflows that create clean evidence without extra paperwork.",
 ];
+
+const ROLE_WORKSPACES = [
+  {
+    role: "Owner or executive",
+    needs: "Which facilities and domains carry the most operational risk?",
+    action: "Review organization rollups, trends, exceptions, and unresolved work.",
+    proof: "Facility comparisons, readiness reports, and organization-level evidence exports.",
+  },
+  {
+    role: "Administrator",
+    needs: "What must be staffed, renewed, reassessed, reviewed, or closed next?",
+    action: "Prioritize facility work queues, approvals, schedules, resident deadlines, and survey preparation.",
+    proof: "A facility record showing ownership, completion, verification, and missing evidence.",
+  },
+  {
+    role: "Manager",
+    needs: "Which people and tasks need intervention during this shift or week?",
+    action: "Resolve gaps, assign follow-up, validate outside records, and confirm closure.",
+    proof: "Manager reviews, approvals, observations, corrective actions, and timestamps.",
+  },
+  {
+    role: "Trainer",
+    needs: "Who needs which learning or competency, and how will it be documented?",
+    action: "Run classes, record attendance, validate outside learning, and manage practicum evidence.",
+    proof: "Sign-ins, certificates, competencies, annual-hour allocation, and completion history.",
+  },
+  {
+    role: "Employee",
+    needs: "What is assigned to me, when is it due, and what remains incomplete?",
+    action: "Complete learning, upload records, sign policies, and review personal requirements.",
+    proof: "A self-service training and qualification record without access to coworker data.",
+  },
+  {
+    role: "Auditor or survey reviewer",
+    needs: "Can the organization show the requested evidence without exposing unrelated records?",
+    action: "Review read-only, scoped evidence supplied by the facility.",
+    proof: "A binder or controlled evidence room tied to the requested scope and period.",
+  },
+] as const;
 
 const RESIDENT_CARE_POINTS = [
   "Preadmission screening, 15-day initial assessment, annual reassessment, and significant-change reassessment, each on its own due date.",
@@ -47,8 +87,14 @@ export default function WhoItsFor() {
   return (
     <MarketingLayout>
       <PageHero
+        eyebrow="Built around the operator"
         title="Built first for Pennsylvania personal care homes and assisted living facilities"
         subtitle="PCH and ALF operators get the full resident, workforce, facility, quality, and survey-evidence platform. Group homes, nursing homes, home health, and hospice use the training and staff-compliance pathways that apply to their setting."
+        highlights={[
+          "Single-site and multi-site operations",
+          "Separate views for every role",
+          "PCH and ALR regulatory workflows",
+        ]}
       />
 
       <section className="border-b border-border/60 bg-background">
@@ -82,6 +128,55 @@ export default function WhoItsFor() {
       </section>
 
       <section className="border-b border-border/60 bg-muted/30">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <Reveal className="mx-auto max-w-3xl text-center">
+            <h2 className="text-2xl font-extrabold tracking-tight">
+              Each role sees the decision it needs to make
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              A connected platform should not force every user through the same
+              dashboard. CareBase narrows the work, permissions, and evidence to
+              the person's responsibility.
+            </p>
+          </Reveal>
+          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {ROLE_WORKSPACES.map((workspace, index) => (
+              <Reveal key={workspace.role} delay={(index % 3) * 0.05}>
+                <Card className="h-full border-border/60 shadow-sm">
+                  <CardHeader>
+                    <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+                      Role-specific workspace
+                    </p>
+                    <CardTitle className="text-base">{workspace.role}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4 pt-0 text-sm leading-6">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Needs to know
+                      </p>
+                      <p className="mt-1 text-foreground/85">{workspace.needs}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Acts in CareBase
+                      </p>
+                      <p className="mt-1 text-foreground/85">{workspace.action}</p>
+                    </div>
+                    <div className="rounded-xl bg-primary/[0.045] p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                        Evidence or handoff
+                      </p>
+                      <p className="mt-1 text-muted-foreground">{workspace.proof}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-border/60 bg-background">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8">
           <Reveal>
             <h2 className="text-2xl font-extrabold tracking-tight">

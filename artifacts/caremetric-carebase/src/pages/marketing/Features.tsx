@@ -1,12 +1,17 @@
+import { useMemo, useState } from "react";
 import {
   ArrowRight,
   CheckCircle2,
   ClipboardList,
   FileSearch,
+  Search,
   Workflow,
+  X,
 } from "lucide-react";
 import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { PageHero, Reveal } from "@/components/marketing/primitives";
@@ -42,6 +47,32 @@ const FEATURE_OUTCOMES = [
 ];
 
 export default function Features() {
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredCategories = useMemo(() => {
+    if (!normalizedQuery) return FEATURE_CATEGORIES;
+
+    return FEATURE_CATEGORIES.map((category) => {
+      const categoryMatches = `${category.category} ${category.blurb}`
+        .toLowerCase()
+        .includes(normalizedQuery);
+      return {
+        ...category,
+        items: categoryMatches
+          ? category.items
+          : category.items.filter((feature) =>
+              `${feature.title} ${feature.description}`
+                .toLowerCase()
+                .includes(normalizedQuery),
+            ),
+      };
+    }).filter((category) => category.items.length > 0);
+  }, [normalizedQuery]);
+  const visibleFeatureCount = filteredCategories.reduce(
+    (total, category) => total + category.items.length,
+    0,
+  );
+
   usePageMeta({
     title: "Features — CareMetric CareBase Facility Management Software",
     description:
@@ -51,8 +82,14 @@ export default function Features() {
   return (
     <MarketingLayout>
       <PageHero
+        eyebrow="Connected product capabilities"
         title="Every operational record should lead to the work, the owner, and the proof"
         subtitle="CareMetric CareBase connects workforce compliance, resident and facility operations, training, scheduling, safety, quality, documents, alerts, and survey evidence—while leaving clinical charting, medication administration, payroll, and accounting in their authoritative systems."
+        highlights={[
+          "10 connected feature domains",
+          "Role- and facility-aware access",
+          "Evidence attached to the work",
+        ]}
       />
 
       <section className="border-b border-border/60 bg-muted/30">
@@ -120,14 +157,56 @@ export default function Features() {
         </div>
       </section>
 
-      {/* Jump nav -- the feature set spans 8 categories, so let visitors skip to what matters to them. */}
+      <section className="border-b border-border/60 bg-muted/30">
+        <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
+          <Reveal className="text-center">
+            <h2 className="text-2xl font-extrabold tracking-tight">
+              Find the workflow you need to replace
+            </h2>
+            <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+              Search by task, record, role, or outcome—for example training,
+              incidents, scheduling, assessments, evidence rooms, or QAPI.
+            </p>
+          </Reveal>
+          <div className="relative mx-auto mt-7 max-w-2xl">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search all CareBase capabilities"
+              aria-label="Search CareBase capabilities"
+              className="h-12 bg-card pl-11 pr-12 shadow-sm"
+            />
+            {query && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setQuery("")}
+                aria-label="Clear feature search"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+          <p className="mt-3 text-center text-xs text-muted-foreground" aria-live="polite">
+            {normalizedQuery
+              ? `${visibleFeatureCount} matching ${visibleFeatureCount === 1 ? "capability" : "capabilities"}`
+              : `${visibleFeatureCount} capabilities across ${filteredCategories.length} connected domains`}
+          </p>
+        </div>
+      </section>
+
+      {/* Jump nav -- the feature set spans multiple categories, so let visitors skip to what matters to them. */}
       <nav
         aria-label="Feature categories"
         className="border-b border-border/60 bg-background"
       >
         <div className="mx-auto max-w-7xl overflow-x-auto px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex w-max gap-2 sm:w-auto sm:flex-wrap">
-            {FEATURE_CATEGORIES.map((cat) => (
+            {filteredCategories.map((cat) => (
               <a
                 key={cat.id}
                 href={`#${cat.id}`}
@@ -140,12 +219,26 @@ export default function Features() {
         </div>
       </nav>
 
-      {FEATURE_CATEGORIES.map((cat, catIndex) => (
+      {filteredCategories.length === 0 && (
+        <section className="mx-auto max-w-3xl px-4 py-20 text-center sm:px-6 lg:px-8">
+          <Reveal>
+            <h2 className="text-xl font-bold">No matching capability found</h2>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Try a broader term, or clear the search to explore every workflow.
+            </p>
+            <Button type="button" variant="outline" onClick={() => setQuery("")} className="mt-6">
+              Clear search
+            </Button>
+          </Reveal>
+        </section>
+      )}
+
+      {filteredCategories.map((cat, catIndex) => (
         <section
           key={cat.id}
           id={cat.id}
           className={`mx-auto max-w-7xl scroll-mt-16 px-4 py-16 sm:px-6 lg:px-8 ${
-            catIndex < FEATURE_CATEGORIES.length - 1
+            catIndex < filteredCategories.length - 1
               ? "border-b border-border/60"
               : ""
           }`}

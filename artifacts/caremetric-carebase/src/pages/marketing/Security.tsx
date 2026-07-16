@@ -1,7 +1,11 @@
 import {
   CheckCircle2,
   ClipboardCheck,
+  Database,
+  FileLock2,
+  KeyRound,
   LockKeyhole,
+  ScrollText,
   ShieldCheck,
 } from "lucide-react";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
@@ -29,6 +33,33 @@ const SECURITY_PROMISES = [
   "A facility outside a viewer's assigned scope shows as 'Not Assigned' -- never a false all-clear.",
 ];
 
+const DUE_DILIGENCE_AREAS = [
+  {
+    icon: KeyRound,
+    title: "Identity and access",
+    verify:
+      "Role permissions, organization and facility scope, employee self-service boundaries, MFA support, and auditor read-only behavior.",
+  },
+  {
+    icon: FileLock2,
+    title: "Evidence and file handling",
+    verify:
+      "Private storage, short-lived access links, controlled evidence sharing, record ownership, and file access boundaries.",
+  },
+  {
+    icon: Database,
+    title: "Operational controls",
+    verify:
+      "Database-enforced policies, approval and review gates, audit events, support access, and out-of-scope facility behavior.",
+  },
+  {
+    icon: ScrollText,
+    title: "Deployment and contract",
+    verify:
+      "Hosting responsibility, backups, recovery, retention and deletion, incident response, subprocessors, and any required agreement or certification.",
+  },
+] as const;
+
 export default function Security() {
   usePageMeta({
     title: "Security — CareMetric CareBase",
@@ -39,8 +70,14 @@ export default function Security() {
   return (
     <MarketingLayout>
       <PageHero
+        eyebrow="Security and trust"
         title="Security controls buyers can verify in the product"
         subtitle="CareMetric CareBase protects facility, resident, staff, training, and compliance records with role-aware workflows, private evidence storage, database-enforced access boundaries, and reviewable audit evidence."
+        highlights={[
+          "Database-enforced scope",
+          "Private evidence storage",
+          "Reviewable security events",
+        ]}
       />
 
       <section className="relative overflow-hidden bg-gradient-to-br from-[#071626] via-[#0d2742] to-[#143a5c] text-white">
@@ -121,6 +158,41 @@ export default function Security() {
       </section>
 
       <section className="border-b border-border/60 bg-background">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <Reveal className="mx-auto max-w-3xl text-center">
+            <p className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+              Buyer due diligence
+            </p>
+            <h2 className="mt-3 text-2xl font-extrabold tracking-tight">
+              Evaluate product controls and deployment obligations separately
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              A secure workflow is only one part of a security review. Use these
+              four areas to verify the product behavior you can see and the
+              operating commitments that belong in hosting and contract review.
+            </p>
+          </Reveal>
+          <div className="mt-10 grid gap-5 md:grid-cols-2">
+            {DUE_DILIGENCE_AREAS.map((area, index) => (
+              <Reveal key={area.title} delay={(index % 2) * 0.06}>
+                <article className="flex h-full gap-4 rounded-2xl border bg-card p-6 shadow-sm">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                    <area.icon className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">{area.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      {area.verify}
+                    </p>
+                  </div>
+                </article>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-border/60 bg-muted/30">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
           <Reveal>
             <div className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs font-semibold text-primary shadow-sm">

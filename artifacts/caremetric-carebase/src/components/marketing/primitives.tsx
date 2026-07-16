@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import type { LucideIcon } from "lucide-react";
+import { ArrowRight, CheckCircle2, PlayCircle, type LucideIcon } from "lucide-react";
+import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
+import { DEMO_MAILTO } from "@/components/marketing/content";
 
 /** Presentational primitives shared across every public marketing page. */
 
@@ -68,22 +71,61 @@ export function TechIcon({ icon: Icon }: { icon: LucideIcon }) {
 export function PageHero({
   title,
   subtitle,
+  eyebrow,
+  highlights = [],
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
+  eyebrow?: string;
+  highlights?: string[];
 }) {
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-[#0a1a2e] via-[#102a43] to-[#16324f] text-white">
       <TechGrid />
       <div className="absolute top-0 right-0 h-[420px] w-[420px] -translate-y-1/3 translate-x-1/4 rounded-full bg-[#59b2ff]/[0.10] blur-3xl" />
       <div className="relative mx-auto max-w-4xl px-4 py-20 text-center sm:px-6 lg:px-8 lg:py-24">
-        <h1 className="mx-auto max-w-3xl text-balance text-4xl font-extrabold tracking-tight sm:text-5xl">
+        {eyebrow && (
+          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.07] px-3 py-1.5 text-xs font-semibold text-[#b9e4ff]">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            {eyebrow}
+          </div>
+        )}
+        <h1 className="mx-auto mt-5 max-w-3xl text-balance text-4xl font-extrabold tracking-tight sm:text-5xl">
           {title}
         </h1>
         {subtitle && (
           <p className="mx-auto mt-5 max-w-2xl text-balance text-lg text-white/70">
             {subtitle}
           </p>
+        )}
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <Button asChild size="lg" variant="secondary" className="gap-2">
+            <a href={DEMO_MAILTO}>
+              Map Your Workflow
+              <ArrowRight className="h-4 w-4" />
+            </a>
+          </Button>
+          <Button
+            asChild
+            size="lg"
+            variant="outline"
+            className="gap-2 border-white/20 bg-white/[0.04] text-white hover:bg-white/10 hover:text-white"
+          >
+            <Link href="/demo">
+              <PlayCircle className="h-4 w-4" />
+              Explore the Demo
+            </Link>
+          </Button>
+        </div>
+        {highlights.length > 0 && (
+          <div className="mx-auto mt-8 flex max-w-3xl flex-wrap items-center justify-center gap-x-5 gap-y-2 border-t border-white/10 pt-6">
+            {highlights.map((highlight) => (
+              <div key={highlight} className="flex items-center gap-2 text-xs text-white/66">
+                <CheckCircle2 className="h-3.5 w-3.5 text-[#59b2ff]" />
+                {highlight}
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </section>
