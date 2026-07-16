@@ -17,6 +17,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { consumePublicAccessToken } from "@/lib/publicAccessToken";
+
+const SESSION_TOKEN_KEY = "carebase-resident-agreement-token";
 
 type Agreement = ResidentAgreementGuestWorkspace["agreements"][number];
 
@@ -26,7 +29,12 @@ const blankResponse = (signerRole = "designated_person") => ({
 });
 
 export default function ResidentAgreementGuestPortal() {
-  const { token } = useParams<{ token: string }>();
+  const { token: routeToken } = useParams<{ token?: string }>();
+  const [token] = useState(() => consumePublicAccessToken(
+    routeToken,
+    SESSION_TOKEN_KEY,
+    "/resident-agreement-access",
+  ));
   const workspace = useResidentAgreementGuestWorkspace(token);
   const accept = useAcceptResidentAgreementGuestTerms();
   const respond = useRespondToResidentAgreementGuest();

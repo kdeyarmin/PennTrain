@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
+import type { Json, Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 
 export type EmployeeCredential = Tables<"employee_credentials">;
 export type EmployeeCredentialInsert = TablesInsert<"employee_credentials">;
@@ -42,9 +42,11 @@ export function useCreateEmployeeCredential() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: EmployeeCredentialInsert) => {
-      const { data, error } = await supabase.from("employee_credentials").insert(payload).select().single();
+      const { data, error } = await supabase.rpc("save_employee_credential", {
+        p_payload: payload as unknown as Json,
+      });
       if (error) throw error;
-      return data;
+      return data as EmployeeCredential;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["employee_credentials"] }),
   });
@@ -54,9 +56,12 @@ export function useUpdateEmployeeCredential() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...payload }: EmployeeCredentialUpdate & { id: string }) => {
-      const { data, error } = await supabase.from("employee_credentials").update(payload).eq("id", id).select().single();
+      const { data, error } = await supabase.rpc("save_employee_credential", {
+        p_credential_id: id,
+        p_payload: payload as unknown as Json,
+      });
       if (error) throw error;
-      return data;
+      return data as EmployeeCredential;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["employee_credentials"] }),
   });

@@ -121,6 +121,23 @@ export function sanitizePhase2IntegrationError(value: unknown, maxLength = 500):
   return text.replace(/[\r\n\t]+/g, " ").replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
+export function phase2RoundRobinByTenant<T extends { organization_id: string }>(rows: T[]): T[] {
+  const queues = new Map<string, T[]>();
+  for (const row of rows) {
+    const queue = queues.get(row.organization_id) ?? [];
+    queue.push(row);
+    queues.set(row.organization_id, queue);
+  }
+  const ordered: T[] = [];
+  while (ordered.length < rows.length) {
+    for (const queue of queues.values()) {
+      const next = queue.shift();
+      if (next) ordered.push(next);
+    }
+  }
+  return ordered;
+}
+
 function phase2PublicIpv4(value: string): boolean {
   const parts = value.split(".").map(Number);
   if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
@@ -208,10 +225,34 @@ async function phase2DefaultPinnedConnector(
   }
 }
 
-async function phase2WriteAll(connection: Phase2PinnedConnection, bytes: Uint8Array) {
+function phase2TimeoutError() {
+  return new DOMException("Webhook request timed out", "TimeoutError");
+}
+
+async function phase2BeforeDeadline<T>(operation: Promise<T>, deadline: number): Promise<T> {
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) throw phase2TimeoutError();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(phase2TimeoutError()), remaining);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+async function phase2WriteAll(
+  connection: Phase2PinnedConnection,
+  bytes: Uint8Array,
+  deadline: number,
+) {
   let offset = 0;
   while (offset < bytes.length) {
-    const written = await connection.write(bytes.subarray(offset));
+    const written = await phase2BeforeDeadline(connection.write(bytes.subarray(offset)), deadline);
     if (!written) throw new Error("Pinned webhook write failed");
     offset += written;
   }
@@ -229,9 +270,14 @@ export async function phase2PinnedWebhookRequest(
   connector: Phase2PinnedConnector = phase2DefaultPinnedConnector,
 ): Promise<{ status: number; ok: boolean; text: () => Promise<string> }> {
   const url = new URL(destinationUrl);
+  const timeoutMs = Math.min(Math.max(init.timeoutMs ?? 10_000, 100), 120_000);
+  const deadline = Date.now() + timeoutMs;
   let addresses = validatedAddresses;
   if (!addresses?.length) {
-    const validation = await validatePhase2WebhookDestination(destinationUrl);
+    const validation = await phase2BeforeDeadline(
+      validatePhase2WebhookDestination(destinationUrl),
+      deadline,
+    );
     if (!validation.valid || !validation.addresses?.length) {
       throw new TypeError(`Unsafe webhook destination: ${validation.reason ?? "rejected"}`);
     }
@@ -242,17 +288,9 @@ export async function phase2PinnedWebhookRequest(
   }
 
   const address = addresses[crypto.getRandomValues(new Uint32Array(1))[0] % addresses.length];
-  const timeoutMs = Math.min(Math.max(init.timeoutMs ?? 10_000, 100), 120_000);
   let connection: Phase2PinnedConnection | null = null;
-  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    connection = await Promise.race([
-      connector(address, url.hostname, 443),
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new DOMException("Webhook request timed out", "TimeoutError")), timeoutMs);
-      }),
-    ]);
-    if (timer !== undefined) clearTimeout(timer);
+    connection = await phase2BeforeDeadline(connector(address, url.hostname, 443), deadline);
 
     const body = init.body ?? "";
     const bodyBytes = new TextEncoder().encode(body);
@@ -267,21 +305,15 @@ export async function phase2PinnedWebhookRequest(
     const head = `${init.method ?? "POST"} ${target} HTTP/1.1\r\n${
       Array.from(headers, ([name, value]) => `${name}: ${value}`).join("\r\n")
     }\r\n\r\n`;
-    await phase2WriteAll(connection, new TextEncoder().encode(head));
-    if (bodyBytes.length) await phase2WriteAll(connection, bodyBytes);
+    await phase2WriteAll(connection, new TextEncoder().encode(head), deadline);
+    if (bodyBytes.length) await phase2WriteAll(connection, bodyBytes, deadline);
 
     const chunks: Uint8Array[] = [];
     let total = 0;
     const maxResponseBytes = 64 * 1024 + 32 * 1024;
     const buffer = new Uint8Array(8192);
     while (total < maxResponseBytes) {
-      const count = await Promise.race([
-        connection.read(buffer),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new DOMException("Webhook request timed out", "TimeoutError")), timeoutMs);
-        }),
-      ]);
-      if (timer !== undefined) clearTimeout(timer);
+      const count = await phase2BeforeDeadline(connection.read(buffer), deadline);
       if (count === null) break;
       if (count === 0) throw new Error("Webhook connection closed");
       chunks.push(buffer.slice(0, count));
@@ -298,7 +330,6 @@ export async function phase2PinnedWebhookRequest(
     const responseBody = raw.slice(headerEnd + 4, headerEnd + 4 + 64 * 1024);
     return { status, ok: status >= 200 && status < 300, text: async () => responseBody };
   } finally {
-    if (timer !== undefined) clearTimeout(timer);
     try { connection?.close(); } catch { /* already closed */ }
   }
 }

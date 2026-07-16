@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useParams } from "wouter";
 import {
   useEvidenceGuestRoom,
@@ -10,6 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Download, FolderLock, Loader2, ShieldCheck, ShieldX } from "lucide-react";
+import { consumePublicAccessToken } from "@/lib/publicAccessToken";
+
+const SESSION_TOKEN_KEY = "carebase-evidence-room-token";
 
 // Public, session-less evidence room for surveyors. The link token is the whole
 // credential: the server re-checks revocation/expiry/scope on every call and logs each
@@ -41,7 +44,12 @@ function Shell({ children }: { children: ReactNode }) {
 }
 
 export default function EvidenceGuestRoom() {
-  const { token } = useParams<{ token: string }>();
+  const { token: routeToken } = useParams<{ token?: string }>();
+  const [token] = useState(() => consumePublicAccessToken(
+    routeToken,
+    SESSION_TOKEN_KEY,
+    "/evidence-access",
+  ));
   const { toast } = useToast();
   const { data: room, isLoading, isError, refetch } = useEvidenceGuestRoom(token);
   const acceptTerms = useAcceptEvidenceGuestTerms();

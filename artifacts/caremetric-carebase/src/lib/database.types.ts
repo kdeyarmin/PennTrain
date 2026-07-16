@@ -11263,6 +11263,70 @@ export type Database = {
           },
         ]
       }
+      impersonation_sessions: {
+        Row: {
+          actor_profile_id: string
+          bound_at: string | null
+          context_secret_sha256: string
+          ended_at: string | null
+          expires_at: string
+          id: string
+          reason: string
+          started_at: string
+          target_organization_id: string | null
+          target_profile_id: string
+          target_session_id: string | null
+        }
+        Insert: {
+          actor_profile_id: string
+          bound_at?: string | null
+          context_secret_sha256: string
+          ended_at?: string | null
+          expires_at?: string
+          id?: string
+          reason: string
+          started_at?: string
+          target_organization_id?: string | null
+          target_profile_id: string
+          target_session_id?: string | null
+        }
+        Update: {
+          actor_profile_id?: string
+          bound_at?: string | null
+          context_secret_sha256?: string
+          ended_at?: string | null
+          expires_at?: string
+          id?: string
+          reason?: string
+          started_at?: string
+          target_organization_id?: string | null
+          target_profile_id?: string
+          target_session_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "impersonation_sessions_actor_profile_id_fkey"
+            columns: ["actor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "impersonation_sessions_target_organization_id_fkey"
+            columns: ["target_organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "impersonation_sessions_target_profile_id_fkey"
+            columns: ["target_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incident_documents: {
         Row: {
           created_at: string
@@ -25184,6 +25248,7 @@ export type Database = {
           organization_id: string | null
           profile_id: string
           route_path: string
+          session_id: string | null
           unlocked_at: string | null
         }
         Insert: {
@@ -25193,6 +25258,7 @@ export type Database = {
           organization_id?: string | null
           profile_id: string
           route_path: string
+          session_id?: string | null
           unlocked_at?: string | null
         }
         Update: {
@@ -25202,6 +25268,7 @@ export type Database = {
           organization_id?: string | null
           profile_id?: string
           route_path?: string
+          session_id?: string | null
           unlocked_at?: string | null
         }
         Relationships: [
@@ -28890,6 +28957,10 @@ export type Database = {
         }
         Returns: Json
       }
+      can_read_employee_peer_data: {
+        Args: { p_facility_id: string; p_organization_id: string }
+        Returns: boolean
+      }
       cancel_shift_swap_request: {
         Args: { p_reason: string; p_request_id: string }
         Returns: boolean
@@ -29694,6 +29765,7 @@ export type Database = {
       current_org_id: { Args: never; Returns: string }
       current_profile_active: { Args: never; Returns: boolean }
       current_role: { Args: never; Returns: string }
+      current_session_unlocked: { Args: never; Returns: boolean }
       current_training_audience_status: {
         Args: { p_employee_id: string; p_training_type_id: string }
         Returns: string
@@ -30208,6 +30280,7 @@ export type Database = {
         Args: { p_version_id: string }
         Returns: string[]
       }
+      get_current_idle_session_lock: { Args: never; Returns: string }
       get_daily_operations_command_center: {
         Args: { p_facility_id?: string }
         Returns: Json
@@ -31950,6 +32023,37 @@ export type Database = {
           p_strengths: string
         }
         Returns: string
+      }
+      save_employee_credential: {
+        Args: { p_credential_id?: string; p_payload?: Json }
+        Returns: {
+          citation_topic_id: string | null
+          created_at: string
+          credential_label: string | null
+          credential_number: string | null
+          credential_type: string
+          employee_id: string
+          expiration_date: string | null
+          facility_id: string
+          id: string
+          issue_date: string | null
+          issuing_authority: string | null
+          last_verified_date: string | null
+          notes: string | null
+          organization_id: string
+          status: string
+          updated_at: string
+          verification_method: string | null
+          verified_at: string | null
+          verified_by_profile_id: string | null
+          warning_days: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employee_credentials"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       save_enterprise_analytics_snapshot: {
         Args: {

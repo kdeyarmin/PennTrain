@@ -15,9 +15,17 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { consumePublicAccessToken } from "@/lib/publicAccessToken";
+
+const SESSION_TOKEN_KEY = "carebase-move-in-guest-token";
 
 export default function MoveInGuestPortal() {
-  const { token } = useParams<{ token: string }>();
+  const { token: routeToken } = useParams<{ token?: string }>();
+  const [token] = useState(() => consumePublicAccessToken(
+    routeToken,
+    SESSION_TOKEN_KEY,
+    "/move-in-access",
+  ));
   const workspace = useMoveInGuestWorkspace(token);
   const accept = useAcceptMoveInGuestTerms();
   const sign = useSignMoveInGuestTask();
