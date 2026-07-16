@@ -38,6 +38,23 @@ let scrollSaveKey = window.location.pathname;
 let mountedInstances = 0;
 let priorScrollRestoration: History["scrollRestoration"] | null = null;
 
+// Registered once for the app session (module scope), not per mount: a Back
+// press on a NON-marketing page (e.g. /signup) that lands on a marketing page
+// fires popstate while no MarketingLayout is mounted -- a mount-scoped
+// listener would miss it and the remounted layout would treat the navigation
+// as fresh, scrolling a restored page to the top. This listener runs before
+// wouter re-renders the new route (React flushes the state update after the
+// popstate listeners finish), so the flag is always set by the time the
+// layout effect below consumes it. It self-clears on the next macrotask so a
+// pop navigation that never mounts a marketing layout (e.g. inside the
+// logged-in app) can't leak a stale "restore" into a later marketing visit.
+window.addEventListener("popstate", () => {
+  isPopNavigation = true;
+  setTimeout(() => {
+    isPopNavigation = false;
+  }, 0);
+});
+
 function ScrollToTop() {
   const [location] = useLocation();
 
@@ -49,21 +66,15 @@ function ScrollToTop() {
       }
       window.history.scrollRestoration = "manual";
     }
-    // This listener runs before wouter re-renders the new route (React only
-    // flushes the state update after the popstate listeners finish), so the
-    // flag is always set by the time the layout effect below sees the new
-    // location -- even when that layout effect belongs to a freshly
-    // remounted instance of this component.
-    const onPopState = () => {
-      isPopNavigation = true;
-    };
+    // Mount-scoped on purpose (unlike the popstate listener above): while a
+    // non-marketing page is showing, scrollSaveKey still holds the last
+    // marketing location, and recording that page's scrolling would corrupt
+    // the marketing page's saved position.
     const onScroll = () => {
       savedScrollPositions.set(scrollSaveKey, window.scrollY);
     };
-    window.addEventListener("popstate", onPopState);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
-      window.removeEventListener("popstate", onPopState);
       window.removeEventListener("scroll", onScroll);
       mountedInstances -= 1;
       setTimeout(() => {
