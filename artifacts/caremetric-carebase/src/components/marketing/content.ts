@@ -61,7 +61,7 @@ import {
 
 /** mailto used by every "Request a Demo" affordance across the marketing site. */
 export const DEMO_MAILTO =
-  "mailto:hello@caremetric.ai?subject=CareMetric%20Train%20Demo%20Request";
+  "mailto:hello@caremetric.ai?subject=CareMetric%20CareBase%20Demo%20Request";
 
 export type IconItem = {
   icon: LucideIcon;
@@ -80,7 +80,7 @@ export const SETTINGS: IconItem[] = [
     icon: HeartHandshake,
     title: "Assisted Living Facilities",
     description:
-      "16 hours of yearly in-service per direct care worker, plus dementia-specific training at hire and 2 hours every year after -- 55 Pa. Code Section 2800.65/.69, all tracked against the clock automatically. Also includes ASP resident assessment tracking, with an expedited track for hospital transfers and other DHS-recognized exceptions.",
+      "16 hours of yearly in-service per direct care worker, plus 4 hours of dementia-specific training within 30 days of hire and 2 hours every year after -- 55 Pa. Code Section 2800.65/.69, tracked as separate requirements. Also includes ASP resident assessment tracking, with an expedited track for hospital transfers and other DHS-recognized exceptions.",
   },
   {
     icon: Accessibility,
@@ -248,6 +248,55 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
     ],
   },
   {
+    id: "resident-operations",
+    category: "Resident Operations & Admissions",
+    blurb: "The non-clinical operating workflows a PCH or ALF runs around every resident, from inquiry through discharge.",
+    items: [
+      {
+        icon: BedDouble,
+        title: "Admissions, Census & Room Readiness",
+        description:
+          "Track prospects, preadmission requirements, move-in workspaces, room availability, occupancy, resident agreements, and the current census without maintaining separate intake and bed-list spreadsheets.",
+      },
+      {
+        icon: HeartHandshake,
+        title: "Resident Services & Daily Work",
+        description:
+          "Turn support-plan service requirements into assigned work, record completed, refused, missed, or escalated services, and keep the exception history connected to the resident and responsible staff member.",
+      },
+      {
+        icon: RefreshCw,
+        title: "Change-of-Condition Follow-Up",
+        description:
+          "Route falls, hospital returns, and other resident changes through observation, provider notification, reassessment, support-plan review, and documented follow-up instead of relying on an informal handoff.",
+      },
+      {
+        icon: ListChecks,
+        title: "Dietary & Food-Safety Operations",
+        description:
+          "Keep diets, allergies, texture and hydration needs, meal-intake and weight monitoring, menu reviews, temperatures, and sanitation rounds in one PCH/ALF workspace.",
+      },
+      {
+        icon: CalendarClock,
+        title: "Resident Services Calendar",
+        description:
+          "Coordinate medical, dental, behavioral-health, laboratory, therapy, transportation, family-visit, and activity commitments with driver, vehicle, escort, and return-instruction tracking.",
+      },
+      {
+        icon: FilePenLine,
+        title: "Resident Financial Operations",
+        description:
+          "Version rate agreements, post resident charges, payments, credits, refunds, and linked adjustments, issue statements, track personal funds, and export receivable data for accounting. It is an operational subledger, not a general ledger or claims system.",
+      },
+      {
+        icon: Pill,
+        title: "Medication Event Integration",
+        description:
+          "Bring held, refused, missed, and other medication events from an external medication source into review and follow-up workflows. CareBase does not replace the eMAR or pharmacy system used to administer medications.",
+      },
+    ],
+  },
+  {
     id: "survey-readiness",
     category: "Survey & Incident Readiness",
     blurb: "Everything an inspector asks for at the entrance conference, ready before they ask.",
@@ -256,7 +305,7 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: FileStack,
         title: "One-Click Compliance Binder",
         description:
-          "Generate a real, survey-ready compliance binder PDF for any facility in seconds -- no more print-to-PDF workarounds.",
+          "Request a real compliance binder PDF for one facility or the full organization. CareBase rebuilds it from live training, credential, practicum, incident, inspection, policy, resident, and readiness data in the background, then delivers it through a short-lived secure link.",
       },
       {
         icon: Gauge,
@@ -287,6 +336,49 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         title: "Template Document Library",
         description:
           "A built-in library of 60+ printable survey-readiness forms -- entrance handoff packets, resident chart and medication audits, training trackers, and walkthrough logs -- adapted from a real PA Personal Care Home Survey Readiness Binder and organized into searchable categories.",
+      },
+    ],
+  },
+  {
+    id: "facility-operations",
+    category: "Facility Operations, Quality & Evidence",
+    blurb: "The operational controls that turn inspections, safety events, complaints, repairs, and improvement work into accountable evidence.",
+    items: [
+      {
+        icon: Siren,
+        title: "Emergency Operations",
+        description:
+          "Manage emergency events, resident and staff accountability, evacuation or relocation, outages, generator fuel, mass notifications, and after-action follow-up from one facility workspace.",
+      },
+      {
+        icon: SlidersHorizontal,
+        title: "Maintenance & Work Orders",
+        description:
+          "Open preventive or corrective work orders, record safety risk, protective action, vendor, parts, cost, downtime, and repair evidence, then require supervisor verification before the issue is treated as closed.",
+      },
+      {
+        icon: ShieldAlert,
+        title: "Complaints, Grievances & Resident Rights",
+        description:
+          "Track complaints and grievances through intake, ombudsman or agency notification, investigation, nonretaliation safeguards, response, appeal, and closure while keeping sensitive reports appropriately scoped.",
+      },
+      {
+        icon: BarChart3,
+        title: "QAPI & Quality Improvement",
+        description:
+          "Run quality projects with a defined problem, root-cause analysis, measures, audit samples, interventions, ownership, and sustainment review instead of a standalone QAPI workbook.",
+      },
+      {
+        icon: ClipboardList,
+        title: "Closed-Loop Work Queue",
+        description:
+          "Assign remediation and operational tasks with owners, deadlines, dependencies, approvals, and evidence so a dashboard warning becomes completed work rather than another unresolved alert.",
+      },
+      {
+        icon: FolderLock,
+        title: "Evidence Rooms & Regulatory Crosswalk",
+        description:
+          "Map Chapter 2600 and 2800 requirements to the records that prove them, assemble controlled evidence collections, and share a time-limited read-only room without granting an external reviewer application access.",
       },
     ],
   },
@@ -329,7 +421,7 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: FileSignature,
         title: "Policy Attestation Campaigns",
         description:
-          "Publish a policy or procedure document, assign it to a roster with a due date, and each employee reviews the exact PDF and signs off electronically -- tracked separately from training records, with a non-repudiable, ESIGN/UETA-adequate signature behind every attestation.",
+          "Publish a policy or procedure document, assign it to a roster with a due date, and capture each employee's electronic acknowledgment against the exact version reviewed, including the signer, time, IP address, user agent, and content hash to support defensible ESIGN/UETA recordkeeping.",
       },
     ],
   },
@@ -405,19 +497,24 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
 
 export const STEPS = [
   {
-    title: "Set up your organization",
+    title: "Configure the operation",
     description:
-      "Sign up and add your facilities, import your employee roster via CSV, and configure the training types, resident assessment requirements, and shift patterns your state and facility type require.",
+      "Add facilities, roles, residents, and employees; import the roster; and configure the training, credential, resident, alert, and facility rules that apply.",
   },
   {
-    title: "Assign training & practicums",
+    title: "Route the work",
     description:
-      "Build training plans, training assignments, practicum requirements, and operational follow-ups once -- author content yourself or let AI draft from your own materials -- and let CareMetric CareBase track completion for every employee.",
+      "Assign training, services, schedules, reviews, maintenance, incident follow-up, and other operational tasks to the people responsible for completing or approving them.",
   },
   {
-    title: "Stay survey-ready",
+    title: "Capture proof as work happens",
     description:
-      "Alerts flag what's expiring by email, text, and in-app; resident assessments, incidents, and inspection items stay current; and the citation-weighted compliance binder is always one click away.",
+      "Keep completions, signatures, documents, observations, approvals, and audit events attached to the correct employee, resident, facility, requirement, and deadline.",
+  },
+  {
+    title: "See risk and share evidence",
+    description:
+      "Use dashboards, alerts, work queues, reports, regulatory crosswalks, evidence rooms, and binder exports to fix gaps and answer leadership, auditors, or surveyors with the underlying record.",
   },
 ];
 
@@ -430,17 +527,19 @@ export const OLD_WAY = [
   "Re-checking each employee's hours against their license type's rules by hand, every renewal cycle",
   "Resident assessments, incident reports, and inspection findings living in separate binders with no link to a plan of correction",
   "Building a new course from scratch, or paying a vendor, every time a policy or regulation changes",
+  "Admissions, resident services, food-safety rounds, maintenance, emergency logs, and QAPI work split across separate spreadsheets",
 ];
 
 export const NEW_WAY = [
   "Every employee's yearly in-service hours, certifications, and practicums in one system of record",
   "Automatic alerts before certifications lapse or retraining comes due",
   "Digital competency checklists tied to each employee's role",
-  "A survey-ready compliance binder PDF generated in seconds",
+  "A facility or organization compliance binder PDF rebuilt from live records on request",
   "Real-time compliance dashboards across every facility, org-wide",
   "Training types configured once per organization -- hours, renewal windows, and which facility types they apply to -- instead of re-explained to every new hire",
   "Resident assessments, incidents, and DHS-cited violations tracked to a corrective action and a survey-ready plan of correction",
   "AI-drafted courses from your own source material, reviewed and approved by a real person before anyone sees them",
+  "Admissions, resident services, safety, maintenance, quality, and facility evidence routed through accountable work queues",
 ];
 
 export const SECURITY_FEATURES: IconItem[] = [
@@ -448,7 +547,7 @@ export const SECURITY_FEATURES: IconItem[] = [
     icon: Database,
     title: "Row-Level Security by Design",
     description:
-      "Every table is protected by Postgres Row-Level Security, not just application code -- the database itself enforces who can see and change what.",
+      "Caller-facing operational records use Postgres Row-Level Security, so organization, facility, role, and record-scope rules are enforced at the database boundary as well as in the interface.",
   },
   {
     icon: Users,
@@ -482,9 +581,9 @@ export const SECURITY_FEATURES: IconItem[] = [
   },
   {
     icon: Fingerprint,
-    title: "Non-Repudiable E-Signatures",
+    title: "Version-Bound E-Signature Evidence",
     description:
-      "Policy attestations are written only through a dedicated function that captures the signer's IP address, user agent, and a content hash of the exact document version reviewed -- an ESIGN/UETA-adequate record, not a checkbox in a table.",
+      "Policy attestations are written through a dedicated function that captures the signer, timestamp, IP address, user agent, and a content hash of the exact document version reviewed -- evidence designed to support ESIGN/UETA recordkeeping, not a generic checkbox.",
   },
   {
     icon: KeyRound,
@@ -498,7 +597,22 @@ export const FAQS = [
   {
     question: "What is CareMetric CareBase?",
     answer:
-      "CareMetric CareBase is multi-tenant personal care home and assisted living facility management software built for operators who need one command center for staff compliance, resident assessments, incidents, inspections, scheduling, documents, training, and survey readiness. It replaces spreadsheets, shared drives, paper binders, and disconnected point tools with one operational record.",
+      "CareMetric CareBase is a multi-tenant operations, workforce-compliance, and survey-readiness platform built first for Pennsylvania personal care homes and assisted living facilities. It connects staff training and qualification, resident regulatory and non-clinical operations, incidents, complaints, inspections, maintenance, emergency readiness, scheduling, documents, quality work, and evidence reporting in one role-based system. It is not an EHR or eMAR.",
+  },
+  {
+    question: "What software and manual systems can CareMetric CareBase replace?",
+    answer:
+      "Depending on how your organization works today, CareBase can consolidate a training LMS or course-delivery tool, training and credential spreadsheets, shared-drive compliance folders, paper survey binders, resident assessment due-date calendars, basic staff scheduling, admissions and census trackers, incident and plan-of-correction logs, policy acknowledgment tools, maintenance work-order sheets, resident-service calendars, QAPI workbooks, and basic resident receivable or personal-funds ledgers. The savings page separates full replacements from systems that should remain connected.",
+  },
+  {
+    question: "Where do the time and cost savings come from?",
+    answer:
+      "Savings come from reducing duplicate entry and reconciliation, consolidating replaceable point tools, auto-filling schedules, importing rosters in bulk, sending reminders automatically, reusing approved training content, routing follow-up through one work queue, and generating reports and binders from live records. CareBase does not promise a universal percentage; the Value & Savings page provides an editable model based on your own hours, labor cost, current software spend, expected time reduction, and CareBase price.",
+  },
+  {
+    question: "What does CareMetric CareBase not replace?",
+    answer:
+      "CareBase should work alongside, not replace, your eMAR or pharmacy platform, EHR or clinical chart, payroll and timeclock, HRIS, accounting general ledger, claims or billing system, emergency-call system, and any approved or accredited external training provider you still need. Its resident finance module is an operational subledger with exports, its schedule is not payroll, and medication integration routes external events rather than documenting bedside administration.",
   },
   {
     question: "How does CareMetric CareBase track our staff's yearly in-services?",
@@ -508,12 +622,17 @@ export const FAQS = [
   {
     question: "How many yearly in-service hours does my type of provider actually need?",
     answer:
-      "It depends on your license type, and CareMetric CareBase already knows the difference: personal care homes need 12 hours per direct care worker per year (55 Pa. Code Section 2600.65), plus 6 more for staff on a secured dementia unit. Assisted living facilities need 16 hours (Section 2800.65/.69), plus dementia-specific training at hire and 2 hours annually after that. Group homes need 24 hours for direct service workers and their supervisors, and 12 for every other role (Section 6400.52). Nursing homes, home health agencies, and hospice agencies each require 12 hours per aide per year under federal rules (42 CFR 483.95, 484.80, and 418.76). Set your organization's license type once, and every employee's training plan is built to the right number automatically.",
+      "It depends on license type, role, assignment, and population served. Pennsylvania personal care homes generally require 12 annual hours per direct care worker under 55 Pa. Code Section 2600.65, with up to 6 hours of on-the-job training counting toward that total, plus 6 additional dementia hours for staff in a secured dementia care unit under Section 2600.236. Assisted living direct care staff need 16 annual hours under Section 2800.65, while Section 2800.69 adds 4 hours of dementia-specific training within 30 days of hire and 2 hours annually thereafter. CareBase maps facility type and employee applicability to separate hour buckets and topic requirements; the operator still reviews assignments and evidence for each person.",
   },
   {
     question: "Which regulations does it help us comply with?",
     answer:
-      "CareMetric CareBase grew out of Pennsylvania's 55 Pa. Code Chapter 2600 personal care home, Chapter 2800 assisted living facility, and Chapter 6400 group home requirements -- training hours, resident assessments (RASP/ASP), fire drills and emergency preparedness, medication administration, and reportable incidents -- and every training type, competency checklist, and practicum is configurable, so your organization can model the specific requirements your state and license type require.",
+      "CareMetric CareBase is anchored to Pennsylvania's 55 Pa. Code Chapter 2600 personal care home and Chapter 2800 assisted living residence requirements, including staff orientation and annual training, resident assessments and support-plan follow-up, administrator qualifications, medication-practicum evidence, fire drills and emergency preparedness, incidents, complaints, resident rights, and survey evidence. Its training catalog also supports Chapter 6400 and selected federal aide in-service pathways. The platform tracks, routes, and preserves evidence; it does not replace legal advice, official DHS forms, required professional judgment, or the facility's responsibility to comply.",
+  },
+  {
+    question: "Does using CareMetric CareBase guarantee compliance or a deficiency-free survey?",
+    answer:
+      "No. CareBase makes requirements, deadlines, ownership, exceptions, and evidence visible and helps teams close gaps before review. Compliance still depends on accurate configuration, qualified staff, timely and truthful documentation, use of current official forms, management follow-through, and the facts observed by regulators. Dashboards and AI-assisted tools are decision support, not legal advice or a guarantee of survey results.",
   },
   {
     question: "Do our employees need to install anything?",

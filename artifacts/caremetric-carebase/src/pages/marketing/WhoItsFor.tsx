@@ -30,18 +30,25 @@ const OPERATING_MODES = [
   "Organizations preparing for audits, licensing surveys, recertification, or ownership transitions.",
 ];
 
+const PCH_ALF_OPERATIONS = [
+  "Workforce training, competencies, credentials, background and exclusion screening, medication practicums, policy attestations, and shift scheduling.",
+  "Admissions and census, resident assessments and state-form workflow, services, change-of-condition follow-up, dietary rounds, appointments, transportation, and resident financial operations.",
+  "Incidents, complaints, resident rights, inspections, fire drills, emergency operations, maintenance work orders, plans of correction, and QAPI projects.",
+  "Alerts, work queues, approvals, regulatory crosswalks, reports, controlled evidence rooms, audit history, and facility or organization binder exports.",
+];
+
 export default function WhoItsFor() {
   usePageMeta({
-    title: "Who It's For — CareMetric CareBase for PCH, ALF, Group Homes & More",
+    title: "Who It's For — CareMetric CareBase for PCH & Assisted Living",
     description:
-      "CareMetric CareBase adapts to personal care homes, assisted living facilities, group homes, nursing homes, home health, and hospice agencies -- combining facility operations, compliance evidence, and training rules matched to each setting.",
+      "CareMetric CareBase provides full operations and compliance workflows for Pennsylvania personal care homes and assisted living facilities, plus matched workforce-training pathways for adjacent providers.",
     path: "/who-its-for",
   });
   return (
     <MarketingLayout>
       <PageHero
-        title="Built for every care setting"
-        subtitle="One multi-tenant platform, configured for the operating, staffing, resident, training, competency, and documentation rules your organization actually has to follow."
+        title="Built first for Pennsylvania personal care homes and assisted living facilities"
+        subtitle="PCH and ALF operators get the full resident, workforce, facility, quality, and survey-evidence platform. Group homes, nursing homes, home health, and hospice use the training and staff-compliance pathways that apply to their setting."
       />
 
       <section className="border-b border-border/60 bg-background">
@@ -52,7 +59,7 @@ export default function WhoItsFor() {
               Clear value for each stakeholder
             </div>
             <h2 className="mt-4 text-2xl font-extrabold tracking-tight">
-              A stronger pitch for the whole buying committee
+              One operating record for the whole buying committee
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               CareMetric CareBase ties facility types to operational outcomes, so
@@ -101,7 +108,29 @@ export default function WhoItsFor() {
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <Reveal className="mx-auto max-w-3xl text-center">
+          <h2 className="text-2xl font-extrabold tracking-tight">
+            Full PCH and ALF operations, with training pathways for adjacent providers
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            The provider setting matters. CareBase exposes PCH and ALF resident and
+            facility modules only where they apply, while keeping workforce training
+            and qualification rules available for the other supported settings below.
+          </p>
+        </Reveal>
+
+        <div className="mx-auto mt-8 grid max-w-5xl gap-3 sm:grid-cols-2">
+          {PCH_ALF_OPERATIONS.map((item) => (
+            <Reveal key={item}>
+              <div className="flex h-full items-start gap-3 rounded-xl border bg-card p-4 shadow-sm">
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                <span className="text-sm leading-6 text-foreground/85">{item}</span>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+
+        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {SETTINGS.map((setting, i) => (
             <Reveal key={setting.title} delay={(i % 3) * 0.06}>
               <Card className="group h-full overflow-hidden border-border/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">

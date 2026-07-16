@@ -12,6 +12,7 @@ export const MARKETING_NAV = [
   { href: "/who-its-for", label: "Who It's For" },
   { href: "/security", label: "Security" },
   { href: "/how-it-works", label: "How It Works" },
+  { href: "/savings", label: "Savings" },
   { href: "/faq", label: "FAQ" },
 ] as const;
 

@@ -34,7 +34,7 @@ export default function Faq() {
   usePageMeta({
     title: "FAQ — CareMetric CareBase",
     description:
-      "Answers to common questions about CareMetric CareBase: facility operations, regulations covered, in-service hours by facility type, resident assessments, AI training-content generation, scheduling, and more.",
+      "Answers about what CareMetric CareBase is, what it replaces, where savings come from, compliance boundaries, facility operations, training, resident workflows, security, and implementation.",
     path: "/faq",
   });
   useJsonLd("faq-jsonld", FAQ_JSON_LD);
@@ -42,7 +42,7 @@ export default function Faq() {
     <MarketingLayout>
       <PageHero
         title="Frequently asked questions"
-        subtitle="What CareMetric CareBase does, who it's for, and how it keeps your facility survey-ready."
+        subtitle="What CareMetric CareBase does, what it replaces, what it does not replace, and how it supports personal care and assisted living operations."
       />
 
       <section className="border-b border-border/60 bg-muted/30">
@@ -53,8 +53,8 @@ export default function Faq() {
             </div>
             <h2 className="mt-4 text-2xl font-extrabold tracking-tight">Start with the questions teams ask first</h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              If you are replacing spreadsheets, paper binders, shared drives, or a disconnected training tool,
-              these answers explain where CareMetric CareBase fits and what it manages.
+              Start with the product, replacement, and savings questions below. The remaining answers
+              explain compliance boundaries, implementation, staff workflows, resident operations, and evidence.
             </p>
           </Reveal>
           <div className="mt-10 grid gap-4 lg:grid-cols-3">

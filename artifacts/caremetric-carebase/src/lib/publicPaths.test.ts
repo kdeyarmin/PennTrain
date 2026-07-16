@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { isPublicPath } from "./publicPaths";
 
 describe("isPublicPath", () => {
+  it("allows every public marketing route", () => {
+    expect(isPublicPath("/features")).toBe(true);
+    expect(isPublicPath("/who-its-for")).toBe(true);
+    expect(isPublicPath("/security")).toBe(true);
+    expect(isPublicPath("/how-it-works")).toBe(true);
+    expect(isPublicPath("/savings")).toBe(true);
+    expect(isPublicPath("/faq")).toBe(true);
+  });
+
   it("allows the public safety reporting route", () => {
     expect(isPublicPath("/report-safety")).toBe(true);
     expect(isPublicPath("/report-safety/")).toBe(true);
