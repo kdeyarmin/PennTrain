@@ -15,6 +15,7 @@ import Features from "@/pages/marketing/Features";
 import WhoItsFor from "@/pages/marketing/WhoItsFor";
 import Security from "@/pages/marketing/Security";
 import HowItWorks from "@/pages/marketing/HowItWorks";
+import Savings from "@/pages/marketing/Savings";
 import Faq from "@/pages/marketing/Faq";
 
 const Login = lazy(() => import("@/pages/auth/Login"));
@@ -381,6 +382,7 @@ function Router() {
       <Route path="/who-its-for" component={WhoItsFor} />
       <Route path="/security" component={Security} />
       <Route path="/how-it-works" component={HowItWorks} />
+      <Route path="/savings" component={Savings} />
       <Route path="/faq" component={Faq} />
 
       {/* Platform Admin routes */}

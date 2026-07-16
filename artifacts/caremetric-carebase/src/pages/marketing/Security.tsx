@@ -33,14 +33,14 @@ export default function Security() {
   usePageMeta({
     title: "Security — CareMetric CareBase",
     description:
-      "Row-level security, six enforced access roles, private signed-URL storage, and an immutable audit trail -- see how CareMetric CareBase protects sensitive compliance data.",
+      "See the database-enforced roles, private storage, audit controls, MFA support, review gates, and evidence boundaries built into CareMetric CareBase.",
     path: "/security",
   });
   return (
     <MarketingLayout>
       <PageHero
-        title="Enterprise-grade security, built in"
-        subtitle="Your facility, resident, staff, training, and compliance data is sensitive. CareMetric CareBase protects it with role-aware workflows, private evidence storage, and database-enforced access boundaries."
+        title="Security controls buyers can verify in the product"
+        subtitle="CareMetric CareBase protects facility, resident, staff, training, and compliance records with role-aware workflows, private evidence storage, database-enforced access boundaries, and reviewable audit evidence."
       />
 
       <section className="relative overflow-hidden bg-gradient-to-br from-[#071626] via-[#0d2742] to-[#143a5c] text-white">
@@ -110,6 +110,12 @@ export default function Security() {
                 <span className="text-sm text-foreground/85">{promise}</span>
               </div>
             ))}
+            <div className="rounded-xl border border-primary/20 bg-primary/[0.03] p-4 text-sm leading-6 text-muted-foreground">
+              These product controls are not, by themselves, a claim of a particular
+              certification, a signed business associate agreement, or compliance for
+              every deployment. Buyers should confirm the hosted environment, contract,
+              retention requirements, and organizational safeguards that apply to their use.
+            </div>
           </Reveal>
         </div>
       </section>

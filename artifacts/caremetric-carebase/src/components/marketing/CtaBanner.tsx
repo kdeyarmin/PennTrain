@@ -10,8 +10,8 @@ import { DEMO_MAILTO } from "@/components/marketing/content";
  */
 export function CtaBanner({
   id,
-  title = "Ready to make compliance simple?",
-  subtitle = "Tell us about your organization and we'll set up a walkthrough of CareMetric CareBase for your team.",
+  title = "Ready to replace scattered trackers with one accountable operation?",
+  subtitle = "Tell us about your facilities, current systems, and highest-risk workflow. We'll show what CareMetric CareBase can consolidate and what should stay connected.",
 }: {
   id?: string;
   title?: string;
@@ -36,14 +36,14 @@ export function CtaBanner({
               hello@caremetric.ai
             </Button>
           </a>
-          <Link href="/login">
+          <Link href="/signup">
             <Button
               size="lg"
               variant="outline"
               className="border-white/30 bg-transparent text-white hover:bg-white/10"
-              data-testid="button-cta-login"
+              data-testid="button-cta-signup"
             >
-              Log In
+              Start a Free Trial
             </Button>
           </Link>
         </div>

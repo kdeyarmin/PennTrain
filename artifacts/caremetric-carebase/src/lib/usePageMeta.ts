@@ -27,6 +27,8 @@ export function usePageMeta({
     setMetaContent('meta[name="description"]', "content", description);
     setMetaContent('meta[property="og:title"]', "content", title);
     setMetaContent('meta[property="og:description"]', "content", description);
+    setMetaContent('meta[name="twitter:title"]', "content", title);
+    setMetaContent('meta[name="twitter:description"]', "content", description);
 
     const canonicalUrl = `${SITE_URL}${path}`;
     setMetaContent('link[rel="canonical"]', "href", canonicalUrl);

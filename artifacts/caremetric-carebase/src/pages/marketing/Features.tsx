@@ -35,23 +35,24 @@ const PROOF_CHAIN = [
 ];
 
 const FEATURE_OUTCOMES = [
-  "Replace spreadsheets, binders, shared drives, scheduler workarounds, and disconnected training exports.",
-  "See overdue, expiring, completed, and missing evidence before survey day.",
-  "Give each role a secure workspace instead of a generic admin dashboard.",
+  "Connect workforce compliance, resident operations, facility work, quality follow-up, and survey evidence instead of managing each in a separate tracker.",
+  "See overdue, expiring, completed, blocked, and missing evidence before survey day.",
+  "Give owners, managers, trainers, employees, and auditors a secure role-specific workspace instead of one generic admin dashboard.",
+  "Keep the EHR, eMAR, payroll, HRIS, and accounting platforms that remain authoritative while replacing the coordination spreadsheets around them.",
 ];
 
 export default function Features() {
   usePageMeta({
     title: "Features — CareMetric CareBase Facility Management Software",
     description:
-      "See every CareMetric CareBase feature: facility operations, staff compliance, resident assessments, incident and inspection tracking, AI training-content generation, credential screening, and shift scheduling in one platform.",
+      "See CareMetric CareBase features across staff compliance, training, resident and facility operations, quality, safety, scheduling, documents, and survey evidence.",
     path: "/features",
   });
   return (
     <MarketingLayout>
       <PageHero
-        title="Everything compliance requires. Nothing it doesn't."
-        subtitle="CareMetric CareBase combines facility operations, staff compliance, resident-assessment tracking, incident and inspection registers, training delivery, live-class logs, AI training-content studio, staff scheduler, document vault, alert center, and compliance binder into one workflow."
+        title="Every operational record should lead to the work, the owner, and the proof"
+        subtitle="CareMetric CareBase connects workforce compliance, resident and facility operations, training, scheduling, safety, quality, documents, alerts, and survey evidence—while leaving clinical charting, medication administration, payroll, and accounting in their authoritative systems."
       />
 
       <section className="border-b border-border/60 bg-muted/30">
@@ -77,6 +78,13 @@ export default function Features() {
                 <span className="text-sm text-foreground/85">{outcome}</span>
               </div>
             ))}
+            <Link
+              href="/savings"
+              className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            >
+              See exactly what it can replace
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </Reveal>
         </div>
       </section>
@@ -173,12 +181,19 @@ export default function Features() {
       ))}
 
       <section className="mx-auto max-w-7xl px-4 pb-16 pt-4 text-center sm:px-6 lg:px-8">
-        <Reveal>
+        <Reveal className="flex flex-wrap items-center justify-center gap-6">
           <Link
             href="/how-it-works"
             className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
           >
             See the workflow
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+          <Link
+            href="/savings"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+          >
+            Model value and savings
             <ArrowRight className="h-4 w-4" />
           </Link>
         </Reveal>

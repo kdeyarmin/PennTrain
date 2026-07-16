@@ -56,7 +56,7 @@ export default defineConfig(({ command, mode }) => {
         manifest: {
           name: "CareMetric CareBase",
           short_name: "CareMetric",
-          description: "Compliance training and credential tracking for personal care homes and assisted living facilities.",
+          description: "Operations, workforce compliance, and survey readiness for personal care homes and assisted living facilities.",
           theme_color: "#102a43",
           background_color: "#102a43",
           display: "standalone",

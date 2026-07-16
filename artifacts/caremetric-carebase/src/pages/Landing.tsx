@@ -7,11 +7,13 @@ import {
   Building2,
   CalendarClock,
   CheckCircle2,
+  CircleDollarSign,
   FileCheck2,
   FileStack,
   FolderCheck,
   Gauge,
   GraduationCap,
+  HeartHandshake,
   HelpCircle,
   Layers3,
   ListChecks,
@@ -34,7 +36,11 @@ import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { LogoMark } from "@/components/brand/Logo";
-import { OLD_WAY, NEW_WAY } from "@/components/marketing/content";
+import {
+  FEATURE_CATEGORIES,
+  OLD_WAY,
+  NEW_WAY,
+} from "@/components/marketing/content";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 const HIGHLIGHTS: {
@@ -53,9 +59,9 @@ const HIGHLIGHTS: {
   {
     href: "/who-its-for",
     icon: Building2,
-    title: "Configured for care providers",
+    title: "Built first for PCH and assisted living",
     blurb:
-      "Personal care, assisted living, group homes, nursing homes, home health, and hospice each get rules matched to their setting.",
+      "Pennsylvania personal care homes and assisted living facilities get the full operations and compliance platform; adjacent providers use matched workforce-training pathways.",
   },
   {
     href: "/security",
@@ -93,10 +99,10 @@ const BEYOND_TRAINING: { icon: LucideIcon; title: string; blurb: string }[] = [
       "Reportable incidents, DHS-cited violations with a plan-of-correction workflow, and fire-drill/life-safety equipment logs, each generating its own survey-ready PDF.",
   },
   {
-    icon: Sparkles,
-    title: "AI Course & Avatar Video Generation",
+    icon: HeartHandshake,
+    title: "Admissions, Services & Change Follow-Up",
     blurb:
-      "Draft a complete course from your own source material and attach an AI presenter video -- nothing publishes until a person reviews it.",
+      "Coordinate inquiry-to-move-in, resident services, hospital returns, change-of-condition follow-up, dietary rounds, appointments, and transportation.",
   },
   {
     icon: Pill,
@@ -115,28 +121,28 @@ const BEYOND_TRAINING: { icon: LucideIcon; title: string; blurb: string }[] = [
 const APP_FLOW = [
   {
     icon: UploadCloud,
-    label: "Import roster",
-    detail: "Bulk-add employees and facilities",
+    label: "Bring in the operation",
+    detail: "Facilities, staff, residents, and baseline records",
   },
   {
     icon: Layers3,
-    label: "Assign plans",
-    detail: "Map training to role and license type",
+    label: "Configure rules",
+    detail: "Requirements, roles, deadlines, and access",
   },
   {
     icon: BookOpenCheck,
-    label: "Deliver training",
-    detail: "Online courses, live classes, outside records",
+    label: "Run daily work",
+    detail: "Training, services, schedules, safety, and follow-up",
   },
   {
     icon: BellRing,
-    label: "Watch deadlines",
-    detail: "Alerts before certificates or hours lapse",
+    label: "Catch gaps",
+    detail: "Alerts, work queues, approvals, and manager digests",
   },
   {
     icon: FileStack,
-    label: "Export proof",
-    detail: "Binder, certificates, documents, audit trail",
+    label: "Share proof",
+    detail: "Reports, binder, crosswalk, and evidence room",
   },
 ];
 
@@ -144,7 +150,7 @@ const ROLE_VIEWS = [
   "Org admins see compliance across every facility, including resident assessments where required.",
   "Facility managers focus on assigned sites, overdue staff, and shift coverage.",
   "Trainers schedule classes with QR/kiosk check-in, draft AI-assisted courses, and monitor retraining.",
-  "Employees complete training content, quizzes, certificates, policy attestations, and uploads in self-service.",
+  "Employees complete training, assigned resident services, operational follow-up, attestations, uploads, and shift handoffs in self-service.",
   "Auditors get read-only evidence without changing records.",
 ];
 
@@ -184,16 +190,16 @@ const DASHBOARD_ROWS = [
 
 const PLATFORM_STATS = [
   { value: "6", label: "facility types, each with its own rules" },
-  { value: "8", label: "feature categories across the platform" },
+  { value: String(FEATURE_CATEGORIES.length), label: "feature categories across the platform" },
   { value: "60+", label: "survey-ready form templates included" },
   { value: "6", label: "roles enforced by database policy" },
 ];
 
 export default function Landing() {
   usePageMeta({
-    title: "CareMetric CareBase — Facility Management Software",
+    title: "CareMetric CareBase — PCH & Assisted Living Operations Software",
     description:
-      "CareMetric CareBase is personal care home and assisted living facility management software -- staff compliance, resident assessments, incidents, inspections, scheduling, documents, training, and survey-ready binders tracked in one system.",
+      "CareMetric CareBase connects workforce compliance, resident and facility operations, training, deadlines, work queues, documents, and survey evidence for personal care homes and assisted living facilities.",
     path: "/",
   });
   return (
@@ -208,16 +214,18 @@ export default function Landing() {
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-700">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-[#b9e4ff] shadow-sm backdrop-blur">
                 <Sparkles className="h-3.5 w-3.5" />
-                Compliance training, evidence, and survey prep in one place
+                PCH and assisted living operations, compliance, and evidence
               </div>
               <h1 className="mt-6 text-balance text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-[58px] lg:leading-[1.02]">
-                Know who is trained, what is due, and where the proof lives.
+                Run the facility. See the risk. Prove the work.
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-white/74">
-                CareMetric CareBase is facility management software and a compliance command center for personal care homes, assisted living facilities, and care providers. It turns required in-services, credentials, practicums,
-                live classes, resident assessments, incidents, and certificates
-                into a single survey-ready record for every employee, resident,
-                and facility.
+                CareMetric CareBase is an operations, workforce-compliance, and
+                survey-readiness platform built first for Pennsylvania personal
+                care homes and assisted living facilities. Training, staff
+                qualifications, resident requirements, daily work, incidents,
+                maintenance, emergency readiness, documents, and follow-up stay
+                connected to the employee, resident, facility, deadline, and proof.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Button
@@ -290,7 +298,7 @@ export default function Landing() {
                     {[
                       ["14", "items due"],
                       ["51", "certificates"],
-                      ["2.3s", "binder"],
+                      ["Ready", "binder"],
                     ].map(([value, label]) => (
                       <div
                         key={label}
@@ -383,7 +391,7 @@ export default function Landing() {
           <Reveal className="mx-auto max-w-3xl text-center">
             <div className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs font-semibold text-primary shadow-sm">
               <MessageSquareQuote className="h-3.5 w-3.5" />
-              Positioning for operators who cannot afford evidence gaps
+              Built for operators who cannot afford evidence gaps
             </div>
             <h2 className="mt-4 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
               Make compliance visible, provable, and actionable before survey
@@ -492,6 +500,27 @@ export default function Landing() {
               </Card>
             </Reveal>
           </div>
+
+          <Reveal className="mt-8 flex flex-col gap-4 rounded-2xl border border-primary/20 bg-background p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <div className="max-w-3xl">
+              <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                <CircleDollarSign className="h-4 w-4" />
+                A precise replacement and savings story
+              </div>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                CareBase can consolidate operational spreadsheets, binders, basic scheduling,
+                training, evidence, and point tools. It works alongside your EHR, eMAR,
+                payroll/timeclock, HRIS, and accounting systems rather than pretending to replace them.
+              </p>
+            </div>
+            <Link
+              href="/savings"
+              className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            >
+              See replacements and model savings
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Reveal>
         </div>
       </section>
 
@@ -501,10 +530,12 @@ export default function Landing() {
             What the app actually does
           </h2>
           <p className="mt-4 text-muted-foreground">
-            CareMetric CareBase combines facility operations, staff compliance, resident tracking,
-            incident and inspection workflows, scheduling, secure document storage,
-            integrated training, and role-based reporting so every stakeholder works
-            from the same source of truth.
+            CareMetric CareBase combines workforce training and qualification,
+            admissions and census, resident services, regulatory assessments,
+            incidents and complaints, scheduling, dietary and medication-event
+            follow-up, emergency and maintenance work, resident finance, QAPI,
+            secure documents, and survey evidence so every role works from the
+            same operational record.
           </p>
         </Reveal>
 
@@ -540,12 +571,12 @@ export default function Landing() {
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
           <Reveal className="mx-auto max-w-3xl text-center">
             <h2 className="text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
-              Facility management, compliance, and survey readiness in one platform
+              Personal care and assisted living operations in one accountable platform
             </h2>
             <p className="mt-4 text-muted-foreground">
-              CareMetric CareBase now brings resident care tracking, incident and inspection
-              management, AI-assisted training, documents, evidence, and workforce scheduling into
-              the same operational system.
+              CareMetric CareBase brings the non-clinical work around residents,
+              staff, facilities, deadlines, safety, and evidence into the same
+              system—without claiming to replace the clinical chart or eMAR.
             </p>
           </Reveal>
 

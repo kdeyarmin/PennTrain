@@ -52,7 +52,7 @@ function MarketingHeader() {
           </div>
         </Link>
 
-        <nav className="hidden items-center gap-8 md:flex">
+        <nav className="hidden items-center gap-6 lg:flex xl:gap-8">
           {MARKETING_NAV.map((item) => {
             const active = location === item.href;
             return (
@@ -73,7 +73,7 @@ function MarketingHeader() {
         </nav>
 
         {/* Desktop actions */}
-        <div className="hidden md:flex items-center gap-2 shrink-0">
+        <div className="hidden lg:flex items-center gap-2 shrink-0">
           <Link href="/login">
             <Button variant="ghost" size="sm" data-testid="link-login">
               Log In
@@ -97,7 +97,7 @@ function MarketingHeader() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 shrink-0 md:hidden"
+              className="h-9 w-9 shrink-0 lg:hidden"
               aria-label="Open menu"
             >
               <Menu className="h-5 w-5" />
@@ -158,8 +158,8 @@ function MarketingFooter() {
               <BrandName className="text-sm font-bold" style={{ color: BRAND_BLUE }} />
             </Link>
             <p className="mt-3 text-sm text-muted-foreground">
-              Facility management software for personal care homes, assisted living,
-              and adjacent long-term-care providers.
+              Operations, workforce compliance, and survey-readiness software built
+              first for personal care homes and assisted living facilities.
             </p>
           </div>
 
