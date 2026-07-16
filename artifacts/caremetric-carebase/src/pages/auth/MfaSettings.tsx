@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ type Assurance = {
 
 export default function MfaSettings() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [factors, setFactors] = useState<TotpFactor[]>([]);
   const [assurance, setAssurance] = useState<Assurance>({ currentLevel: null, nextLevel: null });
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
@@ -129,6 +131,7 @@ export default function MfaSettings() {
       setEnrollment(null);
       setCode("");
       await loadSecurityState();
+      await queryClient.invalidateQueries({ queryKey: ["my_mfa_policy"] });
       toast({ title: "Authenticator verified", description: "This session now meets the AAL2 security requirement." });
     } catch (error) {
       toast({
@@ -157,6 +160,7 @@ export default function MfaSettings() {
       if (enrollment?.factorId === factorId) setEnrollment(null);
       setCode("");
       await loadSecurityState();
+      await queryClient.invalidateQueries({ queryKey: ["my_mfa_policy"] });
       toast({ title: "Authenticator removed" });
     } catch (error) {
       toast({

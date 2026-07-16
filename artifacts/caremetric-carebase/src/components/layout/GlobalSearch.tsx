@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useLocation } from "wouter";
 import { useGlobalSearch } from "@/hooks/useGlobalSearch";
+import { useNavigationWorkspace } from "@/hooks/useProductExperience";
 import { useAuth } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
 import { searchCommandActions, searchPages } from "@/lib/appDomains";
-import { Search, Building2, User, Users, UserRound, Compass, Zap, BookOpen, FileText, AlertTriangle, Wrench, ShieldCheck } from "lucide-react";
+import { Search, Building2, User, Users, UserRound, Compass, Zap, BookOpen, FileText, AlertTriangle, Wrench, ShieldCheck, Star, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const DEBOUNCE_MS = 250;
@@ -12,6 +13,7 @@ const DEBOUNCE_MS = 250;
 export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: boolean; onNavigate?: () => void } = {}) {
   const [, navigate] = useLocation();
   const { user } = useAuth();
+  const navigationWorkspace = useNavigationWorkspace();
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -49,6 +51,14 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
   const pageResults = searchPages(debouncedQuery, user?.role);
   const hasWorkspaceItems = !!results?.items?.length;
   const hasResults = !!results && (actionResults.length || pageResults.length || hasWorkspaceItems || results.organizations.length || results.profiles.length || results.employees.length || results.residents.length || results.courses.length);
+  const favoriteShortcuts = navigationWorkspace.favoritePaths.map((path: string) => {
+    const page = searchPages(path, user?.role).find((candidate) => candidate.path === path);
+    return { path, label: page?.label ?? path };
+  });
+  const recentShortcuts = navigationWorkspace.recentPaths
+    .filter((recent) => !navigationWorkspace.favoritePaths.includes(recent.path))
+    .slice(0, 5);
+  const hasShortcuts = favoriteShortcuts.length > 0 || recentShortcuts.length > 0;
 
   const employeesBasePath = user?.role === "platform_admin" ? "/admin/employees"
     : user?.role === "trainer" ? "/trainer/employees"
@@ -126,11 +136,11 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
         aria-label="Search pages, people, and your training"
         role="combobox"
         aria-autocomplete="list"
-        aria-expanded={open && query.trim().length >= 2}
+        aria-expanded={open && (query.trim().length >= 2 || hasShortcuts)}
         aria-controls="global-search-results"
         aria-activedescendant={activeOptionId}
       />
-      {open && query.trim().length >= 2 && (
+      {open && (query.trim().length >= 2 || hasShortcuts) && (
         <div
           id="global-search-results"
           role="listbox"
@@ -138,7 +148,49 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
           className="absolute right-0 top-full z-50 mt-1 max-h-96 w-[min(18rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border bg-popover shadow-lg sm:w-72"
           onMouseDown={(e) => { e.preventDefault(); if (blurTimeout.current) clearTimeout(blurTimeout.current); }}
         >
-          {isFetching && !hasResults ? (
+          {query.trim().length < 2 ? (
+            <div className="py-1">
+              {!!favoriteShortcuts.length && (
+                <div>
+                  <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Favorites</p>
+                  {favoriteShortcuts.map((shortcut: { path: string; label: string }) => (
+                    <button
+                      key={shortcut.path}
+                      id={optionId("favorite", shortcut.path)}
+                      role="option"
+                      aria-selected={activeOptionId === optionId("favorite", shortcut.path)}
+                      onMouseMove={() => setActiveOptionId(optionId("favorite", shortcut.path))}
+                      className={optionClass(optionId("favorite", shortcut.path))}
+                      onClick={() => go(shortcut.path)}
+                    >
+                      <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500 shrink-0" />
+                      <span className="truncate">{shortcut.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {!!recentShortcuts.length && (
+                <div>
+                  <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Recent</p>
+                  {recentShortcuts.map((shortcut) => (
+                    <button
+                      key={shortcut.path}
+                      id={optionId("recent", shortcut.path)}
+                      role="option"
+                      aria-selected={activeOptionId === optionId("recent", shortcut.path)}
+                      onMouseMove={() => setActiveOptionId(optionId("recent", shortcut.path))}
+                      className={optionClass(optionId("recent", shortcut.path))}
+                      onClick={() => go(shortcut.path)}
+                    >
+                      <History className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span className="truncate">{shortcut.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {!hasShortcuts && <p className="px-3 py-4 text-xs text-muted-foreground text-center">Type two or more characters to search.</p>}
+            </div>
+          ) : isFetching && !hasResults ? (
             <p className="px-3 py-4 text-xs text-muted-foreground text-center" aria-live="polite">Searching...</p>
           ) : isError ? (
             <div className="px-3 py-4 text-xs text-center" role="alert">

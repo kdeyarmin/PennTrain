@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth, useSignOut } from "@/lib/auth";
 import { useMyOrganizationAccessible } from "@/hooks/useOrganizations";
 import { useImpersonationStatus, useStopImpersonation } from "@/hooks/useImpersonation";
@@ -9,6 +9,8 @@ import { Loader2, Eye, X, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { IdleSessionLock, MfaPolicyGate } from "./SessionSecurityGates";
+import { useNavigationWorkspace } from "@/hooks/useProductExperience";
 
 // Impersonation sessions auto-return after this long as a defense-in-depth backstop, independent
 // of the underlying magic-link JWT's own expiry (see useImpersonation.ts).
@@ -87,6 +89,17 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading, isAuthenticated } = useAuth();
   const { isImpersonating } = useImpersonationStatus();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [location] = useLocation();
+  const navigation = useNavigationWorkspace();
+  const lastRecordedPath = useRef<string | null>(null);
+
+  useEffect(() => {
+    const path = location.split(/[?#]/, 1)[0];
+    if (!user || lastRecordedPath.current === path || !/^\/(admin|app|trainer|me|account)(\/|$)/.test(path)) return;
+    lastRecordedPath.current = path;
+    const label = path.split("/").filter(Boolean).at(-1)?.replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()) ?? "Dashboard";
+    navigation.recordVisit.mutate({ path, label });
+  }, [location, navigation.recordVisit, user]);
 
   // A suspended org's current_org_id() resolves to null (see
   // 20260706043604_org_suspension_enforcement_and_limits.sql), so RLS blocks a non-platform_admin
@@ -128,6 +141,8 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <MfaPolicyGate>
+    <IdleSessionLock>
     <div className="flex h-screen w-full overflow-hidden bg-background">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground">
         Skip to main content
@@ -144,5 +159,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
     </div>
+    </IdleSessionLock>
+    </MfaPolicyGate>
   );
 }

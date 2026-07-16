@@ -1,4 +1,5 @@
-import { expect, test } from "@playwright/test";
+import { createHmac } from "node:crypto";
+import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
@@ -25,11 +26,57 @@ const password = process.env.E2E_ACCOUNT_PASSWORD ?? "";
 const guestEmail = "phase1-guest@test.local";
 let verificationSlug: string;
 let residentPortalToken: string;
+let incidentId: string;
+let trainingClassId: string;
+let employeeRecordId: string;
+let evidenceGuestToken: string;
+let orgAdminMfaFactorId: string;
+let orgAdminMfaSecret: string;
 
 let admin: SupabaseClient;
 let organizationId: string;
 let facilityId: string;
 const accounts = new Map<TestRole, TestAccount>();
+
+function totpCode(secret: string) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let buffer = 0;
+  let bits = 0;
+  const bytes: number[] = [];
+  for (const character of secret.toUpperCase().replace(/=+$/u, "")) {
+    const value = alphabet.indexOf(character);
+    if (value < 0) throw new Error("Authenticator secret is not valid base32");
+    buffer = (buffer << 5) | value;
+    bits += 5;
+    if (bits >= 8) {
+      bits -= 8;
+      bytes.push((buffer >> bits) & 0xff);
+      buffer &= (1 << bits) - 1;
+    }
+  }
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)));
+  const digest = createHmac("sha1", Buffer.from(bytes)).update(counter).digest();
+  const offset = digest[digest.length - 1] & 0x0f;
+  return String((digest.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, "0");
+}
+
+async function verifyOrgAdminClientMfa(client: SupabaseClient) {
+  const { error } = await client.auth.mfa.challengeAndVerify({
+    factorId: orgAdminMfaFactorId,
+    code: totpCode(orgAdminMfaSecret),
+  });
+  if (error) throw error;
+}
+
+async function verifyOrgAdminBrowserMfa(page: Page) {
+  await page.goto("/account/security");
+  const code = page.getByLabel("Authenticator code");
+  await expect(code).toBeVisible();
+  await code.fill(totpCode(orgAdminMfaSecret));
+  await page.getByRole("button", { name: "Verify authenticator" }).click();
+  await expect(page.getByText(/session is already verified/i)).toBeVisible();
+}
 
 function requireEnvironment() {
   if (!supabaseUrl || !serviceRoleKey || !anonKey || !password) {
@@ -183,6 +230,7 @@ test.describe("role-aware release journeys", () => {
       .select("id")
       .single();
     if (employeeError) throw employeeError;
+    employeeRecordId = employeeRecord.id;
 
     const orgAdmin = accounts.get("org_admin")!;
     const orgAdminAuthClient = createClient(supabaseUrl!, anonKey!, {
@@ -199,10 +247,24 @@ test.describe("role-aware release journeys", () => {
         new Error("Org admin sign-in returned no session")
       );
     }
+    const { data: mfaEnrollment, error: mfaEnrollmentError } =
+      await orgAdminAuthClient.auth.mfa.enroll({
+        factorType: "totp",
+        friendlyName: `E2E administrator ${suffix}`,
+      });
+    if (mfaEnrollmentError) throw mfaEnrollmentError;
+    orgAdminMfaFactorId = mfaEnrollment.id;
+    orgAdminMfaSecret = mfaEnrollment.totp.secret;
+    await verifyOrgAdminClientMfa(orgAdminAuthClient);
+    const { data: orgAdminSession, error: orgAdminSessionError } =
+      await orgAdminAuthClient.auth.getSession();
+    if (orgAdminSessionError || !orgAdminSession.session) {
+      throw orgAdminSessionError ?? new Error("Org admin MFA returned no session");
+    }
     const orgAdminClient = createClient(supabaseUrl!, anonKey!, {
       global: {
         headers: {
-          Authorization: "Bearer " + orgAdminSignIn.session.access_token,
+          Authorization: "Bearer " + orgAdminSession.session.access_token,
         },
       },
       auth: { autoRefreshToken: false, persistSession: false },
@@ -221,6 +283,27 @@ test.describe("role-aware release journeys", () => {
       .select("id")
       .single();
     if (residentError) throw residentError;
+
+    const { data: incident, error: incidentError } = await orgAdminClient.rpc(
+      "create_incident_atomic",
+      {
+        p_organization_id: organizationId,
+        p_facility_id: facilityId,
+        p_incident_type: "significant_injury",
+        p_occurred_at: new Date().toISOString(),
+        p_resident_id: resident.id,
+        p_resident_identifier_snapshot: null,
+        p_location_detail: "Resident room 10",
+        p_narrative:
+          "E2E reportable incident used to verify official state-form generation.",
+        p_severity: "major",
+        p_staff_involved: [],
+        p_notifications: [],
+        p_idempotency_key: `e2e-state-form-${suffix}`,
+      },
+    );
+    if (incidentError) throw incidentError;
+    incidentId = incident.id;
     const { data: portalGrant, error: portalGrantError } =
       await orgAdminClient
         .rpc("create_resident_portal_grant", {
@@ -343,6 +426,76 @@ test.describe("role-aware release journeys", () => {
     if (certificateError) throw certificateError;
     verificationSlug = certificate.slug;
 
+    const { data: trainingType, error: trainingTypeError } = await orgAdminClient.from("training_types").insert({
+      organization_id: organizationId,
+      name: "E2E QR attendance",
+      code: `E2E-QR-${suffix}`,
+      category: "orientation",
+    }).select("id").single();
+    if (trainingTypeError) throw trainingTypeError;
+    const trainer = accounts.get("trainer")!;
+    const { data: trainingClass, error: trainingClassError } = await orgAdminClient.from("training_classes").insert({
+      organization_id: organizationId,
+      facility_id: facilityId,
+      training_type_id: trainingType.id,
+      trainer_profile_id: trainer.id,
+      class_name: "E2E QR check-in class",
+      class_date: new Date().toISOString().slice(0, 10),
+      status: "scheduled",
+    }).select("id").single();
+    if (trainingClassError) throw trainingClassError;
+    trainingClassId = trainingClass.id;
+    const { error: attendeeError } = await orgAdminClient.from("training_class_attendees").insert({
+      class_id: trainingClassId,
+      employee_id: employeeRecordId,
+    });
+    if (attendeeError) throw attendeeError;
+
+    // Build a checksummed immutable binder fixture through the production
+    // evidence lifecycle. The public journey below then exercises terms,
+    // token scoping, and the guest artifact list end to end.
+    const checksum = "a".repeat(64);
+    const { data: binderJob, error: binderJobError } = await admin.from("binder_export_jobs").insert({
+      organization_id: organizationId,
+      requested_by: orgAdmin.id,
+      facility_ids: [facilityId],
+      status: "succeeded",
+      completed_at: new Date().toISOString(),
+      storage_bucket: "compliance-binders",
+      storage_path: `${organizationId}/e2e-binder.pdf`,
+      content_sha256: checksum,
+      byte_size: 1024,
+    }).select("id").single();
+    if (binderJobError) throw binderJobError;
+    const { data: collection, error: collectionError } = await orgAdminClient.rpc("create_evidence_collection", {
+      p_facility_id: facilityId,
+      p_name: "E2E Survey Evidence",
+      p_purpose: "Verify secure guest evidence access",
+      p_terms_version: "v1",
+    });
+    if (collectionError) throw collectionError;
+    const { data: artifact, error: artifactError } = await orgAdminClient.rpc("add_binder_export_to_evidence_collection", {
+      p_collection_id: collection.id,
+      p_binder_job_id: binderJob.id,
+      p_display_name: "E2E Compliance Binder",
+    });
+    if (artifactError) throw artifactError;
+    const { error: publishCollectionError } = await orgAdminClient.rpc("set_evidence_collection_status", {
+      p_collection_id: collection.id,
+      p_status: "published",
+    });
+    if (publishCollectionError) throw publishCollectionError;
+    const { data: grant, error: grantError } = await orgAdminClient.rpc("issue_evidence_guest_grant", {
+      p_collection_id: collection.id,
+      p_guest_label: "E2E Surveyor",
+      p_guest_email_hash: null as unknown as string,
+      p_allowed_artifact_ids: [artifact.id],
+      p_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      p_step_up: false,
+    });
+    if (grantError) throw grantError;
+    evidenceGuestToken = (grant as { token: string }).token;
+
     const { error: signOutError } = await platformAuthClient.auth.signOut();
     if (signOutError) throw signOutError;
   });
@@ -353,13 +506,84 @@ test.describe("role-aware release journeys", () => {
     // audit evidence or regulated rows merely for cleanup.
   });
 
-  test("anonymous visitors can verify a real certificate", async ({ page }) => {
+  test("course assignment completes into a publicly verifiable certificate", async ({ page }) => {
     await page.goto(`/verify/${verificationSlug}`);
     await expect(page.getByText("Valid Certificate")).toBeVisible();
     await expect(page.getByText("Phase Employee")).toBeVisible();
     await expect(
       page.getByText("Phase 1 Public Verification Course"),
     ).toBeVisible();
+  });
+
+  test("a reportable incident produces the official state-form PDF", async ({ page }) => {
+    const account = accounts.get("org_admin")!;
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(account.email);
+    await page.getByLabel("Password").fill(account.password);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app");
+    await verifyOrgAdminBrowserMfa(page);
+    await page.goto(`/app/incidents/${incidentId}`);
+    await page.getByRole("button", { name: "Fill Official DHS Reportable Incident Form" }).click();
+    await expect.poll(async () => {
+      const { data, error } = await admin.from("incidents").select("state_form_pdf_storage_path").eq("id", incidentId).single();
+      if (error) throw error;
+      return data.state_form_pdf_storage_path;
+    }, { timeout: 30000 }).not.toBeNull();
+  });
+
+  test("an enrolled employee checks in through a rotating class QR token", async ({ page }) => {
+    const trainer = accounts.get("trainer")!;
+    const trainerClient = createClient(supabaseUrl!, anonKey!, { auth: { autoRefreshToken: false, persistSession: false } });
+    const { error: trainerSignInError } = await trainerClient.auth.signInWithPassword({ email: trainer.email, password });
+    if (trainerSignInError) throw trainerSignInError;
+    const { data: token, error: tokenError } = await trainerClient.rpc("generate_class_checkin_token", { p_class_id: trainingClassId });
+    if (tokenError) throw tokenError;
+
+    const employee = accounts.get("employee")!;
+    const employeeClient = createClient(supabaseUrl!, anonKey!, { auth: { autoRefreshToken: false, persistSession: false } });
+    const { error: employeeSignInError } = await employeeClient.auth.signInWithPassword({ email: employee.email, password });
+    if (employeeSignInError) throw employeeSignInError;
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(employee.email);
+    await page.getByLabel("Password").fill(employee.password);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/me");
+    await page.goto(`/checkin/${token}`);
+    await expect(page.getByText("You're checked in.")).toBeVisible();
+    await expect.poll(async () => {
+      const { data, error } = await employeeClient.from("training_class_attendees").select("checked_in_at").eq("class_id", trainingClassId).eq("employee_id", employeeRecordId).single();
+      if (error) throw error;
+      return data.checked_in_at;
+    }).not.toBeNull();
+  });
+
+  test("a manager queues an asynchronous compliance binder", async ({ page }) => {
+    const account = accounts.get("org_admin")!;
+    const requestedAfter = new Date().toISOString();
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(account.email);
+    await page.getByLabel("Password").fill(account.password);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app");
+    await verifyOrgAdminBrowserMfa(page);
+    await page.goto("/app/compliance-binder");
+    await page.getByRole("button", { name: "Export Binder PDF" }).click();
+    await expect.poll(async () => {
+      const { count, error } = await admin.from("binder_export_jobs").select("id", { count: "exact", head: true })
+        .eq("requested_by", account.id).gte("requested_at", requestedAfter);
+      if (error) throw error;
+      return count ?? 0;
+    }).toBe(1);
+  });
+
+  test("an evidence-room guest accepts terms and sees only granted artifacts", async ({ page }) => {
+    await page.goto(`/evidence-access/${evidenceGuestToken}`);
+    await expect(page.getByRole("heading", { name: "E2E Survey Evidence" })).toBeVisible();
+    await expect(page.getByText("E2E Compliance Binder")).toHaveCount(0);
+    await page.getByRole("button", { name: "Accept terms and open the room" }).click();
+    await expect(page.getByText("E2E Compliance Binder")).toBeVisible();
+    await expect(page.getByText("Compliance binder (PDF)")).toBeVisible();
   });
 
   test("designated-person portal removes the URL credential and gates resident data on terms", async ({ page }) => {
@@ -425,6 +649,12 @@ test.describe("role-aware release journeys", () => {
     if (signInError || !signInData.session) {
       throw signInError ?? new Error("Org admin sign-in returned no session");
     }
+    await verifyOrgAdminClientMfa(inviteClient);
+    const { data: elevatedSession, error: elevatedSessionError } =
+      await inviteClient.auth.getSession();
+    if (elevatedSessionError || !elevatedSession.session) {
+      throw elevatedSessionError ?? new Error("Org admin MFA returned no session");
+    }
 
     const suffix = String(Date.now());
     const inviteEmail = `phase1-invited-employee-${suffix}@test.local`;
@@ -446,7 +676,7 @@ test.describe("role-aware release journeys", () => {
     const inviteResponse = await fetch(`${functionsUrl}/invite-user`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${signInData.session.access_token}`,
+        Authorization: `Bearer ${elevatedSession.session.access_token}`,
         apikey: anonKey!,
         "Content-Type": "application/json",
       },
@@ -489,6 +719,7 @@ test.describe("role-aware release journeys", () => {
     await page.getByLabel("Password").fill(account.password);
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app");
+    await verifyOrgAdminBrowserMfa(page);
 
     await page.getByRole("link", { name: "Onboard Employee" }).click();
     await expect(page.getByRole("dialog").getByRole("heading", { name: "Add Employee" })).toBeVisible();
@@ -514,7 +745,15 @@ test.describe("role-aware release journeys", () => {
       await expect
         .poll(() => new URL(page.url()).pathname, { timeout: 20000 })
         .toBe(account.expectedPath);
-      await expect(page.locator("h1").first()).toBeVisible();
+      if (role === "org_admin") {
+        await verifyOrgAdminBrowserMfa(page);
+        await page.goto(account.expectedPath);
+        await expect(page.locator("h1").first()).toBeVisible();
+      } else if (role === "platform_admin" || role === "facility_manager") {
+        await expect(page.getByText("Multi-factor verification required")).toBeVisible();
+      } else {
+        await expect(page.locator("h1").first()).toBeVisible();
+      }
 
       const accessibility = await new AxeBuilder({ page }).analyze();
       const criticalViolations = accessibility.violations.filter(

@@ -107,6 +107,16 @@ verify_jwt = true
 [functions.send-auth-email]
 verify_jwt = false
 
+# D7 makes TOTP a required control for privileged tenant roles. Keep the local
+# and CI Auth service aligned with hosted configuration so enrollment and AAL2
+# browser journeys exercise the real factor lifecycle.
+[auth.mfa]
+max_enrolled_factors = 10
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
 # Hosted Supabase Auth hooks are configured in the dashboard. For local end-to-end hook
 # testing, opt in by setting enabled=true and SEND_EMAIL_HOOK_SECRET_BASE64 to a base64
 # encoded Standard Webhooks secret; keep disabled by default so `supabase start` works
@@ -211,4 +221,9 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.run-data-lifecycle]
+verify_jwt = false
+
+# Durable customer-export worker. Authentication is the shared cron secret,
+# because platform cron and the system-jobs control plane call it without a user JWT.
+[functions.process-organization-export-jobs]
 verify_jwt = false

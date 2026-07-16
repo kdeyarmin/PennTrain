@@ -1364,22 +1364,25 @@ export default function Reports() {
     enabled: reportNeeds(selectedReportId, "inspectionItems"),
   });
 
-  const facilities = facilitiesQuery.data ?? [];
-  const employees = employeesQuery.data ?? [];
+  const sandboxFacilityIds = new Set((facilitiesQuery.data ?? []).filter((facility) => facility.is_sandbox).map((facility) => facility.id));
+  const outsideSandbox = (row: { facility_id: string | null }) => !row.facility_id || !sandboxFacilityIds.has(row.facility_id);
+  const facilities = (facilitiesQuery.data ?? []).filter((facility) => !facility.is_sandbox);
+  const employees = (employeesQuery.data ?? []).filter((employee) => !employee.is_synthetic && outsideSandbox(employee));
   const trainingTypes = trainingTypesQuery.data ?? [];
-  const trainingRecords = trainingRecordsQuery.data ?? [];
-  const practicums = practicumsQuery.data ?? [];
-  const documents = documentsQuery.data ?? [];
-  const alerts = alertsQuery.data ?? [];
-  const hourBuckets = hourBucketsQuery.data ?? [];
+  const trainingRecords = (trainingRecordsQuery.data ?? []).filter(outsideSandbox);
+  const practicums = (practicumsQuery.data ?? []).filter(outsideSandbox);
+  const documents = (documentsQuery.data ?? []).filter(outsideSandbox);
+  const alerts = (alertsQuery.data ?? []).filter(outsideSandbox);
+  const hourBuckets = (hourBucketsQuery.data ?? []).filter(outsideSandbox);
   // No report reads ctx.organizations (see REPORT_DATASETS above) -- kept on ReportContext for
   // shape-compatibility, but there's nothing that ever needs it fetched.
   const organizations: Organization[] = [];
   const profiles = profilesQuery.data ?? [];
-  const credentials = credentialsQuery.data ?? [];
-  const incidents = incidentsQuery.data ?? [];
-  const incidentNotifications = incidentNotificationsQuery.data ?? [];
-  const inspectionItems = inspectionItemsQuery.data ?? [];
+  const credentials = (credentialsQuery.data ?? []).filter(outsideSandbox);
+  const incidents = (incidentsQuery.data ?? []).filter(outsideSandbox);
+  const reportableIncidentIds = new Set(incidents.map((incident) => incident.id));
+  const incidentNotifications = (incidentNotificationsQuery.data ?? []).filter((notification) => reportableIncidentIds.has(notification.incident_id));
+  const inspectionItems = (inspectionItemsQuery.data ?? []).filter(outsideSandbox);
 
   // Per-report readiness: true once every dataset that report's buildReport() branch touches
   // has finished its first fetch. Drives each card's own disabled/spinner state (instead of the

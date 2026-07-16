@@ -237,6 +237,7 @@ export default function FacilityDetail() {
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <Badge variant="outline" className={facilityTypeBadgeClass(facility.facility_type)}>{facilityTypeLabel(facility.facility_type)}</Badge>
               <Badge variant={facility.is_active ? "default" : "secondary"}>{facility.is_active ? "Active" : "Inactive"}</Badge>
+              {facility.is_sandbox && <Badge className="border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-50" variant="outline">Training sandbox</Badge>}
             </div>
           </div>
         </div>

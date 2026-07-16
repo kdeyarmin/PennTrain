@@ -346,7 +346,7 @@ async function buildBinderPdf(
     .single();
   if (orgError || !org) throw new Error("organization not found");
 
-  let facilitiesQuery = adminClient.from("facilities").select("id, name, facility_type, license_number").eq("organization_id", orgId).order("name");
+  let facilitiesQuery = adminClient.from("facilities").select("id, name, facility_type, license_number").eq("organization_id", orgId).eq("is_sandbox", false).order("name");
   let employeesQuery = adminClient.from("employees").select("id, first_name, last_name, facility_id, status").eq("organization_id", orgId);
   let recordsQuery = adminClient
     .from("employee_training_records")

@@ -11,6 +11,7 @@ import { QueryError } from "@/components/QueryState";
 import { Award, ExternalLink, Download, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { formatDateForDisplay } from "@/lib/dateUtils";
+import { useMyTrainingPassport } from "@/hooks/useProductExperience";
 
 // Certificate PDFs render on a background job queue; while one is still pending/processing,
 // poll the list so the action button flips to "Download" without a manual refresh.
@@ -41,6 +42,7 @@ export default function MyCertificates() {
   );
   const { data: courses } = useListCourses();
   const { mutateAsync: generatePdf } = useGenerateCertificatePdf();
+  const passport = useMyTrainingPassport();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const courseTitleById = useMemo(() => new Map((courses ?? []).map(c => [c.id, c.title])), [courses]);
@@ -74,6 +76,31 @@ export default function MyCertificates() {
         <h1 className="text-2xl font-bold tracking-tight">My Certificates</h1>
         <p className="text-muted-foreground">View and verify certificates you've earned from completed training.</p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Award className="h-5 w-5" />
+            Portable training passport
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Create one employee-owned link containing your valid certificates and continuing-education hours. You can revoke or replace it at any time.
+          </p>
+          {passport.data?.is_active ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button asChild variant="outline"><Link href={`/passport/${passport.data.slug}`}><ExternalLink className="mr-2 h-4 w-4" />Open passport</Link></Button>
+              <Button variant="outline" onClick={() => void navigator.clipboard.writeText(`${window.location.origin}/passport/${passport.data!.slug}`).then(() => toast({ title: "Passport link copied" }))}>Copy share link</Button>
+              <Button variant="destructive" disabled={passport.revoke.isPending} onClick={() => passport.revoke.mutate(undefined, { onSuccess: () => toast({ title: "Passport revoked" }), onError: (error: Error) => toast({ title: "Passport could not be revoked", description: error.message, variant: "destructive" }) })}>Revoke link</Button>
+            </div>
+          ) : (
+            <Button disabled={passport.enable.isPending || !employee?.id} onClick={() => passport.enable.mutate(false, { onSuccess: () => toast({ title: "Training passport created" }), onError: (error: Error) => toast({ title: "Passport could not be created", description: error.message, variant: "destructive" }) })}>
+              {passport.enable.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Award className="mr-2 h-4 w-4" />}Create my passport
+            </Button>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

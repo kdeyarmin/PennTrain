@@ -379,6 +379,24 @@ export function usePublishCourseVersion() {
   });
 }
 
+export function useUnpublishCourse() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ courseId, reason }: { courseId: string; reason: string }) => {
+      const { data, error } = await supabase.rpc("unpublish_course", {
+        p_course_id: courseId,
+        p_reason: reason,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["courses", data.id], data);
+      queryClient.invalidateQueries({ queryKey: ["courses"] });
+    },
+  });
+}
+
 export function useListCourseBlocks(courseVersionId: string | undefined) {
   return useQuery({
     queryKey: ["course_blocks", courseVersionId],

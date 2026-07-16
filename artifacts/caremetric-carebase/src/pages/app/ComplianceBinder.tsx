@@ -32,7 +32,8 @@ export default function ComplianceBinder() {
   const [facilityId, setFacilityId] = useState<string>(FACILITY_ALL);
 
   const canScopeFacility = !!user && FACILITY_PICKER_ROLES.includes(user.role);
-  const { data: facilities } = useListFacilities({}, canScopeFacility);
+  const { data: facilityRows } = useListFacilities({}, canScopeFacility);
+  const facilities = facilityRows?.filter((facility) => !facility.is_sandbox);
   const { data: exports, isError: exportsError, error: exportsErrorDetail, refetch: refetchExports } = useListBinderExports();
   const { mutate: fetchDownload, isPending: downloading, variables: downloadingJobId } = useBinderDownloadUrl();
 
