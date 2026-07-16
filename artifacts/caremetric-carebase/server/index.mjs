@@ -77,6 +77,28 @@ const COMPRESSIBLE_EXTENSIONS = new Set([
   ".txt",
 ]);
 
+// Head-prerendered copies of index.html for statically-known public routes, written by
+// server/prerender-heads.mjs at build time (route-specific title/meta/canonical/JSON-LD in
+// the raw HTML, for crawlers and scrapers that don't run JS). The map is built ONCE at
+// startup from the files actually present, so any route without a prerendered copy simply
+// falls through to plain index.html -- the SPA fallback can never 404 because of this.
+const PRERENDER_DIR = join(DIST_DIR, "__prerendered");
+const PRERENDERED_ROUTES = new Map();
+try {
+  for (const entry of await readdir(PRERENDER_DIR, { withFileTypes: true })) {
+    // Exactly ".html" -- skips the ".html.br"/".html.gz" siblings precompress emits.
+    if (!entry.isFile() || !entry.name.endsWith(".html")) continue;
+    const slug = entry.name.slice(0, -".html".length);
+    PRERENDERED_ROUTES.set(slug === "root" ? "/" : `/${slug}`, join(PRERENDER_DIR, entry.name));
+  }
+} catch (error) {
+  if (error?.code !== "ENOENT") throw error;
+  // No prerendered output in this build -- every app route serves index.html.
+}
+if (PRERENDERED_ROUTES.size > 0) {
+  console.log(`Serving ${PRERENDERED_ROUTES.size} head-prerendered routes from ${PRERENDER_DIR}`);
+}
+
 // Sent on every response. Railway terminates TLS, so HSTS is set with a moderate max-age and
 // without includeSubDomains/preload (safe default if a custom apex domain is ever attached).
 // The CSP deliberately contains only directives that cannot break resource loading
@@ -285,8 +307,13 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    // SPA fallback: client-side routing (wouter) owns everything else.
-    const indexPath = join(DIST_DIR, "index.html");
+    // SPA fallback: client-side routing (wouter) owns everything else. Statically-known
+    // public routes get their head-prerendered copy of index.html (same body, route-specific
+    // <head>); anything else -- including routes with no prerendered file -- serves
+    // index.html itself. Both go through serveFile with the same no-cache +
+    // Accept-Encoding-negotiation behavior.
+    const routePath = appPath.length > 1 ? appPath.replace(/\/+$/, "") || "/" : "/";
+    const indexPath = PRERENDERED_ROUTES.get(routePath) ?? join(DIST_DIR, "index.html");
     await serveFile(indexPath, req, res, { cacheable: false });
   } catch (error) {
     console.error("Request handling error:", error);

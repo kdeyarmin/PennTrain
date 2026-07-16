@@ -15,7 +15,6 @@ import {
   type LucideProps,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DEMO_MAILTO } from "@/components/marketing/content";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { cn } from "@/lib/utils";
 
@@ -231,10 +230,10 @@ export function ProductTour() {
 
           <Reveal className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Button asChild variant="secondary" className="gap-2">
-              <a href={DEMO_MAILTO}>
-                Map your workflow
+              <Link href="/request-demo">
+                Request a demo
                 <ArrowRight className="h-4 w-4" />
-              </a>
+              </Link>
             </Button>
             <Button asChild variant="outline" className="border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white">
               <Link href="/features">Explore every capability</Link>

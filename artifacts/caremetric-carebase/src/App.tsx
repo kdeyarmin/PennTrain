@@ -17,6 +17,7 @@ const Security = lazy(() => import("@/pages/marketing/Security"));
 const HowItWorks = lazy(() => import("@/pages/marketing/HowItWorks"));
 const Savings = lazy(() => import("@/pages/marketing/Savings"));
 const Faq = lazy(() => import("@/pages/marketing/Faq"));
+const RequestDemo = lazy(() => import("@/pages/marketing/RequestDemo"));
 
 const Login = lazy(() => import("@/pages/auth/Login"));
 const Demo = lazy(() => import("@/pages/auth/Demo"));
@@ -384,6 +385,7 @@ function Router() {
       <Route path="/how-it-works" component={HowItWorks} />
       <Route path="/savings" component={Savings} />
       <Route path="/faq" component={Faq} />
+      <Route path="/request-demo" component={RequestDemo} />
 
       {/* Platform Admin routes */}
       <Route path="/admin">

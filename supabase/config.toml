@@ -132,6 +132,12 @@ secrets = "env(SEND_EMAIL_HOOK_SECRET_BASE64)"
 [functions.signup-organization]
 verify_jwt = false
 
+# Public, unauthenticated demo-request intake by design -- prospects have no session. The
+# function enforces Turnstile and a hashed-IP submission cap before its service-role insert;
+# the demo_requests table has no anon/authenticated INSERT policy.
+[functions.request-demo]
+verify_jwt = false
+
 # Real session impersonation ("log in as user") for platform_admin support use. Authorization is
 # enforced inside the function itself (caller JWT must resolve to an active platform_admin
 # profile), not via verify_jwt -- verify_jwt only confirms the request carries *a* valid JWT, not

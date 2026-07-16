@@ -42,6 +42,7 @@ import {
   OLD_WAY,
   NEW_WAY,
 } from "@/components/marketing/content";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 const ProductTour = lazy(() =>
@@ -189,6 +190,33 @@ const DECISION_SIGNALS = [
   "You want managers to fix risk before an inspection instead of discovering missing evidence after a surveyor requests it.",
 ];
 
+/**
+ * Honest trust markers only: no invented customers, counts, or testimonials.
+ * The pilot-discipline claims are grounded in CONTROLLED_PILOT_RUNBOOK.md —
+ * capabilities are pilot-gated and regulatory calculations are compared
+ * against compliance-SME worksheets before general availability.
+ */
+const TRUST_MARKERS: { icon: LucideIcon; title: string; blurb: string }[] = [
+  {
+    icon: ShieldCheck,
+    title: "Anchored to the regulation, cite by cite",
+    blurb:
+      "Training rules, readiness weighting, forms, and fire-drill fields reference the specific 55 Pa. Code Chapter 2600 and 2800 sections they serve — not a generic 'compliance' label.",
+  },
+  {
+    icon: ListChecks,
+    title: "Pilot-gated releases",
+    blurb:
+      "Capabilities stay pilot-only until a controlled pilot validates them, with regulatory calculations checked against compliance-SME worksheets before general availability.",
+  },
+  {
+    icon: MessageSquareQuote,
+    title: "No invented endorsements",
+    blurb:
+      "You won't find fabricated testimonials or compliance guarantees here. We're earning references in our Pennsylvania pilot — and we'll tell you plainly what CareBase does not replace.",
+  },
+];
+
 const DASHBOARD_ROWS = [
   { label: "Annual in-service hours", value: 92, status: "On track" },
   { label: "Medication practicums", value: 88, status: "12 due" },
@@ -204,12 +232,7 @@ const PLATFORM_STATS = [
 ];
 
 export default function Landing() {
-  usePageMeta({
-    title: "CareMetric CareBase — Personal Care Home & Assisted Living Software for Pennsylvania",
-    description:
-      "Operations, workforce compliance, training, and survey-evidence software for Pennsylvania personal care homes and assisted living facilities under 55 Pa. Code Chapters 2600 and 2800.",
-    path: "/",
-  });
+  usePageMeta({ ...MARKETING_ROUTE_META["/"], path: "/" });
   return (
     <MarketingLayout>
       <section className="relative overflow-hidden bg-gradient-to-br from-[#071626] via-[#0d2742] to-[#143a5c] text-white">
@@ -370,6 +393,37 @@ export default function Landing() {
                 </div>
               </div>
             ))}
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="border-b border-border/60 bg-muted/30">
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+          <h2 className="sr-only">Why operators can trust CareMetric CareBase</h2>
+          <Reveal className="grid gap-6 md:grid-cols-3">
+            {TRUST_MARKERS.map((marker) => (
+              <div key={marker.title} className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                  <marker.icon className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <div className="text-sm font-semibold">{marker.title}</div>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    {marker.blurb}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </Reveal>
+          <Reveal className="mt-6 text-center">
+            <Link
+              href="/request-demo"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              data-testid="link-join-pilot"
+            >
+              Ask about joining the Pennsylvania pilot
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </Reveal>
         </div>
       </section>

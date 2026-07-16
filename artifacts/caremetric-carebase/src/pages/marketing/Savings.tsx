@@ -15,12 +15,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
-import { DEMO_MAILTO } from "@/components/marketing/content";
 import { PageHero, Reveal } from "@/components/marketing/primitives";
 import {
   calculateSavingsModel,
   type SavingsInputs,
 } from "@/lib/savingsModel";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 const REPLACEMENT_AREAS = [
@@ -196,12 +196,7 @@ export default function Savings() {
   const [rawInputs, setRawInputs] = useState<RawSavingsInputs>(INITIAL_RAW_INPUTS);
   const result = calculateSavingsModel(toModelInputs(rawInputs));
 
-  usePageMeta({
-    title: "Value & Savings — CareMetric CareBase",
-    description:
-      "See what CareMetric CareBase can replace, what it should work alongside, and model potential labor and software savings using your own facility assumptions.",
-    path: "/savings",
-  });
+  usePageMeta({ ...MARKETING_ROUTE_META["/savings"], path: "/savings" });
 
   const setInput = (key: keyof SavingsInputs, value: string) => {
     setRawInputs((current) => ({ ...current, [key]: value }));
@@ -349,12 +344,12 @@ export default function Savings() {
                     {field.key === "annualCareBasePrice" && (
                       <>
                         {" "}
-                        <a
-                          href={DEMO_MAILTO}
+                        <Link
+                          href="/request-demo"
                           className="font-medium text-primary hover:underline"
                         >
-                          Email us for a quote
-                        </a>
+                          Request a quote
+                        </Link>
                       </>
                     )}
                   </p>

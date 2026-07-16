@@ -2,16 +2,11 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
-import { DEMO_MAILTO } from "@/components/marketing/content";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 export default function Demo() {
-  usePageMeta({
-    title: "Demo Access — CareMetric CareBase",
-    description:
-      "Request a dedicated demo account to explore CareMetric CareBase with sample facility data before signing up.",
-    path: "/demo",
-  });
+  usePageMeta({ ...MARKETING_ROUTE_META["/demo"], path: "/demo" });
   return (
     <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50" />
@@ -41,7 +36,7 @@ export default function Demo() {
               This public page does not expose shared demo credentials. Contact the CareMetric team for a dedicated demo account.
             </p>
             <Button asChild className="mt-4 w-full h-10 font-medium shadow-sm">
-              <a href={DEMO_MAILTO}>Request a demo account</a>
+              <Link href="/request-demo">Request a demo account</Link>
             </Button>
             <p className="mt-4 text-center text-[13px] text-muted-foreground">
               Have credentials already?{" "}
