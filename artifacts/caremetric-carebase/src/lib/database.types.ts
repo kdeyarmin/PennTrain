@@ -32716,6 +32716,7 @@ export type Database = {
       unpublish_course: {
         Args: { p_course_id: string; p_reason: string }
         Returns: {
+          catalog_code: string | null
           category: string | null
           created_at: string
           created_by: string | null
@@ -32724,6 +32725,7 @@ export type Database = {
           estimated_duration_minutes: number | null
           id: string
           organization_id: string | null
+          recurrence_interval_days: number | null
           status: string
           title: string
           training_type_id: string | null
