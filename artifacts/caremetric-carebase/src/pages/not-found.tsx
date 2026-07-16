@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -9,6 +10,22 @@ import { Link } from "wouter";
 export default function NotFound() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const homePath = homePathForRole(user?.role) ?? "/";
+
+  // Unknown routes are served the homepage HTML with a 200 status (soft 404), so tell
+  // crawlers not to index them. usePageMeta isn't used here because it sets a canonical
+  // URL, and an unknown path has no correct canonical. Like usePageMeta, the title is
+  // not restored on unmount -- the next page's meta hook overwrites it -- but the robots
+  // meta is removed so it can't leak onto real pages.
+  useEffect(() => {
+    document.title = "Page not found — CareMetric CareBase";
+    const robotsMeta = document.createElement("meta");
+    robotsMeta.name = "robots";
+    robotsMeta.content = "noindex";
+    document.head.appendChild(robotsMeta);
+    return () => {
+      robotsMeta.remove();
+    };
+  }, []);
 
   if (isLoading) {
     return (

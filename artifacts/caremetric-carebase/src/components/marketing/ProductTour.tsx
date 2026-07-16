@@ -156,7 +156,10 @@ export function ProductTour() {
                     type="button"
                     role="tab"
                     aria-selected={active}
-                    aria-controls={`${baseId}-panel-${scenario.id}`}
+                    // Only the selected panel is rendered, so only the active
+                    // tab may reference it -- aria-controls must not point at
+                    // an id that is absent from the DOM.
+                    aria-controls={active ? `${baseId}-panel-${scenario.id}` : undefined}
                     tabIndex={active ? 0 : -1}
                     onClick={() => setSelectedId(scenario.id)}
                     onKeyDown={(event) => selectFromKeyboard(event, index)}

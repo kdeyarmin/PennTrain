@@ -30,22 +30,21 @@ export function CtaBanner({
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-white/70">{subtitle}</p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <a href={DEMO_MAILTO}>
-            <Button size="lg" variant="secondary" className="gap-2" data-testid="button-cta-email">
+          <Button asChild size="lg" variant="secondary" data-testid="button-cta-signup">
+            <Link href="/signup">Start a Free Trial</Link>
+          </Button>
+          <Button
+            asChild
+            size="lg"
+            variant="outline"
+            className="gap-2 border-white/30 bg-transparent text-white hover:bg-white/10"
+            data-testid="button-cta-demo"
+          >
+            <a href={DEMO_MAILTO}>
               <Mail className="h-4 w-4" />
-              hello@caremetric.ai
-            </Button>
-          </a>
-          <Link href="/signup">
-            <Button
-              size="lg"
-              variant="outline"
-              className="border-white/30 bg-transparent text-white hover:bg-white/10"
-              data-testid="button-cta-signup"
-            >
-              Start a Free Trial
-            </Button>
-          </Link>
+              Request a Demo
+            </a>
+          </Button>
         </div>
       </Reveal>
     </section>
