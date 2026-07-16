@@ -93,6 +93,7 @@ export default defineConfig(({ command, mode }) => {
             "**/query-*.js",
             "**/radix-*.js",
             "**/supabase-*.js",
+            "**/motion-*.js",
             "**/*.css",
           ],
           runtimeCaching: [
@@ -137,6 +138,13 @@ export default defineConfig(({ command, mode }) => {
         output: {
           manualChunks: {
             router: ["wouter"],
+            // framer-motion is eagerly reachable (marketing Reveal primitive via the
+            // eager Landing page), so it loads up front either way -- splitting it out
+            // keeps the entry chunk under the largest-chunk bundle budget and lets it
+            // cache independently. lucide-react is deliberately NOT listed: forcing it
+            // into one chunk shipped every icon used by ~150 lazy app pages to
+            // anonymous marketing visitors; per-chunk tree-shaking is the point.
+            motion: ["framer-motion"],
             radix: [
               "@radix-ui/react-accordion",
               "@radix-ui/react-alert-dialog",
