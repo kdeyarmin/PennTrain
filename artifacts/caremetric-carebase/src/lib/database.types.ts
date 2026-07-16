@@ -4099,6 +4099,45 @@ export type Database = {
           },
         ]
       }
+      demo_requests: {
+        Row: {
+          created_at: string
+          email: string
+          facility_count: number | null
+          id: string
+          ip_hash: string | null
+          message: string | null
+          name: string
+          organization: string | null
+          source_path: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          facility_count?: number | null
+          id?: string
+          ip_hash?: string | null
+          message?: string | null
+          name: string
+          organization?: string | null
+          source_path?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          facility_count?: number | null
+          id?: string
+          ip_hash?: string | null
+          message?: string | null
+          name?: string
+          organization?: string | null
+          source_path?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       dhs_citation_topics: {
         Row: {
           category: string
