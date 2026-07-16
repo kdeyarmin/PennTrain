@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
+import { DEMO_MAILTO } from "@/components/marketing/content";
 import { PageHero, Reveal } from "@/components/marketing/primitives";
 import {
   calculateSavingsModel,
@@ -127,6 +128,55 @@ const FIELD_DEFINITIONS: {
   },
 ];
 
+type RawSavingsInputs = Record<keyof SavingsInputs, string>;
+
+const INITIAL_RAW_INPUTS: RawSavingsInputs = {
+  weeklyCoordinationHours: String(INITIAL_INPUTS.weeklyCoordinationHours),
+  annualBinderHours: String(INITIAL_INPUTS.annualBinderHours),
+  loadedHourlyRate: String(INITIAL_INPUTS.loadedHourlyRate),
+  monthlyReplaceableToolSpend: String(INITIAL_INPUTS.monthlyReplaceableToolSpend),
+  expectedLaborReductionPercent: String(INITIAL_INPUTS.expectedLaborReductionPercent),
+  annualCareBasePrice: String(INITIAL_INPUTS.annualCareBasePrice),
+};
+
+const FIELD_MIN = 0;
+
+const fieldMax = (key: keyof SavingsInputs): number =>
+  key === "expectedLaborReductionPercent" ? 100 : Number.POSITIVE_INFINITY;
+
+/**
+ * Numeric interpretation of a raw field value, clamped to the field's
+ * min/max — mirrors the clamping calculateSavingsModel applies so the
+ * displayed inputs and the modeled results can never diverge.
+ */
+const clampFieldValue = (key: keyof SavingsInputs, raw: string): number => {
+  const parsed = Number(raw);
+  const numeric =
+    raw.trim() === "" || !Number.isFinite(parsed) ? FIELD_MIN : parsed;
+  return Math.min(fieldMax(key), Math.max(FIELD_MIN, numeric));
+};
+
+const toModelInputs = (raw: RawSavingsInputs): SavingsInputs => ({
+  weeklyCoordinationHours: clampFieldValue(
+    "weeklyCoordinationHours",
+    raw.weeklyCoordinationHours,
+  ),
+  annualBinderHours: clampFieldValue("annualBinderHours", raw.annualBinderHours),
+  loadedHourlyRate: clampFieldValue("loadedHourlyRate", raw.loadedHourlyRate),
+  monthlyReplaceableToolSpend: clampFieldValue(
+    "monthlyReplaceableToolSpend",
+    raw.monthlyReplaceableToolSpend,
+  ),
+  expectedLaborReductionPercent: clampFieldValue(
+    "expectedLaborReductionPercent",
+    raw.expectedLaborReductionPercent,
+  ),
+  annualCareBasePrice: clampFieldValue(
+    "annualCareBasePrice",
+    raw.annualCareBasePrice,
+  ),
+});
+
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
@@ -143,8 +193,8 @@ const decimal = new Intl.NumberFormat("en-US", {
 });
 
 export default function Savings() {
-  const [inputs, setInputs] = useState<SavingsInputs>(INITIAL_INPUTS);
-  const result = calculateSavingsModel(inputs);
+  const [rawInputs, setRawInputs] = useState<RawSavingsInputs>(INITIAL_RAW_INPUTS);
+  const result = calculateSavingsModel(toModelInputs(rawInputs));
 
   usePageMeta({
     title: "Value & Savings — CareMetric CareBase",
@@ -154,10 +204,13 @@ export default function Savings() {
   });
 
   const setInput = (key: keyof SavingsInputs, value: string) => {
-    const parsed = Number(value);
-    setInputs((current) => ({
+    setRawInputs((current) => ({ ...current, [key]: value }));
+  };
+
+  const clampInput = (key: keyof SavingsInputs) => {
+    setRawInputs((current) => ({
       ...current,
-      [key]: value === "" ? 0 : Number.isFinite(parsed) ? parsed : 0,
+      [key]: String(clampFieldValue(key, current[key])),
     }));
   };
 
@@ -274,15 +327,37 @@ export default function Savings() {
                       min={0}
                       max={field.key === "expectedLaborReductionPercent" ? 100 : undefined}
                       step={field.key === "expectedLaborReductionPercent" ? 1 : 0.5}
-                      value={inputs[field.key]}
+                      value={rawInputs[field.key]}
                       onChange={(event) => setInput(field.key, event.target.value)}
+                      onBlur={() => clampInput(field.key)}
+                      aria-describedby={
+                        field.suffix
+                          ? `${field.key}-suffix ${field.key}-help`
+                          : `${field.key}-help`
+                      }
                       className="pr-24"
                     />
-                    <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">
+                    <span
+                      id={`${field.key}-suffix`}
+                      className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground"
+                    >
                       {field.suffix}
                     </span>
                   </div>
-                  <p className="text-xs leading-5 text-muted-foreground">{field.help}</p>
+                  <p id={`${field.key}-help`} className="text-xs leading-5 text-muted-foreground">
+                    {field.help}
+                    {field.key === "annualCareBasePrice" && (
+                      <>
+                        {" "}
+                        <a
+                          href={DEMO_MAILTO}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          Email us for a quote
+                        </a>
+                      </>
+                    )}
+                  </p>
                 </div>
               ))}
             </div>
@@ -293,16 +368,16 @@ export default function Savings() {
               <CardHeader>
                 <CardTitle className="text-lg">Modeled annual opportunity</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4" aria-live="polite">
                 {[
                   ["Current coordination labor", money.format(result.annualLaborCost)],
                   ["Current replaceable tool spend", money.format(result.annualReplaceableToolSpend)],
                   ["Current addressable cost", money.format(result.currentAddressableCost)],
                   ["Modeled labor opportunity", money.format(result.modeledLaborOpportunity)],
                 ].map(([label, value]) => (
-                  <div key={label} className="flex items-center justify-between gap-4 border-b border-border/60 pb-3 text-sm last:border-0 last:pb-0">
+                  <div key={label} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border/60 pb-3 text-sm last:border-0 last:pb-0">
                     <span className="text-muted-foreground">{label}</span>
-                    <span className="font-mono font-semibold tabular-nums">{value}</span>
+                    <span className="min-w-0 break-all text-right font-mono font-semibold tabular-nums">{value}</span>
                   </div>
                 ))}
 
@@ -310,7 +385,7 @@ export default function Savings() {
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Gross opportunity before CareBase price
                   </p>
-                  <p className="mt-2 font-mono text-3xl font-bold tabular-nums text-primary">
+                  <p className="mt-2 break-all font-mono text-3xl font-bold tabular-nums text-primary">
                     {money.format(result.grossAnnualOpportunity)}
                   </p>
                   <p className="mt-4 text-xs leading-5 text-muted-foreground">
@@ -321,7 +396,7 @@ export default function Savings() {
                 </div>
 
                 {result.modeledRoiPercent !== null && (
-                  <div className="grid gap-3 sm:grid-cols-2" aria-live="polite">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl border bg-background p-4">
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                         Modeled first-year ROI

@@ -10,6 +10,7 @@ import { useSignupOrganization } from "@/hooks/useSignup";
 import { Loader2, ArrowRight, CheckCircle2 } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 import { BAA_VERSION, SERVICE_AGREEMENT_VERSION } from "@/lib/legalAgreements";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 interface SignupForm {
   organizationName: string;
@@ -41,6 +42,12 @@ declare global {
 }
 
 export default function Signup() {
+  usePageMeta({
+    title: "Sign Up — Start Your Free Trial — CareMetric CareBase",
+    description:
+      "Create your organization and start a free trial of CareMetric CareBase for Pennsylvania personal care homes and assisted living facilities.",
+    path: "/signup",
+  });
   const [form, setForm] = useState<SignupForm>(EMPTY_FORM);
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileError, setTurnstileError] = useState<string | null>(null);
@@ -172,7 +179,7 @@ export default function Signup() {
             <h1 className="text-[28px] font-bold tracking-tight" style={{ color: BRAND_BLUE }}>
               <BrandName />
             </h1>
-            <p className="text-sm text-muted-foreground">Healthcare Learning &amp; Compliance Platform</p>
+            <p className="text-sm text-muted-foreground">Operations &amp; Compliance Platform</p>
           </div>
         </div>
 
@@ -297,6 +304,9 @@ export default function Signup() {
             {!submittedEmail && (
               <div>
                 <p className="mt-4 text-center text-[13px] text-muted-foreground">
+                  Creating your organization starts a 14-day free trial.
+                </p>
+                <p className="mt-2 text-center text-[13px] text-muted-foreground">
                   Already have an account?{" "}
                   <Link href="/login" className="font-medium text-primary hover:text-primary/80">
                     Sign in
@@ -308,7 +318,7 @@ export default function Signup() {
         </Card>
 
         <p className="text-center text-[11px] text-muted-foreground/60">
-          55 Pa. Code Chapter 2600 Compliance Platform
+          55 Pa. Code Chapters 2600 &amp; 2800 Compliance Platform
         </p>
       </div>
     </div>

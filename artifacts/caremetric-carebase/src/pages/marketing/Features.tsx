@@ -74,7 +74,7 @@ export default function Features() {
   );
 
   usePageMeta({
-    title: "Features — CareMetric CareBase Facility Management Software",
+    title: "Features — CareMetric CareBase Operations & Compliance Software",
     description:
       "See CareMetric CareBase features across staff compliance, training, resident and facility operations, quality, safety, scheduling, documents, and survey evidence.",
     path: "/features",
@@ -86,7 +86,7 @@ export default function Features() {
         title="Every operational record should lead to the work, the owner, and the proof"
         subtitle="CareMetric CareBase connects workforce compliance, resident and facility operations, training, scheduling, safety, quality, documents, alerts, and survey evidence—while leaving clinical charting, medication administration, payroll, and accounting in their authoritative systems."
         highlights={[
-          "10 connected feature domains",
+          `${FEATURE_CATEGORIES.length} connected feature domains`,
           "Role- and facility-aware access",
           "Evidence attached to the work",
         ]}
