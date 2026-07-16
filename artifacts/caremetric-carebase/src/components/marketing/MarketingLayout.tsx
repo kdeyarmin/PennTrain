@@ -23,17 +23,30 @@ import { MARKETING_NAV } from "@/lib/publicPaths";
  * Module-level (not ref) state: every marketing page mounts its own
  * MarketingLayout, so this component remounts on page-to-page navigation and
  * refs would be reset mid-navigation.
+ *
+ * scrollRestoration is a global browser setting, so it's put back to its
+ * prior value once the visitor leaves the marketing surface entirely (last
+ * instance unmounts) -- other window-scrolled pages (auth, public portals)
+ * keep the browser's native Back/Forward behavior. The restore is deferred a
+ * tick because a marketing-to-marketing navigation unmounts one instance and
+ * mounts the next within the same commit.
  */
 const savedScrollPositions = new Map<string, number>();
 let isPopNavigation = false;
 let isInitialLoad = true;
 let scrollSaveKey = window.location.pathname;
+let mountedInstances = 0;
+let priorScrollRestoration: History["scrollRestoration"] | null = null;
 
 function ScrollToTop() {
   const [location] = useLocation();
 
   useEffect(() => {
+    mountedInstances += 1;
     if ("scrollRestoration" in window.history) {
+      if (priorScrollRestoration === null) {
+        priorScrollRestoration = window.history.scrollRestoration;
+      }
       window.history.scrollRestoration = "manual";
     }
     // This listener runs before wouter re-renders the new route (React only
@@ -52,6 +65,17 @@ function ScrollToTop() {
     return () => {
       window.removeEventListener("popstate", onPopState);
       window.removeEventListener("scroll", onScroll);
+      mountedInstances -= 1;
+      setTimeout(() => {
+        if (
+          mountedInstances === 0 &&
+          priorScrollRestoration !== null &&
+          "scrollRestoration" in window.history
+        ) {
+          window.history.scrollRestoration = priorScrollRestoration;
+          priorScrollRestoration = null;
+        }
+      }, 0);
     };
   }, []);
 
