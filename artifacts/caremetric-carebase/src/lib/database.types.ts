@@ -16154,6 +16154,17 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "policy_attestation_campaigns_document_version_fk"
+            columns: [
+              "policy_document_version_id",
+              "policy_document_id",
+              "organization_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "policy_document_versions"
+            referencedColumns: ["id", "policy_document_id", "organization_id"]
+          },
+          {
             foreignKeyName: "policy_attestation_campaigns_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -16238,6 +16249,21 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "policy_attestation_campaigns"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_attestations_campaign_version_fk"
+            columns: [
+              "campaign_id",
+              "policy_document_version_id",
+              "organization_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "policy_attestation_campaigns"
+            referencedColumns: [
+              "id",
+              "policy_document_version_id",
+              "organization_id",
+            ]
           },
           {
             foreignKeyName: "policy_attestations_employee_id_fkey"
@@ -16473,6 +16499,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_document_versions_document_org_fk"
+            columns: ["policy_document_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "policy_documents"
+            referencedColumns: ["id", "organization_id"]
           },
           {
             foreignKeyName: "policy_document_versions_organization_id_fkey"
