@@ -115,10 +115,13 @@ Deno.test("pinned webhook timeout is an absolute request deadline", async () => 
     "ok",
   ];
   let index = 0;
+  const pendingReadDelays: Promise<void>[] = [];
   const connector = async () => ({
     write: async (bytes: Uint8Array) => bytes.length,
     read: async (buffer: Uint8Array) => {
-      await new Promise((resolve) => setTimeout(resolve, 45));
+      const delay = new Promise<void>((resolve) => setTimeout(resolve, 45));
+      pendingReadDelays.push(delay);
+      await delay;
       if (index >= chunks.length) return null;
       const bytes = new TextEncoder().encode(chunks[index++]);
       buffer.set(bytes);
@@ -138,6 +141,7 @@ Deno.test("pinned webhook timeout is an absolute request deadline", async () => 
   } catch (error) {
     timedOut = error instanceof DOMException && error.name === "TimeoutError";
   }
+  await Promise.allSettled(pendingReadDelays);
   assertEquals(timedOut, true);
   if (Date.now() - started > 500) throw new Error("Absolute timeout exceeded its bounded allowance");
 });
