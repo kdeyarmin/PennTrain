@@ -126,7 +126,7 @@ export default function RegulatoryCopilot() {
               facilityId: activeFacilityId,
               intent: ask.data!.intent,
               title: `Copilot follow-up: ${INTENTS.find((item) => item.value === ask.data!.intent)?.label ?? "compliance review"}`,
-              sourceRunId: ask.data!.runId,
+              sourceResponseId: ask.data!.runId,
               actions: ask.data!.response.recommended_next_steps.map((step) => ({ title: step, description: "Human-approved follow-up from a citation-backed CareBase response.", priority: "normal", dueDays: 7 })),
             }, {
               onSuccess: () => toast({ title: "Governed action draft created", description: "Review and approve it in the CareBase Value Center before work is created." }),

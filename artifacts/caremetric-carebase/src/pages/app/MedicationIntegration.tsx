@@ -25,6 +25,7 @@ import {
 import { useListProfiles } from "@/hooks/useProfiles";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
+import { toDateTimeLocal } from "@/lib/dateUtils";
 
 function human(value: string) {
   return value.replace(/_/gu, " ").replace(/\b\w/gu, (letter) => letter.toUpperCase());
@@ -60,7 +61,7 @@ export default function MedicationIntegration() {
   const assignException = useAssignMedicationIntegrationException();
   const profiles = useListProfiles({ organizationId: user?.organizationId ?? undefined });
   const [exceptionOwnerId, setExceptionOwnerId] = useState("");
-  const [exceptionDueAt, setExceptionDueAt] = useState(() => new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16));
+  const [exceptionDueAt, setExceptionDueAt] = useState(() => toDateTimeLocal(new Date(Date.now() + 24 * 60 * 60 * 1000)));
   const { toast } = useToast();
 
   const data = workspace.data ?? { sources: [], exceptions: [], orders: [], administrations: [] };

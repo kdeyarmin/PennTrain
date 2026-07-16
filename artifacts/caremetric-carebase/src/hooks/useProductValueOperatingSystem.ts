@@ -307,10 +307,10 @@ export function useReviewCopilotActionDraft() {
 export function useCreateCopilotActionDraft() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { facilityId: string; intent: string; title: string; sourceRunId?: string; actions: Array<Record<string, unknown>> }) => {
+    mutationFn: async (input: { facilityId: string; intent: string; title: string; sourceResponseId?: string; actions: Array<Record<string, unknown>> }) => {
       const { data, error } = await rpc().rpc("create_copilot_action_draft", {
         p_facility_id: input.facilityId, p_intent: input.intent, p_title: input.title,
-        p_source_run_id: input.sourceRunId ?? null, p_proposed_actions: input.actions,
+        p_source_response_id: input.sourceResponseId ?? null, p_proposed_actions: input.actions,
       });
       if (error) throw error;
       return data as string;
