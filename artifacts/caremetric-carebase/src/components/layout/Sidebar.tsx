@@ -75,6 +75,7 @@ import {
   HeartPulse,
   History,
   Megaphone,
+  Gauge,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -159,6 +160,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
     return [
       {
         items: [
+          { href: "/app/today", label: "Today", icon: Activity },
           { href: "/app", label: "Dashboard", icon: LayoutDashboard },
         ]
       },
@@ -170,6 +172,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
             ? [{ href: "/app/inspection-readiness", label: "Prepare for Inspection", icon: Radar }]
             : []),
           { href: "/app/alerts", label: "Resolve Compliance Risks", icon: ShieldAlert },
+          { href: "/app/value-center", label: "Value Center", icon: Gauge },
         ],
       },
       {
@@ -287,6 +290,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
     return [
       {
         items: [
+          { href: "/app/today", label: "Today", icon: Activity },
           { href: "/app", label: "Dashboard", icon: LayoutDashboard },
         ]
       },

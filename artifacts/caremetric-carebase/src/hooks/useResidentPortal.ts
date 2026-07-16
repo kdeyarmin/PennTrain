@@ -53,6 +53,22 @@ export interface ResidentPortalSnapshot {
     body: string;
     createdAt: string;
   }>;
+  requests?: Array<{
+    id: string;
+    requestType: string;
+    subject: string;
+    detail: string;
+    status: string;
+    facilityResponse: string | null;
+    createdAt: string;
+  }>;
+  payment?: {
+    id: string;
+    providerName: string;
+    secureUrl: string;
+    amountDue: number;
+    expiresAt: string;
+  } | null;
 }
 
 export function useResidentPortalManagement(residentId?: string) {
@@ -158,6 +174,27 @@ export async function getResidentPortalSnapshot(token: string, fingerprint?: str
   return asSnapshot(data);
 }
 
+export function useSaveResidentPaymentLink() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { residentId: string; providerName: string; secureUrl: string; amountDue: number; expiresAt: string }) => {
+      const { data, error } = await supabase.rpc("save_resident_payment_link" as never, {
+        p_resident_id: input.residentId, p_provider_name: input.providerName,
+        p_secure_url: input.secureUrl, p_amount_due: input.amountDue, p_expires_at: input.expiresAt,
+      } as never);
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_data, input) => queryClient.invalidateQueries({ queryKey: ["resident-portal-management", input.residentId] }),
+  });
+}
+
+export async function getResidentPortalExperience(token: string): Promise<ResidentPortalSnapshot> {
+  const { data, error } = await supabase.rpc("get_resident_portal_experience" as never, { p_token: token } as never);
+  if (error) throw error;
+  return asSnapshot(data as Json);
+}
+
 export async function acceptResidentPortalTerms(token: string, termsVersion: string, fingerprint?: string) {
   const { data, error } = await supabase.rpc("accept_resident_portal_terms", {
     p_token: token,
@@ -176,4 +213,29 @@ export async function postResidentPortalMessage(token: string, body: string, fin
   });
   if (error) throw error;
   return data;
+}
+
+export async function postResidentPortalRequest(token: string, requestType: string, subject: string, detail: string) {
+  const { data, error } = await supabase.rpc("post_resident_portal_request" as never, {
+    p_token: token, p_request_type: requestType, p_subject: subject, p_detail: detail,
+  } as never);
+  if (error) throw error;
+  return data;
+}
+
+export async function respondResidentPortalSchedule(token: string, eventId: string, response: string, note = "") {
+  const { data, error } = await supabase.rpc("respond_resident_portal_schedule_event" as never, {
+    p_token: token, p_calendar_event_id: eventId, p_response: response, p_note: note,
+  } as never);
+  if (error) throw error;
+  return data;
+}
+
+export async function getResidentPortalDocumentDownload(token: string, sharedDocumentId: string) {
+  const { data, error } = await supabase.functions.invoke("resident-portal-download", {
+    body: { token, sharedDocumentId },
+  });
+  if (error) throw error;
+  if (!data?.authorized || typeof data.url !== "string") throw new Error(data?.error ?? "Document access was denied.");
+  return data as { authorized: true; url: string; fileName: string; expiresIn: number };
 }

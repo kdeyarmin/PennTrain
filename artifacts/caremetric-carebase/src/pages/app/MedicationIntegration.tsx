@@ -17,10 +17,12 @@ import { useResidentNavigationContext } from "@/hooks/useResidentNavigationConte
 import {
   type MedicationException,
   type MedicationSource,
+  useAssignMedicationIntegrationException,
   useMedicationIntegration,
   useResolveMedicationIntegrationException,
   useSaveMedicationIntegrationSource,
 } from "@/hooks/useMedicationIntegration";
+import { useListProfiles } from "@/hooks/useProfiles";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 
@@ -55,6 +57,10 @@ export default function MedicationIntegration() {
   const [resolutionStatus, setResolutionStatus] = useState<"acknowledged" | "resolved" | "dismissed">("acknowledged");
   const [resolutionNote, setResolutionNote] = useState("");
   const resolveException = useResolveMedicationIntegrationException();
+  const assignException = useAssignMedicationIntegrationException();
+  const profiles = useListProfiles({ organizationId: user?.organizationId ?? undefined });
+  const [exceptionOwnerId, setExceptionOwnerId] = useState("");
+  const [exceptionDueAt, setExceptionDueAt] = useState(() => new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16));
   const { toast } = useToast();
 
   const data = workspace.data ?? { sources: [], exceptions: [], orders: [], administrations: [] };
@@ -98,6 +104,17 @@ export default function MedicationIntegration() {
     }
   };
 
+  const submitAssignment = async () => {
+    if (!selectedException || !exceptionOwnerId || !exceptionDueAt) return;
+    try {
+      await assignException.mutateAsync({ exceptionId: selectedException.id, facilityId, ownerProfileId: exceptionOwnerId, dueAt: new Date(exceptionDueAt).toISOString(), serviceLevelMinutes: 1440 });
+      toast({ title: "Exception assigned with a linked work item" });
+      setSelectedException(null); setExceptionOwnerId("");
+    } catch (error) {
+      toast({ title: "Exception could not be assigned", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -125,7 +142,13 @@ export default function MedicationIntegration() {
 
       <Dialog open={sourceDialogOpen} onOpenChange={setSourceDialogOpen}><DialogContent><DialogHeader><DialogTitle>Configure medication source</DialogTitle><DialogDescription>The credential must belong to this organization and include the medications:write scope. Leave it blank to save a setup-required source.</DialogDescription></DialogHeader><div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="med-source-name">Connection name</Label><Input id="med-source-name" value={sourceName} onChange={(event) => setSourceName(event.target.value)} placeholder="Main campus eMAR" /></div><div className="space-y-2"><Label htmlFor="med-vendor">Vendor</Label><Input id="med-vendor" value={vendorName} onChange={(event) => setVendorName(event.target.value)} /></div><div className="space-y-2"><Label htmlFor="med-external-facility">External facility ID</Label><Input id="med-external-facility" value={externalFacilityId} onChange={(event) => setExternalFacilityId(event.target.value)} /></div><div className="space-y-2"><Label htmlFor="med-freshness">Freshness target (minutes)</Label><Input id="med-freshness" type="number" min="5" max="1440" value={freshnessMinutes} onChange={(event) => setFreshnessMinutes(event.target.value)} /></div><div className="space-y-2 sm:col-span-2"><Label htmlFor="med-credential">Integration credential ID</Label><Input id="med-credential" value={credentialId} onChange={(event) => setCredentialId(event.target.value)} placeholder="Optional UUID" /></div></div><DialogFooter><Button variant="outline" onClick={() => setSourceDialogOpen(false)}>Cancel</Button><Button disabled={saveSource.isPending || sourceName.trim().length < 2 || vendorName.trim().length < 2 || externalFacilityId.trim().length < 1} onClick={() => void submitSource()}>{saveSource.isPending ? "Saving…" : "Save source"}</Button></DialogFooter></DialogContent></Dialog>
 
-      <Dialog open={!!selectedException} onOpenChange={(open) => !open && setSelectedException(null)}><DialogContent><DialogHeader><DialogTitle>Review medication integration exception</DialogTitle><DialogDescription>Record the operational disposition. Clinical correction remains in the external eMAR.</DialogDescription></DialogHeader><div className="space-y-4"><div className="space-y-2"><Label>Disposition</Label><Select value={resolutionStatus} onValueChange={(value) => setResolutionStatus(value as typeof resolutionStatus)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="acknowledged">Acknowledged / working</SelectItem><SelectItem value="resolved">Resolved</SelectItem><SelectItem value="dismissed">Dismissed with reason</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label htmlFor="med-resolution-note">Resolution note</Label><Textarea id="med-resolution-note" value={resolutionNote} onChange={(event) => setResolutionNote(event.target.value)} /></div></div><DialogFooter><Button variant="outline" onClick={() => setSelectedException(null)}>Cancel</Button><Button disabled={resolveException.isPending || resolutionNote.trim().length < 5} onClick={() => void submitResolution()}>{resolveException.isPending ? "Saving…" : "Save disposition"}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={!!selectedException} onOpenChange={(open) => !open && setSelectedException(null)}>
+        <DialogContent><DialogHeader><DialogTitle>Review medication integration exception</DialogTitle><DialogDescription>Assign an accountable owner and SLA-backed work item, or record the operational disposition. Clinical correction remains in the external eMAR.</DialogDescription></DialogHeader>
+          <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label>Owner</Label><Select value={exceptionOwnerId} onValueChange={setExceptionOwnerId}><SelectTrigger><SelectValue placeholder="Assign owner" /></SelectTrigger><SelectContent>{(profiles.data ?? []).filter((profile) => profile.is_active && ["org_admin", "facility_manager"].includes(profile.role)).map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.first_name} {profile.last_name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label htmlFor="med-exception-due">Due by</Label><Input id="med-exception-due" type="datetime-local" value={exceptionDueAt} onChange={(event) => setExceptionDueAt(event.target.value)} /></div><div className="sm:col-span-2"><Button variant="outline" disabled={assignException.isPending || !exceptionOwnerId || !exceptionDueAt} onClick={() => void submitAssignment()}>{assignException.isPending ? "Assigning…" : "Assign and create work item"}</Button></div></div>
+          <div className="space-y-4 border-t pt-4"><div className="space-y-2"><Label>Disposition</Label><Select value={resolutionStatus} onValueChange={(value) => setResolutionStatus(value as typeof resolutionStatus)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="acknowledged">Acknowledged / working</SelectItem><SelectItem value="resolved">Resolved</SelectItem><SelectItem value="dismissed">Dismissed with reason</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label htmlFor="med-resolution-note">Resolution note</Label><Textarea id="med-resolution-note" value={resolutionNote} onChange={(event) => setResolutionNote(event.target.value)} /></div></div>
+          <DialogFooter><Button variant="outline" onClick={() => setSelectedException(null)}>Cancel</Button><Button disabled={resolveException.isPending || resolutionNote.trim().length < 5} onClick={() => void submitResolution()}>{resolveException.isPending ? "Saving…" : "Save disposition"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

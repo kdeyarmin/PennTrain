@@ -21,12 +21,13 @@ const assetDirectory = path.resolve(
 // sums every lazy route chunk -- no single page load fetches it -- so it grows with
 // the number of features by design and only guards against wholesale bloat.
 const budgets = {
-  // Measured 409.3 KiB (the entry chunk) when this headroom policy was adopted.
-  largestJavaScript: 460 * 1024,
-  // Measured 2811.9 KiB when this headroom policy was adopted; raised 3250 -> 3300
-  // when the dietary food-safety operations and document-analyzer branches merged
-  // together and the combined measurement reached 2937.0 KiB (past the warning band).
-  totalJavaScript: 3300 * 1024,
+  // Measured 409.3 KiB when this headroom policy was adopted; raised to 480
+  // after the product-value route registry brought the entry chunk to 421.6 KiB.
+  largestJavaScript: 480 * 1024,
+  // Measured 2811.9 KiB when this headroom policy was adopted; raised to 3300
+  // for the dietary/document-analyzer merge and to 3700 after the independently
+  // split product-value, portal, and offline-learning routes reached 3317.2 KiB.
+  totalJavaScript: 3700 * 1024,
   // Measured 129.3 KiB when this headroom policy was adopted.
   totalCss: 160 * 1024,
   // Measured 1095.8 KiB when this headroom policy was adopted.

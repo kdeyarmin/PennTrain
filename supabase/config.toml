@@ -192,6 +192,12 @@ verify_jwt = false
 [functions.evidence-guest-download]
 verify_jwt = false
 
+# Public designated-person document downloads use the expiring portal grant token as the
+# credential. The database rechecks terms, permissions, expiry, revocation, exact sharing,
+# and records the access before this function mints a five-minute signed storage URL.
+[functions.resident-portal-download]
+verify_jwt = false
+
 # Authenticated, role-checked regulatory synthesis. The handler performs its
 # own facility-scoped RLS reads and uses the service role only to append the
 # immutable copilot receipt; model credentials remain Edge Function secrets.

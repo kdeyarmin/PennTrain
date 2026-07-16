@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Copy, FileText, Link2, MessageSquare, ShieldCheck, UserRoundPlus, XCircle } from "lucide-react";
+import { Copy, CreditCard, FileText, Link2, MessageSquare, ShieldCheck, UserRoundPlus, XCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
   useReplyResidentPortalMessage,
   useResidentPortalManagement,
   useRevokeResidentPortalGrant,
+  useSaveResidentPaymentLink,
   useShareResidentPortalDocument,
 } from "@/hooks/useResidentPortal";
 import { toLocalIsoDate } from "@/lib/dateUtils";
@@ -25,8 +26,10 @@ import { useToast } from "@/hooks/use-toast";
 const PERMISSION_OPTIONS = [
   { value: "schedule", label: "Upcoming schedule" },
   { value: "finance", label: "Latest statement summary" },
-  { value: "documents", label: "Explicitly shared document list" },
+  { value: "documents", label: "Explicitly shared document downloads" },
   { value: "messages", label: "Secure messages" },
+  { value: "requests", label: "Routine requests and facility responses" },
+  { value: "payments", label: "Facility-approved secure payment link" },
 ] as const;
 
 function defaultExpiry() {
@@ -48,6 +51,7 @@ export function ResidentPortalWorkspace({ residentId }: { residentId: string }) 
   const revokeGrant = useRevokeResidentPortalGrant();
   const shareDocument = useShareResidentPortalDocument();
   const reply = useReplyResidentPortalMessage();
+  const savePaymentLink = useSaveResidentPaymentLink();
   const { toast } = useToast();
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
@@ -63,6 +67,11 @@ export function ResidentPortalWorkspace({ residentId }: { residentId: string }) 
   const [documentLabel, setDocumentLabel] = useState("");
   const [replyTarget, setReplyTarget] = useState<ResidentPortalGrant | null>(null);
   const [replyBody, setReplyBody] = useState("");
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentProvider, setPaymentProvider] = useState("");
+  const [paymentUrl, setPaymentUrl] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentExpires, setPaymentExpires] = useState(defaultExpiry);
 
   const messagesByGrant = useMemo(() => {
     const grouped = new Map<string, NonNullable<typeof workspace.data>["messages"]>();
@@ -127,6 +136,16 @@ export function ResidentPortalWorkspace({ residentId }: { residentId: string }) 
     }
   };
 
+  const submitPaymentLink = async () => {
+    try {
+      await savePaymentLink.mutateAsync({ residentId, providerName: paymentProvider.trim(), secureUrl: paymentUrl.trim(), amountDue: Number(paymentAmount), expiresAt: new Date(`${paymentExpires}T23:59:59`).toISOString() });
+      setPaymentOpen(false); setPaymentProvider(""); setPaymentUrl(""); setPaymentAmount(""); setPaymentExpires(defaultExpiry());
+      toast({ title: "Secure resident payment link saved" });
+    } catch (error) {
+      toast({ title: "Payment link could not be saved", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    }
+  };
+
   if (workspace.isLoading) return <QueryLoading what="designated-person portal" />;
   if (workspace.isError) return <QueryError what="designated-person portal" error={workspace.error} onRetry={() => workspace.refetch()} />;
   if (!workspace.data) return null;
@@ -134,7 +153,7 @@ export function ResidentPortalWorkspace({ residentId }: { residentId: string }) 
 
   return (
     <Card>
-      <CardHeader><div className="flex flex-wrap items-start justify-between gap-4"><div><CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" />Designated-Person Portal</CardTitle><CardDescription>Issue expiring, consent-gated access to selected resident summaries. Every access and message is logged.</CardDescription></div><Button onClick={() => setCreateOpen(true)}><UserRoundPlus className="mr-2 h-4 w-4" />Create access</Button></div></CardHeader>
+      <CardHeader><div className="flex flex-wrap items-start justify-between gap-4"><div><CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" />Designated-Person Portal</CardTitle><CardDescription>Issue expiring, consent-gated access to selected resident summaries. Every access, request, response, and download is logged.</CardDescription></div><div className="flex gap-2"><Button variant="outline" onClick={() => setPaymentOpen(true)}><CreditCard className="mr-2 h-4 w-4" />Payment link</Button><Button onClick={() => setCreateOpen(true)}><UserRoundPlus className="mr-2 h-4 w-4" />Create access</Button></div></div></CardHeader>
       <CardContent className="space-y-4">
         <Alert><Link2 className="h-4 w-4" /><AlertTitle>Least-privilege sharing</AlertTitle><AlertDescription>Choose only the categories this person needs. Document access is explicit per grant, and the generated link is shown once.</AlertDescription></Alert>
         {portalData.grants.length === 0 ? <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">No designated-person access has been issued.</div> : portalData.grants.map((grant) => {
@@ -154,6 +173,8 @@ export function ResidentPortalWorkspace({ residentId }: { residentId: string }) 
       <Dialog open={!!shareTarget} onOpenChange={(open) => !open && setShareTarget(null)}><DialogContent><DialogHeader><DialogTitle>Share document listing</DialogTitle><DialogDescription>The portal will show the selected document metadata only. Do not use this for documents that require a different disclosure workflow.</DialogDescription></DialogHeader><div className="space-y-4"><div className="space-y-2"><Label>Resident document</Label><Select value={documentId} onValueChange={(value) => { setDocumentId(value); const document = portalData.residentDocuments.find((item) => item.id === value); setDocumentLabel(document?.document_label || document?.file_name || ""); }}><SelectTrigger><SelectValue placeholder="Select document" /></SelectTrigger><SelectContent>{portalData.residentDocuments.map((document) => <SelectItem key={document.id} value={document.id}>{document.document_label || document.file_name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label htmlFor="portal-document-label">Portal label</Label><Input id="portal-document-label" value={documentLabel} onChange={(event) => setDocumentLabel(event.target.value)} /></div></div><DialogFooter><Button variant="outline" onClick={() => setShareTarget(null)}>Cancel</Button><Button disabled={shareDocument.isPending || !documentId || documentLabel.trim().length < 2} onClick={() => void submitShare()}>Share listing</Button></DialogFooter></DialogContent></Dialog>
 
       <Dialog open={!!replyTarget} onOpenChange={(open) => !open && setReplyTarget(null)}><DialogContent><DialogHeader><DialogTitle>Reply in portal</DialogTitle><DialogDescription>This message will be visible only through the active, consented portal grant.</DialogDescription></DialogHeader><div className="space-y-2"><Label htmlFor="portal-reply">Message</Label><Textarea id="portal-reply" value={replyBody} onChange={(event) => setReplyBody(event.target.value)} /></div><DialogFooter><Button variant="outline" onClick={() => setReplyTarget(null)}>Cancel</Button><Button disabled={reply.isPending || replyBody.trim().length < 1} onClick={() => void submitReply()}>Send reply</Button></DialogFooter></DialogContent></Dialog>
+
+      <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}><DialogContent><DialogHeader><DialogTitle>Secure resident payment link</DialogTitle><DialogDescription>Use only a facility-approved HTTPS payment provider. CareBase displays the link but never handles card or bank details.</DialogDescription></DialogHeader><div className="grid gap-3 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="portal-payment-provider">Provider</Label><Input id="portal-payment-provider" value={paymentProvider} onChange={(event) => setPaymentProvider(event.target.value)} placeholder="Approved payment portal" /></div><div className="space-y-2"><Label htmlFor="portal-payment-amount">Amount due</Label><Input id="portal-payment-amount" type="number" min="0" step="0.01" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} /></div><div className="space-y-2 sm:col-span-2"><Label htmlFor="portal-payment-url">Secure HTTPS URL</Label><Input id="portal-payment-url" type="url" value={paymentUrl} onChange={(event) => setPaymentUrl(event.target.value)} placeholder="https://payments.example.com/..." /></div><div className="space-y-2"><Label htmlFor="portal-payment-expiry">Expires on</Label><Input id="portal-payment-expiry" type="date" value={paymentExpires} onChange={(event) => setPaymentExpires(event.target.value)} /></div></div><DialogFooter><Button variant="outline" onClick={() => setPaymentOpen(false)}>Cancel</Button><Button disabled={savePaymentLink.isPending || paymentProvider.trim().length < 2 || !paymentUrl.startsWith("https://") || Number(paymentAmount) < 0 || !paymentExpires} onClick={() => void submitPaymentLink()}>{savePaymentLink.isPending ? "Saving…" : "Save payment link"}</Button></DialogFooter></DialogContent></Dialog>
     </Card>
   );
 }

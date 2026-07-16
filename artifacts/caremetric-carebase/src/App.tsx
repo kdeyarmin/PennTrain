@@ -52,6 +52,8 @@ const ImprovementRoadmap = lazy(() => import("@/pages/admin/ImprovementRoadmap")
 const DocumentAnalyzer = lazy(() => import("@/pages/admin/DocumentAnalyzer"));
 
 const OrgDashboard = lazy(() => import("@/pages/app/Dashboard"));
+const Today = lazy(() => import("@/pages/app/Today"));
+const ValueCenter = lazy(() => import("@/pages/app/ValueCenter"));
 const Facilities = lazy(() => import("@/pages/app/Facilities"));
 const FacilityDetail = lazy(() => import("@/pages/app/FacilityDetail"));
 const Employees = lazy(() => import("@/pages/app/Employees"));
@@ -149,6 +151,7 @@ const MyCourses = lazy(() => import("@/pages/employee/MyCourses"));
 const MyCertificates = lazy(() => import("@/pages/employee/MyCertificates"));
 const MyCredentials = lazy(() => import("@/pages/employee/MyCredentials"));
 const TakeCourse = lazy(() => import("@/pages/employee/TakeCourse"));
+const OfflineCourse = lazy(() => import("@/pages/employee/OfflineCourse"));
 const TakeQuiz = lazy(() => import("@/pages/employee/TakeQuiz"));
 const MyAttestations = lazy(() => import("@/pages/employee/MyAttestations"));
 const VerifyCertificate = lazy(() => import("@/pages/VerifyCertificate"));
@@ -507,6 +510,12 @@ function Router() {
       <Route path="/app">
         {() => <ProtectedRoute component={OrgDashboard} allowedRoles={ORG_ROLES} />}
       </Route>
+      <Route path="/app/today">
+        {() => <ProtectedRoute component={Today} allowedRoles={REPORTS_VIEW_ROLES} />}
+      </Route>
+      <Route path="/app/value-center">
+        {() => <ProtectedRoute component={ValueCenter} allowedRoles={ORG_MANAGE_ROLES} />}
+      </Route>
       <Route path="/app/facilities">
         {() => <ProtectedRoute component={Facilities} allowedRoles={ORG_ROLES} />}
       </Route>
@@ -823,6 +832,9 @@ function Router() {
       </Route>
       <Route path="/me/courses">
         {() => <ProtectedRoute component={MyCourses} allowedRoles={ANY_ROLE} />}
+      </Route>
+      <Route path="/me/courses/:assignmentId/offline">
+        {() => <ProtectedRoute component={OfflineCourse} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/courses/:assignmentId">
         {() => <ProtectedRoute component={TakeCourse} allowedRoles={ANY_ROLE} />}
