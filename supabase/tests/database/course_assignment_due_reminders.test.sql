@@ -32,10 +32,9 @@ select set_config('app.privileged_write','off',true);
 insert into public.employees(id,organization_id,facility_id,profile_id,first_name,last_name,job_title,status) values
   ('14000000-0000-4000-8000-000000000031','14000000-0000-4000-8000-000000000001','14000000-0000-4000-8000-000000000011','14000000-0000-4000-8000-000000000021','Due','Worker','Aide','active');
 
--- Courses stay draft (the catalog publication guard requires a published current
--- version), but assignments require a PUBLISHED course version, and version publication
--- requires at least one non-empty content block -- so each version gets a text block
--- and is then published through the real draft -> published transition.
+-- Assignments require a published course whose current version is also published.
+-- Version publication requires at least one non-empty content block, so each version
+-- gets a text block before the version and its catalog course are published.
 insert into public.courses(id,organization_id,title) values
   ('14000000-0000-4000-8000-000000000041','14000000-0000-4000-8000-000000000001','Due Soon Course'),
   ('14000000-0000-4000-8000-000000000042','14000000-0000-4000-8000-000000000001','Far Future Course'),
@@ -54,6 +53,11 @@ select set_config('app.privileged_write','on',true);
 update public.course_versions
 set status='published', published_at=now()
 where id::text like '14000000-0000-4000-8000-0000000000%';
+update public.courses c
+set current_version_id = cv.id, status = 'published'
+from public.course_versions cv
+where cv.course_id = c.id
+  and c.id::text like '14000000-0000-4000-8000-0000000000%';
 select set_config('app.privileged_write','off',true);
 -- Assignment status is a protected compliance field (client-set values are reverted);
 -- seed the in_progress fixture under the trusted-path bypass.

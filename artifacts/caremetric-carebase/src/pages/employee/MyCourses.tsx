@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GraduationCap, ChevronRight, BookOpen, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { canSelfEnrollInCourse } from "@/lib/courseAvailability";
 
 // assigned -> "Start" (nothing begun yet); in_progress/overdue -> "Continue" (progress already
 // exists, or the due date passed either way); completed -> "Review" (re-open a finished course).
@@ -85,11 +86,10 @@ export default function MyCourses() {
   // canEnrollInCourse matters for platform_admin specifically: RLS lets that role see every
   // organization's courses, but self_enroll_course only ever accepts system-catalog courses or
   // the caller's own (for platform_admin, always the internal) org's.
-  const assignedCourseIds = new Set(allAssignments.map(a => a.course_id));
   const availableCourses = (courses ?? []).filter(
     c =>
       c.status === "published"
-      && !assignedCourseIds.has(c.id)
+      && canSelfEnrollInCourse(c, allAssignments)
       && canEnrollInCourse(c, effectiveOrgId)
       && isCourseVersionLearnerReady(c.current_version_id ? currentVersionById.get(c.current_version_id) : null),
   );
@@ -223,6 +223,8 @@ export default function MyCourses() {
                 >
                   {enrolling && enrollingCourseId === course.id ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : allAssignments.some(a => a.course_id === course.id && a.status === "completed") ? (
+                    <>Retake <ChevronRight className="h-4 w-4" /></>
                   ) : (
                     <>Start <ChevronRight className="h-4 w-4" /></>
                   )}

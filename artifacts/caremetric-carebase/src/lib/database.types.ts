@@ -3174,6 +3174,7 @@ export type Database = {
           canceled_at: string | null
           cancellation_reason: string | null
           completed_at: string | null
+          completion_recorded_at: string | null
           course_id: string
           course_version_id: string
           due_date: string | null
@@ -3195,6 +3196,7 @@ export type Database = {
           canceled_at?: string | null
           cancellation_reason?: string | null
           completed_at?: string | null
+          completion_recorded_at?: string | null
           course_id: string
           course_version_id: string
           due_date?: string | null
@@ -3216,6 +3218,7 @@ export type Database = {
           canceled_at?: string | null
           cancellation_reason?: string | null
           completed_at?: string | null
+          completion_recorded_at?: string | null
           course_id?: string
           course_version_id?: string
           due_date?: string | null
@@ -3358,6 +3361,184 @@ export type Database = {
           },
         ]
       }
+      course_completion_credits: {
+        Row: {
+          citation_note: string
+          course_assignment_id: string
+          course_id: string
+          course_version_id: string
+          created_at: string
+          credit_hours: number
+          credited_at: string
+          credited_by_profile_id: string | null
+          employee_id: string
+          evidence_mode: string
+          facility_id: string
+          id: string
+          organization_id: string
+          topic_code: string
+          training_type_id: string
+          training_year: number
+        }
+        Insert: {
+          citation_note: string
+          course_assignment_id: string
+          course_id: string
+          course_version_id: string
+          created_at?: string
+          credit_hours: number
+          credited_at: string
+          credited_by_profile_id?: string | null
+          employee_id: string
+          evidence_mode?: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          topic_code: string
+          training_type_id: string
+          training_year: number
+        }
+        Update: {
+          citation_note?: string
+          course_assignment_id?: string
+          course_id?: string
+          course_version_id?: string
+          created_at?: string
+          credit_hours?: number
+          credited_at?: string
+          credited_by_profile_id?: string | null
+          employee_id?: string
+          evidence_mode?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          topic_code?: string
+          training_type_id?: string
+          training_year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_completion_credits_course_assignment_id_fkey"
+            columns: ["course_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "course_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_completion_credits_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_completion_credits_course_version_id_fkey"
+            columns: ["course_version_id"]
+            isOneToOne: false
+            referencedRelation: "course_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_completion_credits_credited_by_profile_id_fkey"
+            columns: ["credited_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_completion_credits_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_completion_credits_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_completion_credits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_completion_credits_training_type_id_fkey"
+            columns: ["training_type_id"]
+            isOneToOne: false
+            referencedRelation: "training_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_compliance_credits: {
+        Row: {
+          citation_note: string
+          course_id: string
+          course_version_id: string
+          created_at: string
+          credit_hours: number
+          credit_mode: string
+          id: string
+          is_active: boolean
+          topic_code: string
+          training_type_id: string
+          updated_at: string
+        }
+        Insert: {
+          citation_note: string
+          course_id: string
+          course_version_id: string
+          created_at?: string
+          credit_hours: number
+          credit_mode?: string
+          id?: string
+          is_active?: boolean
+          topic_code: string
+          training_type_id: string
+          updated_at?: string
+        }
+        Update: {
+          citation_note?: string
+          course_id?: string
+          course_version_id?: string
+          created_at?: string
+          credit_hours?: number
+          credit_mode?: string
+          id?: string
+          is_active?: boolean
+          topic_code?: string
+          training_type_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_compliance_credits_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_compliance_credits_course_version_id_fkey"
+            columns: ["course_version_id"]
+            isOneToOne: false
+            referencedRelation: "course_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_compliance_credits_training_type_id_fkey"
+            columns: ["training_type_id"]
+            isOneToOne: false
+            referencedRelation: "training_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_feedback: {
         Row: {
           comment: string | null
@@ -3473,6 +3654,7 @@ export type Database = {
           ai_generated: boolean
           ai_reviewed_at: string | null
           ai_reviewed_by: string | null
+          content_standard: string
           course_id: string
           created_at: string
           description: string | null
@@ -3487,6 +3669,7 @@ export type Database = {
           ai_generated?: boolean
           ai_reviewed_at?: string | null
           ai_reviewed_by?: string | null
+          content_standard?: string
           course_id: string
           created_at?: string
           description?: string | null
@@ -3501,6 +3684,7 @@ export type Database = {
           ai_generated?: boolean
           ai_reviewed_at?: string | null
           ai_reviewed_by?: string | null
+          content_standard?: string
           course_id?: string
           created_at?: string
           description?: string | null
@@ -3537,6 +3721,7 @@ export type Database = {
       }
       courses: {
         Row: {
+          catalog_code: string | null
           category: string | null
           created_at: string
           created_by: string | null
@@ -3545,12 +3730,14 @@ export type Database = {
           estimated_duration_minutes: number | null
           id: string
           organization_id: string | null
+          recurrence_interval_days: number | null
           status: string
           title: string
           training_type_id: string | null
           updated_at: string
         }
         Insert: {
+          catalog_code?: string | null
           category?: string | null
           created_at?: string
           created_by?: string | null
@@ -3559,12 +3746,14 @@ export type Database = {
           estimated_duration_minutes?: number | null
           id?: string
           organization_id?: string | null
+          recurrence_interval_days?: number | null
           status?: string
           title: string
           training_type_id?: string | null
           updated_at?: string
         }
         Update: {
+          catalog_code?: string | null
           category?: string | null
           created_at?: string
           created_by?: string | null
@@ -3573,6 +3762,7 @@ export type Database = {
           estimated_duration_minutes?: number | null
           id?: string
           organization_id?: string | null
+          recurrence_interval_days?: number | null
           status?: string
           title?: string
           training_type_id?: string | null
@@ -6482,6 +6672,7 @@ export type Database = {
       employee_training_records: {
         Row: {
           approval_status: string | null
+          audience_decision_at: string | null
           certificate_number: string | null
           completion_date: string | null
           completion_method: string | null
@@ -6508,6 +6699,7 @@ export type Database = {
         }
         Insert: {
           approval_status?: string | null
+          audience_decision_at?: string | null
           certificate_number?: string | null
           completion_date?: string | null
           completion_method?: string | null
@@ -6534,6 +6726,7 @@ export type Database = {
         }
         Update: {
           approval_status?: string | null
+          audience_decision_at?: string | null
           certificate_number?: string | null
           completion_date?: string | null
           completion_method?: string | null
@@ -26269,6 +26462,7 @@ export type Database = {
           applies_to_administers_meds: boolean | null
           applies_to_facility_type: string
           applies_to_trainers: boolean | null
+          audience_verification_required: boolean
           category: string
           citation_note: string | null
           citation_topic_id: string | null
@@ -26296,6 +26490,7 @@ export type Database = {
           applies_to_administers_meds?: boolean | null
           applies_to_facility_type?: string
           applies_to_trainers?: boolean | null
+          audience_verification_required?: boolean
           category: string
           citation_note?: string | null
           citation_topic_id?: string | null
@@ -26323,6 +26518,7 @@ export type Database = {
           applies_to_administers_meds?: boolean | null
           applies_to_facility_type?: string
           applies_to_trainers?: boolean | null
+          audience_verification_required?: boolean
           category?: string
           citation_note?: string | null
           citation_topic_id?: string | null
@@ -29010,6 +29206,10 @@ export type Database = {
       current_org_id: { Args: never; Returns: string }
       current_profile_active: { Args: never; Returns: boolean }
       current_role: { Args: never; Returns: string }
+      current_training_audience_status: {
+        Args: { p_employee_id: string; p_training_type_id: string }
+        Returns: string
+      }
       deactivate_integration_webhook_endpoint: {
         Args: { p_endpoint_id: string; p_reason: string }
         Returns: undefined
@@ -29455,6 +29655,14 @@ export type Database = {
       get_complaint_trends: {
         Args: { p_facility_id: string; p_from: string; p_through: string }
         Returns: Json
+      }
+      get_comprehensive_course_version_issues: {
+        Args: { p_version_id: string }
+        Returns: string[]
+      }
+      get_course_version_designed_minutes: {
+        Args: { p_version_id: string }
+        Returns: number
       }
       get_course_version_publish_issues: {
         Args: { p_version_id: string }
@@ -31314,6 +31522,7 @@ export type Database = {
         Args: { p_payload?: Json; p_record_id?: string }
         Returns: {
           approval_status: string | null
+          audience_decision_at: string | null
           certificate_number: string | null
           completion_date: string | null
           completion_method: string | null

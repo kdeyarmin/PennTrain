@@ -10,7 +10,6 @@ import {
 import { useListEmployees, type Employee } from "@/hooks/useEmployees";
 import {
   useListCourses,
-  useListCourseVersions,
   useListCourseVersionsForCourses,
   isCourseVersionLearnerReady,
 } from "@/hooks/useCourses";
@@ -55,14 +54,11 @@ function StatusPill({ status }: { status: string }) {
 
 interface AssignFormData {
   courseId: string;
-  /** "" means "use the course's current_version_id" -- see handleAssign. */
-  courseVersionId: string;
   dueDate: string;
 }
 
 const EMPTY_ASSIGN_FORM: AssignFormData = {
   courseId: "",
-  courseVersionId: "",
   dueDate: "",
 };
 
@@ -139,8 +135,11 @@ export default function CourseAssignments() {
   const { data: employees } = useListEmployees();
   const { data: courses } = useListCourses();
   const courseIds = useMemo(() => (courses ?? []).map(c => c.id), [courses]);
-  const { data: allCourseVersions } = useListCourseVersionsForCourses(courseIds);
-  const { data: courseVersions } = useListCourseVersions(assignForm.courseId || undefined);
+  const {
+    data: allCourseVersions,
+    isLoading: courseVersionsLoading,
+    isError: courseVersionsError,
+  } = useListCourseVersionsForCourses(courseIds);
 
   const { mutateAsync: createAssignmentAsync } = useCreateCourseAssignment();
   const { mutate: completeAssignment, isPending: completing } = useCompleteCourseAssignment();
@@ -153,6 +152,10 @@ export default function CourseAssignments() {
 
   const employeeById = useMemo(() => new Map((employees ?? []).map(e => [e.id, e])), [employees]);
   const courseById = useMemo(() => new Map((courses ?? []).map(c => [c.id, c])), [courses]);
+  const courseVersionById = useMemo(
+    () => new Map((allCourseVersions ?? []).map(version => [version.id, version])),
+    [allCourseVersions],
+  );
   // certificates.course_assignment_id is the direct link from an issued certificate back to the
   // assignment that earned it -- lets each row look up "is there already a certificate for this
   // completed assignment" without a per-row fetch.
@@ -180,29 +183,24 @@ export default function CourseAssignments() {
     return map;
   }, [allCourseVersions]);
 
-  // Only courses with at least one published, employee-ready training version are worth assigning. This
-  // keeps managers from selecting a catalog-published course whose current version is still a
-  // draft or whose AI-generated content has not completed the required review.
+  // New assignments always pin to the current version. Historical published
+  // versions remain available only to assignments that already reference them.
   const publishedCourses = useMemo(
     () =>
       (courses ?? []).filter(
-        c => c.status === "published" && (learnerReadyVersionsByCourseId.get(c.id)?.length ?? 0) > 0,
+        c => c.status === "published"
+          && !!c.current_version_id
+          && (learnerReadyVersionsByCourseId.get(c.id) ?? [])
+            .some(version => version.id === c.current_version_id),
       ),
     [courses, learnerReadyVersionsByCourseId],
   );
 
   const selectedCourse = assignForm.courseId ? courseById.get(assignForm.courseId) : undefined;
-  // Assignments pin to a specific published version. Only offer the picker when
-  // more than one published version exists; otherwise silently default to
-  // current_version_id in handleAssign.
-  const publishedVersions = useMemo(
-    () => (courseVersions ?? []).filter(isCourseVersionLearnerReady),
-    [courseVersions],
-  );
-  const showVersionPicker = publishedVersions.length > 1;
   const defaultVersion = useMemo(
-    () => publishedVersions.find(v => v.id === selectedCourse?.current_version_id) ?? publishedVersions[publishedVersions.length - 1],
-    [publishedVersions, selectedCourse?.current_version_id],
+    () => (learnerReadyVersionsByCourseId.get(selectedCourse?.id ?? "") ?? [])
+      .find(version => version.id === selectedCourse?.current_version_id),
+    [learnerReadyVersionsByCourseId, selectedCourse?.current_version_id, selectedCourse?.id],
   );
 
   // course_assignments has no employee-name/course-title columns of its own, so the free-text
@@ -284,7 +282,7 @@ export default function CourseAssignments() {
   };
 
   const handleCourseChange = (courseId: string) => {
-    setAssignForm(f => ({ ...f, courseId, courseVersionId: "" }));
+    setAssignForm(f => ({ ...f, courseId }));
   };
 
   const field = (k: keyof AssignFormData, v: string) => setAssignForm(f => ({ ...f, [k]: v }));
@@ -305,7 +303,7 @@ export default function CourseAssignments() {
     const assignedBy = user?.id;
     if (!course || !organizationId || !assignedBy) return;
 
-    const versionId = assignForm.courseVersionId || defaultVersion?.id;
+    const versionId = defaultVersion?.id;
     if (!versionId) {
       toast({ title: "This training item has no published version to assign", variant: "destructive" });
       return;
@@ -486,6 +484,10 @@ export default function CourseAssignments() {
                   {paginated.map(a => {
                     const emp = employeeById.get(a.employee_id);
                     const course = courseById.get(a.course_id);
+                    const assignmentVersion = courseVersionById.get(a.course_version_id);
+                    const versionMetadataReady =
+                      !courseVersionsLoading && !courseVersionsError && !!assignmentVersion;
+                    const requiresLearnerEvidence = assignmentVersion?.content_standard === "comprehensive";
                     const cert = certificateByAssignmentId.get(a.id);
                     return (
                       <tr key={a.id}>
@@ -532,7 +534,11 @@ export default function CourseAssignments() {
                                 {downloadingCertId === cert.id ? "Preparing..." : "Certificate"}
                               </Button>
                             )}
-                            {canManage && a.status !== "completed" && (
+                            {canManage
+                              && a.status !== "completed"
+                              && versionMetadataReady
+                              && !requiresLearnerEvidence
+                              && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -543,7 +549,7 @@ export default function CourseAssignments() {
                                 <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
                                 {completing && completingId === a.id ? "Completing..." : "Mark Complete"}
                               </Button>
-                            )}
+                              )}
                           </div>
                         </td>
                       </tr>
@@ -596,29 +602,6 @@ export default function CourseAssignments() {
                 </SelectContent>
               </Select>
             </div>
-            {showVersionPicker && (
-              <div className="space-y-1.5">
-                <Label className="text-[13px]">Version</Label>
-                <Select
-                  value={assignForm.courseVersionId || "default"}
-                  onValueChange={v => field("courseVersionId", v === "default" ? "" : v)}
-                >
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">
-                      {defaultVersion
-                        ? `Default: v${defaultVersion.version_number} - ${defaultVersion.title}`
-                        : "No published version available"}
-                    </SelectItem>
-                    {publishedVersions.map(v => (
-                      <SelectItem key={v.id} value={v.id}>
-                        v{v.version_number} — {v.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
             <div className="space-y-1.5">
               <Label className="text-[13px]">Due Date</Label>
               <Input type="date" value={assignForm.dueDate} onChange={e => field("dueDate", e.target.value)} className="h-9" />

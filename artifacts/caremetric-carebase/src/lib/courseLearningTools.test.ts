@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   buildStudyGuide,
+  canAdvanceCourseStep,
+  canMutateCourseEvidence,
   estimateBlockMinutes,
   getBlockLabel,
+  getLearningStepLabel,
   getTextPreview,
   hasLearningToolsEntries,
+  isAppliedResponseComplete,
   lessonStorageKey,
+  MIN_APPLIED_RESPONSE_CHARACTERS,
   parseLearningToolsState,
+  requiresAppliedResponse,
   sanitizeLearningToolsState,
   type LearningToolBlock,
 } from "./courseLearningTools";
@@ -34,6 +40,63 @@ describe("course learning tools", () => {
     expect(estimateBlockMinutes(block({ block_type: "video" }))).toBe(5);
     expect(estimateBlockMinutes(block({ block_type: "pdf" }))).toBe(4);
     expect(estimateBlockMinutes(block({ block_type: "quiz" }))).toBe(3);
+  });
+
+  it("labels comprehensive activities by their learning purpose", () => {
+    expect(getLearningStepLabel(block({ body: { activity_type: "objectives" } }))).toBe("Learning objectives");
+    expect(getLearningStepLabel(block({ body: { activity_type: "guided_instruction" } }))).toBe("Guided lesson");
+    expect(getLearningStepLabel(block({ body: { activity_type: "scenario" } }))).toBe("Applied scenario");
+    expect(getLearningStepLabel(block({ body: { activity_type: "practice" } }))).toBe("Guided practice");
+    expect(getLearningStepLabel(block({ body: { activity_type: "sources" } }))).toBe("Sources and scope");
+    expect(getLearningStepLabel(block({ block_type: "quiz", body: { activity_type: "assessment" } }))).toBe("Final assessment");
+    expect(getLearningStepLabel(block({ block_type: "video", body: null }))).toBe("Video");
+  });
+
+  it("requires a substantive learner response for applied activities", () => {
+    const scenario = block({ body: { activity_type: "scenario" } });
+    const practice = block({ body: { activity_type: "practice" } });
+    const lesson = block({ body: { activity_type: "instruction" } });
+
+    expect(requiresAppliedResponse(scenario)).toBe(true);
+    expect(requiresAppliedResponse(practice)).toBe(true);
+    expect(requiresAppliedResponse(lesson)).toBe(false);
+    expect(isAppliedResponseComplete(scenario, "too short")).toBe(false);
+    expect(isAppliedResponseComplete(scenario, "x".repeat(MIN_APPLIED_RESPONSE_CHARACTERS))).toBe(true);
+    expect(isAppliedResponseComplete(lesson, "")).toBe(true);
+  });
+
+  it("allows evidence writes only for the assignment's learner before completion", () => {
+    expect(canMutateCourseEvidence("employee-1", "employee-1", "in_progress")).toBe(true);
+    expect(canMutateCourseEvidence("employee-1", "employee-2", "in_progress")).toBe(false);
+    expect(canMutateCourseEvidence("employee-1", undefined, "in_progress")).toBe(false);
+    expect(canMutateCourseEvidence("employee-1", "employee-1", "completed")).toBe(false);
+  });
+
+  it("keeps active-course gates while letting completed review move through every step", () => {
+    const blocked = {
+      completionEvidenceLocked: false,
+      isQuizBlock: true,
+      currentQuizPassed: false,
+      videoGateBlocksAdvance: true,
+      appliedResponseRequired: true,
+      appliedResponseComplete: false,
+    };
+    expect(canAdvanceCourseStep(blocked)).toBe(false);
+    expect(canAdvanceCourseStep({ ...blocked, completionEvidenceLocked: true })).toBe(true);
+    expect(canAdvanceCourseStep({
+      ...blocked,
+      isQuizBlock: false,
+      videoGateBlocksAdvance: false,
+      appliedResponseRequired: false,
+    })).toBe(true);
+  });
+
+  it("uses an explicit designed duration when comprehensive content provides one", () => {
+    expect(estimateBlockMinutes(block({ body: { content: "Short activity.", estimated_minutes: 25 } }))).toBe(25);
+    expect(estimateBlockMinutes(block({ block_type: "quiz", body: { estimated_minutes: 10 } }))).toBe(10);
+    expect(estimateBlockMinutes(block({ body: { estimated_minutes: 0, content: "word ".repeat(181) } }))).toBe(2);
+    expect(estimateBlockMinutes(block({ body: { estimated_minutes: 12.5, content: "Short text." } }))).toBe(1);
+    expect(estimateBlockMinutes(block({ body: { estimated_minutes: 121, content: "Short text." } }))).toBe(1);
   });
 
   it("extracts a concise first-line preview", () => {

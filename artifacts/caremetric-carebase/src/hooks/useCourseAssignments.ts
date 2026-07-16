@@ -147,7 +147,15 @@ export function useSelfEnrollCourse() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["course_assignments"] }),
+    onSuccess: async () => {
+      // self_enroll_course may lazily create the caller's pseudo-employee row.
+      // Await both refreshes before the component-level success handler navigates
+      // to TakeCourse, otherwise that page can reuse a cached null employee.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["course_assignments"] }),
+        queryClient.invalidateQueries({ queryKey: ["employees"] }),
+      ]);
+    },
   });
 }
 

@@ -21,13 +21,19 @@ import { useGetCourseFeedbackForAssignment, useCreateCourseFeedback } from "@/ho
 import { useToast } from "@/hooks/use-toast";
 import {
   buildStudyGuide,
+  canAdvanceCourseStep,
+  canMutateCourseEvidence,
   CONFIDENCE_LABEL,
   estimateBlockMinutes,
   getBlockLabel,
+  getLearningStepLabel,
   getTextPreview,
   hasLearningToolsEntries,
+  isAppliedResponseComplete,
   lessonStorageKey,
+  MIN_APPLIED_RESPONSE_CHARACTERS,
   parseLearningToolsState,
+  requiresAppliedResponse,
   sanitizeLearningToolsState,
   type LearningToolsState,
   type LessonConfidence,
@@ -135,6 +141,13 @@ export default function TakeCourse() {
   const { data: blocks, isLoading: blocksLoading } = useListCourseBlocks(assignment?.course_version_id);
   const { data: progress, isLoading: progressLoading } = useGetCourseProgress(assignmentId);
   const { data: quizAttempts } = useListQuizAttempts({ assignmentId });
+  const ownsAssignment = !!assignment && !!employee && assignment.employee_id === employee.id;
+  const completionEvidenceLocked = assignment?.status === "completed";
+  const canMutateEvidence = canMutateCourseEvidence(
+    assignment?.employee_id,
+    employee?.id,
+    assignment?.status,
+  );
 
   const upsertProgress = useUpsertCourseProgress();
   const startAssignment = useStartCourseAssignment();
@@ -198,7 +211,7 @@ export default function TakeCourse() {
   // debounced save below then persists them).
   useEffect(() => {
     const key = lessonStorageKey(assignmentId);
-    if (!key || progressLoading || lessonToolsLoadedForId === assignmentId) return;
+    if (!key || !ownsAssignment || progressLoading || lessonToolsLoadedForId === assignmentId) return;
     setLearningToolsStorageError(null);
     let local: LearningToolsState = { notes: {}, confidence: {} };
     try {
@@ -216,7 +229,7 @@ export default function TakeCourse() {
     learningToolsRef.current = adopted;
     setLessonToolsLoadedForId(assignmentId);
     setLastStudyToolsSavedAt(null);
-  }, [assignmentId, progress?.learning_tools, progressLoading, lessonToolsLoadedForId]);
+  }, [assignmentId, ownsAssignment, progress?.learning_tools, progressLoading, lessonToolsLoadedForId]);
 
   // Keep the ref in step with state; declared before the persistence effects so they
   // always read the current values.
@@ -226,7 +239,7 @@ export default function TakeCourse() {
 
 useEffect(() => {
   const key = lessonStorageKey(assignmentId);
-  if (!key || lessonToolsLoadedForId !== assignmentId) return;
+  if (!key || !ownsAssignment || lessonToolsLoadedForId !== assignmentId) return;
 
   const timeoutId = window.setTimeout(() => {
     try {
@@ -240,19 +253,20 @@ useEffect(() => {
   }, 300);
 
   return () => window.clearTimeout(timeoutId);
-}, [assignmentId, lessonNotes, lessonConfidence, lessonToolsLoadedForId]);
+}, [assignmentId, lessonNotes, lessonConfidence, lessonToolsLoadedForId, ownsAssignment]);
 
   // Hydrate video watch state once per assignment (progress refetches after every
   // checkpoint upsert; re-hydrating from those echoes would clobber newer local ticks).
   useEffect(() => {
-    if (videoStateLoadedForId === assignmentId || progressLoading) return;
+    if (!ownsAssignment || videoStateLoadedForId === assignmentId || progressLoading) return;
     const parsed = sanitizeVideoState(progress?.video_state);
     videoStateRef.current = parsed;
     setVideoState(parsed);
     setVideoStateLoadedForId(assignmentId);
-  }, [assignmentId, progress?.video_state, progressLoading, videoStateLoadedForId]);
+  }, [assignmentId, ownsAssignment, progress?.video_state, progressLoading, videoStateLoadedForId]);
 
   const handleVideoStateChange = (blockId: string, next: VideoBlockState) => {
+    if (!canMutateEvidence) return;
     videoStateRef.current = { ...videoStateRef.current, [blockId]: next };
     setVideoState(videoStateRef.current);
   };
@@ -262,7 +276,7 @@ useEffect(() => {
   // loses at most a few seconds of position. Block navigation and tab-backgrounding
   // still checkpoint immediately via the effects below.
   useEffect(() => {
-    if (!resumed || !assignment || !blocks || blocks.length === 0) return;
+    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
     if (videoStateLoadedForId !== assignmentId) return;
     const block = blocks[stepIndex];
     if (!block || Object.keys(videoState).length === 0) return;
@@ -278,14 +292,14 @@ useEffect(() => {
     }, 3_000);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoState]);
+  }, [videoState, canMutateEvidence, completeAssignment.isPending]);
 
   // Same trailing debounce for study aids: notes change on every keystroke, so the
   // server write waits for a pause; block navigation and tab-backgrounding still
   // checkpoint immediately. Also fires once right after hydration, which is what
   // persists device-only notes adopted from localStorage.
   useEffect(() => {
-    if (!resumed || !assignment || !blocks || blocks.length === 0) return;
+    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
     if (lessonToolsLoadedForId !== assignmentId) return;
     const block = blocks[stepIndex];
     if (!block) return;
@@ -301,19 +315,19 @@ useEffect(() => {
     }, 3_000);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lessonNotes, lessonConfidence, lessonToolsLoadedForId]);
+  }, [lessonNotes, lessonConfidence, lessonToolsLoadedForId, canMutateEvidence, completeAssignment.isPending]);
 
   // Resume where the employee left off (course_progress.last_block_id), once,
   // as soon as blocks are loaded. If there's no progress row yet (brand new
   // assignment) or the stored block no longer exists, we simply start at 0.
   useEffect(() => {
-    if (resumed || !blocks || blocks.length === 0 || progressLoading) return;
+    if (!ownsAssignment || resumed || !blocks || blocks.length === 0 || progressLoading) return;
     if (progress?.last_block_id) {
       const idx = blocks.findIndex(b => b.id === progress.last_block_id);
       if (idx >= 0) setStepIndex(idx);
     }
     setResumed(true);
-  }, [resumed, blocks, progress, progressLoading]);
+  }, [ownsAssignment, resumed, blocks, progress, progressLoading]);
 
   // Persist progress on navigation only (not on every render): this fires
   // once the resumed starting step lands, and again each time stepIndex
@@ -322,7 +336,7 @@ useEffect(() => {
   // afterward -- complete_course_assignment() uses the gap between it and
   // the completion request as a minimum-seat-time completion-integrity check.
   useEffect(() => {
-    if (!resumed || !assignment || !blocks || blocks.length === 0) return;
+    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
     const block = blocks[stepIndex];
     if (!block) return;
     const percentComplete = Math.round(((stepIndex + 1) / blocks.length) * 100);
@@ -337,18 +351,18 @@ useEffect(() => {
     // Only re-run when the resolved step (or the assignment/blocks it's
     // scoped to) actually changes -- upsertProgress.mutate is stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumed, stepIndex, assignment?.id, blocks]);
+  }, [resumed, stepIndex, assignment?.id, canMutateEvidence, blocks, completeAssignment.isPending]);
 
   // Wires the previously-dead assigned -> in_progress transition (see ROADMAP.md Tier 3.4):
   // fires once the assignment loads if it's still in its just-assigned state. The RPC itself is
   // idempotent (only flips status when it's still 'assigned'), so a duplicate call from a fast
   // re-render is harmless -- no extra guard needed beyond the status check itself.
   useEffect(() => {
-    if (assignment?.status === "assigned" && !startAssignment.isPending) {
+    if (canMutateEvidence && assignment?.status === "assigned" && !startAssignment.isPending) {
       startAssignment.mutate(assignment.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignment?.id, assignment?.status]);
+  }, [assignment?.id, assignment?.status, canMutateEvidence]);
 
   // Reliable progress checkpointing on mobile (ROADMAP.md Tier 3.4): the stepIndex-triggered save
   // above only fires on Previous/Next, so backgrounding the tab mid-block (locking the phone,
@@ -356,7 +370,7 @@ useEffect(() => {
   // navigates again. `visibilitychange` fires reliably when a mobile browser is backgrounded,
   // unlike `beforeunload`, which mobile Safari/Chrome do not reliably fire.
   useEffect(() => {
-    if (!resumed || !assignment || !blocks || blocks.length === 0) return;
+    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
     const handleVisibilityChange = () => {
       if (document.visibilityState !== "hidden") return;
       const block = blocks[stepIndex];
@@ -373,7 +387,7 @@ useEffect(() => {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumed, assignment?.id, blocks, stepIndex]);
+  }, [resumed, assignment?.id, canMutateEvidence, blocks, stepIndex, completeAssignment.isPending]);
 
   const currentBlock: CourseBlock | undefined = blocks?.[stepIndex];
   const lessonCount = blocks?.length ?? 0;
@@ -383,6 +397,9 @@ useEffect(() => {
   const nextBlock = blocks?.[stepIndex + 1];
   const textPreview = getTextPreview(currentBlock);
   const currentLessonNote = currentBlock ? lessonNotes[currentBlock.id] ?? "" : "";
+  const appliedResponseRequired =
+    !completionEvidenceLocked && requiresAppliedResponse(currentBlock);
+  const appliedResponseComplete = isAppliedResponseComplete(currentBlock, currentLessonNote);
   const currentConfidence = currentBlock ? lessonConfidence[currentBlock.id] : undefined;
   const readyCount = (blocks ?? []).filter(block => lessonConfidence[block.id] === "ready").length;
   const reviewBlocks = useMemo(
@@ -414,7 +431,8 @@ useEffect(() => {
   // progress. The employee cannot move past the currently-displayed quiz
   // block -- via Next, or via "Mark Training Complete" if it's the last
   // block -- until at least one attempt on that quiz has `passed`.
-  // Non-quiz blocks never gate. Because this check runs against whichever
+  // Applied scenario and practice blocks also gate until the learner records
+  // a brief job-specific response. Because this check runs against whichever
   // block is currently on screen, and the employee must click through every
   // block in order to reach the end, this transitively requires passing
   // *every* quiz block in the training item before completion is reachable --
@@ -428,20 +446,31 @@ useEffect(() => {
   const currentVideoWatched = currentBlock ? !!videoState[currentBlock.id]?.completedAt : false;
   const videoGateBlocksAdvance =
     watchGateReleased && isVideoBlock && assignment?.status !== "completed" && !currentVideoWatched;
-  const canAdvance = (!isQuizBlock || currentQuizPassed) && !videoGateBlocksAdvance;
+  const canAdvance = canAdvanceCourseStep({
+    completionEvidenceLocked,
+    isQuizBlock,
+    currentQuizPassed,
+    videoGateBlocksAdvance,
+    appliedResponseRequired,
+    appliedResponseComplete,
+  });
 
   const handleLessonNoteChange = (value: string) => {
-    if (!currentBlock) return;
-    setLessonNotes(prev => ({ ...prev, [currentBlock.id]: value }));
+    if (!currentBlock || !canMutateEvidence) return;
+    setLessonNotes(prev => {
+      const notes = { ...prev, [currentBlock.id]: value };
+      learningToolsRef.current = { ...learningToolsRef.current, notes };
+      return notes;
+    });
   };
 
   const handleConfidenceChange = (confidence: LessonConfidence) => {
-    if (!currentBlock) return;
+    if (!currentBlock || !canMutateEvidence) return;
     setLessonConfidence(prev => ({ ...prev, [currentBlock.id]: confidence }));
   };
 
   const handleMarkReadyAndContinue = () => {
-    if (!currentBlock || !blocks) return;
+    if (!currentBlock || !blocks || !canMutateEvidence) return;
     setLessonConfidence(prev => ({ ...prev, [currentBlock.id]: "ready" }));
     if (!isLastBlock && canAdvance) {
       setStepIndex(i => Math.min(blocks.length - 1, i + 1));
@@ -466,7 +495,7 @@ useEffect(() => {
   };
 
   const handleClearLocalLearningTools = () => {
-    if (!hasStudyGuideEntries) return;
+    if (!hasStudyGuideEntries || !canMutateEvidence) return;
     const confirmed = window.confirm("Clear your notes and confidence checks for this training item on this device?");
     if (!confirmed) return;
     const key = lessonStorageKey(assignmentId);
@@ -482,7 +511,7 @@ useEffect(() => {
   };
 
 useEffect(() => {
-  if (!blocks || blocks.length === 0 || showRatingPrompt) return;
+  if (!ownsAssignment || !blocks || blocks.length === 0 || showRatingPrompt) return;
   const handleKeyDown = (event: KeyboardEvent) => {
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isEditableShortcutTarget(event.target)) return;
     if (event.key === "ArrowLeft" && stepIndex > 0) {
@@ -491,7 +520,7 @@ useEffect(() => {
     } else if (event.key === "ArrowRight" && !isLastBlock && canAdvance) {
       event.preventDefault();
       setStepIndex(i => Math.min(blocks.length - 1, i + 1));
-    } else if (event.key.toLowerCase() === "r" && currentBlock) {
+    } else if (event.key.toLowerCase() === "r" && currentBlock && canMutateEvidence) {
       event.preventDefault();
       setLessonConfidence(prev => ({ ...prev, [currentBlock.id]: "ready" }));
       if (!isLastBlock && canAdvance) {
@@ -501,10 +530,10 @@ useEffect(() => {
   };
   window.addEventListener("keydown", handleKeyDown);
   return () => window.removeEventListener("keydown", handleKeyDown);
-}, [blocks, canAdvance, currentBlock, isLastBlock, showRatingPrompt, stepIndex]);
+}, [blocks, canAdvance, canMutateEvidence, currentBlock, isLastBlock, ownsAssignment, showRatingPrompt, stepIndex]);
 
   const handleComplete = () => {
-    if (!assignment) return;
+    if (!assignment || !canMutateEvidence) return;
     completeAssignment.mutate(assignment.id, {
       onSuccess: () => {
         // Certificate issuance is part of the same database transaction. A successful response
@@ -523,7 +552,7 @@ useEffect(() => {
   };
 
   const handleSubmitRating = () => {
-    if (!assignment || !employee || ratingValue === 0) return;
+    if (!assignment || !employee || !ownsAssignment || ratingValue === 0) return;
     createFeedback.mutate(
       {
         course_assignment_id: assignment.id,
@@ -668,7 +697,7 @@ useEffect(() => {
                   size="sm"
                   className="mt-1 w-full text-muted-foreground"
                   onClick={handleClearLocalLearningTools}
-                  disabled={!hasStudyGuideEntries}
+                  disabled={!hasStudyGuideEntries || completionEvidenceLocked}
                 >
                   <Trash2 className="mr-2 h-3.5 w-3.5" /> Clear local notes
                 </Button>
@@ -764,7 +793,7 @@ useEffect(() => {
             <CardHeader>
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">{getBlockLabel(currentBlock?.block_type)}</Badge>
+                  <Badge variant="outline">{getLearningStepLabel(currentBlock)}</Badge>
                   <Badge variant="secondary">{currentMinutes} min</Badge>
                   {isQuizBlock && currentQuizPassed && <Badge className="bg-success text-success-foreground">Passed</Badge>}
                 </div>
@@ -843,7 +872,11 @@ useEffect(() => {
                       {bestScore !== null && ` -- best score ${bestScore}%`}. Try again to pass.
                     </p>
                   )}
-                  {currentQuiz ? (
+                  {currentQuiz && completionEvidenceLocked ? (
+                    <p className="text-sm text-muted-foreground">
+                      Assessment evidence is locked after course completion.
+                    </p>
+                  ) : currentQuiz ? (
                     <Button asChild>
                       <Link href={`/me/courses/${assignmentId}/quiz/${currentQuiz.id}`}>
                         <ListChecks className="mr-2 h-4 w-4" /> Take Quiz
@@ -863,21 +896,35 @@ useEffect(() => {
                     </div>
                     <div className="min-w-0 flex-1 space-y-3">
                       <div>
-                        <p className="text-sm font-medium">My takeaway</p>
+                        <p className="text-sm font-medium">
+                          {appliedResponseRequired ? "My applied response" : "My takeaway"}
+                        </p>
                         <p className="text-xs text-muted-foreground">
-                          Jot down what you would do differently on the job because of this lesson. Notes save to
-                          your training record so you can pick up on any device, and your trainer can review them
-                          with you.
+                          {appliedResponseRequired
+                            ? `Describe what you would do in this situation or practice on shift. Enter at least ${MIN_APPLIED_RESPONSE_CHARACTERS} characters to continue.`
+                            : "Jot down what you would do differently on the job because of this lesson."}
+                          {" "}Do not include resident or patient names or other identifiers. Responses save to your training record so you can pick up on any device, and your trainer can review them with you.
                         </p>
                       </div>
                       <Textarea
                         value={currentLessonNote}
                         onChange={(e) => handleLessonNoteChange(e.target.value)}
-                        placeholder="Example: I should document the incident time before calling the supervisor..."
+                        placeholder={appliedResponseRequired
+                          ? "Describe the steps you would take and why..."
+                          : "Example: I should document the incident time before calling the supervisor..."}
                         rows={3}
+                        readOnly={completionEvidenceLocked}
+                        aria-invalid={appliedResponseRequired && !appliedResponseComplete}
                       />
+                      {appliedResponseRequired && (
+                        <p className={`text-xs ${appliedResponseComplete ? "text-success" : "text-warning"}`}>
+                          {currentLessonNote.trim().length}/{MIN_APPLIED_RESPONSE_CHARACTERS} required characters
+                        </p>
+                      )}
                       <p className={`text-xs ${learningToolsStorageError ? "text-destructive" : "text-muted-foreground"}`}>
-                        {learningToolsStorageError
+                        {completionEvidenceLocked
+                          ? "Completed responses and confidence checks are read-only evidence."
+                          : learningToolsStorageError
                           ? learningToolsStorageError
                           : lastStudyToolsSavedAt
                             ? `Saved at ${lastStudyToolsSavedAt}.`
@@ -896,6 +943,7 @@ useEffect(() => {
                               variant={currentConfidence === confidence ? "default" : "outline"}
                               size="sm"
                               onClick={() => handleConfidenceChange(confidence)}
+                              disabled={completionEvidenceLocked}
                             >
                               {CONFIDENCE_LABEL[confidence]}
                             </Button>
@@ -911,7 +959,7 @@ useEffect(() => {
                 <div className="rounded-lg border bg-muted/30 p-3 text-sm">
                   <p className="font-medium">Up next</p>
                   <p className="text-muted-foreground">
-                    {getBlockLabel(nextBlock.block_type)}: {nextBlock.title ?? "Untitled lesson"}
+                    {getLearningStepLabel(nextBlock)}: {nextBlock.title ?? "Untitled lesson"}
                   </p>
                 </div>
               )}
@@ -955,7 +1003,7 @@ useEffect(() => {
                 <Button
                   variant="outline"
                   onClick={handleMarkReadyAndContinue}
-                  disabled={!canAdvance}
+                  disabled={!canAdvance || completionEvidenceLocked}
                 >
                   <ClipboardCheck className="mr-2 h-4 w-4" /> Mark ready & next
                 </Button>
@@ -970,7 +1018,11 @@ useEffect(() => {
           </div>
           {!canAdvance && (
             <p className="text-xs text-muted-foreground text-right">
-              {videoGateBlocksAdvance ? "Watch the video above to continue." : "Pass the quiz above to continue."}
+              {videoGateBlocksAdvance
+                ? "Watch the video above to continue."
+                : appliedResponseRequired && !appliedResponseComplete
+                  ? `Enter an applied response of at least ${MIN_APPLIED_RESPONSE_CHARACTERS} characters to continue.`
+                  : "Pass the quiz above to continue."}
             </p>
           )}
           <p className="text-xs text-muted-foreground text-center">

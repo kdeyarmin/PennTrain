@@ -186,6 +186,10 @@ select set_config('app.privileged_write', 'on', true);
 update public.course_versions
 set status = 'published', published_at = now()
 where id = '22000000-0000-4000-8000-000000000511';
+update public.courses
+set status = 'published',
+    current_version_id = '22000000-0000-4000-8000-000000000511'
+where id = '22000000-0000-4000-8000-000000000510';
 insert into public.course_assignments(
   id, organization_id, facility_id, employee_id, course_id,
   course_version_id, assigned_by, due_date, status

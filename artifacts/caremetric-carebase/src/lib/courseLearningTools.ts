@@ -74,8 +74,73 @@ export function getBlockLabel(blockType: string | null | undefined) {
   }
 }
 
+export function getLearningStepLabel(block: Pick<LearningToolBlock, "block_type" | "body"> | undefined) {
+  const activityType = (block?.body as { activity_type?: unknown } | null)?.activity_type;
+  switch (activityType) {
+    case "objectives": return "Learning objectives";
+    case "instruction": return "Guided lesson";
+    case "guided_instruction": return "Guided lesson";
+    case "scenario": return "Applied scenario";
+    case "practice": return "Guided practice";
+    case "facility_verification": return "Facility verification";
+    case "sources": return "Sources and scope";
+    case "assessment": return "Final assessment";
+    default: return getBlockLabel(block?.block_type);
+  }
+}
+
+export const MIN_APPLIED_RESPONSE_CHARACTERS = 80;
+
+export function requiresAppliedResponse(block: Pick<LearningToolBlock, "body"> | undefined) {
+  const activityType = (block?.body as { activity_type?: unknown } | null)?.activity_type;
+  return activityType === "scenario" || activityType === "practice";
+}
+
+export function isAppliedResponseComplete(
+  block: Pick<LearningToolBlock, "body"> | undefined,
+  response: string | null | undefined,
+) {
+  return !requiresAppliedResponse(block) || (response?.trim().length ?? 0) >= MIN_APPLIED_RESPONSE_CHARACTERS;
+}
+
+export function canMutateCourseEvidence(
+  assignmentEmployeeId: string | null | undefined,
+  currentEmployeeId: string | null | undefined,
+  assignmentStatus: string | null | undefined,
+) {
+  return !!assignmentEmployeeId
+    && !!currentEmployeeId
+    && assignmentEmployeeId === currentEmployeeId
+    && assignmentStatus !== "completed";
+}
+
+export interface CourseStepGateState {
+  completionEvidenceLocked: boolean;
+  isQuizBlock: boolean;
+  currentQuizPassed: boolean;
+  videoGateBlocksAdvance: boolean;
+  appliedResponseRequired: boolean;
+  appliedResponseComplete: boolean;
+}
+
+export function canAdvanceCourseStep(gates: CourseStepGateState) {
+  if (gates.completionEvidenceLocked) return true;
+  return (!gates.isQuizBlock || gates.currentQuizPassed)
+    && !gates.videoGateBlocksAdvance
+    && (!gates.appliedResponseRequired || gates.appliedResponseComplete);
+}
+
 export function estimateBlockMinutes(block: Pick<LearningToolBlock, "block_type" | "body"> | undefined) {
   if (!block) return 1;
+  const designedMinutes = (block.body as { estimated_minutes?: unknown } | null)?.estimated_minutes;
+  if (
+    typeof designedMinutes === "number"
+    && Number.isInteger(designedMinutes)
+    && designedMinutes > 0
+    && designedMinutes <= 120
+  ) {
+    return designedMinutes;
+  }
   if (block.block_type === "video") return 5;
   if (block.block_type === "pdf" || block.block_type === "scorm") return 4;
   if (block.block_type === "quiz") return 3;
@@ -107,7 +172,7 @@ export function buildStudyGuide(
     const note = notes[block.id]?.trim();
     const confidenceLabel = confidence[block.id] ? CONFIDENCE_LABEL[confidence[block.id]] : null;
     if (!note && !confidenceLabel) return;
-    lines.push(`${index + 1}. ${block.title ?? getBlockLabel(block.block_type)}`);
+    lines.push(`${index + 1}. ${block.title ?? getLearningStepLabel(block)}`);
     if (confidenceLabel) lines.push(`   Confidence: ${confidenceLabel}`);
     if (note) lines.push(`   Takeaway: ${note.replace(/\n/g, "\n             ")}`);
     lines.push("");
