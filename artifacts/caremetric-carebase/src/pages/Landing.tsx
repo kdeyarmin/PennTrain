@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Link } from "wouter";
 import {
   ArrowRight,
@@ -34,7 +35,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
-import { ProductTour } from "@/components/marketing/ProductTour";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { LogoMark } from "@/components/brand/Logo";
 import {
@@ -43,6 +43,12 @@ import {
   NEW_WAY,
 } from "@/components/marketing/content";
 import { usePageMeta } from "@/lib/usePageMeta";
+
+const ProductTour = lazy(() =>
+  import("@/components/marketing/ProductTour").then((module) => ({
+    default: module.ProductTour,
+  })),
+);
 
 const HIGHLIGHTS: {
   href: string;
@@ -387,7 +393,16 @@ export default function Landing() {
         </div>
       </section>
 
-      <ProductTour />
+      <Suspense
+        fallback={
+          <section
+            aria-label="Loading interactive workflow tour"
+            className="min-h-[36rem] border-y border-white/5 bg-[#071626]"
+          />
+        }
+      >
+        <ProductTour />
+      </Suspense>
 
       <section className="border-b border-border/60 bg-background">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
