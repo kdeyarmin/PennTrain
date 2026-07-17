@@ -1,5 +1,5 @@
 begin;
-select plan(6);
+select plan(7);
 
 select is(
   (select array_agg(policyname::text order by policyname)
@@ -17,6 +17,15 @@ select is(
      and cmd in ('INSERT', 'UPDATE', 'DELETE')),
   array['alerts_delete', 'alerts_insert', 'alerts_update']::text[],
   'alert write authorization is split by command'
+);
+
+select is(
+  (select count(*)::int
+   from pg_policies
+   where schemaname = 'public' and tablename = 'alerts'
+     and cmd = 'ALL'),
+  0,
+  'alerts have no permissive FOR ALL policy'
 );
 
 select ok(
