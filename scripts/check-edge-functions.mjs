@@ -1,5 +1,5 @@
-import { readdir, readFile } from "node:fs/promises";
-import { join, relative, sep } from "node:path";
+import { readFile, readdir } from "node:fs/promises";
+import { dirname, join, relative, sep } from "node:path";
 import { spawn } from "node:child_process";
 
 async function findEntrypoints(dir) {
@@ -46,6 +46,29 @@ function runDeno(args) {
   });
 }
 
+async function checkFunctionConfig(functionsDir, configPath, entrypoints) {
+  const functionNames = [...new Set(
+    entrypoints
+      .map((path) => relative(functionsDir, path))
+      .filter((path) => !path.startsWith("_"))
+      .map((path) => path.split(sep)[0]),
+  )].sort();
+  const config = await readFile(configPath, "utf8");
+  const configuredNames = [...config.matchAll(/^\[functions\.([^\]]+)\]$/gm)]
+    .map((match) => match[1])
+    .sort();
+
+  const missingConfig = functionNames.filter((name) => !configuredNames.includes(name));
+  const missingDirectory = configuredNames.filter((name) => !functionNames.includes(name));
+  if (missingConfig.length > 0 || missingDirectory.length > 0) {
+    const details = [
+      missingConfig.length > 0 ? `missing config.toml entries: ${missingConfig.join(", ")}` : null,
+      missingDirectory.length > 0 ? `config.toml entries without a function directory: ${missingDirectory.join(", ")}` : null,
+    ].filter(Boolean).join("; ");
+    throw new Error(`Supabase Edge Function config drift: ${details}`);
+  }
+}
+
 const functionsDir = join(process.cwd(), "supabase", "functions");
 const entrypoints = await findEntrypoints(functionsDir);
 if (entrypoints.length === 0) {
@@ -53,34 +76,22 @@ if (entrypoints.length === 0) {
   process.exit(0);
 }
 
-// Every deployable function must have an explicit [functions.<name>] block in config.toml so
-// its verify_jwt setting is a reviewed decision rather than a silent gateway default, and so
-// the Supabase GitHub integration deploys it.
-const functionNames = [...new Set(
-  entrypoints
-    .map((path) => relative(functionsDir, path))
-    .filter((path) => !path.startsWith("_"))
-    .map((path) => path.split(sep)[0]),
-)].sort();
-const configToml = await readFile(join(process.cwd(), "supabase", "config.toml"), "utf8");
-const declared = new Set(
-  [...configToml.matchAll(/^\[functions\.([A-Za-z0-9_-]+)\]/gm)].map((match) => match[1]),
-);
-const undeclared = functionNames.filter((name) => !declared.has(name));
-if (undeclared.length > 0) {
-  console.error(
-    `Edge Functions missing a [functions.<name>] declaration in supabase/config.toml: ${undeclared.join(", ")}`,
-  );
-  process.exit(1);
-}
-const stale = [...declared].filter((name) => !functionNames.includes(name)).sort();
-if (stale.length > 0) {
-  console.warn(`config.toml declares functions with no matching directory: ${stale.join(", ")}`);
-}
-
 try {
+  // Every deployable function must have an explicit config block so verify_jwt
+  // and deployment behavior are reviewed decisions rather than silent defaults.
+  await checkFunctionConfig(functionsDir, join(process.cwd(), "supabase", "config.toml"), entrypoints);
   await runDeno(["check", "--node-modules-dir=auto", ...entrypoints]);
-  const tests = await findTests(join(process.cwd(), "supabase", "functions"));
+  const tests = await findTests(functionsDir);
+  const functionDirectories = new Set(entrypoints.map((entrypoint) => dirname(entrypoint)));
+  const runtimeTestedDirectories = new Set(
+    tests.map((test) => dirname(test)).filter((directory) => functionDirectories.has(directory)),
+  );
+  console.log(
+    `Edge handler runtime tests: ${runtimeTestedDirectories.size}/${functionDirectories.size} functions`,
+  );
+  if (runtimeTestedDirectories.size < 3) {
+    throw new Error("Edge handler runtime test coverage regressed below the established minimum of 3 functions");
+  }
   if (tests.length > 0) {
     await runDeno(["test", "--node-modules-dir=auto", ...tests]);
   }

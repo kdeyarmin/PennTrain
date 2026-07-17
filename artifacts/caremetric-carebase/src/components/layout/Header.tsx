@@ -7,6 +7,7 @@ import { useProductChangelog } from "@/hooks/useProductExperience";
 import {
   useListNotifications,
   useUnreadNotificationCount,
+  useNotificationRealtime,
   useMarkNotificationRead,
   useMarkAllNotificationsRead,
   type Notification,
@@ -139,6 +140,7 @@ function NotificationsMenu() {
   const { user } = useAuth();
   const { data: notifications, isLoading } = useListNotifications();
   const { data: unreadCount } = useUnreadNotificationCount();
+  useNotificationRealtime(user?.id);
   const { mutate: markRead } = useMarkNotificationRead();
   const { mutate: markAllRead, isPending: markingAllRead } = useMarkAllNotificationsRead();
 

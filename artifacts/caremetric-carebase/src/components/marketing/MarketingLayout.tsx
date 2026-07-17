@@ -157,7 +157,7 @@ function MarketingHeader() {
                 className={
                   active
                     ? "text-sm font-medium text-foreground"
-                    : "text-sm font-medium text-muted-foreground hover:text-foreground"
+                    : "text-sm font-medium text-foreground/75 hover:text-foreground"
                 }
                 aria-current={active ? "page" : undefined}
               >
