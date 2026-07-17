@@ -41,9 +41,11 @@ The highest-value enhancements are therefore not new features. They are:
    but there are **zero component render tests** and a single E2E spec —
    pages, forms, and list behavior have no automated coverage.
 
-Sections 4 lists 18 concrete recommendations (E1–E18) with priority, effort,
+Section 4 lists 18 concrete recommendations (E1–E18) with priority, effort,
 and file-level evidence. Section 5 restates what this report deliberately does
 **not** propose, honoring the product's documented "hard no" decisions.
+Section 7 adds a second tier (E19–E29): new product capability built on
+primitives the codebase already has.
 
 ---
 
@@ -295,10 +297,99 @@ Honoring decisions already documented in `ROADMAP.md` / `IMPLEMENTATION_PLAN.md`
 | **Next quarter** | E3, E6, E11, E12, E13, E14, E4 | Server-side aggregation, optimistic UX, cron watchdog, function CI, test layer. |
 | **Decision needed** | E8 (LTI/adaptive: ship or prune) | Product call; either outcome is better than inert schema. |
 | **Opportunistic** | E15, E16 | Fold into pages already being touched by E2. |
+| **Second tier (product decisions)** | E19–E29 (§7) | Sequence after the P1 hardening items; E19 (survey-day mode) and E22 (paper-record backfill) are the strongest value/effort candidates. |
 
 ---
 
-## 7. Evidence index
+## 7. Next list — second-tier product and feature opportunities (E19–E29)
+
+Where E1–E18 harden what exists, this tier proposes **new product capability**.
+Every item is grounded in a primitive the codebase already has, and none
+crosses the documented hard-no boundaries (no eMAR, no family portal, no
+in-house accredited content, no multilingual). Each was checked against the
+current tree so it does not duplicate an existing feature — e.g. workforce
+turnover analytics was considered and dropped because
+`get_workforce_retention_metrics` already powers a Reports panel.
+
+**E19 · P1 · M — "Survey day" mode.** One tap when the licensing
+representative walks in: a single screen pinning the entrance-conference
+checklist, the latest compliance binder, the staff roster with live
+compliance flags, and evidence-room quick links — with the activation itself
+audit-logged. Every ingredient exists (`entrance_conference_items`, the
+binder worker, evidence collections, `InspectionReadiness.tsx`); this
+composes them into the moment the product's whole pitch ("inspection-ready
+every day") is about. Likely the highest demo-value item on this list.
+
+**E20 · P2 · M — AI plan-of-correction drafter.** `generate-poc-document`
+renders POCs from manually written text today, while violations and
+corrective actions are already structured data. Draft the POC narrative from
+the citation + evidence using the proven grounded-AI pattern
+(`compliance-copilot`'s citation grounding plus the course wizard's
+DB-enforced mandatory human review). POC writing is one of the most stressful
+tasks an administrator faces post-inspection.
+
+**E21 · P2 · S/M — AI incident-narrative assist.**
+`generate-incident-state-form-pdf` already prefills the DHS reportable-incident
+form's structured fields; add a grounded draft of the narrative section from
+the incident record, reviewed and edited before filing. Same guardrail
+pattern as E20.
+
+**E22 · P2 · M — Historical paper-record backfill via the Document
+Analyzer.** The biggest switching cost for a new customer is years of paper
+training logs and certificates. The pipeline for "scan → AI extraction →
+human confirmation" already exists twice (`analyze-state-form`, credential
+OCR intake) — point it at legacy training documents to produce draft
+`employee_training_records` for bulk confirmation. Directly monetizable as
+an onboarding accelerator.
+
+**E23 · P3 · S — Training-history CSV import.** `bulk-import-employees`
+imports people but not their training history; the HRIS pipeline has
+dry-run/merge machinery to reuse. Add mapped import templates (including
+common competitor-export shapes) for training records.
+
+**E24 · P2 · S — ICS calendar feeds.** No `text/calendar` surface exists
+anywhere. Tokenized, revocable ICS feeds for an employee's published shifts
+(`/me/schedule`), a trainer's classes, and a manager's upcoming
+expirations/classes put CareBase into the phone calendar deskless staff
+already live in — cheap reach that complements the notification rail.
+
+**E25 · P2 · S/M — Close the retraining → class loop.** The Retraining
+Monitor identifies expiring staff; instructor-led classes have
+capacity/waitlist (plan #19). Connect them: "enroll everyone expiring within
+60 days into this class" as one action, and suggest creating a class when
+expiring-staff demand exceeds scheduled capacity.
+
+**E26 · P2 · M — Regulatory change → tenant impact routing.**
+`poll-regulatory-updates` already fetches and diffs official regulation pages
+into change proposals — the hard half of the "regulatory update feed"
+ROADMAP once deferred. Finish the last mile: when a proposal is approved,
+identify which tenant policies, courses, and crosswalk entries cite the
+changed section and open work items (the plan-#7 engine) for their review.
+
+**E27 · P2 · M — Organization setup checklist.** After self-service signup a
+new org lands in an empty app; no org-level guided setup flow was found (the
+onboarding fast-track covers new *hires*, not new *organizations*). A
+work-item-template-driven checklist — create facility → choose compliance
+profile → import employees → assign training — would compress
+time-to-first-value, the metric the Value Center exists to prove.
+
+**E28 · P3 · discovery — Shared-device learner access for aides without
+email.** QR check-in already handles instructor-led classes, but self-paced
+courses require an email-based account — a real adoption barrier for
+deskless aides. Explore a facility kiosk mode with per-employee PIN/QR
+course access on shared devices, preserving the server-side
+compliance-integrity guarantees (quiz grading, session locking — note the
+existing idle-session-lock machinery). Discovery first: the auth design is
+the hard part, not the UI.
+
+**E29 · P3 · S — Wallet passes for certificates.** Training passports
+already have public verification slugs; issuing Apple/Google Wallet passes
+for current certificates (with expiry) gives staff a portable credential and
+the product free visibility every time one is shown.
+
+---
+
+## 8. Evidence index
 
 Key files cited in this report:
 
