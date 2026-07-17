@@ -11439,6 +11439,70 @@ export type Database = {
           },
         ]
       }
+      impersonation_sessions: {
+        Row: {
+          actor_profile_id: string
+          bound_at: string | null
+          context_secret_sha256: string
+          ended_at: string | null
+          expires_at: string
+          id: string
+          reason: string
+          started_at: string
+          target_organization_id: string | null
+          target_profile_id: string
+          target_session_id: string | null
+        }
+        Insert: {
+          actor_profile_id: string
+          bound_at?: string | null
+          context_secret_sha256: string
+          ended_at?: string | null
+          expires_at?: string
+          id?: string
+          reason: string
+          started_at?: string
+          target_organization_id?: string | null
+          target_profile_id: string
+          target_session_id?: string | null
+        }
+        Update: {
+          actor_profile_id?: string
+          bound_at?: string | null
+          context_secret_sha256?: string
+          ended_at?: string | null
+          expires_at?: string
+          id?: string
+          reason?: string
+          started_at?: string
+          target_organization_id?: string | null
+          target_profile_id?: string
+          target_session_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "impersonation_sessions_actor_profile_id_fkey"
+            columns: ["actor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "impersonation_sessions_target_organization_id_fkey"
+            columns: ["target_organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "impersonation_sessions_target_profile_id_fkey"
+            columns: ["target_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       implementation_projects: {
         Row: {
           created_at: string
@@ -11585,70 +11649,6 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "implementation_projects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      impersonation_sessions: {
-        Row: {
-          actor_profile_id: string
-          bound_at: string | null
-          context_secret_sha256: string
-          ended_at: string | null
-          expires_at: string
-          id: string
-          reason: string
-          started_at: string
-          target_organization_id: string | null
-          target_profile_id: string
-          target_session_id: string | null
-        }
-        Insert: {
-          actor_profile_id: string
-          bound_at?: string | null
-          context_secret_sha256: string
-          ended_at?: string | null
-          expires_at?: string
-          id?: string
-          reason: string
-          started_at?: string
-          target_organization_id?: string | null
-          target_profile_id: string
-          target_session_id?: string | null
-        }
-        Update: {
-          actor_profile_id?: string
-          bound_at?: string | null
-          context_secret_sha256?: string
-          ended_at?: string | null
-          expires_at?: string
-          id?: string
-          reason?: string
-          started_at?: string
-          target_organization_id?: string | null
-          target_profile_id?: string
-          target_session_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "impersonation_sessions_actor_profile_id_fkey"
-            columns: ["actor_profile_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "impersonation_sessions_target_organization_id_fkey"
-            columns: ["target_organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "impersonation_sessions_target_profile_id_fkey"
-            columns: ["target_profile_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -16763,6 +16763,17 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "policy_attestation_campaigns_document_version_fk"
+            columns: [
+              "policy_document_version_id",
+              "policy_document_id",
+              "organization_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "policy_document_versions"
+            referencedColumns: ["id", "policy_document_id", "organization_id"]
+          },
+          {
             foreignKeyName: "policy_attestation_campaigns_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -16847,6 +16858,21 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "policy_attestation_campaigns"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_attestations_campaign_version_fk"
+            columns: [
+              "campaign_id",
+              "policy_document_version_id",
+              "organization_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "policy_attestation_campaigns"
+            referencedColumns: [
+              "id",
+              "policy_document_version_id",
+              "organization_id",
+            ]
           },
           {
             foreignKeyName: "policy_attestations_employee_id_fkey"
@@ -17082,6 +17108,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_document_versions_document_org_fk"
+            columns: ["policy_document_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "policy_documents"
+            referencedColumns: ["id", "organization_id"]
           },
           {
             foreignKeyName: "policy_document_versions_organization_id_fkey"
@@ -26006,6 +26039,7 @@ export type Database = {
           organization_id: string | null
           profile_id: string
           route_path: string
+          session_id: string | null
           unlocked_at: string | null
         }
         Insert: {
@@ -26015,6 +26049,7 @@ export type Database = {
           organization_id?: string | null
           profile_id: string
           route_path: string
+          session_id?: string | null
           unlocked_at?: string | null
         }
         Update: {
@@ -26024,6 +26059,7 @@ export type Database = {
           organization_id?: string | null
           profile_id?: string
           route_path?: string
+          session_id?: string | null
           unlocked_at?: string | null
         }
         Relationships: [
@@ -29882,6 +29918,10 @@ export type Database = {
         }
         Returns: Json
       }
+      can_read_employee_peer_data: {
+        Args: { p_facility_id: string; p_organization_id: string }
+        Returns: boolean
+      }
       cancel_shift_swap_request: {
         Args: { p_reason: string; p_request_id: string }
         Returns: boolean
@@ -30707,6 +30747,7 @@ export type Database = {
       current_org_id: { Args: never; Returns: string }
       current_profile_active: { Args: never; Returns: boolean }
       current_role: { Args: never; Returns: string }
+      current_session_unlocked: { Args: never; Returns: boolean }
       current_training_audience_status: {
         Args: { p_employee_id: string; p_training_type_id: string }
         Returns: string
@@ -31225,7 +31266,7 @@ export type Database = {
         Args: { p_version_id: string }
         Returns: string[]
       }
-      get_current_idle_session_lock: { Args: never; Returns: string | null }
+      get_current_idle_session_lock: { Args: never; Returns: string }
       get_customer_value_dashboard: { Args: never; Returns: Json }
       get_daily_operations_command_center: {
         Args: { p_facility_id?: string }
@@ -33078,6 +33119,12 @@ export type Database = {
           verified_by_profile_id: string | null
           warning_days: number
         }
+        SetofOptions: {
+          from: "*"
+          to: "employee_credentials"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       save_enterprise_analytics_snapshot: {
         Args: {
@@ -34525,3 +34572,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+
