@@ -9,6 +9,7 @@ import {
   useUnreadNotificationCount,
   useMarkNotificationRead,
   useMarkAllNotificationsRead,
+  useNotificationRealtime,
   type Notification,
 } from "@/hooks/useNotifications";
 import { Button } from "@/components/ui/button";
@@ -141,6 +142,7 @@ function NotificationsMenu() {
   const { data: unreadCount } = useUnreadNotificationCount();
   const { mutate: markRead } = useMarkNotificationRead();
   const { mutate: markAllRead, isPending: markingAllRead } = useMarkAllNotificationsRead();
+  useNotificationRealtime(user?.id);
 
   const handleSelect = (notification: Notification) => {
     if (!notification.read_at) markRead(notification.id);

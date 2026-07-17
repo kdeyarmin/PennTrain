@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
@@ -44,6 +45,32 @@ export function useUnreadNotificationCount() {
 
 function invalidateNotifications(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
+}
+
+/** Keep the signed-in profile's bell and unread badge current between polls. */
+export function useNotificationRealtime(profileId?: string) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!profileId) return;
+    const channel = supabase
+      .channel(`notifications:${profileId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `profile_id=eq.${profileId}`,
+        },
+        () => invalidateNotifications(queryClient),
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [profileId, queryClient]);
 }
 
 export function useMarkNotificationRead() {

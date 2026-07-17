@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
-import { useListResidents, useCreateResident, type ResidentInsert } from "@/hooks/useResidents";
-import { useListAllResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
+import { useCreateResident, type Resident, type ResidentInsert } from "@/hooks/useResidents";
+import { usePaginatedDomainList } from "@/hooks/usePaginatedDomainLists";
+import { EMPTY_RESIDENT_LIST_SUMMARY, useResidentListSummary } from "@/hooks/useDomainListSummaries";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
 import { Button } from "@/components/ui/button";
@@ -14,11 +15,15 @@ import { Badge } from "@/components/ui/badge";
 import { BedDouble, ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { worstComplianceStatus, complianceStatusBadgeClassName, getComplianceFormLabel, formatDateOnly } from "@/lib/residentCompliance";
-import { summarizeResidentComplianceAnalytics } from "@/lib/residentComplianceAnalytics";
+import { complianceStatusBadgeClassName, getComplianceFormLabel, formatDateOnly } from "@/lib/residentCompliance";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 
 const PAGE_SIZE = 15;
+
+type ResidentRosterRow = Resident & {
+  compliance_worst_status: string | null;
+  compliance_open_count: number;
+};
 
 function humanize(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
@@ -71,13 +76,25 @@ export default function Residents() {
   const canManage = ["org_admin", "facility_manager"].includes(user?.role ?? "");
 
   const { data: facilities } = useListFacilities();
-  const { data: residents, isLoading, isError, error, refetch } = useListResidents({
+  const residentQuery = usePaginatedDomainList<ResidentRosterRow>("residents", {
     facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
     status: urlState.status !== "all" ? urlState.status : undefined,
+    search: urlState.search,
+    page,
+    pageSize: PAGE_SIZE,
   });
-  // One query for every resident's compliance items, not one per row -- avoids the N+1 pattern a
-  // facility manager previously had to work around by clicking into each resident individually.
-  const { data: complianceItems } = useListAllResidentComplianceItems();
+  const residentSummaryQuery = useResidentListSummary({
+    facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
+    status: urlState.status !== "all" ? urlState.status : undefined,
+    search: urlState.search,
+    today: toLocalIsoDate(),
+  });
+  const residents = residentQuery.data?.rows ?? [];
+  const totalCount = residentQuery.data?.count ?? 0;
+  const isLoading = residentQuery.isLoading;
+  const isError = residentQuery.isError || residentSummaryQuery.isError;
+  const error = residentQuery.error ?? residentSummaryQuery.error;
+  const refetch = () => Promise.all([residentQuery.refetch(), residentSummaryQuery.refetch()]);
 
   const { mutate: createResident, isPending: creating } = useCreateResident();
 
@@ -103,39 +120,12 @@ export default function Residents() {
   }, [urlState.search]);
 
   const facilityById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
-  const complianceByResident = useMemo(() => {
-    const map = new Map<string, { worstStatus: string; openCount: number }>();
-    for (const item of complianceItems ?? []) {
-      const existing = map.get(item.resident_id);
-      const statuses = existing ? [existing.worstStatus, item.status] : [item.status];
-      const openCount = (existing?.openCount ?? 0) + (item.status === "due_soon" || item.status === "expired" || item.status === "missing" ? 1 : 0);
-      map.set(item.resident_id, { worstStatus: worstComplianceStatus(statuses), openCount });
-    }
-    return map;
-  }, [complianceItems]);
-  const residentComplianceSummary = useMemo(() => summarizeResidentComplianceAnalytics(
-    (residents ?? []).map((resident) => ({
-      id: resident.id,
-      status: resident.status,
-      admission_date: resident.admission_date,
-      facility_id: resident.facility_id,
-    })),
-    (complianceItems ?? []).map((item) => ({
-      resident_id: item.resident_id,
-      status: item.status,
-      due_date: item.due_date,
-    })),
-    toLocalIsoDate(),
-  ), [residents, complianceItems]);
+  const residentComplianceSummary = residentSummaryQuery.data ?? EMPTY_RESIDENT_LIST_SUMMARY;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-  const searched = useMemo(() => {
-    const q = urlState.search.trim().toLowerCase();
-    if (!q) return residents ?? [];
-    return (residents ?? []).filter((r) => `${r.first_name} ${r.last_name}`.toLowerCase().includes(q));
-  }, [residents, urlState.search]);
-
-  const totalPages = Math.max(1, Math.ceil(searched.length / PAGE_SIZE));
-  const paginated = searched.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  useEffect(() => {
+    if (page > totalPages) setUrlState({ page: String(totalPages) });
+  }, [page, setUrlState, totalPages]);
 
   // Auto-fill the create dialog's Facility field when the user is scoped to exactly one facility
   // (e.g. a facility_manager) -- saves a needless click every time; a no-op for multi-facility orgs.
@@ -255,7 +245,7 @@ export default function Residents() {
           <div className="p-6 space-y-3">
             {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>
-        ) : paginated.length === 0 ? (
+        ) : residents.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
             <BedDouble className="h-10 w-10 text-muted-foreground/30 mb-3" />
             <p className="text-sm font-medium text-muted-foreground">No residents found</p>
@@ -280,7 +270,7 @@ export default function Residents() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginated.map((r) => (
+                  {residents.map((r) => (
                     <tr key={r.id}>
                       <td className="font-medium text-foreground">{r.last_name}, {r.first_name}</td>
                       <td className="text-muted-foreground">{facilityById.get(r.facility_id)?.name ?? "—"}</td>
@@ -295,15 +285,14 @@ export default function Residents() {
                       </td>
                       <td>
                         {(() => {
-                          const compliance = complianceByResident.get(r.id);
-                          if (!compliance) return <span className="text-muted-foreground">—</span>;
+                          if (!r.compliance_worst_status) return <span className="text-muted-foreground">—</span>;
                           return (
                             <div className="flex items-center gap-1.5">
-                              <Badge className={complianceStatusBadgeClassName(compliance.worstStatus)} variant="outline">
-                                {humanize(compliance.worstStatus)}
+                              <Badge className={complianceStatusBadgeClassName(r.compliance_worst_status)} variant="outline">
+                                {humanize(r.compliance_worst_status)}
                               </Badge>
-                              {compliance.openCount > 0 && (
-                                <span className="text-xs text-muted-foreground">{compliance.openCount} open</span>
+                              {r.compliance_open_count > 0 && (
+                                <span className="text-xs text-muted-foreground">{r.compliance_open_count} open</span>
                               )}
                             </div>
                           );
@@ -320,7 +309,7 @@ export default function Residents() {
             </div>
             <div className="flex items-center justify-between px-5 py-4 border-t border-border/60">
               <p className="text-[13px] text-muted-foreground">
-                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, searched.length)}</span> of {searched.length}
+                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)}</span> of {totalCount}
               </p>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>

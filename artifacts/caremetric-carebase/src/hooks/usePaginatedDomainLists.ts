@@ -3,13 +3,38 @@ import { supabase } from "@/lib/supabase";
 import { escapeOrValue, rangeFor } from "@/lib/utils";
 import type { PaginatedResult, SortDirection } from "@/lib/dataTable";
 
-type DomainListName =
+export type DomainListName =
   | "residents" | "incidents" | "complaints" | "alerts" | "dhs_violations"
   | "inspection_items" | "training_documents" | "work_orders" | "employee_training_records";
+
+type DomainListSource = DomainListName
+  | "alert_list_rows" | "incident_list_rows" | "resident_roster_rows";
+
+interface DomainListQueryResult {
+  data: unknown[] | null;
+  error: unknown;
+  count: number | null;
+}
+
+interface DomainListQuery {
+  select(columns: string, options: { count: "exact" }): DomainListQuery;
+  eq(column: string, value: string | boolean): DomainListQuery;
+  or(filters: string): DomainListQuery;
+  order(column: string, options: { ascending: boolean }): DomainListQuery;
+  range(from: number, to: number): PromiseLike<DomainListQueryResult>;
+}
+
+// Supabase's generated overloads intentionally separate tables and views. This
+// hook selects either at runtime from a closed config, so use one small structural
+// adapter instead of forcing every caller through the enormous table/view union.
+const domainDatabase = supabase as unknown as {
+  from(source: DomainListSource): DomainListQuery;
+};
 
 export interface DomainListFilters {
   facilityId?: string;
   organizationId?: string;
+  residentId?: string;
   status?: string;
   severity?: string;
   search?: string;
@@ -19,11 +44,22 @@ export interface DomainListFilters {
   pageSize: number;
 }
 
-const CONFIG: Record<DomainListName, { table: DomainListName; defaultSort: string; search: string[]; facilityColumn?: string; statusColumn?: string; severityColumn?: string }> = {
-  residents: { table: "residents", defaultSort: "last_name", search: ["first_name", "last_name", "room_number"], facilityColumn: "facility_id", statusColumn: "status" },
-  incidents: { table: "incidents", defaultSort: "occurred_at", search: ["incident_type", "location_detail", "resident_identifier"], facilityColumn: "facility_id", statusColumn: "status", severityColumn: "severity" },
+interface DomainListConfig {
+  table: DomainListSource;
+  defaultSort: string;
+  defaultSortDir?: SortDirection;
+  search: string[];
+  facilityColumn?: string;
+  residentColumn?: string;
+  statusColumn?: string;
+  severityColumn?: string;
+}
+
+const CONFIG: Record<DomainListName, DomainListConfig> = {
+  residents: { table: "resident_roster_rows", defaultSort: "last_name", defaultSortDir: "asc", search: ["search_text"], facilityColumn: "facility_id", statusColumn: "status" },
+  incidents: { table: "incident_list_rows", defaultSort: "occurred_at", search: ["search_text"], facilityColumn: "facility_id", residentColumn: "resident_id", statusColumn: "status", severityColumn: "severity" },
   complaints: { table: "complaints", defaultSort: "date_received", search: ["complaint_number", "category", "complainant_name"], facilityColumn: "facility_id", statusColumn: "status" },
-  alerts: { table: "alerts", defaultSort: "created_at", search: ["title", "message", "alert_type"], facilityColumn: "facility_id", statusColumn: "status", severityColumn: "severity" },
+  alerts: { table: "alert_list_rows", defaultSort: "created_at", search: ["title", "message", "alert_type"], facilityColumn: "facility_id", statusColumn: "status", severityColumn: "severity" },
   dhs_violations: { table: "dhs_violations", defaultSort: "inspection_date", search: ["citation_ref", "description"], facilityColumn: "facility_id", statusColumn: "status", severityColumn: "severity" },
   inspection_items: { table: "inspection_items", defaultSort: "next_due_date", search: ["label", "location_detail", "serial_number"], facilityColumn: "facility_id", statusColumn: "status" },
   training_documents: { table: "training_documents", defaultSort: "created_at", search: ["file_name", "document_type"], facilityColumn: "facility_id" },
@@ -36,9 +72,10 @@ export function usePaginatedDomainList<T = Record<string, unknown>>(name: Domain
     queryKey: [name, "paginated", filters],
     queryFn: async (): Promise<PaginatedResult<T>> => {
       const config = CONFIG[name];
-      let query = supabase.from(config.table).select("*", { count: "exact" });
+      let query = domainDatabase.from(config.table).select("*", { count: "exact" });
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
       if (filters.facilityId && config.facilityColumn) query = query.eq(config.facilityColumn, filters.facilityId);
+      if (filters.residentId && config.residentColumn) query = query.eq(config.residentColumn, filters.residentId);
       if (filters.status && config.statusColumn) query = query.eq(config.statusColumn, filters.status);
       if (filters.severity && config.severityColumn) query = query.eq(config.severityColumn, filters.severity);
       const search = filters.search?.trim();
@@ -46,12 +83,16 @@ export function usePaginatedDomainList<T = Record<string, unknown>>(name: Domain
         const like = escapeOrValue(`%${search}%`);
         query = query.or(config.search.map((column) => `${column}.ilike.${like}`).join(","));
       }
-      query = query.order(filters.sortField || config.defaultSort, { ascending: (filters.sortDir ?? "desc") === "asc" });
+      query = query
+        .order(filters.sortField || config.defaultSort, { ascending: (filters.sortDir ?? config.defaultSortDir ?? "desc") === "asc" })
+        .order("id", { ascending: true });
       const [from, to] = rangeFor(filters.page, filters.pageSize);
       const { data, error, count } = await query.range(from, to);
       if (error) throw error;
-      return { rows: (data ?? []) as T[], count: count ?? 0 };
+      return { rows: (data ?? []) as unknown as T[], count: count ?? 0 };
     },
     placeholderData: (previous) => previous,
+    staleTime: name === "alerts" ? 0 : undefined,
+    refetchOnWindowFocus: name === "alerts" ? true : undefined,
   });
 }

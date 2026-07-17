@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { useListAlerts, useUpdateAlert, useBulkUpdateAlerts, type Alert } from "@/hooks/useAlerts";
+import { useAlertRealtime, useUpdateAlert, useBulkUpdateAlerts, type Alert } from "@/hooks/useAlerts";
+import { usePaginatedDomainList } from "@/hooks/usePaginatedDomainLists";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListAllIncidentNotifications } from "@/hooks/useIncidents";
 import { useListCorrectiveActions } from "@/hooks/useCorrectiveActions";
@@ -8,6 +9,7 @@ import { useListAllInspectionEvents } from "@/hooks/useInspectionEvents";
 import { useListAllResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
 import { useUrlState } from "@/hooks/useUrlState";
 import { Card, CardContent } from "@/components/ui/card";
+import { QueryError } from "@/components/QueryState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -53,16 +55,31 @@ export default function Alerts() {
   const sortField = filters.sortField as SortField;
   const sortDir = filters.sortDir as "asc" | "desc";
   const page = Math.max(1, Number(filters.page) || 1);
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pendingId, setPendingId] = useState<string | null>(null);
 
-  const { data: facilities } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
-  const { data: alerts, isLoading } = useListAlerts({
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const organizationId = viewingOrgId ?? user?.organizationId ?? undefined;
+  const { data: facilities } = useListFacilities({ organizationId });
+  const { data: alertsPage, isLoading, isError, error, refetch } = usePaginatedDomainList<Alert>("alerts", {
     status: status !== "all" ? status : undefined,
     severity: severity !== "all" ? severity : undefined,
     facilityId: facilityId !== "all" ? facilityId : undefined,
-    organizationId: viewingOrgId ?? undefined,
+    organizationId,
+    search: debouncedSearch,
+    sortField: sortField === "createdAt" ? "created_at" : sortField === "severity" ? "severity_rank" : sortField,
+    sortDir,
+    page,
+    pageSize: PAGE_SIZE,
   });
+  const alerts = alertsPage?.rows ?? [];
+  const totalCount = alertsPage?.count ?? 0;
+  useAlertRealtime(organizationId);
   // Alerts don't carry an incident_id/inspection_item_id directly for every alert type --
   // incident_notification_overdue only has incident_notification_id, and
   // corrective_action_overdue's corrective_actions row can point at either an incident or an
@@ -166,32 +183,14 @@ export default function Alerts() {
     return "bg-blue-100 text-blue-800 border-blue-200";
   };
 
-  const severityOrder: Record<string, number> = { critical: 0, warning: 1, info: 2 };
-
-  const allAlerts = alerts ?? [];
-
-  const filtered = allAlerts.filter(a => {
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return a.title.toLowerCase().includes(s) || (a.message ?? "").toLowerCase().includes(s);
-  });
-
-  const sorted = [...filtered].sort((a, b) => {
-    let cmp = 0;
-    if (sortField === "severity") {
-      cmp = (severityOrder[a.severity] ?? 99) - (severityOrder[b.severity] ?? 99);
-    } else if (sortField === "createdAt") {
-      cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-    } else if (sortField === "title") {
-      cmp = a.title.localeCompare(b.title);
-    }
-    return sortDir === "asc" ? cmp : -cmp;
-  });
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const paginated = alerts;
   const openOnPage = paginated.filter(a => a.status === "open");
   const allPageSelected = openOnPage.length > 0 && openOnPage.every(a => selectedIds.has(a.id));
+
+  useEffect(() => {
+    if (page > totalPages) setFilters({ page: String(totalPages) });
+  }, [page, setFilters, totalPages]);
 
   const toggleSelectAll = () => {
     if (allPageSelected) {
@@ -315,7 +314,9 @@ export default function Alerts() {
 
       <Card>
         <CardContent className="pt-6">
-          {isLoading ? (
+          {isError ? (
+            <QueryError what="alerts" error={error} onRetry={() => refetch()} />
+          ) : isLoading ? (
             <div className="space-y-3">
               {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-muted animate-pulse rounded-md" />)}
             </div>
@@ -399,7 +400,7 @@ export default function Alerts() {
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4">
                   <p className="text-sm text-muted-foreground">
-                    Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)} of {sorted.length}
+                    Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount}
                   </p>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" onClick={() => setFilters({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>
