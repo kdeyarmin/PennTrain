@@ -130,6 +130,20 @@ export function canAdvanceCourseStep(gates: CourseStepGateState) {
     && (!gates.appliedResponseRequired || gates.appliedResponseComplete);
 }
 
+export interface CourseShortcutState {
+  ownsAssignment: boolean;
+  hasBlocks: boolean;
+  showRatingPrompt: boolean;
+  showClearLearningToolsConfirm: boolean;
+}
+
+export function shouldEnableCourseShortcuts(state: CourseShortcutState) {
+  return state.ownsAssignment
+    && state.hasBlocks
+    && !state.showRatingPrompt
+    && !state.showClearLearningToolsConfirm;
+}
+
 export function estimateBlockMinutes(block: Pick<LearningToolBlock, "block_type" | "body"> | undefined) {
   if (!block) return 1;
   const designedMinutes = (block.body as { estimated_minutes?: unknown } | null)?.estimated_minutes;

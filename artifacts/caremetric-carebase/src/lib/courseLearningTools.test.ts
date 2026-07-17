@@ -14,6 +14,7 @@ import {
   parseLearningToolsState,
   requiresAppliedResponse,
   sanitizeLearningToolsState,
+  shouldEnableCourseShortcuts,
   type LearningToolBlock,
 } from "./courseLearningTools";
 
@@ -89,6 +90,20 @@ describe("course learning tools", () => {
       videoGateBlocksAdvance: false,
       appliedResponseRequired: false,
     })).toBe(true);
+  });
+
+  it("disables lesson shortcuts while a modal course dialog is open", () => {
+    const active = {
+      ownsAssignment: true,
+      hasBlocks: true,
+      showRatingPrompt: false,
+      showClearLearningToolsConfirm: false,
+    };
+    expect(shouldEnableCourseShortcuts(active)).toBe(true);
+    expect(shouldEnableCourseShortcuts({ ...active, showRatingPrompt: true })).toBe(false);
+    expect(shouldEnableCourseShortcuts({ ...active, showClearLearningToolsConfirm: true })).toBe(false);
+    expect(shouldEnableCourseShortcuts({ ...active, ownsAssignment: false })).toBe(false);
+    expect(shouldEnableCourseShortcuts({ ...active, hasBlocks: false })).toBe(false);
   });
 
   it("uses an explicit designed duration when comprehensive content provides one", () => {
