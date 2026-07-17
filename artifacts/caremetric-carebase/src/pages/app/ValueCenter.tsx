@@ -1,12 +1,23 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   Activity, AlertTriangle, BarChart3, BedDouble, Bot, Cable, CalendarClock, CheckCircle2,
   CircleDollarSign, ClipboardCheck, CloudOff, FolderKanban, Loader2, Play, Plus, Radar,
-  RefreshCw, Save, ShieldCheck, Sparkles, Users,
+  RefreshCw, RotateCcw, Save, ShieldCheck, Sparkles, Users,
   type LucideIcon,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,11 +27,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { QueryError, QueryLoading } from "@/components/QueryState";
+import { ReportScheduleManager } from "@/components/value-center/ReportScheduleManager";
 import { useAuth } from "@/lib/auth";
+import {
+  DEFAULT_CUSTOMER_VALUE_BASELINE,
+  customerValueBaselineToInput,
+  customerValueBaselinesMatch,
+  customerValueDashboardToForm,
+  isCustomerValueBaselineValid,
+  type CustomerValueBaselineForm,
+} from "@/lib/customerValueBaseline";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { useListSavedReportViews } from "@/hooks/useSavedReports";
 import {
   useAddWarRoomRequest,
   useAdmissionsIntelligence,
@@ -31,9 +50,7 @@ import {
   useReviewCopilotActionDraft,
   useRunWorkflowAutomation,
   useSaveCustomerValueBaseline,
-  useSaveReportSchedule,
   useSaveWorkflowAutomation,
-  useSetReportScheduleEnabled,
   useStaffingOptimization,
   useUpdateImplementationTask,
   useUpdateWarRoomRequest,
@@ -70,10 +87,9 @@ export default function ValueCenter() {
     const date = new Date(); date.setDate(date.getDate() + 30); return toLocalIsoDate(date);
   }, []);
   const workspace = useProductValueWorkspace(facilityId || undefined);
-  const value = useCustomerValueDashboard();
+  const value = useCustomerValueDashboard(user?.organizationId ?? undefined);
   const staffing = useStaffingOptimization(facilityId || undefined, today, through);
   const admissions = useAdmissionsIntelligence(facilityId || undefined);
-  const savedReports = useListSavedReportViews();
 
   const [automationName, setAutomationName] = useState("Critical compliance follow-up");
   const [automationTrigger, setAutomationTrigger] = useState("alert_created");
@@ -87,18 +103,11 @@ export default function ValueCenter() {
   const [projectName, setProjectName] = useState("CareBase implementation");
   const initializeProject = useInitializeImplementationProject();
   const updateImplementationTask = useUpdateImplementationTask();
-  const [reportId, setReportId] = useState("");
-  const [reportFrequency, setReportFrequency] = useState<"daily" | "weekly" | "monthly">("weekly");
-  const saveSchedule = useSaveReportSchedule();
-  const setScheduleEnabled = useSetReportScheduleEnabled();
-  const [hourlyCost, setHourlyCost] = useState("32");
-  const [softwareCost, setSoftwareCost] = useState("12000");
-  const [reportMinutes, setReportMinutes] = useState("45");
-  const [inspectionMinutes, setInspectionMinutes] = useState("240");
-  const [courseMinutes, setCourseMinutes] = useState("15");
-  const [workItemMinutes, setWorkItemMinutes] = useState("10");
-  const [portalMinutes, setPortalMinutes] = useState("5");
-  const [replacedSystems, setReplacedSystems] = useState("compliance spreadsheets, paper binders, reminder calendars, standalone training tracker");
+  const [baselineForm, setBaselineForm] = useState<CustomerValueBaselineForm>({ ...DEFAULT_CUSTOMER_VALUE_BASELINE });
+  const [savedBaselineForm, setSavedBaselineForm] = useState<CustomerValueBaselineForm | null>(null);
+  const [baselineConfigured, setBaselineConfigured] = useState(false);
+  const [hydratedBaselineScope, setHydratedBaselineScope] = useState("");
+  const [hydratedBaselineVersion, setHydratedBaselineVersion] = useState("");
   const saveBaseline = useSaveCustomerValueBaseline();
   const reviewDraft = useReviewCopilotActionDraft();
 
@@ -108,14 +117,37 @@ export default function ValueCenter() {
     catch (error) { toast({ title: "Action could not be completed", description: error instanceof Error ? error.message : String(error), variant: "destructive" }); }
   };
 
+  const baselineDirty = savedBaselineForm !== null
+    && (!baselineConfigured || !customerValueBaselinesMatch(baselineForm, savedBaselineForm));
+  const baselineScope = user?.organizationId ?? "current-organization";
+  const baselineVersion = value.data
+    ? `${baselineScope}:${value.data.baselineUpdatedAt ?? (value.data.configured ? value.data.generatedAt : "unconfigured")}`
+    : "";
+  useEffect(() => {
+    const scopeChanged = baselineScope !== hydratedBaselineScope;
+    if (!value.data || !baselineVersion || baselineVersion === hydratedBaselineVersion || (baselineDirty && !scopeChanged)) return;
+    const hydratedForm = customerValueDashboardToForm(value.data);
+    setBaselineForm(hydratedForm);
+    setSavedBaselineForm(hydratedForm);
+    setBaselineConfigured(value.data.configured);
+    setHydratedBaselineScope(baselineScope);
+    setHydratedBaselineVersion(baselineVersion);
+  }, [baselineDirty, baselineScope, baselineVersion, hydratedBaselineScope, hydratedBaselineVersion, value.data]);
+
+  const setBaselineField = (field: keyof CustomerValueBaselineForm, fieldValue: string) => {
+    setBaselineForm((current) => ({ ...current, [field]: fieldValue }));
+  };
+
   if (workspace.isLoading || facilities.isLoading) return <QueryLoading what="CareBase Value Center" />;
-  if (workspace.isError) return <QueryError what="CareBase Value Center" error={workspace.error} onRetry={() => workspace.refetch()} />;
+  const primaryFailure = [workspace, facilities].find((query) => query.isError);
+  if (primaryFailure?.error) return <QueryError what="CareBase Value Center" error={primaryFailure.error} onRetry={() => void Promise.all([workspace.refetch(), facilities.refetch()])} />;
 
   const openWarRooms = data?.warRooms.filter((room) => !["closed", "canceled"].includes(String(room.status))) ?? [];
   const currentProject = data?.implementationProjects.find((project) => project.status !== "live") ?? data?.implementationProjects[0];
   const pendingDrafts = data?.copilotDrafts.filter((draft) => draft.status === "draft") ?? [];
-  const baselineNumbers = [hourlyCost, softwareCost, reportMinutes, inspectionMinutes, courseMinutes, workItemMinutes, portalMinutes].map(Number);
-  const baselineValid = baselineNumbers.every((item) => Number.isFinite(item) && item >= 0);
+  const baselineValid = isCustomerValueBaselineValid(baselineForm);
+  const baselineReady = value.isSuccess && savedBaselineForm !== null;
+  const isRefreshing = [workspace, facilities, value, staffing, admissions].some((query) => query.isFetching);
   const quickLinks: Array<{ title: string; description: string; href: string; icon: LucideIcon }> = [
     { title: "Daily work", description: "Role-based priorities, exceptions, shifts, and work items in one queue.", href: "/app/today", icon: Activity },
     { title: "Inspection readiness", description: "Convert readiness work into an evidence-backed response room.", href: "/app/inspection-readiness", icon: ClipboardCheck },
@@ -125,7 +157,7 @@ export default function ValueCenter() {
   return <div className="space-y-6">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div><h1 className="text-2xl font-bold tracking-tight">CareBase Value Center</h1><p className="max-w-3xl text-muted-foreground">Run the workflows that replace spreadsheets, paper binders, reminder calendars, point solutions, and disconnected follow-up—then measure the time and software cost returned to the facility.</p></div>
-      <div className="flex gap-2"><Select value={facilityId} onValueChange={setSelectedFacilityId}><SelectTrigger className="w-56"><SelectValue placeholder="Select facility" /></SelectTrigger><SelectContent>{facilities.data?.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select><Button variant="outline" onClick={() => void Promise.all([workspace.refetch(), value.refetch(), staffing.refetch(), admissions.refetch()])}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button></div>
+      <div className="flex gap-2"><Select value={facilityId} onValueChange={setSelectedFacilityId}><SelectTrigger className="w-56"><SelectValue placeholder="Select facility" /></SelectTrigger><SelectContent>{facilities.data?.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select><Button variant="outline" disabled={isRefreshing} onClick={() => void Promise.all([workspace.refetch(), facilities.refetch(), value.refetch(), staffing.refetch(), admissions.refetch()])}><RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />Refresh</Button></div>
     </div>
 
     <Alert><ShieldCheck className="h-4 w-4" /><AlertTitle>One governed operating system</AlertTitle><AlertDescription>Automation creates traceable work, the inspection room links requests to evidence, assistant actions require human approval, and every workflow remains tenant- and facility-scoped.</AlertDescription></Alert>
@@ -139,12 +171,12 @@ export default function ValueCenter() {
       </TabsList>
 
       <TabsContent value="overview" className="space-y-5">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {value.isLoading ? <QueryLoading what="customer value metrics" /> : value.isError ? <QueryError what="customer value metrics" error={value.error} onRetry={() => value.refetch()} /> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <Metric label="Estimated annual savings" value={money(((value.data?.estimatedLaborValue ?? 0) + (value.data?.retiredSoftwareMonthlyCost ?? 0)) * 12)} detail="Customer assumptions multiplied by recorded outcomes" icon={CircleDollarSign} />
           <Metric label="Active automations" value={data?.automations.filter((rule) => rule.state === "active").length ?? 0} detail={`${number(data?.automationRuns.length)} recent execution receipts`} icon={Sparkles} />
           <Metric label="Open inspection rooms" value={openWarRooms.length} detail="Live evidence response workspaces" icon={Radar} />
           <Metric label="Open operating exceptions" value={(data?.portalRequests.length ?? 0) + (data?.medicationExceptions.length ?? 0) + (data?.integration.deliveryFailures ?? 0)} detail="Portal, medication, and integration follow-up" icon={AlertTriangle} />
-        </div>
+        </div>}
         <div className="grid gap-4 lg:grid-cols-3">{quickLinks.map(({ title, description, href, icon: Icon }) => <Card key={title}><CardHeader><CardTitle className="flex items-center gap-2"><Icon className="h-5 w-5" />{title}</CardTitle><CardDescription>{description}</CardDescription></CardHeader><CardContent><Button asChild variant="outline"><Link href={href}>Open workflow</Link></Button></CardContent></Card>)}</div>
       </TabsContent>
 
@@ -171,19 +203,19 @@ export default function ValueCenter() {
       </TabsContent>
 
       <TabsContent value="reports" className="space-y-5">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Metric label="Hours returned / 30 days" value={number(value.data?.estimatedHoursSaved)} icon={CalendarClock} /><Metric label="Annual labor value" value={money((value.data?.estimatedLaborValue ?? 0) * 12)} icon={CircleDollarSign} /><Metric label="Retired software / year" value={money((value.data?.retiredSoftwareMonthlyCost ?? 0) * 12)} icon={CloudOff} /><Metric label="Recorded outcomes" value={number(value.data ? Object.values(value.data.activity).reduce((sum, item) => sum + Number(item), 0) : 0)} icon={BarChart3} /></div>
-        <div className="grid gap-5 xl:grid-cols-2"><Card><CardHeader><CardTitle>Value baseline</CardTitle><CardDescription>Record the customer-specific work and software CareBase replaces. Each time estimate is multiplied only by its matching recorded outcome.</CardDescription></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label>Hourly admin cost</Label><Input type="number" min="0" value={hourlyCost} onChange={(event) => setHourlyCost(event.target.value)} /></div><div className="space-y-2"><Label>Annual retired-software cost</Label><Input type="number" min="0" value={softwareCost} onChange={(event) => setSoftwareCost(event.target.value)} /></div><div className="space-y-2"><Label>Minutes saved per report export</Label><Input type="number" min="0" value={reportMinutes} onChange={(event) => setReportMinutes(event.target.value)} /></div><div className="space-y-2"><Label>Minutes saved per mock inspection</Label><Input type="number" min="0" value={inspectionMinutes} onChange={(event) => setInspectionMinutes(event.target.value)} /></div><div className="space-y-2"><Label>Admin minutes saved per course completion</Label><Input type="number" min="0" value={courseMinutes} onChange={(event) => setCourseMinutes(event.target.value)} /></div><div className="space-y-2"><Label>Minutes saved per closed work item</Label><Input type="number" min="0" value={workItemMinutes} onChange={(event) => setWorkItemMinutes(event.target.value)} /></div><div className="space-y-2"><Label>Minutes saved per portal message</Label><Input type="number" min="0" value={portalMinutes} onChange={(event) => setPortalMinutes(event.target.value)} /></div><div className="space-y-2"><Label>Systems replaced (comma separated)</Label><Input value={replacedSystems} onChange={(event) => setReplacedSystems(event.target.value)} /></div><div className="sm:col-span-2"><Button disabled={!baselineValid || saveBaseline.isPending} onClick={() => void notify(() => saveBaseline.mutateAsync({ hourlyAdminCost: Number(hourlyCost), annualSoftwareCost: Number(softwareCost), reportExportMinutes: Number(reportMinutes), mockInspectionMinutes: Number(inspectionMinutes), courseCompletionMinutes: Number(courseMinutes), closedWorkItemMinutes: Number(workItemMinutes), portalMessageMinutes: Number(portalMinutes), replacedSystems: replacedSystems.split(",").map((item) => item.trim()).filter(Boolean), note: "Customer-confirmed Value Center baseline" }), "Value baseline saved")}><Save className="mr-2 h-4 w-4" />Save baseline</Button></div></CardContent></Card>
-        <Card><CardHeader><CardTitle>Schedule a saved report</CardTitle><CardDescription>Deliver a secure, permission-checked saved report link on a repeatable schedule.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="space-y-2"><Label>Saved report</Label><Select value={reportId} onValueChange={setReportId}><SelectTrigger><SelectValue placeholder="Choose saved report" /></SelectTrigger><SelectContent>{savedReports.data?.map((report) => <SelectItem key={report.id} value={report.id}>{report.name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label>Frequency</Label><Select value={reportFrequency} onValueChange={(item) => setReportFrequency(item as typeof reportFrequency)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="daily">Daily at 7 AM</SelectItem><SelectItem value="weekly">Weekly on Monday</SelectItem><SelectItem value="monthly">Monthly on the first</SelectItem></SelectContent></Select></div><Button disabled={!reportId || saveSchedule.isPending} onClick={() => void notify(() => saveSchedule.mutateAsync({ reportDefinitionId: reportId, frequency: reportFrequency, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, audience: { roles: ["org_admin", "facility_manager"] }, deliveryMode: "in_app" }), "Report subscription scheduled")}><CalendarClock className="mr-2 h-4 w-4" />Schedule report</Button></CardContent></Card></div>
-        <div className="space-y-2">{data?.reportSchedules.map((schedule) => <Card key={schedule.id}><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-medium">{schedule.name}</p><p className="text-xs text-muted-foreground">{schedule.cronExpression} · {schedule.timeZone} · next {schedule.nextRunAt ? new Date(schedule.nextRunAt).toLocaleString() : "pending"}</p></div><Button size="sm" variant="outline" disabled={setScheduleEnabled.isPending} onClick={() => void notify(() => setScheduleEnabled.mutateAsync({ scheduleId: schedule.id, enabled: !schedule.enabled }), schedule.enabled ? "Report subscription paused" : "Report subscription enabled")}>{schedule.enabled ? "Pause" : "Enable"}</Button></CardContent></Card>)}</div>
+        {value.isLoading ? <QueryLoading what="value and savings metrics" /> : value.isError ? <QueryError what="value and savings metrics" error={value.error} onRetry={() => value.refetch()} /> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Metric label="Hours returned / 30 days" value={number(value.data?.estimatedHoursSaved)} icon={CalendarClock} /><Metric label="Annual labor value" value={money((value.data?.estimatedLaborValue ?? 0) * 12)} icon={CircleDollarSign} /><Metric label="Retired software / year" value={money((value.data?.retiredSoftwareMonthlyCost ?? 0) * 12)} icon={CloudOff} /><Metric label="Recorded outcomes" value={number(value.data ? Object.values(value.data.activity).reduce((sum, item) => sum + Number(item), 0) : 0)} icon={BarChart3} /></div>}
+        <div className="grid gap-5 xl:grid-cols-2"><Card><CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle>Value baseline</CardTitle>{!baselineConfigured ? <Badge variant="secondary">Suggested starting values</Badge> : baselineDirty ? <Badge variant="secondary">Unsaved changes</Badge> : <Badge variant="outline">Saved baseline</Badge>}</div><CardDescription>{baselineConfigured ? "Your saved organization baseline is loaded below. Refreshes will not replace unsaved edits." : "Review these suggested starting values before saving the organization's first baseline."} Each time estimate is multiplied only by its matching recorded outcome.</CardDescription></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label>Hourly admin cost</Label><Input type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.hourlyCost} onChange={(event) => setBaselineField("hourlyCost", event.target.value)} /></div><div className="space-y-2"><Label>Annual retired-software cost</Label><Input type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.softwareCost} onChange={(event) => setBaselineField("softwareCost", event.target.value)} /></div><div className="space-y-2"><Label>Minutes saved per report export</Label><Input type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.reportMinutes} onChange={(event) => setBaselineField("reportMinutes", event.target.value)} /></div><div className="space-y-2"><Label>Minutes saved per mock inspection</Label><Input type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.inspectionMinutes} onChange={(event) => setBaselineField("inspectionMinutes", event.target.value)} /></div><div className="space-y-2"><Label>Admin minutes saved per course completion</Label><Input type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.courseMinutes} onChange={(event) => setBaselineField("courseMinutes", event.target.value)} /></div><div className="space-y-2"><Label>Minutes saved per closed work item</Label><Input type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.workItemMinutes} onChange={(event) => setBaselineField("workItemMinutes", event.target.value)} /></div><div className="space-y-2"><Label>Minutes saved per portal message</Label><Input type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.portalMinutes} onChange={(event) => setBaselineField("portalMinutes", event.target.value)} /></div><div className="space-y-2"><Label>Systems replaced (comma separated)</Label><Input disabled={!baselineReady} value={baselineForm.replacedSystems} onChange={(event) => setBaselineField("replacedSystems", event.target.value)} /></div><div className="flex flex-wrap gap-2 sm:col-span-2"><AlertDialog><AlertDialogTrigger asChild><Button disabled={!baselineReady || !baselineValid || !baselineDirty || saveBaseline.isPending}><Save className="mr-2 h-4 w-4" />Save baseline</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{baselineConfigured ? "Replace the saved value baseline?" : "Save this value baseline?"}</AlertDialogTitle><AlertDialogDescription>{baselineConfigured ? "This replaces the organization's current cost and time-saving assumptions. Future value estimates will use the new values." : "Future value estimates will use these organization-specific cost and time-saving assumptions."}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction disabled={saveBaseline.isPending} onClick={() => { const submitted = { ...baselineForm }; void notify(async () => { await saveBaseline.mutateAsync(customerValueBaselineToInput(submitted)); setSavedBaselineForm(submitted); setBaselineConfigured(true); }, "Value baseline saved"); }}>{baselineConfigured ? "Replace baseline" : "Save baseline"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog><Button variant="outline" disabled={!baselineConfigured || !baselineDirty || saveBaseline.isPending || !savedBaselineForm} onClick={() => savedBaselineForm && setBaselineForm({ ...savedBaselineForm })}><RotateCcw className="mr-2 h-4 w-4" />Reset to saved</Button></div>{!baselineValid && <p className="text-sm text-destructive sm:col-span-2">Use the supported non-negative cost and time ranges and no more than 20 system names (120 characters each).</p>}</CardContent></Card>
+        </div>
+        <ReportScheduleManager />
       </TabsContent>
 
       <TabsContent value="workforce" className="space-y-5">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Metric label="Open shifts" value={staffing.data?.openShifts ?? 0} icon={Users} /><Metric label="Pending time off" value={staffing.data?.pendingTimeOff ?? 0} icon={CalendarClock} /><Metric label="Pending swaps" value={staffing.data?.pendingSwaps ?? 0} icon={RefreshCw} /><Metric label="Blocked assignments" value={staffing.data?.recentBlockedAssignments ?? 0} detail="Last 30 days" icon={ShieldCheck} /></div>
-        <Card><CardHeader><CardTitle>Qualification-aware coverage recommendations</CardTitle><CardDescription>Coverage uses the active schedule, service workload, availability, time off, swaps, and immutable eligibility decisions.</CardDescription></CardHeader><CardContent className="space-y-3">{staffing.data?.recommendations.length ? staffing.data.recommendations.map((item) => <Button key={item.title} asChild variant="outline" className="h-auto w-full justify-between py-3"><Link href={item.href}><span>{item.title}</span><Badge variant={item.priority === "high" ? "destructive" : "secondary"}>{human(item.priority)}</Badge></Link></Button>) : <div className="flex items-center gap-2 text-sm text-emerald-700"><CheckCircle2 className="h-4 w-4" />No immediate staffing exception identified for the next 30 days.</div>}</CardContent></Card>
+        {!facilityId ? <Empty>Select a facility to calculate qualification-aware staffing recommendations.</Empty> : staffing.isLoading ? <QueryLoading what="staffing recommendations" /> : staffing.isError ? <QueryError what="staffing recommendations" error={staffing.error} onRetry={() => staffing.refetch()} /> : <><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Metric label="Open shifts" value={staffing.data?.openShifts ?? 0} icon={Users} /><Metric label="Pending time off" value={staffing.data?.pendingTimeOff ?? 0} icon={CalendarClock} /><Metric label="Pending swaps" value={staffing.data?.pendingSwaps ?? 0} icon={RefreshCw} /><Metric label="Blocked assignments" value={staffing.data?.recentBlockedAssignments ?? 0} detail="Last 30 days" icon={ShieldCheck} /></div>
+        <Card><CardHeader><CardTitle>Qualification-aware coverage recommendations</CardTitle><CardDescription>Coverage uses the active schedule, service workload, availability, time off, swaps, and immutable eligibility decisions.</CardDescription></CardHeader><CardContent className="space-y-3">{staffing.data?.recommendations.length ? staffing.data.recommendations.map((item) => <Button key={item.title} asChild variant="outline" className="h-auto w-full justify-between py-3"><Link href={item.href}><span>{item.title}</span><Badge variant={item.priority === "high" ? "destructive" : "secondary"}>{human(item.priority)}</Badge></Link></Button>) : <div className="flex items-center gap-2 text-sm text-emerald-700"><CheckCircle2 className="h-4 w-4" />No immediate staffing exception identified for the next 30 days.</div>}</CardContent></Card></>}
       </TabsContent>
 
       <TabsContent value="operations" className="space-y-5">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Metric label="Active prospects" value={admissions.data?.pipeline.active ?? 0} icon={Users} /><Metric label="Expected move-ins" value={admissions.data?.pipeline.expected30Days ?? 0} detail="Next 30 days" icon={BedDouble} /><Metric label="Available beds" value={admissions.data?.occupancy.availableBeds ?? 0} icon={BedDouble} /><Metric label="Portal requests" value={data?.portalRequests.length ?? 0} icon={ClipboardCheck} /></div>
+        {admissions.isLoading ? <QueryLoading what="admissions and occupancy intelligence" /> : admissions.isError ? <QueryError what="admissions and occupancy intelligence" error={admissions.error} onRetry={() => admissions.refetch()} /> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Metric label="Active prospects" value={admissions.data?.pipeline.active ?? 0} icon={Users} /><Metric label="Expected move-ins" value={admissions.data?.pipeline.expected30Days ?? 0} detail="Next 30 days" icon={BedDouble} /><Metric label="Available beds" value={admissions.data?.occupancy.availableBeds ?? 0} icon={BedDouble} /><Metric label="Portal requests" value={data?.portalRequests.length ?? 0} icon={ClipboardCheck} /></div>}
         <div className="grid gap-5 xl:grid-cols-2"><Card><CardHeader><CardTitle>Admissions and occupancy intelligence</CardTitle><CardDescription>Connect pipeline conversion, referral sources, move-in readiness, and bed inventory.</CardDescription></CardHeader><CardContent className="space-y-2">{admissions.data?.referralSources.length ? admissions.data.referralSources.map((source) => <div key={source.source} className="grid grid-cols-4 gap-2 rounded border p-3 text-sm"><span className="col-span-2 font-medium">{source.source}</span><span>{source.inquiries} inquiries</span><span>{source.conversion_percent}% converted</span></div>) : <Empty>No referral-source activity yet.</Empty>}<Button asChild variant="outline"><Link href="/app/admissions">Open admissions workspace</Link></Button></CardContent></Card>
         <Card><CardHeader><CardTitle>Operational exceptions</CardTitle><CardDescription>Designated-person requests, medication sync exceptions, offline conflicts, and governed assistant drafts stay visible until resolved.</CardDescription></CardHeader><CardContent className="space-y-3"><div className="grid grid-cols-2 gap-3"><div className="rounded border p-3"><p className="text-xs text-muted-foreground">Medication exceptions</p><p className="text-2xl font-bold">{data?.medicationExceptions.length ?? 0}</p></div><div className="rounded border p-3"><p className="text-xs text-muted-foreground">Offline conflicts</p><p className="text-2xl font-bold">{data?.offline.syncConflicts ?? 0}</p></div></div><div className="flex flex-wrap gap-2"><Button asChild variant="outline"><Link href="/app/medication-integration">Medication queue</Link></Button><Button asChild variant="outline"><Link href="/app/residents">Resident portals</Link></Button><Button asChild variant="outline"><Link href="/me/courses">Offline learning</Link></Button></div></CardContent></Card></div>
         <Card>
