@@ -1,5 +1,9 @@
 import { useEffect } from "react";
+<<<<<<< HEAD
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+=======
 import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
+>>>>>>> origin/main
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 
@@ -111,6 +115,32 @@ function optimisticallyReadAll(queryClient: QueryClient) {
     (rows) => rows?.map((row) => ({ ...row, read_at: row.read_at ?? readAt })),
   );
   queryClient.setQueryData([...NOTIFICATIONS_KEY, "unread-count"], 0);
+}
+
+/** Keep the signed-in profile's bell and unread badge current between polls. */
+export function useNotificationRealtime(profileId?: string) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!profileId) return;
+    const channel = supabase
+      .channel(`notifications:${profileId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `profile_id=eq.${profileId}`,
+        },
+        () => invalidateNotifications(queryClient),
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [profileId, queryClient]);
 }
 
 export function useMarkNotificationRead() {

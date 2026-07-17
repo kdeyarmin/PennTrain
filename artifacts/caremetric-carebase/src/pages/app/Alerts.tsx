@@ -1,6 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
+<<<<<<< HEAD
+import { useAlertRealtime, useUpdateAlert, useBulkUpdateAlerts, type Alert } from "@/hooks/useAlerts";
+=======
 import { useUpdateAlert, useBulkUpdateAlerts, type Alert } from "@/hooks/useAlerts";
+>>>>>>> origin/main
 import { usePaginatedDomainList } from "@/hooks/usePaginatedDomainLists";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListAllIncidentNotifications } from "@/hooks/useIncidents";
@@ -9,6 +13,7 @@ import { useListAllInspectionEvents } from "@/hooks/useInspectionEvents";
 import { useListAllResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
 import { useUrlState } from "@/hooks/useUrlState";
 import { Card, CardContent } from "@/components/ui/card";
+import { QueryError } from "@/components/QueryState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -58,9 +63,26 @@ export default function Alerts() {
     : "createdAt";
   const sortDir = filters.sortDir as "asc" | "desc";
   const page = Math.max(1, Number(filters.page) || 1);
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pendingId, setPendingId] = useState<string | null>(null);
 
+<<<<<<< HEAD
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const organizationId = viewingOrgId ?? user?.organizationId ?? undefined;
+  const { data: facilities } = useListFacilities({ organizationId });
+  const { data: alertsPage, isLoading, isError, error, refetch } = usePaginatedDomainList<Alert>("alerts", {
+    status: status !== "all" ? status : undefined,
+    severity: severity !== "all" ? severity : undefined,
+    facilityId: facilityId !== "all" ? facilityId : undefined,
+    organizationId,
+    search: debouncedSearch,
+    sortField: sortField === "createdAt" ? "created_at" : sortField === "severity" ? "severity_rank" : sortField,
+=======
   const { data: facilities } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
   const { data: alertsPage, isLoading } = usePaginatedDomainList<Alert>("alerts", {
     status: status !== "all" ? status : undefined,
@@ -73,12 +95,17 @@ export default function Alerts() {
       : sortField === "severity"
         ? "severity_rank"
         : sortField,
+>>>>>>> origin/main
     sortDir,
     page,
     pageSize: PAGE_SIZE,
   });
   const alerts = alertsPage?.rows ?? [];
   const totalCount = alertsPage?.count ?? 0;
+<<<<<<< HEAD
+  useAlertRealtime(organizationId);
+=======
+>>>>>>> origin/main
   // Alerts don't carry an incident_id/inspection_item_id directly for every alert type --
   // incident_notification_overdue only has incident_notification_id, and
   // corrective_action_overdue's corrective_actions row can point at either an incident or an
@@ -187,6 +214,10 @@ export default function Alerts() {
   const openOnPage = paginated.filter(a => a.status === "open");
   const allPageSelected = openOnPage.length > 0 && openOnPage.every(a => selectedIds.has(a.id));
 
+  useEffect(() => {
+    if (page > totalPages) setFilters({ page: String(totalPages) });
+  }, [page, setFilters, totalPages]);
+
   const toggleSelectAll = () => {
     if (allPageSelected) {
       setSelectedIds(prev => {
@@ -205,7 +236,7 @@ export default function Alerts() {
 
   function toggleSort(field: SortField) {
     if (sortField === field) setFilters({ sortDir: sortDir === "asc" ? "desc" : "asc", page: "1" });
-    else setFilters({ sortField: field, sortDir: "desc", page: "1" });
+    else setFilters({ sortField: field, sortDir: field === "severity" ? "asc" : "desc", page: "1" });
   }
 
   const sortIndicator = (field: SortField) =>
@@ -309,7 +340,9 @@ export default function Alerts() {
 
       <Card>
         <CardContent className="pt-6">
-          {isLoading ? (
+          {isError ? (
+            <QueryError what="alerts" error={error} onRetry={() => refetch()} />
+          ) : isLoading ? (
             <div className="space-y-3">
               {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-muted animate-pulse rounded-md" />)}
             </div>

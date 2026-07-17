@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesUpdate } from "@/lib/database.types";
@@ -31,6 +32,37 @@ export function useListAlerts(filters: ListAlertsFilters = {}) {
     staleTime: 0,
     refetchOnWindowFocus: true,
   });
+}
+
+/**
+ * Realtime is the primary freshness path for the alert queue. The paginated query
+ * still refetches on focus, so a dropped websocket never becomes a correctness gap.
+ */
+export function useAlertRealtime(organizationId?: string) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!organizationId) return;
+    const channel = supabase
+      .channel(`alerts:${organizationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "alerts",
+          filter: `organization_id=eq.${organizationId}`,
+        },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ["alerts"] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [organizationId, queryClient]);
 }
 
 export function useUpdateAlert() {

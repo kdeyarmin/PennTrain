@@ -352,6 +352,13 @@ export type Database = {
             foreignKeyName: "admission_prospects_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admission_prospects_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -2300,6 +2307,13 @@ export type Database = {
             foreignKeyName: "complaints_incident_id_fkey"
             columns: ["incident_id"]
             isOneToOne: false
+            referencedRelation: "incident_list_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "complaints_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
             referencedRelation: "incidents"
             referencedColumns: ["id"]
           },
@@ -2308,6 +2322,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "complaints_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -2789,6 +2810,13 @@ export type Database = {
             foreignKeyName: "confidential_incident_details_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "confidential_incident_details_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -3117,6 +3145,13 @@ export type Database = {
             columns: ["facility_id"]
             isOneToOne: false
             referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "corrective_actions_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incident_list_rows"
             referencedColumns: ["id"]
           },
           {
@@ -4480,6 +4515,13 @@ export type Database = {
             foreignKeyName: "dietary_exception_patterns_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dietary_exception_patterns_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -4679,6 +4721,13 @@ export type Database = {
             foreignKeyName: "dietary_operations_history_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dietary_operations_history_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -4805,6 +4854,13 @@ export type Database = {
             columns: ["approved_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_analyzer_jobs_chart_resident_id_fkey"
+            columns: ["chart_resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -5025,6 +5081,13 @@ export type Database = {
             foreignKeyName: "emergency_communications_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_communications_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -5194,6 +5257,13 @@ export type Database = {
             columns: ["relocation_site_id"]
             isOneToOne: false
             referencedRelation: "emergency_resources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_event_residents_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -5447,6 +5517,13 @@ export type Database = {
             columns: ["incident_commander_profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_events_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incident_list_rows"
             referencedColumns: ["id"]
           },
           {
@@ -8794,6 +8871,13 @@ export type Database = {
             foreignKeyName: "external_medication_administration_events_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_medication_administration_events_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -8864,6 +8948,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_medication_orders_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -9047,6 +9138,13 @@ export type Database = {
             columns: ["facility_id"]
             isOneToOne: false
             referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_beds_occupied_by_resident_id_fkey"
+            columns: ["occupied_by_resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -10709,6 +10807,13 @@ export type Database = {
             foreignKeyName: "hospital_transfer_episodes_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hospital_transfer_episodes_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -11721,6 +11826,13 @@ export type Database = {
             foreignKeyName: "incident_documents_incident_id_fkey"
             columns: ["incident_id"]
             isOneToOne: false
+            referencedRelation: "incident_list_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_documents_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
             referencedRelation: "incidents"
             referencedColumns: ["id"]
           },
@@ -11811,6 +11923,13 @@ export type Database = {
             foreignKeyName: "incident_notifications_incident_id_fkey"
             columns: ["incident_id"]
             isOneToOne: false
+            referencedRelation: "incident_list_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_notifications_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
             referencedRelation: "incidents"
             referencedColumns: ["id"]
           },
@@ -11867,6 +11986,13 @@ export type Database = {
             columns: ["facility_id"]
             isOneToOne: false
             referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_staff_involved_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incident_list_rows"
             referencedColumns: ["id"]
           },
           {
@@ -12026,6 +12152,13 @@ export type Database = {
             columns: ["reported_by_profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -13986,6 +14119,13 @@ export type Database = {
             foreignKeyName: "medication_resident_mappings_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medication_resident_mappings_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -14224,6 +14364,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "move_in_guest_grants_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -14543,6 +14690,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "move_in_workspaces_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -15393,6 +15547,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nutrition_risk_reviews_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -19862,6 +20023,13 @@ export type Database = {
             foreignKeyName: "resident_administrative_history_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_administrative_history_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -19931,6 +20099,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_guest_access_events_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -20030,6 +20205,13 @@ export type Database = {
             foreignKeyName: "resident_agreement_guest_grants_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_guest_grants_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -20122,6 +20304,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_history_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -20269,6 +20458,13 @@ export type Database = {
             foreignKeyName: "resident_agreement_signatures_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_signatures_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -20372,6 +20568,13 @@ export type Database = {
             foreignKeyName: "resident_agreement_versions_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_versions_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -20451,6 +20654,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreements_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -20591,6 +20801,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_appointments_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -20787,6 +21004,13 @@ export type Database = {
             foreignKeyName: "resident_assessment_forms_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_forms_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -20872,6 +21096,13 @@ export type Database = {
             columns: ["prior_bed_id"]
             isOneToOne: false
             referencedRelation: "facility_beds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_census_events_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -21131,6 +21362,13 @@ export type Database = {
             foreignKeyName: "resident_change_events_incident_id_fkey"
             columns: ["incident_id"]
             isOneToOne: false
+            referencedRelation: "incident_list_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_change_events_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
             referencedRelation: "incidents"
             referencedColumns: ["id"]
           },
@@ -21139,6 +21377,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_change_events_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -21387,6 +21632,13 @@ export type Database = {
             foreignKeyName: "resident_compliance_items_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_compliance_items_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -21566,6 +21818,13 @@ export type Database = {
             foreignKeyName: "resident_contacts_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_contacts_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -21635,6 +21894,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "resident_dietary_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dietary_profile_history_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -21760,6 +22026,13 @@ export type Database = {
             foreignKeyName: "resident_dietary_profiles_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: true
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dietary_profiles_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: true
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -21839,6 +22112,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dme_history_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -21949,6 +22229,13 @@ export type Database = {
             foreignKeyName: "resident_dme_items_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_dme_items_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -22042,6 +22329,13 @@ export type Database = {
             foreignKeyName: "resident_documents_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_documents_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -22128,6 +22422,13 @@ export type Database = {
             foreignKeyName: "resident_evacuation_profiles_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: true
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_evacuation_profiles_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: true
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -22197,6 +22498,13 @@ export type Database = {
             foreignKeyName: "resident_financial_accounts_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: true
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_financial_accounts_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: true
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -22259,6 +22567,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_financial_history_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -22367,6 +22682,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_financial_statements_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -22492,6 +22814,13 @@ export type Database = {
             foreignKeyName: "resident_financial_transactions_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_financial_transactions_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -22569,6 +22898,13 @@ export type Database = {
             foreignKeyName: "resident_hydration_rounds_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_hydration_rounds_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -22631,6 +22967,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_informal_supports_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -22724,6 +23067,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_legal_records_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -22826,6 +23176,13 @@ export type Database = {
             foreignKeyName: "resident_meal_records_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_meal_records_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -22907,6 +23264,13 @@ export type Database = {
             foreignKeyName: "resident_payment_links_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_payment_links_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -22966,6 +23330,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_accounts_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: true
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -23050,6 +23421,13 @@ export type Database = {
             columns: ["reconciled_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_reconciliations_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -23175,6 +23553,13 @@ export type Database = {
             foreignKeyName: "resident_personal_fund_transactions_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_transactions_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -23238,6 +23623,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_portal_access_events_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -23339,6 +23731,13 @@ export type Database = {
             foreignKeyName: "resident_portal_grants_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_portal_grants_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -23408,6 +23807,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_portal_messages_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -23511,6 +23917,13 @@ export type Database = {
             foreignKeyName: "resident_portal_requests_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_portal_requests_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -23593,6 +24006,13 @@ export type Database = {
             foreignKeyName: "resident_portal_schedule_responses_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_portal_schedule_responses_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -23665,6 +24085,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_portal_shared_documents_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -23778,6 +24205,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_property_items_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -23909,6 +24343,13 @@ export type Database = {
             columns: ["resident_agreement_version_id"]
             isOneToOne: false
             referencedRelation: "resident_agreement_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_rate_agreements_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -24106,6 +24547,13 @@ export type Database = {
             foreignKeyName: "resident_service_calendar_events_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_events_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -24208,6 +24656,13 @@ export type Database = {
             foreignKeyName: "resident_service_calendar_follow_ups_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_follow_ups_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -24290,6 +24745,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_calendar_history_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -24399,6 +24861,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_requirements_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -24541,6 +25010,13 @@ export type Database = {
             columns: ["requirement_id"]
             isOneToOne: false
             referencedRelation: "resident_service_requirements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_task_instances_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -24693,6 +25169,13 @@ export type Database = {
             foreignKeyName: "resident_support_plans_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_support_plans_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -24774,6 +25257,13 @@ export type Database = {
             columns: ["recorded_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_weight_readings_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -25997,6 +26487,13 @@ export type Database = {
             foreignKeyName: "service_task_alerts_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_task_alerts_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -26617,6 +27114,13 @@ export type Database = {
             foreignKeyName: "shift_report_entries_linked_incident_id_fkey"
             columns: ["linked_incident_id"]
             isOneToOne: false
+            referencedRelation: "incident_list_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_report_entries_linked_incident_id_fkey"
+            columns: ["linked_incident_id"]
+            isOneToOne: false
             referencedRelation: "incidents"
             referencedColumns: ["id"]
           },
@@ -26646,6 +27150,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_report_entries_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -27008,6 +27519,13 @@ export type Database = {
             columns: ["owner_profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_plan_proposals_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -28141,6 +28659,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weight_monitoring_assignments_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
             referencedColumns: ["id"]
           },
           {
@@ -29383,6 +29908,128 @@ export type Database = {
       }
     }
     Views: {
+<<<<<<< HEAD
+      alert_list_rows: {
+        Row: {
+          alert_type: string | null
+          assigned_to_profile_id: string | null
+          certificate_id: string | null
+          competency_record_id: string | null
+          corrective_action_id: string | null
+          course_assignment_id: string | null
+          created_at: string | null
+          employee_credential_id: string | null
+          employee_id: string | null
+          escalated_at: string | null
+          exclusion_screening_match_id: string | null
+          facility_id: string | null
+          id: string | null
+          incident_notification_id: string | null
+          inspection_item_id: string | null
+          message: string | null
+          organization_id: string | null
+          practicum_id: string | null
+          resident_compliance_item_id: string | null
+          resolved_at: string | null
+          severity: string | null
+          severity_rank: number | null
+          status: string | null
+          title: string | null
+          training_record_id: string | null
+        }
+        Insert: {
+          alert_type?: string | null
+          assigned_to_profile_id?: string | null
+          certificate_id?: string | null
+          competency_record_id?: string | null
+          corrective_action_id?: string | null
+          course_assignment_id?: string | null
+          created_at?: string | null
+          employee_credential_id?: string | null
+          employee_id?: string | null
+          escalated_at?: string | null
+          exclusion_screening_match_id?: string | null
+          facility_id?: string | null
+          id?: string | null
+          incident_notification_id?: string | null
+          inspection_item_id?: string | null
+          message?: string | null
+          organization_id?: string | null
+          practicum_id?: string | null
+          resident_compliance_item_id?: string | null
+          resolved_at?: string | null
+          severity?: string | null
+          severity_rank?: never
+          status?: string | null
+          title?: string | null
+          training_record_id?: string | null
+        }
+        Update: {
+          alert_type?: string | null
+          assigned_to_profile_id?: string | null
+          certificate_id?: string | null
+          competency_record_id?: string | null
+          corrective_action_id?: string | null
+          course_assignment_id?: string | null
+          created_at?: string | null
+          employee_credential_id?: string | null
+          employee_id?: string | null
+          escalated_at?: string | null
+          exclusion_screening_match_id?: string | null
+          facility_id?: string | null
+          id?: string | null
+          incident_notification_id?: string | null
+          inspection_item_id?: string | null
+          message?: string | null
+          organization_id?: string | null
+          practicum_id?: string | null
+          resident_compliance_item_id?: string | null
+          resolved_at?: string | null
+          severity?: string | null
+          severity_rank?: never
+          status?: string | null
+          title?: string | null
+          training_record_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_assigned_to_profile_id_fkey"
+            columns: ["assigned_to_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_corrective_action_id_fkey"
+            columns: ["corrective_action_id"]
+            isOneToOne: false
+            referencedRelation: "corrective_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_employee_credential_id_fkey"
+            columns: ["employee_credential_id"]
+            isOneToOne: false
+            referencedRelation: "employee_credentials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_exclusion_screening_match_id_fkey"
+            columns: ["exclusion_screening_match_id"]
+            isOneToOne: false
+            referencedRelation: "exclusion_screening_matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_facility_id_fkey"
+=======
       dhs_violations_search: {
         Row: {
           citation_ref: string | null
@@ -29414,19 +30061,58 @@ export type Database = {
           },
           {
             foreignKeyName: "dhs_violations_facility_id_fkey"
+>>>>>>> origin/main
             columns: ["facility_id"]
             isOneToOne: false
             referencedRelation: "facilities"
             referencedColumns: ["id"]
           },
           {
+<<<<<<< HEAD
+            foreignKeyName: "alerts_incident_notification_id_fkey"
+            columns: ["incident_notification_id"]
+            isOneToOne: false
+            referencedRelation: "incident_notifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_inspection_item_id_fkey"
+            columns: ["inspection_item_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_organization_id_fkey"
+=======
             foreignKeyName: "dhs_violations_organization_id_fkey"
+>>>>>>> origin/main
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
+<<<<<<< HEAD
+            foreignKeyName: "alerts_practicum_id_fkey"
+            columns: ["practicum_id"]
+            isOneToOne: false
+            referencedRelation: "practicums"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_resident_compliance_item_id_fkey"
+            columns: ["resident_compliance_item_id"]
+            isOneToOne: false
+            referencedRelation: "resident_compliance_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_training_record_id_fkey"
+            columns: ["training_record_id"]
+            isOneToOne: false
+            referencedRelation: "employee_training_records"
+=======
             foreignKeyName: "dhs_violations_source_inspection_event_id_fkey"
             columns: ["source_inspection_event_id"]
             isOneToOne: false
@@ -29438,6 +30124,7 @@ export type Database = {
             columns: ["verified_by_profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+>>>>>>> origin/main
             referencedColumns: ["id"]
           },
         ]
@@ -29477,6 +30164,204 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "exclusion_refresh_runs"
             referencedColumns: ["id", "source"]
+          },
+        ]
+      }
+      incident_list_rows: {
+        Row: {
+          closed_at: string | null
+          closed_by_profile_id: string | null
+          created_at: string | null
+          facility_id: string | null
+          final_report_document_id: string | null
+          final_report_submitted_at: string | null
+          id: string | null
+          idempotency_key: string | null
+          incident_type: string | null
+          investigation_findings: string | null
+          investigation_started_at: string | null
+          investigator_name: string | null
+          investigator_profile_id: string | null
+          location_detail: string | null
+          narrative: string | null
+          occurred_at: string | null
+          organization_id: string | null
+          report_pdf_storage_bucket: string | null
+          report_pdf_storage_path: string | null
+          reported_at: string | null
+          reported_by_profile_id: string | null
+          resident_id: string | null
+          resident_identifier: string | null
+          resident_identifier_snapshot: string | null
+          root_cause: string | null
+          search_text: string | null
+          severity: string | null
+          state_form_pdf_generated_at: string | null
+          state_form_pdf_storage_bucket: string | null
+          state_form_pdf_storage_path: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incidents_closed_by_profile_id_fkey"
+            columns: ["closed_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_final_report_document_id_fkey"
+            columns: ["final_report_document_id"]
+            isOneToOne: false
+            referencedRelation: "incident_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_investigator_profile_id_fkey"
+            columns: ["investigator_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_reported_by_profile_id_fkey"
+            columns: ["reported_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_roster_rows: {
+        Row: {
+          admission_date: string | null
+          admission_track: string | null
+          advance_directive_status: string | null
+          bed_id: string | null
+          case_manager_name: string | null
+          case_manager_phone: string | null
+          communication_preferences: string | null
+          compliance_open_count: number | null
+          compliance_worst_status: string | null
+          contract_document_id: string | null
+          contract_effective_date: string | null
+          contract_status: string | null
+          created_at: string | null
+          date_of_birth: string | null
+          dentist_name: string | null
+          dentist_phone: string | null
+          designated_person_name: string | null
+          dietary_requirements: string | null
+          discharge_date: string | null
+          facility_id: string | null
+          first_name: string | null
+          food_allergies: string[] | null
+          hospice: boolean | null
+          hospice_home_health_agency_name: string | null
+          hospice_home_health_agency_phone: string | null
+          id: string | null
+          insurance_group_number: string | null
+          insurance_member_id: string | null
+          insurance_payer_name: string | null
+          is_synthetic: boolean | null
+          last_name: string | null
+          mobility_summary: string | null
+          organization_id: string | null
+          pharmacy_email: string | null
+          pharmacy_name: string | null
+          pharmacy_phone: string | null
+          photo_document_id: string | null
+          preferred_language: string | null
+          preferred_name: string | null
+          primary_physician_name: string | null
+          primary_physician_phone: string | null
+          prior_address_city: string | null
+          prior_address_line1: string | null
+          prior_address_line2: string | null
+          prior_address_postal_code: string | null
+          prior_address_state: string | null
+          religious_cultural_preferences: string | null
+          resident_rights_acknowledged_at: string | null
+          resident_rights_document_id: string | null
+          room: string | null
+          sdcu: boolean | null
+          search_text: string | null
+          secondary_payer_name: string | null
+          status: string | null
+          supervision_requirements: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "residents_bed_id_fkey"
+            columns: ["bed_id"]
+            isOneToOne: false
+            referencedRelation: "facility_beds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "residents_contract_document_id_fkey"
+            columns: ["contract_document_id"]
+            isOneToOne: false
+            referencedRelation: "resident_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "residents_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "residents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "residents_photo_document_id_fkey"
+            columns: ["photo_document_id"]
+            isOneToOne: false
+            referencedRelation: "resident_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "residents_resident_rights_document_id_fkey"
+            columns: ["resident_rights_document_id"]
+            isOneToOne: false
+            referencedRelation: "resident_documents"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -31515,6 +32400,17 @@ export type Database = {
           verified_domain_count: number
         }[]
       }
+      get_incident_list_summary: {
+        Args: {
+          p_facility_id?: string
+          p_resident_id?: string
+          p_search?: string
+          p_severity?: string
+          p_status?: string
+          p_today?: string
+        }
+        Returns: Json
+      }
       get_integration_control_plane: {
         Args: { p_organization_id?: string }
         Returns: Json
@@ -31657,6 +32553,15 @@ export type Database = {
       }
       get_resident_care_delivery_analytics: {
         Args: { p_facility_id: string; p_from: string; p_through: string }
+        Returns: Json
+      }
+      get_resident_list_summary: {
+        Args: {
+          p_facility_id?: string
+          p_search?: string
+          p_status?: string
+          p_today?: string
+        }
         Returns: Json
       }
       get_resident_portal_experience: {

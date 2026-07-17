@@ -2,13 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { Link } from "wouter";
 import {
-  useListIncidents, useCreateIncident, type IncidentInsert,
+  useCreateIncident, type Incident, type IncidentInsert,
 } from "@/hooks/useIncidents";
+import { usePaginatedDomainList } from "@/hooks/usePaginatedDomainLists";
+import { EMPTY_INCIDENT_LIST_SUMMARY, useIncidentListSummary } from "@/hooks/useDomainListSummaries";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListResidents } from "@/hooks/useResidents";
 import { useUrlState } from "@/hooks/useUrlState";
-import { summarizeIncidentAnalytics } from "@/lib/incidentAnalytics";
 import { Button } from "@/components/ui/button";
 import { QueryError } from "@/components/QueryState";
 import { Input } from "@/components/ui/input";
@@ -118,12 +119,29 @@ export default function Incidents() {
   // Unfiltered (RLS already scopes to the caller's org) -- resolves the resident foreign key and
   // preserves a searchable fallback for legacy free-text snapshots.
   const { data: allResidents } = useListResidents();
-  const { data: incidents, isLoading, isError, error, refetch } = useListIncidents({
+  const incidentQuery = usePaginatedDomainList<Incident>("incidents", {
     facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
     residentId: urlState.resident !== "all" ? urlState.resident : undefined,
     severity: urlState.severity !== "all" ? urlState.severity : undefined,
     status: urlState.status !== "all" ? urlState.status : undefined,
+    search: urlState.search,
+    page,
+    pageSize: PAGE_SIZE,
   });
+  const incidentSummaryQuery = useIncidentListSummary({
+    facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
+    residentId: urlState.resident !== "all" ? urlState.resident : undefined,
+    severity: urlState.severity !== "all" ? urlState.severity : undefined,
+    status: urlState.status !== "all" ? urlState.status : undefined,
+    search: urlState.search,
+    today: toLocalIsoDate(),
+  });
+  const incidents = incidentQuery.data?.rows ?? [];
+  const totalCount = incidentQuery.data?.count ?? 0;
+  const isLoading = incidentQuery.isLoading;
+  const isError = incidentQuery.isError || incidentSummaryQuery.isError;
+  const error = incidentQuery.error ?? incidentSummaryQuery.error;
+  const refetch = () => Promise.all([incidentQuery.refetch(), incidentSummaryQuery.refetch()]);
 
   const { mutate: createIncident, isPending: creating } = useCreateIncident();
 
@@ -152,31 +170,12 @@ export default function Incidents() {
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
   const residentById = useMemo(() => new Map((allResidents ?? []).map((r) => [r.id, r])), [allResidents]);
 
-  const residentSearchText = (residentId: string | null, snapshot: string | null) => {
-    const resident = residentId ? residentById.get(residentId) : null;
-    return resident ? `${resident.last_name} ${resident.first_name}`.toLowerCase() : (snapshot ?? "").toLowerCase();
-  };
+  const incidentSummary = incidentSummaryQuery.data ?? EMPTY_INCIDENT_LIST_SUMMARY;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-  const searched = useMemo(() => {
-    const q = urlState.search.trim().toLowerCase();
-    if (!q) return incidents ?? [];
-    return (incidents ?? []).filter((i) =>
-      i.narrative.toLowerCase().includes(q) || residentSearchText(i.resident_id, i.resident_identifier_snapshot ?? i.resident_identifier).includes(q)
-    );
-  }, [incidents, urlState.search, residentById]);
-  const incidentSummary = useMemo(() => summarizeIncidentAnalytics(
-    (incidents ?? []).map((i) => ({
-      id: i.id,
-      incident_type: i.incident_type,
-      severity: i.severity,
-      status: i.status,
-      occurred_at: i.occurred_at,
-    })),
-    toLocalIsoDate(),
-  ), [incidents]);
-
-  const totalPages = Math.max(1, Math.ceil(searched.length / PAGE_SIZE));
-  const paginated = searched.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  useEffect(() => {
+    if (page > totalPages) setUrlState({ page: String(totalPages) });
+  }, [page, setUrlState, totalPages]);
 
   // Auto-fill the create dialog's Facility field when the user is scoped to exactly one facility
   // (e.g. a facility_manager) -- saves a needless click every time; a no-op for multi-facility orgs.
@@ -327,7 +326,7 @@ export default function Incidents() {
           <div className="p-6 space-y-3">
             {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>
-        ) : paginated.length === 0 ? (
+        ) : incidents.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
             <AlertTriangle className="h-10 w-10 text-muted-foreground/30 mb-3" />
             <p className="text-sm font-medium text-muted-foreground">No incidents found</p>
@@ -350,7 +349,7 @@ export default function Incidents() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginated.map((i) => (
+                  {incidents.map((i) => (
                     <tr key={i.id}>
                       <td className="text-muted-foreground">{new Date(i.occurred_at).toLocaleString()}</td>
                       <td className="font-medium text-foreground">{facilityById.get(i.facility_id)?.name ?? "—"}</td>
@@ -367,7 +366,7 @@ export default function Incidents() {
             </div>
             <div className="flex items-center justify-between px-5 py-4 border-t border-border/60">
               <p className="text-[13px] text-muted-foreground">
-                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, searched.length)}</span> of {searched.length}
+                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)}</span> of {totalCount}
               </p>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>
