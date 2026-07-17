@@ -42,14 +42,21 @@ export function useAlertRealtime(organizationId?: string) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const changes = organizationId
-      ? { event: "*" as const, schema: "public", table: "alerts", filter: `organization_id=eq.${organizationId}` }
-      : { event: "*" as const, schema: "public", table: "alerts" };
+    if (!organizationId) return;
     const channel = supabase
-      .channel(`alerts:${organizationId ?? "all"}`)
-      .on("postgres_changes", changes, () => {
-        void queryClient.invalidateQueries({ queryKey: ["alerts"] });
-      })
+      .channel(`alerts:${organizationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "alerts",
+          filter: `organization_id=eq.${organizationId}`,
+        },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ["alerts"] });
+        },
+      )
       .subscribe();
 
     return () => {

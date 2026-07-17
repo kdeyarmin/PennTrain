@@ -28,8 +28,6 @@ select
     coalesce(i.narrative, '') || ' ' ||
     coalesce(i.resident_identifier_snapshot, '') || ' ' ||
     coalesce(i.resident_identifier, '') || ' ' ||
-    coalesce(r.first_name, '') || ' ' ||
-    coalesce(r.last_name, '') || ' ' ||
     coalesce(r.last_name, '') || ' ' ||
     coalesce(r.first_name, '') || ' ' ||
     coalesce(r.room, '')
@@ -45,8 +43,6 @@ select
   btrim(
     coalesce(r.first_name, '') || ' ' ||
     coalesce(r.last_name, '') || ' ' ||
-    coalesce(r.last_name, '') || ' ' ||
-    coalesce(r.first_name, '') || ' ' ||
     coalesce(r.room, '')
   ) as search_text,
   compliance.worst_status as compliance_worst_status,
