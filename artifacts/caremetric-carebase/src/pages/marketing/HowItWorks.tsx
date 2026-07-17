@@ -13,6 +13,7 @@ import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { PageHero, Reveal } from "@/components/marketing/primitives";
 import { STEPS } from "@/components/marketing/content";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 const IMPLEMENTATION_SEQUENCE = [
@@ -57,12 +58,7 @@ const DEMO_PREP = [
 ] as const;
 
 export default function HowItWorks() {
-  usePageMeta({
-    title: "How It Works — CareMetric CareBase",
-    description:
-      "See how CareMetric CareBase moves from facility setup and role-aware work to live risk visibility, accountable follow-up, and survey-ready evidence.",
-    path: "/how-it-works",
-  });
+  usePageMeta({ ...MARKETING_ROUTE_META["/how-it-works"], path: "/how-it-works" });
   return (
     <MarketingLayout>
       <PageHero

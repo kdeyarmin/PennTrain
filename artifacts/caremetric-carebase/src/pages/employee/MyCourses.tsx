@@ -15,9 +15,11 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { QueryError } from "@/components/QueryState";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { GraduationCap, ChevronRight, BookOpen, Loader2 } from "lucide-react";
+import { GraduationCap, ChevronRight, BookOpen, Loader2, CloudDownload, HardDrive, Trash2, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { canSelfEnrollInCourse } from "@/lib/courseAvailability";
+import { useDownloadCourseForOffline, useOfflineCourseLibrary, useRemoveOfflineCourse, useWipeOfflineCourses } from "@/hooks/useOfflineLearning";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 // assigned -> "Start" (nothing begun yet); in_progress/overdue -> "Continue" (progress already
 // exists, or the due date passed either way); completed -> "Review" (re-open a finished course).
@@ -66,6 +68,10 @@ export default function MyCourses() {
   );
   const { data: currentVersions, isLoading: currentVersionsLoading } = useListCourseVersionsByIds(currentVersionIds);
   const { mutate: selfEnroll, isPending: enrolling, variables: enrollingCourseId } = useSelfEnrollCourse();
+  const offlineLibrary = useOfflineCourseLibrary();
+  const downloadOffline = useDownloadCourseForOffline();
+  const removeOffline = useRemoveOfflineCourse();
+  const wipeOffline = useWipeOfflineCourses();
 
   const isLoading = employeeLoading || assignmentsLoading;
   const coursesReadyLoading = coursesLoading || currentVersionsLoading;
@@ -122,6 +128,15 @@ export default function MyCourses() {
         <p className="text-muted-foreground">Every training item assigned to you, plus anything else you can start on your own.</p>
       </div>
 
+      {user?.role === "employee" && <Card>
+        <CardHeader><CardTitle className="flex items-center gap-2"><HardDrive className="h-5 w-5" />Offline training library ({offlineLibrary.data?.length ?? 0})</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <Alert><ShieldCheck className="h-4 w-4" /><AlertTitle>Encrypted on this device</AlertTitle><AlertDescription>Only assigned course content and quiz prompts are cached. Answer keys, resident data, personnel lists, credentials, reports, and access tokens are excluded. Downloads expire after 30 days and are wiped when this device registration is revoked.</AlertDescription></Alert>
+          {offlineLibrary.data?.length ? offlineLibrary.data.map((item) => <div key={item.assignmentId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div><p className="font-medium">{item.title}</p><p className="text-xs text-muted-foreground">Downloaded {new Date(item.downloadedAt).toLocaleString()} · expires {new Date(item.expiresAt).toLocaleDateString()}</p></div><div className="flex gap-2"><Button asChild size="sm" variant="outline"><Link href={`/me/courses/${item.assignmentId}/offline`}>Open offline copy</Link></Button><Button size="icon" variant="ghost" aria-label={`Remove offline copy of ${item.title}`} disabled={removeOffline.isPending} onClick={() => removeOffline.mutate(item.assignmentId)}><Trash2 className="h-4 w-4" /></Button></div></div>) : <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">No courses are available offline yet. Use Download on an active assignment below.</p>}
+          {(offlineLibrary.data?.length ?? 0) > 0 && <Button variant="outline" disabled={wipeOffline.isPending} onClick={() => wipeOffline.mutate(undefined, { onSuccess: () => toast({ title: "Offline training wiped from this device" }), onError: (error) => toast({ title: "Offline library could not be wiped", description: error.message, variant: "destructive" }) })}><Trash2 className="mr-2 h-4 w-4" />Revoke device and wipe all</Button>}
+        </CardContent>
+      </Card>}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -176,6 +191,7 @@ export default function MyCourses() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <StatusBadge status={a.status} />
+                      {user?.role === "employee" && a.status !== "completed" && <Button size="sm" variant="outline" disabled={downloadOffline.isPending || offlineLibrary.data?.some((item) => item.assignmentId === a.id)} onClick={() => downloadOffline.mutate({ assignmentId: a.id, title: course?.title ?? "Training item" }, { onSuccess: () => toast({ title: "Course encrypted for offline use" }), onError: (error) => toast({ title: "Course could not be downloaded", description: error.message, variant: "destructive" }) })}>{downloadOffline.isPending && downloadOffline.variables?.assignmentId === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}<span className="sr-only">Download for offline use</span></Button>}
                       <Button asChild size="sm">
                         <Link href={`/me/courses/${a.id}`}>
                           {actionLabel(a.status)}

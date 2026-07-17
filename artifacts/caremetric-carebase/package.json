@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
-    "build": "pnpm --filter @workspace/scripts run generate:manual && vite build --config vite.config.ts && node server/precompress.mjs",
+    "build": "pnpm --filter @workspace/scripts run generate:manual && vite build --config vite.config.ts && node server/prerender-heads.mjs && node server/precompress.mjs",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "start": "node server/index.mjs",
     "test": "vitest run --exclude e2e/**",

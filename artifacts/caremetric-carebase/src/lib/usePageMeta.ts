@@ -44,6 +44,10 @@ export function usePageMeta({
  */
 export function useJsonLd(id: string, data: unknown) {
   useEffect(() => {
+    // server/prerender-heads.mjs bakes the same block into the raw HTML for
+    // crawlers (tagged data-prerendered-jsonld). Once JS runs, this hook owns
+    // the block -- remove the build-time copy so the page never carries two.
+    document.querySelector(`script[data-prerendered-jsonld="${id}"]`)?.remove();
     const script = document.createElement("script");
     script.type = "application/ld+json";
     script.id = id;

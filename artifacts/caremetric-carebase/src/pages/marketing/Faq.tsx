@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "wouter";
 import { HelpCircle, Mail, MessageSquareText, Search, X } from "lucide-react";
 import {
   Accordion,
@@ -11,7 +12,8 @@ import { Input } from "@/components/ui/input";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { PageHero, Reveal } from "@/components/marketing/primitives";
-import { DEMO_MAILTO, FAQS } from "@/components/marketing/content";
+import { FAQS } from "@/components/marketing/content";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta, useJsonLd } from "@/lib/usePageMeta";
 
 const FEATURED_QUESTIONS = FAQS.slice(0, 4);
@@ -46,12 +48,7 @@ export default function Faq() {
     ? filteredQuestions
     : REMAINING_QUESTIONS;
 
-  usePageMeta({
-    title: "FAQ — CareMetric CareBase",
-    description:
-      "Answers about what CareMetric CareBase is, what it replaces, where savings come from, compliance boundaries, facility operations, training, resident workflows, security, and implementation.",
-    path: "/faq",
-  });
+  usePageMeta({ ...MARKETING_ROUTE_META["/faq"], path: "/faq" });
   useJsonLd("faq-jsonld", FAQ_JSON_LD);
   return (
     <MarketingLayout>
@@ -184,10 +181,10 @@ export default function Faq() {
             through how CareMetric CareBase would model it.
           </p>
           <Button asChild className="mt-5 gap-2">
-            <a href={DEMO_MAILTO}>
+            <Link href="/request-demo">
               <Mail className="h-4 w-4" />
               Ask about your workflow
-            </a>
+            </Link>
           </Button>
         </Reveal>
       </section>

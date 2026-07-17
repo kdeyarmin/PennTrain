@@ -11,15 +11,11 @@ import { markExplicitPasswordSignIn } from "@/lib/auth";
 import { absolutePostLoginRedirect, postLoginPathFromSearch } from "@/lib/loginRedirect";
 import { Loader2, ArrowRight, ShieldCheck } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 export default function Login() {
-  usePageMeta({
-    title: "Log In — CareMetric CareBase",
-    description:
-      "Sign in to CareMetric CareBase to manage operations, workforce compliance, training, and survey evidence for your facility.",
-    path: "/login",
-  });
+  usePageMeta({ ...MARKETING_ROUTE_META["/login"], path: "/login" });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [, setLocation] = useLocation();

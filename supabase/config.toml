@@ -132,6 +132,12 @@ secrets = "env(SEND_EMAIL_HOOK_SECRET_BASE64)"
 [functions.signup-organization]
 verify_jwt = false
 
+# Public, unauthenticated demo-request intake by design -- prospects have no session. The
+# function enforces Turnstile and a hashed-IP submission cap before its service-role insert;
+# the demo_requests table has no anon/authenticated INSERT policy.
+[functions.request-demo]
+verify_jwt = false
+
 # Real session impersonation ("log in as user") for platform_admin support use. Authorization is
 # enforced inside the function itself (caller JWT must resolve to an active platform_admin
 # profile), not via verify_jwt -- verify_jwt only confirms the request carries *a* valid JWT, not
@@ -190,6 +196,12 @@ verify_jwt = false
 # credential, and authorize_evidence_guest_artifact re-checks every fail-closed condition
 # and logs the access before a short-lived signed URL is minted.
 [functions.evidence-guest-download]
+verify_jwt = false
+
+# Public designated-person document downloads use the expiring portal grant token as the
+# credential. The database rechecks terms, permissions, expiry, revocation, exact sharing,
+# and records the access before this function mints a five-minute signed storage URL.
+[functions.resident-portal-download]
 verify_jwt = false
 
 # Authenticated, role-checked regulatory synthesis. The handler performs its

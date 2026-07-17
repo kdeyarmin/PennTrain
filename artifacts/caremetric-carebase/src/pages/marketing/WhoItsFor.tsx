@@ -11,6 +11,7 @@ import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { PageHero, Reveal } from "@/components/marketing/primitives";
 import { SETTINGS } from "@/components/marketing/content";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 const BUYING_COMMITTEE_OUTCOMES = [
@@ -78,12 +79,7 @@ const PCH_ALF_OPERATIONS = [
 ];
 
 export default function WhoItsFor() {
-  usePageMeta({
-    title: "Who It's For — CareMetric CareBase for Pennsylvania PCH & Assisted Living",
-    description:
-      "CareMetric CareBase provides full operations and compliance workflows for Pennsylvania personal care homes and assisted living facilities, plus matched workforce-training pathways for adjacent providers.",
-    path: "/who-its-for",
-  });
+  usePageMeta({ ...MARKETING_ROUTE_META["/who-its-for"], path: "/who-its-for" });
   return (
     <MarketingLayout>
       <PageHero
