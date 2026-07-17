@@ -31191,6 +31191,18 @@ export type Database = {
         Args: { p_as_of?: string }
         Returns: number
       }
+      generate_paged_compliance_report: {
+        Args: {
+          p_date_from?: string
+          p_date_to?: string
+          p_employee_id?: string
+          p_facility_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_report_id: string
+        }
+        Returns: Json
+      }
       generate_resident_financial_statement: {
         Args: {
           p_due_date: string
@@ -33063,6 +33075,7 @@ export type Database = {
         Args: { p_now?: string }
         Returns: number
       }
+      run_system_job_watchdog: { Args: never; Returns: number }
       run_workflow_automation_now: {
         Args: {
           p_context?: Json

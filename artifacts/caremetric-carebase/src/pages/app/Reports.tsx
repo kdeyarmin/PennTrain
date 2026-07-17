@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,20 +20,9 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useListFacilities, type Facility } from "@/hooks/useFacilities";
-import type { Employee } from "@/hooks/useEmployees";
-import type { TrainingType } from "@/hooks/useTrainingTypes";
-import type { TrainingRecord } from "@/hooks/useTrainingRecords";
-import type { Practicum } from "@/hooks/usePracticums";
-import type { Alert } from "@/hooks/useAlerts";
-import type { TrainingDocument } from "@/hooks/useDocuments";
-import type { EmployeeCredential } from "@/hooks/useEmployeeCredentials";
-import type { Incident, IncidentNotification } from "@/hooks/useIncidents";
-import type { InspectionItem } from "@/hooks/useInspectionItems";
-import type { Organization } from "@/hooks/useOrganizations";
-import type { Profile } from "@/hooks/useProfiles";
-import type { Tables } from "@/lib/database.types";
+import { useListFacilities } from "@/hooks/useFacilities";
 import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { escapeOrValue } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
@@ -312,158 +301,21 @@ interface ParsedReport {
   summaryCards: SummaryCard[];
 }
 
-type HourBucket = Tables<"employee_training_hour_buckets">;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-// Mirrors Dashboard.tsx's RELEVANT_STATUSES: training records with status "not_applicable"
-// or "pending_review" are excluded from compliance percentages and compliant/due_soon/
-// expired/missing classifications entirely, so Reports.tsx and Dashboard.tsx agree on the
-// same underlying data.
-const RELEVANT_STATUSES = new Set(["compliant", "due_soon", "expired", "missing"]);
-
-function relevantRecords(records: TrainingRecord[]): TrainingRecord[] {
-  return records.filter((r) => RELEVANT_STATUSES.has(r.status));
+interface PagedReportData extends ParsedReport {
+  generatedAt: string;
+  totalRows: number;
+  pageSize: number;
+  pageOffset: number;
+  hasMore: boolean;
 }
 
-function pct(numerator: number, denominator: number): number {
-  return denominator > 0 ? Math.round((numerator / denominator) * 100) : 100;
-}
-
-function complianceVariant(value: number): SummaryCard["variant"] {
-  return value >= 80 ? "success" : value >= 50 ? "warning" : "danger";
-}
-
-function byFacility<T extends { facility_id: string | null }>(items: T[], facilityId: string): T[] {
-  return facilityId === "all" ? items : items.filter((i) => i.facility_id === facilityId);
-}
-
-const BUCKET_TYPE_LABELS: Record<string, string> = {
-  general_annual: "General Annual",
-  alr_dementia: "ALF Dementia (§2800.69)",
-  sdcu_dementia: "Secured Dementia Unit (§2600.236)",
-};
-
-function formatBucketType(bucketType: string): string {
-  return BUCKET_TYPE_LABELS[bucketType] ?? bucketType;
-}
-
-// Returns true when `dateStr` falls within the optional [from, to] range (inclusive of the
-// entire `to` day). When both bounds are empty the filter is inactive and everything passes.
-// When the filter is active but a row has no date value to compare, the row is excluded.
-function inDateRange(dateStr: string | null | undefined, from?: string, to?: string): boolean {
-  if (!from && !to) return true;
-  if (!dateStr) return false;
-  const t = new Date(dateStr).getTime();
-  if (Number.isNaN(t)) return false;
-  if (from && t < new Date(from).getTime()) return false;
-  if (to && t >= new Date(to).getTime() + DAY_MS) return false;
-  return true;
-}
-
-const TRAINING_RECORD_HEADERS = ["Employee", "Job Title", "Training Type", "Completion Date", "Due Date", "Status"];
-
-function trainingRecordRows(
-  records: TrainingRecord[],
-  employeeById: Map<string, Employee>,
-  trainingTypeById: Map<string, TrainingType>
-): string[][] {
-  return records.map((r) => {
-    const e = employeeById.get(r.employee_id);
-    return [
-      e ? `${e.first_name} ${e.last_name}` : r.employee_id,
-      e?.job_title ?? "",
-      trainingTypeById.get(r.training_type_id)?.name ?? "",
-      r.completion_date ?? "",
-      r.due_date ?? "",
-      r.status,
-    ];
-  });
-}
-
-interface ReportContext {
-  facilityId: string;
-  employeeIdOverride?: string;
+interface ActiveReportRequest {
+  report: ReportDef;
+  employeeId?: string;
   dateFrom?: string;
   dateTo?: string;
-  facilities: Facility[];
-  employees: Employee[];
-  trainingTypes: TrainingType[];
-  trainingRecords: TrainingRecord[];
-  practicums: Practicum[];
-  documents: TrainingDocument[];
-  alerts: Alert[];
-  organizations: Organization[];
-  profiles: Profile[];
-  hourBuckets: HourBucket[];
-  credentials: EmployeeCredential[];
-  incidents: Incident[];
-  incidentNotifications: IncidentNotification[];
-  inspectionItems: InspectionItem[];
 }
 
-type DatasetKey =
-  | "facilities"
-  | "employees"
-  | "trainingTypes"
-  | "trainingRecords"
-  | "practicums"
-  | "documents"
-  | "alerts"
-  | "hourBuckets"
-  | "profiles"
-  | "credentials"
-  | "incidents"
-  | "incidentNotifications"
-  | "inspectionItems";
-
-// Which of the datasets above each report's buildReport() branch actually reads (verified
-// against every `if (reportId === ...)` block below). Drives two things: (1) each dataset
-// query's `enabled` flag, so we don't unconditionally fetch all 14 datasets on mount regardless
-// of which single report is wanted, and (2) each report card's own loading/disabled state,
-// instead of gating every card on a global OR of all queries. Reports commonly share datasets
-// (most need `employees`, many need `trainingRecords`/`trainingTypes`) -- that's expected and
-// fine, it just means those queries stay enabled across more selections.
-//
-// `organizations` never appears in any Set below: no report reads ctx.organizations (see the
-// `organizations` field being hardcoded to `[]` further down instead of being fetched).
-const REPORT_DATASETS: Record<string, ReadonlySet<DatasetKey>> = {
-  "compliance-summary": new Set<DatasetKey>(["employees", "trainingRecords"]),
-  "facility-compliance": new Set<DatasetKey>(["facilities", "trainingRecords"]),
-  "survey-readiness": new Set<DatasetKey>(["trainingRecords", "practicums", "employees", "trainingTypes", "alerts"]),
-  "expired-training": new Set<DatasetKey>(["trainingRecords", "employees", "trainingTypes"]),
-  "due-soon": new Set<DatasetKey>(["trainingRecords", "employees", "trainingTypes"]),
-  "medication-administration": new Set<DatasetKey>(["employees", "trainingTypes", "trainingRecords"]),
-  "training-matrix": new Set<DatasetKey>(["trainingTypes", "employees", "facilities", "trainingRecords"]),
-  "practicum-status": new Set<DatasetKey>(["practicums", "employees"]),
-  "annual-practicum": new Set<DatasetKey>(["practicums", "employees"]),
-  "annual-hours": new Set<DatasetKey>(["hourBuckets", "employees"]),
-  "training-hours": new Set<DatasetKey>(["hourBuckets", "employees"]),
-  "trainer-certification": new Set<DatasetKey>(["employees", "trainingTypes", "trainingRecords"]),
-  "new-employee-training": new Set<DatasetKey>(["employees", "trainingRecords", "trainingTypes"]),
-  "employee-transcript": new Set<DatasetKey>(["employees", "trainingRecords", "practicums", "trainingTypes"]),
-  "expiring-certifications": new Set<DatasetKey>(["trainingRecords", "employees", "trainingTypes"]),
-  "missing-documents": new Set<DatasetKey>(["trainingRecords", "employees", "trainingTypes"]),
-  "document-audit": new Set<DatasetKey>(["documents", "trainingRecords", "profiles"]),
-  "overdue-training": new Set<DatasetKey>(["trainingRecords", "practicums", "employees", "trainingTypes"]),
-  "credential-status": new Set<DatasetKey>(["credentials", "employees"]),
-  "incident-log": new Set<DatasetKey>(["incidents", "facilities"]),
-  "incident-notification-register": new Set<DatasetKey>(["incidents", "facilities", "incidentNotifications"]),
-  "inspection-compliance": new Set<DatasetKey>(["inspectionItems", "facilities"]),
-};
-
-function reportNeeds(reportId: string, dataset: DatasetKey): boolean {
-  return REPORT_DATASETS[reportId]?.has(dataset) ?? false;
-}
-
-// Item 1b/1c: the one shared date-range control filters a *different* underlying field
-// depending on which report is selected (due_date for most, occurred_at for the incident log,
-// created_at for the document audit, expiration_date for credentials, next_due_date for
-// inspections, due_at for the notification register) -- this label is shown next to the
-// control so that's never silent. `null` means the report doesn't use date filtering at all
-// (training-matrix cross-references every training type against each employee's *latest*
-// record regardless of date, so a date range can't be meaningfully applied); the control is
-// disabled for it instead of silently doing nothing.
 const REPORT_DATE_FIELD_LABEL: Record<string, string | null> = {
   "compliance-summary": "Due Date",
   "facility-compliance": "Due Date",
@@ -491,8 +343,8 @@ const REPORT_DATE_FIELD_LABEL: Record<string, string | null> = {
 
 // Item 3: reports excluded from the automatic "default to a recent window" behavior (below)
 // even though they otherwise support date filtering. `annual-hours` already has its own more
-// precise default baked directly into buildReport() (current training year only -- see the
-// `reportId === "annual-hours"` branch below); injecting a second, competing default here would
+// precise current-training-year default in the database report engine; injecting a second,
+// competing default here would
 // silently widen it and make View and CSV disagree whenever both fields are left blank.
 // `employee-transcript`'s own card explicitly promises "Complete training transcript ... all
 // training history" for one person -- inherently small (a career's worth of records, not
@@ -517,639 +369,6 @@ function defaultDateWindow(): { from: string; to: string } {
   const to = new Date(now);
   to.setMonth(to.getMonth() + 6);
   return { from: toLocalIsoDate(from), to: toLocalIsoDate(to) };
-}
-
-function buildReport(reportId: string, ctx: ReportContext): ParsedReport {
-  const summaryCards: SummaryCard[] = [];
-
-  const scopedEmployees = byFacility(ctx.employees, ctx.facilityId).filter((e) => e.status === "active");
-  const scopedRecords = byFacility(ctx.trainingRecords, ctx.facilityId);
-  const scopedPracticums = byFacility(ctx.practicums, ctx.facilityId);
-  const scopedDocuments = byFacility(ctx.documents, ctx.facilityId);
-
-  const employeeById = new Map(ctx.employees.map((e) => [e.id, e]));
-  const trainingTypeById = new Map(ctx.trainingTypes.map((t) => [t.id, t]));
-  const profileById = new Map(ctx.profiles.map((p) => [p.id, p]));
-
-  if (reportId === "compliance-summary") {
-    const rangedRecords = scopedRecords.filter((r) => inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo));
-    const total = relevantRecords(rangedRecords).length;
-    const compliantCount = rangedRecords.filter((r) => r.status === "compliant").length;
-    const expiredCount = rangedRecords.filter((r) => r.status === "expired").length;
-    const dueSoonCount = rangedRecords.filter((r) => r.status === "due_soon").length;
-    const compliancePct = pct(compliantCount, total);
-    summaryCards.push(
-      { label: "Total Employees", value: scopedEmployees.length, variant: "default" },
-      { label: "Compliant", value: compliantCount, variant: "success" },
-      { label: "Expired", value: expiredCount, variant: expiredCount > 0 ? "danger" : "success" },
-      { label: "Compliance", value: `${compliancePct}%`, variant: complianceVariant(compliancePct) }
-    );
-    return {
-      headers: ["Metric", "Value"],
-      rows: [
-        ["Total Employees", String(scopedEmployees.length)],
-        ["Total Training Records", String(total)],
-        ["Compliant Records", String(compliantCount)],
-        ["Expired Records", String(expiredCount)],
-        ["Due Soon Records", String(dueSoonCount)],
-        ["Compliance Percentage", `${compliancePct}%`],
-      ],
-      summaryCards,
-    };
-  }
-
-  if (reportId === "facility-compliance") {
-    const facilityList =
-      ctx.facilityId === "all" ? ctx.facilities : ctx.facilities.filter((f) => f.id === ctx.facilityId);
-    const scored = facilityList.map((f) => {
-      const records = ctx.trainingRecords.filter(
-        (r) => r.facility_id === f.id && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo)
-      );
-      const relevant = relevantRecords(records);
-      const compliantCount = records.filter((r) => r.status === "compliant").length;
-      const expiredCount = records.filter((r) => r.status === "expired").length;
-      const dueSoonCount = records.filter((r) => r.status === "due_soon").length;
-      return {
-        facility: f,
-        total: relevant.length,
-        compliantCount,
-        expiredCount,
-        dueSoonCount,
-        score: pct(compliantCount, relevant.length),
-      };
-    });
-    return {
-      headers: ["Facility", "Type", "Total Records", "Compliant", "Expired", "Due Soon", "Compliance %"],
-      rows: scored.map((s) => [
-        s.facility.name,
-        s.facility.facility_type.replace(/_/g, " "),
-        String(s.total),
-        String(s.compliantCount),
-        String(s.expiredCount),
-        String(s.dueSoonCount),
-        `${s.score}%`,
-      ]),
-      summaryCards: [
-        { label: "Facilities", value: scored.length },
-        {
-          label: "Avg Score",
-          value: scored.length > 0 ? `${Math.round(scored.reduce((a, s) => a + s.score, 0) / scored.length)}%` : "—",
-          variant: "default",
-        },
-      ],
-    };
-  }
-
-  if (reportId === "survey-readiness") {
-    const rangedRecords = scopedRecords.filter((r) => inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo));
-    const rangedPracticums = scopedPracticums.filter((p) => inDateRange(p.due_date, ctx.dateFrom, ctx.dateTo));
-
-    const total = relevantRecords(rangedRecords).length;
-    const compliantCount = rangedRecords.filter((r) => r.status === "compliant").length;
-    const expiredCount = rangedRecords.filter((r) => r.status === "expired").length;
-    const overallComplianceScore = pct(compliantCount, total);
-
-    const medAdminStaff = scopedEmployees.filter((e) => e.administers_medications);
-    const trainerStaff = scopedEmployees.filter((e) => e.trainer_status);
-    const medAdminIds = new Set(medAdminStaff.map((e) => e.id));
-    const trainerIds = new Set(trainerStaff.map((e) => e.id));
-
-    const medAdminTypeIds = new Set(
-      ctx.trainingTypes.filter((t) => t.is_active && t.applies_to_administers_meds).map((t) => t.id)
-    );
-    const trainerTypeIds = new Set(
-      ctx.trainingTypes.filter((t) => t.is_active && t.applies_to_trainers).map((t) => t.id)
-    );
-
-    const medAdminBadRecords = rangedRecords.filter(
-      (r) => medAdminIds.has(r.employee_id) && medAdminTypeIds.has(r.training_type_id) && (r.status === "expired" || r.status === "missing")
-    );
-    const trainerBadRecords = rangedRecords.filter(
-      (r) => trainerIds.has(r.employee_id) && trainerTypeIds.has(r.training_type_id) && (r.status === "expired" || r.status === "missing")
-    );
-
-    const currentYear = new Date().getFullYear();
-    const yearPracticums = rangedPracticums.filter((p) => p.practicum_year === currentYear);
-    const pendingPracticums = yearPracticums.filter((p) => p.status !== "compliant");
-
-    const missingDocsRecords = rangedRecords.filter((r) => r.status === "missing" && r.document_required);
-
-    const criticalAlerts = byFacility(ctx.alerts, ctx.facilityId).filter((a) => a.severity === "critical");
-
-    const checks: { check: string; status: string; detail: string }[] = [
-      {
-        check: "Overall Training Compliance",
-        status: overallComplianceScore >= 90 ? "pass" : overallComplianceScore >= 75 ? "warning" : "fail",
-        detail: `${compliantCount} of ${total} records compliant (${overallComplianceScore}%)`,
-      },
-      {
-        check: "Expired Training Records",
-        status: expiredCount === 0 ? "pass" : "fail",
-        detail: `${expiredCount} expired record(s) require immediate renewal`,
-      },
-      {
-        check: "Medication Administration Training",
-        status: medAdminBadRecords.length === 0 ? "pass" : "fail",
-        detail: `${medAdminBadRecords.length} of ${medAdminStaff.length} med admin staff have expired or missing training`,
-      },
-      {
-        check: "Trainer Certification",
-        status: trainerBadRecords.length === 0 ? "pass" : "fail",
-        detail: `${trainerBadRecords.length} of ${trainerStaff.length} designated trainers have expired or missing certification`,
-      },
-      {
-        check: "Annual Practicum Completion",
-        status: pendingPracticums.length === 0 ? "pass" : "warning",
-        detail: `${pendingPracticums.length} of ${yearPracticums.length} ${currentYear} practicums pending`,
-      },
-      {
-        check: "Required Documentation",
-        status: missingDocsRecords.length === 0 ? "pass" : "warning",
-        detail: `${missingDocsRecords.length} record(s) missing required documentation`,
-      },
-      {
-        check: "Open Critical Alerts",
-        status: criticalAlerts.length === 0 ? "pass" : "fail",
-        detail: `${criticalAlerts.length} open critical alert(s)`,
-      },
-    ];
-
-    const passCount = checks.filter((c) => c.status === "pass").length;
-    const surveyReadinessScore = pct(passCount, checks.length);
-
-    summaryCards.push(
-      { label: "Readiness Score", value: `${surveyReadinessScore}%`, variant: complianceVariant(surveyReadinessScore) },
-      { label: "Compliance Score", value: `${overallComplianceScore}%`, variant: complianceVariant(overallComplianceScore) },
-      { label: "Active Staff", value: scopedEmployees.length },
-      { label: "Med Admin Staff", value: medAdminStaff.length }
-    );
-
-    return {
-      headers: ["Check", "Status", "Detail"],
-      rows: checks.map((c) => [c.check, c.status, c.detail]),
-      summaryCards,
-    };
-  }
-
-  if (reportId === "expired-training") {
-    const records = scopedRecords.filter((r) => r.status === "expired" && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo));
-    summaryCards.push({ label: "Expired Records", value: records.length, variant: records.length > 0 ? "danger" : "success" });
-    return { headers: TRAINING_RECORD_HEADERS, rows: trainingRecordRows(records, employeeById, trainingTypeById), summaryCards };
-  }
-
-  if (reportId === "due-soon") {
-    const records = scopedRecords.filter((r) => r.status === "due_soon" && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo));
-    summaryCards.push({ label: "Due Soon Records", value: records.length, variant: records.length > 0 ? "warning" : "success" });
-    return { headers: TRAINING_RECORD_HEADERS, rows: trainingRecordRows(records, employeeById, trainingTypeById), summaryCards };
-  }
-
-  if (reportId === "medication-administration") {
-    const medAdminEmployees = scopedEmployees.filter((e) => e.administers_medications);
-    const medAdminIds = new Set(medAdminEmployees.map((e) => e.id));
-    const medAdminTypeIds = new Set(
-      ctx.trainingTypes.filter((t) => t.is_active && t.applies_to_administers_meds).map((t) => t.id)
-    );
-    const records = scopedRecords.filter(
-      (r) => medAdminIds.has(r.employee_id) && medAdminTypeIds.has(r.training_type_id) && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo)
-    );
-    summaryCards.push(
-      { label: "Med Admin Staff", value: medAdminEmployees.length },
-      { label: "Training Records", value: records.length }
-    );
-    return {
-      headers: ["Employee", "Job Title", "Hire Date", "Training Type", "Completion", "Due Date", "Status"],
-      rows: records.map((r) => {
-        const e = employeeById.get(r.employee_id);
-        return [
-          e ? `${e.first_name} ${e.last_name}` : r.employee_id,
-          e?.job_title ?? "",
-          e?.hire_date ?? "",
-          trainingTypeById.get(r.training_type_id)?.name ?? "",
-          r.completion_date ?? "",
-          r.due_date ?? "",
-          r.status,
-        ];
-      }),
-      summaryCards,
-    };
-  }
-
-  if (reportId === "training-matrix") {
-    const matrixTypes = ctx.trainingTypes.filter((t) => t.is_active);
-    if (scopedEmployees.length === 0 || matrixTypes.length === 0) return { headers: [], rows: [], summaryCards: [] };
-
-    const facilityTypeById = new Map(ctx.facilities.map((f) => [f.id, f.facility_type]));
-    const appliesToEmployee = (t: TrainingType, e: Employee): boolean =>
-      t.applies_to_facility_type === "BOTH" ||
-      t.applies_to_facility_type === (e.facility_id ? facilityTypeById.get(e.facility_id) : undefined);
-
-    const recordsByKey = new Map<string, TrainingRecord[]>();
-    for (const r of scopedRecords) {
-      const key = `${r.employee_id}:${r.training_type_id}`;
-      const arr = recordsByKey.get(key);
-      if (arr) arr.push(r);
-      else recordsByKey.set(key, [r]);
-    }
-    const latestStatus = (employeeId: string, typeId: string): string => {
-      const arr = recordsByKey.get(`${employeeId}:${typeId}`);
-      if (!arr || arr.length === 0) return "no_record";
-      const sorted = [...arr].sort((a, b) => {
-        const da = a.due_date ? new Date(a.due_date).getTime() : 0;
-        const db = b.due_date ? new Date(b.due_date).getTime() : 0;
-        return db - da;
-      });
-      return sorted[0].status;
-    };
-    // A training type not scoped to this employee's facility type shouldn't be reported as a
-    // missing requirement -- only recast the synthetic "no_record" placeholder; a real record
-    // (e.g. a manually-tracked one) always wins regardless of scope.
-    const cellStatus = (e: Employee, t: TrainingType): string => {
-      const status = latestStatus(e.id, t.id);
-      return status === "no_record" && !appliesToEmployee(t, e) ? "not_applicable" : status;
-    };
-
-    return {
-      headers: ["Employee", "Job Title", ...matrixTypes.map((t) => t.name)],
-      rows: scopedEmployees.map((e) => [
-        `${e.first_name} ${e.last_name}`,
-        e.job_title ?? "",
-        ...matrixTypes.map((t) => cellStatus(e, t)),
-      ]),
-      summaryCards: [
-        { label: "Employees", value: scopedEmployees.length },
-        { label: "Training Types", value: matrixTypes.length },
-      ],
-    };
-  }
-
-  if (reportId === "practicum-status") {
-    const rangedPracticums = scopedPracticums.filter((p) => inDateRange(p.due_date, ctx.dateFrom, ctx.dateTo));
-    const medAdminEmployees = scopedEmployees.filter((e) => e.administers_medications);
-    const compliantCount = rangedPracticums.filter((p) => p.status === "compliant").length;
-    const pendingCount = rangedPracticums.length - compliantCount;
-    summaryCards.push(
-      { label: "Med Admin Staff", value: medAdminEmployees.length },
-      { label: "Compliant", value: compliantCount, variant: "success" },
-      { label: "Pending", value: pendingCount, variant: pendingCount > 0 ? "warning" : "success" }
-    );
-    return {
-      headers: ["Employee", "Year", "Status", "Completion Date"],
-      rows: rangedPracticums.map((p) => {
-        const e = employeeById.get(p.employee_id);
-        return [e ? `${e.first_name} ${e.last_name}` : p.employee_id, String(p.practicum_year), p.status, p.completion_date ?? ""];
-      }),
-      summaryCards,
-    };
-  }
-
-  if (reportId === "annual-practicum") {
-    const rangedPracticums = scopedPracticums.filter((p) => inDateRange(p.due_date, ctx.dateFrom, ctx.dateTo));
-    const completed = rangedPracticums.filter((p) => p.status === "compliant").length;
-    const pending = rangedPracticums.length - completed;
-    summaryCards.push(
-      { label: "Total Required", value: rangedPracticums.length },
-      { label: "Completed", value: completed, variant: "success" },
-      { label: "Pending", value: pending, variant: pending > 0 ? "warning" : "success" }
-    );
-    return {
-      headers: ["Employee", "Year", "Status", "Completion Date", "Observed By", "MAR Review", "Direct Observation"],
-      rows: rangedPracticums.map((p) => {
-        const e = employeeById.get(p.employee_id);
-        return [
-          e ? `${e.first_name} ${e.last_name}` : p.employee_id,
-          String(p.practicum_year),
-          p.status,
-          p.completion_date ?? "",
-          p.observed_by ?? "",
-          p.mar_review_completed ? "Yes" : "No",
-          p.direct_observation_completed ? "Yes" : "No",
-        ];
-      }),
-      summaryCards,
-    };
-  }
-
-  if (reportId === "annual-hours" || reportId === "training-hours") {
-    const scopedBuckets = byFacility(ctx.hourBuckets, ctx.facilityId);
-    const currentYear = new Date().getFullYear();
-    const fromYear = ctx.dateFrom ? new Date(ctx.dateFrom).getFullYear() : undefined;
-    const toYear = ctx.dateTo ? new Date(ctx.dateTo).getFullYear() : undefined;
-    const buckets = scopedBuckets.filter((b) => {
-      if (fromYear !== undefined && b.training_year < fromYear) return false;
-      if (toYear !== undefined && b.training_year > toYear) return false;
-      if (fromYear === undefined && toYear === undefined && reportId === "annual-hours") return b.training_year === currentYear;
-      return true;
-    });
-    const compliantCount = buckets.filter((b) => b.status === "compliant").length;
-    const incompleteCount = buckets.length - compliantCount;
-    const staffTracked = new Set(buckets.map((b) => b.employee_id)).size;
-    summaryCards.push(
-      { label: "Staff Tracked", value: staffTracked },
-      { label: "Compliant Buckets", value: compliantCount, variant: "success" },
-      { label: "Incomplete Buckets", value: incompleteCount, variant: incompleteCount > 0 ? "warning" : "success" }
-    );
-    return {
-      headers: ["Employee", "Bucket", "Year", "Required Hours", "Completed Hours", "Remaining", "Status"],
-      rows: buckets.map((b) => {
-        const e = employeeById.get(b.employee_id);
-        const req = Number(b.required_hours ?? 0);
-        const comp = Number(b.completed_hours ?? 0);
-        return [
-          e ? `${e.first_name} ${e.last_name}` : b.employee_id,
-          formatBucketType(b.bucket_type),
-          String(b.training_year),
-          String(req),
-          String(comp),
-          String(Math.max(0, req - comp)),
-          b.status,
-        ];
-      }),
-      summaryCards,
-    };
-  }
-
-  if (reportId === "trainer-certification") {
-    const trainers = scopedEmployees.filter((e) => e.trainer_status);
-    const trainerIds = new Set(trainers.map((e) => e.id));
-    const trainerTypeIds = new Set(
-      ctx.trainingTypes.filter((t) => t.is_active && t.applies_to_trainers).map((t) => t.id)
-    );
-    const records = scopedRecords.filter(
-      (r) => trainerIds.has(r.employee_id) && trainerTypeIds.has(r.training_type_id) && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo)
-    );
-    summaryCards.push(
-      { label: "Trainers", value: trainers.length },
-      { label: "Training Records", value: records.length }
-    );
-    return {
-      headers: ["Employee", "Job Title", "Training Type", "Completion", "Due Date", "Status"],
-      rows: records.map((r) => {
-        const e = employeeById.get(r.employee_id);
-        return [
-          e ? `${e.first_name} ${e.last_name}` : r.employee_id,
-          e?.job_title ?? "",
-          trainingTypeById.get(r.training_type_id)?.name ?? "",
-          r.completion_date ?? "",
-          r.due_date ?? "",
-          r.status,
-        ];
-      }),
-      summaryCards,
-    };
-  }
-
-  if (reportId === "new-employee-training") {
-    const cutoff = new Date(Date.now() - 90 * DAY_MS);
-    const newHires = scopedEmployees.filter((e) => e.hire_date && new Date(e.hire_date) >= cutoff);
-    const newHireIds = new Set(newHires.map((e) => e.id));
-    const records = scopedRecords.filter((r) => newHireIds.has(r.employee_id) && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo));
-    summaryCards.push(
-      { label: "New Employees", value: newHires.length },
-      { label: "Training Records", value: records.length }
-    );
-    return {
-      headers: ["Employee", "Job Title", "Hire Date", "Training Type", "Completion", "Due Date", "Status"],
-      rows: records.map((r) => {
-        const e = employeeById.get(r.employee_id);
-        return [
-          e ? `${e.first_name} ${e.last_name}` : r.employee_id,
-          e?.job_title ?? "",
-          e?.hire_date ?? "",
-          trainingTypeById.get(r.training_type_id)?.name ?? "",
-          r.completion_date ?? "",
-          r.due_date ?? "",
-          r.status,
-        ];
-      }),
-      summaryCards,
-    };
-  }
-
-  if (reportId === "employee-transcript") {
-    const employee = ctx.employeeIdOverride ? employeeById.get(ctx.employeeIdOverride) : undefined;
-    const records = ctx.employeeIdOverride
-      ? ctx.trainingRecords.filter(
-          (r) => r.employee_id === ctx.employeeIdOverride && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo)
-        )
-      : [];
-    const practicums = ctx.employeeIdOverride
-      ? ctx.practicums.filter((p) => p.employee_id === ctx.employeeIdOverride && inDateRange(p.due_date, ctx.dateFrom, ctx.dateTo))
-      : [];
-    summaryCards.push(
-      { label: "Employee", value: employee ? `${employee.first_name} ${employee.last_name}` : "Unknown" },
-      { label: "Training Records", value: records.length },
-      { label: "Practicums", value: practicums.length }
-    );
-    return {
-      headers: ["Training Type", "Completion Date", "Due Date", "Status", "Trainer", "Hours", "Method"],
-      rows: records.map((r) => [
-        trainingTypeById.get(r.training_type_id)?.name ?? "",
-        r.completion_date ?? "",
-        r.due_date ?? "",
-        r.status,
-        r.trainer_name ?? "",
-        r.hours != null ? String(r.hours) : "",
-        (r.completion_method ?? "").replace(/_/g, " "),
-      ]),
-      summaryCards,
-    };
-  }
-
-  if (reportId === "expiring-certifications") {
-    const now = new Date();
-    const cutoff = new Date(now.getTime() + 90 * DAY_MS);
-    const records = scopedRecords.filter((r) => {
-      if (!r.due_date) return false;
-      const due = new Date(r.due_date);
-      return due >= now && due <= cutoff && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo);
-    });
-    summaryCards.push({ label: "Expiring (90 days)", value: records.length, variant: records.length > 0 ? "warning" : "success" });
-    return { headers: TRAINING_RECORD_HEADERS, rows: trainingRecordRows(records, employeeById, trainingTypeById), summaryCards };
-  }
-
-  if (reportId === "missing-documents") {
-    const records = scopedRecords.filter(
-      (r) => r.status === "missing" && r.document_required && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo)
-    );
-    summaryCards.push({ label: "Missing Documents", value: records.length, variant: records.length > 0 ? "warning" : "success" });
-    return { headers: TRAINING_RECORD_HEADERS, rows: trainingRecordRows(records, employeeById, trainingTypeById), summaryCards };
-  }
-
-  if (reportId === "document-audit") {
-    const rangedDocuments = scopedDocuments.filter((d) => inDateRange(d.created_at, ctx.dateFrom, ctx.dateTo));
-    const recordsRequiringDocs = scopedRecords.filter(
-      (r) => r.status === "missing" && r.document_required && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo)
-    ).length;
-    summaryCards.push(
-      { label: "Total Documents", value: rangedDocuments.length },
-      { label: "Records Need Docs", value: recordsRequiringDocs, variant: recordsRequiringDocs > 0 ? "warning" : "success" }
-    );
-    return {
-      headers: ["File Name", "Type", "Uploaded By", "Created"],
-      rows: rangedDocuments.map((d) => {
-        const uploader = d.uploaded_by_profile_id ? profileById.get(d.uploaded_by_profile_id) : undefined;
-        return [
-          d.file_name,
-          d.document_type,
-          uploader ? `${uploader.first_name} ${uploader.last_name}` : d.uploaded_by_profile_id ?? "",
-          d.created_at,
-        ];
-      }),
-      summaryCards,
-    };
-  }
-
-  if (reportId === "overdue-training") {
-    const expiredRecords = scopedRecords.filter((r) => r.status === "expired" && inDateRange(r.due_date, ctx.dateFrom, ctx.dateTo));
-    const expiredPracticums = scopedPracticums.filter((p) => p.status === "expired" && inDateRange(p.due_date, ctx.dateFrom, ctx.dateTo));
-    const rows: string[][] = [
-      ...expiredRecords.map((r) => {
-        const e = employeeById.get(r.employee_id);
-        return [
-          e ? `${e.first_name} ${e.last_name}` : r.employee_id,
-          e?.job_title ?? "",
-          "Training",
-          trainingTypeById.get(r.training_type_id)?.name ?? "",
-          r.due_date ?? "",
-          r.status,
-        ];
-      }),
-      ...expiredPracticums.map((p) => {
-        const e = employeeById.get(p.employee_id);
-        return [
-          e ? `${e.first_name} ${e.last_name}` : p.employee_id,
-          e?.job_title ?? "",
-          "Practicum",
-          `Annual Practicum ${p.practicum_year}`,
-          p.due_date ?? "",
-          p.status,
-        ];
-      }),
-    ];
-    summaryCards.push({ label: "Overdue Items", value: rows.length, variant: rows.length > 0 ? "danger" : "success" });
-    return { headers: ["Employee", "Job Title", "Type", "Item", "Due Date", "Status"], rows, summaryCards };
-  }
-
-  if (reportId === "credential-status") {
-    const scopedCredentials = byFacility(ctx.credentials, ctx.facilityId).filter((c) =>
-      inDateRange(c.expiration_date, ctx.dateFrom, ctx.dateTo)
-    );
-    const compliantCount = scopedCredentials.filter((c) => c.status === "compliant").length;
-    const expiredCount = scopedCredentials.filter((c) => c.status === "expired").length;
-    const dueSoonCount = scopedCredentials.filter((c) => c.status === "due_soon").length;
-    summaryCards.push(
-      { label: "Total Credentials", value: scopedCredentials.length },
-      { label: "Compliant", value: compliantCount, variant: "success" },
-      { label: "Expired", value: expiredCount, variant: expiredCount > 0 ? "danger" : "success" },
-      { label: "Due Soon", value: dueSoonCount, variant: dueSoonCount > 0 ? "warning" : "success" }
-    );
-    return {
-      headers: ["Employee", "Credential", "Number", "Expiration", "Status"],
-      rows: scopedCredentials.map((c) => {
-        const e = employeeById.get(c.employee_id);
-        return [
-          e ? `${e.last_name}, ${e.first_name}` : `Employee #${c.employee_id.slice(0, 8)}`,
-          c.credential_label || c.credential_type.replace(/_/g, " "),
-          c.credential_number ?? "—",
-          c.expiration_date ?? "No expiration",
-          c.status,
-        ];
-      }),
-      summaryCards,
-    };
-  }
-
-  if (reportId === "incident-log") {
-    const scopedIncidents = byFacility(ctx.incidents, ctx.facilityId).filter((i) =>
-      inDateRange(i.occurred_at, ctx.dateFrom, ctx.dateTo)
-    );
-    const openCount = scopedIncidents.filter((i) => i.status !== "closed").length;
-    const criticalCount = scopedIncidents.filter((i) => i.severity === "critical").length;
-    summaryCards.push(
-      { label: "Total Incidents", value: scopedIncidents.length },
-      { label: "Open", value: openCount, variant: openCount > 0 ? "warning" : "success" },
-      { label: "Critical", value: criticalCount, variant: criticalCount > 0 ? "danger" : "success" }
-    );
-    const facilityNameById = new Map(ctx.facilities.map((f) => [f.id, f.name]));
-    return {
-      headers: ["Occurred", "Facility", "Type", "Severity", "Status"],
-      rows: scopedIncidents.map((i) => [
-        new Date(i.occurred_at).toLocaleString(),
-        facilityNameById.get(i.facility_id) ?? "—",
-        i.incident_type.replace(/_/g, " "),
-        i.severity,
-        i.status,
-      ]),
-      summaryCards,
-    };
-  }
-
-  if (reportId === "incident-notification-register") {
-    const incidentById = new Map(ctx.incidents.map((i) => [i.id, i]));
-    const facilityNameById = new Map(ctx.facilities.map((f) => [f.id, f.name]));
-    const scopedNotifications = ctx.incidentNotifications
-      .filter((n) => {
-        const incident = incidentById.get(n.incident_id);
-        if (!incident) return false;
-        if (ctx.facilityId !== "all" && incident.facility_id !== ctx.facilityId) return false;
-        return inDateRange(n.due_at, ctx.dateFrom, ctx.dateTo);
-      })
-      .sort((a, b) => (a.due_at < b.due_at ? 1 : -1));
-    const completedCount = scopedNotifications.filter((n) => n.status === "completed").length;
-    const overdueCount = scopedNotifications.filter((n) => n.status === "overdue").length;
-    summaryCards.push(
-      { label: "Total Notifications", value: scopedNotifications.length },
-      { label: "Completed", value: completedCount, variant: "success" },
-      { label: "Overdue", value: overdueCount, variant: overdueCount > 0 ? "danger" : "success" }
-    );
-    return {
-      headers: ["Incident", "Facility", "Notification Type", "Due", "Completed", "Method", "Recipient", "Reference #", "Status"],
-      rows: scopedNotifications.map((n) => {
-        const incident = incidentById.get(n.incident_id);
-        return [
-          incident ? `${incident.incident_type.replace(/_/g, " ")} (${new Date(incident.occurred_at).toLocaleDateString()})` : n.incident_id,
-          incident ? facilityNameById.get(incident.facility_id) ?? "—" : "—",
-          n.notification_type.replace(/_/g, " "),
-          new Date(n.due_at).toLocaleString(),
-          n.completed_at ? new Date(n.completed_at).toLocaleString() : "",
-          n.notification_method ?? "",
-          n.recipient ?? "",
-          n.reference_number ?? "",
-          n.status,
-        ];
-      }),
-      summaryCards,
-    };
-  }
-
-  if (reportId === "inspection-compliance") {
-    const scopedItems = byFacility(ctx.inspectionItems, ctx.facilityId).filter(
-      (i) => i.is_active && inDateRange(i.next_due_date, ctx.dateFrom, ctx.dateTo)
-    );
-    const compliantCount = scopedItems.filter((i) => i.status === "compliant").length;
-    const expiredCount = scopedItems.filter((i) => i.status === "expired").length;
-    const dueSoonCount = scopedItems.filter((i) => i.status === "due_soon").length;
-    summaryCards.push(
-      { label: "Total Items", value: scopedItems.length },
-      { label: "Compliant", value: compliantCount, variant: "success" },
-      { label: "Overdue", value: expiredCount, variant: expiredCount > 0 ? "danger" : "success" },
-      { label: "Due Soon", value: dueSoonCount, variant: dueSoonCount > 0 ? "warning" : "success" }
-    );
-    const facilityNameById = new Map(ctx.facilities.map((f) => [f.id, f.name]));
-    return {
-      headers: ["Facility", "Item", "Type", "Next Due", "Status"],
-      rows: scopedItems.map((i) => [
-        facilityNameById.get(i.facility_id) ?? "—",
-        i.label,
-        i.item_type.replace(/_/g, " "),
-        i.next_due_date ?? "—",
-        i.status,
-      ]),
-      summaryCards,
-    };
-  }
-
-  return { headers: [], rows: [], summaryCards: [] };
 }
 
 function toCsv(headers: string[], rows: string[][]): string {
@@ -1179,14 +398,53 @@ function downloadCsv(csv: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-// A View/CSV request made before its report's datasets (per REPORT_DATASETS) finished loading;
-// see the pendingAction state + effect in the component below.
-interface PendingAction {
-  report: ReportDef;
-  action: "view" | "csv";
-  employeeIdOverride?: string;
-  dateFrom: string;
-  dateTo: string;
+function parsePagedReport(value: unknown): PagedReportData {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("The report service returned an invalid response.");
+  }
+  const result = value as Record<string, unknown>;
+  const headers = Array.isArray(result.headers) ? result.headers.map(String) : null;
+  const rows = Array.isArray(result.rows)
+    ? result.rows.map((row) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : null))
+    : null;
+  const summaryCards = Array.isArray(result.summaryCards) ? result.summaryCards : null;
+  if (!headers || !rows || rows.some((row) => row === null) || !summaryCards) {
+    throw new Error("The report service returned an invalid response.");
+  }
+  return {
+    headers,
+    rows: rows as string[][],
+    summaryCards: summaryCards as SummaryCard[],
+    generatedAt: typeof result.generatedAt === "string" ? result.generatedAt : new Date().toISOString(),
+    totalRows: Number(result.totalRows ?? rows.length),
+    pageSize: Number(result.pageSize ?? rows.length),
+    pageOffset: Number(result.pageOffset ?? 0),
+    hasMore: result.hasMore === true,
+  };
+}
+
+async function requestReportPage(
+  report: ReportDef,
+  options: {
+    facilityId: string;
+    employeeId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    limit: number;
+    offset: number;
+  },
+): Promise<PagedReportData> {
+  const { data, error } = await supabase.rpc("generate_paged_compliance_report", {
+    p_report_id: report.id,
+    p_facility_id: options.facilityId === "all" ? undefined : options.facilityId,
+    p_employee_id: options.employeeId,
+    p_date_from: options.dateFrom || undefined,
+    p_date_to: options.dateTo || undefined,
+    p_limit: options.limit,
+    p_offset: options.offset,
+  });
+  if (error) throw error;
+  return parsePagedReport(data);
 }
 
 export default function Reports() {
@@ -1202,24 +460,18 @@ export default function Reports() {
   const [exportingPayroll, setExportingPayroll] = useState(false);
   const [pendingReport, setPendingReport] = useState<ReportDef | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("none");
+  const [employeeSearch, setEmployeeSearch] = useState("");
   // The report the shared date-range control (and the per-report query gating below) currently
   // pertains to. Defaults to the first report so the "Filtering by:" label and dataset fetching
   // have a sensible starting point before the user has clicked anything. Changing it always
   // clears dateFrom/dateTo (see selectReport) so a range typed in for one field never silently
   // carries over onto a differently-named field on a different report.
   const [selectedReportId, setSelectedReportId] = useState<string>(ALL_REPORTS[0].id);
-  // A View/CSV click on a report whose datasets aren't loaded yet queues here instead of
-  // generating from an incomplete/empty context; the effect further down fires it automatically
-  // as soon as everything that report needs has actually arrived.
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-
   const [activeReport, setActiveReport] = useState<ReportDef | null>(null);
-  const [reportData, setReportData] = useState<{
-    headers: string[];
-    rows: string[][];
-    summaryCards: SummaryCard[];
-    generatedAt: string;
-  } | null>(null);
+  const [activeReportRequest, setActiveReportRequest] = useState<ActiveReportRequest | null>(null);
+  const [reportData, setReportData] = useState<PagedReportData | null>(null);
+  const [reportLoadingId, setReportLoadingId] = useState<string | null>(null);
+  const [exportingReportId, setExportingReportId] = useState<string | null>(null);
 
   const { toast } = useToast();
   const { user } = useAuth();
@@ -1239,181 +491,34 @@ export default function Reports() {
   // Facilities always fetch: the facility picker below and the "Filtered to X" label are
   // page-level chrome, not tied to any single report.
   const facilitiesQuery = useListFacilities({});
-
-  // The other 13 datasets buildReport() can draw on, gated to only the reports that actually
-  // need them (REPORT_DATASETS) -- addresses "14 unbounded queries fire on mount regardless of
-  // which single report is wanted." useListEmployees()/useListTrainingRecords()/etc. don't
-  // expose an `enabled` option, so these call useQuery directly with the exact same
-  // queryKey/queryFn those hooks use internally, so they stay a cache-compatible stand-in for
-  // them (e.g. this still shares a cache entry with the Employees page's useListEmployees({})).
-  const employeesQuery = useQuery({
-    queryKey: ["employees", {}],
+  const employeePickerQuery = useQuery({
+    queryKey: ["report-employee-picker", facilityId, employeeSearch],
+    enabled: !!pendingReport,
     queryFn: async () => {
-      const { data, error } = await supabase.from("employees").select("*").order("last_name");
+      let query = supabase
+        .from("employees")
+        .select("id, first_name, last_name, job_title")
+        .eq("status", "active")
+        .eq("is_synthetic", false)
+        .order("last_name")
+        .order("first_name")
+        .limit(50);
+      if (facilityId !== "all") query = query.eq("facility_id", facilityId);
+      const term = employeeSearch.trim();
+      if (term) {
+        const pattern = escapeOrValue(`%${term}%`);
+        query = query.or(
+          `first_name.ilike.${pattern},last_name.ilike.${pattern},employee_number.ilike.${pattern}`,
+        );
+      }
+      const { data, error } = await query;
       if (error) throw error;
-      return data;
+      return data ?? [];
     },
-    enabled: reportNeeds(selectedReportId, "employees"),
-  });
-  const trainingTypesQuery = useQuery({
-    queryKey: ["training_types", {}],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("training_types").select("*").order("sort_order").order("name");
-      if (error) throw error;
-      return data;
-    },
-    enabled: reportNeeds(selectedReportId, "trainingTypes"),
-  });
-  const trainingRecordsQuery = useQuery({
-    queryKey: ["training_records", {}],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("employee_training_records").select("*").order("due_date");
-      if (error) throw error;
-      return data;
-    },
-    enabled: reportNeeds(selectedReportId, "trainingRecords"),
-  });
-  const practicumsQuery = useQuery({
-    queryKey: ["practicums", {}],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("practicums").select("*").order("due_date");
-      if (error) throw error;
-      return data;
-    },
-    enabled: reportNeeds(selectedReportId, "practicums"),
-  });
-  const documentsQuery = useQuery({
-    // Same queryKey useListDocuments({}) uses (see useDocuments.ts) -- kept select-shape-identical
-    // to it ("*, employees(...)") on purpose, since two queries sharing a cache slot with
-    // different shapes means whichever runs second serves its shape to both consumers.
-    queryKey: ["documents", {}],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("training_documents")
-        .select("*, employees(id, first_name, last_name)")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: reportNeeds(selectedReportId, "documents"),
-  });
-  const alertsQuery = useQuery({
-    queryKey: ["alerts", { status: "open" }],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("alerts").select("*").order("created_at", { ascending: false }).eq("status", "open");
-      if (error) throw error;
-      return data;
-    },
-    enabled: reportNeeds(selectedReportId, "alerts"),
-  });
-  const hourBucketsQuery = useQuery({
-    queryKey: ["training_hour_buckets", {}],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("employee_training_hour_buckets")
-        .select("*")
-        .order("training_year", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: reportNeeds(selectedReportId, "hourBuckets"),
-  });
-  const profilesQuery = useQuery({
-    queryKey: ["profiles", {}],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("*").order("last_name");
-      if (error) throw error;
-      return data;
-    },
-    enabled: reportNeeds(selectedReportId, "profiles"),
-  });
-  const credentialsQuery = useQuery({
-    queryKey: ["employee_credentials", {}],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("employee_credentials").select("*").order("expiration_date");
-      if (error) throw error;
-      return data;
-    },
-    enabled: reportNeeds(selectedReportId, "credentials"),
-  });
-  const incidentsQuery = useQuery({
-    queryKey: ["incidents", {}],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("incidents").select("*").order("occurred_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: reportNeeds(selectedReportId, "incidents"),
-  });
-  const incidentNotificationsQuery = useQuery({
-    queryKey: ["incident_notifications", "all", "detailed"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("incident_notifications").select("*").order("due_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: reportNeeds(selectedReportId, "incidentNotifications"),
-  });
-  const inspectionItemsQuery = useQuery({
-    queryKey: ["inspection_items", {}],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("inspection_items").select("*").order("next_due_date");
-      if (error) throw error;
-      return data;
-    },
-    enabled: reportNeeds(selectedReportId, "inspectionItems"),
   });
 
-  const sandboxFacilityIds = new Set((facilitiesQuery.data ?? []).filter((facility) => facility.is_sandbox).map((facility) => facility.id));
-  const outsideSandbox = (row: { facility_id: string | null }) => !row.facility_id || !sandboxFacilityIds.has(row.facility_id);
   const facilities = (facilitiesQuery.data ?? []).filter((facility) => !facility.is_sandbox);
-  const employees = (employeesQuery.data ?? []).filter((employee) => !employee.is_synthetic && outsideSandbox(employee));
-  const trainingTypes = trainingTypesQuery.data ?? [];
-  const trainingRecords = (trainingRecordsQuery.data ?? []).filter(outsideSandbox);
-  const practicums = (practicumsQuery.data ?? []).filter(outsideSandbox);
-  const documents = (documentsQuery.data ?? []).filter(outsideSandbox);
-  const alerts = (alertsQuery.data ?? []).filter(outsideSandbox);
-  const hourBuckets = (hourBucketsQuery.data ?? []).filter(outsideSandbox);
-  // No report reads ctx.organizations (see REPORT_DATASETS above) -- kept on ReportContext for
-  // shape-compatibility, but there's nothing that ever needs it fetched.
-  const organizations: Organization[] = [];
-  const profiles = profilesQuery.data ?? [];
-  const credentials = (credentialsQuery.data ?? []).filter(outsideSandbox);
-  const incidents = (incidentsQuery.data ?? []).filter(outsideSandbox);
-  const reportableIncidentIds = new Set(incidents.map((incident) => incident.id));
-  const incidentNotifications = (incidentNotificationsQuery.data ?? []).filter((notification) => reportableIncidentIds.has(notification.incident_id));
-  const inspectionItems = (inspectionItemsQuery.data ?? []).filter(outsideSandbox);
-
-  // Per-report readiness: true once every dataset that report's buildReport() branch touches
-  // has finished its first fetch. Drives each card's own disabled/spinner state (instead of the
-  // old blanket "all 14 queries" OR) and whether a click can generate immediately or has to
-  // queue in pendingAction until its data arrives.
-  function isReportDataReady(reportId: string): boolean {
-    const needs = REPORT_DATASETS[reportId];
-    if (!needs) return true;
-    const readiness: Record<DatasetKey, boolean> = {
-      facilities: facilitiesQuery.data !== undefined,
-      employees: employeesQuery.data !== undefined,
-      trainingTypes: trainingTypesQuery.data !== undefined,
-      trainingRecords: trainingRecordsQuery.data !== undefined,
-      practicums: practicumsQuery.data !== undefined,
-      documents: documentsQuery.data !== undefined,
-      alerts: alertsQuery.data !== undefined,
-      hourBuckets: hourBucketsQuery.data !== undefined,
-      profiles: profilesQuery.data !== undefined,
-      credentials: credentialsQuery.data !== undefined,
-      incidents: incidentsQuery.data !== undefined,
-      incidentNotifications: incidentNotificationsQuery.data !== undefined,
-      inspectionItems: inspectionItemsQuery.data !== undefined,
-    };
-    for (const key of needs) {
-      if (!readiness[key]) return false;
-    }
-    return true;
-  }
-
-  const facilityName = facilityId !== "all" ? facilities.find((f) => f.id === facilityId)?.name : undefined;
-
+  const facilityName = facilityId !== "all" ? facilities.find((facility) => facility.id === facilityId)?.name : undefined;
   const retentionQuery = useQuery({
     queryKey: ["workforce-retention-metrics", facilityId],
     queryFn: async () => {
@@ -1469,11 +574,7 @@ export default function Reports() {
   const selectedReportForLabel = ALL_REPORTS.find((r) => r.id === selectedReportId);
   const dateFieldLabel = REPORT_DATE_FIELD_LABEL[selectedReportId];
 
-  // The employee-picker dialog (requiresEmployee reports -- currently just Employee Transcript)
-  // opens immediately on click, before selectReport's newly-enabled queries have necessarily
-  // resolved; gate its own Confirm/CSV buttons on that report's readiness instead of the click
-  // that opened it.
-  const pendingReportDataReady = pendingReport ? isReportDataReady(pendingReport.id) : false;
+  const pendingReportDataReady = !!pendingReport && !employeePickerQuery.isLoading;
 
   // Item 1a: switching which report the date-range control applies to always clears it, so a
   // range typed in for one field (e.g. due_date) never silently carries over and gets read as a
@@ -1491,43 +592,29 @@ export default function Reports() {
     [selectedReportId]
   );
 
-  const buildContext = useCallback(
-    (employeeIdOverride?: string, dateFromOverride?: string, dateToOverride?: string): ReportContext => ({
-      facilityId,
-      employeeIdOverride,
-      dateFrom: (dateFromOverride !== undefined ? dateFromOverride : dateFrom) || undefined,
-      dateTo: (dateToOverride !== undefined ? dateToOverride : dateTo) || undefined,
-      facilities,
-      employees,
-      trainingTypes,
-      trainingRecords,
-      practicums,
-      documents,
-      alerts,
-      organizations,
-      profiles,
-      hourBuckets,
-      credentials,
-      incidents,
-      incidentNotifications,
-      inspectionItems,
-    }),
-    [
-      facilityId, dateFrom, dateTo, facilities, employees, trainingTypes, trainingRecords, practicums, documents, alerts, organizations,
-      profiles, hourBuckets, credentials, incidents, incidentNotifications, inspectionItems,
-    ]
-  );
-
-  // dateFromOverride/dateToOverride let callers bypass the dateFrom/dateTo *state* for one
-  // generation -- needed because switching reports (selectReport) and the item-3 default window
-  // are both computed synchronously in the same click that may generate immediately afterward,
-  // before a reset/default setDateFrom("")/setDateTo() call has actually taken effect on state.
   const viewReport = useCallback(
-    (report: ReportDef, employeeIdOverride?: string, dateFromOverride?: string, dateToOverride?: string) => {
+    async (
+      report: ReportDef,
+      employeeIdOverride?: string,
+      dateFromOverride?: string,
+      dateToOverride?: string,
+      pageOffset = 0,
+    ) => {
+      setReportLoadingId(report.id);
       try {
-        const parsed = buildReport(report.id, buildContext(employeeIdOverride, dateFromOverride, dateToOverride));
+        const effectiveFrom = (dateFromOverride !== undefined ? dateFromOverride : dateFrom) || undefined;
+        const effectiveTo = (dateToOverride !== undefined ? dateToOverride : dateTo) || undefined;
+        const parsed = await requestReportPage(report, {
+          facilityId,
+          employeeId: employeeIdOverride,
+          dateFrom: effectiveFrom,
+          dateTo: effectiveTo,
+          limit: 100,
+          offset: pageOffset,
+        });
         setActiveReport(report);
-        setReportData({ ...parsed, generatedAt: new Date().toISOString() });
+        setActiveReportRequest({ report, employeeId: employeeIdOverride, dateFrom: effectiveFrom, dateTo: effectiveTo });
+        setReportData(parsed);
         setPendingReport(null);
       } catch (err) {
         toast({
@@ -1535,19 +622,43 @@ export default function Reports() {
           description: err instanceof Error ? err.message : "Unknown error",
           variant: "destructive",
         });
+      } finally {
+        setReportLoadingId(null);
       }
     },
-    [buildContext, toast]
+    [dateFrom, dateTo, facilityId, toast]
   );
 
   const exportCsv = useCallback(
-    (report: ReportDef, employeeIdOverride?: string, dateFromOverride?: string, dateToOverride?: string) => {
+    async (report: ReportDef, employeeIdOverride?: string, dateFromOverride?: string, dateToOverride?: string) => {
+      setExportingReportId(report.id);
       try {
-        const parsed = buildReport(report.id, buildContext(employeeIdOverride, dateFromOverride, dateToOverride));
-        const csv = toCsv(parsed.headers, parsed.rows);
+        const effectiveFrom = (dateFromOverride !== undefined ? dateFromOverride : dateFrom) || undefined;
+        const effectiveTo = (dateToOverride !== undefined ? dateToOverride : dateTo) || undefined;
+        const rows: string[][] = [];
+        let headers: string[] = [];
+        let offset = 0;
+        let totalRows = 0;
+        do {
+          const page = await requestReportPage(report, {
+            facilityId,
+            employeeId: employeeIdOverride,
+            dateFrom: effectiveFrom,
+            dateTo: effectiveTo,
+            limit: 1000,
+            offset,
+          });
+          if (headers.length === 0) headers = page.headers;
+          rows.push(...page.rows);
+          totalRows = page.totalRows;
+          offset += page.rows.length;
+          if (page.rows.length === 0) break;
+        } while (offset < totalRows);
+
+        const csv = toCsv(headers, rows);
         const timestamp = new Date().toISOString().split("T")[0];
         downloadCsv(csv, `${report.id}-${timestamp}.csv`);
-        toast({ title: `${report.title} exported` });
+        toast({ title: `${report.title} exported`, description: `${rows.length} row(s) exported from bounded server pages.` });
         setPendingReport(null);
       } catch (err) {
         toast({
@@ -1555,40 +666,12 @@ export default function Reports() {
           description: err instanceof Error ? err.message : "Unknown error",
           variant: "destructive",
         });
+      } finally {
+        setExportingReportId(null);
       }
     },
-    [buildContext, toast]
+    [dateFrom, dateTo, facilityId, toast]
   );
-
-  // Item 2 (correctness): a click that lands before its report's datasets have finished loading
-  // queues in pendingAction rather than generating from an incomplete/empty context. This fires
-  // it the moment everything that report needs has actually arrived -- see isReportDataReady
-  // above and the dataset queries' `enabled` flags.
-  useEffect(() => {
-    if (!pendingAction) return;
-    if (!isReportDataReady(pendingAction.report.id)) return;
-    const { report, action, employeeIdOverride, dateFrom: pFrom, dateTo: pTo } = pendingAction;
-    setPendingAction(null);
-    if (action === "view") viewReport(report, employeeIdOverride, pFrom, pTo);
-    else exportCsv(report, employeeIdOverride, pFrom, pTo);
-  }, [
-    pendingAction,
-    facilitiesQuery.data,
-    employeesQuery.data,
-    trainingTypesQuery.data,
-    trainingRecordsQuery.data,
-    practicumsQuery.data,
-    documentsQuery.data,
-    alertsQuery.data,
-    hourBucketsQuery.data,
-    profilesQuery.data,
-    credentialsQuery.data,
-    incidentsQuery.data,
-    incidentNotificationsQuery.data,
-    inspectionItemsQuery.data,
-    viewReport,
-    exportCsv,
-  ]);
 
   const handleSaveCurrentView = () => {
     const report = ALL_REPORTS.find((r) => r.id === selectedReportId);
@@ -1624,14 +707,11 @@ export default function Reports() {
     setDateTo(effTo);
     if (report.requiresEmployee) {
       setSelectedEmployeeId("none");
+      setEmployeeSearch("");
       setPendingReport(report);
       return;
     }
-    if (isReportDataReady(report.id)) {
-      viewReport(report, undefined, effFrom, effTo);
-    } else {
-      setPendingAction({ report, action: "view", employeeIdOverride: undefined, dateFrom: effFrom, dateTo: effTo });
-    }
+    void viewReport(report, undefined, effFrom, effTo);
   };
 
   const handleDeleteView = (definitionId: string, name: string) => {
@@ -1665,16 +745,13 @@ export default function Reports() {
 
     if (report.requiresEmployee) {
       setSelectedEmployeeId("none");
+      setEmployeeSearch("");
       setPendingReport(report);
       return;
     }
 
-    if (isReportDataReady(report.id)) {
-      if (action === "view") viewReport(report, undefined, effFrom, effTo);
-      else exportCsv(report, undefined, effFrom, effTo);
-    } else {
-      setPendingAction({ report, action, employeeIdOverride: undefined, dateFrom: effFrom, dateTo: effTo });
-    }
+    if (action === "view") void viewReport(report, undefined, effFrom, effTo);
+    else void exportCsv(report, undefined, effFrom, effTo);
   };
 
   const handleEmployeeReportAction = (action: "view" | "csv") => {
@@ -1683,21 +760,35 @@ export default function Reports() {
       toast({ title: "Please select an employee", variant: "destructive" });
       return;
     }
-    if (action === "view") viewReport(pendingReport, selectedEmployeeId);
-    else exportCsv(pendingReport, selectedEmployeeId);
+    if (action === "view") void viewReport(pendingReport, selectedEmployeeId);
+    else void exportCsv(pendingReport, selectedEmployeeId);
   };
 
   const handleCloseViewer = () => {
     setActiveReport(null);
+    setActiveReportRequest(null);
     setReportData(null);
   };
 
   const handleExportCurrentCsv = () => {
-    if (!reportData || !activeReport) return;
-    const csv = toCsv(reportData.headers, reportData.rows);
-    const timestamp = new Date().toISOString().split("T")[0];
-    downloadCsv(csv, `${activeReport.id}-${timestamp}.csv`);
-    toast({ title: `${activeReport.title} exported` });
+    if (!activeReportRequest) return;
+    void exportCsv(
+      activeReportRequest.report,
+      activeReportRequest.employeeId,
+      activeReportRequest.dateFrom,
+      activeReportRequest.dateTo,
+    );
+  };
+
+  const handleReportPageChange = (nextOffset: number) => {
+    if (!activeReportRequest) return;
+    void viewReport(
+      activeReportRequest.report,
+      activeReportRequest.employeeId,
+      activeReportRequest.dateFrom,
+      activeReportRequest.dateTo,
+      nextOffset,
+    );
   };
 
   if (activeReport && reportData) {
@@ -1713,6 +804,12 @@ export default function Reports() {
           headers={reportData.headers}
           rows={reportData.rows}
           summaryCards={reportData.summaryCards}
+          totalRows={reportData.totalRows}
+          pageSize={reportData.pageSize}
+          pageOffset={reportData.pageOffset}
+          isPageLoading={reportLoadingId === activeReport.id}
+          isExporting={exportingReportId === activeReport.id}
+          onPageChange={handleReportPageChange}
           onClose={handleCloseViewer}
           onExportCsv={handleExportCurrentCsv}
         />
@@ -1946,7 +1043,7 @@ export default function Reports() {
             &middot; Date range: <strong>{dateFrom || "any"}</strong> to <strong>{dateTo || "any"}</strong>
           </span>
         )}
-        {!isReportDataReady(selectedReportId) && <span className="ml-2 text-xs">(loading report data…)</span>}
+        {reportLoadingId === selectedReportId && <span className="ml-2 text-xs">(generating report page…)</span>}
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -1965,11 +1062,7 @@ export default function Reports() {
           };
           const colors = catColors[report.category] ?? catColors.Compliance;
           const isSelected = report.id === selectedReportId;
-          // Only the currently-selected card can be "busy": selecting a report (see
-          // selectReport, triggered below on click) is what turns its datasets' queries on, so
-          // a not-yet-selected card is never stuck showing a permanent spinner -- clicking it is
-          // exactly what starts loading its data.
-          const cardBusy = isSelected && !isReportDataReady(report.id);
+          const cardBusy = reportLoadingId === report.id || exportingReportId === report.id;
           return (
             <Card
               key={report.id}
@@ -2036,7 +1129,11 @@ export default function Reports() {
                       handleReportAction(report, "csv");
                     }}
                   >
-                    <Download className="h-3.5 w-3.5 mr-1" />
+                    {exportingReportId === report.id ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    ) : (
+                      <Download className="h-3.5 w-3.5 mr-1" />
+                    )}
                     CSV
                   </Button>
                 </div>
@@ -2063,21 +1160,30 @@ export default function Reports() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              Select the employee for this report.
+              Search and select the employee for this report. Results are limited to the first 50 matches.
             </p>
+            <div className="space-y-2">
+              <Label htmlFor="emp-search">Find employee</Label>
+              <Input
+                id="emp-search"
+                value={employeeSearch}
+                onChange={(event) => setEmployeeSearch(event.target.value)}
+                placeholder="Search by name or employee number"
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="emp-select">Employee</Label>
               <Select
                 value={selectedEmployeeId}
                 onValueChange={setSelectedEmployeeId}
-                disabled={employeesQuery.data === undefined}
+                disabled={employeePickerQuery.isLoading}
               >
                 <SelectTrigger id="emp-select">
-                  <SelectValue placeholder={employeesQuery.data === undefined ? "Loading employees…" : "Select an employee..."} />
+                  <SelectValue placeholder={employeePickerQuery.isLoading ? "Loading employees…" : "Select an employee..."} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Select an employee...</SelectItem>
-                  {employees.map((e) => (
+                  {(employeePickerQuery.data ?? []).map((e) => (
                     <SelectItem key={e.id} value={e.id}>
                       {e.first_name} {e.last_name}
                       {e.job_title ? ` — ${e.job_title}` : ""}
@@ -2094,16 +1200,20 @@ export default function Reports() {
             <Button
               variant="outline"
               onClick={() => handleEmployeeReportAction("csv")}
-              disabled={selectedEmployeeId === "none" || !pendingReportDataReady}
+              disabled={selectedEmployeeId === "none" || !pendingReportDataReady || exportingReportId === pendingReport?.id}
             >
-              <Download className="mr-2 h-4 w-4" />
+              {exportingReportId === pendingReport?.id ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" />
+              )}
               CSV
             </Button>
             <Button
               onClick={() => handleEmployeeReportAction("view")}
-              disabled={selectedEmployeeId === "none" || !pendingReportDataReady}
+              disabled={selectedEmployeeId === "none" || !pendingReportDataReady || reportLoadingId === pendingReport?.id}
             >
-              {!pendingReportDataReady ? (
+              {!pendingReportDataReady || reportLoadingId === pendingReport?.id ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Eye className="mr-2 h-4 w-4" />

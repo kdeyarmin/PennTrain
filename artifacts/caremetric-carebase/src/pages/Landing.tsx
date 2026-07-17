@@ -261,7 +261,7 @@ export default function Landing() {
                 <Button
                   asChild
                   size="lg"
-                  className="gap-2 shadow-lg shadow-blue-950/30"
+                  className="gap-2 bg-[#2552b8] text-white shadow-lg shadow-blue-950/30 hover:bg-[#1f469d]"
                   data-testid="button-hero-trial"
                 >
                   <Link href="/signup">

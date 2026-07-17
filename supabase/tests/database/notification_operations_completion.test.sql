@@ -1,5 +1,5 @@
 begin;
-select plan(61);
+select plan(63);
 
 select has_table('public', 'notification_templates', 'versioned notification templates exist');
 select has_table('public', 'notification_channel_policies', 'channel fallback policies exist');
@@ -331,6 +331,36 @@ select results_eq(
   array[2],
   'warning and budget spend thresholds each create one deduplicated alert'
 );
+
+insert into public.notification_deliveries (
+  id, organization_id, profile_id, channel, delivery_type, recipient, status
+) values (
+  '11000000-0000-0000-0000-000000000206', '11000000-0000-0000-0000-000000000001',
+  '11000000-0000-0000-0000-000000000012', 'email', 'digest',
+  'notification-worker-a@test.local', 'processing'
+);
+select public.begin_notification_delivery_attempt(
+  '11000000-0000-0000-0000-000000000206', 'sendgrid', repeat('e', 64)
+);
+select results_eq(
+  $$ select status, error_code from public.notification_deliveries
+     where id = '11000000-0000-0000-0000-000000000206' $$,
+  $$ values ('skipped'::text, 'spend_cap_reached'::text) $$,
+  'the monthly spend cap blocks a delivery before the provider call'
+);
+select results_eq(
+  $$ select count(*)::int from public.notification_delivery_attempts
+     where delivery_id = '11000000-0000-0000-0000-000000000206' $$,
+  array[0],
+  'a spend-capped delivery creates no provider attempt'
+);
+
+-- Leave headroom for the remaining retry and provider-monotonicity scenarios.
+select pg_temp.act_as('11000000-0000-0000-0000-000000000011');
+select public.set_notification_spend_policy(
+  '11000000-0000-0000-0000-000000000001', 0.03, 0.01, 0.01, 80
+);
+reset role;
 
 select pg_temp.act_as('11000000-0000-0000-0000-000000000011');
 select public.set_notification_channel_policy(

@@ -26,7 +26,11 @@ function constantTimeEqual(left: string, right: string): boolean {
   return diff === 0;
 }
 
-export function requireCronRequest(req: Request, corsHeaders: Record<string, string>): Response | null {
+export function requireCronRequest(
+  req: Request,
+  corsHeaders: Record<string, string>,
+  configuredSecret?: string,
+): Response | null {
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
@@ -34,7 +38,7 @@ export function requireCronRequest(req: Request, corsHeaders: Record<string, str
     });
   }
 
-  const expectedSecret = Deno.env.get("CRON_SHARED_SECRET");
+  const expectedSecret = configuredSecret ?? Deno.env.get("CRON_SHARED_SECRET");
   if (!expectedSecret) {
     console.error("CRON_SHARED_SECRET is not configured");
     return new Response(JSON.stringify({ error: "Cron secret is not configured" }), {
