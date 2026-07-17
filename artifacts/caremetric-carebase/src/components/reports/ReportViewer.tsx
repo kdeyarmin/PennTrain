@@ -177,6 +177,8 @@ export function ReportViewer({
                               </div>
                               <span className="text-xs font-medium">{cell}</span>
                             </div>
+                          ) : isDateTimeCell(cell) ? (
+                            <span>{formatDateTime(cell)}</span>
                           ) : isDateCell(cell) ? (
                             <span>{formatDate(cell)}</span>
                           ) : (
@@ -250,6 +252,25 @@ function isPercentCell(header: string): boolean {
 function isDateCell(value: string): boolean {
   if (!value || value.length < 8) return false;
   return /^\d{4}-\d{2}-\d{2}/.test(value);
+}
+
+function isDateTimeCell(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(value);
+}
+
+function formatDateTime(value: string): string {
+  const normalized = value
+    .replace(/^(\d{4}-\d{2}-\d{2}) /, "$1T")
+    .replace(/([+-]\d{2})$/, "$1:00");
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function formatDate(value: string): string {

@@ -51,7 +51,11 @@ export default function Alerts() {
   const inspectionDetailBase = user?.role === "platform_admin" ? "/admin/inspections" : "/app/inspections";
   const [filters, setFilters] = useUrlState(ALERTS_FILTER_DEFAULTS);
   const { status, severity, facilityId, search } = filters;
-  const sortField = filters.sortField as SortField;
+  const sortField: SortField = filters.sortField === "severity"
+    || filters.sortField === "title"
+    || filters.sortField === "createdAt"
+    ? filters.sortField
+    : "createdAt";
   const sortDir = filters.sortDir as "asc" | "desc";
   const page = Math.max(1, Number(filters.page) || 1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());

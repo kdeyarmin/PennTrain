@@ -3154,6 +3154,13 @@ export type Database = {
             referencedRelation: "dhs_violations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "corrective_actions_violation_id_fkey"
+            columns: ["violation_id"]
+            isOneToOne: false
+            referencedRelation: "dhs_violations_search"
+            referencedColumns: ["id"]
+          },
         ]
       }
       course_ai_generations: {
@@ -27971,6 +27978,13 @@ export type Database = {
             referencedRelation: "dhs_violations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "violation_documents_violation_id_fkey"
+            columns: ["violation_id"]
+            isOneToOne: false
+            referencedRelation: "dhs_violations_search"
+            referencedColumns: ["id"]
+          },
         ]
       }
       weight_monitoring_assignments: {
@@ -29288,6 +29302,65 @@ export type Database = {
       }
     }
     Views: {
+      dhs_violations_search: {
+        Row: {
+          citation_ref: string | null
+          citation_topic_id: string | null
+          citation_topic_title: string | null
+          created_at: string | null
+          description: string | null
+          facility_id: string | null
+          id: string | null
+          inspection_date: string | null
+          organization_id: string | null
+          poc_due_date: string | null
+          poc_submitted_at: string | null
+          severity: string | null
+          source_inspection_event_id: string | null
+          status: string | null
+          surveyor_name: string | null
+          updated_at: string | null
+          verified_at: string | null
+          verified_by_profile_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dhs_violations_citation_topic_id_fkey"
+            columns: ["citation_topic_id"]
+            isOneToOne: false
+            referencedRelation: "dhs_citation_topics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dhs_violations_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dhs_violations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dhs_violations_source_inspection_event_id_fkey"
+            columns: ["source_inspection_event_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dhs_violations_verified_by_profile_id_fkey"
+            columns: ["verified_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exclusion_source_health: {
         Row: {
           activated_snapshot_id: string | null

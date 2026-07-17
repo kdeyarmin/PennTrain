@@ -73,5 +73,38 @@ export function usePaginatedDomainList<T = Record<string, unknown>>(name: Domain
       return { rows: (data ?? []) as T[], count: count ?? 0 };
     },
     placeholderData: (previous) => previous,
+    ...(name === "alerts" ? { staleTime: 0, refetchOnWindowFocus: true } : {}),
+  });
+}
+
+export function usePaginatedViolations<T = Record<string, unknown>>(filters: DomainListFilters) {
+  return useQuery({
+    queryKey: ["dhs_violations", "paginated", filters],
+    queryFn: async (): Promise<PaginatedResult<T>> => {
+      let query = supabase
+        .from("dhs_violations_search")
+        .select("*", { count: "exact" });
+      if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
+      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+      if (filters.status) query = query.eq("status", filters.status);
+      if (filters.severity) query = query.eq("severity", filters.severity);
+      const search = filters.search?.trim();
+      if (search) {
+        const like = escapeOrValue(`%${search}%`);
+        query = query.or(
+          ["citation_ref", "description", "citation_topic_title"]
+            .map((column) => `${column}.ilike.${like}`)
+            .join(","),
+        );
+      }
+      query = query
+        .order("inspection_date", { ascending: false })
+        .order("id", { ascending: true });
+      const [from, to] = rangeFor(filters.page, filters.pageSize);
+      const { data, error, count } = await query.range(from, to);
+      if (error) throw error;
+      return { rows: (data ?? []) as unknown as T[], count: count ?? 0 };
+    },
+    placeholderData: (previous) => previous,
   });
 }

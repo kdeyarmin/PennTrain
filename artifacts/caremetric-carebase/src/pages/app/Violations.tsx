@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearch } from "wouter";
 import { useCreateViolation, type Violation, type ViolationInsert } from "@/hooks/useViolations";
-import { usePaginatedDomainList } from "@/hooks/usePaginatedDomainLists";
+import { usePaginatedViolations } from "@/hooks/usePaginatedDomainLists";
 import { useListCitationTopics } from "@/hooks/useCitationTopics";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
@@ -80,7 +80,7 @@ export default function Violations() {
 
   const { data: facilities } = useListFacilities();
   const { data: citationTopics } = useListCitationTopics();
-  const { data: violationsPage, isLoading, isError, error, refetch } = usePaginatedDomainList<Violation>("dhs_violations", {
+  const { data: violationsPage, isLoading, isError, error, refetch } = usePaginatedViolations<Violation>({
     facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
     status: urlState.status !== "all" ? urlState.status : undefined,
     search: urlState.search,

@@ -36,6 +36,17 @@ alter table public.alerts
 create index alerts_org_severity_rank_idx
   on public.alerts(organization_id, severity_rank desc, created_at desc);
 
+-- Keep formal citation-topic titles searchable after moving the violation list
+-- behind PostgREST pagination. SECURITY INVOKER preserves both base tables' RLS.
+create view public.dhs_violations_search
+with (security_invoker = true)
+as
+select v.*, t.title as citation_topic_title
+from public.dhs_violations v
+left join public.dhs_citation_topics t on t.id = v.citation_topic_id;
+revoke all on public.dhs_violations_search from public, anon;
+grant select on public.dhs_violations_search to authenticated;
+
 -- Keep auth.uid() out of the per-row policy execution plan on the employee table,
 -- which is central to most reports and the server-side employee picker.
 alter policy employees_select on public.employees using (
@@ -434,6 +445,7 @@ begin
               from public.employee_training_records r
               where r.employee_id = e.id
                 and r.training_type_id = t.id
+                and (p_facility_id is null or r.facility_id = p_facility_id)
               order by r.due_date desc nulls last, r.created_at desc, r.id desc
               limit 1
             ) latest on true

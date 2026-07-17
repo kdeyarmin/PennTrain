@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -472,6 +472,7 @@ export default function Reports() {
   const [reportData, setReportData] = useState<PagedReportData | null>(null);
   const [reportLoadingId, setReportLoadingId] = useState<string | null>(null);
   const [exportingReportId, setExportingReportId] = useState<string | null>(null);
+  const latestViewRequestId = useRef(0);
 
   const { toast } = useToast();
   const { user } = useAuth();
@@ -497,8 +498,7 @@ export default function Reports() {
     queryFn: async () => {
       let query = supabase
         .from("employees")
-        .select("id, first_name, last_name, job_title")
-        .eq("status", "active")
+        .select("id, first_name, last_name, job_title, status")
         .eq("is_synthetic", false)
         .order("last_name")
         .order("first_name")
@@ -600,6 +600,7 @@ export default function Reports() {
       dateToOverride?: string,
       pageOffset = 0,
     ) => {
+      const requestId = ++latestViewRequestId.current;
       setReportLoadingId(report.id);
       try {
         const effectiveFrom = (dateFromOverride !== undefined ? dateFromOverride : dateFrom) || undefined;
@@ -612,18 +613,20 @@ export default function Reports() {
           limit: 100,
           offset: pageOffset,
         });
+        if (requestId !== latestViewRequestId.current) return;
         setActiveReport(report);
         setActiveReportRequest({ report, employeeId: employeeIdOverride, dateFrom: effectiveFrom, dateTo: effectiveTo });
         setReportData(parsed);
         setPendingReport(null);
       } catch (err) {
+        if (requestId !== latestViewRequestId.current) return;
         toast({
           title: "Failed to generate report",
           description: err instanceof Error ? err.message : "Unknown error",
           variant: "destructive",
         });
       } finally {
-        setReportLoadingId(null);
+        if (requestId === latestViewRequestId.current) setReportLoadingId(null);
       }
     },
     [dateFrom, dateTo, facilityId, toast]
@@ -765,6 +768,8 @@ export default function Reports() {
   };
 
   const handleCloseViewer = () => {
+    latestViewRequestId.current += 1;
+    setReportLoadingId(null);
     setActiveReport(null);
     setActiveReportRequest(null);
     setReportData(null);
@@ -1187,6 +1192,7 @@ export default function Reports() {
                     <SelectItem key={e.id} value={e.id}>
                       {e.first_name} {e.last_name}
                       {e.job_title ? ` — ${e.job_title}` : ""}
+                      {e.status !== "active" ? ` (${e.status.replace(/_/g, " ")})` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -1,5 +1,5 @@
 begin;
-select plan(39);
+select plan(42);
 
 select has_function(
   'public',
@@ -46,6 +46,11 @@ select is(
   'the report function pins an empty search path'
 );
 
+select has_view(
+  'public', 'dhs_violations_search',
+  'the paginated violation feed includes citation-topic search text'
+);
+
 insert into public.organizations(id, name, slug, subscription_status) values
   ('27000000-0000-4000-8000-000000000001', 'Report Org A', 'report-org-a', 'active'),
   ('27000000-0000-4000-8000-000000000002', 'Report Org B', 'report-org-b', 'active');
@@ -55,6 +60,13 @@ insert into public.facilities(id, organization_id, name, facility_type, is_sandb
   ('27000000-0000-4000-8000-000000000012', '27000000-0000-4000-8000-000000000001', 'Report A Two', 'ALR', false, null),
   ('27000000-0000-4000-8000-000000000013', '27000000-0000-4000-8000-000000000001', 'Report Sandbox', 'PCH', true, 1),
   ('27000000-0000-4000-8000-000000000021', '27000000-0000-4000-8000-000000000002', 'Report B One', 'PCH', false, null);
+
+insert into public.dhs_citation_topics(
+  id, chapter, category, title, frequency_weight, sort_order
+) values (
+  '27000000-0000-4000-8000-000000000051', 'both',
+  'Report Search Fixture', 'Needle Citation Topic', 1, 999
+);
 
 insert into auth.users(
   instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,
@@ -110,12 +122,43 @@ insert into public.employee_training_records(
   ('27000000-0000-4000-8000-000000000603', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000012', '27000000-0000-4000-8000-000000000303', '27000000-0000-4000-8000-000000000501', current_date - 5, current_date + 300, 'compliant', false),
   ('27000000-0000-4000-8000-000000000604', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000013', '27000000-0000-4000-8000-000000000304', '27000000-0000-4000-8000-000000000501', current_date - 5, current_date - 1, 'expired', false);
 
+-- Simulate a transferred employee: the older selected-facility record remains
+-- at Facility One after the employee briefly belongs to Facility Two.
+select set_config('app.lifecycle_transition', 'on', true);
+update public.employees
+set facility_id = '27000000-0000-4000-8000-000000000012'
+where id = '27000000-0000-4000-8000-000000000301';
+
+insert into public.employee_training_records(
+  id, organization_id, facility_id, employee_id, training_type_id,
+  completion_date, due_date, status, document_required
+) values (
+  '27000000-0000-4000-8000-000000000605',
+  '27000000-0000-4000-8000-000000000001',
+  '27000000-0000-4000-8000-000000000012',
+  '27000000-0000-4000-8000-000000000301',
+  '27000000-0000-4000-8000-000000000501',
+  current_date - 1, current_date + 400, 'compliant', false
+);
+
+update public.employees
+set facility_id = '27000000-0000-4000-8000-000000000011'
+where id = '27000000-0000-4000-8000-000000000301';
+select set_config('app.lifecycle_transition', 'off', true);
+
 insert into public.alerts(
   organization_id, facility_id, alert_type, title, message, severity
 ) values
   ('27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', 'overdue', 'Info fixture', 'Info fixture', 'info'),
   ('27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', 'overdue', 'Warning fixture', 'Warning fixture', 'warning'),
   ('27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', 'overdue', 'Critical fixture', 'Critical fixture', 'critical');
+
+insert into public.dhs_violations(
+  id, organization_id, facility_id, citation_topic_id, inspection_date,
+  description, severity, status
+) values
+  ('27000000-0000-4000-8000-000000000701', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', '27000000-0000-4000-8000-000000000051', current_date, 'Visible fixture', 'moderate', 'open'),
+  ('27000000-0000-4000-8000-000000000702', '27000000-0000-4000-8000-000000000002', '27000000-0000-4000-8000-000000000021', '27000000-0000-4000-8000-000000000051', current_date, 'Other tenant fixture', 'moderate', 'open');
 
 create or replace function pg_temp.act_as(p_id uuid) returns void
 language plpgsql as $$
@@ -195,6 +238,32 @@ select results_eq(
      order by severity_rank desc $$,
   array['critical', 'warning', 'info'],
   'server-side alert ordering preserves operational severity priority'
+);
+select is(
+  (
+    with report as (
+      select public.generate_paged_compliance_report(
+        'training-matrix', '27000000-0000-4000-8000-000000000011'
+      ) as payload
+    ), target_header as (
+      select (h.position - 1)::integer as column_index
+      from report r
+      cross join lateral jsonb_array_elements_text(r.payload->'headers')
+        with ordinality as h(header, position)
+      where h.header = 'Report Training A'
+    )
+    select r.payload->'rows'->0->>h.column_index
+    from report r cross join target_header h
+  ),
+  'expired',
+  'facility-filtered matrices ignore newer training records from another facility'
+);
+select results_eq(
+  $$ select id::text from public.dhs_violations_search
+     where citation_topic_title ilike '%needle%'
+     order by id $$,
+  array['27000000-0000-4000-8000-000000000701'],
+  'citation-topic search stays server-side and preserves violation tenant RLS'
 );
 
 select lives_ok(
