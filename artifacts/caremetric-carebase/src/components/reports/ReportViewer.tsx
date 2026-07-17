@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Printer, Download, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Loader2, Printer, X } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 
@@ -15,6 +15,12 @@ interface ReportViewerProps {
   headers: string[];
   rows: string[][];
   summaryCards?: { label: string; value: string | number; variant?: "default" | "success" | "warning" | "danger" }[];
+  totalRows?: number;
+  pageSize?: number;
+  pageOffset?: number;
+  isPageLoading?: boolean;
+  isExporting?: boolean;
+  onPageChange?: (offset: number) => void;
   onClose: () => void;
   onExportCsv: () => void;
 }
@@ -29,6 +35,12 @@ export function ReportViewer({
   headers,
   rows,
   summaryCards,
+  totalRows = rows.length,
+  pageSize = rows.length || 1,
+  pageOffset = 0,
+  isPageLoading = false,
+  isExporting = false,
+  onPageChange,
   onClose,
   onExportCsv,
 }: ReportViewerProps) {
@@ -58,8 +70,8 @@ export function ReportViewer({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onExportCsv}>
-            <Download className="h-4 w-4 mr-2" />
+          <Button variant="outline" size="sm" onClick={onExportCsv} disabled={isExporting}>
+            {isExporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
             Export CSV
           </Button>
           <Button size="sm" onClick={handlePrint}>
@@ -138,7 +150,7 @@ export function ReportViewer({
                 <tbody>
                   {rows.map((row, ri) => (
                     <tr key={ri} className={`border-t border-border/60 hover:bg-muted/40 transition-colors ${ri % 2 === 1 ? "bg-muted/30" : ""}`}>
-                      <td className="px-4 py-3 text-muted-foreground text-xs">{ri + 1}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">{pageOffset + ri + 1}</td>
                       {row.map((cell, ci) => (
                         <td key={ci} className={`px-4 py-3 ${getStatusTextColor(cell)}`}>
                           {isStatusCell(headers[ci], cell) ? (
@@ -165,6 +177,8 @@ export function ReportViewer({
                               </div>
                               <span className="text-xs font-medium">{cell}</span>
                             </div>
+                          ) : isDateTimeCell(cell) ? (
+                            <span>{formatDateTime(cell)}</span>
                           ) : isDateCell(cell) ? (
                             <span>{formatDate(cell)}</span>
                           ) : (
@@ -180,8 +194,33 @@ export function ReportViewer({
           </div>
         )}
 
-        <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground print-footer">
-          <p>Showing {rows.length} record{rows.length !== 1 ? "s" : ""}</p>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground print-footer">
+          <p>
+            Showing {totalRows === 0 ? 0 : pageOffset + 1}–{Math.min(pageOffset + rows.length, totalRows)} of {totalRows} record{totalRows !== 1 ? "s" : ""}
+          </p>
+          {onPageChange && totalRows > pageSize && (
+            <div className="flex items-center gap-2 no-print">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={pageOffset === 0 || isPageLoading}
+                onClick={() => onPageChange(Math.max(0, pageOffset - pageSize))}
+              >
+                <ChevronLeft className="mr-1 h-4 w-4" /> Previous
+              </Button>
+              <span>Page {Math.floor(pageOffset / pageSize) + 1} of {Math.max(1, Math.ceil(totalRows / pageSize))}</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={pageOffset + rows.length >= totalRows || isPageLoading}
+                onClick={() => onPageChange(pageOffset + pageSize)}
+              >
+                Next <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
+          )}
           <p>CareMetric CareBase &middot; cmcarebase.com</p>
         </div>
       </div>
@@ -213,6 +252,25 @@ function isPercentCell(header: string): boolean {
 function isDateCell(value: string): boolean {
   if (!value || value.length < 8) return false;
   return /^\d{4}-\d{2}-\d{2}/.test(value);
+}
+
+function isDateTimeCell(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(value);
+}
+
+function formatDateTime(value: string): string {
+  const normalized = value
+    .replace(/^(\d{4}-\d{2}-\d{2}) /, "$1T")
+    .replace(/([+-]\d{2})$/, "$1:00");
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function formatDate(value: string): string {

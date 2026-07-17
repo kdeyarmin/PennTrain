@@ -387,6 +387,7 @@ export type Database = {
           resident_compliance_item_id: string | null
           resolved_at: string | null
           severity: string
+          severity_rank: number | null
           status: string
           title: string
           training_record_id: string | null
@@ -413,6 +414,7 @@ export type Database = {
           resident_compliance_item_id?: string | null
           resolved_at?: string | null
           severity?: string
+          severity_rank?: number | null
           status?: string
           title: string
           training_record_id?: string | null
@@ -439,6 +441,7 @@ export type Database = {
           resident_compliance_item_id?: string | null
           resolved_at?: string | null
           severity?: string
+          severity_rank?: number | null
           status?: string
           title?: string
           training_record_id?: string | null
@@ -3184,6 +3187,13 @@ export type Database = {
             columns: ["violation_id"]
             isOneToOne: false
             referencedRelation: "dhs_violations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "corrective_actions_violation_id_fkey"
+            columns: ["violation_id"]
+            isOneToOne: false
+            referencedRelation: "dhs_violations_search"
             referencedColumns: ["id"]
           },
         ]
@@ -19553,14 +19563,82 @@ export type Database = {
           },
         ]
       }
+      report_schedule_runs: {
+        Row: {
+          audience_count: number
+          completed_at: string
+          created_at: string
+          email_queued_count: number
+          email_skipped_count: number
+          error_message: string | null
+          id: string
+          in_app_count: number
+          organization_id: string
+          schedule_id: string
+          scheduled_for: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          audience_count?: number
+          completed_at: string
+          created_at?: string
+          email_queued_count?: number
+          email_skipped_count?: number
+          error_message?: string | null
+          id?: string
+          in_app_count?: number
+          organization_id: string
+          schedule_id: string
+          scheduled_for: string
+          started_at: string
+          status: string
+        }
+        Update: {
+          audience_count?: number
+          completed_at?: string
+          created_at?: string
+          email_queued_count?: number
+          email_skipped_count?: number
+          error_message?: string | null
+          id?: string
+          in_app_count?: number
+          organization_id?: string
+          schedule_id?: string
+          scheduled_for?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_schedule_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_schedule_runs_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "report_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_schedules: {
         Row: {
           audience: Json
           created_at: string
           created_by: string | null
           cron_expression: string
+          delivery_day_of_month: number | null
+          delivery_day_of_week: number | null
+          delivery_hour: number
+          delivery_minute: number
           delivery_mode: string
           enabled: boolean
+          frequency: string
           id: string
           last_run_at: string | null
           next_run_at: string | null
@@ -19569,14 +19647,20 @@ export type Database = {
           report_version_id: string
           retention_days: number
           time_zone: string
+          updated_at: string
         }
         Insert: {
           audience: Json
           created_at?: string
           created_by?: string | null
           cron_expression: string
+          delivery_day_of_month?: number | null
+          delivery_day_of_week?: number | null
+          delivery_hour: number
+          delivery_minute: number
           delivery_mode: string
           enabled?: boolean
+          frequency: string
           id?: string
           last_run_at?: string | null
           next_run_at?: string | null
@@ -19585,14 +19669,20 @@ export type Database = {
           report_version_id: string
           retention_days: number
           time_zone: string
+          updated_at?: string
         }
         Update: {
           audience?: Json
           created_at?: string
           created_by?: string | null
           cron_expression?: string
+          delivery_day_of_month?: number | null
+          delivery_day_of_week?: number | null
+          delivery_hour?: number
+          delivery_minute?: number
           delivery_mode?: string
           enabled?: boolean
+          frequency?: string
           id?: string
           last_run_at?: string | null
           next_run_at?: string | null
@@ -19601,6 +19691,7 @@ export type Database = {
           report_version_id?: string
           retention_days?: number
           time_zone?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -28486,6 +28577,13 @@ export type Database = {
             referencedRelation: "dhs_violations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "violation_documents_violation_id_fkey"
+            columns: ["violation_id"]
+            isOneToOne: false
+            referencedRelation: "dhs_violations_search"
+            referencedColumns: ["id"]
+          },
         ]
       }
       weight_monitoring_assignments: {
@@ -29810,6 +29908,7 @@ export type Database = {
       }
     }
     Views: {
+<<<<<<< HEAD
       alert_list_rows: {
         Row: {
           alert_type: string | null
@@ -29930,12 +30029,46 @@ export type Database = {
           },
           {
             foreignKeyName: "alerts_facility_id_fkey"
+=======
+      dhs_violations_search: {
+        Row: {
+          citation_ref: string | null
+          citation_topic_id: string | null
+          citation_topic_title: string | null
+          created_at: string | null
+          description: string | null
+          facility_id: string | null
+          id: string | null
+          inspection_date: string | null
+          organization_id: string | null
+          poc_due_date: string | null
+          poc_submitted_at: string | null
+          severity: string | null
+          source_inspection_event_id: string | null
+          status: string | null
+          surveyor_name: string | null
+          updated_at: string | null
+          verified_at: string | null
+          verified_by_profile_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dhs_violations_citation_topic_id_fkey"
+            columns: ["citation_topic_id"]
+            isOneToOne: false
+            referencedRelation: "dhs_citation_topics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dhs_violations_facility_id_fkey"
+>>>>>>> origin/main
             columns: ["facility_id"]
             isOneToOne: false
             referencedRelation: "facilities"
             referencedColumns: ["id"]
           },
           {
+<<<<<<< HEAD
             foreignKeyName: "alerts_incident_notification_id_fkey"
             columns: ["incident_notification_id"]
             isOneToOne: false
@@ -29951,12 +30084,16 @@ export type Database = {
           },
           {
             foreignKeyName: "alerts_organization_id_fkey"
+=======
+            foreignKeyName: "dhs_violations_organization_id_fkey"
+>>>>>>> origin/main
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
+<<<<<<< HEAD
             foreignKeyName: "alerts_practicum_id_fkey"
             columns: ["practicum_id"]
             isOneToOne: false
@@ -29975,6 +30112,19 @@ export type Database = {
             columns: ["training_record_id"]
             isOneToOne: false
             referencedRelation: "employee_training_records"
+=======
+            foreignKeyName: "dhs_violations_source_inspection_event_id_fkey"
+            columns: ["source_inspection_event_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dhs_violations_verified_by_profile_id_fkey"
+            columns: ["verified_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+>>>>>>> origin/main
             referencedColumns: ["id"]
           },
         ]
@@ -32083,6 +32233,18 @@ export type Database = {
         Args: { p_as_of?: string }
         Returns: number
       }
+      generate_paged_compliance_report: {
+        Args: {
+          p_date_from?: string
+          p_date_to?: string
+          p_employee_id?: string
+          p_facility_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_report_id: string
+        }
+        Returns: Json
+      }
       generate_resident_financial_statement: {
         Args: {
           p_due_date: string
@@ -32364,6 +32526,7 @@ export type Database = {
           version_number: number
         }[]
       }
+      get_report_schedule_operations: { Args: never; Returns: Json }
       get_resident_360_snapshot: {
         Args: { p_resident_id: string }
         Returns: Json
@@ -32981,6 +33144,17 @@ export type Database = {
           p_body_template: string
           p_subject_template: string
           p_variables?: Json
+        }
+        Returns: Json
+      }
+      preview_report_schedule: {
+        Args: {
+          p_day_of_month?: number
+          p_day_of_week?: number
+          p_delivery_hour: number
+          p_delivery_minute: number
+          p_frequency: string
+          p_time_zone: string
         }
         Returns: Json
       }
@@ -33975,6 +34149,7 @@ export type Database = {
         Args: { p_now?: string }
         Returns: number
       }
+      run_system_job_watchdog: { Args: never; Returns: number }
       run_workflow_automation_now: {
         Args: {
           p_context?: Json
@@ -34250,6 +34425,21 @@ export type Database = {
           p_frequency: string
           p_report_definition_id: string
           p_time_zone?: string
+        }
+        Returns: string
+      }
+      save_report_schedule_configuration: {
+        Args: {
+          p_audience: Json
+          p_day_of_month?: number
+          p_day_of_week?: number
+          p_delivery_hour: number
+          p_delivery_minute: number
+          p_delivery_mode: string
+          p_frequency: string
+          p_report_definition_id: string
+          p_schedule_id?: string
+          p_time_zone: string
         }
         Returns: string
       }

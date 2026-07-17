@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearch } from "wouter";
-import { useListViolations, useCreateViolation, type ViolationInsert } from "@/hooks/useViolations";
+import { useCreateViolation, type Violation, type ViolationInsert } from "@/hooks/useViolations";
+import { usePaginatedViolations } from "@/hooks/usePaginatedDomainLists";
 import { useListCitationTopics } from "@/hooks/useCitationTopics";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
@@ -79,10 +80,15 @@ export default function Violations() {
 
   const { data: facilities } = useListFacilities();
   const { data: citationTopics } = useListCitationTopics();
-  const { data: violations, isLoading, isError, error, refetch } = useListViolations({
+  const { data: violationsPage, isLoading, isError, error, refetch } = usePaginatedViolations<Violation>({
     facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
     status: urlState.status !== "all" ? urlState.status : undefined,
+    search: urlState.search,
+    page,
+    pageSize: PAGE_SIZE,
   });
+  const violations = violationsPage?.rows ?? [];
+  const totalCount = violationsPage?.count ?? 0;
 
   const { mutate: createViolation, isPending: creating } = useCreateViolation();
 
@@ -110,17 +116,7 @@ export default function Violations() {
   const facilityById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
   const topicById = useMemo(() => new Map((citationTopics ?? []).map((t) => [t.id, t])), [citationTopics]);
 
-  const searched = useMemo(() => {
-    const q = urlState.search.trim().toLowerCase();
-    if (!q) return violations ?? [];
-    return (violations ?? []).filter((v) => {
-      const citationText = v.citation_ref ?? topicById.get(v.citation_topic_id ?? "")?.title ?? "";
-      return v.description.toLowerCase().includes(q) || citationText.toLowerCase().includes(q);
-    });
-  }, [violations, urlState.search, topicById]);
-
-  const totalPages = Math.max(1, Math.ceil(searched.length / PAGE_SIZE));
-  const paginated = searched.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   // Auto-fill the create dialog's Facility field when the user is scoped to exactly one facility
   // (e.g. a facility_manager) -- saves a needless click every time; a no-op for multi-facility orgs,
@@ -243,7 +239,7 @@ export default function Violations() {
           <div className="p-6 space-y-3">
             {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>
-        ) : paginated.length === 0 ? (
+        ) : violations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
             <ShieldAlert className="h-10 w-10 text-muted-foreground/30 mb-3" />
             <p className="text-sm font-medium text-muted-foreground">No violations found</p>
@@ -266,7 +262,7 @@ export default function Violations() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginated.map((v) => (
+                  {violations.map((v) => (
                     <tr key={v.id}>
                       <td className="text-muted-foreground">{formatDateForDisplay(v.inspection_date)}</td>
                       <td className="font-medium text-foreground">{facilityById.get(v.facility_id)?.name ?? "—"}</td>
@@ -285,7 +281,7 @@ export default function Violations() {
             </div>
             <div className="flex items-center justify-between px-5 py-4 border-t border-border/60">
               <p className="text-[13px] text-muted-foreground">
-                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, searched.length)}</span> of {searched.length}
+                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)}</span> of {totalCount}
               </p>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>
