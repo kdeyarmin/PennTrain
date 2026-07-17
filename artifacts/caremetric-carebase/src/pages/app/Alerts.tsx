@@ -210,7 +210,7 @@ export default function Alerts() {
 
   function toggleSort(field: SortField) {
     if (sortField === field) setFilters({ sortDir: sortDir === "asc" ? "desc" : "asc", page: "1" });
-    else setFilters({ sortField: field, sortDir: "desc", page: "1" });
+    else setFilters({ sortField: field, sortDir: field === "severity" ? "asc" : "desc", page: "1" });
   }
 
   const sortIndicator = (field: SortField) =>
