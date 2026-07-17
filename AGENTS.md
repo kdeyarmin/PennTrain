@@ -79,7 +79,7 @@ running things in this environment.
   `npx --yes supabase@2.109.1 start` (applies all migrations + `supabase/seed.sql`).
   It serves the API at `http://127.0.0.1:54321`, Studio at `:54323`, and Mailpit
   at `:54324`. Get keys any time with `npx --yes supabase@2.109.1 status`.
-- **App env**: `artifacts/caremetric-train/.env` (gitignored) must set
+- **App env**: `artifacts/caremetric-carebase/.env` (gitignored) must set
   `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` (from `supabase status`) to run
   the app against the local stack; `VITE_TURNSTILE_SITE_KEY` can be the Cloudflare
   test key `1x00000000000000000000AA` (Turnstile is only used by the org-signup

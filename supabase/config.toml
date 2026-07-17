@@ -37,6 +37,9 @@ verify_jwt = true
 [functions.generate-incident-report-pdf]
 verify_jwt = true
 
+[functions.generate-incident-state-form-pdf]
+verify_jwt = true
+
 [functions.attest-policy]
 verify_jwt = true
 

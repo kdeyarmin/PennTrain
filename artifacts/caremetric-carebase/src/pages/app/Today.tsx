@@ -9,6 +9,7 @@ import { QueryError, QueryLoading } from "@/components/QueryState";
 import { useAuth } from "@/lib/auth";
 import { getTodayDestinations, summarizeDueWork } from "@/lib/todayWorkspace";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
 import { useListWorkItems } from "@/hooks/useWorkItems";
 import { useListAlerts } from "@/hooks/useAlerts";
 import { useDailyOperationsCommandCenter } from "@/hooks/useDailyOperations";
@@ -18,11 +19,42 @@ function human(value: unknown) {
   return String(value ?? "").replaceAll("_", " ").replace(/\b\w/gu, (letter) => letter.toUpperCase());
 }
 
+// Persisted per tab so the chosen facility survives navigating away and back.
+const FACILITY_STORAGE_KEY = "cmtrain.today.facilityId";
+const ALL_FACILITIES = "all";
+
+function loadStoredFacilityId(): string {
+  try {
+    return window.sessionStorage.getItem(FACILITY_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function storeFacilityId(facilityId: string): void {
+  try {
+    window.sessionStorage.setItem(FACILITY_STORAGE_KEY, facilityId);
+  } catch {
+    // sessionStorage unavailable (private browsing, quota) -- the selection just won't persist
+  }
+}
+
 export default function Today() {
   const { user } = useAuth();
-  const [scope, setScope] = useState("portfolio");
+  const isManager = user?.role === "facility_manager";
   const facilities = useListFacilities({ organizationId: user?.organizationId ?? undefined });
-  const facilityId = scope === "portfolio" ? undefined : scope;
+  // facilities_select is org-wide, but the RPCs behind this page reject facilities the caller
+  // isn't scoped to -- and is_assigned_to_facility() only auto-passes org_admin/auditor. So a
+  // facility_manager's picker must be limited to their facility_assignments rows.
+  const myAssignments = useListMyFacilityAssignments(user?.id, isManager);
+  const [selectedFacilityId, setSelectedFacilityId] = useState(loadStoredFacilityId);
+  const assignedIds = new Set((myAssignments.data ?? []).map((assignment) => assignment.facility_id));
+  const facilityList = (facilities.data ?? []).filter((facility) => !isManager || assignedIds.has(facility.id));
+  // A stored id may belong to another org/session; only honor it if it's still visible.
+  const validSelection = facilityList.some((facility) => facility.id === selectedFacilityId) ? selectedFacilityId : "";
+  // facility_manager is always scoped to one facility (defaulting to their first); org_admin
+  // and auditor default to the whole portfolio and may narrow to one facility.
+  const facilityId = isManager ? (validSelection || facilityList[0]?.id) : (validSelection || undefined);
   // Keep the React Query key stable for the life of this page. Rebuilding an ISO timestamp
   // during every render creates a distinct key on every render and can continuously refetch.
   const dueBefore = useMemo(() => new Date(Date.now() + 7 * 86_400_000).toISOString(), []);
@@ -33,7 +65,7 @@ export default function Today() {
   const destinations = getTodayDestinations(user?.role);
   const isAuditor = user?.role === "auditor";
   const PrimaryIcon = isAuditor ? ShieldCheck : Activity;
-  const queries = [facilities, operations, work, alerts, value];
+  const queries = [facilities, myAssignments, operations, work, alerts, value];
   const isRefreshing = queries.some((query) => query.isFetching);
 
   if (queries.some((query) => query.isLoading)) return <QueryLoading what="today's priorities" />;
@@ -46,6 +78,12 @@ export default function Today() {
     />;
   }
 
+  const changeFacility = (next: string) => {
+    const facility = next === ALL_FACILITIES ? "" : next;
+    setSelectedFacilityId(facility);
+    storeFacilityId(facility);
+  };
+
   const daily = operations.data?.dailyExecution ?? {};
   const dueWork = summarizeDueWork(work.data ?? []);
   const criticalAlerts = (alerts.data ?? []).filter((item) => item.severity === "critical");
@@ -53,7 +91,7 @@ export default function Today() {
   const medicationExceptions = value.data?.medicationExceptions ?? [];
   const pendingDrafts = value.data?.copilotDrafts.filter((item) => item.status === "draft") ?? [];
   const warRoomRequests = (value.data?.warRooms ?? []).flatMap((room) => room.requests ?? []).filter((item) => !["verified", "closed", "canceled"].includes(item.status));
-  const selectedFacility = facilities.data?.find((facility) => facility.id === facilityId);
+  const selectedFacility = facilityList.find((facility) => facility.id === facilityId);
   const scopeLabel = selectedFacility?.name ?? "all permitted facilities";
 
   const priorities = [
@@ -82,13 +120,13 @@ export default function Today() {
         <p className="mt-1 text-xs text-muted-foreground">Showing {scopeLabel}.</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={scope} onValueChange={setScope}>
-          <SelectTrigger className="w-56" aria-label="Facility scope"><SelectValue /></SelectTrigger>
+        {facilityList.length > 1 && <Select value={facilityId ?? ALL_FACILITIES} onValueChange={changeFacility}>
+          <SelectTrigger className="w-56" aria-label="Facility scope"><SelectValue placeholder="Select facility" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="portfolio">All permitted facilities</SelectItem>
-            {facilities.data?.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}
+            {!isManager && <SelectItem value={ALL_FACILITIES}>All permitted facilities</SelectItem>}
+            {facilityList.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}
           </SelectContent>
-        </Select>
+        </Select>}
         <Button
           type="button"
           variant="outline"
