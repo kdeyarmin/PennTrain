@@ -1,5 +1,5 @@
-import { readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { readdir, readFile } from "node:fs/promises";
+import { join, relative, sep } from "node:path";
 import { spawn } from "node:child_process";
 
 async function findEntrypoints(dir) {
@@ -46,10 +46,36 @@ function runDeno(args) {
   });
 }
 
-const entrypoints = await findEntrypoints(join(process.cwd(), "supabase", "functions"));
+const functionsDir = join(process.cwd(), "supabase", "functions");
+const entrypoints = await findEntrypoints(functionsDir);
 if (entrypoints.length === 0) {
   console.log("No Supabase Edge Function entrypoints found.");
   process.exit(0);
+}
+
+// Every deployable function must have an explicit [functions.<name>] block in config.toml so
+// its verify_jwt setting is a reviewed decision rather than a silent gateway default, and so
+// the Supabase GitHub integration deploys it.
+const functionNames = [...new Set(
+  entrypoints
+    .map((path) => relative(functionsDir, path))
+    .filter((path) => !path.startsWith("_"))
+    .map((path) => path.split(sep)[0]),
+)].sort();
+const configToml = await readFile(join(process.cwd(), "supabase", "config.toml"), "utf8");
+const declared = new Set(
+  [...configToml.matchAll(/^\[functions\.([A-Za-z0-9_-]+)\]/gm)].map((match) => match[1]),
+);
+const undeclared = functionNames.filter((name) => !declared.has(name));
+if (undeclared.length > 0) {
+  console.error(
+    `Edge Functions missing a [functions.<name>] declaration in supabase/config.toml: ${undeclared.join(", ")}`,
+  );
+  process.exit(1);
+}
+const stale = [...declared].filter((name) => !functionNames.includes(name)).sort();
+if (stale.length > 0) {
+  console.warn(`config.toml declares functions with no matching directory: ${stale.join(", ")}`);
 }
 
 try {
