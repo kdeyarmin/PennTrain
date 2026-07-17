@@ -31225,6 +31225,7 @@ export type Database = {
         Args: { p_version_id: string }
         Returns: string[]
       }
+      get_current_idle_session_lock: { Args: never; Returns: string | null }
       get_customer_value_dashboard: { Args: never; Returns: Json }
       get_daily_operations_command_center: {
         Args: { p_facility_id?: string }
@@ -33052,6 +33053,31 @@ export type Database = {
           p_strengths: string
         }
         Returns: string
+      }
+      save_employee_credential: {
+        Args: { p_credential_id?: string; p_payload?: Json }
+        Returns: {
+          citation_topic_id: string | null
+          created_at: string
+          credential_label: string | null
+          credential_number: string | null
+          credential_type: string
+          employee_id: string
+          expiration_date: string | null
+          facility_id: string
+          id: string
+          issue_date: string | null
+          issuing_authority: string | null
+          last_verified_date: string | null
+          notes: string | null
+          organization_id: string
+          status: string
+          updated_at: string
+          verification_method: string | null
+          verified_at: string | null
+          verified_by_profile_id: string | null
+          warning_days: number
+        }
       }
       save_enterprise_analytics_snapshot: {
         Args: {
