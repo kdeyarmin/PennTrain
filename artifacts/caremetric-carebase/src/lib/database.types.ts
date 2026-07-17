@@ -16613,7 +16613,10 @@ export type Database = {
           contact_name: string | null
           contact_phone: string | null
           created_at: string
+          demo_reset_at: string | null
+          demo_seed_version: number | null
           id: string
+          is_demo: boolean
           max_facilities: number | null
           max_users: number | null
           name: string
@@ -16633,7 +16636,10 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
+          demo_reset_at?: string | null
+          demo_seed_version?: number | null
           id?: string
+          is_demo?: boolean
           max_facilities?: number | null
           max_users?: number | null
           name: string
@@ -16653,7 +16659,10 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
+          demo_reset_at?: string | null
+          demo_seed_version?: number | null
           id?: string
+          is_demo?: boolean
           max_facilities?: number | null
           max_users?: number | null
           name?: string
@@ -29908,7 +29917,6 @@ export type Database = {
       }
     }
     Views: {
-<<<<<<< HEAD
       alert_list_rows: {
         Row: {
           alert_type: string | null
@@ -29959,7 +29967,7 @@ export type Database = {
           resident_compliance_item_id?: string | null
           resolved_at?: string | null
           severity?: string | null
-          severity_rank?: never
+          severity_rank?: number | null
           status?: string | null
           title?: string | null
           training_record_id?: string | null
@@ -29986,7 +29994,7 @@ export type Database = {
           resident_compliance_item_id?: string | null
           resolved_at?: string | null
           severity?: string | null
-          severity_rank?: never
+          severity_rank?: number | null
           status?: string | null
           title?: string | null
           training_record_id?: string | null
@@ -30029,7 +30037,55 @@ export type Database = {
           },
           {
             foreignKeyName: "alerts_facility_id_fkey"
-=======
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_incident_notification_id_fkey"
+            columns: ["incident_notification_id"]
+            isOneToOne: false
+            referencedRelation: "incident_notifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_inspection_item_id_fkey"
+            columns: ["inspection_item_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_practicum_id_fkey"
+            columns: ["practicum_id"]
+            isOneToOne: false
+            referencedRelation: "practicums"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_resident_compliance_item_id_fkey"
+            columns: ["resident_compliance_item_id"]
+            isOneToOne: false
+            referencedRelation: "resident_compliance_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_training_record_id_fkey"
+            columns: ["training_record_id"]
+            isOneToOne: false
+            referencedRelation: "employee_training_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dhs_violations_search: {
         Row: {
           citation_ref: string | null
@@ -30061,58 +30117,19 @@ export type Database = {
           },
           {
             foreignKeyName: "dhs_violations_facility_id_fkey"
->>>>>>> origin/main
             columns: ["facility_id"]
             isOneToOne: false
             referencedRelation: "facilities"
             referencedColumns: ["id"]
           },
           {
-<<<<<<< HEAD
-            foreignKeyName: "alerts_incident_notification_id_fkey"
-            columns: ["incident_notification_id"]
-            isOneToOne: false
-            referencedRelation: "incident_notifications"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "alerts_inspection_item_id_fkey"
-            columns: ["inspection_item_id"]
-            isOneToOne: false
-            referencedRelation: "inspection_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "alerts_organization_id_fkey"
-=======
             foreignKeyName: "dhs_violations_organization_id_fkey"
->>>>>>> origin/main
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
-<<<<<<< HEAD
-            foreignKeyName: "alerts_practicum_id_fkey"
-            columns: ["practicum_id"]
-            isOneToOne: false
-            referencedRelation: "practicums"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "alerts_resident_compliance_item_id_fkey"
-            columns: ["resident_compliance_item_id"]
-            isOneToOne: false
-            referencedRelation: "resident_compliance_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "alerts_training_record_id_fkey"
-            columns: ["training_record_id"]
-            isOneToOne: false
-            referencedRelation: "employee_training_records"
-=======
             foreignKeyName: "dhs_violations_source_inspection_event_id_fkey"
             columns: ["source_inspection_event_id"]
             isOneToOne: false
@@ -30124,7 +30141,6 @@ export type Database = {
             columns: ["verified_by_profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
->>>>>>> origin/main
             referencedColumns: ["id"]
           },
         ]
@@ -33948,6 +33964,7 @@ export type Database = {
         }
         Returns: string
       }
+      restore_demo_baseline: { Args: never; Returns: Json }
       resume_confidential_incident_intake: {
         Args: {
           p_intake_number: string

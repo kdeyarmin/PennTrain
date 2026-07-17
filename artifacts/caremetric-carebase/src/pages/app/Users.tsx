@@ -136,6 +136,8 @@ export default function Users() {
   );
   const { data: organizations } = useListOrganizations();
   const orgMap = new Map((organizations ?? []).map(o => [o.id, o.name]));
+  const isDemoOrganization = !isPlatformAdmin
+    && organizations?.some(o => o.id === user?.organizationId && o.is_demo) === true;
 
   const { mutate: createUser, isPending: creating } = useCreateUserViaAdmin();
   const { mutate: inviteUser, isPending: inviting } = useInviteUser();
@@ -148,7 +150,10 @@ export default function Users() {
   // platform_admin and org_admin callers -- facility_manager gets a 403 unconditionally, so these
   // controls must never be rendered as editable for facility_manager.
   const canEditRow = (p: Profile) =>
-    p.id !== user?.id && (isPlatformAdmin || user?.role === "org_admin") && assignableRoles.includes(p.role as Role);
+    !isDemoOrganization
+    && p.id !== user?.id
+    && (isPlatformAdmin || user?.role === "org_admin")
+    && assignableRoles.includes(p.role as Role);
 
   const filtered = allProfiles.filter(p => {
     if (roleFilter !== "all" && p.role !== roleFilter) return false;
@@ -396,10 +401,19 @@ export default function Users() {
           <h1>Users</h1>
           <p>Manage user accounts and access levels.</p>
         </div>
-        <Button onClick={openCreate} className="shadow-sm">
-          <UserPlus className="mr-2 h-4 w-4" /> Add User
-        </Button>
+        {!isDemoOrganization && (
+          <Button onClick={openCreate} className="shadow-sm">
+            <UserPlus className="mr-2 h-4 w-4" /> Add User
+          </Button>
+        )}
       </div>
+
+      {isDemoOrganization && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-4 py-3 text-sm text-blue-950">
+          Demo account identities are locked. You can explore the user directory, while invitations, role changes,
+          activation changes, and passwords remain disabled.
+        </div>
+      )}
 
       <div className="premium-card">
         <div className="filter-bar flex-col items-stretch sm:flex-row sm:items-center">

@@ -8,13 +8,7 @@ create or replace view public.alert_list_rows
 with (security_invoker = true)
 as
 select
-  a.*,
-  case a.severity
-    when 'critical' then 0
-    when 'warning' then 1
-    when 'info' then 2
-    else 99
-  end as severity_rank
+  a.*
 from public.alerts a;
 
 create or replace view public.incident_list_rows

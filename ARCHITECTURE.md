@@ -118,8 +118,16 @@ logged to the `course_ai_generations` audit table.
 
 ## Demo Access
 
-Demo login buttons are environment-configured with `VITE_DEMO_ACCOUNTS_JSON` and are disabled when that value is
-absent or malformed. Reusable demo/platform_admin passwords are intentionally not seeded in SQL or committed to docs.
+Demo login buttons are environment-configured with `VITE_DEMO_ACCOUNTS_JSON` and fall back to the dedicated-demo
+request flow when that value is absent or malformed. Only the five customer roles are accepted; `platform_admin`
+is rejected before rendering. These build-time credentials intentionally identify synthetic accounts in an
+`organizations.is_demo` tenant and must never identify users in a customer tenant.
+
+`app_private.seed_demo_organization()` maintains the cross-module Sunrise baseline,
+`public.restore_demo_baseline()` gives its demo org administrator a guarded restore control, and pg_cron performs a
+daily repair. A database trigger suppresses provider notification delivery for demo tenants. The Auth-management
+Edge Functions separately reject demo-tenant callers so a public org-admin session cannot create, invite, or mutate
+login identities.
 
 ## Key Commands
 

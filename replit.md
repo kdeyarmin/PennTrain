@@ -81,11 +81,13 @@ policy -- generation is Edge-Function-only, downloaded via a short-lived signed 
 - `generate-compliance-binder` — queries an org's facilities/training compliance/practicums/certificates/alerts and
   renders a multi-page PDF (`pdf-lib`), uploads it to `binder-exports`, returns a 10-minute signed URL
 
-## Demo Credentials (seeded)
+## Local Demo Credentials (seeded)
+
+These predictable credentials are for a disposable local Supabase stack only. Hosted demo users are provisioned
+per environment; no seeded account has the `platform_admin` role.
 
 | Role | Email | Password | Organization |
 |------|-------|----------|--------------|
-| platform_admin | admin@pamedtrack.com | admin123 | — |
 | org_admin | admin@sunrisehealthcare.com | demo123 | Sunrise Healthcare Group |
 | facility_manager | manager@sunrisemanor.com | demo123 | Sunrise Healthcare Group |
 | trainer | trainer@sunrisehealthcare.com | demo123 | Sunrise Healthcare Group |

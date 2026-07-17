@@ -119,7 +119,7 @@ jobs:
           echo "VITE_SUPABASE_ANON_KEY=$ANON_KEY" >> "$GITHUB_ENV"
           e2e_password="phase1-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-only"
           echo "E2E_ACCOUNT_PASSWORD=$e2e_password" >> "$GITHUB_ENV"
-          echo "VITE_DEMO_ACCOUNTS_JSON=[{\"label\":\"Guest auditor\",\"email\":\"phase1-guest@test.local\",\"password\":\"$e2e_password\",\"color\":\"bg-blue-500\"}]" >> "$GITHUB_ENV"
+          echo "VITE_DEMO_ACCOUNTS_JSON=[{\"label\":\"Guest auditor\",\"email\":\"phase1-guest@test.local\",\"password\":\"$e2e_password\",\"role\":\"auditor\",\"description\":\"Review seeded compliance data and reports.\"}]" >> "$GITHUB_ENV"
 
       - name: Build browser-test application
         run: pnpm --filter @workspace/caremetric-carebase run build

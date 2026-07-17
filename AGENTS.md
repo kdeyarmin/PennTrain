@@ -85,12 +85,8 @@ running things in this environment.
   test key `1x00000000000000000000AA` (Turnstile is only used by the org-signup
   flow, not login). `VITE_*` vars are inlined at build time, so rebuild (not just
   restart) after changing them. Then `pnpm run dev` serves `http://localhost:5173`.
-- **Seed login role gotcha**: every `supabase/seed.sql` demo user logs in
-  (passwords `demo123`, and `admin123` for `admin@pamedtrack.com`) but resolves to
-  role `employee`. The `handle_new_user` trigger reads `role`/`organization_id`
-  from `raw_app_meta_data`, whereas the seed places them in `raw_user_meta_data` —
-  so the intended `org_admin`/`trainer`/etc. roles are never applied locally. To
-  get a privileged account for local testing, insert an `auth.users` row with
-  `role` + `organization_id` inside `raw_app_meta_data` (the trigger then
-  provisions the profile + scope membership correctly), or directly update the
-  `public.profiles` row. Do not "fix" `seed.sql` as part of unrelated work.
+- **Seed login roles**: `supabase/seed.sql` places `role` and `organization_id`
+  in trusted `raw_app_meta_data`, matching `handle_new_user`. The five Sunrise
+  customer-role accounts therefore resolve correctly after a local reset. The
+  predictable `demo123` password is local-only, and no platform-admin credential
+  is seeded.

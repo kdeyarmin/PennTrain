@@ -1,10 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-<<<<<<< HEAD
 import { useAlertRealtime, useUpdateAlert, useBulkUpdateAlerts, type Alert } from "@/hooks/useAlerts";
-=======
-import { useUpdateAlert, useBulkUpdateAlerts, type Alert } from "@/hooks/useAlerts";
->>>>>>> origin/main
 import { usePaginatedDomainList } from "@/hooks/usePaginatedDomainLists";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListAllIncidentNotifications } from "@/hooks/useIncidents";
@@ -67,7 +63,6 @@ export default function Alerts() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pendingId, setPendingId] = useState<string | null>(null);
 
-<<<<<<< HEAD
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
@@ -82,30 +77,13 @@ export default function Alerts() {
     organizationId,
     search: debouncedSearch,
     sortField: sortField === "createdAt" ? "created_at" : sortField === "severity" ? "severity_rank" : sortField,
-=======
-  const { data: facilities } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
-  const { data: alertsPage, isLoading } = usePaginatedDomainList<Alert>("alerts", {
-    status: status !== "all" ? status : undefined,
-    severity: severity !== "all" ? severity : undefined,
-    facilityId: facilityId !== "all" ? facilityId : undefined,
-    organizationId: viewingOrgId ?? undefined,
-    search,
-    sortField: sortField === "createdAt"
-      ? "created_at"
-      : sortField === "severity"
-        ? "severity_rank"
-        : sortField,
->>>>>>> origin/main
     sortDir,
     page,
     pageSize: PAGE_SIZE,
   });
   const alerts = alertsPage?.rows ?? [];
   const totalCount = alertsPage?.count ?? 0;
-<<<<<<< HEAD
   useAlertRealtime(organizationId);
-=======
->>>>>>> origin/main
   // Alerts don't carry an incident_id/inspection_item_id directly for every alert type --
   // incident_notification_overdue only has incident_notification_id, and
   // corrective_action_overdue's corrective_actions row can point at either an incident or an
