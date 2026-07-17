@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { useAuth } from "@/lib/auth";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
 import { useListWorkItems } from "@/hooks/useWorkItems";
 import { useListAlerts } from "@/hooks/useAlerts";
 import { useDailyOperationsCommandCenter } from "@/hooks/useDailyOperations";
@@ -39,14 +40,20 @@ function storeFacilityId(facilityId: string): void {
 
 export default function Today() {
   const { user } = useAuth();
+  const isManager = user?.role === "facility_manager";
   const facilities = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  // facilities_select is org-wide, but the RPCs behind this page reject facilities the caller
+  // isn't scoped to -- and is_assigned_to_facility() only auto-passes org_admin/auditor. So a
+  // facility_manager's picker must be limited to their facility_assignments rows.
+  const myAssignments = useListMyFacilityAssignments(user?.id, isManager);
   const [selectedFacilityId, setSelectedFacilityId] = useState(loadStoredFacilityId);
-  const facilityList = facilities.data ?? [];
+  const assignedIds = new Set((myAssignments.data ?? []).map((assignment) => assignment.facility_id));
+  const facilityList = (facilities.data ?? []).filter((facility) => !isManager || assignedIds.has(facility.id));
   // A stored id may belong to another org/session; only honor it if it's still visible.
   const validSelection = facilityList.some((facility) => facility.id === selectedFacilityId) ? selectedFacilityId : "";
   // facility_manager is always scoped to one facility (defaulting to their first); org_admin
   // and auditor default to the whole portfolio and may narrow to one facility.
-  const facilityId = user?.role === "facility_manager" ? (validSelection || facilityList[0]?.id) : (validSelection || undefined);
+  const facilityId = isManager ? (validSelection || facilityList[0]?.id) : (validSelection || undefined);
   const operations = useDailyOperationsCommandCenter(facilityId);
   const work = useListWorkItems({ facilityId, dueBefore: new Date(Date.now() + 7 * 86_400_000).toISOString() });
   const alerts = useListAlerts({ facilityId, status: "open" });
@@ -58,9 +65,9 @@ export default function Today() {
     storeFacilityId(facility);
   };
 
-  if (facilities.isLoading || operations.isLoading || work.isLoading || alerts.isLoading || value.isLoading) return <QueryLoading what="today's priorities" />;
-  const failed = [facilities, operations, work, alerts, value].find((query) => query.isError);
-  if (failed?.error) return <QueryError what="today's priorities" error={failed.error} onRetry={() => void Promise.all([facilities.refetch(), operations.refetch(), work.refetch(), alerts.refetch(), value.refetch()])} />;
+  if (facilities.isLoading || myAssignments.isLoading || operations.isLoading || work.isLoading || alerts.isLoading || value.isLoading) return <QueryLoading what="today's priorities" />;
+  const failed = [facilities, myAssignments, operations, work, alerts, value].find((query) => query.isError);
+  if (failed?.error) return <QueryError what="today's priorities" error={failed.error} onRetry={() => void Promise.all([facilities.refetch(), myAssignments.refetch(), operations.refetch(), work.refetch(), alerts.refetch(), value.refetch()])} />;
 
   const daily = operations.data?.dailyExecution ?? {};
   const activeWork = (work.data ?? []).filter((item) => !["closed", "canceled"].includes(item.state)).slice(0, 8);
