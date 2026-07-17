@@ -243,8 +243,8 @@ export function useSaveReportSchedule() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: ReportScheduleForm) => {
-      const { data, error } = await rpc().rpc("save_report_schedule_configuration", {
-        p_schedule_id: input.scheduleId ?? null,
+      const { data, error } = await supabase.rpc("save_report_schedule_configuration", {
+        p_schedule_id: input.scheduleId,
         p_report_definition_id: input.reportDefinitionId,
         p_frequency: input.frequency,
         p_delivery_mode: input.deliveryMode,
@@ -252,8 +252,8 @@ export function useSaveReportSchedule() {
         p_time_zone: input.timeZone,
         p_delivery_hour: input.deliveryHour,
         p_delivery_minute: input.deliveryMinute,
-        p_day_of_week: input.frequency === "weekly" ? input.dayOfWeek : null,
-        p_day_of_month: input.frequency === "monthly" ? input.dayOfMonth : null,
+        p_day_of_week: input.frequency === "weekly" ? input.dayOfWeek ?? undefined : undefined,
+        p_day_of_month: input.frequency === "monthly" ? input.dayOfMonth ?? undefined : undefined,
       });
       if (error) throw error;
       return data as string;
@@ -285,16 +285,16 @@ export function useReportSchedulePreview(input: ReportScheduleForm, enabled: boo
       input.dayOfMonth,
     ],
     queryFn: async (): Promise<ReportSchedulePreview> => {
-      const { data, error } = await rpc().rpc("preview_report_schedule", {
+      const { data, error } = await supabase.rpc("preview_report_schedule", {
         p_frequency: input.frequency,
         p_time_zone: input.timeZone,
         p_delivery_hour: input.deliveryHour,
         p_delivery_minute: input.deliveryMinute,
-        p_day_of_week: input.frequency === "weekly" ? input.dayOfWeek : null,
-        p_day_of_month: input.frequency === "monthly" ? input.dayOfMonth : null,
+        p_day_of_week: input.frequency === "weekly" ? input.dayOfWeek ?? undefined : undefined,
+        p_day_of_month: input.frequency === "monthly" ? input.dayOfMonth ?? undefined : undefined,
       });
       if (error) throw error;
-      return data as ReportSchedulePreview;
+      return data as unknown as ReportSchedulePreview;
     },
     enabled,
     retry: false,

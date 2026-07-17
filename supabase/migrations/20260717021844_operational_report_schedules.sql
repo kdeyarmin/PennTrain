@@ -42,7 +42,7 @@ before update on public.report_schedules
 for each row execute function public.set_updated_at();
 
 create table public.report_schedule_runs (
-  id uuid primary key default gen_random_uuid(),
+  id uuid primary key default extensions.gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   schedule_id uuid not null references public.report_schedules(id) on delete cascade,
   scheduled_for timestamptz not null,
@@ -147,8 +147,8 @@ create or replace function public.preview_report_schedule(
   p_time_zone text,
   p_delivery_hour integer,
   p_delivery_minute integer,
-  p_day_of_week integer,
-  p_day_of_month integer
+  p_day_of_week integer default null,
+  p_day_of_month integer default null
 ) returns jsonb
 language plpgsql
 stable
@@ -177,7 +177,6 @@ end;
 $$;
 
 create or replace function public.save_report_schedule_configuration(
-  p_schedule_id uuid,
   p_report_definition_id uuid,
   p_frequency text,
   p_delivery_mode text,
@@ -185,8 +184,9 @@ create or replace function public.save_report_schedule_configuration(
   p_time_zone text,
   p_delivery_hour integer,
   p_delivery_minute integer,
-  p_day_of_week integer,
-  p_day_of_month integer
+  p_day_of_week integer default null,
+  p_day_of_month integer default null,
+  p_schedule_id uuid default null
 ) returns uuid
 language plpgsql
 security definer
@@ -296,7 +296,6 @@ set search_path = ''
 as $$
 begin
   return public.save_report_schedule_configuration(
-    null,
     p_report_definition_id,
     p_frequency,
     p_delivery_mode,
@@ -305,7 +304,8 @@ begin
     7,
     0,
     case when p_frequency = 'weekly' then 1 else null end,
-    case when p_frequency = 'monthly' then 1 else null end
+    case when p_frequency = 'monthly' then 1 else null end,
+    null
   );
 end;
 $$;
@@ -522,7 +522,7 @@ revoke all on function public.preview_report_schedule(
   text, text, integer, integer, integer, integer
 ) from public, anon, authenticated, service_role;
 revoke all on function public.save_report_schedule_configuration(
-  uuid, uuid, text, text, jsonb, text, integer, integer, integer, integer
+  uuid, text, text, jsonb, text, integer, integer, integer, integer, uuid
 ) from public, anon, authenticated, service_role;
 revoke all on function public.save_report_schedule(uuid, text, text, jsonb, text)
   from public, anon, authenticated, service_role;
@@ -537,7 +537,7 @@ grant execute on function public.preview_report_schedule(
   text, text, integer, integer, integer, integer
 ) to authenticated, service_role;
 grant execute on function public.save_report_schedule_configuration(
-  uuid, uuid, text, text, jsonb, text, integer, integer, integer, integer
+  uuid, text, text, jsonb, text, integer, integer, integer, integer, uuid
 ) to authenticated, service_role;
 grant execute on function public.save_report_schedule(uuid, text, text, jsonb, text)
   to authenticated, service_role;

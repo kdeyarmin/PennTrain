@@ -19,7 +19,7 @@ select has_function(
 );
 select has_function(
   'public', 'save_report_schedule_configuration',
-  array['uuid','uuid','text','text','jsonb','text','integer','integer','integer','integer'],
+  array['uuid','text','text','jsonb','text','integer','integer','integer','integer','uuid'],
   'schedule create and edit API exists'
 );
 select has_function(
@@ -31,7 +31,7 @@ select ok(
   'authenticated managers may preview schedules'
 );
 select ok(
-  not has_function_privilege('anon', 'public.save_report_schedule_configuration(uuid,uuid,text,text,jsonb,text,integer,integer,integer,integer)', 'EXECUTE'),
+  not has_function_privilege('anon', 'public.save_report_schedule_configuration(uuid,text,text,jsonb,text,integer,integer,integer,integer,uuid)', 'EXECUTE'),
   'anonymous callers cannot configure schedules'
 );
 select ok(
@@ -158,7 +158,6 @@ select pg_temp.act_as('97600000-0000-4000-8000-000000000101');
 select lives_ok(
   $$
     select public.save_report_schedule_configuration(
-      null,
       '97600000-0000-4000-8000-000000000201',
       'weekly',
       'email_link',
@@ -192,7 +191,6 @@ select ok(
 select lives_ok(
   $$
     select public.save_report_schedule_configuration(
-      (select id from public.report_schedules where report_definition_id = '97600000-0000-4000-8000-000000000201'),
       '97600000-0000-4000-8000-000000000201',
       'weekly',
       'email_link',
@@ -201,7 +199,8 @@ select lives_ok(
       9,
       45,
       5,
-      null
+      null,
+      (select id from public.report_schedules where report_definition_id = '97600000-0000-4000-8000-000000000201')
     )
   $$,
   'an organization admin can edit an existing schedule'
