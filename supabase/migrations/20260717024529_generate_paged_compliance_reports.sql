@@ -23,6 +23,19 @@ create index employees_report_picker_idx
   on public.employees(facility_id, status, last_name, first_name)
   where not is_synthetic;
 
+-- PostgREST can only order by database columns. Keep the stored severity code
+-- unchanged while exposing the operational priority needed for server paging.
+alter table public.alerts
+  add column severity_rank smallint generated always as (
+    case severity
+      when 'critical' then 3
+      when 'warning' then 2
+      else 1
+    end
+  ) stored;
+create index alerts_org_severity_rank_idx
+  on public.alerts(organization_id, severity_rank desc, created_at desc);
+
 -- Keep auth.uid() out of the per-row policy execution plan on the employee table,
 -- which is central to most reports and the server-side employee picker.
 alter policy employees_select on public.employees using (
@@ -176,7 +189,10 @@ begin
       coalesce((
         select jsonb_agg(jsonb_build_array(
           name,
-          replace(facility_type, '_', ' '),
+          case
+            when facility_type = 'ALR' then 'ALF'
+            else replace(facility_type, '_', ' ')
+          end,
           total::text,
           compliant::text,
           expired::text,

@@ -232,7 +232,11 @@ begin
   for v_job in
     with resolved as (
       select d.job_key, d.display_name, d.freshness_sla,
-        greatest(own_success.started_at, cron_success.start_time) as last_success_at
+        case
+          when own_success.started_at is null then cron_success.start_time
+          when cron_success.start_time is null then own_success.started_at
+          else greatest(own_success.started_at, cron_success.start_time)
+        end as last_success_at
       from app_private.system_job_definitions d
       left join cron.job c on c.jobname = d.cron_job_name
       left join lateral (

@@ -380,6 +380,7 @@ export type Database = {
           resident_compliance_item_id: string | null
           resolved_at: string | null
           severity: string
+          severity_rank: number | null
           status: string
           title: string
           training_record_id: string | null
@@ -406,6 +407,7 @@ export type Database = {
           resident_compliance_item_id?: string | null
           resolved_at?: string | null
           severity?: string
+          severity_rank?: number | null
           status?: string
           title: string
           training_record_id?: string | null
@@ -432,6 +434,7 @@ export type Database = {
           resident_compliance_item_id?: string | null
           resolved_at?: string | null
           severity?: string
+          severity_rank?: number | null
           status?: string
           title?: string
           training_record_id?: string | null

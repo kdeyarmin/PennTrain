@@ -1,5 +1,5 @@
 begin;
-select plan(37);
+select plan(39);
 
 select has_function(
   'public',
@@ -110,6 +110,13 @@ insert into public.employee_training_records(
   ('27000000-0000-4000-8000-000000000603', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000012', '27000000-0000-4000-8000-000000000303', '27000000-0000-4000-8000-000000000501', current_date - 5, current_date + 300, 'compliant', false),
   ('27000000-0000-4000-8000-000000000604', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000013', '27000000-0000-4000-8000-000000000304', '27000000-0000-4000-8000-000000000501', current_date - 5, current_date - 1, 'expired', false);
 
+insert into public.alerts(
+  organization_id, facility_id, alert_type, title, message, severity
+) values
+  ('27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', 'overdue', 'Info fixture', 'Info fixture', 'info'),
+  ('27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', 'overdue', 'Warning fixture', 'Warning fixture', 'warning'),
+  ('27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', 'overdue', 'Critical fixture', 'Critical fixture', 'critical');
+
 create or replace function pg_temp.act_as(p_id uuid) returns void
 language plpgsql as $$
 begin
@@ -176,6 +183,18 @@ select is(
   ((public.generate_paged_compliance_report('compliance-summary'))->'rows'->0->>1)::integer,
   3,
   'sandbox employees are excluded from report totals'
+);
+select is(
+  (public.generate_paged_compliance_report('facility-compliance'))->'rows'->1->>1,
+  'ALF',
+  'facility reports translate the stored ALR code to the user-facing ALF label'
+);
+select results_eq(
+  $$ select severity from public.alerts
+     where title like '% fixture'
+     order by severity_rank desc $$,
+  array['critical', 'warning', 'info'],
+  'server-side alert ordering preserves operational severity priority'
 );
 
 select lives_ok(

@@ -62,7 +62,11 @@ export function usePaginatedDomainList<T = Record<string, unknown>>(name: Domain
         const like = escapeOrValue(`%${search}%`);
         query = query.or(config.search.map((column) => `${column}.ilike.${like}`).join(","));
       }
-      query = query.order(filters.sortField || config.defaultSort, { ascending: (filters.sortDir ?? config.defaultSortDir ?? "desc") === "asc" });
+      const sortField = filters.sortField || config.defaultSort;
+      query = query.order(sortField, { ascending: (filters.sortDir ?? config.defaultSortDir ?? "desc") === "asc" });
+      if (name === "alerts" && sortField === "severity_rank") {
+        query = query.order("created_at", { ascending: false });
+      }
       const [from, to] = rangeFor(filters.page, filters.pageSize);
       const { data, error, count } = await query.range(from, to);
       if (error) throw error;
