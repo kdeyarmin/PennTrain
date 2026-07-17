@@ -312,11 +312,11 @@ export default function Residents() {
                 Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)}</span> of {totalCount}
               </p>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>
+                <Button variant="outline" size="sm" className="h-8" aria-label="Previous residents page" onClick={() => setUrlState({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="text-[13px] text-muted-foreground px-2">Page {page} of {totalPages}</span>
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.min(totalPages, page + 1)) })} disabled={page === totalPages}>
+                <Button variant="outline" size="sm" className="h-8" aria-label="Next residents page" onClick={() => setUrlState({ page: String(Math.min(totalPages, page + 1)) })} disabled={page === totalPages}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>

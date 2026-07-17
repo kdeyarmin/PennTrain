@@ -5,6 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,6 +40,7 @@ export default function MyShift() {
     title: string;
     narrative: string;
   } | null>(null);
+  const [showCallOffConfirm, setShowCallOffConfirm] = useState(false);
 
   const reportHandoff = () => {
     if (!shift?.facility_id || !shift?.id || !handoffDraft?.narrative.trim()) return;
@@ -57,9 +68,11 @@ export default function MyShift() {
 
   const handleCallOff = () => {
     if (!shift?.id) return;
-    if (!window.confirm("Report that you cannot work this shift? A manager will be alerted to fill coverage.")) return;
     callOff.mutate({ shiftAssignmentId: shift.id, category: "other", reason: "Employee reported call-off from My Shift" }, {
-      onSuccess: () => toast({ title: "Call-off reported", description: "Coverage work was routed to the manager queue." }),
+      onSuccess: () => {
+        setShowCallOffConfirm(false);
+        toast({ title: "Call-off reported", description: "Coverage work was routed to the manager queue." });
+      },
       onError: (e: Error) => toast({ title: "Could not report call-off", description: e.message, variant: "destructive" }),
     });
   };
@@ -102,7 +115,7 @@ export default function MyShift() {
                     <Button variant="outline" className="min-h-11 justify-start" onClick={() => setHandoffDraft({ category: "fall_or_injury", priority: "urgent", title: "Safety handoff", narrative: "" })} disabled={createHandoff.isPending}><FileText className="mr-2 h-4 w-4" />Add safety handoff</Button>
                     <Button variant="outline" className="min-h-11 justify-start" onClick={() => setHandoffDraft({ category: "maintenance", priority: "high", title: "Maintenance handoff", narrative: "" })} disabled={createHandoff.isPending}><Wrench className="mr-2 h-4 w-4" />Add maintenance handoff</Button>
                   </div>
-                  <Button variant="destructive" className="min-h-11 w-full sm:w-auto" onClick={handleCallOff} disabled={callOff.isPending}>Report call-off</Button>
+                  <Button variant="destructive" className="min-h-11 w-full sm:w-auto" onClick={() => setShowCallOffConfirm(true)} disabled={callOff.isPending}>Report call-off</Button>
                 </div>
               ) : <p className="text-sm text-muted-foreground">No published shift is currently assigned. Check open offers and upcoming schedule below.</p>}
             </CardContent>
@@ -179,6 +192,30 @@ export default function MyShift() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={showCallOffConfirm} onOpenChange={setShowCallOffConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Report this shift call-off?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your manager will be alerted immediately so they can arrange coverage for this shift.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep shift</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                handleCallOff();
+              }}
+              disabled={callOff.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {callOff.isPending ? "Reporting..." : "Report call-off"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,10 +1,46 @@
 import { useEffect } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesUpdate } from "@/lib/database.types";
+import { applyAlertCachePatch, type AlertCacheRow } from "@/lib/alertCache";
 
 export type Alert = Tables<"alerts">;
+type AlertListView = Tables<"alert_list_rows">;
+export type AlertListRow = Alert & Pick<
+  AlertListView,
+  "severity_rank" | "linked_incident_id" | "linked_inspection_item_id" | "linked_resident_id"
+>;
 export type AlertUpdate = TablesUpdate<"alerts">;
+
+const ALERTS_KEY = ["alerts"] as const;
+
+type AlertQuerySnapshot = Array<[QueryKey, unknown]>;
+
+function statusFilterFor(queryKey: QueryKey): string | undefined {
+  const candidate = queryKey[1] === "paginated" ? queryKey[2] : queryKey[1];
+  if (!candidate || typeof candidate !== "object" || !("status" in candidate)) return undefined;
+  const status = (candidate as { status?: unknown }).status;
+  return typeof status === "string" ? status : undefined;
+}
+
+function optimisticallyUpdateAlerts(
+  queryClient: QueryClient,
+  ids: ReadonlySet<string>,
+  patch: AlertUpdate,
+) {
+  const previous = queryClient.getQueriesData({ queryKey: ALERTS_KEY });
+  previous.forEach(([queryKey, value]) => {
+    queryClient.setQueryData(
+      queryKey,
+      applyAlertCachePatch(value, ids, patch as Partial<AlertCacheRow>, statusFilterFor(queryKey)),
+    );
+  });
+  return previous;
+}
+
+function restoreAlertQueries(queryClient: QueryClient, snapshot?: AlertQuerySnapshot) {
+  snapshot?.forEach(([queryKey, value]) => queryClient.setQueryData(queryKey, value));
+}
 
 export interface ListAlertsFilters {
   facilityId?: string;
@@ -15,7 +51,7 @@ export interface ListAlertsFilters {
 
 export function useListAlerts(filters: ListAlertsFilters = {}) {
   return useQuery({
-    queryKey: ["alerts", filters],
+    queryKey: [...ALERTS_KEY, filters],
     queryFn: async () => {
       let query = supabase.from("alerts").select("*").order("created_at", { ascending: false });
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
@@ -42,19 +78,18 @@ export function useAlertRealtime(organizationId?: string) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!organizationId) return;
     const channel = supabase
-      .channel(`alerts:${organizationId}`)
+      .channel(`alerts:${organizationId ?? "all-visible"}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "alerts",
-          filter: `organization_id=eq.${organizationId}`,
+          ...(organizationId ? { filter: `organization_id=eq.${organizationId}` } : {}),
         },
         () => {
-          void queryClient.invalidateQueries({ queryKey: ["alerts"] });
+          void queryClient.invalidateQueries({ queryKey: ALERTS_KEY });
         },
       )
       .subscribe();
@@ -73,7 +108,12 @@ export function useUpdateAlert() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alerts"] }),
+    onMutate: async ({ id, ...payload }) => {
+      await queryClient.cancelQueries({ queryKey: ALERTS_KEY });
+      return { previous: optimisticallyUpdateAlerts(queryClient, new Set([id]), payload) };
+    },
+    onError: (_error, _variables, context) => restoreAlertQueries(queryClient, context?.previous),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ALERTS_KEY }),
   });
 }
 
@@ -85,6 +125,11 @@ export function useBulkUpdateAlerts() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alerts"] }),
+    onMutate: async ({ ids, ...payload }) => {
+      await queryClient.cancelQueries({ queryKey: ALERTS_KEY });
+      return { previous: optimisticallyUpdateAlerts(queryClient, new Set(ids), payload) };
+    },
+    onError: (_error, _variables, context) => restoreAlertQueries(queryClient, context?.previous),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ALERTS_KEY }),
   });
 }

@@ -21,6 +21,7 @@ interface DomainListQuery {
   eq(column: string, value: string | boolean): DomainListQuery;
   or(filters: string): DomainListQuery;
   order(column: string, options: { ascending: boolean }): DomainListQuery;
+  abortSignal(signal: AbortSignal): DomainListQuery;
   range(from: number, to: number): PromiseLike<DomainListQueryResult>;
 }
 
@@ -47,25 +48,12 @@ export interface DomainListFilters {
 }
 
 interface DomainListConfig {
-<<<<<<< HEAD
   table: DomainListSource;
-=======
-  table: DomainListName;
->>>>>>> origin/main
   defaultSort: string;
   defaultSortDir?: SortDirection;
   search: string[];
   facilityColumn?: string;
-<<<<<<< HEAD
   residentColumn?: string;
-  statusColumn?: string;
-  severityColumn?: string;
-}
-
-const CONFIG: Record<DomainListName, DomainListConfig> = {
-  residents: { table: "resident_roster_rows", defaultSort: "last_name", defaultSortDir: "asc", search: ["search_text"], facilityColumn: "facility_id", statusColumn: "status" },
-  incidents: { table: "incident_list_rows", defaultSort: "occurred_at", search: ["search_text"], facilityColumn: "facility_id", residentColumn: "resident_id", statusColumn: "status", severityColumn: "severity" },
-=======
   statusColumn?: string;
   severityColumn?: string;
   itemKindColumn?: string;
@@ -73,9 +61,8 @@ const CONFIG: Record<DomainListName, DomainListConfig> = {
 }
 
 const CONFIG: Record<DomainListName, DomainListConfig> = {
-  residents: { table: "residents", defaultSort: "last_name", defaultSortDir: "asc", search: ["first_name", "last_name", "room_number"], facilityColumn: "facility_id", statusColumn: "status" },
-  incidents: { table: "incidents", defaultSort: "occurred_at", search: ["incident_type", "location_detail", "resident_identifier"], facilityColumn: "facility_id", statusColumn: "status", severityColumn: "severity" },
->>>>>>> origin/main
+  residents: { table: "resident_roster_rows", defaultSort: "last_name", defaultSortDir: "asc", search: ["search_text"], facilityColumn: "facility_id", statusColumn: "status" },
+  incidents: { table: "incident_list_rows", defaultSort: "occurred_at", search: ["search_text"], facilityColumn: "facility_id", residentColumn: "resident_id", statusColumn: "status", severityColumn: "severity" },
   complaints: { table: "complaints", defaultSort: "date_received", search: ["complaint_number", "category", "complainant_name"], facilityColumn: "facility_id", statusColumn: "status" },
   alerts: { table: "alert_list_rows", defaultSort: "created_at", search: ["title", "message", "alert_type"], facilityColumn: "facility_id", statusColumn: "status", severityColumn: "severity" },
   dhs_violations: { table: "dhs_violations", defaultSort: "inspection_date", search: ["citation_ref", "description"], facilityColumn: "facility_id", statusColumn: "status", severityColumn: "severity" },
@@ -88,7 +75,7 @@ const CONFIG: Record<DomainListName, DomainListConfig> = {
 export function usePaginatedDomainList<T = Record<string, unknown>>(name: DomainListName, filters: DomainListFilters) {
   return useQuery({
     queryKey: [name, "paginated", filters],
-    queryFn: async (): Promise<PaginatedResult<T>> => {
+    queryFn: async ({ signal }): Promise<PaginatedResult<T>> => {
       const config = CONFIG[name];
       let query = domainDatabase.from(config.table).select("*", { count: "exact" });
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
@@ -103,27 +90,18 @@ export function usePaginatedDomainList<T = Record<string, unknown>>(name: Domain
         const like = escapeOrValue(`%${search}%`);
         query = query.or(config.search.map((column) => `${column}.ilike.${like}`).join(","));
       }
-<<<<<<< HEAD
-      query = query
-        .order(filters.sortField || config.defaultSort, { ascending: (filters.sortDir ?? config.defaultSortDir ?? "desc") === "asc" })
-        .order("id", { ascending: true });
-=======
       const sortField = filters.sortField || config.defaultSort;
       query = query.order(sortField, { ascending: (filters.sortDir ?? config.defaultSortDir ?? "desc") === "asc" });
       if (name === "alerts" && sortField === "severity_rank") {
         query = query.order("created_at", { ascending: false });
       }
->>>>>>> origin/main
+      query = query.order("id", { ascending: true }).abortSignal(signal);
       const [from, to] = rangeFor(filters.page, filters.pageSize);
       const { data, error, count } = await query.range(from, to);
       if (error) throw error;
       return { rows: (data ?? []) as unknown as T[], count: count ?? 0 };
     },
     placeholderData: (previous) => previous,
-<<<<<<< HEAD
-    staleTime: name === "alerts" ? 0 : undefined,
-    refetchOnWindowFocus: name === "alerts" ? true : undefined,
-=======
     ...(name === "alerts" ? { staleTime: 0, refetchOnWindowFocus: true } : {}),
   });
 }
@@ -131,7 +109,7 @@ export function usePaginatedDomainList<T = Record<string, unknown>>(name: Domain
 export function usePaginatedViolations<T = Record<string, unknown>>(filters: DomainListFilters) {
   return useQuery({
     queryKey: ["dhs_violations", "paginated", filters],
-    queryFn: async (): Promise<PaginatedResult<T>> => {
+    queryFn: async ({ signal }): Promise<PaginatedResult<T>> => {
       let query = supabase
         .from("dhs_violations_search")
         .select("*", { count: "exact" });
@@ -150,13 +128,13 @@ export function usePaginatedViolations<T = Record<string, unknown>>(filters: Dom
       }
       query = query
         .order("inspection_date", { ascending: false })
-        .order("id", { ascending: true });
+        .order("id", { ascending: true })
+        .abortSignal(signal);
       const [from, to] = rangeFor(filters.page, filters.pageSize);
       const { data, error, count } = await query.range(from, to);
       if (error) throw error;
       return { rows: (data ?? []) as unknown as T[], count: count ?? 0 };
     },
     placeholderData: (previous) => previous,
->>>>>>> origin/main
   });
 }
