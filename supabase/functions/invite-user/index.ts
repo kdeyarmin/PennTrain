@@ -143,10 +143,8 @@ Deno.serve(async (req: Request) => {
 
   const effectiveOrgId = callerRole === "platform_admin" ? (organization_id ?? null) : callerOrgId;
 
-  if (["platform_admin", "org_admin", "facility_manager", "auditor"].includes(role)) {
-    const assurance = await requireFreshAal2(callerClient, "identity_admin");
-    if (!assurance.ok) return json({ error: assurance.error }, assurance.status);
-  }
+  const assurance = await requireFreshAal2(callerClient, "identity_admin");
+  if (!assurance.ok) return json({ error: assurance.error }, assurance.status);
 
   // Employee self-service depends on employees.profile_id. Inviting an employee without linking
   // that row produces a valid login that can only show "No employee profile is linked" across

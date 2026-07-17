@@ -14,6 +14,26 @@ function json(body: unknown, status = 200) {
   });
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function randomSecret(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function jwtSessionId(jwt: string): string | null {
+  try {
+    const payload = jwt.split(".")[1].replaceAll("-", "+").replaceAll("_", "/");
+    const decoded = JSON.parse(atob(payload + "===".slice((payload.length + 3) % 4)));
+    return typeof decoded.session_id === "string" && decoded.session_id ? decoded.session_id : null;
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -40,14 +60,12 @@ Deno.serve(async (req: Request) => {
   if (callerProfileError || !callerProfile || !callerProfile.is_active) {
     return json({ error: "Caller profile not found or inactive" }, 403);
   }
-  if (callerProfile.role !== "platform_admin") {
-    return json({ error: "not authorized to impersonate users" }, 403);
-  }
-
   let body: {
     action?: string;
     target_user_id?: string;
     reason?: string;
+    impersonation_id?: string;
+    context_secret?: string;
   };
   try {
     body = await req.json();
@@ -58,8 +76,13 @@ Deno.serve(async (req: Request) => {
   const { action, target_user_id, reason } = body;
 
   const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+  const accessToken = authHeader.replace(/^Bearer\s+/i, "");
+  const currentSessionId = jwtSessionId(accessToken);
 
   if (action === "start") {
+    if (callerProfile.role !== "platform_admin") {
+      return json({ error: "not authorized to impersonate users" }, 403);
+    }
     if (!target_user_id) return json({ error: "target_user_id is required" }, 400);
     if (!reason || reason.trim().length < 3) {
       return json({ error: "reason is required and must be at least 3 characters" }, 400);
@@ -123,9 +146,28 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Failed to record the required audit log entry; impersonation aborted." }, 500);
     }
 
+    const contextSecret = randomSecret();
+    const { data: context, error: contextError } = await adminClient
+      .from("impersonation_sessions")
+      .insert({
+        actor_profile_id: callerUser.id,
+        target_profile_id: target_user_id,
+        target_organization_id: targetProfile.organization_id,
+        context_secret_sha256: await sha256Hex(contextSecret),
+        reason: reason.trim(),
+      })
+      .select("id, expires_at")
+      .single();
+    if (contextError || !context) {
+      return json({ error: "Failed to create the bounded impersonation context; impersonation aborted." }, 500);
+    }
+
     return json({
       success: true,
       token_hash: tokenHash,
+      impersonation_id: context.id,
+      context_secret: contextSecret,
+      expires_at: context.expires_at,
       target: {
         id: targetProfile.id,
         email: targetProfile.email,
@@ -137,33 +179,66 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  if (action === "end") {
-    if (!target_user_id) return json({ error: "target_user_id is required" }, 400);
-
-    // Stamp the target's organization_id (rather than null) so end events don't disappear from
-    // organization-filtered audit views -- the caller's own session has already been restored to
-    // the admin by this point, so this lookup must go through the service-role client, not
-    // callerClient (whose JWT no longer belongs to the target's org).
-    const { data: targetProfile } = await adminClient
-      .from("profiles")
-      .select("organization_id")
-      .eq("id", target_user_id)
+  if (action === "bind" || action === "end") {
+    const impersonationId = body.impersonation_id;
+    const contextSecret = body.context_secret;
+    if (!impersonationId || !contextSecret || !currentSessionId) {
+      return json({ error: "A bounded impersonation context and Auth session are required" }, 400);
+    }
+    const { data: context, error: contextError } = await adminClient
+      .from("impersonation_sessions")
+      .select("id, actor_profile_id, target_profile_id, target_organization_id, target_session_id, context_secret_sha256, reason, expires_at, ended_at")
+      .eq("id", impersonationId)
       .maybeSingle();
+    if (contextError || !context
+      || context.target_profile_id !== callerUser.id
+      || context.context_secret_sha256 !== await sha256Hex(contextSecret)
+      || context.ended_at
+      || Date.parse(context.expires_at) <= Date.now()) {
+      return json({ error: "Impersonation context is invalid, expired, or already ended" }, 403);
+    }
 
+    if (action === "bind") {
+      if (context.target_session_id && context.target_session_id !== currentSessionId) {
+        return json({ error: "Impersonation context is already bound to another session" }, 409);
+      }
+      const { error: bindError } = await adminClient
+        .from("impersonation_sessions")
+        .update({ target_session_id: currentSessionId, bound_at: new Date().toISOString() })
+        .eq("id", context.id)
+        .is("ended_at", null);
+      if (bindError) return json({ error: "Failed to bind the impersonated Auth session" }, 500);
+      return json({ success: true });
+    }
+
+    if (context.target_session_id !== currentSessionId) {
+      return json({ error: "Current Auth session is not the bounded impersonation session" }, 403);
+    }
     const { error: auditInsertError } = await adminClient.from("audit_logs").insert({
-      organization_id: targetProfile?.organization_id ?? null,
-      actor_profile_id: callerUser.id,
+      organization_id: context.target_organization_id,
+      actor_profile_id: context.actor_profile_id,
       entity_type: "impersonation",
-      entity_id: target_user_id,
+      entity_id: context.target_profile_id,
       action: "impersonation_end",
-      new_values: { reason: reason ?? null },
+      new_values: {
+        reason: context.reason,
+        impersonation_session_id: context.id,
+        target_session_id: currentSessionId,
+      },
     });
     if (auditInsertError) {
       return json({ error: "Failed to record the impersonation-end audit log entry." }, 500);
     }
-
+    const { error: revokeError } = await adminClient.auth.admin.signOut(accessToken, "local");
+    if (revokeError) return json({ error: "Failed to revoke the impersonated Auth session" }, 500);
+    const { error: endError } = await adminClient
+      .from("impersonation_sessions")
+      .update({ ended_at: new Date().toISOString() })
+      .eq("id", context.id)
+      .is("ended_at", null);
+    if (endError) return json({ error: "Session was revoked but lifecycle finalization failed" }, 500);
     return json({ success: true });
   }
 
-  return json({ error: "action must be one of start, end" }, 400);
+  return json({ error: "action must be one of start, bind, end" }, 400);
 });

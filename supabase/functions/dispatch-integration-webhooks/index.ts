@@ -4,6 +4,7 @@ import {
   phase2IntegrationSha256,
   phase2PinnedWebhookRequest,
   phase2RetryableWebhookStatus,
+  phase2RoundRobinByTenant,
   sanitizePhase2IntegrationError,
   signPhase2IntegrationWebhook,
   validatePhase2WebhookDestination,
@@ -109,7 +110,10 @@ Deno.serve(async (req: Request) => {
   let retried = 0;
   let deadLettered = 0;
   let persistenceErrors = 0;
-  for (const delivery of claimed) {
+  const orderedClaims = phase2RoundRobinByTenant(claimed);
+  const concurrency = 5;
+  for (let offset = 0; offset < orderedClaims.length; offset += concurrency) {
+    await Promise.all(orderedClaims.slice(offset, offset + concurrency).map(async (delivery) => {
     const rawBody = JSON.stringify(delivery.request_body);
     const timestamp = Math.floor(Date.now() / 1000);
     const signature = await signPhase2IntegrationWebhook(
@@ -196,11 +200,12 @@ Deno.serve(async (req: Request) => {
     );
     if (completionError) {
       persistenceErrors++;
-      continue;
+      return;
     }
     if (outcome === "delivered") delivered++;
     else if (outcome === "retry") retried++;
     else deadLettered++;
+    }));
   }
 
   const failed = retried + deadLettered + persistenceErrors;

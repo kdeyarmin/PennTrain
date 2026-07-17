@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { KeyRound, LockKeyhole, LogOut, ShieldCheck } from "lucide-react";
-import { useAuth, useSignOut } from "@/lib/auth";
+import { KeyRound, Loader2, LockKeyhole, LogOut, ShieldCheck } from "lucide-react";
+import { markExplicitPasswordSignIn, useAuth, useSignOut } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useGetOrganizationSettings } from "@/hooks/useOrganizationSettings";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,22 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
   const [unlocking, setUnlocking] = useState(false);
   const [lockEventId, setLockEventId] = useState<string | null>(null);
   const lastActivity = useRef(Date.now());
+  const persistedLock = useQuery({
+    queryKey: ["current_idle_session_lock", user?.id],
+    enabled: !!user,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_current_idle_session_lock");
+      if (error) throw error;
+      return typeof data === "string" ? data : null;
+    },
+  });
+
+  useEffect(() => {
+    if (!persistedLock.data) return;
+    setLockEventId(persistedLock.data);
+    setLocked(true);
+  }, [persistedLock.data]);
 
   const isKiosk = location.includes("/kiosk") || location.startsWith("/checkin/");
   const timeoutMinutes = isKiosk
@@ -58,6 +74,7 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
     if (!user || !password) return;
     setUnlocking(true);
     try {
+      markExplicitPasswordSignIn();
       const { error } = await supabase.auth.signInWithPassword({ email: user.email, password });
       if (error) throw error;
       await queryClient.invalidateQueries({ queryKey: ["my_mfa_policy"] });
@@ -72,6 +89,13 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
       setUnlocking(false);
     }
   };
+
+  if (user && persistedLock.isLoading) {
+    return <div className="grid min-h-screen place-items-center bg-background" role="status">
+      <Loader2 className="h-7 w-7 animate-spin text-primary" />
+      <span className="sr-only">Checking session security</span>
+    </div>;
+  }
 
   return (
     <>

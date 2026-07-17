@@ -354,11 +354,14 @@ function Router() {
       {/* Bare, chrome-less public page intentionally left outside ProtectedRoute/MainLayout so
           signed-out visitors can open it directly after scanning a QR code. */}
       <Route path="/checkin/:token" component={CheckIn} />
-      {/* Evidence-room guest link: the token in the URL is the whole credential; the
-          server authorizes and logs every call, so no session or chrome is involved. */}
+      {/* Guest pages immediately move path credentials into tab-scoped storage and replace
+          browser history with the matching clean route below. */}
       <Route path="/evidence-access/:token" component={EvidenceGuestRoom} />
+      <Route path="/evidence-access" component={EvidenceGuestRoom} />
       <Route path="/move-in-access/:token" component={MoveInGuestPortal} />
+      <Route path="/move-in-access" component={MoveInGuestPortal} />
       <Route path="/resident-agreement-access/:token" component={ResidentAgreementGuestPortal} />
+      <Route path="/resident-agreement-access" component={ResidentAgreementGuestPortal} />
       <Route path="/resident-portal" component={ResidentDesignatedPersonPortal} />
 
       <Route path="/account/security">

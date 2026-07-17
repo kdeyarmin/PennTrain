@@ -5,6 +5,7 @@ import {
   phase2CredentialIsUsable,
   phase2PinnedWebhookRequest,
   phase2RetryableWebhookStatus,
+  phase2RoundRobinByTenant,
   signPhase2IntegrationWebhook,
   verifyPhase2IntegrationWebhook,
   validatePhase2WebhookDestination,
@@ -105,4 +106,53 @@ Deno.test("pinned webhook transport connects to the validated IP with the TLS ho
   assertEquals(calls, [{ address: "8.8.8.8", tlsHostname: "hooks.example.test", port: 443 }]);
   assertEquals(response.status, 302);
   assertEquals(response.ok, false);
+});
+
+Deno.test("pinned webhook timeout is an absolute request deadline", async () => {
+  const chunks = [
+    "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n",
+    "Connection: close\r\n\r\n",
+    "ok",
+  ];
+  let index = 0;
+  const pendingReadDelays: Promise<void>[] = [];
+  const connector = async () => ({
+    write: async (bytes: Uint8Array) => bytes.length,
+    read: async (buffer: Uint8Array) => {
+      const delay = new Promise<void>((resolve) => setTimeout(resolve, 45));
+      pendingReadDelays.push(delay);
+      await delay;
+      if (index >= chunks.length) return null;
+      const bytes = new TextEncoder().encode(chunks[index++]);
+      buffer.set(bytes);
+      return bytes.length;
+    },
+    close: () => {},
+  });
+  const started = Date.now();
+  let timedOut = false;
+  try {
+    await phase2PinnedWebhookRequest(
+      "https://hooks.example.test/events",
+      { body: "{}", timeoutMs: 100 },
+      ["8.8.8.8"],
+      connector,
+    );
+  } catch (error) {
+    timedOut = error instanceof DOMException && error.name === "TimeoutError";
+  }
+  await Promise.allSettled(pendingReadDelays);
+  assertEquals(timedOut, true);
+  if (Date.now() - started > 500) throw new Error("Absolute timeout exceeded its bounded allowance");
+});
+
+Deno.test("claimed deliveries are interleaved across tenants", () => {
+  const rows = [
+    { organization_id: "a", id: 1 },
+    { organization_id: "a", id: 2 },
+    { organization_id: "a", id: 3 },
+    { organization_id: "b", id: 4 },
+    { organization_id: "b", id: 5 },
+  ];
+  assertEquals(phase2RoundRobinByTenant(rows).map((row) => row.id), [1, 4, 2, 5, 3]);
 });

@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { zipSync, strToU8 } from "npm:fflate@0.8.2";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
+import { validateOrganizationExportDocument } from "../_shared/organizationExport.ts";
 
 const HEADERS = withCronCorsHeader({
   "Access-Control-Allow-Origin": "*",
@@ -116,9 +117,19 @@ async function documentManifest(
       let signedUrl: string | null = null;
       let signedUrlError: string | null = null;
       if (bucket && path) {
-        const { data, error } = await admin.storage.from(bucket).createSignedUrl(path, 60 * 60);
-        signedUrl = data?.signedUrl ?? null;
-        signedUrlError = error?.message ?? null;
+        const reference = validateOrganizationExportDocument({
+          sourceTable,
+          organizationId,
+          bucket,
+          path,
+        });
+        if (!reference.valid) {
+          signedUrlError = `Document reference rejected: ${reference.reason}`;
+        } else {
+          const { data, error } = await admin.storage.from(bucket).createSignedUrl(path, 60 * 60);
+          signedUrl = data?.signedUrl ?? null;
+          signedUrlError = error?.message ?? null;
+        }
       }
       return {
         sourceTable,

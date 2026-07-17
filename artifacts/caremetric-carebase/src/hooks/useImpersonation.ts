@@ -22,6 +22,8 @@ export interface ImpersonationTarget {
 interface ImpersonationRecord {
   originSession: { access_token: string; refresh_token: string };
   target: ImpersonationTarget;
+  impersonationId?: string;
+  contextSecret?: string;
   startedAt: string;
 }
 
@@ -61,7 +63,7 @@ export function useStartImpersonation() {
         body: { action: "start", target_user_id: vars.targetUserId, reason: vars.reason },
       });
       if (error) throw error;
-      if (!data?.token_hash || !data?.target?.id) {
+      if (!data?.token_hash || !data?.target?.id || !data?.impersonation_id || !data?.context_secret) {
         throw new Error("The impersonation service returned an incomplete session response");
       }
 
@@ -71,6 +73,8 @@ export function useStartImpersonation() {
           refresh_token: sessionData.session.refresh_token,
         },
         target: data.target,
+        impersonationId: data.impersonation_id,
+        contextSecret: data.context_secret,
         startedAt: new Date().toISOString(),
       };
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(record));
@@ -83,6 +87,20 @@ export function useStartImpersonation() {
         // present the still-admin session as an active impersonation session.
         sessionStorage.removeItem(STORAGE_KEY);
         throw otpError;
+      }
+
+      const { error: bindError } = await supabase.functions.invoke("impersonate-user", {
+        body: {
+          action: "bind",
+          impersonation_id: record.impersonationId,
+          context_secret: record.contextSecret,
+        },
+      });
+      if (bindError) {
+        await supabase.auth.signOut({ scope: "local" });
+        await supabase.auth.setSession(record.originSession);
+        sessionStorage.removeItem(STORAGE_KEY);
+        throw new Error(`The impersonated session could not be bounded: ${bindError.message}`);
       }
 
       window.dispatchEvent(new Event(CHANGE_EVENT));
@@ -103,17 +121,37 @@ export function useStopImpersonation() {
       if (!record) return null;
 
       const { originSession, target } = record;
+      if (!record.impersonationId || !record.contextSecret) {
+        // Sessions started before the bounded-context rollout have no server context row. Revoke
+        // that target Auth session directly before restoring the saved administrator session.
+        const { error: legacyRevokeError } = await supabase.auth.signOut({ scope: "local" });
+        if (legacyRevokeError) throw legacyRevokeError;
+        const { error: legacyRestoreError } = await supabase.auth.setSession(originSession);
+        if (legacyRestoreError) throw legacyRestoreError;
+        sessionStorage.removeItem(STORAGE_KEY);
+        window.dispatchEvent(new Event(CHANGE_EVENT));
+        queryClient.clear();
+        return target;
+      }
+      // End while the target JWT is still active. The service verifies that this is the exact
+      // bound Auth session and revokes its refresh session before the admin session is restored.
+      const { error: endError } = await supabase.functions.invoke("impersonate-user", {
+        body: {
+          action: "end",
+          impersonation_id: record.impersonationId,
+          context_secret: record.contextSecret,
+        },
+      });
+      if (endError) throw endError;
+
       const { error } = await supabase.auth.setSession({
         access_token: originSession.access_token,
         refresh_token: originSession.refresh_token,
       });
-      if (error) throw error;
-
-      // Logged with the now-restored admin JWT; failure here shouldn't block exiting impersonation.
-      const { error: endError } = await supabase.functions.invoke("impersonate-user", {
-        body: { action: "end", target_user_id: target.id },
-      });
-      if (endError) console.error(endError);
+      if (error) {
+        sessionStorage.removeItem(STORAGE_KEY);
+        throw error;
+      }
 
       sessionStorage.removeItem(STORAGE_KEY);
       window.dispatchEvent(new Event(CHANGE_EVENT));
