@@ -208,6 +208,8 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/admin/roadmap", label: "Improvement roadmap", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["phases", "planning", "suggestions", "implementation"] },
 
   { path: "/app", label: "Organization dashboard", domain: "tenant", roles: ORG_HOME_ROLES, keywords: ["overview", "compliance"] },
+  { path: "/app/today", label: "Today", domain: "tenant", roles: ORG_HOME_ROLES, keywords: ["daily", "priorities", "huddle", "exceptions", "decisions"] },
+  { path: "/app/value-center", label: "CareBase Value Center", domain: "tenant", roles: ORG_MANAGERS, keywords: ["automation", "inspection war room", "implementation", "integration", "savings", "roi", "scheduled reports", "staffing", "admissions", "offline", "portal", "medication", "copilot"] },
   { path: "/app/facilities", label: "Facilities", domain: "directory", roles: ORG_HOME_ROLES, keywords: ["locations", "sites"] },
   { path: "/app/employees", label: "Employees", domain: "directory", roles: ORG_HOME_ROLES, keywords: ["staff", "workforce"] },
   { path: "/app/training-matrix", label: "Training matrix", domain: "training", roles: ORG_ROLES, keywords: ["compliance", "due soon"] },

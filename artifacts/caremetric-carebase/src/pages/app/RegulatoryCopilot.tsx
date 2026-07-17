@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { AlertTriangle, Bot, CheckCircle2, ExternalLink, FileSearch, History, Loader2, LockKeyhole, Sparkles } from "lucide-react";
+import { AlertTriangle, Bot, CheckCircle2, ClipboardList, ExternalLink, FileSearch, History, Loader2, LockKeyhole, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useCreateCopilotActionDraft } from "@/hooks/useProductValueOperatingSystem";
 
 const INTENTS: Array<{ value: CopilotIntent; label: string; question: string; help: string }> = [
   { value: "employee_blocked", label: "Why is this employee blocked?", question: "Explain the latest recorded scheduling eligibility decision for this employee.", help: "Uses recorded blocks, warnings, overrides, and decision checksum only." },
@@ -65,6 +66,7 @@ export default function RegulatoryCopilot() {
   const { data: violations } = useListViolations({ facilityId: activeFacilityId || undefined });
   const history = useComplianceCopilotHistory(activeFacilityId || undefined);
   const ask = useAskComplianceCopilot();
+  const createActionDraft = useCreateCopilotActionDraft();
   const selectedIntent = INTENTS.find((option) => option.value === intent)!;
 
   useEffect(() => setQuestion(selectedIntent.question), [selectedIntent.question]);
@@ -115,7 +117,22 @@ export default function RegulatoryCopilot() {
             </CardContent>
           </Card>
 
-          {ask.data && <CopilotResult result={ask.data} evidenceById={evidenceById} />}
+          {ask.data && <CopilotResult
+            result={ask.data}
+            evidenceById={evidenceById}
+            canCreateDraft={["org_admin", "facility_manager"].includes(user?.role ?? "") && ask.data.response.recommended_next_steps.length > 0}
+            creatingDraft={createActionDraft.isPending}
+            onCreateDraft={() => createActionDraft.mutate({
+              facilityId: activeFacilityId,
+              intent: ask.data!.intent,
+              title: `Copilot follow-up: ${INTENTS.find((item) => item.value === ask.data!.intent)?.label ?? "compliance review"}`,
+              sourceResponseId: ask.data!.runId,
+              actions: ask.data!.response.recommended_next_steps.map((step) => ({ title: step, description: "Human-approved follow-up from a citation-backed CareBase response.", priority: "normal", dueDays: 7 })),
+            }, {
+              onSuccess: () => toast({ title: "Governed action draft created", description: "Review and approve it in the CareBase Value Center before work is created." }),
+              onError: (error) => toast({ title: "Action draft could not be created", description: error.message, variant: "destructive" }),
+            })}
+          />}
         </TabsContent>
         <TabsContent value="history">
           <Card><CardHeader><CardTitle>Immutable response receipts</CardTitle><CardDescription>History includes failed attempts, request/response checksums, the facility scope, model, determination label, and cited snapshots. Prior rows cannot be edited or deleted.</CardDescription></CardHeader><CardContent className="space-y-3">
@@ -126,7 +143,7 @@ export default function RegulatoryCopilot() {
   );
 }
 
-function CopilotResult({ result, evidenceById }: { result: CopilotResultData; evidenceById: Map<string, CopilotEvidence> }) {
+function CopilotResult({ result, evidenceById, canCreateDraft, creatingDraft, onCreateDraft }: { result: CopilotResultData; evidenceById: Map<string, CopilotEvidence>; canCreateDraft: boolean; creatingDraft: boolean; onCreateDraft: () => void }) {
   const recommendation = result.determinationKind === "recommendation";
   return <div className="space-y-5">
     <Alert variant={recommendation ? "default" : undefined}>{recommendation ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}<AlertTitle>{recommendation ? "Recommendation — human review required" : "Confirmed system snapshot — human interpretation still required"}</AlertTitle><AlertDescription>{result.jurisdictionCode} · {result.facilityType === "ALR" ? "ALF" : result.facilityType} · as of {result.asOfDate} · model {result.model}</AlertDescription></Alert>
@@ -136,7 +153,7 @@ function CopilotResult({ result, evidenceById }: { result: CopilotResultData; ev
       <Card><CardHeader><CardTitle>Regulatory sources</CardTitle><CardDescription>Only exact governed rule versions validated against the model’s source IDs.</CardDescription></CardHeader><CardContent className="space-y-3">{result.ruleSources.length === 0 ? <p className="text-sm text-muted-foreground">No matching active governed rule version was available; see missing information.</p> : result.ruleSources.map((source) => <RuleSource key={source.id} source={source} />)}</CardContent></Card>
       <Card><CardHeader><CardTitle>Evidence used</CardTitle><CardDescription>Facility-scoped rows retrieved under the caller’s own access policy.</CardDescription></CardHeader><CardContent className="space-y-2">{result.evidenceUsed.length === 0 ? <p className="text-sm text-muted-foreground">No matching evidence was found.</p> : result.evidenceUsed.map((item) => <Button key={item.id} asChild variant="outline" className="h-auto w-full justify-between py-2 text-left"><Link href={item.route}><span><span className="block font-medium">{item.label}</span><span className="block text-xs text-muted-foreground">{item.status ?? "No status"} · due {displayDate(item.dueOn)}</span></span><ExternalLink className="h-4 w-4 shrink-0" /></Link></Button>)}</CardContent></Card>
     </div>
-    <div className="grid gap-5 xl:grid-cols-2"><Card><CardHeader><CardTitle>Missing information</CardTitle></CardHeader><CardContent>{result.response.missing_information.length === 0 ? <p className="text-sm text-muted-foreground">No material data gap was reported.</p> : <ul className="list-disc space-y-1 pl-5 text-sm">{result.response.missing_information.map((item) => <li key={item}>{item}</li>)}</ul>}</CardContent></Card><Card><CardHeader><CardTitle>Recommended next steps</CardTitle></CardHeader><CardContent>{result.response.recommended_next_steps.length === 0 ? <p className="text-sm text-muted-foreground">No next step was proposed.</p> : <ol className="list-decimal space-y-1 pl-5 text-sm">{result.response.recommended_next_steps.map((item) => <li key={item}>{item}</li>)}</ol>}</CardContent></Card></div>
+    <div className="grid gap-5 xl:grid-cols-2"><Card><CardHeader><CardTitle>Missing information</CardTitle></CardHeader><CardContent>{result.response.missing_information.length === 0 ? <p className="text-sm text-muted-foreground">No material data gap was reported.</p> : <ul className="list-disc space-y-1 pl-5 text-sm">{result.response.missing_information.map((item) => <li key={item}>{item}</li>)}</ul>}</CardContent></Card><Card><CardHeader><CardTitle>Recommended next steps</CardTitle></CardHeader><CardContent className="space-y-4">{result.response.recommended_next_steps.length === 0 ? <p className="text-sm text-muted-foreground">No next step was proposed.</p> : <><ol className="list-decimal space-y-1 pl-5 text-sm">{result.response.recommended_next_steps.map((item) => <li key={item}>{item}</li>)}</ol>{canCreateDraft && <Button variant="outline" disabled={creatingDraft} onClick={onCreateDraft}>{creatingDraft ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ClipboardList className="mr-2 h-4 w-4" />}Create governed action draft</Button>}</>}</CardContent></Card></div>
     <Alert><FileSearch className="h-4 w-4" /><AlertTitle>Safeguards applied</AlertTitle><AlertDescription>Read-only: {String(result.safeguards.readOnly)} · Human confirmation required: {String(result.safeguards.humanConfirmationRequired)} · Prohibited actions: {result.safeguards.prohibitedActions.join(", ").replaceAll("_", " ")}.</AlertDescription></Alert>
   </div>;
 }

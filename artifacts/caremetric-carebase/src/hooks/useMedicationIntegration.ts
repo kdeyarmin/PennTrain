@@ -82,3 +82,22 @@ export function useResolveMedicationIntegrationException() {
     onSuccess: (_data, input) => queryClient.invalidateQueries({ queryKey: ["medication-integration", input.facilityId] }),
   });
 }
+
+export function useAssignMedicationIntegrationException() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { exceptionId: string; facilityId: string; ownerProfileId: string; dueAt: string; serviceLevelMinutes: number }) => {
+      const { data, error } = await supabase.rpc("assign_medication_integration_exception" as never, {
+        p_exception_id: input.exceptionId, p_owner_profile_id: input.ownerProfileId,
+        p_due_at: input.dueAt, p_service_level_minutes: input.serviceLevelMinutes, p_create_work_item: true,
+      } as never);
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: (_data, input) => {
+      queryClient.invalidateQueries({ queryKey: ["medication-integration", input.facilityId] });
+      queryClient.invalidateQueries({ queryKey: ["work-items"] });
+      queryClient.invalidateQueries({ queryKey: ["product-value-workspace"] });
+    },
+  });
+}
