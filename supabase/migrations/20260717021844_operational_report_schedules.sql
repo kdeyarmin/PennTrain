@@ -211,12 +211,12 @@ begin
   end if;
   if jsonb_typeof(coalesce(p_audience, '{}'::jsonb)) <> 'object'
      or jsonb_typeof(coalesce(p_audience->'roles', '[]'::jsonb)) <> 'array'
-     or jsonb_array_length(coalesce(p_audience->'roles', '[]'::jsonb)) not between 1 and 5 then
+     or jsonb_array_length(coalesce(p_audience->'roles', '[]'::jsonb)) not between 1 and 3 then
     raise exception 'Report audience is invalid' using errcode = '22023';
   end if;
   if exists (
     select 1 from jsonb_array_elements_text(p_audience->'roles') role_name
-    where role_name not in ('org_admin', 'facility_manager', 'trainer', 'employee', 'auditor')
+    where role_name not in ('org_admin', 'facility_manager', 'auditor')
   ) or (
     select count(*) from jsonb_array_elements_text(p_audience->'roles')
   ) <> (
@@ -370,7 +370,10 @@ begin
     begin
       select * into strict v_definition
       from public.saved_report_definitions where id = v_schedule.report_definition_id;
-      select coalesce(array_agg(value), array['org_admin', 'facility_manager']::text[])
+      select coalesce(
+        array_agg(value) filter (where value in ('org_admin', 'facility_manager', 'auditor')),
+        array[]::text[]
+      )
         into v_roles
       from jsonb_array_elements_text(
         coalesce(v_schedule.audience->'roles', '["org_admin","facility_manager"]'::jsonb)

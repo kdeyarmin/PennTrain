@@ -66,6 +66,7 @@ function ScheduleCard({
 }) {
   const { toast } = useToast();
   const setEnabled = useSetReportScheduleEnabled();
+  const isLegacyEvidenceRoom = schedule.deliveryMode === "evidence_room";
   const changeEnabled = async () => {
     try {
       await setEnabled.mutateAsync({ scheduleId: schedule.id, enabled: !schedule.enabled });
@@ -93,7 +94,7 @@ function ScheduleCard({
           </CardDescription>
         </div>
         {canManage && <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => onEdit(schedule)}>
+          <Button size="sm" variant="outline" disabled={isLegacyEvidenceRoom} onClick={() => onEdit(schedule)}>
             <Pencil className="mr-2 h-4 w-4" />Edit
           </Button>
           <Button size="sm" variant="outline" disabled={setEnabled.isPending} onClick={() => void changeEnabled()}>
@@ -107,6 +108,9 @@ function ScheduleCard({
         <div><span className="text-muted-foreground">Audience:</span> {(schedule.audience.roles ?? []).map(human).join(", ") || "Not set"}</div>
         <div><span className="text-muted-foreground">Next run:</span> {schedule.nextRunAt ? formatReportScheduleRunAt(schedule.nextRunAt, schedule.timeZone) : "Pending"}</div>
       </div>
+      {isLegacyEvidenceRoom && <p className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+        This legacy evidence-room subscription is read-only here so editing timing or audience settings cannot change its delivery channel. Pause it or create a new in-app or email-link subscription instead.
+      </p>}
       <div>
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Recent delivery history</p>
         {schedule.runs.length
@@ -141,7 +145,15 @@ export function ReportScheduleManager() {
   };
   const resetForm = () => setForm(createDefaultReportScheduleForm(form.timeZone));
   const editSchedule = (schedule: ReportSchedule) => {
-    setForm(reportScheduleToForm(schedule));
+    const nextForm = reportScheduleToForm(schedule);
+    if (!nextForm) {
+      toast({
+        title: "Legacy subscription is read-only",
+        description: "Create a new in-app or email-link subscription to change timing or audience settings.",
+      });
+      return;
+    }
+    setForm(nextForm);
     document.getElementById("report-schedule-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
   const submit = async () => {

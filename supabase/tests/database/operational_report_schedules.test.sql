@@ -1,5 +1,5 @@
 begin;
-select plan(34);
+select plan(35);
 
 select has_table('public', 'report_schedule_runs', 'report schedule run receipts exist');
 select has_column('public', 'report_schedules', 'frequency', 'report schedules store frequency explicitly');
@@ -99,7 +99,7 @@ values
   (
     '97600000-0000-4000-8000-000000000102',
     '97600000-0000-4000-8000-000000000001',
-    'schedule-employee@test.local', 'Schedule', 'Employee', 'employee', true, true
+    'schedule-employee@test.local', 'Schedule', 'Auditor', 'auditor', true, true
   )
 on conflict(id) do update set
   organization_id = excluded.organization_id,
@@ -155,13 +155,32 @@ $$;
 
 select pg_temp.act_as('97600000-0000-4000-8000-000000000101');
 
+select throws_ok(
+  $$
+    select public.save_report_schedule_configuration(
+      '97600000-0000-4000-8000-000000000201',
+      'weekly',
+      'in_app',
+      '{"roles":["employee"]}'::jsonb,
+      'America/New_York',
+      9,
+      30,
+      5,
+      null
+    )
+  $$,
+  '22023',
+  'Report audience role is invalid',
+  'schedule audiences cannot include roles that cannot open saved reports'
+);
+
 select lives_ok(
   $$
     select public.save_report_schedule_configuration(
       '97600000-0000-4000-8000-000000000201',
       'weekly',
       'email_link',
-      '{"roles":["org_admin","employee"]}'::jsonb,
+      '{"roles":["org_admin","auditor"]}'::jsonb,
       'America/New_York',
       9,
       30,
@@ -194,7 +213,7 @@ select lives_ok(
       '97600000-0000-4000-8000-000000000201',
       'weekly',
       'email_link',
-      '{"roles":["org_admin","employee"]}'::jsonb,
+      '{"roles":["org_admin","auditor"]}'::jsonb,
       'America/New_York',
       9,
       45,

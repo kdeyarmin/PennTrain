@@ -3,7 +3,8 @@ import type { Role } from "@/lib/auth";
 export type ReportScheduleFrequency = "daily" | "weekly" | "monthly";
 export type ReportScheduleDeliveryMode = "in_app" | "email_link";
 export type StoredReportScheduleDeliveryMode = ReportScheduleDeliveryMode | "evidence_room";
-export type ReportScheduleAudienceRole = Exclude<Role, "platform_admin">;
+export type ReportScheduleAudienceRole = Extract<Role, "org_admin" | "facility_manager" | "auditor">;
+export type StoredReportScheduleAudienceRole = Exclude<Role, "platform_admin">;
 
 export interface ReportScheduleForm {
   scheduleId?: string;
@@ -43,7 +44,7 @@ export interface ReportSchedule {
   cronExpression: string;
   timeZone: string;
   deliveryMode: StoredReportScheduleDeliveryMode;
-  audience: { roles?: ReportScheduleAudienceRole[] };
+  audience: { roles?: StoredReportScheduleAudienceRole[] };
   enabled: boolean;
   nextRunAt: string | null;
   lastRunAt: string | null;
@@ -63,8 +64,6 @@ export interface ReportSchedulePreview {
 export const REPORT_SCHEDULE_ROLE_OPTIONS: Array<{ value: ReportScheduleAudienceRole; label: string }> = [
   { value: "org_admin", label: "Organization admins" },
   { value: "facility_manager", label: "Facility managers" },
-  { value: "trainer", label: "Trainers" },
-  { value: "employee", label: "Employees" },
   { value: "auditor", label: "Auditors" },
 ];
 
@@ -86,13 +85,17 @@ export function createDefaultReportScheduleForm(timeZone = "America/New_York"): 
   };
 }
 
-export function reportScheduleToForm(schedule: ReportSchedule): ReportScheduleForm {
+export function reportScheduleToForm(schedule: ReportSchedule): ReportScheduleForm | null {
+  if (schedule.deliveryMode === "evidence_room") return null;
+  const roles = (schedule.audience.roles ?? []).filter(
+    (role): role is ReportScheduleAudienceRole => REPORT_SCHEDULE_ROLE_OPTIONS.some((option) => option.value === role),
+  );
   return {
     scheduleId: schedule.id,
     reportDefinitionId: schedule.reportDefinitionId,
     frequency: schedule.frequency,
-    deliveryMode: schedule.deliveryMode === "email_link" ? "email_link" : "in_app",
-    roles: schedule.audience.roles?.length ? [...schedule.audience.roles] : ["org_admin", "facility_manager"],
+    deliveryMode: schedule.deliveryMode,
+    roles: roles.length ? roles : ["org_admin", "facility_manager"],
     timeZone: schedule.timeZone,
     deliveryHour: schedule.deliveryHour,
     deliveryMinute: schedule.deliveryMinute,
@@ -125,8 +128,9 @@ export function isReportScheduleFormValid(form: ReportScheduleForm) {
     && form.deliveryMinute >= 0
     && form.deliveryMinute <= 59
     && form.roles.length >= 1
-    && form.roles.length <= 5
+    && form.roles.length <= REPORT_SCHEDULE_ROLE_OPTIONS.length
     && roles.size === form.roles.length
+    && form.roles.every((role) => REPORT_SCHEDULE_ROLE_OPTIONS.some((option) => option.value === role))
     && (form.frequency !== "weekly"
       || (form.dayOfWeek !== null && Number.isInteger(form.dayOfWeek) && form.dayOfWeek >= 1 && form.dayOfWeek <= 7))
     && (form.frequency !== "monthly"

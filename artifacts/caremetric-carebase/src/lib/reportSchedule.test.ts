@@ -5,8 +5,10 @@ import {
   describeReportSchedule,
   formatReportScheduleTime,
   isReportScheduleFormValid,
+  REPORT_SCHEDULE_ROLE_OPTIONS,
   reportScheduleToForm,
   type ReportSchedule,
+  type ReportScheduleAudienceRole,
 } from "./reportSchedule";
 
 describe("reportSchedule", () => {
@@ -30,6 +32,8 @@ describe("reportSchedule", () => {
     expect(isReportScheduleFormValid({ ...form, roles: [] })).toBe(false);
     expect(isReportScheduleFormValid({ ...form, deliveryHour: 24 })).toBe(false);
     expect(isReportScheduleFormValid({ ...form, dayOfWeek: 8 })).toBe(false);
+    expect(isReportScheduleFormValid({ ...form, roles: ["employee" as ReportScheduleAudienceRole] })).toBe(false);
+    expect(REPORT_SCHEDULE_ROLE_OPTIONS.map((option) => option.value)).toEqual(["org_admin", "facility_manager", "auditor"]);
   });
 
   it("hydrates the edit form from an existing schedule", () => {
@@ -59,6 +63,7 @@ describe("reportSchedule", () => {
       roles: ["auditor"],
       dayOfMonth: 15,
     });
+    expect(reportScheduleToForm({ ...schedule, deliveryMode: "evidence_room" })).toBeNull();
   });
 
   it("formats midnight, noon, and afternoon consistently", () => {
