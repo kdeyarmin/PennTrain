@@ -19392,14 +19392,82 @@ export type Database = {
           },
         ]
       }
+      report_schedule_runs: {
+        Row: {
+          audience_count: number
+          completed_at: string
+          created_at: string
+          email_queued_count: number
+          email_skipped_count: number
+          error_message: string | null
+          id: string
+          in_app_count: number
+          organization_id: string
+          schedule_id: string
+          scheduled_for: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          audience_count?: number
+          completed_at: string
+          created_at?: string
+          email_queued_count?: number
+          email_skipped_count?: number
+          error_message?: string | null
+          id?: string
+          in_app_count?: number
+          organization_id: string
+          schedule_id: string
+          scheduled_for: string
+          started_at: string
+          status: string
+        }
+        Update: {
+          audience_count?: number
+          completed_at?: string
+          created_at?: string
+          email_queued_count?: number
+          email_skipped_count?: number
+          error_message?: string | null
+          id?: string
+          in_app_count?: number
+          organization_id?: string
+          schedule_id?: string
+          scheduled_for?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_schedule_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_schedule_runs_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "report_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_schedules: {
         Row: {
           audience: Json
           created_at: string
           created_by: string | null
           cron_expression: string
+          delivery_day_of_month: number | null
+          delivery_day_of_week: number | null
+          delivery_hour: number
+          delivery_minute: number
           delivery_mode: string
           enabled: boolean
+          frequency: string
           id: string
           last_run_at: string | null
           next_run_at: string | null
@@ -19408,14 +19476,20 @@ export type Database = {
           report_version_id: string
           retention_days: number
           time_zone: string
+          updated_at: string
         }
         Insert: {
           audience: Json
           created_at?: string
           created_by?: string | null
           cron_expression: string
+          delivery_day_of_month?: number | null
+          delivery_day_of_week?: number | null
+          delivery_hour: number
+          delivery_minute: number
           delivery_mode: string
           enabled?: boolean
+          frequency: string
           id?: string
           last_run_at?: string | null
           next_run_at?: string | null
@@ -19424,14 +19498,20 @@ export type Database = {
           report_version_id: string
           retention_days: number
           time_zone: string
+          updated_at?: string
         }
         Update: {
           audience?: Json
           created_at?: string
           created_by?: string | null
           cron_expression?: string
+          delivery_day_of_month?: number | null
+          delivery_day_of_week?: number | null
+          delivery_hour?: number
+          delivery_minute?: number
           delivery_mode?: string
           enabled?: boolean
+          frequency?: string
           id?: string
           last_run_at?: string | null
           next_run_at?: string | null
@@ -19440,6 +19520,7 @@ export type Database = {
           report_version_id?: string
           retention_days?: number
           time_zone?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -31461,6 +31542,7 @@ export type Database = {
           version_number: number
         }[]
       }
+      get_report_schedule_operations: { Args: never; Returns: Json }
       get_resident_360_snapshot: {
         Args: { p_resident_id: string }
         Returns: Json
@@ -32069,6 +32151,17 @@ export type Database = {
           p_body_template: string
           p_subject_template: string
           p_variables?: Json
+        }
+        Returns: Json
+      }
+      preview_report_schedule: {
+        Args: {
+          p_day_of_month: number
+          p_day_of_week: number
+          p_delivery_hour: number
+          p_delivery_minute: number
+          p_frequency: string
+          p_time_zone: string
         }
         Returns: Json
       }
@@ -33338,6 +33431,21 @@ export type Database = {
           p_frequency: string
           p_report_definition_id: string
           p_time_zone?: string
+        }
+        Returns: string
+      }
+      save_report_schedule_configuration: {
+        Args: {
+          p_audience: Json
+          p_day_of_month: number
+          p_day_of_week: number
+          p_delivery_hour: number
+          p_delivery_minute: number
+          p_delivery_mode: string
+          p_frequency: string
+          p_report_definition_id: string
+          p_schedule_id: string
+          p_time_zone: string
         }
         Returns: string
       }

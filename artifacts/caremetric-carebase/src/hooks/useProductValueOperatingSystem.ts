@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import type { CustomerValueBaselineSaveInput } from "@/lib/customerValueBaseline";
+import type {
+  ReportScheduleForm,
+  ReportScheduleOperations,
+  ReportSchedulePreview,
+} from "@/lib/reportSchedule";
 
 export type AutomationAction =
   | { type: "create_work_item"; title: string; description?: string; priority?: "low" | "normal" | "high" | "urgent"; dueDays?: number }
@@ -29,9 +35,11 @@ export interface CustomerValueDashboard {
   activity: { reportExports: number; mockInspections: number; courseCompletions: number; closedWorkItems: number; portalMessages: number };
   estimatedHoursSaved: number;
   estimatedLaborValue: number;
+  hourlyAdminCost: number;
   retiredSoftwareMonthlyCost: number;
   retiredTools: string[];
   assumptions: Record<string, number>;
+  baselineUpdatedAt: string | null;
   method: string;
   generatedAt: string;
 }
@@ -63,6 +71,7 @@ function rpc() {
 
 function invalidate(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["product-value-workspace"] });
+  queryClient.invalidateQueries({ queryKey: ["report-schedule-operations"] });
   queryClient.invalidateQueries({ queryKey: ["customer-value-dashboard"] });
   queryClient.invalidateQueries({ queryKey: ["work-items"] });
 }
@@ -79,9 +88,9 @@ export function useProductValueWorkspace(facilityId?: string) {
   });
 }
 
-export function useCustomerValueDashboard() {
+export function useCustomerValueDashboard(organizationId?: string) {
   return useQuery({
-    queryKey: ["customer-value-dashboard"],
+    queryKey: ["customer-value-dashboard", organizationId ?? "current-organization"],
     queryFn: async (): Promise<CustomerValueDashboard> => {
       const { data, error } = await rpc().rpc("get_customer_value_dashboard");
       if (error) throw error;
@@ -233,15 +242,63 @@ export function useUpdateImplementationTask() {
 export function useSaveReportSchedule() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { reportDefinitionId: string; frequency: "daily" | "weekly" | "monthly"; timeZone: string; audience: Record<string, unknown>; deliveryMode: string }) => {
-      const { data, error } = await rpc().rpc("save_report_schedule", {
-        p_report_definition_id: input.reportDefinitionId, p_frequency: input.frequency,
-        p_delivery_mode: input.deliveryMode, p_audience: input.audience, p_time_zone: input.timeZone,
+    mutationFn: async (input: ReportScheduleForm) => {
+      const { data, error } = await rpc().rpc("save_report_schedule_configuration", {
+        p_schedule_id: input.scheduleId ?? null,
+        p_report_definition_id: input.reportDefinitionId,
+        p_frequency: input.frequency,
+        p_delivery_mode: input.deliveryMode,
+        p_audience: { roles: input.roles },
+        p_time_zone: input.timeZone,
+        p_delivery_hour: input.deliveryHour,
+        p_delivery_minute: input.deliveryMinute,
+        p_day_of_week: input.frequency === "weekly" ? input.dayOfWeek : null,
+        p_day_of_month: input.frequency === "monthly" ? input.dayOfMonth : null,
       });
       if (error) throw error;
       return data as string;
     },
     onSuccess: () => invalidate(queryClient),
+  });
+}
+
+export function useReportScheduleOperations() {
+  return useQuery({
+    queryKey: ["report-schedule-operations"],
+    queryFn: async (): Promise<ReportScheduleOperations> => {
+      const { data, error } = await rpc().rpc("get_report_schedule_operations");
+      if (error) throw error;
+      return data as ReportScheduleOperations;
+    },
+  });
+}
+
+export function useReportSchedulePreview(input: ReportScheduleForm, enabled: boolean) {
+  return useQuery({
+    queryKey: [
+      "report-schedule-preview",
+      input.frequency,
+      input.timeZone,
+      input.deliveryHour,
+      input.deliveryMinute,
+      input.dayOfWeek,
+      input.dayOfMonth,
+    ],
+    queryFn: async (): Promise<ReportSchedulePreview> => {
+      const { data, error } = await rpc().rpc("preview_report_schedule", {
+        p_frequency: input.frequency,
+        p_time_zone: input.timeZone,
+        p_delivery_hour: input.deliveryHour,
+        p_delivery_minute: input.deliveryMinute,
+        p_day_of_week: input.frequency === "weekly" ? input.dayOfWeek : null,
+        p_day_of_month: input.frequency === "monthly" ? input.dayOfMonth : null,
+      });
+      if (error) throw error;
+      return data as ReportSchedulePreview;
+    },
+    enabled,
+    retry: false,
+    staleTime: 30_000,
   });
 }
 
@@ -260,17 +317,7 @@ export function useSetReportScheduleEnabled() {
 export function useSaveCustomerValueBaseline() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: {
-      hourlyAdminCost: number;
-      annualSoftwareCost: number;
-      reportExportMinutes: number;
-      mockInspectionMinutes: number;
-      courseCompletionMinutes: number;
-      closedWorkItemMinutes: number;
-      portalMessageMinutes: number;
-      replacedSystems: string[];
-      note: string;
-    }) => {
+    mutationFn: async (input: CustomerValueBaselineSaveInput) => {
       const { data, error } = await rpc().rpc("save_customer_value_baseline", {
         p_hourly_admin_cost: input.hourlyAdminCost, p_legacy_monthly_software_cost: input.annualSoftwareCost / 12,
         p_retired_tools: input.replacedSystems,
