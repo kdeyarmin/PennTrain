@@ -18,13 +18,29 @@ function human(value: unknown) {
 }
 
 // Persisted per tab so the chosen facility survives navigating away and back.
-const FACILITY_STORAGE_KEY = "today.facilityId";
+const FACILITY_STORAGE_KEY = "cmtrain.today.facilityId";
 const ALL_FACILITIES = "all";
+
+function loadStoredFacilityId(): string {
+  try {
+    return window.sessionStorage.getItem(FACILITY_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function storeFacilityId(facilityId: string): void {
+  try {
+    window.sessionStorage.setItem(FACILITY_STORAGE_KEY, facilityId);
+  } catch {
+    // sessionStorage unavailable (private browsing, quota) -- the selection just won't persist
+  }
+}
 
 export default function Today() {
   const { user } = useAuth();
   const facilities = useListFacilities({ organizationId: user?.organizationId ?? undefined });
-  const [selectedFacilityId, setSelectedFacilityId] = useState(() => window.sessionStorage.getItem(FACILITY_STORAGE_KEY) ?? "");
+  const [selectedFacilityId, setSelectedFacilityId] = useState(loadStoredFacilityId);
   const facilityList = facilities.data ?? [];
   // A stored id may belong to another org/session; only honor it if it's still visible.
   const validSelection = facilityList.some((facility) => facility.id === selectedFacilityId) ? selectedFacilityId : "";
@@ -39,7 +55,7 @@ export default function Today() {
   const changeFacility = (next: string) => {
     const facility = next === ALL_FACILITIES ? "" : next;
     setSelectedFacilityId(facility);
-    window.sessionStorage.setItem(FACILITY_STORAGE_KEY, facility);
+    storeFacilityId(facility);
   };
 
   if (facilities.isLoading || operations.isLoading || work.isLoading || alerts.isLoading || value.isLoading) return <QueryLoading what="today's priorities" />;
