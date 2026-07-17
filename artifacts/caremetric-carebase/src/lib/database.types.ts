@@ -32156,8 +32156,8 @@ export type Database = {
       }
       preview_report_schedule: {
         Args: {
-          p_day_of_month?: number | null
-          p_day_of_week?: number | null
+          p_day_of_month?: number
+          p_day_of_week?: number
           p_delivery_hour: number
           p_delivery_minute: number
           p_frequency: string
@@ -33437,14 +33437,14 @@ export type Database = {
       save_report_schedule_configuration: {
         Args: {
           p_audience: Json
-          p_day_of_month?: number | null
-          p_day_of_week?: number | null
+          p_day_of_month?: number
+          p_day_of_week?: number
           p_delivery_hour: number
           p_delivery_minute: number
           p_delivery_mode: string
           p_frequency: string
           p_report_definition_id: string
-          p_schedule_id?: string | null
+          p_schedule_id?: string
           p_time_zone: string
         }
         Returns: string
