@@ -87,32 +87,6 @@ function optimisticallyReadAll(queryClient: QueryClient) {
   queryClient.setQueryData([...NOTIFICATIONS_KEY, "unread-count"], 0);
 }
 
-/** Keep the signed-in profile's bell and unread badge current between polls. */
-export function useNotificationRealtime(profileId?: string) {
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    if (!profileId) return;
-    const channel = supabase
-      .channel(`notifications:${profileId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter: `profile_id=eq.${profileId}`,
-        },
-        () => invalidateNotifications(queryClient),
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [profileId, queryClient]);
-}
-
 export function useMarkNotificationRead() {
   const queryClient = useQueryClient();
   return useMutation({

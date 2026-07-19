@@ -4,7 +4,7 @@
   "license": "MIT",
   "scripts": {
     "preinstall": "node scripts/enforce-pnpm.cjs",
-    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "build": "pnpm run check:source-integrity && pnpm run typecheck && pnpm -r --if-present run build",
     "start": "pnpm --filter @workspace/caremetric-carebase run start",
     "dev": "pnpm --filter @workspace/caremetric-carebase run dev",
     "test": "pnpm -r --if-present run test",
@@ -16,10 +16,11 @@
     "check:bundle": "node scripts/check-bundle-budget.mjs",
     "check:pilot": "node scripts/validate-controlled-pilot.mjs",
     "check:dependencies": "node scripts/check-dependencies.mjs",
+    "check:source-integrity": "node scripts/check-source-integrity.mjs",
     "check:release": "pnpm run check:dependencies && pnpm run check:all && pnpm run check:database",
     "check:edge-functions": "node scripts/check-edge-functions.mjs",
     "check:dhs-sources": "node scripts/check-dhs-sources.mjs",
-    "check:all": "pnpm run typecheck && pnpm run test && pnpm run check:edge-functions && pnpm --filter @workspace/caremetric-carebase run build && pnpm run check:bundle"
+    "check:all": "pnpm run check:source-integrity && pnpm run typecheck && pnpm run test && pnpm run check:edge-functions && pnpm --filter @workspace/caremetric-carebase run build && pnpm run check:bundle"
   },
   "private": true,
   "devDependencies": {

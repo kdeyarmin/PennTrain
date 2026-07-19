@@ -35,6 +35,7 @@ import {
   parseLearningToolsState,
   requiresAppliedResponse,
   sanitizeLearningToolsState,
+  shouldEnableCourseShortcuts,
   type LearningToolsState,
   type LessonConfidence,
 } from "@/lib/courseLearningTools";
@@ -43,6 +44,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft, ArrowRight, CheckCircle2, ClipboardCheck, Clock, Copy, Download, FileText, Lightbulb, ListChecks, RotateCcw, Trash2, Video, BookOpen, Star, Target,
@@ -183,6 +194,7 @@ export default function TakeCourse() {
   // certificate, someone rating an older completion can still return to trainings, and non-
   // non-employee self-training users return to the role-safe training list.
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
+  const [showClearLearningToolsConfirm, setShowClearLearningToolsConfirm] = useState(false);
   const [postCompleteDestination, setPostCompleteDestination] = useState<"/me/certificates" | "/me/trainings" | "/me/courses">(
     isEmployeeRole ? "/me/certificates" : "/me/courses",
   );
@@ -496,8 +508,6 @@ useEffect(() => {
 
   const handleClearLocalLearningTools = () => {
     if (!hasStudyGuideEntries || !canMutateEvidence) return;
-    const confirmed = window.confirm("Clear your notes and confidence checks for this training item on this device?");
-    if (!confirmed) return;
     const key = lessonStorageKey(assignmentId);
     try {
       if (key) window.localStorage.removeItem(key);
@@ -507,11 +517,18 @@ useEffect(() => {
     setLessonNotes({});
     setLessonConfidence({});
     setLastStudyToolsSavedAt(null);
+    setShowClearLearningToolsConfirm(false);
     toast({ title: "Local study tools cleared", description: "Your training progress and quiz attempts were not changed." });
   };
 
 useEffect(() => {
-  if (!ownsAssignment || !blocks || blocks.length === 0 || showRatingPrompt) return;
+  const blockCount = blocks?.length ?? 0;
+  if (!shouldEnableCourseShortcuts({
+    ownsAssignment,
+    hasBlocks: blockCount > 0,
+    showRatingPrompt,
+    showClearLearningToolsConfirm,
+  })) return;
   const handleKeyDown = (event: KeyboardEvent) => {
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isEditableShortcutTarget(event.target)) return;
     if (event.key === "ArrowLeft" && stepIndex > 0) {
@@ -519,18 +536,18 @@ useEffect(() => {
       setStepIndex(i => Math.max(0, i - 1));
     } else if (event.key === "ArrowRight" && !isLastBlock && canAdvance) {
       event.preventDefault();
-      setStepIndex(i => Math.min(blocks.length - 1, i + 1));
+      setStepIndex(i => Math.min(blockCount - 1, i + 1));
     } else if (event.key.toLowerCase() === "r" && currentBlock && canMutateEvidence) {
       event.preventDefault();
       setLessonConfidence(prev => ({ ...prev, [currentBlock.id]: "ready" }));
       if (!isLastBlock && canAdvance) {
-        setStepIndex(i => Math.min(blocks.length - 1, i + 1));
+        setStepIndex(i => Math.min(blockCount - 1, i + 1));
       }
     }
   };
   window.addEventListener("keydown", handleKeyDown);
   return () => window.removeEventListener("keydown", handleKeyDown);
-}, [blocks, canAdvance, canMutateEvidence, currentBlock, isLastBlock, ownsAssignment, showRatingPrompt, stepIndex]);
+}, [blocks, canAdvance, canMutateEvidence, currentBlock, isLastBlock, ownsAssignment, showClearLearningToolsConfirm, showRatingPrompt, stepIndex]);
 
   const handleComplete = () => {
     if (!assignment || !canMutateEvidence) return;
@@ -696,7 +713,7 @@ useEffect(() => {
                   variant="ghost"
                   size="sm"
                   className="mt-1 w-full text-muted-foreground"
-                  onClick={handleClearLocalLearningTools}
+                  onClick={() => setShowClearLearningToolsConfirm(true)}
                   disabled={!hasStudyGuideEntries || completionEvidenceLocked}
                 >
                   <Trash2 className="mr-2 h-3.5 w-3.5" /> Clear local notes
@@ -1071,6 +1088,26 @@ useEffect(() => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={showClearLearningToolsConfirm} onOpenChange={setShowClearLearningToolsConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear local study tools?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes your notes and confidence checks for this training item from this device. Your training progress and quiz attempts will not change.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep notes</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClearLocalLearningTools}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Clear local notes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

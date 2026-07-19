@@ -21,6 +21,7 @@ interface DomainListQuery {
   eq(column: string, value: string | boolean): DomainListQuery;
   or(filters: string): DomainListQuery;
   order(column: string, options: { ascending: boolean }): DomainListQuery;
+  abortSignal(signal: AbortSignal): DomainListQuery;
   range(from: number, to: number): PromiseLike<DomainListQueryResult>;
 }
 
@@ -74,7 +75,7 @@ const CONFIG: Record<DomainListName, DomainListConfig> = {
 export function usePaginatedDomainList<T = Record<string, unknown>>(name: DomainListName, filters: DomainListFilters) {
   return useQuery({
     queryKey: [name, "paginated", filters],
-    queryFn: async (): Promise<PaginatedResult<T>> => {
+    queryFn: async ({ signal }): Promise<PaginatedResult<T>> => {
       const config = CONFIG[name];
       let query = domainDatabase.from(config.table).select("*", { count: "exact" });
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
@@ -94,7 +95,7 @@ export function usePaginatedDomainList<T = Record<string, unknown>>(name: Domain
       if (name === "alerts" && sortField === "severity_rank") {
         query = query.order("created_at", { ascending: false });
       }
-      query = query.order("id", { ascending: true });
+      query = query.order("id", { ascending: true }).abortSignal(signal);
       const [from, to] = rangeFor(filters.page, filters.pageSize);
       const { data, error, count } = await query.range(from, to);
       if (error) throw error;
@@ -108,7 +109,7 @@ export function usePaginatedDomainList<T = Record<string, unknown>>(name: Domain
 export function usePaginatedViolations<T = Record<string, unknown>>(filters: DomainListFilters) {
   return useQuery({
     queryKey: ["dhs_violations", "paginated", filters],
-    queryFn: async (): Promise<PaginatedResult<T>> => {
+    queryFn: async ({ signal }): Promise<PaginatedResult<T>> => {
       let query = (supabase as unknown as { from(source: "dhs_violations_search"): DomainListQuery })
         .from("dhs_violations_search")
         .select("*", { count: "exact" });
@@ -127,7 +128,8 @@ export function usePaginatedViolations<T = Record<string, unknown>>(filters: Dom
       }
       query = query
         .order("inspection_date", { ascending: false })
-        .order("id", { ascending: true });
+        .order("id", { ascending: true })
+        .abortSignal(signal);
       const [from, to] = rangeFor(filters.page, filters.pageSize);
       const { data, error, count } = await query.range(from, to);
       if (error) throw error;

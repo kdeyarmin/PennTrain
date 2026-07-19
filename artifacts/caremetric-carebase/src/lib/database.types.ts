@@ -29934,6 +29934,9 @@ export type Database = {
           id: string | null
           incident_notification_id: string | null
           inspection_item_id: string | null
+          linked_incident_id: string | null
+          linked_inspection_item_id: string | null
+          linked_resident_id: string | null
           message: string | null
           organization_id: string | null
           practicum_id: string | null
@@ -29945,7 +29948,106 @@ export type Database = {
           title: string | null
           training_record_id: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "alerts_assigned_to_profile_id_fkey"
+            columns: ["assigned_to_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_corrective_action_id_fkey"
+            columns: ["corrective_action_id"]
+            isOneToOne: false
+            referencedRelation: "corrective_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_employee_credential_id_fkey"
+            columns: ["employee_credential_id"]
+            isOneToOne: false
+            referencedRelation: "employee_credentials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_exclusion_screening_match_id_fkey"
+            columns: ["exclusion_screening_match_id"]
+            isOneToOne: false
+            referencedRelation: "exclusion_screening_matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_incident_notification_id_fkey"
+            columns: ["incident_notification_id"]
+            isOneToOne: false
+            referencedRelation: "incident_notifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_inspection_item_id_fkey"
+            columns: ["inspection_item_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_practicum_id_fkey"
+            columns: ["practicum_id"]
+            isOneToOne: false
+            referencedRelation: "practicums"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_resident_compliance_item_id_fkey"
+            columns: ["resident_compliance_item_id"]
+            isOneToOne: false
+            referencedRelation: "resident_compliance_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_training_record_id_fkey"
+            columns: ["training_record_id"]
+            isOneToOne: false
+            referencedRelation: "employee_training_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_compliance_items_resident_id_fkey"
+            columns: ["linked_resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_compliance_items_resident_id_fkey"
+            columns: ["linked_resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       dhs_violations_search: {
         Row: {
@@ -29968,7 +30070,43 @@ export type Database = {
           verified_at: string | null
           verified_by_profile_id: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "dhs_violations_citation_topic_id_fkey"
+            columns: ["citation_topic_id"]
+            isOneToOne: false
+            referencedRelation: "dhs_citation_topics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dhs_violations_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dhs_violations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dhs_violations_source_inspection_event_id_fkey"
+            columns: ["source_inspection_event_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dhs_violations_verified_by_profile_id_fkey"
+            columns: ["verified_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       exclusion_source_health: {
         Row: {

@@ -1,12 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { useAlertRealtime, useUpdateAlert, useBulkUpdateAlerts, type Alert } from "@/hooks/useAlerts";
+import { useAlertRealtime, useUpdateAlert, useBulkUpdateAlerts, type AlertListRow } from "@/hooks/useAlerts";
 import { usePaginatedDomainList } from "@/hooks/usePaginatedDomainLists";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { useListAllIncidentNotifications } from "@/hooks/useIncidents";
-import { useListCorrectiveActions } from "@/hooks/useCorrectiveActions";
-import { useListAllInspectionEvents } from "@/hooks/useInspectionEvents";
-import { useListAllResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
 import { useUrlState } from "@/hooks/useUrlState";
 import { Card, CardContent } from "@/components/ui/card";
 import { QueryError } from "@/components/QueryState";
@@ -70,17 +66,13 @@ export default function Alerts() {
 
   const organizationId = viewingOrgId ?? user?.organizationId ?? undefined;
   const { data: facilities } = useListFacilities({ organizationId });
-  const { data: alertsPage, isLoading, isError, error, refetch } = usePaginatedDomainList<Alert>("alerts", {
+  const { data: alertsPage, isLoading, isError, error, refetch } = usePaginatedDomainList<AlertListRow>("alerts", {
     status: status !== "all" ? status : undefined,
     severity: severity !== "all" ? severity : undefined,
     facilityId: facilityId !== "all" ? facilityId : undefined,
     organizationId,
     search: debouncedSearch,
-    sortField: sortField === "createdAt"
-      ? "created_at"
-      : sortField === "severity"
-        ? "severity_rank"
-        : sortField,
+    sortField: sortField === "createdAt" ? "created_at" : sortField === "severity" ? "severity_rank" : sortField,
     sortDir,
     page,
     pageSize: PAGE_SIZE,
@@ -88,45 +80,17 @@ export default function Alerts() {
   const alerts = alertsPage?.rows ?? [];
   const totalCount = alertsPage?.count ?? 0;
   useAlertRealtime(organizationId);
-  // Alerts don't carry an incident_id/inspection_item_id directly for every alert type --
-  // incident_notification_overdue only has incident_notification_id, and
-  // corrective_action_overdue's corrective_actions row can point at either an incident or an
-  // inspection event -- so these small unfiltered lookups resolve the real deep-link target.
-  const { data: incidentNotifications } = useListAllIncidentNotifications();
-  const { data: correctiveActions } = useListCorrectiveActions();
-  const { data: inspectionEvents } = useListAllInspectionEvents();
-  // Residents only have a single /app/residents/:id route (no /admin mirror -- RESIDENT_ROLES
-  // excludes platform_admin), so there's no base-path switch to make the way employee/incident/
-  // inspection links above have -- resolveAlertLink() below omits the link entirely for that role.
-  const { data: residentComplianceItems } = useListAllResidentComplianceItems();
   const { toast } = useToast();
 
-  const notificationIncidentId = new Map((incidentNotifications ?? []).map((n) => [n.id, n.incident_id]));
-  const correctiveActionById = new Map((correctiveActions ?? []).map((ca) => [ca.id, ca]));
-  const inspectionEventItemId = new Map((inspectionEvents ?? []).map((e) => [e.id, e.inspection_item_id]));
-  const complianceItemResidentId = new Map((residentComplianceItems ?? []).map((i) => [i.id, i.resident_id]));
-
-  function resolveAlertLink(alert: Alert): { href: string; label: string } | null {
+  function resolveAlertLink(alert: AlertListRow): { href: string; label: string } | null {
     if (alert.employee_id) return { href: `${employeeDetailBase}/${alert.employee_id}`, label: "View Employee" };
-    if (alert.inspection_item_id) return { href: `${inspectionDetailBase}/${alert.inspection_item_id}`, label: "View Inspection Item" };
-    if (alert.incident_notification_id) {
-      const incidentId = notificationIncidentId.get(alert.incident_notification_id);
-      if (incidentId) return { href: `${incidentDetailBase}/${incidentId}`, label: "View Incident" };
-    }
-    if (alert.corrective_action_id) {
-      const ca = correctiveActionById.get(alert.corrective_action_id);
-      if (ca?.incident_id) return { href: `${incidentDetailBase}/${ca.incident_id}`, label: "View Incident" };
-      if (ca?.inspection_event_id) {
-        const itemId = inspectionEventItemId.get(ca.inspection_event_id);
-        if (itemId) return { href: `${inspectionDetailBase}/${itemId}`, label: "View Inspection Item" };
-      }
-    }
-    if (alert.resident_compliance_item_id && user?.role !== "platform_admin") {
+    if (alert.linked_inspection_item_id) return { href: `${inspectionDetailBase}/${alert.linked_inspection_item_id}`, label: "View Inspection Item" };
+    if (alert.linked_incident_id) return { href: `${incidentDetailBase}/${alert.linked_incident_id}`, label: "View Incident" };
+    if (alert.linked_resident_id && user?.role !== "platform_admin") {
       // Unlike employee/incident/inspection links above, residents have no /admin mirror route
       // (RESIDENT_ROLES in App.tsx deliberately excludes platform_admin) -- omit the link entirely
       // for that viewer rather than offering one that redirects them away.
-      const residentId = complianceItemResidentId.get(alert.resident_compliance_item_id);
-      if (residentId) return { href: `/app/residents/${residentId}`, label: "View Resident" };
+      return { href: `/app/residents/${alert.linked_resident_id}`, label: "View Resident" };
     }
     return null;
   }
@@ -218,7 +182,7 @@ export default function Alerts() {
 
   function toggleSort(field: SortField) {
     if (sortField === field) setFilters({ sortDir: sortDir === "asc" ? "desc" : "asc", page: "1" });
-    else setFilters({ sortField: field, sortDir: field === "severity" ? "asc" : "desc", page: "1" });
+    else setFilters({ sortField: field, sortDir: "desc", page: "1" });
   }
 
   const sortIndicator = (field: SortField) =>
@@ -340,12 +304,13 @@ export default function Alerts() {
                   <Checkbox
                     checked={allPageSelected}
                     onCheckedChange={toggleSelectAll}
+                    aria-label="Select all open alerts on this page"
                   />
                   <span className="text-xs text-muted-foreground">Select all on page</span>
                 </div>
               )}
               <div className="space-y-3">
-                {paginated.map((alert: Alert) => {
+                {paginated.map((alert: AlertListRow) => {
                   const alertLink = resolveAlertLink(alert);
                   return (
                   <div key={alert.id} className="flex items-start gap-4 p-4 rounded-lg border">
@@ -354,6 +319,7 @@ export default function Alerts() {
                         <Checkbox
                           checked={selectedIds.has(alert.id)}
                           onCheckedChange={() => toggleSelected(alert.id)}
+                          aria-label={`Select alert: ${alert.title}`}
                         />
                       </div>
                     )}
@@ -396,6 +362,7 @@ export default function Alerts() {
                           variant="ghost"
                           onClick={() => handleAction(alert.id, "dismiss")}
                           disabled={pendingId === alert.id}
+                          aria-label={`Dismiss alert: ${alert.title}`}
                         >
                           <X className="h-3.5 w-3.5" />
                         </Button>
@@ -411,11 +378,11 @@ export default function Alerts() {
                     Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount}
                   </p>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setFilters({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>
+                    <Button variant="outline" size="sm" aria-label="Previous alerts page" onClick={() => setFilters({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <span className="text-sm">Page {page} of {totalPages}</span>
-                    <Button variant="outline" size="sm" onClick={() => setFilters({ page: String(Math.min(totalPages, page + 1)) })} disabled={page === totalPages}>
+                    <Button variant="outline" size="sm" aria-label="Next alerts page" onClick={() => setFilters({ page: String(Math.min(totalPages, page + 1)) })} disabled={page === totalPages}>
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
