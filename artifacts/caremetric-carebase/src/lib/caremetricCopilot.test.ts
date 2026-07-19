@@ -38,6 +38,13 @@ describe("CareMetric Copilot", () => {
     expect(answer.answer).toContain("I may need a little more detail");
   });
 
+  it("does not surface unauthorized platform links", () => {
+    const answer = answerCareMetricCopilot("help me with inspection evidence", user("platform_admin"), "/admin/alerts");
+
+    expect(answer.links.some((link) => link.href === "/app/alerts")).toBe(false);
+    expect(answer.links.every((link) => link.href.startsWith("/app/") || link.href.startsWith("/admin/"))).toBe(true);
+  });
+
   it("provides route-specific suggestions", () => {
     const suggestions = getCopilotSuggestions("facility_manager", "/app/residents");
 

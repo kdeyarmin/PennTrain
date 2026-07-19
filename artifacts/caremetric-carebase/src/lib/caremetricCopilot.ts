@@ -1,4 +1,5 @@
 import type { AuthUser } from "@/lib/auth";
+import { viewablePathForRole } from "@/lib/appDomains";
 
 export type CopilotIntent =
   | "navigate"
@@ -355,7 +356,10 @@ export function answerCareMetricCopilot(question: string, user: AuthUser, locati
   const isVagueQuestion = questionTokens.length < 3 && !routeContext;
   const confidence = isVagueQuestion ? "low" : confidenceForScore(best.score);
   const routeLinks = routeContext?.links ?? [];
-  const roleLinks = uniqueLinks([...routeLinks, ...item.links]).filter((link) => canUseLink(link, user.role));
+  const roleLinks = uniqueLinks([...routeLinks, ...item.links])
+    .filter((link) => canUseLink(link, user.role))
+    .map((link) => ({ ...link, href: viewablePathForRole(link.href, user.role) }))
+    .filter((link): link is CopilotLink => !!link.href);
   const roleLabel = ROLE_LABELS[user.role];
   const currentPage = pageLabel(location, routeContext);
   const pageGuidance = routeContext ? ` On this page, focus on how to ${routeContext.focus}.` : "";
