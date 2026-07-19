@@ -13,8 +13,9 @@ import { useGetOrganizationSettings, useUpsertOrganizationSettings } from "@/hoo
 import { useListNotificationDeliveries } from "@/hooks/useNotifications";
 import { useRecalculateOrgCompliance } from "@/hooks/useTrainingRecords";
 import { QueryError, QueryLoading } from "@/components/QueryState";
-import { useOrganizationExports, useSandboxActions } from "@/hooks/useProductExperience";
+import { useOrganizationExports, useRestoreDemoBaseline, useSandboxActions } from "@/hooks/useProductExperience";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useGetOrganization } from "@/hooks/useOrganizations";
 
 const DEFAULT_WARNING_DAYS = 90;
 const DEFAULT_OAPSA_DAYS_RESIDENT = 30;
@@ -74,6 +75,8 @@ export default function Settings() {
   const { mutate: recalculateCompliance, isPending: recalculating } = useRecalculateOrgCompliance();
   const exports = useOrganizationExports(user?.organizationId);
   const sandboxActions = useSandboxActions();
+  const demoBaseline = useRestoreDemoBaseline();
+  const { data: organization } = useGetOrganization(user?.organizationId ?? undefined);
   const { data: facilities = [] } = useListFacilities({ organizationId: user?.organizationId ?? undefined }, !!user?.organizationId);
   const sandbox = facilities.find((facility) => facility.is_sandbox && facility.is_active);
 
@@ -476,7 +479,33 @@ export default function Settings() {
             </CardContent>
           </Card>
 
-          {user?.role === "org_admin" && (
+          {user?.role === "org_admin" && organization?.is_demo && (
+            <Card className="border-blue-200 bg-blue-50/40">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><RefreshCw className="h-5 w-5" />Public demo workspace</CardTitle>
+                <CardDescription>This organization contains fictional starter data. Restoring the baseline repairs or recreates the guided examples without sending email, SMS, or push notifications.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium">Seed version {organization.demo_seed_version ?? 1}</p>
+                  <p className="text-xs text-muted-foreground">{organization.demo_reset_at ? `Last restored ${new Date(organization.demo_reset_at).toLocaleString()}` : "Starter data has not been restored yet."}</p>
+                </div>
+                <Button
+                  variant="outline"
+                  disabled={demoBaseline.isPending}
+                  onClick={() => demoBaseline.mutate(undefined, {
+                    onSuccess: () => toast({ title: "Demo starter data restored" }),
+                    onError: (error: Error) => toast({ title: "Demo restore failed", description: error.message, variant: "destructive" }),
+                  })}
+                >
+                  <RefreshCw className={`mr-2 h-4 w-4 ${demoBaseline.isPending ? "animate-spin" : ""}`} />
+                  Restore starter data
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {user?.role === "org_admin" && !organization?.is_demo && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><FlaskConical className="h-5 w-5" />Training sandbox</CardTitle>

@@ -117,7 +117,16 @@ STOP/START events to `twilio-notification-webhook?kind=consent`.
 
 ## Demo users
 
-The `/demo` page is disabled unless `VITE_DEMO_ACCOUNTS_JSON` is set for that environment. Never commit demo or
-platform admin passwords; create them per environment and rotate them like any other credential.
+The `/demo` page offers one-click role entry when `VITE_DEMO_ACCOUNTS_JSON` contains valid `org_admin`,
+`facility_manager`, `trainer`, `employee`, or `auditor` accounts. The parser always rejects `platform_admin`.
+Because `VITE_*` values are visible in the browser, every configured account must belong only to an isolated
+organization marked `is_demo`; never point this configuration at a customer tenant. Hosted demo users are created
+per environment through the Admin API and use deploy-time credentials. The predictable passwords in
+`supabase/seed.sql` are only for a disposable local Supabase stack and must never be reused in a hosted environment.
+
+The Sunrise demo baseline includes synthetic staffing, residents, schedules, admissions, service tasks, incidents,
+inspections, maintenance, complaints, QAPI, emergency operations, and an evidence-room starter collection. An
+organization administrator can restore the baseline from Settings, and a daily job repairs it automatically.
+Email, SMS, and push delivery plus demo-initiated Auth user provisioning are blocked for demo organizations.
 
 See `ARCHITECTURE.md` for the full architecture writeup (RLS model, storage buckets, Edge Functions, route map).

@@ -276,3 +276,17 @@ export function useSandboxActions() {
   });
   return { ensure, reset };
 }
+
+export function useRestoreDemoBaseline() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc("restore_demo_baseline");
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries();
+    },
+  });
+}

@@ -1,6 +1,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { resolveAppRedirect } from "../_shared/appRedirect.ts";
 import { requireFreshAal2 } from "../_shared/privilegedIdentity.ts";
+import { isDemoOrganization } from "../_shared/demoTenant.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -116,6 +117,14 @@ Deno.serve(async (req: Request) => {
 
   const callerRole = callerProfile.role as string;
   const callerOrgId = callerProfile.organization_id as string | null;
+
+  try {
+    if (await isDemoOrganization(callerClient, callerOrgId)) {
+      return json({ error: "Demo workspaces cannot invite or provision users" }, 403);
+    }
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : "Unable to verify demo workspace" }, 500);
+  }
 
   // Same authorization matrix as create-user, minus the password/org-required distinction --
   // an invite always targets the caller's own organization (or platform_admin's chosen one).

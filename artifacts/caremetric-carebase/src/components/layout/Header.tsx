@@ -143,7 +143,6 @@ function NotificationsMenu() {
   useNotificationRealtime(user?.id);
   const { mutate: markRead } = useMarkNotificationRead();
   const { mutate: markAllRead, isPending: markingAllRead } = useMarkAllNotificationsRead();
-  useNotificationRealtime(user?.id);
 
   const handleSelect = (notification: Notification) => {
     if (!notification.read_at) markRead(notification.id);

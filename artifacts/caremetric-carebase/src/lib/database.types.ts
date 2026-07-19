@@ -16613,7 +16613,10 @@ export type Database = {
           contact_name: string | null
           contact_phone: string | null
           created_at: string
+          demo_reset_at: string | null
+          demo_seed_version: number | null
           id: string
+          is_demo: boolean
           max_facilities: number | null
           max_users: number | null
           name: string
@@ -16633,7 +16636,10 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
+          demo_reset_at?: string | null
+          demo_seed_version?: number | null
           id?: string
+          is_demo?: boolean
           max_facilities?: number | null
           max_users?: number | null
           name: string
@@ -16653,7 +16659,10 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
+          demo_reset_at?: string | null
+          demo_seed_version?: number | null
           id?: string
+          is_demo?: boolean
           max_facilities?: number | null
           max_users?: number | null
           name?: string
@@ -33780,6 +33789,7 @@ export type Database = {
         }
         Returns: string
       }
+      restore_demo_baseline: { Args: never; Returns: Json }
       resume_confidential_incident_intake: {
         Args: {
           p_intake_number: string
@@ -35506,4 +35516,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
