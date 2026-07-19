@@ -10,7 +10,6 @@ import {
   useNotificationRealtime,
   useMarkNotificationRead,
   useMarkAllNotificationsRead,
-  useNotificationRealtime,
   type Notification,
 } from "@/hooks/useNotifications";
 import { Button } from "@/components/ui/button";
