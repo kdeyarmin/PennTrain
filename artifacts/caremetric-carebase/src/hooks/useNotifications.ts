@@ -48,32 +48,6 @@ function invalidateNotifications(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
 }
 
-/** Keep the header badge and menu current without a one-minute polling delay. */
-export function useNotificationRealtime(profileId?: string) {
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    if (!profileId) return;
-    const channel = supabase
-      .channel(`notifications:${profileId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter: `profile_id=eq.${profileId}`,
-        },
-        () => invalidateNotifications(queryClient),
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [profileId, queryClient]);
-}
-
 type NotificationQuerySnapshot = Array<[QueryKey, unknown]>;
 
 function restoreNotificationQueries(queryClient: QueryClient, snapshot?: NotificationQuerySnapshot) {

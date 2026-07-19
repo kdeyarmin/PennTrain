@@ -110,7 +110,7 @@ export function usePaginatedViolations<T = Record<string, unknown>>(filters: Dom
   return useQuery({
     queryKey: ["dhs_violations", "paginated", filters],
     queryFn: async ({ signal }): Promise<PaginatedResult<T>> => {
-      let query = supabase
+      let query = (supabase as unknown as { from(source: "dhs_violations_search"): DomainListQuery })
         .from("dhs_violations_search")
         .select("*", { count: "exact" });
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
