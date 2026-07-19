@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Bot, Lightbulb, Loader2, MessageSquarePlus, Send, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -59,8 +59,21 @@ export function CareMetricCopilot() {
   const [question, setQuestion] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const pendingTimerRef = useRef<number | null>(null);
 
   const suggestions = useMemo(() => (user ? getCopilotSuggestions(user.role, location) : []), [location, user]);
+
+  // Clear chat state and cancel pending responses when the authenticated user changes (including
+  // platform impersonation switches), so messages asked as one user aren't shown to another user.
+  useEffect(() => {
+    setMessages([]);
+    setQuestion("");
+    setIsThinking(false);
+    if (pendingTimerRef.current !== null) {
+      window.clearTimeout(pendingTimerRef.current);
+      pendingTimerRef.current = null;
+    }
+  }, [user?.id]);
 
   if (!user) return null;
 
@@ -71,10 +84,11 @@ export function CareMetricCopilot() {
     setMessages((current) => [...current, userMessage]);
     setQuestion("");
     setIsThinking(true);
-    window.setTimeout(() => {
+    pendingTimerRef.current = window.setTimeout(() => {
       const response = answerCareMetricCopilot(trimmed, user, location);
       setMessages((current) => [...current, { id: crypto.randomUUID(), role: "assistant", response }]);
       setIsThinking(false);
+      pendingTimerRef.current = null;
     }, 350);
   };
 

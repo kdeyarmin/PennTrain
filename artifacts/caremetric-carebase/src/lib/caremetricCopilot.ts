@@ -50,8 +50,8 @@ type RouteContext = {
   links?: CopilotLink[];
 };
 
-const ORG_ROLES: AuthUser["role"][] = ["org_admin", "facility_manager", "trainer", "auditor", "platform_admin"];
-const MANAGER_ROLES: AuthUser["role"][] = ["org_admin", "facility_manager", "platform_admin"];
+const ORG_ROLES: AuthUser["role"][] = ["org_admin", "facility_manager", "trainer", "auditor"];
+const MANAGER_ROLES: AuthUser["role"][] = ["org_admin", "facility_manager"];
 
 const ROUTE_CONTEXTS: Array<{ test: RegExp; context: RouteContext }> = [
   {
