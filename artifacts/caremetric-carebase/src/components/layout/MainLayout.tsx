@@ -11,6 +11,7 @@ import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { IdleSessionLock, MfaPolicyGate } from "./SessionSecurityGates";
 import { useNavigationWorkspace } from "@/hooks/useProductExperience";
+import { CareMetricCopilot } from "@/components/CareMetricCopilot";
 
 // Impersonation sessions auto-return after this long as a defense-in-depth backstop, independent
 // of the underlying magic-link JWT's own expiry (see useImpersonation.ts).
@@ -157,6 +158,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
             <RouteErrorBoundary>{children}</RouteErrorBoundary>
           </div>
         </main>
+        <CareMetricCopilot />
       </div>
     </div>
     </IdleSessionLock>

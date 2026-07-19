@@ -76,7 +76,11 @@ export default function Alerts() {
     facilityId: facilityId !== "all" ? facilityId : undefined,
     organizationId,
     search: debouncedSearch,
-    sortField: sortField === "createdAt" ? "created_at" : sortField === "severity" ? "severity_rank" : sortField,
+    sortField: sortField === "createdAt"
+      ? "created_at"
+      : sortField === "severity"
+        ? "severity_rank"
+        : sortField,
     sortDir,
     page,
     pageSize: PAGE_SIZE,
