@@ -79,7 +79,8 @@ export function CareMetricCopilot() {
 
   const ask = (prompt = question) => {
     const trimmed = prompt.trim();
-    if (!trimmed || isThinking) return;
+    // Guard against rapid double-submits: bail if empty, already thinking, or a timer is pending
+    if (!trimmed || isThinking || pendingTimerRef.current !== null) return;
     const userMessage: ChatMessage = { id: crypto.randomUUID(), role: "user", content: trimmed };
     setMessages((current) => [...current, userMessage]);
     setQuestion("");
