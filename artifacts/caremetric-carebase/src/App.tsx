@@ -215,7 +215,11 @@ function ProtectedRoute({
     return <Redirect to="/login" />;
   }
 
-  if (user && !moduleAccess.canAccessPath(window.location.pathname)) {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const currentPath = base && (window.location.pathname === base || window.location.pathname.startsWith(`${base}/`))
+    ? window.location.pathname.slice(base.length) || "/"
+    : window.location.pathname;
+  if (user && !moduleAccess.canAccessPath(currentPath)) {
     return <Redirect to={moduleAccess.homePath ?? "/login"} />;
   }
 
