@@ -7,6 +7,13 @@ CareMetric CareBase (formerly "PA MedTrack") is a multi-tenant SaaS management p
 The app is built directly on Supabase: Postgres + Row-Level Security, Supabase Auth, Supabase Storage, and Edge
 Functions. There is no separate backend API server — the React frontend talks to Supabase directly via `supabase-js`.
 
+## Product modules
+
+Commercial product segregation is defined in [`PRODUCT_MODULES.md`](PRODUCT_MODULES.md). CareMetric Train can run
+as a learning-only product, while CareMetric CareBase includes Train plus the full resident, workforce, forms,
+operations, compliance, document, and reporting suite. Module entitlements are enforced in both the application
+router and restrictive Postgres RLS policies.
+
 ## Architecture
 
 pnpm workspace monorepo. Single frontend package (`artifacts/caremetric-carebase`) plus a design mockup sandbox; all
@@ -34,6 +41,8 @@ backend logic lives in the Supabase project (`xsqobvvreaovwibxwyvv`, "CM CareBas
   `20260704180244_fix_handle_new_user_trust_boundary.sql`)
 - **Authorization**: Row-Level Security on every table, plus a handful of `SECURITY DEFINER` RPCs for atomic
   multi-row operations, plus Edge Functions for anything needing the service-role key or outbound HTTP
+- **Product modules**: typed package/organization entitlements (`modules.train`, `modules.carebase`) intersected
+  with an optional deployment allow-list; restrictive module policies compose with existing tenant/role RLS
 
 ## Roles
 

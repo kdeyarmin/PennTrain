@@ -548,7 +548,7 @@ test.describe("role-aware release journeys", () => {
     await page.getByLabel("Email").fill(employee.email);
     await page.getByLabel("Password").fill(employee.password);
     await page.getByRole("button", { name: "Sign in" }).click();
-    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/me");
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toMatch(/^\/me(?:\/courses)?$/);
     await page.goto(`/checkin/${token}`);
     await expect(page.getByText("You're checked in.")).toBeVisible();
     await expect.poll(async () => {

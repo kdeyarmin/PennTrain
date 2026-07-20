@@ -7,6 +7,7 @@ import { queryClient } from "@/lib/queryClient";
 import { AuthProvider } from "@/lib/auth";
 import { loginPathWithNext } from "@/lib/loginRedirect";
 import { ViewingOrgProvider } from "@/lib/viewingOrg";
+import { ProductModuleAccessProvider, useProductModuleAccess } from "@/lib/productModuleAccess";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
 import { ProductTelemetry } from "@/components/ProductTelemetry";
@@ -194,9 +195,10 @@ function ProtectedRoute({
   requireFacilityTypes?: readonly string[];
 }) {
   const { user, isLoading, isAuthenticated } = useAuth();
+  const moduleAccess = useProductModuleAccess();
   const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
 
-  if (isLoading) {
+  if (isLoading || moduleAccess.isLoading) {
     return <FullPageLoading />;
   }
 
@@ -211,6 +213,14 @@ function ProtectedRoute({
     if (user.role === "trainer") return <Redirect to="/trainer" />;
     if (user.role === "employee") return <Redirect to="/me" />;
     return <Redirect to="/login" />;
+  }
+
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const currentPath = base && (window.location.pathname === base || window.location.pathname.startsWith(`${base}/`))
+    ? window.location.pathname.slice(base.length) || "/"
+    : window.location.pathname;
+  if (user && !moduleAccess.canAccessPath(currentPath)) {
+    return <Redirect to={moduleAccess.homePath ?? "/login"} />;
   }
 
   if (requireFacilityTypes && user) {
@@ -322,6 +332,7 @@ function LegacyWorkOrderRedirect() {
 
 function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
+  const moduleAccess = useProductModuleAccess();
 
   return (
     <Suspense
@@ -332,13 +343,9 @@ function Router() {
     <Switch>
       <Route path="/">
         {() => {
-          if (isLoading) return <FullPageLoading />;
+          if (isLoading || moduleAccess.isLoading) return <FullPageLoading />;
           if (!isAuthenticated) return <Landing />;
-          if (user?.role === "platform_admin") return <Redirect to="/admin" />;
-          if (user?.role === "trainer") return <Redirect to="/trainer" />;
-          if (user?.role === "employee") return <Redirect to="/me" />;
-          // org_admin, facility_manager, auditor
-          return <Redirect to="/app" />;
+          return <Redirect to={moduleAccess.homePath ?? "/login"} />;
         }}
       </Route>
 
@@ -874,10 +881,12 @@ function AppInner() {
     <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
       <MaintenanceBanner />
       <AuthProvider>
-        <ProductTelemetry />
-        <ViewingOrgProvider>
-          <Router />
-        </ViewingOrgProvider>
+        <ProductModuleAccessProvider>
+          <ProductTelemetry />
+          <ViewingOrgProvider>
+            <Router />
+          </ViewingOrgProvider>
+        </ProductModuleAccessProvider>
       </AuthProvider>
     </WouterRouter>
   );

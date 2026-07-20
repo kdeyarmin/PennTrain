@@ -1,4 +1,5 @@
 import type { Role } from "@/lib/auth";
+import { canAccessProductPath, moduleHomePathForRole, type ProductModuleId } from "@/lib/productModules";
 
 export type AppDomain =
   | "platform"
@@ -350,14 +351,24 @@ function splitPathSuffix(path: string): [pathname: string, suffix: string] {
   return [match?.[1] || "/", match?.[2] || ""];
 }
 
-export function pagesForRole(role: Role | undefined): AppPageDefinition[] {
+export function pagesForRole(
+  role: Role | undefined,
+  enabledModules?: ReadonlySet<ProductModuleId>,
+): AppPageDefinition[] {
   if (!role) return [];
-  return APP_PAGES.filter((page) => page.roles.includes(role));
+  return APP_PAGES.filter((page) =>
+    page.roles.includes(role) && (!enabledModules || canAccessProductPath(page.path, enabledModules)),
+  );
 }
 
-export function canViewPage(path: string, role: Role | undefined): boolean {
+export function canViewPage(
+  path: string,
+  role: Role | undefined,
+  enabledModules?: ReadonlySet<ProductModuleId>,
+): boolean {
   if (!role) return false;
-  return APP_PAGES_BY_PATH.get(path)?.roles.includes(role) ?? false;
+  return (APP_PAGES_BY_PATH.get(path)?.roles.includes(role) ?? false)
+    && (!enabledModules || canAccessProductPath(path, enabledModules));
 }
 
 export function helpBasePathForRole(role: Role | undefined): "/app" | "/me" | null {
@@ -401,9 +412,14 @@ function canonicalNavigationPathForRole(path: string, role: Role | undefined): s
   return helpPath;
 }
 
-export function canViewPath(path: string, role: Role | undefined): boolean {
+export function canViewPath(
+  path: string,
+  role: Role | undefined,
+  enabledModules?: ReadonlySet<ProductModuleId>,
+): boolean {
   if (!role) return false;
   const canonicalPath = canonicalHelpPathForRole(path, role);
+  if (enabledModules && !canAccessProductPath(canonicalPath, enabledModules)) return false;
   const [pathname] = splitPathSuffix(canonicalPath);
   const match = APP_PAGE_ROUTE_MATCHERS.find(({ page: candidate, matcher }) => {
     if (matcher) return matcher.test(pathname);
@@ -420,22 +436,36 @@ export function canViewPath(path: string, role: Role | undefined): boolean {
   return page?.roles.includes(role) ?? false;
 }
 
-export function safePathForRole(path: string, role: Role | undefined): string | null {
+export function safePathForRole(
+  path: string,
+  role: Role | undefined,
+  enabledModules?: ReadonlySet<ProductModuleId>,
+): string | null {
   if (!role) return null;
   const canonicalPath = canonicalNavigationPathForRole(path, role);
-  return canViewPath(canonicalPath, role) ? canonicalPath : homePathForRole(role);
+  return canViewPath(canonicalPath, role, enabledModules)
+    ? canonicalPath
+    : enabledModules ? moduleHomePathForRole(role, enabledModules) : homePathForRole(role);
 }
 
-export function viewablePathForRole(path: string, role: Role | undefined): string | null {
+export function viewablePathForRole(
+  path: string,
+  role: Role | undefined,
+  enabledModules?: ReadonlySet<ProductModuleId>,
+): string | null {
   if (!role) return null;
   const canonicalPath = canonicalNavigationPathForRole(path, role);
-  return canViewPath(canonicalPath, role) ? canonicalPath : null;
+  return canViewPath(canonicalPath, role, enabledModules) ? canonicalPath : null;
 }
 
-export function searchPages(query: string, role: Role | undefined): AppPageDefinition[] {
+export function searchPages(
+  query: string,
+  role: Role | undefined,
+  enabledModules?: ReadonlySet<ProductModuleId>,
+): AppPageDefinition[] {
   const q = query.trim().toLowerCase();
   if (!q || !role) return [];
-  return pagesForRole(role)
+  return pagesForRole(role, enabledModules)
     .filter((page) => !page.path.includes(":"))
     .filter((page) =>
       [page.label, page.domain, page.path, ...page.keywords].some((value) => value.toLowerCase().includes(q)),
@@ -443,15 +473,24 @@ export function searchPages(query: string, role: Role | undefined): AppPageDefin
     .slice(0, 6);
 }
 
-export function commandActionsForRole(role: Role | undefined): AppCommandAction[] {
+export function commandActionsForRole(
+  role: Role | undefined,
+  enabledModules?: ReadonlySet<ProductModuleId>,
+): AppCommandAction[] {
   if (!role) return [];
-  return APP_COMMAND_ACTIONS.filter((action) => action.roles.includes(role));
+  return APP_COMMAND_ACTIONS.filter((action) =>
+    action.roles.includes(role) && (!enabledModules || canAccessProductPath(action.path, enabledModules)),
+  );
 }
 
-export function searchCommandActions(query: string, role: Role | undefined): AppCommandAction[] {
+export function searchCommandActions(
+  query: string,
+  role: Role | undefined,
+  enabledModules?: ReadonlySet<ProductModuleId>,
+): AppCommandAction[] {
   const q = query.trim().toLowerCase();
   if (!q || !role) return [];
-  return commandActionsForRole(role)
+  return commandActionsForRole(role, enabledModules)
     .filter((action) =>
       [action.label, action.description, action.domain, action.path, ...action.keywords].some((value) =>
         value.toLowerCase().includes(q),

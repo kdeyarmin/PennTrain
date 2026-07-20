@@ -10,6 +10,7 @@ import {
   searchPages,
   searchCommandActions,
 } from "./appDomains";
+import { withModuleDependencies } from "./productModules";
 
 describe("role-based page visibility", () => {
   it("keeps employees in the self-service surface", () => {
@@ -277,4 +278,46 @@ describe("role-based page visibility", () => {
     expect(paths).not.toContain("/admin/residents/:id");
   });
 
+});
+
+describe("module-aware page filtering", () => {
+  const trainOnly = withModuleDependencies(["train"]); // resolves to {core, train}
+
+  it("excludes CareBase-only pages from pagesForRole when Train-only modules are enabled", () => {
+    const paths = pagesForRole("org_admin", trainOnly).map((page) => page.path);
+
+    // CareBase-module pages must be absent
+    expect(paths).not.toContain("/app/residents");
+    expect(paths).not.toContain("/app/admissions");
+    expect(paths).not.toContain("/app/change-of-condition");
+    expect(paths).not.toContain("/app/qapi");
+    expect(paths).not.toContain("/app/emergency");
+
+    // Core and Train pages must remain accessible
+    expect(paths).toContain("/app/employees");
+    expect(paths).toContain("/app/training-matrix");
+    expect(paths).toContain("/app/governed-learning");
+    expect(paths).toContain("/app/pending-approvals");
+  });
+
+  it("blocks CareBase paths and allows Train/core paths via canViewPage with Train-only modules", () => {
+    expect(canViewPage("/app/residents", "org_admin", trainOnly)).toBe(false);
+    expect(canViewPage("/app/admissions", "org_admin", trainOnly)).toBe(false);
+    expect(canViewPage("/app/change-of-condition", "org_admin", trainOnly)).toBe(false);
+    expect(canViewPage("/app/training-matrix", "org_admin", trainOnly)).toBe(true);
+    expect(canViewPage("/app/employees", "org_admin", trainOnly)).toBe(true);
+  });
+
+  it("excludes CareBase pages from searchPages results with Train-only modules", () => {
+    const paths = searchPages("residents", "org_admin", trainOnly).map((page) => page.path);
+    expect(paths).not.toContain("/app/residents");
+    expect(paths).not.toContain("/app/admissions");
+  });
+
+  it("excludes CareBase command actions from searchCommandActions with Train-only modules", () => {
+    const actions = searchCommandActions("compliance", "org_admin", trainOnly);
+    const paths = actions.map((a) => a.path);
+    // CareBase paths like /app/compliance-binder should be absent
+    expect(paths).not.toContain("/app/compliance-binder");
+  });
 });

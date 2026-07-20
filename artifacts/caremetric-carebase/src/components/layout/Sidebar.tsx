@@ -3,6 +3,7 @@ import { useAuth, useSignOut } from "@/lib/auth";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { canViewPath } from "@/lib/appDomains";
+import { useProductModuleAccess } from "@/lib/productModuleAccess";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { useGetOrganizationSettings } from "@/hooks/useOrganizationSettings";
 import { useNavigationWorkspace } from "@/hooks/useProductExperience";
@@ -516,6 +517,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
   const organizationSettings = useGetOrganizationSettings(user?.organizationId ?? undefined);
   const navigation = useNavigationWorkspace();
+  const moduleAccess = useProductModuleAccess();
   const [filter, setFilter] = useState("");
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => (user ? loadCollapsedSections(user.id) : new Set()));
   const [collapsedSectionsUserId, setCollapsedSectionsUserId] = useState<string | null>(() => user?.id ?? null);
@@ -546,7 +548,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
       // /app/employees?action=add). canViewPage only accepts canonical page
       // entries, while canViewPath safely strips the query before checking the
       // role map.
-      items: section.items.filter((item) => canViewPath(item.href, user.role)),
+      items: section.items.filter((item) => canViewPath(item.href, user.role, moduleAccess.enabledModules)),
     }))
     .filter((section) => section.items.length > 0);
 
@@ -586,6 +588,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
         title: "Recent",
         items: navigation.recentPaths
           .filter((recent) => !pinnedPages.has(recent.path))
+          .filter((recent) => canViewPath(recent.path, user.role, moduleAccess.enabledModules))
           .map((recent) => flattenedNavItems.find((item) => item.href === recent.path) ?? {
             href: recent.path,
             label: recent.label,
@@ -619,7 +622,9 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
         </div>
         <div className="flex flex-col">
           <BrandName className="font-bold text-[15px] text-sidebar-foreground leading-tight" />
-          <span className="text-[11px] text-sidebar-foreground/50 font-medium">Compliance Platform</span>
+          <span className="text-[11px] text-sidebar-foreground/50 font-medium">
+            {moduleAccess.canAccessModule("carebase") ? "CareBase Platform" : "Train Learning Platform"}
+          </span>
         </div>
       </div>
 

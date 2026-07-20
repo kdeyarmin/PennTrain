@@ -26,6 +26,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { safePathForRole } from "@/lib/appDomains";
+import { useProductModuleAccess } from "@/lib/productModuleAccess";
 import { GlobalSearch } from "./GlobalSearch";
 import { useLocation } from "wouter";
 
@@ -137,6 +138,7 @@ function ViewingOrgSelector() {
 function NotificationsMenu() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
+  const moduleAccess = useProductModuleAccess();
   const { data: notifications, isLoading } = useListNotifications();
   const { data: unreadCount } = useUnreadNotificationCount();
   const { mutate: markRead } = useMarkNotificationRead();
@@ -145,7 +147,7 @@ function NotificationsMenu() {
   const handleSelect = (notification: Notification) => {
     if (!notification.read_at) markRead(notification.id);
     if (notification.link) {
-      const destination = safePathForRole(notification.link, user?.role);
+      const destination = safePathForRole(notification.link, user?.role, moduleAccess.enabledModules);
       if (destination) setLocation(destination);
     }
   };

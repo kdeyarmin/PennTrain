@@ -64,6 +64,7 @@ select ok(not exists(
       'resident_portal_schedule_responses','resident_payment_links','copilot_action_drafts'
     )
     and roles @> array['authenticated']::name[]
+    and permissive = 'PERMISSIVE'
     and coalesce(qual, '') not like '%current_role%'
 ),'product-value read policies require a privileged operating role');
 select is((select count(*)::bigint from cron.job where jobname='process-carebase-report-subscriptions'),1::bigint,'scheduled report worker is registered once');

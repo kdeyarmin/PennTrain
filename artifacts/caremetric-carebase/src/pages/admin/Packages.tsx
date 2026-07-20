@@ -22,6 +22,10 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Package as PackageIcon, Plus, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  PRODUCT_MODULES,
+  type PurchasableProductModuleId,
+} from "@/lib/productModules";
 
 interface PackageFormData {
   name: string;
@@ -31,6 +35,7 @@ interface PackageFormData {
   learnerLimit: string;
   priceMonthly: string;
   featuresJson: string;
+  enabledModules: PurchasableProductModuleId[];
 }
 
 const EMPTY_FORM: PackageFormData = {
@@ -41,7 +46,20 @@ const EMPTY_FORM: PackageFormData = {
   learnerLimit: "",
   priceMonthly: "",
   featuresJson: "{}",
+  enabledModules: ["train", "carebase"],
 };
+
+function enabledModulesFromFeatures(features: Json | null): PurchasableProductModuleId[] {
+  if (!features || typeof features !== "object" || Array.isArray(features)) return ["train", "carebase"];
+  const record = features as Record<string, Json | undefined>;
+  const hasModuleContract = PRODUCT_MODULES.some((module) => typeof record[module.entitlementKey] === "boolean");
+  if (!hasModuleContract) return ["train", "carebase"];
+  const enabled = PRODUCT_MODULES
+    .filter((module) => record[module.entitlementKey] === true)
+    .map((module) => module.id);
+  if (enabled.includes("carebase") && !enabled.includes("train")) enabled.unshift("train");
+  return enabled;
+}
 
 function centsToDollarsDisplay(cents: number | null): string {
   if (cents === null || cents === undefined) return "—";
@@ -79,6 +97,7 @@ export default function Packages() {
       learnerLimit: pkg.learner_limit === null ? "" : String(pkg.learner_limit),
       priceMonthly: pkg.price_monthly_cents === null ? "" : (pkg.price_monthly_cents / 100).toFixed(2),
       featuresJson: pkg.features === null ? "{}" : JSON.stringify(pkg.features, null, 2),
+      enabledModules: enabledModulesFromFeatures(pkg.features),
     });
     setShowForm(true);
   };
@@ -89,7 +108,7 @@ export default function Packages() {
       return;
     }
 
-    let features: Json = null;
+    let features: Json = {};
     if (form.featuresJson.trim()) {
       try {
         features = JSON.parse(form.featuresJson) as Json;
@@ -98,6 +117,16 @@ export default function Packages() {
         return;
       }
     }
+
+    if (!features || typeof features !== "object" || Array.isArray(features)) {
+      toast({ title: "Features must be a JSON object", variant: "destructive" });
+      return;
+    }
+    const featureRecord = features as Record<string, Json | undefined>;
+    for (const module of PRODUCT_MODULES) {
+      featureRecord[module.entitlementKey] = form.enabledModules.includes(module.id);
+    }
+    features = featureRecord;
 
     const sortOrder = form.sortOrder.trim() ? parseInt(form.sortOrder, 10) : 0;
     const facilityLimit = form.facilityLimit.trim() ? parseInt(form.facilityLimit, 10) : null;
@@ -169,6 +198,7 @@ export default function Packages() {
                   <TableHead>Facility Limit</TableHead>
                   <TableHead>Employee Seat Limit</TableHead>
                   <TableHead>Price</TableHead>
+                  <TableHead>Products</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -185,6 +215,14 @@ export default function Packages() {
                     <TableCell>{pkg.facility_limit ?? "Unlimited"}</TableCell>
                     <TableCell>{pkg.learner_limit ?? "Unlimited"}</TableCell>
                     <TableCell>{centsToDollarsDisplay(pkg.price_monthly_cents)}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {enabledModulesFromFeatures(pkg.features).map((moduleId) => {
+                          const module = PRODUCT_MODULES.find((candidate) => candidate.id === moduleId)!;
+                          return <Badge key={moduleId} variant="outline">{module.shortName}</Badge>;
+                        })}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(pkg)} aria-label={`Edit ${pkg.name}`}>
@@ -243,6 +281,39 @@ export default function Packages() {
               <Input type="number" min="0" value={form.learnerLimit} onChange={e => field("learnerLimit", e.target.value)} placeholder="Unlimited" className="h-9" />
             </div>
             <div className="col-span-full space-y-1.5">
+              <Label className="text-[13px]">CareMetric products</Label>
+              <div className="space-y-2 rounded-lg border p-3">
+                {PRODUCT_MODULES.map((module) => {
+                  const enabled = form.enabledModules.includes(module.id);
+                  const requiredByCareBase = module.id === "train" && form.enabledModules.includes("carebase");
+                  return (
+                    <div key={module.id} className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-medium">{module.name}</p>
+                        <p className="text-xs text-muted-foreground">{module.description}</p>
+                      </div>
+                      <Switch
+                        checked={enabled}
+                        disabled={requiredByCareBase}
+                        onCheckedChange={(checked) => field(
+                          "enabledModules",
+                          checked
+                            ? Array.from(new Set([
+                                ...form.enabledModules,
+                                module.id,
+                                ...(module.id === "carebase" ? (["train"] as const) : []),
+                              ]))
+                            : form.enabledModules.filter((moduleId) => moduleId !== module.id),
+                        )}
+                        aria-label={`${enabled ? "Disable" : "Enable"} ${module.name}`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground/60">CareMetric CareBase always includes CareMetric Train.</p>
+            </div>
+            <div className="col-span-full space-y-1.5">
               <Label className="text-[13px]">Features (JSON)</Label>
               <Textarea
                 value={form.featuresJson}
@@ -250,7 +321,7 @@ export default function Packages() {
                 placeholder='{"reports": true, "sso": false}'
                 className="font-mono text-xs min-h-[100px]"
               />
-              <p className="text-xs text-muted-foreground/60">Free-form JSON describing feature flags for this package.</p>
+              <p className="text-xs text-muted-foreground/60">Advanced feature flags. Product module keys above are synchronized when you save.</p>
             </div>
           </div>
           <DialogFooter>
