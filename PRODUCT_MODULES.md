@@ -43,7 +43,7 @@ Use a separate Railway service/domain when a facility needs a dedicated product 
 
 ## Adding a future product module
 
-1. Add the module definition and dependency rules in `src/lib/productModules.ts`.
+1. Add the module definition and dependency rules in `artifacts/caremetric-carebase/src/lib/productModules.ts`.
 2. Classify its route prefixes there and add unit tests for list, detail, and self-service routes.
 3. Add a typed `modules.<name>` feature definition and package terms in a forward-only migration.
 4. Reclassify every affected table in `app_private.product_module_resources`; the restrictive policy must exist before exposing the route.
