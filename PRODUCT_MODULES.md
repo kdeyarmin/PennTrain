@@ -10,7 +10,7 @@ CareMetric is one multi-tenant platform with a shared account and directory shel
 
 ## Access decision
 
-`src/lib/productModules.ts` is the frontend product manifest. It classifies every authenticated route as `core`, `train`, or `carebase`. `ProductModuleAccessProvider` resolves the signed-in organization’s typed entitlements through `get_effective_entitlements`, intersects them with the modules included in the current build, and exposes one decision to routes, navigation, search, notifications, favorites, recents, and landing-page redirects.
+`artifacts/caremetric-carebase/src/lib/productModules.ts` is the frontend product manifest. It classifies every authenticated route as `core`, `train`, or `carebase`. `ProductModuleAccessProvider` resolves the signed-in organization’s typed entitlements through `get_effective_entitlements`, intersects them with the modules included in the current build, and exposes one decision to routes, navigation, search, notifications, favorites, recents, and landing-page redirects.
 
 The database is authoritative. `app_private.product_module_resources` classifies every existing RLS-protected business table, and `app_private.product_module_storage_buckets` classifies every private file bucket. Restrictive `product_module_entitlement` RLS policies compose with the existing tenant/role/facility and object-ownership policies, so both the original authorization rule and the commercial module entitlement must pass. The shared core tables are intentionally absent from the table registry and explicitly identified in the bucket registry.
 
