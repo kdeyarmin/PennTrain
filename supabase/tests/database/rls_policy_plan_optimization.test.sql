@@ -23,7 +23,8 @@ select is(
   (select count(*)::int
    from pg_policies
    where schemaname = 'public' and tablename = 'alerts'
-     and cmd = 'ALL'),
+     and cmd = 'ALL'
+     and permissive = 'PERMISSIVE'),
   0,
   'alerts have no permissive FOR ALL policy'
 );

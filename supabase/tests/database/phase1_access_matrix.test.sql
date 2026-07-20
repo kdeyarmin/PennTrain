@@ -137,6 +137,7 @@ select ok(
       end
     ) as required(privilege_name)
     where n.nspname = 'public'
+      and p.polpermissive
       and (
         0::oid = any (p.polroles)
         or authenticated_role.oid = any (p.polroles)
