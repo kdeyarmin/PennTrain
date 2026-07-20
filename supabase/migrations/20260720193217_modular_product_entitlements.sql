@@ -145,7 +145,7 @@ as $$
 declare
   v_module_key text;
 begin
-  if public.is_platform_admin() then return true; end if;
+  if coalesce(auth.jwt()->>'role', '') = 'service_role' or public.is_platform_admin() then return true; end if;
   select b.module_key
   into v_module_key
   from app_private.product_module_storage_buckets b
