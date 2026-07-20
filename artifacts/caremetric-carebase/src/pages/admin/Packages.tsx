@@ -46,7 +46,7 @@ const EMPTY_FORM: PackageFormData = {
   learnerLimit: "",
   priceMonthly: "",
   featuresJson: "{}",
-  enabledModules: ["train"],
+  enabledModules: ["train", "carebase"],
 };
 
 function enabledModulesFromFeatures(features: Json | null): PurchasableProductModuleId[] {
