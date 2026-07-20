@@ -113,6 +113,7 @@ export function parseBuildProductModules(value: string | undefined): ReadonlySet
     .split(",")
     .map((item) => item.trim().toLowerCase())
     .filter((item): item is ProductModuleId => ALL_PRODUCT_MODULE_IDS.includes(item as ProductModuleId));
+  if (requested.length === 0) return withModuleDependencies(ALL_PRODUCT_MODULE_IDS);
   return withModuleDependencies(requested);
 }
 
