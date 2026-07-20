@@ -246,7 +246,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if coalesce((new.features ->> 'modules.carebase')::boolean, false) then
+  if coalesce((new.features ->> 'modules.carebase')::boolean, true) then
     new.features := coalesce(new.features, '{}'::jsonb) || '{"modules.train":true}'::jsonb;
   end if;
   return new;
