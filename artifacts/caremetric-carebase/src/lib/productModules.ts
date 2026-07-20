@@ -101,7 +101,11 @@ export function moduleHomePathForRole(
   if (!role) return null;
   if (role === "platform_admin") return "/admin";
   if (role === "trainer") return enabledModules.has("train") ? "/trainer" : "/app/help";
-  if (role === "employee") return enabledModules.has("train") ? "/me/courses" : "/me/help";
+  if (role === "employee") {
+    if (enabledModules.has("carebase")) return "/me";
+    if (enabledModules.has("train")) return "/me/courses";
+    return "/me/help";
+  }
   if (enabledModules.has("carebase")) return "/app";
   if (enabledModules.has("train")) return "/app/training-matrix";
   return "/app/help";

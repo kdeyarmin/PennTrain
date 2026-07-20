@@ -30,4 +30,9 @@ describe("product module routing", () => {
     expect(moduleHomePathForRole("org_admin", trainOnly)).toBe("/app/training-matrix");
     expect(moduleHomePathForRole("employee", trainOnly)).toBe("/me/courses");
   });
+
+  it("lands employees on the full dashboard in a CareBase organization", () => {
+    const allModules = withModuleDependencies(["carebase"]);
+    expect(moduleHomePathForRole("employee", allModules)).toBe("/me");
+  });
 });
