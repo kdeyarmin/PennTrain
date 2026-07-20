@@ -331,7 +331,7 @@ Several related defects make the current “downloaded for offline use” promis
 
 1. **Print is only the current page.** A viewed report requests 100 rows (`Reports.tsx:608-615`), and `ReportViewer` prints the current DOM via `window.print()` (`ReportViewer.tsx:49-51,129-212`). The action is labeled simply “Print,” so a 5,000-row report can silently produce 100 rows. Rename it “Print this page” immediately, then add an all-pages server-generated print/PDF.
 2. **Multi-page CSV is not a snapshot.** CSV loops through 1,000-row offset pages (`Reports.tsx:635-664`). `generate_paged_compliance_report` accepts limit/offset but no as-of watermark or snapshot token (`20260717024529_generate_paged_compliance_reports.sql:67-88`), and each page is a separate request. Concurrent inserts/updates can cause omissions, duplicates, and per-page `generatedAt` drift. Use a server export job or stable cursor plus an as-of receipt, final count, and checksum.
-3. **Frontend CSV formula defense is inconsistent.** Eight frontend modules create CSV; seven have no formula neutralization and Dashboard handles only a formula character in column one, not leading whitespace. User-controlled names, job titles, purposes, notes, and report values can be interpreted as spreadsheet formulas. The organization export already has the stronger pattern (`process-organization-export-jobs/index.ts:31-44`). Centralize one tested cell encoder and use it in `dataTable.ts:85-103`, `Organizations.tsx:31-49`, `Reports.tsx:374-392`, `TrainingMatrix.tsx:854-871`, `ResidentFinancialOperations.tsx:111`, `RegulatoryCrosswalk.tsx:92-105`, and the PCH/ALR evidence export.
+3. **Frontend CSV formula defense is inconsistent.** Eight frontend modules create CSV; seven have no formula neutralization and Dashboard handles only a formula character in column one, not leading whitespace. User-controlled names, job titles, purposes, notes, and report values can be interpreted as spreadsheet formulas. The organization export already has the stronger pattern (`process-organization-export-jobs/index.ts:31-44`). Centralize one tested cell encoder and use it in `dataTable.ts:85-103`, `Organizations.tsx:31-49`, `Reports.tsx:374-392`, `TrainingMatrix.tsx:854-871`, `ResidentFinancialOperations.tsx:111`, `RegulatoryCrosswalk.tsx:92-105`, and the PCH/ALF evidence export.
 
 **Effort:** small for labeling/CSV safety; medium for snapshot exports.
 
@@ -419,7 +419,7 @@ The immediate transcript accordion is a small, high-value fix. WebVTT authoring/
 
 #### Shared scope
 
-Several pages silently choose `facilities?.[0]`, including Inspection Readiness, Schedule, Schedule Setup, Shift Handoff Inbox, Regulatory Copilot, Medication Integration, Resident Care Delivery, Value Center, and PCH/ALR Operations. Some then write using that scope. A persistent, visible, access-validated scope is both a UX improvement and a safety control.
+Several pages silently choose `facilities?.[0]`, including Inspection Readiness, Schedule, Schedule Setup, Shift Handoff Inbox, Regulatory Copilot, Medication Integration, Resident Care Delivery, Value Center, and PCH/ALF Operations. Some then write using that scope. A persistent, visible, access-validated scope is both a UX improvement and a safety control.
 
 #### Enterprise usability
 
