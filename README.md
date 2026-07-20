@@ -12,6 +12,10 @@ React frontend talks to Supabase directly via `supabase-js`.
 
 **Production**: https://cmcarebase.com (Railway-hosted; see `DEPLOYMENT.md`).
 
+The platform can also be licensed or deployed as **CareMetric Train**, a learning-only product with the shared
+facility/learner directory. See [`PRODUCT_MODULES.md`](PRODUCT_MODULES.md) for package composition, independent
+builds, route segregation, and the database enforcement boundary.
+
 ## Implementation roadmap
 
 The canonical program plan for the 29 approved improvements is

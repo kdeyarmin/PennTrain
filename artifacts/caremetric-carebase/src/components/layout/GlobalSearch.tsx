@@ -5,6 +5,7 @@ import { useNavigationWorkspace } from "@/hooks/useProductExperience";
 import { useAuth } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
 import { searchCommandActions, searchPages } from "@/lib/appDomains";
+import { useProductModuleAccess } from "@/lib/productModuleAccess";
 import { Search, Building2, User, Users, UserRound, Compass, Zap, BookOpen, FileText, AlertTriangle, Wrench, ShieldCheck, Star, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +15,7 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const navigationWorkspace = useNavigationWorkspace();
+  const moduleAccess = useProductModuleAccess();
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -47,16 +49,22 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
   }, []);
 
   const { data: results, isFetching, isError, error, refetch } = useGlobalSearch(debouncedQuery, user?.role);
-  const actionResults = searchCommandActions(debouncedQuery, user?.role);
-  const pageResults = searchPages(debouncedQuery, user?.role);
-  const hasWorkspaceItems = !!results?.items?.length;
-  const hasResults = !!results && (actionResults.length || pageResults.length || hasWorkspaceItems || results.organizations.length || results.profiles.length || results.employees.length || results.residents.length || results.courses.length);
-  const favoriteShortcuts = navigationWorkspace.favoritePaths.map((path: string) => {
-    const page = searchPages(path, user?.role).find((candidate) => candidate.path === path);
+  const actionResults = searchCommandActions(debouncedQuery, user?.role, moduleAccess.enabledModules);
+  const pageResults = searchPages(debouncedQuery, user?.role, moduleAccess.enabledModules);
+  const workspaceItems = results?.items.filter((item) => moduleAccess.canAccessPath(item.route)) ?? [];
+  const residents = moduleAccess.canAccessModule("carebase") ? results?.residents ?? [] : [];
+  const courses = moduleAccess.canAccessModule("train") ? results?.courses ?? [] : [];
+  const hasWorkspaceItems = workspaceItems.length > 0;
+  const hasResults = !!results && (actionResults.length || pageResults.length || hasWorkspaceItems || results.organizations.length || results.profiles.length || results.employees.length || residents.length || courses.length);
+  const favoriteShortcuts = navigationWorkspace.favoritePaths
+    .filter((path) => moduleAccess.canAccessPath(path))
+    .map((path: string) => {
+    const page = searchPages(path, user?.role, moduleAccess.enabledModules).find((candidate) => candidate.path === path);
     return { path, label: page?.label ?? path };
   });
   const recentShortcuts = navigationWorkspace.recentPaths
     .filter((recent) => !navigationWorkspace.favoritePaths.includes(recent.path))
+    .filter((recent) => moduleAccess.canAccessPath(recent.path))
     .slice(0, 5);
   const hasShortcuts = favoriteShortcuts.length > 0 || recentShortcuts.length > 0;
 
@@ -249,7 +257,7 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
               {hasWorkspaceItems && (
                 <div>
                   <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Records</p>
-                  {results!.items.map((item) => (
+                  {workspaceItems.map((item) => (
                     <button
                       key={`${item.kind}-${item.id}`}
                       id={optionId("workspace", `${item.kind}-${item.id}`)}
@@ -325,10 +333,10 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
                   ))}
                 </div>
               )}
-              {!!results?.residents.length && (
+              {!!residents.length && (
                 <div>
                   <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Residents</p>
-                  {results.residents.map((r) => (
+                  {residents.map((r) => (
                     <button
                       key={r.id}
                       id={optionId("resident", r.id)}
@@ -343,10 +351,10 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
                   ))}
                 </div>
               )}
-              {!!results?.courses.length && (
+              {!!courses.length && (
                 <div>
                   <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">My Training</p>
-                  {results.courses.map((c) => (
+                  {courses.map((c) => (
                     <button
                       key={c.assignmentId}
                       id={optionId("course", c.assignmentId)}

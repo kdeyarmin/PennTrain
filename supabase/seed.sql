@@ -4,9 +4,11 @@
 
 -- Packages catalog
 insert into public.packages (name, learner_limit, facility_limit, price_monthly_cents, features, sort_order) values
-  ('Starter', 25, 1, 9900, '{"compliance_binder": false, "medication_tracking": false, "competency_checklists": false}'::jsonb, 1),
-  ('Compliance Plus', 100, 5, 29900, '{"compliance_binder": true, "medication_tracking": true, "competency_checklists": true}'::jsonb, 2),
-  ('Enterprise', null, null, null, '{"compliance_binder": true, "medication_tracking": true, "competency_checklists": true, "custom_compliance_templates": true, "api_access": true}'::jsonb, 3)
+  ('Starter', 25, 1, 9900, '{"modules.train": true, "modules.carebase": true, "compliance_binder": false, "medication_tracking": false, "competency_checklists": false}'::jsonb, 1),
+  ('Compliance Plus', 100, 5, 29900, '{"modules.train": true, "modules.carebase": true, "compliance_binder": true, "medication_tracking": true, "competency_checklists": true}'::jsonb, 2),
+  ('Enterprise', null, null, null, '{"modules.train": true, "modules.carebase": true, "compliance_binder": true, "medication_tracking": true, "competency_checklists": true, "custom_compliance_templates": true, "api_access": true}'::jsonb, 3),
+  ('CareMetric Train', null, null, null, '{"modules.train": true, "modules.carebase": false}'::jsonb, 10),
+  ('CareMetric CareBase', null, null, null, '{"modules.train": true, "modules.carebase": true}'::jsonb, 20)
 on conflict (name) do nothing;
 
 -- Demo organizations
