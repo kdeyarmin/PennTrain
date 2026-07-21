@@ -23336,6 +23336,130 @@ export type Database = {
           },
         ]
       }
+      resident_personal_fund_payee_profiles: {
+        Row: {
+          benefit_amount: number | null
+          benefit_source: string | null
+          collective_account_last4: string | null
+          collective_account_name: string | null
+          disclosure_provided_on: string | null
+          external_payee_contact: string | null
+          external_payee_name: string | null
+          facility_id: string
+          facility_is_representative_payee: boolean
+          id: string
+          interest_allocation_method: string
+          interest_bearing: boolean
+          next_review_on: string | null
+          notes: string | null
+          organization_id: string
+          payee_authority_status: string
+          personal_fund_account_id: string
+          personal_needs_allowance: number | null
+          resident_can_request_funds: boolean
+          resident_id: string
+          resource_alert_threshold: number
+          statement_cadence: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          benefit_amount?: number | null
+          benefit_source?: string | null
+          collective_account_last4?: string | null
+          collective_account_name?: string | null
+          disclosure_provided_on?: string | null
+          external_payee_contact?: string | null
+          external_payee_name?: string | null
+          facility_id: string
+          facility_is_representative_payee?: boolean
+          id?: string
+          interest_allocation_method?: string
+          interest_bearing?: boolean
+          next_review_on?: string | null
+          notes?: string | null
+          organization_id: string
+          payee_authority_status?: string
+          personal_fund_account_id: string
+          personal_needs_allowance?: number | null
+          resident_can_request_funds?: boolean
+          resident_id: string
+          resource_alert_threshold?: number
+          statement_cadence?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          benefit_amount?: number | null
+          benefit_source?: string | null
+          collective_account_last4?: string | null
+          collective_account_name?: string | null
+          disclosure_provided_on?: string | null
+          external_payee_contact?: string | null
+          external_payee_name?: string | null
+          facility_id?: string
+          facility_is_representative_payee?: boolean
+          id?: string
+          interest_allocation_method?: string
+          interest_bearing?: boolean
+          next_review_on?: string | null
+          notes?: string | null
+          organization_id?: string
+          payee_authority_status?: string
+          personal_fund_account_id?: string
+          personal_needs_allowance?: number | null
+          resident_can_request_funds?: boolean
+          resident_id?: string
+          resource_alert_threshold?: number
+          statement_cadence?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_personal_fund_payee_profiles_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_payee_profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_payee_profiles_personal_fund_account_id_fkey"
+            columns: ["personal_fund_account_id"]
+            isOneToOne: false
+            referencedRelation: "resident_personal_fund_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_payee_profiles_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: true
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_payee_profiles_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: true
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_payee_profiles_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resident_personal_fund_accounts: {
         Row: {
           account_number: string
@@ -33113,6 +33237,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      upsert_resident_personal_fund_payee_profile: {
+        Args: { p_profile: Json; p_resident_id: string }
+        Returns: string
       }
       open_resident_personal_fund_account: {
         Args: {
