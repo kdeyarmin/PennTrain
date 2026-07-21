@@ -1,6 +1,8 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import {
   phase2StripePost,
+  phase2MeasuredBillingQuantity,
+  resolvePhase2BillingQuantity,
   STRIPE_API_VERSION,
   validatePhase2BillingReturnUrl,
 } from "../_shared/phase2Billing.ts";
@@ -61,6 +63,8 @@ Deno.serve(async (req: Request) => {
     organizationId?: string;
     action?: "checkout" | "portal";
     packageId?: string;
+    billingInterval?: "month" | "year";
+    quantity?: number;
     seatQuantity?: number;
     successUrl?: string;
     cancelUrl?: string;
@@ -112,6 +116,11 @@ Deno.serve(async (req: Request) => {
 
   let stripeResult: Awaited<ReturnType<typeof phase2StripePost>>;
   let kind: "checkout" | "portal";
+  let checkoutConfiguration: {
+    billingMetric: string;
+    billingInterval: "month" | "year";
+    quantity: number;
+  } | null = null;
   if (action === "portal") {
     if (!account?.stripe_customer_id) return json({ error: { code: "billing_customer_missing" } }, 409);
     const returnUrl = body.returnUrl;
@@ -129,24 +138,69 @@ Deno.serve(async (req: Request) => {
     if (!body.packageId || !UUID.test(body.packageId)) {
       return json({ error: { code: "package_required" } }, 400);
     }
+    const billingInterval = body.billingInterval ?? "month";
+    if (billingInterval !== "month" && billingInterval !== "year") {
+      return json({ error: { code: "invalid_billing_interval" } }, 400);
+    }
+    const { data: existingSubscription, error: existingSubscriptionError } = await admin
+      .from("billing_subscriptions")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .in("billing_state", ["trial", "active", "grace", "past_due"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existingSubscriptionError) {
+      return json({ error: { code: "billing_state_unavailable" } }, 503);
+    }
+    if (existingSubscription) {
+      return json({ error: { code: "existing_subscription_requires_portal" } }, 409);
+    }
     const { data: price, error: priceError } = await admin.from("package_billing_prices")
-      .select("stripe_price_id, is_seat_based, minimum_quantity, maximum_quantity, packages!inner(is_active)")
+      .select("stripe_price_id, billing_metric, pricing_model, minimum_quantity, maximum_quantity, packages!inner(is_active, trial_days)")
       .eq("package_id", body.packageId).eq("is_active", true)
+      .eq("is_primary", true).eq("recurring_interval", billingInterval)
+      .not("stripe_price_id", "is", null)
       .eq("packages.is_active", true)
       .lte("effective_from", new Date().toISOString())
       .or(`effective_to.is.null,effective_to.gt.${new Date().toISOString()}`)
       .order("effective_from", { ascending: false }).limit(1).maybeSingle();
     if (priceError || !price) return json({ error: { code: "active_price_missing" } }, 409);
-    const quantity = price.is_seat_based ? Math.trunc(body.seatQuantity ?? price.minimum_quantity) : 1;
-    if (!Number.isSafeInteger(quantity) || quantity < price.minimum_quantity ||
-      (price.maximum_quantity !== null && quantity > price.maximum_quantity)) {
-      return json({ error: { code: "invalid_seat_quantity" } }, 400);
+    const { data: usageRows, error: usageError } = await admin.rpc(
+      "get_organization_billing_usage",
+      { p_organization_id: organizationId },
+    );
+    const usage = Array.isArray(usageRows) ? usageRows[0] : null;
+    if (usageError || !usage) {
+      return json({ error: { code: "billing_usage_unavailable" } }, 503);
+    }
+    const measuredQuantity = phase2MeasuredBillingQuantity(price.billing_metric, {
+      active_learners: Number(usage.active_learners),
+      active_users: Number(usage.active_users),
+      active_residents: Number(usage.active_residents),
+      facilities: Number(usage.facilities),
+    });
+    if (measuredQuantity === null) {
+      return json({ error: { code: "invalid_billing_usage" } }, 503);
+    }
+    const quantity = resolvePhase2BillingQuantity(
+      price.billing_metric,
+      Math.max(measuredQuantity, price.minimum_quantity),
+      price.minimum_quantity,
+      price.maximum_quantity,
+    );
+    if (quantity === null) {
+      return json({ error: { code: "billing_quantity_outside_self_service_range" } }, 409);
     }
     if (!body.successUrl || !body.cancelUrl ||
       !validatePhase2BillingReturnUrl(body.successUrl, requestOrigin, configuredOrigins) ||
       !validatePhase2BillingReturnUrl(body.cancelUrl, requestOrigin, configuredOrigins)) {
       return json({ error: { code: "invalid_return_url" } }, 400);
     }
+    const packageConfiguration = Array.isArray(price.packages) ? price.packages[0] : price.packages;
+    const trialDays = typeof packageConfiguration?.trial_days === "number"
+      ? packageConfiguration.trial_days
+      : 0;
     stripeResult = await phase2StripePost(
       "/v1/checkout/sessions",
       stripeSecretKey,
@@ -158,11 +212,27 @@ Deno.serve(async (req: Request) => {
         success_url: body.successUrl,
         cancel_url: body.cancelUrl,
         line_items: [{ price: price.stripe_price_id, quantity }],
-        metadata: { organization_id: organizationId, package_id: body.packageId },
-        subscription_data: { metadata: { organization_id: organizationId, package_id: body.packageId } },
+        metadata: {
+          organization_id: organizationId,
+          package_id: body.packageId,
+          billing_metric: price.billing_metric,
+          billing_interval: billingInterval,
+          billable_quantity_source: "database_snapshot",
+        },
+        subscription_data: {
+          metadata: {
+            organization_id: organizationId,
+            package_id: body.packageId,
+            billing_metric: price.billing_metric,
+            billing_interval: billingInterval,
+            billable_quantity_source: "database_snapshot",
+          },
+          ...(trialDays > 0 ? { trial_period_days: trialDays } : {}),
+        },
       },
       idempotencyKey,
     );
+    checkoutConfiguration = { billingMetric: price.billing_metric, billingInterval, quantity };
     kind = "checkout";
   }
 
@@ -188,14 +258,14 @@ Deno.serve(async (req: Request) => {
     source: "edge_function",
     request_id: requestId,
     correlation_id: correlationId,
-    new_values: { kind, stripe_session_id: sessionId },
+    new_values: { kind, stripe_session_id: sessionId, checkout_configuration: checkoutConfiguration },
   });
   if (auditError) console.error("Billing session audit persistence failed", { correlationId });
   const expiresAt = typeof stripeResult.data.expires_at === "number"
     ? new Date(stripeResult.data.expires_at * 1000).toISOString()
     : undefined;
   return json({
-    data: { kind, sessionId, url, ...(expiresAt ? { expiresAt } : {}) },
+    data: { kind, sessionId, url, checkoutConfiguration, ...(expiresAt ? { expiresAt } : {}) },
     meta: { requestId, correlationId, stripeApiVersion: STRIPE_API_VERSION },
   });
 });

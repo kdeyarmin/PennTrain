@@ -332,7 +332,7 @@ select is(
 
 select is(
   (select count(*)::bigint from public.get_system_job_control_plane()),
-  21::bigint,
+  22::bigint,
   'the control plane registers every platform job, including organization exports and the weekly manager digest'
 );
 

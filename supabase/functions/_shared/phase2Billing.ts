@@ -89,6 +89,44 @@ export function buildPhase2StripeForm(values: Record<string, StripeFormValue>): 
   return form;
 }
 
+export function resolvePhase2BillingQuantity(
+  billingMetric: string,
+  requestedQuantity: number | undefined,
+  minimumQuantity: number,
+  maximumQuantity: number | null,
+): number | null {
+  if (billingMetric === "flat") return 1;
+  const quantity = requestedQuantity ?? minimumQuantity;
+  if (!Number.isSafeInteger(quantity) || quantity < minimumQuantity) return null;
+  if (maximumQuantity !== null && quantity > maximumQuantity) return null;
+  return quantity;
+}
+
+export interface Phase2BillingUsage {
+  active_learners: number;
+  active_users: number;
+  active_residents: number;
+  facilities: number;
+}
+
+export function phase2MeasuredBillingQuantity(
+  billingMetric: string,
+  usage: Phase2BillingUsage,
+): number | null {
+  const measured = billingMetric === "flat"
+    ? 1
+    : billingMetric === "active_learner"
+    ? usage.active_learners
+    : billingMetric === "active_user"
+    ? usage.active_users
+    : billingMetric === "active_resident"
+    ? usage.active_residents
+    : billingMetric === "facility"
+    ? usage.facilities
+    : null;
+  return measured !== null && Number.isSafeInteger(measured) && measured >= 0 ? measured : null;
+}
+
 export async function phase2StripePost(
   path: string,
   secretKey: string,

@@ -918,6 +918,9 @@ export type Database = {
           provider_event_created_at: string
           provider_event_id: string
           provider_status: string
+          quantity_sync_checked_at: string | null
+          quantity_sync_error_code: string | null
+          quantity_sync_status: string
           seat_quantity: number
           stripe_subscription_id: string
           trial_ends_at: string | null
@@ -937,6 +940,9 @@ export type Database = {
           provider_event_created_at: string
           provider_event_id: string
           provider_status: string
+          quantity_sync_checked_at?: string | null
+          quantity_sync_error_code?: string | null
+          quantity_sync_status?: string
           seat_quantity?: number
           stripe_subscription_id: string
           trial_ends_at?: string | null
@@ -956,6 +962,9 @@ export type Database = {
           provider_event_created_at?: string
           provider_event_id?: string
           provider_status?: string
+          quantity_sync_checked_at?: string | null
+          quantity_sync_error_code?: string | null
+          quantity_sync_status?: string
           seat_quantity?: number
           stripe_subscription_id?: string
           trial_ends_at?: string | null
@@ -16687,51 +16696,75 @@ export type Database = {
       }
       package_billing_prices: {
         Row: {
+          base_amount_cents: number
+          billing_metric: string
           created_at: string
           currency: string
+          display_name: string
           effective_from: string
           effective_to: string | null
           id: string
+          included_quantity: number
           interval_count: number
           is_active: boolean
+          is_primary: boolean
           is_seat_based: boolean
           maximum_quantity: number | null
           minimum_quantity: number
           package_id: string
+          pricing_model: string
           recurring_interval: string
-          stripe_price_id: string
+          sort_order: number
+          stripe_price_id: string | null
+          unit_amount_cents: number | null
           updated_at: string
         }
         Insert: {
+          base_amount_cents?: number
+          billing_metric?: string
           created_at?: string
           currency?: string
+          display_name?: string
           effective_from?: string
           effective_to?: string | null
           id?: string
+          included_quantity?: number
           interval_count?: number
           is_active?: boolean
+          is_primary?: boolean
           is_seat_based?: boolean
           maximum_quantity?: number | null
           minimum_quantity?: number
           package_id: string
+          pricing_model?: string
           recurring_interval: string
-          stripe_price_id: string
+          sort_order?: number
+          stripe_price_id?: string | null
+          unit_amount_cents?: number | null
           updated_at?: string
         }
         Update: {
+          base_amount_cents?: number
+          billing_metric?: string
           created_at?: string
           currency?: string
+          display_name?: string
           effective_from?: string
           effective_to?: string | null
           id?: string
+          included_quantity?: number
           interval_count?: number
           is_active?: boolean
+          is_primary?: boolean
           is_seat_based?: boolean
           maximum_quantity?: number | null
           minimum_quantity?: number
           package_id?: string
+          pricing_model?: string
           recurring_interval?: string
-          stripe_price_id?: string
+          sort_order?: number
+          stripe_price_id?: string | null
+          unit_amount_cents?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -16810,39 +16843,57 @@ export type Database = {
       }
       packages: {
         Row: {
+          annual_discount_percent: number
+          contact_sales: boolean
           created_at: string
+          description: string
           facility_limit: number | null
           features: Json | null
           id: string
           is_active: boolean
+          is_recommended: boolean
           learner_limit: number | null
           name: string
           price_monthly_cents: number | null
+          pricing_strategy: string
           sort_order: number
+          trial_days: number
           updated_at: string
         }
         Insert: {
+          annual_discount_percent?: number
+          contact_sales?: boolean
           created_at?: string
+          description?: string
           facility_limit?: number | null
           features?: Json | null
           id?: string
           is_active?: boolean
+          is_recommended?: boolean
           learner_limit?: number | null
           name: string
           price_monthly_cents?: number | null
+          pricing_strategy?: string
           sort_order?: number
+          trial_days?: number
           updated_at?: string
         }
         Update: {
+          annual_discount_percent?: number
+          contact_sales?: boolean
           created_at?: string
+          description?: string
           facility_limit?: number | null
           features?: Json | null
           id?: string
           is_active?: boolean
+          is_recommended?: boolean
           learner_limit?: number | null
           name?: string
           price_monthly_cents?: number | null
+          pricing_strategy?: string
           sort_order?: number
+          trial_days?: number
           updated_at?: string
         }
         Relationships: []
@@ -32415,6 +32466,15 @@ export type Database = {
         Returns: Json
       }
       get_org_dashboard_summary: { Args: never; Returns: Json }
+      get_organization_billing_usage: {
+        Args: { p_organization_id?: string }
+        Returns: {
+          active_learners: number
+          active_residents: number
+          active_users: number
+          facilities: number
+        }[]
+      }
       get_organization_export_catalog: {
         Args: never
         Returns: {
