@@ -33215,6 +33215,16 @@ export type Database = {
         Args: { p_entry: Json; p_resident_id: string }
         Returns: string
       }
+      post_resident_monthly_charges: {
+        Args: {
+          p_charges: Json
+          p_memo: string
+          p_period_end: string
+          p_period_start: string
+          p_resident_id: string
+        }
+        Returns: Json
+      }
       post_resident_personal_fund_transaction: {
         Args: { p_entry: Json; p_resident_id: string }
         Returns: string
