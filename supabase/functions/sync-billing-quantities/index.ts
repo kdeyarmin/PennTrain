@@ -295,7 +295,7 @@ Deno.serve(async (req: Request) => {
     if (outcome.status === "pending") continue;
     const { error } = await admin.from("billing_subscriptions").update({
       quantity_sync_checked_at: checkedAt,
-      quantity_sync_status: outcome.status === "pending" ? "unmapped" : outcome.status,
+      quantity_sync_status: outcome.status,
       quantity_sync_error_code: outcome.errorCode,
     }).eq("id", subscriptionId);
     if (error) trackingFailures++;
