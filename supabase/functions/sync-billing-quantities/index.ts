@@ -60,13 +60,21 @@ Deno.serve(async (req: Request) => {
     return json({ error: "billing_sync_not_configured" }, 503);
   }
 
-  let body: { batchSize?: number } = {};
+  let body: { batchSize?: number; maxRuntimeMs?: number } = {};
   try {
     body = await req.json();
   } catch {
     return json({ error: "invalid_json" }, 400);
   }
-  const batchSize = Math.min(Math.max(Math.trunc(body.batchSize ?? 100), 1), 250);
+  const parsedBatchSize = Number(body.batchSize ?? 50);
+  const batchSize = Number.isFinite(parsedBatchSize)
+    ? Math.min(Math.max(Math.trunc(parsedBatchSize), 1), 50)
+    : 50;
+  const parsedMaxRuntimeMs = Number(body.maxRuntimeMs ?? 110_000);
+  const maxRuntimeMs = Number.isFinite(parsedMaxRuntimeMs)
+    ? Math.min(Math.max(Math.trunc(parsedMaxRuntimeMs), 1_000), 150_000)
+    : 110_000;
+  const deadlineAt = Date.now() + maxRuntimeMs
   const correlationId = (req.headers.get("x-correlation-id") || crypto.randomUUID()).slice(0, 200);
   const requestId = (req.headers.get("x-request-id") || crypto.randomUUID()).slice(0, 200);
   const admin = createClient(supabaseUrl, serviceRoleKey, {
@@ -171,6 +179,12 @@ Deno.serve(async (req: Request) => {
   }
 
   const pricesByStripeId = new Map(prices.map((price) => [price.stripe_price_id, price]));
+  const subscriptionIdsWithItems = new Set(items.map((item) => item.subscription_id));
+  for (const subscription of subscriptions) {
+    if (!subscriptionIdsWithItems.has(subscription.id)) {
+      setOutcome(subscription.id, "unmapped", "subscription_item_unmapped");
+    }
+  }
   const usageByOrganization = new Map<string, Promise<UsageRow | null>>();
   const getUsage = (organizationId: string) => {
     const cached = usageByOrganization.get(organizationId);
@@ -200,7 +214,9 @@ Deno.serve(async (req: Request) => {
   let trackingFailures = 0;
   const concurrency = 5;
   for (let offset = 0; offset < items.length; offset += concurrency) {
+    if (Date.now() >= deadlineAt) break;
     await Promise.all(items.slice(offset, offset + concurrency).map(async (item) => {
+      if (Date.now() >= deadlineAt) return;
       const price = pricesByStripeId.get(item.stripe_price_id);
       const subscription = subscriptionsById.get(item.subscription_id);
       if (!price || !subscription) {
@@ -239,7 +255,6 @@ Deno.serve(async (req: Request) => {
 
       const idempotencyKey = [
         "billing-quantity-sync",
-        correlationId,
         item.id,
         quantity,
       ].join(":");
@@ -283,17 +298,10 @@ Deno.serve(async (req: Request) => {
 
   const checkedAt = new Date().toISOString();
   for (const [subscriptionId, outcome] of outcomesBySubscription) {
-    if (outcome.status === "pending") {
-      outcomesBySubscription.set(subscriptionId, {
-        status: "unmapped",
-        errorCode: "subscription_item_unmapped",
-      });
-    }
-  }
-  for (const [subscriptionId, outcome] of outcomesBySubscription) {
+    if (outcome.status === "pending") continue;
     const { error } = await admin.from("billing_subscriptions").update({
       quantity_sync_checked_at: checkedAt,
-      quantity_sync_status: outcome.status === "pending" ? "unmapped" : outcome.status,
+      quantity_sync_status: outcome.status,
       quantity_sync_error_code: outcome.errorCode,
     }).eq("id", subscriptionId);
     if (error) trackingFailures++;
@@ -303,12 +311,14 @@ Deno.serve(async (req: Request) => {
     .filter((outcome) => outcome.status === "synced").length;
   const unmappedSubscriptions = [...outcomesBySubscription.values()]
     .filter((outcome) => outcome.status === "unmapped").length;
-  const attempted = subscriptions.length;
+  const deferredSubscriptions = [...outcomesBySubscription.values()]
+    .filter((outcome) => outcome.status === "pending").length;
+  const attempted = subscriptions.length - deferredSubscriptions;
   const succeeded = syncedSubscriptions;
   const failedCount = Math.max(0, attempted - succeeded) + trackingFailures;
   const terminalStatus = (failed > 0 || trackingFailures > 0) && succeeded === 0
     ? "failed"
-    : failed > 0 || trackingFailures > 0 || outOfRange > 0 || unmappedSubscriptions > 0
+    : failed > 0 || trackingFailures > 0 || outOfRange > 0 || unmappedSubscriptions > 0 || deferredSubscriptions > 0
     ? "partial"
     : "succeeded";
   const result = {
@@ -321,6 +331,7 @@ Deno.serve(async (req: Request) => {
     unmappedSubscriptions,
     outOfRange,
     failed,
+    deferredSubscriptions,
     trackingFailures,
     prorationBehavior: "none",
     correlationId,
