@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
+import { escapeOrValue, rangeFor } from "@/lib/utils";
+import type { PaginatedResult } from "@/lib/dataTable";
 
 export type Complaint = Tables<"complaints">;
 export type ComplaintInterview = Tables<"complaint_interviews">;
@@ -59,6 +61,46 @@ export function useListComplaints(filters: {
       if (error) throw error;
       return data as unknown as ComplaintWithRelations[];
     },
+  });
+}
+
+export interface PaginatedComplaintsFilters {
+  organizationId?: string;
+  facilityId?: string;
+  status?: string;
+  excludeStatus?: string;
+  category?: string;
+  search?: string;
+  page: number;
+  pageSize: number;
+}
+
+// Server-side paginated complaints that keep the facility/resident/investigator/incident joins the
+// list renders. Search runs server-side over the base complaint columns (number/category/name).
+export function usePaginatedComplaints(filters: PaginatedComplaintsFilters) {
+  return useQuery({
+    queryKey: ["complaints", "paginated", filters],
+    queryFn: async ({ signal }): Promise<PaginatedResult<ComplaintWithRelations>> => {
+      let query = supabase.from("complaints").select(SELECT, { count: "exact" })
+        .order("date_received", { ascending: false })
+        .order("id", { ascending: true })
+        .abortSignal(signal);
+      if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
+      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+      if (filters.status) query = query.eq("status", filters.status);
+      if (filters.excludeStatus) query = query.neq("status", filters.excludeStatus);
+      if (filters.category) query = query.eq("category", filters.category);
+      const search = filters.search?.trim();
+      if (search) {
+        const like = escapeOrValue(`%${search}%`);
+        query = query.or(`complaint_number.ilike.${like},category.ilike.${like},complainant_name.ilike.${like}`);
+      }
+      const [from, to] = rangeFor(filters.page, filters.pageSize);
+      const { data, error, count } = await query.range(from, to);
+      if (error) throw error;
+      return { rows: (data ?? []) as unknown as ComplaintWithRelations[], count: count ?? 0 };
+    },
+    placeholderData: (previous) => previous,
   });
 }
 

@@ -32646,6 +32646,16 @@ export type Database = {
         }[]
       }
       get_closed_loop_compliance_control_plane: { Args: never; Returns: Json }
+      get_complaint_list_summary: {
+        Args: {
+          p_category?: string
+          p_exclude_status?: string
+          p_facility_id?: string
+          p_search?: string
+          p_status?: string
+        }
+        Returns: Json
+      }
       get_complaint_trends: {
         Args: { p_facility_id: string; p_from: string; p_through: string }
         Returns: Json

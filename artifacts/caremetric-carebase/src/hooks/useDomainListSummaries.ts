@@ -25,6 +25,48 @@ export const EMPTY_RESIDENT_LIST_SUMMARY: ResidentComplianceAnalyticsSummary = {
   newestAdmissionResidentId: null,
 };
 
+export interface ComplaintListSummary {
+  total: number;
+  openCases: number;
+  awaitingAcknowledgement: number;
+  highOrImminentRisk: number;
+  incidentLinked: number;
+}
+
+export const EMPTY_COMPLAINT_LIST_SUMMARY: ComplaintListSummary = {
+  total: 0,
+  openCases: 0,
+  awaitingAcknowledgement: 0,
+  highOrImminentRisk: 0,
+  incidentLinked: 0,
+};
+
+interface ComplaintListSummaryFilters {
+  facilityId?: string;
+  status?: string;
+  category?: string;
+  search?: string;
+  excludeStatus?: string;
+}
+
+export function useComplaintListSummary(filters: ComplaintListSummaryFilters) {
+  return useQuery({
+    queryKey: ["complaints", "summary", filters],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_complaint_list_summary", {
+        p_facility_id: filters.facilityId,
+        p_status: filters.status,
+        p_category: filters.category,
+        p_search: filters.search,
+        p_exclude_status: filters.excludeStatus,
+      });
+      if (error) throw error;
+      return (data ?? EMPTY_COMPLAINT_LIST_SUMMARY) as unknown as ComplaintListSummary;
+    },
+    placeholderData: (previous) => previous,
+  });
+}
+
 interface IncidentListSummaryFilters {
   facilityId?: string;
   residentId?: string;
