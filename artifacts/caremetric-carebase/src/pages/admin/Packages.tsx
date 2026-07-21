@@ -442,7 +442,12 @@ export default function Packages() {
               <TableBody>
                 {packages.map((pkg) => {
                   const packagePrices = (prices ?? []).filter((price) => price.package_id === pkg.id);
-                  const monthlyPrice = packagePrices.find((price) => price.recurring_interval === "month" && price.is_active && price.is_primary);
+                  const now = Date.now();
+                  const monthlyPrice = packagePrices
+                    .filter((price) => price.recurring_interval === "month" && price.is_active && price.is_primary
+                      && Date.parse(price.effective_from) <= now
+                      && (!price.effective_to || Date.parse(price.effective_to) > now))
+                    .sort((left, right) => Date.parse(right.effective_from) - Date.parse(left.effective_from))[0];
                   const checkoutReady = Boolean(monthlyPrice?.stripe_price_id) || pkg.contact_sales;
                   return (
                     <TableRow key={pkg.id}>
