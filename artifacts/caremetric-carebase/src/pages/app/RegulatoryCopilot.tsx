@@ -62,7 +62,12 @@ function resolveHandoffIntent(): CopilotIntent {
   if (explicit && INTENTS.some((option) => option.value === explicit)) return explicit as CopilotIntent;
   const q = (params.get("q") ?? "").trim().toLowerCase();
   if (q.length >= 3) {
-    const hit = INTENT_HINTS.find((h) => h.keywords.some((keyword) => q.includes(keyword)));
+    // Whole-token/phrase match (word boundaries) rather than raw substring, so a short abbreviation
+    // like "poc" matches "poc" but not "pocket"/"epoch".
+    const hit = INTENT_HINTS.find((h) => h.keywords.some((keyword) => {
+      const pattern = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
+      return pattern.test(q);
+    }));
     if (hit) return hit.intent;
   }
   return "due_next_30_days";
