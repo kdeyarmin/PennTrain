@@ -364,16 +364,15 @@ select cron.schedule(
   'billing-quantity-sync',
   '17 * * * *',
   $$ select net.http_post(
-       url := concat(rtrim(coalesce(
+       url := rtrim(coalesce(
          (
            select decrypted_secret
            from vault.decrypted_secrets
            where name = 'supabase_functions_base_url'
            limit 1
          ),
-         current_setting('app.functions_base_url', true),
-         ''
-       ), '/'), '/functions/v1/sync-billing-quantities'),
+         current_setting('app.functions_base_url', true)
+       ), '/') || '/functions/v1/sync-billing-quantities',
        headers := jsonb_build_object(
          'Content-Type', 'application/json',
          'X-Correlation-Id', gen_random_uuid()::text,
@@ -387,7 +386,7 @@ select cron.schedule(
            ''
          )
        ),
-       body := jsonb_build_object('batchSize', 250)
+       body := jsonb_build_object('batchSize', 50, 'maxRuntimeMs', 110000)
      ); $$
 );
 
