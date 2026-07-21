@@ -32381,15 +32381,6 @@ export type Database = {
           value_type: string
         }[]
       }
-      get_organization_billing_usage: {
-        Args: { p_organization_id?: string }
-        Returns: {
-          active_learners: number
-          active_residents: number
-          active_users: number
-          facilities: number
-        }[]
-      }
       get_enterprise_operations_control_plane: {
         Args: {
           p_facility_id?: string
@@ -32475,6 +32466,15 @@ export type Database = {
         Returns: Json
       }
       get_org_dashboard_summary: { Args: never; Returns: Json }
+      get_organization_billing_usage: {
+        Args: { p_organization_id?: string }
+        Returns: {
+          active_learners: number
+          active_residents: number
+          active_users: number
+          facilities: number
+        }[]
+      }
       get_organization_export_catalog: {
         Args: never
         Returns: {
