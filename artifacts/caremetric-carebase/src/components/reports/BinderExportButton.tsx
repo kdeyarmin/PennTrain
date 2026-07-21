@@ -14,9 +14,11 @@ interface BinderExportButtonProps {
   /** org_admin/auditor narrowing; omit for org-wide. */
   facilityIds?: string[];
   label?: string;
-  /** Fired once when an export job reaches "succeeded", with its job id. Lets a caller react to a
-   * completed render (e.g. Survey Day pins the fresh binder to its session). */
-  onCompleted?: (jobId: string) => void;
+  /** Fired once when an export job reaches "succeeded", with its job id and the facility scope the
+   * server actually assigned (managers are auto-scoped to all their assigned facilities, so this
+   * may be broader than facilityIds). Lets a caller react to a completed render -- e.g. Survey Day
+   * pins the fresh binder only when its scope matches the session's single facility. */
+  onCompleted?: (jobId: string, facilityIds: string[] | null) => void;
 }
 
 /**
@@ -39,9 +41,9 @@ export function BinderExportButton({ organizationId, facilityIds, label = "Expor
   useEffect(() => {
     if (jobId && job?.status === "succeeded" && completedJobRef.current !== jobId) {
       completedJobRef.current = jobId;
-      onCompletedRef.current?.(jobId);
+      onCompletedRef.current?.(jobId, (job.facility_ids as string[] | null) ?? null);
     }
-  }, [jobId, job?.status]);
+  }, [jobId, job?.status, job?.facility_ids]);
 
   const handleRequest = () => {
     requestExport(

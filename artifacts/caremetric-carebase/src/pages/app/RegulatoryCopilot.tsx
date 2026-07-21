@@ -60,7 +60,10 @@ function resolveHandoffIntent(): CopilotIntent {
   const params = new URLSearchParams(window.location.search);
   const explicit = params.get("intent");
   if (explicit && INTENTS.some((option) => option.value === explicit)) return explicit as CopilotIntent;
-  const q = (params.get("q") ?? "").trim().toLowerCase();
+  // Normalize punctuation to spaces before matching so hyphenated hand-offs ("Plan-of-Correction")
+  // match the space-separated keywords, while the word-boundary test below still rejects
+  // substrings ("poc" vs "pocket").
+  const q = (params.get("q") ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
   if (q.length >= 3) {
     // Whole-token/phrase match (word boundaries) rather than raw substring, so a short abbreviation
     // like "poc" matches "poc" but not "pocket"/"epoch".

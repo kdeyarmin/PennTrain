@@ -14,6 +14,7 @@ import { useListInspectionItems } from "@/hooks/useInspectionItems";
 import { useListBinderExports, useGetBinderExport, useBinderDownloadUrl } from "@/hooks/useComplianceBinder";
 import { useListEvidenceCollections } from "@/hooks/useEvidenceRoom";
 import { useOrgFeatureEnabled } from "@/hooks/useFeatureRelease";
+import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
 import { BinderExportButton } from "@/components/reports/BinderExportButton";
 import {
   useActiveSurveyDaySession, useSurveyDayWorkspace, useSurveyDayStaffRoster,
@@ -76,13 +77,22 @@ function displayDate(value: string | null | undefined) {
 
 export default function SurveyDay() {
   const { user } = useAuth();
-  const canManage = !!user && SURVEY_DAY_MANAGE_ROLES.includes(user.role);
   const { toast } = useToast();
   const initialFacility = useMemo(() => new URLSearchParams(window.location.search).get("facility") ?? "", []);
   const [facilityId, setFacilityId] = useState(initialFacility);
   const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   const activeFacilityId = facilityId || facilities?.[0]?.id || "";
   const activeFacility = facilities?.find((f) => f.id === activeFacilityId);
+
+  // A facility_manager is additionally facility-scoped server-side (assert_phase5_manager ->
+  // is_assigned_to_facility); org/platform admins are not. The facility dropdown is org-wide, so
+  // gate manage rights on the *selected* facility too -- otherwise a manager who picks a facility
+  // they aren't assigned to would still see Start controls the backend rejects with 42501.
+  const myAssignments = useListMyFacilityAssignments(user?.id, user?.role === "facility_manager");
+  const assignedFacilityIds = useMemo(() => new Set((myAssignments.data ?? []).map((a) => a.facility_id)), [myAssignments.data]);
+  const roleCanManage = !!user && SURVEY_DAY_MANAGE_ROLES.includes(user.role);
+  const canManage = roleCanManage
+    && (user?.role !== "facility_manager" || (!!activeFacilityId && assignedFacilityIds.has(activeFacilityId)));
 
   const session = useActiveSurveyDaySession(activeFacilityId || undefined);
 
@@ -389,11 +399,18 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
             label="Generate fresh binder"
             // Pin the freshly rendered binder to this session so it survives navigation/refresh
             // instead of living only in the button's local state. Only managers may pin (the RPC is
-            // manager-gated); auditors can still generate and download from the button itself.
-            onCompleted={canManage ? (jobId) => pinBinder.mutate(
-              { sessionId, binderJobId: jobId },
-              { onError: (e: Error) => toast({ title: "Could not pin the new binder", description: e.message, variant: "destructive" }) },
-            ) : undefined}
+            // manager-gated); auditors can still generate and download from the button itself. Only
+            // pin when the server-assigned scope is exactly this facility -- a manager assigned to
+            // several facilities gets a multi-facility export that pin_survey_day_binder rejects, so
+            // skip the pin (and its error) for that case rather than churn a doomed mutation.
+            onCompleted={canManage ? (jobId, facilityIds) => {
+              if (facilityIds && facilityIds.length === 1 && facilityIds[0] === facilityId) {
+                pinBinder.mutate(
+                  { sessionId, binderJobId: jobId },
+                  { onError: (e: Error) => toast({ title: "Could not pin the new binder", description: e.message, variant: "destructive" }) },
+                );
+              }
+            } : undefined}
           />
           <Button asChild variant="ghost" size="sm"><Link href="/app/compliance-binder">Open Compliance Binder</Link></Button>
         </div>
