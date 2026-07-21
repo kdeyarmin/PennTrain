@@ -30397,6 +30397,38 @@ export type Database = {
       }
     }
     Functions: {
+      activate_survey_day: {
+        Args: { p_facility_id: string }
+        Returns: Json
+      }
+      close_survey_day: {
+        Args: { p_reason: string; p_session_id: string }
+        Returns: Json
+      }
+      get_active_survey_day_session: {
+        Args: { p_facility_id: string }
+        Returns: Json
+      }
+      get_survey_day_staff_roster: {
+        Args: { p_page?: number; p_page_size?: number; p_search?: string; p_session_id: string }
+        Returns: Json
+      }
+      get_survey_day_workspace: {
+        Args: { p_session_id: string }
+        Returns: Json
+      }
+      pin_survey_day_binder: {
+        Args: { p_binder_job_id: string; p_session_id: string }
+        Returns: Json
+      }
+      refresh_survey_day: {
+        Args: { p_session_id: string }
+        Returns: Json
+      }
+      set_survey_day_checklist_disposition: {
+        Args: { p_disposition: string; p_item_id: string; p_note: string; p_session_id: string }
+        Returns: Json
+      }
       accept_evidence_guest_terms: {
         Args: { p_fingerprint?: string; p_token: string }
         Returns: Json
