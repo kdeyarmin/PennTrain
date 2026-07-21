@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { AlertTriangle, CheckCircle2, ChevronRight, ClipboardList, Clock3, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -95,8 +95,15 @@ export default function WorkQueue() {
 
   // A single "now" for this page view: the overdue-first sort, the overdue tile, and the per-row
   // overdue styling must all agree, and the value has to be stable so it doesn't retrigger the
-  // query on every render. The list refreshes on any filter/page change regardless.
-  const nowIso = useMemo(() => new Date().toISOString(), []);
+  // query on every render. Refresh it once a minute so operational deadlines actually age -- an
+  // ops queue left open across a due boundary would otherwise keep sorting/filtering against a
+  // frozen mount-time timestamp. A one-minute cadence is well below any due-window granularity and
+  // placeholderData keeps the previous page visible across the refetch.
+  const [nowIso, setNowIso] = useState(() => new Date().toISOString());
+  useEffect(() => {
+    const id = setInterval(() => setNowIso(new Date().toISOString()), 60_000);
+    return () => clearInterval(id);
+  }, []);
   const now = useMemo(() => new Date(nowIso), [nowIso]);
 
   const organizationId = viewingOrgId ?? user?.organizationId ?? undefined;
