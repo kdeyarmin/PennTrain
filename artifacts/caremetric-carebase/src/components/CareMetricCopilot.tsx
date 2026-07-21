@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Bot, Lightbulb, Loader2, MessageSquarePlus, Send, Sparkles, X } from "lucide-react";
+import { Bot, Lightbulb, MessageSquarePlus, Send, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -10,18 +10,33 @@ import { cn } from "@/lib/utils";
 
 type ChatMessage =
   | { id: string; role: "user"; content: string }
-  | { id: string; role: "assistant"; response: CopilotAnswer };
+  | { id: string; role: "assistant"; response: CopilotAnswer; question: string };
 
-function CopilotResponse({ response, onNavigate }: { response: CopilotAnswer; onNavigate: () => void }) {
+// The floating assistant answers from a deterministic, rule-based intent router
+// (`answerCareMetricCopilot`) -- it is instant guidance and navigation, not a language
+// model. Roles authorized for the grounded, citation-backed AI copilot get an explicit
+// hand-off into that experience, which runs a real, tenant-scoped compliance-copilot call.
+function groundedCopilotPathForRole(role: string | undefined): string | null {
+  if (role === "platform_admin") return "/admin/regulatory-copilot";
+  if (role === "org_admin" || role === "facility_manager" || role === "auditor") return "/app/regulatory-copilot";
+  return null;
+}
+
+function CopilotResponse({
+  response,
+  aiHandoffHref,
+  onNavigate,
+}: {
+  response: CopilotAnswer;
+  aiHandoffHref: string | null;
+  onNavigate: () => void;
+}) {
   return (
     <div className="space-y-3 rounded-2xl border border-primary/15 bg-primary/5 p-3 text-sm">
       <div className="flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
         <p className="font-semibold text-foreground">{response.title}</p>
-        <div className="ml-auto flex items-center gap-1.5">
-          <Badge variant="secondary" className="capitalize">{response.intent.replace(/-/g, " ")}</Badge>
-          <Badge variant={response.confidence === "high" ? "default" : "outline"} className="capitalize">{response.confidence} confidence</Badge>
-        </div>
+        <Badge variant="secondary" className="ml-auto capitalize">{response.intent.replace(/-/g, " ")}</Badge>
       </div>
       <p className="leading-relaxed text-muted-foreground">{response.answer}</p>
       <div>
@@ -41,13 +56,21 @@ function CopilotResponse({ response, onNavigate }: { response: CopilotAnswer; on
       )}
       {response.followUpQuestions.length > 0 && (
         <div>
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Smart follow-up questions</p>
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Related questions</p>
           <ul className="space-y-1 text-xs text-muted-foreground">
             {response.followUpQuestions.map((followUp) => <li key={followUp}>• {followUp}</li>)}
           </ul>
         </div>
       )}
       {response.caution && <p className="rounded-lg bg-background/80 p-2 text-xs text-muted-foreground">{response.caution}</p>}
+      {aiHandoffHref && (
+        <Button asChild variant="ghost" size="sm" className="h-8 w-full justify-start rounded-lg text-primary hover:bg-primary/10" onClick={onNavigate}>
+          <Link href={aiHandoffHref}>
+            <Bot className="mr-2 h-4 w-4" aria-hidden="true" />
+            Get a citation-backed answer from the AI Compliance Copilot
+          </Link>
+        </Button>
+      )}
     </div>
   );
 }
@@ -57,58 +80,51 @@ export function CareMetricCopilot() {
   const [location] = useLocation();
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState("");
-  const [isThinking, setIsThinking] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const pendingTimerRef = useRef<number | null>(null);
 
   const suggestions = useMemo(() => (user ? getCopilotSuggestions(user.role, location) : []), [location, user]);
+  const groundedCopilotPath = groundedCopilotPathForRole(user?.role);
 
-  // Clear chat state and cancel pending responses when the authenticated user changes (including
-  // platform impersonation switches), so messages asked as one user aren't shown to another user.
+  // Clear chat state when the authenticated user changes (including platform impersonation
+  // switches), so guidance asked as one user isn't shown to another user.
   useEffect(() => {
     setMessages([]);
     setQuestion("");
-    setIsThinking(false);
-    if (pendingTimerRef.current !== null) {
-      window.clearTimeout(pendingTimerRef.current);
-      pendingTimerRef.current = null;
-    }
   }, [user?.id]);
 
   if (!user) return null;
 
   const ask = (prompt = question) => {
     const trimmed = prompt.trim();
-    // Guard against rapid double-submits: bail if empty, already thinking, or a timer is pending
-    if (!trimmed || isThinking || pendingTimerRef.current !== null) return;
-    const userMessage: ChatMessage = { id: crypto.randomUUID(), role: "user", content: trimmed };
-    setMessages((current) => [...current, userMessage]);
+    if (!trimmed) return;
+    const response = answerCareMetricCopilot(trimmed, user, location);
+    setMessages((current) => [
+      ...current,
+      { id: crypto.randomUUID(), role: "user", content: trimmed },
+      { id: crypto.randomUUID(), role: "assistant", response, question: trimmed },
+    ]);
     setQuestion("");
-    setIsThinking(true);
-    pendingTimerRef.current = window.setTimeout(() => {
-      const response = answerCareMetricCopilot(trimmed, user, location);
-      setMessages((current) => [...current, { id: crypto.randomUUID(), role: "assistant", response }]);
-      setIsThinking(false);
-      pendingTimerRef.current = null;
-    }, 350);
   };
 
   return (
     <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
       {open && (
         <section
-          aria-label="CareMetric Copilot"
+          aria-label="CareMetric guide"
           className="flex max-h-[min(720px,calc(100vh-6rem))] w-[calc(100vw-2rem)] max-w-md flex-col overflow-hidden rounded-3xl border bg-card shadow-2xl"
         >
           <div className="flex items-start gap-3 border-b bg-gradient-to-br from-primary/10 via-card to-card p-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
-              <Bot className="h-5 w-5" aria-hidden="true" />
+              <Sparkles className="h-5 w-5" aria-hidden="true" />
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="text-base font-bold">CareMetric Copilot</h2>
-              <p className="text-xs text-muted-foreground">Ask for workflow guidance, page suggestions, compliance triage, or training help.</p>
+              <h2 className="text-base font-bold">CareMetric guide</h2>
+              <p className="text-xs text-muted-foreground">
+                Instant, rule-based guidance and page navigation.
+                {groundedCopilotPath ? " Hand off to the AI Compliance Copilot for citation-backed regulatory answers." : ""}
+              </p>
             </div>
-            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setOpen(false)} aria-label="Close Copilot">
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setOpen(false)} aria-label="Close guide">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -138,14 +154,14 @@ export function CareMetricCopilot() {
                 message.role === "user" ? (
                   <div key={message.id} className="ml-8 rounded-2xl bg-primary px-3 py-2 text-sm text-primary-foreground shadow-sm">{message.content}</div>
                 ) : (
-                  <CopilotResponse key={message.id} response={message.response} onNavigate={() => setOpen(false)} />
+                  <CopilotResponse
+                    key={message.id}
+                    response={message.response}
+                    aiHandoffHref={groundedCopilotPath ? `${groundedCopilotPath}?q=${encodeURIComponent(message.question)}` : null}
+                    onNavigate={() => setOpen(false)}
+                  />
                 )
               )
-            )}
-            {isThinking && (
-              <div className="flex items-center gap-2 rounded-2xl border bg-muted/40 p-3 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Copilot is reviewing CareMetric workflows…
-              </div>
             )}
           </div>
 
@@ -166,11 +182,11 @@ export function CareMetricCopilot() {
                     ask();
                   }
                 }}
-                placeholder="Ask Copilot what to do next…"
+                placeholder="Ask where to go or what to do next…"
                 className="max-h-32 min-h-11 resize-none rounded-2xl"
-                aria-label="Ask CareMetric Copilot"
+                aria-label="Ask the CareMetric guide"
               />
-              <Button type="submit" size="icon" className="h-11 w-11 shrink-0 rounded-2xl" disabled={!question.trim() || isThinking} aria-label="Send question">
+              <Button type="submit" size="icon" className="h-11 w-11 shrink-0 rounded-2xl" disabled={!question.trim()} aria-label="Send question">
                 <Send className="h-4 w-4" />
               </Button>
             </div>
@@ -183,10 +199,10 @@ export function CareMetricCopilot() {
         onClick={() => setOpen((value) => !value)}
         className={cn("h-14 rounded-full px-4 shadow-xl", open && "bg-muted text-foreground hover:bg-muted/90")}
         aria-expanded={open}
-        aria-label={open ? "Hide CareMetric Copilot" : "Open CareMetric Copilot"}
+        aria-label={open ? "Hide CareMetric guide" : "Open CareMetric guide"}
       >
         {open ? <X className="mr-2 h-5 w-5" /> : <MessageSquarePlus className="mr-2 h-5 w-5" />}
-        Copilot
+        Guide
       </Button>
     </div>
   );
