@@ -263,12 +263,12 @@ select throws_ok(
 
 select pg_temp.act_as('1e000000-0000-4000-8000-000000000021');
 select is(
-  (public.get_evidence_collection_list_summary(null) ->> 'total')::integer,
+  (public.get_evidence_collection_list_summary(null, null) ->> 'total')::integer,
   (select count(*)::integer from public.evidence_collections),
   'evidence collection summary total matches the RLS-visible count'
 );
 select is(
-  (public.get_evidence_collection_list_summary(null) ->> 'legalHolds')::integer,
+  (public.get_evidence_collection_list_summary(null, null) ->> 'legalHolds')::integer,
   (select count(*)::integer from public.evidence_collections where legal_hold),
   'evidence collection summary legal-hold count matches direct count'
 );

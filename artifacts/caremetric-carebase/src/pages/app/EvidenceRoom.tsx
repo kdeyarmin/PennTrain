@@ -66,7 +66,7 @@ export default function EvidenceRoom() {
     page,
     pageSize: PAGE_SIZE,
   });
-  const summaryQuery = useEvidenceCollectionListSummary({ facilityId: facilityScope });
+  const summaryQuery = useEvidenceCollectionListSummary({ organizationId: viewingOrgId ?? undefined, facilityId: facilityScope });
   const summary = summaryQuery.data ?? EMPTY_EVIDENCE_COLLECTION_LIST_SUMMARY;
   const { data: facilities } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
   const { mutate: createCollection, isPending: creating } = useCreateEvidenceCollection();

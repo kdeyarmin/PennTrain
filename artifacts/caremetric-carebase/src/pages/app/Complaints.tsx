@@ -49,7 +49,7 @@ export default function Complaints() {
     pageSize: PAGE_SIZE,
   });
   // Tiles measure the facility/status/category scope (not the row search), matching the prior view.
-  const summaryQuery = useComplaintListSummary({ facilityId: facilityScope, status: specificStatus, category: categoryScope });
+  const summaryQuery = useComplaintListSummary({ organizationId, facilityId: facilityScope, status: specificStatus, category: categoryScope });
   const summary = summaryQuery.data ?? EMPTY_COMPLAINT_LIST_SUMMARY;
   const facilities = useListFacilities({ organizationId });
 

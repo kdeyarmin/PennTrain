@@ -195,12 +195,12 @@ select results_eq(
 
 select pg_temp.act_as('13000000-0000-4000-8000-000000000021');
 select is(
-  (public.get_confidential_intake_list_summary(null) ->> 'total')::integer,
+  (public.get_confidential_intake_list_summary(null, null) ->> 'total')::integer,
   (select count(*)::integer from public.confidential_incident_intakes),
   'confidential intake summary total matches the RLS-visible count'
 );
 select is(
-  (public.get_confidential_intake_list_summary(null) ->> 'awaitingTriage')::integer,
+  (public.get_confidential_intake_list_summary(null, null) ->> 'awaitingTriage')::integer,
   (select count(*)::integer from public.confidential_incident_intakes where status = 'submitted'),
   'confidential intake summary awaiting-triage matches the submitted count'
 );

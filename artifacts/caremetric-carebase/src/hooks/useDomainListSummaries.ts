@@ -42,6 +42,7 @@ export const EMPTY_COMPLAINT_LIST_SUMMARY: ComplaintListSummary = {
 };
 
 interface ComplaintListSummaryFilters {
+  organizationId?: string;
   facilityId?: string;
   status?: string;
   category?: string;
@@ -54,6 +55,7 @@ export function useComplaintListSummary(filters: ComplaintListSummaryFilters) {
     queryKey: ["complaints", "summary", filters],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_complaint_list_summary", {
+        p_organization_id: filters.organizationId,
         p_facility_id: filters.facilityId,
         p_status: filters.status,
         p_category: filters.category,
@@ -81,11 +83,12 @@ export const EMPTY_CONFIDENTIAL_INTAKE_LIST_SUMMARY: ConfidentialIntakeListSumma
   criticalOpen: 0,
 };
 
-export function useConfidentialIntakeListSummary(filters: { facilityId?: string }) {
+export function useConfidentialIntakeListSummary(filters: { organizationId?: string; facilityId?: string }) {
   return useQuery({
     queryKey: ["confidential_intakes", "summary", filters],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_confidential_intake_list_summary", {
+        p_organization_id: filters.organizationId,
         p_facility_id: filters.facilityId,
       });
       if (error) throw error;
@@ -109,11 +112,12 @@ export const EMPTY_EVIDENCE_COLLECTION_LIST_SUMMARY: EvidenceCollectionListSumma
   legalHolds: 0,
 };
 
-export function useEvidenceCollectionListSummary(filters: { facilityId?: string }) {
+export function useEvidenceCollectionListSummary(filters: { organizationId?: string; facilityId?: string }) {
   return useQuery({
     queryKey: ["evidence", "collections", "summary", filters],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_evidence_collection_list_summary", {
+        p_organization_id: filters.organizationId,
         p_facility_id: filters.facilityId,
       });
       if (error) throw error;

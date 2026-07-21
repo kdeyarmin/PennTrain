@@ -2,6 +2,7 @@
 -- filtered facility scope while the list itself is served page by page. Mirrors
 -- get_incident_list_summary: SECURITY INVOKER so the caller's own RLS scopes every count.
 create or replace function public.get_complaint_list_summary(
+  p_organization_id uuid default null,
   p_facility_id uuid default null,
   p_status text default null,
   p_category text default null,
@@ -17,7 +18,8 @@ as $function$
   with filtered as (
     select c.*
     from public.complaints c
-    where (p_facility_id is null or c.facility_id = p_facility_id)
+    where (p_organization_id is null or c.organization_id = p_organization_id)
+      and (p_facility_id is null or c.facility_id = p_facility_id)
       and (p_status is null or c.status = p_status)
       and (p_exclude_status is null or c.status <> p_exclude_status)
       and (p_category is null or c.category = p_category)
@@ -37,5 +39,5 @@ as $function$
   )
   from filtered;
 $function$;
-revoke all on function public.get_complaint_list_summary(uuid, text, text, text, text) from public, anon;
-grant execute on function public.get_complaint_list_summary(uuid, text, text, text, text) to authenticated, service_role;
+revoke all on function public.get_complaint_list_summary(uuid, uuid, text, text, text, text) from public, anon;
+grant execute on function public.get_complaint_list_summary(uuid, uuid, text, text, text, text) to authenticated, service_role;

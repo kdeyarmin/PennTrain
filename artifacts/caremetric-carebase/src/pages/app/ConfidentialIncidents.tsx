@@ -74,7 +74,7 @@ export default function ConfidentialIncidents() {
     page,
     pageSize: PAGE_SIZE,
   });
-  const summaryQuery = useConfidentialIntakeListSummary({ facilityId: facilityScope });
+  const summaryQuery = useConfidentialIntakeListSummary({ organizationId: viewingOrgId ?? undefined, facilityId: facilityScope });
   const summary = summaryQuery.data ?? EMPTY_CONFIDENTIAL_INTAKE_LIST_SUMMARY;
   const { data: facilities } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
   const facilityNameById = useMemo(() => new Map((facilities ?? []).map(f => [f.id, f.name])), [facilities]);

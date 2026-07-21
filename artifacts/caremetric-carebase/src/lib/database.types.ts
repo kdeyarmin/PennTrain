@@ -32651,6 +32651,7 @@ export type Database = {
           p_category?: string
           p_exclude_status?: string
           p_facility_id?: string
+          p_organization_id?: string
           p_search?: string
           p_status?: string
         }
@@ -32665,7 +32666,7 @@ export type Database = {
         Returns: string[]
       }
       get_confidential_intake_list_summary: {
-        Args: { p_facility_id?: string }
+        Args: { p_facility_id?: string; p_organization_id?: string }
         Returns: Json
       }
       get_course_version_designed_minutes: {
@@ -32718,7 +32719,7 @@ export type Database = {
       }
       get_enterprise_scope_control_plane: { Args: never; Returns: Json }
       get_evidence_collection_list_summary: {
-        Args: { p_facility_id?: string }
+        Args: { p_facility_id?: string; p_organization_id?: string }
         Returns: Json
       }
       get_evidence_guest_room: {
