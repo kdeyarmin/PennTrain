@@ -36,6 +36,7 @@ const ProductModuleAccessContext = createContext<ProductModuleAccessContextValue
 });
 
 const BUILD_MODULES = parseBuildProductModules(import.meta.env.VITE_CAREMETRIC_MODULES);
+const ALLOW_LEGACY_MODULE_FAIL_OPEN = import.meta.env.VITE_CAREMETRIC_ALLOW_LEGACY_MODULE_FAIL_OPEN === "true";
 
 export function ProductModuleAccessProvider({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuth();
@@ -61,16 +62,14 @@ export function ProductModuleAccessProvider({ children }: { children: React.Reac
 
     const rows = new Map(entitlements.data.map((row) => [row.feature_key, row]));
     const hasModuleDefinitions = PRODUCT_MODULES.some((module) => rows.has(module.entitlementKey));
-    // Rolling-deploy compatibility: the frontend may reach production before the migration. An
-    // old database has no module definition rows at all, so preserve the pre-module experience
-    // until the authoritative contract is available. Once any module definition exists, missing
-    // or false entitlements fail closed.
     const commerciallyEnabled: ProductModuleId[] = hasModuleDefinitions
       ? ALL_PURCHASABLE_PRODUCT_MODULE_IDS.filter((moduleId) => {
           const definition = PRODUCT_MODULES.find((module) => module.id === moduleId)!;
           return rows.get(definition.entitlementKey)?.is_entitled === true;
         })
-      : [...ALL_PURCHASABLE_PRODUCT_MODULE_IDS];
+      : ALLOW_LEGACY_MODULE_FAIL_OPEN
+      ? [...ALL_PURCHASABLE_PRODUCT_MODULE_IDS]
+      : [];
 
     return withModuleDependencies(
       commerciallyEnabled.filter((moduleId) => BUILD_MODULES.has(moduleId)),
