@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatDateForDisplay } from "@/lib/dateUtils";
-import { useListPracticums, useCreatePracticum, useUpdatePracticum, type Practicum, type PracticumInsert } from "@/hooks/usePracticums";
+import { usePaginatedPracticums, useCreatePracticum, useUpdatePracticum, type Practicum, type PracticumInsert } from "@/hooks/usePracticums";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -120,11 +120,19 @@ export default function Practicums() {
   const { toast } = useToast();
   const canManage = !!user && PRACTICUM_MANAGE_ROLES.includes(user.role);
 
-  const { data: practicums, isLoading } = useListPracticums({
+  const PAGE_SIZE = 25;
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [facilityId, status]);
+  const { data: practicumsPage, isLoading } = usePaginatedPracticums({
     facilityId: facilityId && facilityId !== "all" ? facilityId : undefined,
     year: currentYear,
     status: status && status !== "all" ? status : undefined,
+    page,
+    pageSize: PAGE_SIZE,
   });
+  const practicums = practicumsPage?.rows ?? [];
+  const total = practicumsPage?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const { data: facilities } = useListFacilities();
   const { data: employeesAll } = useListEmployees();
@@ -308,8 +316,9 @@ export default function Practicums() {
               {[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-md" />)}
             </div>
           ) : (
+            <div className="space-y-4">
             <div className="space-y-2">
-              {practicums?.map(p => {
+              {practicums.map(p => {
                 const emp = getEmployee(p.employee_id);
                 return (
                   <div
@@ -346,7 +355,7 @@ export default function Practicums() {
                   </div>
                 );
               })}
-              {(!practicums || practicums.length === 0) && (
+              {practicums.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
                   <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
                     <CheckCircle className="h-6 w-6 text-muted-foreground" />
@@ -355,6 +364,17 @@ export default function Practicums() {
                   <p className="text-sm text-muted-foreground/60 mt-1">Practicum records will appear here once scheduled.</p>
                 </div>
               )}
+            </div>
+            {total > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span className="text-muted-foreground">Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}</span>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Previous</Button>
+                  <span className="px-1 text-muted-foreground">Page {page} of {totalPages}</span>
+                  <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
+                </div>
+              </div>
+            )}
             </div>
           )}
         </CardContent>
