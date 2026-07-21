@@ -32713,6 +32713,10 @@ export type Database = {
         Returns: Json
       }
       get_enterprise_scope_control_plane: { Args: never; Returns: Json }
+      get_evidence_collection_list_summary: {
+        Args: { p_facility_id?: string }
+        Returns: Json
+      }
       get_evidence_guest_room: {
         Args: { p_fingerprint?: string; p_token: string }
         Returns: Json

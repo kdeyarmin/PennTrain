@@ -67,6 +67,34 @@ export function useComplaintListSummary(filters: ComplaintListSummaryFilters) {
   });
 }
 
+export interface EvidenceCollectionListSummary {
+  total: number;
+  draft: number;
+  published: number;
+  legalHolds: number;
+}
+
+export const EMPTY_EVIDENCE_COLLECTION_LIST_SUMMARY: EvidenceCollectionListSummary = {
+  total: 0,
+  draft: 0,
+  published: 0,
+  legalHolds: 0,
+};
+
+export function useEvidenceCollectionListSummary(filters: { facilityId?: string }) {
+  return useQuery({
+    queryKey: ["evidence", "collections", "summary", filters],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_evidence_collection_list_summary", {
+        p_facility_id: filters.facilityId,
+      });
+      if (error) throw error;
+      return (data ?? EMPTY_EVIDENCE_COLLECTION_LIST_SUMMARY) as unknown as EvidenceCollectionListSummary;
+    },
+    placeholderData: (previous) => previous,
+  });
+}
+
 interface IncidentListSummaryFilters {
   facilityId?: string;
   residentId?: string;
