@@ -102,7 +102,10 @@ export default function WorkQueue() {
   const organizationId = viewingOrgId ?? user?.organizationId ?? undefined;
   const facilityScope = effectiveScope === "facility" && filters.facilityId !== "all" ? filters.facilityId : undefined;
   const ownerScope = effectiveScope === "mine" ? user?.id : undefined;
-  const ownerFilter = filters.ownerId !== "all" ? filters.ownerId : undefined;
+  // In "My work" scope the queue is already pinned to the current user, so the owner dropdown is
+  // meaningless there -- ignore it (and hide it below). Sending both ownerProfileId=<me> and a
+  // different ownerId would AND to zero rows, collapsing the list and tiles to empty.
+  const ownerFilter = effectiveScope !== "mine" && filters.ownerId !== "all" ? filters.ownerId : undefined;
   const specificState = filters.state !== "all" && filters.state !== "active" ? filters.state : undefined;
   const activeOnly = filters.state === "active";
   const priorityScope = filters.priority !== "all" ? filters.priority : undefined;
@@ -269,7 +272,7 @@ export default function WorkQueue() {
                 <SelectItem value="30">Due in 30 days</SelectItem>
               </SelectContent>
             </Select>
-            {canManage && (
+            {canManage && effectiveScope !== "mine" && (
               <Select value={filters.ownerId} onValueChange={ownerId => setFilters({ ownerId, page: "1" })}>
                 <SelectTrigger><SelectValue placeholder="Owner" /></SelectTrigger>
                 <SelectContent>
@@ -292,7 +295,7 @@ export default function WorkQueue() {
                 <div key={index} className="h-16 animate-pulse rounded-lg bg-muted" />
               ))}
             </div>
-          ) : rows.length === 0 ? (
+          ) : total === 0 ? (
             <div className="py-12 text-center">
               <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-emerald-600" />
               <p className="font-medium">No work matches these filters</p>

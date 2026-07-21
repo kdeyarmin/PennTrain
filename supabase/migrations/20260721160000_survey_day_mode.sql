@@ -576,7 +576,7 @@ begin
   ),
   scored as (
     select b.*,
-      case when 'attention' in (training_state, credential_state, exclusion_state) or background_state = 'attention'
+      case when 'attention' in (training_state, credential_state, exclusion_state) or background_state <> 'ready'
            then 'attention' else 'ready' end as overall_flag
     from base b
   )
@@ -619,7 +619,7 @@ begin
   ),
   scored as (
     select b.*,
-      case when 'attention' in (training_state, credential_state, exclusion_state) or background_state = 'attention'
+      case when 'attention' in (training_state, credential_state, exclusion_state) or background_state <> 'ready'
            then 'attention' else 'ready' end as overall_flag
     from base b
   )
