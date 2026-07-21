@@ -72,8 +72,14 @@ Deno.serve(async (req: Request) => {
   } catch {
     return json({ error: "invalid_json" }, 400);
   }
-  const batchSize = Math.min(Math.max(Math.trunc(body.batchSize ?? 50), 1), 50);
-  const maxRuntimeMs = Math.min(Math.max(Math.trunc(Number(body.maxRuntimeMs ?? 110_000)), 1_000), 150_000);
+  const parsedBatchSize = Number(body.batchSize ?? 50);
+  const batchSize = Number.isFinite(parsedBatchSize)
+    ? Math.min(Math.max(Math.trunc(parsedBatchSize), 1), 50)
+    : 50;
+  const parsedMaxRuntimeMs = Number(body.maxRuntimeMs ?? 110_000);
+  const maxRuntimeMs = Number.isFinite(parsedMaxRuntimeMs)
+    ? Math.min(Math.max(Math.trunc(parsedMaxRuntimeMs), 1_000), 150_000)
+    : 110_000;
   const deadlineAt = Date.now() + maxRuntimeMs;
   const correlationId = (req.headers.get("x-correlation-id") || crypto.randomUUID()).slice(0, 200);
   const requestId = (req.headers.get("x-request-id") || crypto.randomUUID()).slice(0, 200);
@@ -374,7 +380,7 @@ Deno.serve(async (req: Request) => {
     if (outcome.status === "pending") continue;
     const { error } = await admin.from("billing_subscriptions").update({
       quantity_sync_checked_at: checkedAt,
-      quantity_sync_status: outcome.status === "pending" ? "unmapped" : outcome.status,
+      quantity_sync_status: outcome.status,
       quantity_sync_error_code: outcome.errorCode,
     }).eq("id", subscriptionId);
     if (error) trackingFailures++;
