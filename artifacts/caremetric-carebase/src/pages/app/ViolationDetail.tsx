@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useParams, Link } from "wouter";
 import { useGetViolation, useUpdateViolation, useGeneratePocDocument } from "@/hooks/useViolations";
+import { usePageTitle } from "@/lib/pageTitle";
 import {
   useListCorrectiveActions, useUpdateCorrectiveAction,
   useDeleteCorrectiveAction, useCreateViolationRetrainingAction, type CorrectiveAction,
@@ -51,6 +52,7 @@ export default function ViolationDetail() {
   const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
 
   const { data: violation, isLoading } = useGetViolation(id);
+  usePageTitle(violation?.citation_ref ?? undefined);
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees();
   const { data: citationTopics } = useListCitationTopics();

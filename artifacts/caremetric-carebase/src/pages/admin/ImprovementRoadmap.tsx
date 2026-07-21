@@ -7,7 +7,7 @@ const phases = [
     name: "Phase 1",
     title: "Trustworthy platform core",
     timeline: "Code complete; pilot pending",
-    status: "implemented",
+    status: "code-complete",
     icon: ShieldCheck,
     goal: "Make existing evidence transactional, observable, testable, and recoverable.",
     outcomes: [
@@ -21,7 +21,7 @@ const phases = [
     name: "Phase 2",
     title: "Enterprise domain foundation",
     timeline: "Code complete; production pilots pending",
-    status: "implemented",
+    status: "code-complete",
     icon: Network,
     goal: "Give scope, identity, workforce, rules, commercial controls, and integrations stable contracts.",
     outcomes: [
@@ -36,7 +36,7 @@ const phases = [
     name: "Phase 3",
     title: "Qualified-workforce operations",
     timeline: "Code complete; production pilots pending",
-    status: "implemented",
+    status: "code-complete",
     icon: Wrench,
     goal: "Connect intake, credentials, qualifications, classes, and schedules into one authoritative workflow.",
     outcomes: [
@@ -50,7 +50,7 @@ const phases = [
     name: "Phase 4",
     title: "Governed content and training",
     timeline: "Code complete; production pilots pending",
-    status: "implemented",
+    status: "code-complete",
     icon: Sparkles,
     goal: "Make content governed, interoperable, adaptive, and safely available offline.",
     outcomes: [
@@ -63,7 +63,7 @@ const phases = [
     name: "Phase 5",
     title: "Closed-loop compliance and evidence",
     timeline: "Code complete; production pilots pending",
-    status: "implemented",
+    status: "code-complete",
     icon: Rocket,
     goal: "Turn findings and resident workflows into owned work, reproducible reports, and regulator-ready evidence.",
     outcomes: [
@@ -94,8 +94,10 @@ export default function ImprovementRoadmap() {
           <p className="text-sm font-medium text-primary">Product planning</p>
           <h1 className="text-2xl font-bold tracking-tight">Improvement Roadmap</h1>
           <p className="max-w-3xl text-muted-foreground">
-            The canonical five-phase program for the 29 approved improvements from the product review.
-            Multilingual experience remains explicitly excluded from this implementation program.
+            A static planning summary of the five-phase program for the 29 approved improvements from the
+            product review. Phase status reflects engineering completeness, not general availability, and is
+            maintained in source rather than derived from live release data. Multilingual experience remains
+            explicitly excluded from this implementation program.
           </p>
         </div>
         <Badge variant="secondary" className="w-fit">29 improvements grouped into 5 phases</Badge>
@@ -110,8 +112,9 @@ export default function ImprovementRoadmap() {
             {currentFoundation.map((item) => <Badge key={item} variant="outline">{item}</Badge>)}
           </div>
           <p className="mt-3 text-sm text-muted-foreground">
-            All five phases are implemented behind trusted database and Edge boundaries. General availability remains
-            blocked on controlled domain pilots, restore rehearsal, and an independent penetration-test exit gate.
+            All five phases are code-complete behind trusted database and Edge boundaries, but none is
+            general-availability promoted. GA remains blocked on controlled domain pilots, restore rehearsal,
+            and an independent penetration-test exit gate.
           </p>
         </CardContent>
       </Card>
@@ -123,7 +126,10 @@ export default function ImprovementRoadmap() {
             <Card key={phase.name} className="overflow-hidden">
               <CardHeader className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
-                  <Badge variant={phase.status === "implemented" ? "default" : "secondary"}>{phase.name}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">{phase.name}</Badge>
+                    <Badge variant="outline" className="capitalize">{phase.status.replace(/-/g, " ")}</Badge>
+                  </div>
                   <Badge variant="outline"><Clock3 className="mr-1 h-3 w-3" />{phase.timeline}</Badge>
                 </div>
                 <CardTitle className="flex items-start gap-3 text-lg">

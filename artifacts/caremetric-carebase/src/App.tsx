@@ -125,6 +125,7 @@ const PendingApprovals = lazy(() => import("@/pages/app/PendingApprovals"));
 const Settings = lazy(() => import("@/pages/app/Settings"));
 const ComplianceBinder = lazy(() => import("@/pages/app/ComplianceBinder"));
 const InspectionReadiness = lazy(() => import("@/pages/app/InspectionReadiness"));
+const SurveyDay = lazy(() => import("@/pages/app/SurveyDay"));
 const PchAlrOperations = lazy(() => import("@/pages/app/PchAlrOperations"));
 const ShiftHandoffInbox = lazy(() => import("@/pages/app/ShiftHandoffInbox"));
 const RegulatoryCrosswalk = lazy(() => import("@/pages/app/RegulatoryCrosswalk"));
@@ -569,6 +570,9 @@ function Router() {
       </Route>
       <Route path="/app/inspection-readiness">
         {() => <ProtectedRoute component={InspectionReadiness} allowedRoles={REPORTS_VIEW_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/survey-day">
+        {() => <ProtectedRoute component={SurveyDay} allowedRoles={REPORTS_VIEW_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/pch-alr-operations">
         {() => <ProtectedRoute component={PchAlrOperations} allowedRoles={REPORTS_VIEW_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}

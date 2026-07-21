@@ -56,10 +56,10 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 };
 
 function grantState(grant: EvidenceGuestGrant): { label: string; className: string } {
-  if (grant.revoked_at) return { label: "Revoked", className: "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200" };
+  if (grant.revoked_at) return { label: "Revoked", className: "bg-red-100 text-red-900" };
   if (new Date(grant.expires_at) <= new Date()) return { label: "Expired", className: "bg-muted text-muted-foreground" };
-  if (!grant.accepted_at) return { label: "Awaiting terms", className: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200" };
-  return { label: "Active", className: "bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-200" };
+  if (!grant.accepted_at) return { label: "Awaiting terms", className: "bg-amber-100 text-amber-900" };
+  return { label: "Active", className: "bg-green-100 text-green-900" };
 }
 
 export default function EvidenceCollectionDetail() {
@@ -218,7 +218,7 @@ export default function EvidenceCollectionDetail() {
             <EvidenceStatusPill value={collection.status} />
             <Badge variant="outline">{collection.facility?.name ?? "Facility"}</Badge>
             {collection.legal_hold && (
-              <Badge variant="outline" className="border-0 bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200">
+              <Badge variant="outline" className="border-0 bg-red-100 text-red-900">
                 <Scale className="h-3 w-3 mr-1" /> Legal hold
               </Badge>
             )}
@@ -316,9 +316,9 @@ export default function EvidenceCollectionDetail() {
                       <td className="text-sm text-muted-foreground">{formatDateForDisplay(a.added_at)}</td>
                       <td>
                         {a.withdrawn_at ? (
-                          <Badge variant="outline" className="border-0 bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200">Withdrawn</Badge>
+                          <Badge variant="outline" className="border-0 bg-red-100 text-red-900">Withdrawn</Badge>
                         ) : (
-                          <Badge variant="outline" className="border-0 bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-200">Active</Badge>
+                          <Badge variant="outline" className="border-0 bg-green-100 text-green-900">Active</Badge>
                         )}
                       </td>
                       {canManage && (
@@ -425,7 +425,7 @@ export default function EvidenceCollectionDetail() {
                 <li key={e.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm border-b last:border-0 pb-2">
                   <Badge
                     variant="outline"
-                    className={`border-0 font-medium ${e.event_type === "denied" ? "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200" : "bg-muted text-muted-foreground"}`}
+                    className={`border-0 font-medium ${e.event_type === "denied" ? "bg-red-100 text-red-900" : "bg-muted text-muted-foreground"}`}
                   >
                     {EVENT_TYPE_LABELS[e.event_type] ?? e.event_type}
                   </Badge>

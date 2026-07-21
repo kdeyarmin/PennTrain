@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGetEmployee, useUpdateEmployee, useDeleteEmployee, useListEmployees } from "@/hooks/useEmployees";
+import { usePageTitle } from "@/lib/pageTitle";
 import { useGetFacility, useListFacilities } from "@/hooks/useFacilities";
 import { EmployeeFormFields, EMPTY_EMPLOYEE_FORM, employeeToFormData, type EmpFormData } from "@/components/employees/EmployeeFormFields";
 import {
@@ -107,6 +108,7 @@ export default function EmployeeDetail() {
   const [empForm, setEmpForm] = useState<EmpFormData>(EMPTY_EMPLOYEE_FORM);
 
   const { data: employee, isLoading: empLoading } = useGetEmployee(id);
+  usePageTitle(employee ? `${employee.first_name} ${employee.last_name}` : undefined);
   const { data: facility } = useGetFacility(employee?.facility_id);
   const { data: facilities } = useListFacilities();
   // Scoped to this employee's own org (unlike Practicums.tsx's equivalent qualifiedObservers list,

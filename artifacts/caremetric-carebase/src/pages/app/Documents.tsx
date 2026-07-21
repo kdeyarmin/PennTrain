@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import {
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
 import {
-  useListDocuments, useUploadDocument, useDocumentSignedUrl, useDeleteDocument,
+  usePaginatedDocuments, useUploadDocument, useDocumentSignedUrl, useDeleteDocument,
   type TrainingDocument, type UploadDocumentInput,
 } from "@/hooks/useDocuments";
 import { useAuth, type Role } from "@/lib/auth";
@@ -72,11 +72,19 @@ export default function Documents() {
     facilityId: facilityId !== "all" ? facilityId : undefined,
   });
 
-  const { data: documents, isLoading } = useListDocuments({
+  const PAGE_SIZE = 25;
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [facilityId, employeeId, docType]);
+  const { data: documentsPage, isLoading } = usePaginatedDocuments({
     facilityId: facilityId !== "all" ? facilityId : undefined,
     employeeId: employeeId !== "all" ? employeeId : undefined,
     documentType: docType !== "all" ? docType : undefined,
+    page,
+    pageSize: PAGE_SIZE,
   });
+  const rows = documentsPage?.rows ?? [];
+  const total = documentsPage?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const uploadDocument = useUploadDocument();
   const getSignedUrl = useDocumentSignedUrl();
@@ -270,15 +278,16 @@ export default function Documents() {
             <div className="space-y-3">
               {[...Array(4)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded-md" />)}
             </div>
-          ) : !documents?.length ? (
+          ) : !rows.length ? (
             <div className="text-center py-12 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-40" />
-              <p className="font-medium">No documents yet</p>
-              <p className="text-sm mt-1">Upload training certificates and compliance documents above.</p>
+              <p className="font-medium">No documents match this view</p>
+              <p className="text-sm mt-1">Upload training certificates and compliance documents above, or adjust the filters.</p>
             </div>
           ) : (
+            <div className="space-y-4">
             <div className="space-y-2">
-              {documents.map(doc => (
+              {rows.map(doc => (
                 <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/5 gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <FileText className="h-9 w-9 shrink-0 text-primary/70" />
@@ -307,6 +316,15 @@ export default function Documents() {
                   </div>
                 </div>
               ))}
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="text-muted-foreground">Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}</span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Previous</Button>
+                <span className="px-1 text-muted-foreground">Page {page} of {totalPages}</span>
+                <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
+              </div>
+            </div>
             </div>
           )}
         </CardContent>

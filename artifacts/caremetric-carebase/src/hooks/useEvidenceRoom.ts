@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
+import { rangeFor } from "@/lib/utils";
+import type { PaginatedResult } from "@/lib/dataTable";
 
 // The evidence room shares immutable, checksummed report artifacts with outside
 // surveyors: staff assemble a facility-scoped collection from completed binder exports,
@@ -34,6 +36,35 @@ export function useListEvidenceCollections(filters: { organizationId?: string } 
       if (error) throw error;
       return data as unknown as EvidenceCollection[];
     },
+  });
+}
+
+export interface PaginatedEvidenceCollectionsFilters {
+  organizationId?: string;
+  facilityId?: string;
+  status?: string;
+  page: number;
+  pageSize: number;
+}
+
+// Server-side paginated evidence collections that keep the facility-name join the list renders.
+export function usePaginatedEvidenceCollections(filters: PaginatedEvidenceCollectionsFilters) {
+  return useQuery({
+    queryKey: ["evidence", "collections", "paginated", filters],
+    queryFn: async ({ signal }): Promise<PaginatedResult<EvidenceCollection>> => {
+      let query = supabase.from("evidence_collections").select("*, facility:facilities(name)", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+        .abortSignal(signal);
+      if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
+      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+      if (filters.status) query = query.eq("status", filters.status);
+      const [from, to] = rangeFor(filters.page, filters.pageSize);
+      const { data, error, count } = await query.range(from, to);
+      if (error) throw error;
+      return { rows: (data ?? []) as unknown as EvidenceCollection[], count: count ?? 0 };
+    },
+    placeholderData: (previous) => previous,
   });
 }
 

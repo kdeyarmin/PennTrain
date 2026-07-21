@@ -75,7 +75,6 @@ import {
   Siren,
   HeartPulse,
   History,
-  Megaphone,
   Gauge,
 } from "lucide-react";
 
@@ -253,6 +252,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
           { href: "/app/closed-loop-compliance", label: "Closed-Loop Compliance", icon: Gavel },
           ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }] : []),
           ...(showPchAlrModules ? [{ href: "/app/pch-alr-operations", label: "PCH / ALF Operations", icon: Crosshair }] : []),
           ...(showPchAlrModules ? [{ href: "/app/regulatory-crosswalk", label: "Regulatory Crosswalk", icon: FileSearch }] : []),
           ...(showPchAlrModules ? [{ href: "/app/regulatory-copilot", label: "Regulatory Copilot", icon: Sparkles }] : []),
@@ -357,6 +357,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
           ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }] : []),
           ...(showPchAlrModules ? [{ href: "/app/pch-alr-operations", label: "PCH / ALF Operations", icon: Crosshair }] : []),
           ...(showPchAlrModules ? [{ href: "/app/regulatory-crosswalk", label: "Regulatory Crosswalk", icon: FileSearch }] : []),
           ...(showPchAlrModules ? [{ href: "/app/regulatory-copilot", label: "Regulatory Copilot", icon: Sparkles }] : []),
@@ -749,18 +750,6 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
               <Link href="/account/notifications" className="cursor-pointer" onClick={onNavigate}>
                 <Bell className="mr-2 h-4 w-4" />
                 <span>Notification settings</span>
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/account/announcements" className="cursor-pointer" onClick={onNavigate}>
-                <Megaphone className="mr-2 h-4 w-4" />
-                <span>Announcements</span>
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/account/whats-new" className="cursor-pointer" onClick={onNavigate}>
-                <Sparkles className="mr-2 h-4 w-4" />
-                <span>What&apos;s new</span>
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />

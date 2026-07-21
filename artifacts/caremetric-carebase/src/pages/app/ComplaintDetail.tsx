@@ -12,6 +12,7 @@ import {
   useUpdateComplaintCase,
 } from "@/hooks/useComplaints";
 import { useListProfiles } from "@/hooks/useProfiles";
+import { usePageTitle } from "@/lib/pageTitle";
 import { useToast } from "@/hooks/use-toast";
 import { COMPLAINT_STATUSES, humanizeComplaint } from "@/components/complaints/CreateComplaintDialog";
 import { QueryError } from "@/components/QueryState";
@@ -34,6 +35,7 @@ export default function ComplaintDetail() {
   const { user } = useAuth();
   const { toast } = useToast();
   const complaint = useGetComplaint(id);
+  usePageTitle(complaint.data?.complaint_number);
   const activity = useComplaintActivity(id);
   const profiles = useListProfiles({ organizationId: complaint.data?.organization_id });
   const update = useUpdateComplaintCase();

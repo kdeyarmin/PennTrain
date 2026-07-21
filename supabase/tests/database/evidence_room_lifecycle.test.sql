@@ -1,5 +1,5 @@
 begin;
-select plan(37);
+select plan(39);
 
 -- Evidence room lifecycle: staff create/promote/publish/withdraw/revoke over the Phase 5
 -- evidence schema, binder-export promotion under the checksum contract, and the anon
@@ -260,6 +260,18 @@ select pg_temp.act_as('1e000000-0000-4000-8000-000000000024');
 select throws_ok(
   $$ select public.set_evidence_collection_status((select id from ev_ids where key='col'),'withdrawn') $$,
   '42501', null, 'another organization''s admin cannot manage the collection');
+
+select pg_temp.act_as('1e000000-0000-4000-8000-000000000021');
+select is(
+  (public.get_evidence_collection_list_summary(null, null) ->> 'total')::integer,
+  (select count(*)::integer from public.evidence_collections),
+  'evidence collection summary total matches the RLS-visible count'
+);
+select is(
+  (public.get_evidence_collection_list_summary(null, null) ->> 'legalHolds')::integer,
+  (select count(*)::integer from public.evidence_collections where legal_hold),
+  'evidence collection summary legal-hold count matches direct count'
+);
 
 select * from finish();
 rollback;

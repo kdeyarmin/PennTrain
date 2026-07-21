@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { viewablePathForRole } from "@/lib/appDomains";
+import { usePageTitle } from "@/lib/pageTitle";
 import { useListProfiles } from "@/hooks/useProfiles";
 import {
   useAddWorkItemComment,
@@ -74,6 +75,7 @@ export default function WorkItemDetail() {
   const { user } = useAuth();
   const { toast } = useToast();
   const query = useGetWorkItem(id);
+  usePageTitle(query.data?.title);
   const activity = useWorkItemActivity(id);
   const { data: profiles } = useListProfiles({ organizationId: user?.organizationId ?? undefined });
   const { data: candidateDependencies } = useListWorkItems({

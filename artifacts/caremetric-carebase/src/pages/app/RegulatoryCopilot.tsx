@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { AlertTriangle, Bot, CheckCircle2, ClipboardList, ExternalLink, FileSearch, History, Loader2, LockKeyhole, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -54,7 +54,13 @@ export default function RegulatoryCopilot() {
   const { toast } = useToast();
   const [facilityId, setFacilityId] = useState("");
   const [intent, setIntent] = useState<CopilotIntent>("due_next_30_days");
-  const [question, setQuestion] = useState(INTENTS[1].question);
+  // Accept a question prefilled by the floating guide's hand-off (?q=...); it wins over the
+  // default intent question on first render, then normal intent-syncing resumes.
+  const [question, setQuestion] = useState(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    return q && q.trim().length >= 3 ? q.trim().slice(0, 2000) : INTENTS[1].question;
+  });
+  const skipNextIntentSync = useRef(new URLSearchParams(window.location.search).has("q"));
   const [employeeId, setEmployeeId] = useState("");
   const [violationId, setViolationId] = useState("");
   const [citationQuery, setCitationQuery] = useState("");
@@ -69,7 +75,10 @@ export default function RegulatoryCopilot() {
   const createActionDraft = useCreateCopilotActionDraft();
   const selectedIntent = INTENTS.find((option) => option.value === intent)!;
 
-  useEffect(() => setQuestion(selectedIntent.question), [selectedIntent.question]);
+  useEffect(() => {
+    if (skipNextIntentSync.current) { skipNextIntentSync.current = false; return; }
+    setQuestion(selectedIntent.question);
+  }, [selectedIntent.question]);
   const needsContext = (intent === "employee_blocked" && !employeeId)
     || (intent === "draft_plan_of_correction" && !violationId)
     || (intent === "citation_evidence" && citationQuery.trim().length < 2);

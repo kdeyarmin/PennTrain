@@ -1,5 +1,5 @@
 begin;
-select plan(63);
+select plan(64);
 
 select has_table('public', 'notification_templates', 'versioned notification templates exist');
 select has_table('public', 'notification_channel_policies', 'channel fallback policies exist');
@@ -353,6 +353,28 @@ select results_eq(
      where delivery_id = '11000000-0000-0000-0000-000000000206' $$,
   array[0],
   'a spend-capped delivery creates no provider attempt'
+);
+
+-- Web-push (VAPID) has no per-message provider fee: its attempts must record zero cost so the
+-- ledger matches the spend-cap gate, which counts web-push as zero.
+insert into public.notification_deliveries (
+  id, organization_id, profile_id, channel, delivery_type, recipient, status
+) values (
+  '11000000-0000-0000-0000-000000000210', '11000000-0000-0000-0000-000000000001',
+  '11000000-0000-0000-0000-000000000012', 'web_push', 'digest',
+  '11000000-0000-0000-0000-000000000210', 'processing'
+);
+insert into public.notification_delivery_attempts (
+  delivery_id, organization_id, profile_id, attempt_number, provider
+) values (
+  '11000000-0000-0000-0000-000000000210', '11000000-0000-0000-0000-000000000001',
+  '11000000-0000-0000-0000-000000000012', 1, 'web_push'
+);
+select results_eq(
+  $$ select estimated_cost_micros from public.notification_delivery_attempts
+     where delivery_id = '11000000-0000-0000-0000-000000000210' $$,
+  array[0::bigint],
+  'web-push attempts carry no provider cost in the spend ledger'
 );
 
 -- Leave headroom for the remaining retry and provider-monotonicity scenarios.

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
+import type { PaginatedResult } from "@/lib/dataTable";
 
 export type WorkItem = Tables<"work_items">;
 export type WorkItemTemplate = Tables<"work_item_templates">;
@@ -77,6 +78,60 @@ export function useListWorkItems(filters: ListWorkItemsFilters = {}) {
       if (error) throw error;
       return data as unknown as WorkItemWithRelations[];
     },
+  });
+}
+
+export interface PaginatedWorkItemsFilters {
+  organizationId?: string;
+  facilityId?: string;
+  ownerProfileId?: string;
+  ownerId?: string;
+  state?: string;
+  activeOnly?: boolean;
+  priority?: string;
+  sourceType?: string;
+  search?: string;
+  /** The single "now" the tiles and the list share, so their overdue math agrees. */
+  now: string;
+  overdueOnly?: boolean;
+  /** Upper bound for the "due within N days" windows; already computed against `now`. */
+  dueBefore?: string;
+  page: number;
+  pageSize: number;
+}
+
+// Server-side paginated, server-sorted work queue. The queue's overdue-first + priority + due_at
+// ordering depends on "now" and an enum rank, so it can't be a PostgREST .order() -- get_work_item_queue
+// computes it in SQL and returns one page plus the total match count, keeping the facility/owner/template
+// embeds the list renders. Mirrors the sortWorkItems() ordering exactly.
+export function usePaginatedWorkItems(filters: PaginatedWorkItemsFilters) {
+  return useQuery({
+    queryKey: ["work-items", "queue", filters],
+    queryFn: async (): Promise<PaginatedResult<WorkItemWithRelations>> => {
+      const { data, error } = await supabase.rpc("get_work_item_queue", {
+        p_organization_id: filters.organizationId,
+        p_facility_id: filters.facilityId,
+        p_owner_profile_id: filters.ownerProfileId,
+        p_owner_id: filters.ownerId,
+        p_state: filters.state,
+        p_active_only: filters.activeOnly ?? false,
+        p_priority: filters.priority,
+        p_source_type: filters.sourceType,
+        p_search: filters.search,
+        p_now: filters.now,
+        p_overdue_only: filters.overdueOnly ?? false,
+        p_due_before: filters.dueBefore,
+        p_limit: filters.pageSize,
+        p_offset: (filters.page - 1) * filters.pageSize,
+      });
+      if (error) throw error;
+      const payload = (data ?? { rows: [], count: 0 }) as unknown as {
+        rows: WorkItemWithRelations[];
+        count: number;
+      };
+      return { rows: payload.rows ?? [], count: payload.count ?? 0 };
+    },
+    placeholderData: (previous) => previous,
   });
 }
 

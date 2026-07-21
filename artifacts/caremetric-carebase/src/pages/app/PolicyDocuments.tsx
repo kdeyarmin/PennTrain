@@ -2,8 +2,12 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import {
-  useListPolicyDocuments, useCreatePolicyDocument, type PolicyDocumentInsert,
+  useCreatePolicyDocument, type PolicyDocumentInsert,
 } from "@/hooks/usePolicyDocuments";
+import { usePaginatedDomainList } from "@/hooks/usePaginatedDomainLists";
+import { useUrlState } from "@/hooks/useUrlState";
+import { QueryError } from "@/components/QueryState";
+import type { Tables } from "@/lib/database.types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,9 +83,21 @@ function NewPolicyDocumentDialog() {
   );
 }
 
+const PAGE_SIZE = 25;
+
 export default function PolicyDocuments() {
   const { user } = useAuth();
-  const { data: documents, isLoading } = useListPolicyDocuments({ organizationId: user?.organizationId ?? undefined });
+  const [urlState, setUrlState] = useUrlState({ search: "", page: "1" });
+  const page = Math.max(1, Number(urlState.page) || 1);
+  const query = usePaginatedDomainList<Tables<"policy_documents">>("policy_documents", {
+    organizationId: user?.organizationId ?? undefined,
+    search: urlState.search,
+    page,
+    pageSize: PAGE_SIZE,
+  });
+  const rows = query.data?.rows ?? [];
+  const total = query.data?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div className="space-y-6">
@@ -96,44 +112,67 @@ export default function PolicyDocuments() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FileSignature className="h-5 w-5" /> Policy Documents ({documents?.length ?? 0})
+            <FileSignature className="h-5 w-5" /> Policy Documents ({total})
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          {isLoading ? (
+        <CardContent className="space-y-4">
+          <Input
+            value={urlState.search}
+            onChange={(e) => setUrlState({ search: e.target.value, page: "1" })}
+            placeholder="Search policies by title, category, or description"
+            className="max-w-sm"
+            aria-label="Search policy documents"
+          />
+          {query.isError ? (
+            <QueryError what="policy documents" error={query.error as Error} onRetry={() => query.refetch()} />
+          ) : query.isLoading ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded" />)}
             </div>
-          ) : !documents?.length ? (
+          ) : !rows.length ? (
             <p className="text-muted-foreground text-sm text-center py-8">
-              No policy documents yet. Create one, upload a PDF version, and publish it to start an attestation campaign.
+              {urlState.search
+                ? "No policy documents match your search."
+                : "No policy documents yet. Create one, upload a PDF version, and publish it to start an attestation campaign."}
             </p>
           ) : (
-            <div className="space-y-2">
-              {documents.map((doc) => (
-                <Link key={doc.id} href={`/app/policy-documents/${doc.id}`}>
-                  <div className="flex items-center justify-between gap-3 p-4 rounded-lg border hover:bg-accent/5 cursor-pointer">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium text-sm truncate">{doc.title}</p>
-                        {doc.category && <Badge variant="outline" className="text-xs">{doc.category}</Badge>}
+            <>
+              <div className="space-y-2">
+                {rows.map((doc) => (
+                  <Link key={doc.id} href={`/app/policy-documents/${doc.id}`}>
+                    <div className="flex items-center justify-between gap-3 p-4 rounded-lg border hover:bg-accent/5 cursor-pointer">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-sm truncate">{doc.title}</p>
+                          {doc.category && <Badge variant="outline" className="text-xs">{doc.category}</Badge>}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">
+                          {doc.description || "No description"}
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">
-                        {doc.description || "No description"}
-                      </p>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge className={doc.current_version_id
+                          ? "bg-success text-success-foreground hover:bg-success/80"
+                          : "bg-muted text-muted-foreground"}>
+                          {doc.current_version_id ? "Published" : "No published version"}
+                        </Badge>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge className={doc.current_version_id
-                        ? "bg-success text-success-foreground hover:bg-success/80"
-                        : "bg-muted text-muted-foreground"}>
-                        {doc.current_version_id ? "Published" : "No published version"}
-                      </Badge>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
+                  </Link>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-sm">
+                <span className="text-muted-foreground">
+                  Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setUrlState({ page: String(page - 1) })}>Previous</Button>
+                  <span className="px-1 text-muted-foreground">Page {page} of {totalPages}</span>
+                  <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setUrlState({ page: String(page + 1) })}>Next</Button>
+                </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

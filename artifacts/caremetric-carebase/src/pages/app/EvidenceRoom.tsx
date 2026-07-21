@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
-import { useListEvidenceCollections, useCreateEvidenceCollection } from "@/hooks/useEvidenceRoom";
+import { usePaginatedEvidenceCollections, useCreateEvidenceCollection } from "@/hooks/useEvidenceRoom";
+import { useEvidenceCollectionListSummary, EMPTY_EVIDENCE_COLLECTION_LIST_SUMMARY } from "@/hooks/useDomainListSummaries";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
 import { useToast } from "@/hooks/use-toast";
@@ -22,9 +23,9 @@ import { FolderLock, Plus, ChevronRight, Scale, FileCheck2, FilePen } from "luci
 
 const EVIDENCE_STATUS_VARIANT: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
-  published: "bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-200",
-  closed: "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200",
-  withdrawn: "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200",
+  published: "bg-green-100 text-green-900",
+  closed: "bg-blue-100 text-blue-900",
+  withdrawn: "bg-red-100 text-red-900",
 };
 
 export function EvidenceStatusPill({ value }: { value: string }) {
@@ -35,7 +36,8 @@ export function EvidenceStatusPill({ value }: { value: string }) {
   );
 }
 
-const URL_DEFAULTS = { status: "all", facilityId: "all" };
+const URL_DEFAULTS = { status: "all", facilityId: "all", page: "1" };
+const PAGE_SIZE = 25;
 
 export default function EvidenceRoom() {
   const { user } = useAuth();
@@ -47,28 +49,34 @@ export default function EvidenceRoom() {
   const [name, setName] = useState("");
   const [purpose, setPurpose] = useState("");
 
+  const page = Math.max(1, Number(urlState.page) || 1);
+  const facilityScope = urlState.facilityId === "all" ? undefined : urlState.facilityId;
+  const statusScope = urlState.status === "all" ? undefined : urlState.status;
+
   const {
-    data: collections,
+    data: collectionsPage,
     isLoading,
     isError,
     error,
     refetch,
-  } = useListEvidenceCollections({ organizationId: viewingOrgId ?? undefined });
+  } = usePaginatedEvidenceCollections({
+    organizationId: viewingOrgId ?? undefined,
+    facilityId: facilityScope,
+    status: statusScope,
+    page,
+    pageSize: PAGE_SIZE,
+  });
+  const summaryQuery = useEvidenceCollectionListSummary({ organizationId: viewingOrgId ?? undefined, facilityId: facilityScope });
+  const summary = summaryQuery.data ?? EMPTY_EVIDENCE_COLLECTION_LIST_SUMMARY;
   const { data: facilities } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
   const { mutate: createCollection, isPending: creating } = useCreateEvidenceCollection();
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
 
-  const all = collections ?? [];
-  const filtered = all.filter((c) => {
-    if (urlState.status !== "all" && c.status !== urlState.status) return false;
-    if (urlState.facilityId !== "all" && c.facility_id !== urlState.facilityId) return false;
-    return true;
-  });
-
-  const draftCount = all.filter((c) => c.status === "draft").length;
-  const publishedCount = all.filter((c) => c.status === "published").length;
-  const legalHolds = all.filter((c) => c.legal_hold).length;
+  const rows = collectionsPage?.rows ?? [];
+  const total = collectionsPage?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const hasFilters = urlState.status !== "all" || urlState.facilityId !== "all";
 
   const handleCreate = () => {
     createCollection(
@@ -110,7 +118,7 @@ export default function EvidenceRoom() {
           <CardContent className="pt-6 flex items-center gap-3">
             <FilePen className="h-8 w-8 text-amber-600" />
             <div>
-              <p className="text-2xl font-bold">{isLoading ? "—" : draftCount}</p>
+              <p className="text-2xl font-bold">{summaryQuery.isLoading ? "—" : summary.draft}</p>
               <p className="text-sm text-muted-foreground">Draft Collections</p>
             </div>
           </CardContent>
@@ -119,7 +127,7 @@ export default function EvidenceRoom() {
           <CardContent className="pt-6 flex items-center gap-3">
             <FileCheck2 className="h-8 w-8 text-green-600" />
             <div>
-              <p className="text-2xl font-bold">{isLoading ? "—" : publishedCount}</p>
+              <p className="text-2xl font-bold">{summaryQuery.isLoading ? "—" : summary.published}</p>
               <p className="text-sm text-muted-foreground">Published Rooms</p>
             </div>
           </CardContent>
@@ -128,7 +136,7 @@ export default function EvidenceRoom() {
           <CardContent className="pt-6 flex items-center gap-3">
             <Scale className="h-8 w-8 text-red-600" />
             <div>
-              <p className="text-2xl font-bold">{isLoading ? "—" : legalHolds}</p>
+              <p className="text-2xl font-bold">{summaryQuery.isLoading ? "—" : summary.legalHolds}</p>
               <p className="text-sm text-muted-foreground">Legal Holds</p>
             </div>
           </CardContent>
@@ -138,7 +146,7 @@ export default function EvidenceRoom() {
       <Card>
         <CardContent className="pt-6 space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={urlState.status} onValueChange={(v) => setUrlState({ status: v })}>
+            <Select value={urlState.status} onValueChange={(v) => setUrlState({ status: v, page: "1" })}>
               <SelectTrigger className="w-44 h-9"><SelectValue placeholder="All Statuses" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
@@ -148,7 +156,7 @@ export default function EvidenceRoom() {
                 <SelectItem value="withdrawn">Withdrawn</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={urlState.facilityId} onValueChange={(v) => setUrlState({ facilityId: v })}>
+            <Select value={urlState.facilityId} onValueChange={(v) => setUrlState({ facilityId: v, page: "1" })}>
               <SelectTrigger className="w-48 h-9"><SelectValue placeholder="All Facilities" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Facilities</SelectItem>
@@ -163,13 +171,14 @@ export default function EvidenceRoom() {
             <div className="space-y-2">
               {[...Array(4)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded-lg" />)}
             </div>
-          ) : filtered.length === 0 ? (
+          ) : rows.length === 0 ? (
             <p className="text-muted-foreground text-sm text-center py-10">
-              {all.length === 0
+              {!hasFilters && total === 0
                 ? "No evidence collections yet. Create one to assemble survey-ready exports."
                 : "No collections match the current filters."}
             </p>
           ) : (
+            <div className="space-y-4">
             <div className="overflow-x-auto">
               <table className="data-table min-w-[700px]">
                 <thead>
@@ -183,7 +192,7 @@ export default function EvidenceRoom() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((c) => (
+                  {rows.map((c) => (
                     <tr key={c.id}>
                       <td>
                         <div className="min-w-0">
@@ -215,6 +224,15 @@ export default function EvidenceRoom() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="text-muted-foreground">Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}</span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setUrlState({ page: String(page - 1) })}>Previous</Button>
+                <span className="px-1 text-muted-foreground">Page {page} of {totalPages}</span>
+                <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setUrlState({ page: String(page + 1) })}>Next</Button>
+              </div>
+            </div>
             </div>
           )}
         </CardContent>

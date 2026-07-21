@@ -2,7 +2,9 @@ import { useMemo } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
-import { useListConfidentialIntakes, type ConfidentialIntake } from "@/hooks/useConfidentialIncidents";
+import { type ConfidentialIntake } from "@/hooks/useConfidentialIncidents";
+import { usePaginatedDomainList } from "@/hooks/usePaginatedDomainLists";
+import { useConfidentialIntakeListSummary, EMPTY_CONFIDENTIAL_INTAKE_LIST_SUMMARY } from "@/hooks/useDomainListSummaries";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,16 +18,16 @@ import { ShieldAlert, Search, ChevronRight, AlertTriangle, Inbox, FolderSearch }
 
 const SEVERITY_VARIANT: Record<string, string> = {
   low: "bg-muted text-muted-foreground",
-  moderate: "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200",
-  high: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  critical: "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200",
+  moderate: "bg-blue-100 text-blue-900",
+  high: "bg-amber-100 text-amber-900",
+  critical: "bg-red-100 text-red-900",
 };
 
 const STATUS_VARIANT: Record<string, string> = {
-  submitted: "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200",
-  triage: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  investigating: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  review: "bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-200",
+  submitted: "bg-blue-100 text-blue-900",
+  triage: "bg-amber-100 text-amber-900",
+  investigating: "bg-amber-100 text-amber-900",
+  review: "bg-purple-100 text-purple-900",
   closed: "bg-muted text-muted-foreground",
   retained: "bg-muted text-muted-foreground",
 };
@@ -44,40 +46,43 @@ const REPORT_TYPE_LABELS: Record<string, string> = {
   safety_concern: "Safety concern",
 };
 
-const URL_DEFAULTS = { search: "", facilityId: "all", status: "all", severity: "all" };
+const URL_DEFAULTS = { search: "", facilityId: "all", status: "all", severity: "all", page: "1" };
+const PAGE_SIZE = 25;
 
 export default function ConfidentialIncidents() {
   const { user } = useAuth();
   const { viewingOrgId } = useViewingOrg();
   const [urlState, setUrlState] = useUrlState(URL_DEFAULTS);
 
+  const page = Math.max(1, Number(urlState.page) || 1);
+  const facilityScope = urlState.facilityId === "all" ? undefined : urlState.facilityId;
+  const statusScope = urlState.status === "all" ? undefined : urlState.status;
+  const severityScope = urlState.severity === "all" ? undefined : urlState.severity;
+
   const {
-    data: intakes,
+    data: intakesPage,
     isLoading,
     isError,
     error,
     refetch,
-  } = useListConfidentialIntakes({ organizationId: viewingOrgId ?? undefined });
+  } = usePaginatedDomainList<ConfidentialIntake>("confidential_incident_intakes", {
+    organizationId: viewingOrgId ?? undefined,
+    facilityId: facilityScope,
+    status: statusScope,
+    severity: severityScope,
+    search: urlState.search,
+    page,
+    pageSize: PAGE_SIZE,
+  });
+  const summaryQuery = useConfidentialIntakeListSummary({ organizationId: viewingOrgId ?? undefined, facilityId: facilityScope });
+  const summary = summaryQuery.data ?? EMPTY_CONFIDENTIAL_INTAKE_LIST_SUMMARY;
   const { data: facilities } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
   const facilityNameById = useMemo(() => new Map((facilities ?? []).map(f => [f.id, f.name])), [facilities]);
 
-  const all = intakes ?? [];
-  const filtered = all.filter((i: ConfidentialIntake) => {
-    if (urlState.facilityId !== "all" && i.facility_id !== urlState.facilityId) return false;
-    if (urlState.status !== "all" && i.status !== urlState.status) return false;
-    if (urlState.severity !== "all" && i.severity !== urlState.severity) return false;
-    if (urlState.search) {
-      const needle = urlState.search.toLowerCase();
-      if (!i.public_summary.toLowerCase().includes(needle) && !i.intake_number.toLowerCase().includes(needle)) {
-        return false;
-      }
-    }
-    return true;
-  });
-
-  const awaitingTriage = all.filter(i => i.status === "submitted").length;
-  const investigating = all.filter(i => ["triage", "investigating", "review"].includes(i.status)).length;
-  const criticalOpen = all.filter(i => i.severity === "critical" && i.status !== "closed" && i.status !== "retained").length;
+  const rows = intakesPage?.rows ?? [];
+  const total = intakesPage?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const hasFilters = urlState.facilityId !== "all" || urlState.status !== "all" || urlState.severity !== "all" || Boolean(urlState.search);
 
   const canReviewDetails = ["platform_admin", "org_admin", "auditor"].includes(user?.role ?? "");
 
@@ -100,7 +105,7 @@ export default function ConfidentialIncidents() {
           <CardContent className="pt-6 flex items-center gap-3">
             <Inbox className="h-8 w-8 text-blue-600" />
             <div>
-              <p className="text-2xl font-bold">{isLoading ? "—" : awaitingTriage}</p>
+              <p className="text-2xl font-bold">{summaryQuery.isLoading ? "—" : summary.awaitingTriage}</p>
               <p className="text-sm text-muted-foreground">Awaiting Triage</p>
             </div>
           </CardContent>
@@ -109,7 +114,7 @@ export default function ConfidentialIncidents() {
           <CardContent className="pt-6 flex items-center gap-3">
             <FolderSearch className="h-8 w-8 text-amber-600" />
             <div>
-              <p className="text-2xl font-bold">{isLoading ? "—" : investigating}</p>
+              <p className="text-2xl font-bold">{summaryQuery.isLoading ? "—" : summary.investigating}</p>
               <p className="text-sm text-muted-foreground">Under Investigation</p>
             </div>
           </CardContent>
@@ -118,7 +123,7 @@ export default function ConfidentialIncidents() {
           <CardContent className="pt-6 flex items-center gap-3">
             <AlertTriangle className="h-8 w-8 text-red-600" />
             <div>
-              <p className="text-2xl font-bold">{isLoading ? "—" : criticalOpen}</p>
+              <p className="text-2xl font-bold">{summaryQuery.isLoading ? "—" : summary.criticalOpen}</p>
               <p className="text-sm text-muted-foreground">Critical Open</p>
             </div>
           </CardContent>
@@ -132,19 +137,19 @@ export default function ConfidentialIncidents() {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 value={urlState.search}
-                onChange={e => setUrlState({ search: e.target.value })}
+                onChange={e => setUrlState({ search: e.target.value, page: "1" })}
                 placeholder="Search summary or intake number"
                 className="h-9 pl-8"
               />
             </div>
-            <Select value={urlState.facilityId} onValueChange={v => setUrlState({ facilityId: v })}>
+            <Select value={urlState.facilityId} onValueChange={v => setUrlState({ facilityId: v, page: "1" })}>
               <SelectTrigger className="w-48 h-9"><SelectValue placeholder="All Facilities" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Facilities</SelectItem>
                 {facilities?.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={urlState.status} onValueChange={v => setUrlState({ status: v })}>
+            <Select value={urlState.status} onValueChange={v => setUrlState({ status: v, page: "1" })}>
               <SelectTrigger className="w-44 h-9"><SelectValue placeholder="All Statuses" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
@@ -156,7 +161,7 @@ export default function ConfidentialIncidents() {
                 <SelectItem value="retained">Retained</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={urlState.severity} onValueChange={v => setUrlState({ severity: v })}>
+            <Select value={urlState.severity} onValueChange={v => setUrlState({ severity: v, page: "1" })}>
               <SelectTrigger className="w-40 h-9"><SelectValue placeholder="All Severities" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Severities</SelectItem>
@@ -169,16 +174,19 @@ export default function ConfidentialIncidents() {
           </div>
 
           {isError ? (
-            <QueryError what="confidential reports" error={error} onRetry={() => refetch()} />
+            <QueryError what="confidential reports" error={error as Error} onRetry={() => refetch()} />
           ) : isLoading ? (
             <div className="space-y-2">
               {[...Array(5)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded-lg" />)}
             </div>
-          ) : filtered.length === 0 ? (
+          ) : rows.length === 0 ? (
             <p className="text-muted-foreground text-sm text-center py-10">
-              No confidential reports match the current filters.
+              {!hasFilters && total === 0
+                ? "No confidential reports have been submitted yet."
+                : "No confidential reports match the current filters."}
             </p>
           ) : (
+            <div className="space-y-4">
             <div className="overflow-x-auto">
               <table className="data-table min-w-[760px]">
                 <thead>
@@ -193,7 +201,7 @@ export default function ConfidentialIncidents() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(i => (
+                  {rows.map(i => (
                     <tr key={i.id}>
                       <td>
                         <div className="min-w-0">
@@ -224,6 +232,15 @@ export default function ConfidentialIncidents() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="text-muted-foreground">Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}</span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setUrlState({ page: String(page - 1) })}>Previous</Button>
+                <span className="px-1 text-muted-foreground">Page {page} of {totalPages}</span>
+                <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setUrlState({ page: String(page + 1) })}>Next</Button>
+              </div>
+            </div>
             </div>
           )}
         </CardContent>

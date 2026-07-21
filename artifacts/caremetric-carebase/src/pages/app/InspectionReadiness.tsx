@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle, ClipboardCheck, Copy, Download, FileArchive, Loader2, ShieldAlert, Sparkles } from "lucide-react";
+import { Link } from "wouter";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { buildAdministratorRulePack, summarizeAdministratorRulePack } from "@/lib/administratorRulePacks";
 import { buildSpecialCareComplianceSummary } from "@/lib/specialCareCompliance";
@@ -273,6 +274,9 @@ export default function InspectionReadiness() {
             <SelectTrigger className="w-56"><SelectValue placeholder="Select facility" /></SelectTrigger>
             <SelectContent>{(facilities ?? []).map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}</SelectContent>
           </Select>
+          <Button asChild variant="outline">
+            <Link href={`/app/survey-day?facility=${activeFacilityId}`}><ClipboardCheck className="mr-2 h-4 w-4" />Start Survey Day</Link>
+          </Button>
           <Button onClick={() => void handleRunMockInspection()} disabled={!activeFacilityId || mockInspectionRunning}>
             {mockInspectionRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
             {mockInspectionRunning ? "Running grounded checks..." : "Run mock inspection"}

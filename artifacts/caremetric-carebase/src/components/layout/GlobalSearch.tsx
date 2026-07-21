@@ -20,8 +20,8 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [activeOptionId, setActiveOptionId] = useState<string | undefined>();
-  const blurTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (autoFocus) inputRef.current?.focus();
@@ -47,6 +47,26 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  // Dismiss the results panel on any pointer or focus landing outside the search (the input and the
+  // panel share containerRef). Replaces a 150ms blur timeout that could drop a click or tap before
+  // it registered; matches the header org-selector's outside-click pattern, extended to pointerdown
+  // + focusin so touch and keyboard dismissal are race-free too.
+  useEffect(() => {
+    if (!open) return;
+    function onOutside(event: Event) {
+      const target = event.target as Node | null;
+      if (containerRef.current && target && !containerRef.current.contains(target)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", onOutside);
+    document.addEventListener("focusin", onOutside);
+    return () => {
+      document.removeEventListener("pointerdown", onOutside);
+      document.removeEventListener("focusin", onOutside);
+    };
+  }, [open]);
 
   const { data: results, isFetching, isError, error, refetch } = useGlobalSearch(debouncedQuery, user?.role);
   const actionResults = searchCommandActions(debouncedQuery, user?.role, moduleAccess.enabledModules);
@@ -127,7 +147,7 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
   };
 
   return (
-    <div className="relative w-full sm:w-56">
+    <div ref={containerRef} className="relative w-full sm:w-56">
       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
       <Input
         ref={inputRef}
@@ -137,7 +157,6 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
           setActiveOptionId(undefined);
         }}
         onFocus={() => setOpen(true)}
-        onBlur={() => { blurTimeout.current = setTimeout(() => setOpen(false), 150); }}
         onKeyDown={handleSearchKeyDown}
         placeholder="Search everything... (/)"
         className="h-8 pl-8 text-xs bg-muted/50 border-none focus-visible:ring-1"
@@ -154,7 +173,6 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
           role="listbox"
           aria-label="Search results"
           className="absolute right-0 top-full z-50 mt-1 max-h-96 w-[min(18rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border bg-popover shadow-lg sm:w-72"
-          onMouseDown={(e) => { e.preventDefault(); if (blurTimeout.current) clearTimeout(blurTimeout.current); }}
         >
           {query.trim().length < 2 ? (
             <div className="py-1">

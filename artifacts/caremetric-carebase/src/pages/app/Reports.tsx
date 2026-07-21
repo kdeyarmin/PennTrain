@@ -1055,15 +1055,15 @@ export default function Reports() {
         {visibleReports.map((report) => {
           const Icon = report.icon;
           const catColors: Record<string, { border: string; bg: string; text: string }> = {
-            Compliance: { border: "border-l-blue-500", bg: "bg-blue-100 dark:bg-blue-950/30", text: "text-blue-600 dark:text-blue-400" },
-            Training: { border: "border-l-emerald-500", bg: "bg-emerald-100 dark:bg-emerald-950/30", text: "text-emerald-600 dark:text-emerald-400" },
-            Practicum: { border: "border-l-purple-500", bg: "bg-purple-100 dark:bg-purple-950/30", text: "text-purple-600 dark:text-purple-400" },
-            Hours: { border: "border-l-amber-500", bg: "bg-amber-100 dark:bg-amber-950/30", text: "text-amber-600 dark:text-amber-400" },
-            Staff: { border: "border-l-indigo-500", bg: "bg-indigo-100 dark:bg-indigo-950/30", text: "text-indigo-600 dark:text-indigo-400" },
-            Documents: { border: "border-l-slate-500", bg: "bg-slate-100 dark:bg-slate-950/30", text: "text-slate-600 dark:text-slate-400" },
-            Credentials: { border: "border-l-teal-500", bg: "bg-teal-100 dark:bg-teal-950/30", text: "text-teal-600 dark:text-teal-400" },
-            Incidents: { border: "border-l-rose-500", bg: "bg-rose-100 dark:bg-rose-950/30", text: "text-rose-600 dark:text-rose-400" },
-            Inspections: { border: "border-l-cyan-500", bg: "bg-cyan-100 dark:bg-cyan-950/30", text: "text-cyan-600 dark:text-cyan-400" },
+            Compliance: { border: "border-l-blue-500", bg: "bg-blue-100", text: "text-blue-600" },
+            Training: { border: "border-l-emerald-500", bg: "bg-emerald-100", text: "text-emerald-600" },
+            Practicum: { border: "border-l-purple-500", bg: "bg-purple-100", text: "text-purple-600" },
+            Hours: { border: "border-l-amber-500", bg: "bg-amber-100", text: "text-amber-600" },
+            Staff: { border: "border-l-indigo-500", bg: "bg-indigo-100", text: "text-indigo-600" },
+            Documents: { border: "border-l-slate-500", bg: "bg-slate-100", text: "text-slate-600" },
+            Credentials: { border: "border-l-teal-500", bg: "bg-teal-100", text: "text-teal-600" },
+            Incidents: { border: "border-l-rose-500", bg: "bg-rose-100", text: "text-rose-600" },
+            Inspections: { border: "border-l-cyan-500", bg: "bg-cyan-100", text: "text-cyan-600" },
           };
           const colors = catColors[report.category] ?? catColors.Compliance;
           const isSelected = report.id === selectedReportId;

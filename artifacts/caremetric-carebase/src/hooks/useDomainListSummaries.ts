@@ -25,6 +25,156 @@ export const EMPTY_RESIDENT_LIST_SUMMARY: ResidentComplianceAnalyticsSummary = {
   newestAdmissionResidentId: null,
 };
 
+export interface ComplaintListSummary {
+  total: number;
+  openCases: number;
+  awaitingAcknowledgement: number;
+  highOrImminentRisk: number;
+  incidentLinked: number;
+}
+
+export const EMPTY_COMPLAINT_LIST_SUMMARY: ComplaintListSummary = {
+  total: 0,
+  openCases: 0,
+  awaitingAcknowledgement: 0,
+  highOrImminentRisk: 0,
+  incidentLinked: 0,
+};
+
+interface ComplaintListSummaryFilters {
+  organizationId?: string;
+  facilityId?: string;
+  status?: string;
+  category?: string;
+  search?: string;
+  excludeStatus?: string;
+}
+
+export function useComplaintListSummary(filters: ComplaintListSummaryFilters) {
+  return useQuery({
+    queryKey: ["complaints", "summary", filters],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_complaint_list_summary", {
+        p_organization_id: filters.organizationId,
+        p_facility_id: filters.facilityId,
+        p_status: filters.status,
+        p_category: filters.category,
+        p_search: filters.search,
+        p_exclude_status: filters.excludeStatus,
+      });
+      if (error) throw error;
+      return (data ?? EMPTY_COMPLAINT_LIST_SUMMARY) as unknown as ComplaintListSummary;
+    },
+    placeholderData: (previous) => previous,
+  });
+}
+
+export interface ConfidentialIntakeListSummary {
+  total: number;
+  awaitingTriage: number;
+  investigating: number;
+  criticalOpen: number;
+}
+
+export const EMPTY_CONFIDENTIAL_INTAKE_LIST_SUMMARY: ConfidentialIntakeListSummary = {
+  total: 0,
+  awaitingTriage: 0,
+  investigating: 0,
+  criticalOpen: 0,
+};
+
+export function useConfidentialIntakeListSummary(filters: { organizationId?: string; facilityId?: string }) {
+  return useQuery({
+    queryKey: ["confidential_intakes", "summary", filters],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_confidential_intake_list_summary", {
+        p_organization_id: filters.organizationId,
+        p_facility_id: filters.facilityId,
+      });
+      if (error) throw error;
+      return (data ?? EMPTY_CONFIDENTIAL_INTAKE_LIST_SUMMARY) as unknown as ConfidentialIntakeListSummary;
+    },
+    placeholderData: (previous) => previous,
+  });
+}
+
+export interface EvidenceCollectionListSummary {
+  total: number;
+  draft: number;
+  published: number;
+  legalHolds: number;
+}
+
+export const EMPTY_EVIDENCE_COLLECTION_LIST_SUMMARY: EvidenceCollectionListSummary = {
+  total: 0,
+  draft: 0,
+  published: 0,
+  legalHolds: 0,
+};
+
+export function useEvidenceCollectionListSummary(filters: { organizationId?: string; facilityId?: string }) {
+  return useQuery({
+    queryKey: ["evidence", "collections", "summary", filters],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_evidence_collection_list_summary", {
+        p_organization_id: filters.organizationId,
+        p_facility_id: filters.facilityId,
+      });
+      if (error) throw error;
+      return (data ?? EMPTY_EVIDENCE_COLLECTION_LIST_SUMMARY) as unknown as EvidenceCollectionListSummary;
+    },
+    placeholderData: (previous) => previous,
+  });
+}
+
+export interface WorkItemListSummary {
+  total: number;
+  open: number;
+  overdue: number;
+  blocked: number;
+  pendingApproval: number;
+}
+
+export const EMPTY_WORK_ITEM_LIST_SUMMARY: WorkItemListSummary = {
+  total: 0,
+  open: 0,
+  overdue: 0,
+  blocked: 0,
+  pendingApproval: 0,
+};
+
+interface WorkItemListSummaryFilters {
+  organizationId?: string;
+  facilityId?: string;
+  ownerProfileId?: string;
+  ownerId?: string;
+  priority?: string;
+  sourceType?: string;
+  search?: string;
+  now: string;
+}
+
+export function useWorkItemListSummary(filters: WorkItemListSummaryFilters) {
+  return useQuery({
+    queryKey: ["work-items", "summary", filters],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_work_item_list_summary", {
+        p_organization_id: filters.organizationId,
+        p_facility_id: filters.facilityId,
+        p_owner_profile_id: filters.ownerProfileId,
+        p_owner_id: filters.ownerId,
+        p_priority: filters.priority,
+        p_source_type: filters.sourceType,
+        p_search: filters.search,
+        p_now: filters.now,
+      });
+      if (error) throw error;
+      return (data ?? EMPTY_WORK_ITEM_LIST_SUMMARY) as unknown as WorkItemListSummary;
+    },
+    placeholderData: (previous) => previous,
+  });
+}
+
 interface IncidentListSummaryFilters {
   facilityId?: string;
   residentId?: string;

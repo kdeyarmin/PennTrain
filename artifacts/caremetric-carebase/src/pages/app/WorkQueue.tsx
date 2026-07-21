@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { AlertTriangle, CheckCircle2, ChevronRight, ClipboardList, Clock3, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -6,11 +6,10 @@ import { useViewingOrg } from "@/lib/viewingOrg";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListProfiles } from "@/hooks/useProfiles";
 import { useUrlState } from "@/hooks/useUrlState";
-import { useListWorkItems, type WorkItemWithRelations } from "@/hooks/useWorkItems";
+import { usePaginatedWorkItems } from "@/hooks/useWorkItems";
+import { useWorkItemListSummary, EMPTY_WORK_ITEM_LIST_SUMMARY } from "@/hooks/useDomainListSummaries";
 import {
-  isWorkItemOpen,
   isWorkItemOverdue,
-  sortWorkItems,
   WORK_ITEM_PRIORITIES,
   WORK_ITEM_PRIORITY_LABELS,
   WORK_ITEM_STATES,
@@ -33,7 +32,10 @@ const URL_DEFAULTS = {
   sourceType: "all",
   due: "all",
   ownerId: "all",
+  page: "1",
 };
+
+const PAGE_SIZE = 25;
 
 const SOURCE_LABELS: Record<string, string> = {
   incident: "Incident",
@@ -54,27 +56,22 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 const PRIORITY_CLASS: Record<string, string> = {
-  urgent: "border-red-300 bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200",
-  high: "border-amber-300 bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  normal: "border-blue-300 bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200",
+  urgent: "border-red-300 bg-red-100 text-red-900",
+  high: "border-amber-300 bg-amber-100 text-amber-900",
+  normal: "border-blue-300 bg-blue-100 text-blue-900",
   low: "bg-muted text-muted-foreground",
 };
 
 const STATE_CLASS: Record<string, string> = {
-  open: "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200",
-  in_progress: "bg-cyan-100 text-cyan-900 dark:bg-cyan-950 dark:text-cyan-200",
-  blocked: "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200",
-  pending_approval: "bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-200",
-  closed: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
+  open: "bg-blue-100 text-blue-900",
+  in_progress: "bg-cyan-100 text-cyan-900",
+  blocked: "bg-red-100 text-red-900",
+  pending_approval: "bg-purple-100 text-purple-900",
+  closed: "bg-emerald-100 text-emerald-900",
   canceled: "bg-muted text-muted-foreground",
 };
 
-function dueDateMatches(item: WorkItemWithRelations, filter: string, now: Date): boolean {
-  if (filter === "all") return true;
-  if (filter === "overdue") return isWorkItemOverdue(item, now);
-  const days = Number(filter);
-  return new Date(item.due_at).getTime() <= now.getTime() + days * 86_400_000;
-}
+const DAY_MS = 86_400_000;
 
 function formatDueDate(value: string): string {
   return new Date(value).toLocaleString([], {
@@ -94,40 +91,73 @@ export default function WorkQueue() {
   const canSeeOrganization = ["platform_admin", "org_admin", "auditor"].includes(user?.role ?? "");
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const effectiveScope = isEmployee ? "mine" : filters.scope;
-  const ownerProfileId = effectiveScope === "mine" ? user?.id : undefined;
+  const page = Math.max(1, Number(filters.page) || 1);
 
-  const query = useListWorkItems({
-    organizationId: viewingOrgId ?? user?.organizationId ?? undefined,
-    facilityId: effectiveScope === "facility" && filters.facilityId !== "all" ? filters.facilityId : undefined,
-    ownerProfileId,
-    state: filters.state !== "all" && filters.state !== "active" ? filters.state : undefined,
-    priority: filters.priority !== "all" ? filters.priority : undefined,
-    sourceType: filters.sourceType !== "all" ? filters.sourceType : undefined,
-  });
-  const { data: facilities } = useListFacilities({
-    organizationId: viewingOrgId ?? user?.organizationId ?? undefined,
-  });
-  const { data: profiles } = useListProfiles({
-    organizationId: viewingOrgId ?? user?.organizationId ?? undefined,
-  });
+  // A single "now" for this page view: the overdue-first sort, the overdue tile, and the per-row
+  // overdue styling must all agree, and the value has to be stable so it doesn't retrigger the
+  // query on every render. Refresh it once a minute so operational deadlines actually age -- an
+  // ops queue left open across a due boundary would otherwise keep sorting/filtering against a
+  // frozen mount-time timestamp. A one-minute cadence is well below any due-window granularity and
+  // placeholderData keeps the previous page visible across the refetch.
+  const [nowIso, setNowIso] = useState(() => new Date().toISOString());
+  useEffect(() => {
+    const id = setInterval(() => setNowIso(new Date().toISOString()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const now = useMemo(() => new Date(nowIso), [nowIso]);
 
-  const now = useMemo(() => new Date(), [query.dataUpdatedAt]);
-  const all = query.data ?? [];
-  const filtered = sortWorkItems(all.filter(item => {
-    if (filters.state === "active" && !isWorkItemOpen(item)) return false;
-    if (filters.ownerId !== "all" && item.owner_profile_id !== filters.ownerId) return false;
-    if (!dueDateMatches(item, filters.due, now)) return false;
-    if (filters.search) {
-      const needle = filters.search.toLowerCase();
-      if (!`${item.title} ${item.description ?? ""}`.toLowerCase().includes(needle)) return false;
-    }
-    return true;
-  }), now);
+  const organizationId = viewingOrgId ?? user?.organizationId ?? undefined;
+  const facilityScope = effectiveScope === "facility" && filters.facilityId !== "all" ? filters.facilityId : undefined;
+  const ownerScope = effectiveScope === "mine" ? user?.id : undefined;
+  // In "My work" scope the queue is already pinned to the current user, so the owner dropdown is
+  // meaningless there -- ignore it (and hide it below). Sending both ownerProfileId=<me> and a
+  // different ownerId would AND to zero rows, collapsing the list and tiles to empty.
+  const ownerFilter = effectiveScope !== "mine" && filters.ownerId !== "all" ? filters.ownerId : undefined;
+  const specificState = filters.state !== "all" && filters.state !== "active" ? filters.state : undefined;
+  const activeOnly = filters.state === "active";
+  const priorityScope = filters.priority !== "all" ? filters.priority : undefined;
+  const sourceScope = filters.sourceType !== "all" ? filters.sourceType : undefined;
+  const overdueOnly = filters.due === "overdue";
+  const dueBefore = /^\d+$/.test(filters.due)
+    ? new Date(now.getTime() + Number(filters.due) * DAY_MS).toISOString()
+    : undefined;
 
-  const openCount = all.filter(isWorkItemOpen).length;
-  const overdueCount = all.filter(item => isWorkItemOverdue(item, now)).length;
-  const approvalCount = all.filter(item => item.state === "pending_approval").length;
-  const blockedCount = all.filter(item => item.state === "blocked").length;
+  const workItems = usePaginatedWorkItems({
+    organizationId,
+    facilityId: facilityScope,
+    ownerProfileId: ownerScope,
+    ownerId: ownerFilter,
+    state: specificState,
+    activeOnly,
+    priority: priorityScope,
+    sourceType: sourceScope,
+    search: filters.search,
+    now: nowIso,
+    overdueOnly,
+    dueBefore,
+    page,
+    pageSize: PAGE_SIZE,
+  });
+  // Tiles measure the whole scope (org + facility + owner) plus priority/source/search, but not the
+  // state or due-window selection -- they are about states, so filtering their denominator by a
+  // chosen state would make them meaningless.
+  const summaryQuery = useWorkItemListSummary({
+    organizationId,
+    facilityId: facilityScope,
+    ownerProfileId: ownerScope,
+    ownerId: ownerFilter,
+    priority: priorityScope,
+    sourceType: sourceScope,
+    search: filters.search,
+    now: nowIso,
+  });
+  const summary = summaryQuery.data ?? EMPTY_WORK_ITEM_LIST_SUMMARY;
+  const { data: facilities } = useListFacilities({ organizationId });
+  const { data: profiles } = useListProfiles({ organizationId });
+
+  const rows = workItems.data?.rows ?? [];
+  const total = workItems.data?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const detailBase = workQueuePathForRole(user?.role);
 
   return (
@@ -149,14 +179,14 @@ export default function WorkQueue() {
             <Button
               size="sm"
               variant={effectiveScope === "mine" ? "default" : "ghost"}
-              onClick={() => setFilters({ scope: "mine" })}
+              onClick={() => setFilters({ scope: "mine", page: "1" })}
             >
               My work
             </Button>
             <Button
               size="sm"
               variant={effectiveScope === "facility" ? "default" : "ghost"}
-              onClick={() => setFilters({ scope: "facility" })}
+              onClick={() => setFilters({ scope: "facility", page: "1" })}
             >
               Facility
             </Button>
@@ -164,7 +194,7 @@ export default function WorkQueue() {
               <Button
                 size="sm"
                 variant={effectiveScope === "organization" ? "default" : "ghost"}
-                onClick={() => setFilters({ scope: "organization" })}
+                onClick={() => setFilters({ scope: "organization", page: "1" })}
               >
                 Organization
               </Button>
@@ -175,16 +205,16 @@ export default function WorkQueue() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "Open", value: openCount, icon: Clock3, className: "text-blue-600" },
-          { label: "Overdue", value: overdueCount, icon: AlertTriangle, className: "text-red-600" },
-          { label: "Blocked", value: blockedCount, icon: AlertTriangle, className: "text-amber-600" },
-          { label: "Pending approval", value: approvalCount, icon: CheckCircle2, className: "text-purple-600" },
+          { label: "Open", value: summary.open, icon: Clock3, className: "text-blue-600" },
+          { label: "Overdue", value: summary.overdue, icon: AlertTriangle, className: "text-red-600" },
+          { label: "Blocked", value: summary.blocked, icon: AlertTriangle, className: "text-amber-600" },
+          { label: "Pending approval", value: summary.pendingApproval, icon: CheckCircle2, className: "text-purple-600" },
         ].map(metric => (
           <Card key={metric.label}>
             <CardContent className="flex items-center gap-3 pt-6">
               <metric.icon className={`h-7 w-7 ${metric.className}`} />
               <div>
-                <p className="text-2xl font-bold">{query.isLoading ? "—" : metric.value}</p>
+                <p className="text-2xl font-bold">{summaryQuery.isLoading ? "—" : metric.value}</p>
                 <p className="text-sm text-muted-foreground">{metric.label}</p>
               </div>
             </CardContent>
@@ -197,12 +227,12 @@ export default function WorkQueue() {
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
             <Input
               value={filters.search}
-              onChange={event => setFilters({ search: event.target.value })}
+              onChange={event => setFilters({ search: event.target.value, page: "1" })}
               placeholder="Search title or description"
               aria-label="Search work"
             />
             {!isEmployee && (
-              <Select value={filters.facilityId} onValueChange={facilityId => setFilters({ facilityId })}>
+              <Select value={filters.facilityId} onValueChange={facilityId => setFilters({ facilityId, page: "1" })}>
                 <SelectTrigger><SelectValue placeholder="All facilities" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All facilities</SelectItem>
@@ -212,7 +242,7 @@ export default function WorkQueue() {
                 </SelectContent>
               </Select>
             )}
-            <Select value={filters.state} onValueChange={state => setFilters({ state })}>
+            <Select value={filters.state} onValueChange={state => setFilters({ state, page: "1" })}>
               <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="active">All active</SelectItem>
@@ -222,7 +252,7 @@ export default function WorkQueue() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={filters.priority} onValueChange={priority => setFilters({ priority })}>
+            <Select value={filters.priority} onValueChange={priority => setFilters({ priority, page: "1" })}>
               <SelectTrigger><SelectValue placeholder="Priority" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All priorities</SelectItem>
@@ -231,7 +261,7 @@ export default function WorkQueue() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={filters.sourceType} onValueChange={sourceType => setFilters({ sourceType })}>
+            <Select value={filters.sourceType} onValueChange={sourceType => setFilters({ sourceType, page: "1" })}>
               <SelectTrigger><SelectValue placeholder="Source" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All sources</SelectItem>
@@ -240,7 +270,7 @@ export default function WorkQueue() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={filters.due} onValueChange={due => setFilters({ due })}>
+            <Select value={filters.due} onValueChange={due => setFilters({ due, page: "1" })}>
               <SelectTrigger><SelectValue placeholder="Due date" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Any due date</SelectItem>
@@ -249,8 +279,8 @@ export default function WorkQueue() {
                 <SelectItem value="30">Due in 30 days</SelectItem>
               </SelectContent>
             </Select>
-            {canManage && (
-              <Select value={filters.ownerId} onValueChange={ownerId => setFilters({ ownerId })}>
+            {canManage && effectiveScope !== "mine" && (
+              <Select value={filters.ownerId} onValueChange={ownerId => setFilters({ ownerId, page: "1" })}>
                 <SelectTrigger><SelectValue placeholder="Owner" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All owners</SelectItem>
@@ -264,80 +294,90 @@ export default function WorkQueue() {
             )}
           </div>
 
-          {query.isError ? (
-            <QueryError what="operational work" error={query.error} onRetry={() => query.refetch()} />
-          ) : query.isLoading ? (
+          {workItems.isError ? (
+            <QueryError what="operational work" error={workItems.error as Error} onRetry={() => workItems.refetch()} />
+          ) : workItems.isLoading ? (
             <div className="space-y-2">
               {[...Array(5)].map((_, index) => (
                 <div key={index} className="h-16 animate-pulse rounded-lg bg-muted" />
               ))}
             </div>
-          ) : filtered.length === 0 ? (
+          ) : total === 0 ? (
             <div className="py-12 text-center">
               <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-emerald-600" />
               <p className="font-medium">No work matches these filters</p>
               <p className="text-sm text-muted-foreground">Change the scope or filters to review other work.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="data-table min-w-[980px]">
-                <thead>
-                  <tr>
-                    <th>Work item</th>
-                    <th>Facility</th>
-                    <th>Source</th>
-                    <th>Owner</th>
-                    <th>Priority</th>
-                    <th>Due</th>
-                    <th>Status</th>
-                    <th className="w-20" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map(item => {
-                    const overdue = isWorkItemOverdue(item, now);
-                    return (
-                      <tr key={item.id}>
-                        <td>
-                          <p className="max-w-[280px] truncate font-medium">{item.title}</p>
-                          {item.escalated_at && <p className="text-xs text-red-600">Escalated</p>}
-                        </td>
-                        <td className="text-sm">{item.facility?.name ?? "—"}</td>
-                        <td className="text-sm">{SOURCE_LABELS[item.source_type] ?? item.source_type}</td>
-                        <td className="text-sm">
-                          {item.owner
-                            ? <span className="inline-flex items-center gap-1"><UserRound className="h-3.5 w-3.5" />{item.owner.first_name} {item.owner.last_name}</span>
-                            : <span className="text-muted-foreground">Unassigned</span>}
-                        </td>
-                        <td>
-                          <Badge variant="outline" className={PRIORITY_CLASS[item.priority]}>
-                            {WORK_ITEM_PRIORITY_LABELS[item.priority] ?? item.priority}
-                          </Badge>
-                        </td>
-                        <td className={overdue ? "font-medium text-red-700 dark:text-red-300" : "text-muted-foreground"}>
-                          <span className="inline-flex items-center gap-1 text-sm">
-                            {overdue && <AlertTriangle className="h-3.5 w-3.5" />}
-                            {formatDueDate(item.due_at)}
-                          </span>
-                        </td>
-                        <td>
-                          <Badge variant="outline" className={`border-0 ${STATE_CLASS[item.state] ?? ""}`}>
-                            {WORK_ITEM_STATE_LABELS[item.state] ?? item.state}
-                          </Badge>
-                        </td>
-                        <td>
-                          <Button asChild variant="outline" size="sm">
-                            <Link href={`${detailBase}/${item.id}`}>
-                              Open <ChevronRight className="h-4 w-4" />
-                            </Link>
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div className="overflow-x-auto">
+                <table className="data-table min-w-[980px]">
+                  <thead>
+                    <tr>
+                      <th>Work item</th>
+                      <th>Facility</th>
+                      <th>Source</th>
+                      <th>Owner</th>
+                      <th>Priority</th>
+                      <th>Due</th>
+                      <th>Status</th>
+                      <th className="w-20" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(item => {
+                      const overdue = isWorkItemOverdue(item, now);
+                      return (
+                        <tr key={item.id}>
+                          <td>
+                            <p className="max-w-[280px] truncate font-medium">{item.title}</p>
+                            {item.escalated_at && <p className="text-xs text-red-600">Escalated</p>}
+                          </td>
+                          <td className="text-sm">{item.facility?.name ?? "—"}</td>
+                          <td className="text-sm">{SOURCE_LABELS[item.source_type] ?? item.source_type}</td>
+                          <td className="text-sm">
+                            {item.owner
+                              ? <span className="inline-flex items-center gap-1"><UserRound className="h-3.5 w-3.5" />{item.owner.first_name} {item.owner.last_name}</span>
+                              : <span className="text-muted-foreground">Unassigned</span>}
+                          </td>
+                          <td>
+                            <Badge variant="outline" className={PRIORITY_CLASS[item.priority]}>
+                              {WORK_ITEM_PRIORITY_LABELS[item.priority] ?? item.priority}
+                            </Badge>
+                          </td>
+                          <td className={overdue ? "font-medium text-red-700" : "text-muted-foreground"}>
+                            <span className="inline-flex items-center gap-1 text-sm">
+                              {overdue && <AlertTriangle className="h-3.5 w-3.5" />}
+                              {formatDueDate(item.due_at)}
+                            </span>
+                          </td>
+                          <td>
+                            <Badge variant="outline" className={`border-0 ${STATE_CLASS[item.state] ?? ""}`}>
+                              {WORK_ITEM_STATE_LABELS[item.state] ?? item.state}
+                            </Badge>
+                          </td>
+                          <td>
+                            <Button asChild variant="outline" size="sm">
+                              <Link href={`${detailBase}/${item.id}`}>
+                                Open <ChevronRight className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span className="text-muted-foreground">Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}</span>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setFilters({ page: String(page - 1) })}>Previous</Button>
+                  <span className="px-1 text-muted-foreground">Page {page} of {totalPages}</span>
+                  <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setFilters({ page: String(page + 1) })}>Next</Button>
+                </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

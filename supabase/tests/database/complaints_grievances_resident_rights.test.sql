@@ -1,5 +1,5 @@
 begin;
-select plan(28);
+select plan(30);
 
 select has_table('public', 'complaints', 'complaint cases are separate from incidents');
 select has_table('public', 'complaint_interviews', 'complaint interviews are structured');
@@ -129,6 +129,16 @@ reset role;
 select throws_ok($$delete from public.complaint_interviews where complaint_id=(select id from complaint_ids where key='ordinary')$$, '55000', null, 'interview evidence is immutable');
 select pg_temp.act_as('70000000-0000-4000-8000-000000000102');
 select is((select count(*)::integer from public.complaints), 2, 'auditor can review in-scope complaint cases');
+select is(
+  (public.get_complaint_list_summary(null, null, null, null, null, null) ->> 'total')::integer,
+  (select count(*)::integer from public.complaints),
+  'complaint list summary total matches the RLS-visible complaint count'
+);
+select is(
+  (public.get_complaint_list_summary(null, null, null, null, null, 'closed') ->> 'openCases')::integer,
+  (select count(*)::integer from public.complaints where status <> 'closed'),
+  'complaint list summary open cases exclude closed complaints'
+);
 select throws_ok($$select public.create_complaint(
   '70000000-0000-4000-8000-000000000011', now(), 'email', 'family', 'Blocked User', null, false,
   null, 'service', 'Auditor must not be able to create a complaint case.', 'none', null,

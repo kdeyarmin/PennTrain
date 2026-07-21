@@ -19,8 +19,9 @@
     "check:source-integrity": "node scripts/check-source-integrity.mjs",
     "check:release": "pnpm run check:dependencies && pnpm run check:all && pnpm run check:database",
     "check:edge-functions": "node scripts/check-edge-functions.mjs",
+    "check:migration-policies": "node scripts/check-migration-policies.mjs",
     "check:dhs-sources": "node scripts/check-dhs-sources.mjs",
-    "check:all": "pnpm run check:source-integrity && pnpm run typecheck && pnpm run test && pnpm run check:edge-functions && pnpm --filter @workspace/caremetric-carebase run build && pnpm run check:bundle"
+    "check:all": "pnpm run check:source-integrity && pnpm run check:migration-policies && pnpm run typecheck && pnpm run test && pnpm run check:edge-functions && pnpm --filter @workspace/caremetric-carebase run build && pnpm run check:bundle"
   },
   "private": true,
   "devDependencies": {
