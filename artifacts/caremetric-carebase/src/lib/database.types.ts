@@ -33582,6 +33582,10 @@ export type Database = {
         }
         Returns: string
       }
+      org_feature_enabled: {
+        Args: { p_feature_key: string }
+        Returns: boolean
+      }
       owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
       pin_survey_day_binder: {
         Args: { p_binder_job_id: string; p_session_id: string }

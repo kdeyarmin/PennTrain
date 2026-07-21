@@ -22,3 +22,25 @@ export function useFeatureReleaseActive(featureKey: string) {
   });
   return { ...query, isActive: query.data === true };
 }
+
+/**
+ * Caller-scoped entitlement read: "does my organization have this app_feature_flags feature?"
+ * Wraps org_feature_enabled (evaluate_feature_access for current_org_id), the sibling of
+ * feature_release_active for the entitlement/flag system rather than the release system. Lets the
+ * UI gate a pilot feature the same way the backend commands do instead of rendering controls that
+ * only 42501 on click. Defaults to false while loading or on error -- gated capabilities fail closed.
+ */
+export function useOrgFeatureEnabled(featureKey: string) {
+  const query = useQuery({
+    queryKey: ["org_feature_enabled", featureKey],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("org_feature_enabled", {
+        p_feature_key: featureKey,
+      });
+      if (error) throw error;
+      return data === true;
+    },
+    staleTime: 5 * 60_000,
+  });
+  return { ...query, isEnabled: query.data === true };
+}

@@ -13,6 +13,7 @@ import { useListEmployeeCredentials } from "@/hooks/useEmployeeCredentials";
 import { useListInspectionItems } from "@/hooks/useInspectionItems";
 import { useListBinderExports, useGetBinderExport, useBinderDownloadUrl } from "@/hooks/useComplianceBinder";
 import { useListEvidenceCollections } from "@/hooks/useEvidenceRoom";
+import { useOrgFeatureEnabled } from "@/hooks/useFeatureRelease";
 import { BinderExportButton } from "@/components/reports/BinderExportButton";
 import {
   useActiveSurveyDaySession, useSurveyDayWorkspace, useSurveyDayStaffRoster,
@@ -85,6 +86,12 @@ export default function SurveyDay() {
 
   const session = useActiveSurveyDaySession(activeFacilityId || undefined);
 
+  // Gate on the org's survey_day_mode entitlement, mirroring the backend command guard. Platform
+  // admins bypass the flag server-side, so never block them; for everyone else, once the read
+  // resolves to false show a "not enabled" state instead of activation controls that would 42501.
+  const surveyDayFeature = useOrgFeatureEnabled("survey_day_mode");
+  const featureBlocked = !!user && user.role !== "platform_admin" && !surveyDayFeature.isLoading && !surveyDayFeature.isEnabled;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -104,7 +111,11 @@ export default function SurveyDay() {
         </div>
       </div>
 
-      {!activeFacilityId ? (
+      {featureBlocked ? (
+        <Card><CardContent className="py-10 text-center text-muted-foreground">
+          Survey Day Mode isn&apos;t enabled for your organization yet. Contact CareMetric to join the pilot.
+        </CardContent></Card>
+      ) : !activeFacilityId ? (
         <Card><CardContent className="py-10 text-center text-muted-foreground">Select a facility to begin.</CardContent></Card>
       ) : session.isLoading ? (
         <QueryLoading what="the Survey Day session" />
