@@ -137,11 +137,11 @@ export function useRefreshSurveyDay(facilityId: string | undefined) {
 export function useSetSurveyDayDisposition() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { sessionId: string; itemId: string; disposition: SurveyDayDisposition | null; note: string }) => {
+    mutationFn: async (input: { sessionId: string; itemId: string; disposition: SurveyDayDisposition; note: string }) => {
       const { data, error } = await supabase.rpc("set_survey_day_checklist_disposition", {
         p_session_id: input.sessionId,
         p_item_id: input.itemId,
-        p_disposition: input.disposition as string,
+        p_disposition: input.disposition,
         p_note: input.note,
       });
       if (error) throw error;

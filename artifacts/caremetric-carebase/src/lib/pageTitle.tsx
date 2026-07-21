@@ -47,10 +47,15 @@ export function PageTitleProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// Returns the current entity title and its setter. Degrades to an inert value when no provider is
-// present (e.g. a page rendered outside MainLayout in a test), so callers never need to null-check.
+// Stable inert fallback for renders outside a provider (e.g. a page mounted alone in a test). Kept
+// module-scoped so `setEntityTitle` has a constant identity -- returning a fresh object/closure each
+// render would retrigger usePageTitle's effect (which depends on setEntityTitle) on every render.
+const INERT_PAGE_TITLE: PageTitleValue = { entityTitle: null, setEntityTitle: () => {} };
+
+// Returns the current entity title and its setter. Degrades to the inert value when no provider is
+// present, so callers never need to null-check.
 export function usePageTitleContext(): PageTitleValue {
-  return useContext(PageTitleContext) ?? { entityTitle: null, setEntityTitle: () => {} };
+  return useContext(PageTitleContext) ?? INERT_PAGE_TITLE;
 }
 
 /**

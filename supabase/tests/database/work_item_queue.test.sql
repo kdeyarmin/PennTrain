@@ -1,5 +1,5 @@
 begin;
-select plan(12);
+select plan(14);
 
 -- Both queue functions must exist, be jsonb-returning, and be callable by authenticated but never
 -- anon (they run under the caller's RLS, so anon has no business reaching them).
@@ -12,6 +12,14 @@ select ok(
 select ok(
   not has_function_privilege('anon', 'public.get_work_item_list_summary(uuid, uuid, uuid, uuid, text, text, text, timestamptz)', 'EXECUTE'),
   'anonymous users cannot request work queue tiles'
+);
+select ok(
+  has_function_privilege('authenticated', 'public.get_work_item_queue(uuid, uuid, uuid, uuid, text, boolean, text, text, text, timestamptz, boolean, timestamptz, integer, integer)', 'EXECUTE'),
+  'authenticated users may request a work queue page'
+);
+select ok(
+  not has_function_privilege('anon', 'public.get_work_item_queue(uuid, uuid, uuid, uuid, text, boolean, text, text, text, timestamptz, boolean, timestamptz, integer, integer)', 'EXECUTE'),
+  'anonymous users cannot request a work queue page'
 );
 
 insert into public.organizations(id, name, slug, subscription_status) values

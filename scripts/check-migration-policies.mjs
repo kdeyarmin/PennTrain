@@ -111,9 +111,13 @@ export function analyzeMigrationSql(sql) {
   while ((createTable = createTableRe.exec(text)) !== null) {
     const { schema, name } = normalizeIdentifier(createTable[1]);
     if (RLS_EXEMPT_SCHEMAS.has(schema)) continue;
-    // Look for `alter table [if exists] [schema.]name ... enable row level security`.
+    // Look for `alter table [if exists] <schema>.name ... enable row level security`, where the
+    // schema must match the created table's. A public table may be referenced bare (`alter table
+    // name`, which resolves to public via search_path) or as `public.name`; a non-public table must
+    // be schema-qualified, since a bare reference would resolve to public, not this table.
+    const schemaPrefix = schema === "public" ? `(?:"?public"?\\.)?` : `"?${schema}"?\\.`;
     const enableRe = new RegExp(
-      `alter\\s+table\\s+(?:if\\s+exists\\s+)?(?:[a-z0-9_"]+\\.)?"?${name}"?\\b[^;]*enable\\s+row\\s+level\\s+security`,
+      `alter\\s+table\\s+(?:if\\s+exists\\s+)?${schemaPrefix}"?${name}"?\\b[^;]*enable\\s+row\\s+level\\s+security`,
       "is",
     );
     if (!enableRe.test(text)) {
@@ -194,6 +198,12 @@ const SELF_TEST_FIXTURES = [
     name: "app_private table is exempt from rls rule",
     sql: `create table app_private.job_state (id uuid primary key);`,
     expect: [],
+  },
+  {
+    name: "rls enabled on a different schema does not satisfy a public table",
+    sql: `create table public.gadgets (id uuid primary key);
+          alter table other_schema.gadgets enable row level security;`,
+    expect: [RULES.TABLE_WITHOUT_RLS],
   },
   {
     name: "definer without search_path",
