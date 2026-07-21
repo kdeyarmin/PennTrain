@@ -1,14 +1,14 @@
 # PennTrain backlog delta — 2026-07-21
 
 **Companion report:** `PennTrain_Comprehensive_Review_2026-07-21.md`
-**Scope:** new work only. PT-001..PT-034 remain in the 2026-07-20 backlog and are not restated here.
+**Scope:** new work only. PT-001..PT-034 remain in the 2026-07-20 backlog and are not restated here. Follow-up commits on this branch fix prior PT-001, PT-004, PT-005, and PT-006A; those statuses are summarized in the companion report.
 
 ## PT-035 — Make billing quantity sync provider-idempotent and locally reconcilable
 
 **Labels:** `priority:P1`, `area:billing`, `area:edge-functions`, `stripe`, `reliability`
 **Outcome:** Stripe subscription item quantity changes are represented by a durable local operation before provider mutation, reused across retries, and reconciled after partial failure.
 
-**Status:** partially mitigated on this branch by using stable item/quantity idempotency keys; a durable provider-operation ledger is still required for full closure.
+**Status:** implemented on this branch with a durable provider-operation ledger and stable item/quantity idempotency keys; add mocked Stripe/DB failure tests next.
 
 **Evidence**
 
@@ -120,6 +120,8 @@
 
 **Labels:** `priority:P1`, `area:database`, `area:entitlements`, `rls`
 **Outcome:** every non-core tenant table and storage bucket classified in the module registry is enforced by RLS/storage policy or an equivalent server-side guard.
+
+**Status:** implemented on this branch as pgTAP coverage for classified table policies and classified storage bucket existence/policy guards. Also, prior PT-004 was fixed in this branch by expanding dependency lockfile parsing coverage; PT-004 remains in the original backlog rather than being renumbered here.
 
 **Evidence**
 

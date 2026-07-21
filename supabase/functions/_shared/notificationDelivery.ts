@@ -180,8 +180,10 @@ export function renderProviderMessage(
     };
   }
 
-  const subject = title?.trim() || "CareMetric CareBase notification";
-  return { subject, body: body?.trim() || subject };
+  return {
+    subject: "CareMetric CareBase notification",
+    body: "You have a CareMetric CareBase update. Sign in to review it securely.",
+  };
 }
 
 export function renderVersionedNotificationTemplate(

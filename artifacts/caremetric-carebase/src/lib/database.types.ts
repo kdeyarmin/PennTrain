@@ -855,6 +855,88 @@ export type Database = {
           },
         ]
       }
+      billing_provider_operations: {
+        Row: {
+          attempted_at: string | null
+          created_at: string
+          error_code: string | null
+          id: string
+          idempotency_key: string
+          local_succeeded_at: string | null
+          operation_key: string
+          operation_type: string
+          organization_id: string
+          provider_response_id: string | null
+          provider_succeeded_at: string | null
+          status: string
+          stripe_subscription_item_id: string
+          subscription_id: string
+          subscription_item_id: string
+          target_quantity: number
+          updated_at: string
+        }
+        Insert: {
+          attempted_at?: string | null
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          idempotency_key: string
+          local_succeeded_at?: string | null
+          operation_key: string
+          operation_type: string
+          organization_id: string
+          provider_response_id?: string | null
+          provider_succeeded_at?: string | null
+          status?: string
+          stripe_subscription_item_id: string
+          subscription_id: string
+          subscription_item_id: string
+          target_quantity: number
+          updated_at?: string
+        }
+        Update: {
+          attempted_at?: string | null
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          idempotency_key?: string
+          local_succeeded_at?: string | null
+          operation_key?: string
+          operation_type?: string
+          organization_id?: string
+          provider_response_id?: string | null
+          provider_succeeded_at?: string | null
+          status?: string
+          stripe_subscription_item_id?: string
+          subscription_id?: string
+          subscription_item_id?: string
+          target_quantity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_provider_operations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_provider_operations_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "billing_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_provider_operations_subscription_item_id_fkey"
+            columns: ["subscription_item_id"]
+            isOneToOne: false
+            referencedRelation: "billing_subscription_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_subscription_items: {
         Row: {
           created_at: string
