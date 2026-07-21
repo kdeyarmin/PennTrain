@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   AlertTriangle, CheckCircle2, ClipboardCheck, Download, FileText,
@@ -19,7 +20,6 @@ import { BinderExportButton } from "@/components/reports/BinderExportButton";
 import {
   useActiveSurveyDaySession, useSurveyDayWorkspace, useSurveyDayStaffRoster,
   useActivateSurveyDay, useRefreshSurveyDay, useSetSurveyDayDisposition, useCloseSurveyDay,
-  usePinSurveyDayBinder,
   type SurveyDayChecklistItem, type SurveyDayDisposition, type ReadinessState,
 } from "@/hooks/useSurveyDay";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -257,7 +257,7 @@ function Workspace({ sessionId, facilityId, facilityName, canManage }: { session
       </Card>
 
       <EntranceConferenceSection sessionId={sessionId} facilityId={facilityId} checklist={data.checklist} readOnly={data.session.status !== "active" || !canManage} />
-      <BinderSection sessionId={sessionId} facilityId={facilityId} organizationId={data.session.organizationId} pinnedBinderJobId={data.session.pinnedBinderJobId} canManage={canManage} />
+      <BinderSection sessionId={sessionId} facilityId={facilityId} organizationId={data.session.organizationId} pinnedBinderJobId={data.session.pinnedBinderJobId} />
       <StaffRosterSection sessionId={sessionId} />
       <EvidenceSection organizationId={data.session.organizationId} facilityId={facilityId} pinnedCollectionId={data.session.pinnedEvidenceCollectionId} />
     </div>
@@ -351,11 +351,11 @@ function EntranceConferenceSection({ sessionId, facilityId, checklist, readOnly 
   );
 }
 
-function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobId, canManage }: { sessionId: string; facilityId: string; organizationId: string; pinnedBinderJobId: string | null; canManage: boolean }) {
+function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobId }: { sessionId: string; facilityId: string; organizationId: string; pinnedBinderJobId: string | null }) {
   const { toast } = useToast();
   const { data: pinned } = useGetBinderExport(pinnedBinderJobId ?? undefined);
   const download = useBinderDownloadUrl();
-  const pinBinder = usePinSurveyDayBinder();
+  const queryClient = useQueryClient();
   const completedAt = pinned?.completed_at as string | undefined;
   const isCurrent = completedAt ? (Date.now() - new Date(completedAt).valueOf()) < 24 * 60 * 60 * 1000 : false;
 
@@ -397,20 +397,16 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
             organizationId={organizationId}
             facilityIds={[facilityId]}
             label="Generate fresh binder"
-            // Pin the freshly rendered binder to this session so it survives navigation/refresh
-            // instead of living only in the button's local state. Only managers may pin (the RPC is
-            // manager-gated); auditors can still generate and download from the button itself. Only
-            // pin when the server-assigned scope is exactly this facility -- a manager assigned to
-            // several facilities gets a multi-facility export that pin_survey_day_binder rejects, so
-            // skip the pin (and its error) for that case rather than churn a doomed mutation.
-            onCompleted={canManage ? (jobId, facilityIds) => {
+            // The pin itself happens server-side: a DB trigger pins any completed single-facility
+            // binder to the facility's active session, so it works even after the user leaves this
+            // page while the PDF renders (the export runs in the background). Here we only need to
+            // refetch the workspace so the freshly pinned binder shows immediately for a user who
+            // stayed; a multi-facility export can't match a single-facility session, so skip it.
+            onCompleted={(_jobId, facilityIds) => {
               if (facilityIds && facilityIds.length === 1 && facilityIds[0] === facilityId) {
-                pinBinder.mutate(
-                  { sessionId, binderJobId: jobId },
-                  { onError: (e: Error) => toast({ title: "Could not pin the new binder", description: e.message, variant: "destructive" }) },
-                );
+                queryClient.invalidateQueries({ queryKey: ["survey-day-workspace", sessionId] });
               }
-            } : undefined}
+            }}
           />
           <Button asChild variant="ghost" size="sm"><Link href="/app/compliance-binder">Open Compliance Binder</Link></Button>
         </div>
