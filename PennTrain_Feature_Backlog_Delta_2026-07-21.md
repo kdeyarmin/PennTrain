@@ -111,6 +111,8 @@
 
 **Effort:** M.
 
+**Status (partial):** slice 3 shipped — `GlobalSearch` dismissal is now race-free. The 150 ms blur timeout (and the panel's `onMouseDown`/`preventDefault` counter-hack) are replaced with an outside-`pointerdown`/`focusin` listener on a shared container ref, matching the header org-selector's pattern and extended to pointer + focus so touch and keyboard selections can't lose a click to the timer. Route-registry titles/breadcrumbs (slice 1) and help/account IA consolidation (slice 2) remain open.
+
 ### PT-046 — Decide dark mode: ship a toggle or delete the dead theme
 
 **Labels:** `priority:P3`, `area:frontend`, `decision`, `build`
