@@ -75,7 +75,6 @@ import {
   Siren,
   HeartPulse,
   History,
-  Megaphone,
   Gauge,
 } from "lucide-react";
 
@@ -751,18 +750,6 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
               <Link href="/account/notifications" className="cursor-pointer" onClick={onNavigate}>
                 <Bell className="mr-2 h-4 w-4" />
                 <span>Notification settings</span>
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/account/announcements" className="cursor-pointer" onClick={onNavigate}>
-                <Megaphone className="mr-2 h-4 w-4" />
-                <span>Announcements</span>
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/account/whats-new" className="cursor-pointer" onClick={onNavigate}>
-                <Sparkles className="mr-2 h-4 w-4" />
-                <span>What&apos;s new</span>
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />

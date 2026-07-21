@@ -393,13 +393,9 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
               <ShieldCheck className="mr-2 h-4 w-4" />
               <span>Account security</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/account/announcements")} className="cursor-pointer p-2.5">
-              <Megaphone className="mr-2 h-4 w-4" />
-              <span>Announcements</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/account/whats-new")} className="cursor-pointer p-2.5">
-              <Sparkles className="mr-2 h-4 w-4" />
-              <span>What&apos;s new</span>
+            <DropdownMenuItem onClick={() => navigate("/account/notifications")} className="cursor-pointer p-2.5">
+              <Bell className="mr-2 h-4 w-4" />
+              <span>Notification settings</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive cursor-pointer p-2.5">
