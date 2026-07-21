@@ -1001,7 +1001,9 @@ function PayeeDialog({
           benefitSource: form.benefitSource,
           benefitAmount: form.benefitAmount || null,
           personalNeedsAllowance: form.pna || null,
-          resourceAlertThreshold: asNumber(form.threshold),
+          resourceAlertThreshold: form.threshold.trim()
+            ? asNumber(form.threshold)
+            : null,
           collectiveAccountName: form.bankName,
           collectiveAccountLast4: form.bankLast4,
           interestBearing: form.interestBearing === "true",
