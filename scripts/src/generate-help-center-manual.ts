@@ -248,6 +248,20 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    title: "Plans, Billing & Subscription Quantities",
+    paragraphs: [
+      "Organization administrators manage their subscription from Enterprise Foundation (/app/enterprise), under Billing & Plans. The page compares every active CareMetric package, switches between monthly and annual pricing, shows included quantities and overage, and estimates the recurring charge from the organization's current records before opening hosted Stripe Checkout.",
+      "CareMetric Train is measured by active learners and CareMetric CareBase is measured by active residents, so CareBase does not become more expensive merely because more staff, auditors, or collaborators use it. Synthetic demo records and sandbox facilities are excluded. CareMetric repeats the measurement on the server at Checkout and synchronizes an existing subscription regularly; the quantity is not a number an organization administrator types manually.",
+      "Once a Stripe subscription exists, use Manage Billing to open the secure Stripe Customer Portal for payment methods, invoices, plan changes, and cancellation options allowed by CareMetric's portal policy. A warning on the Billing & Plans page means a Stripe Price is unmapped, the measured quantity is outside the self-service range, or synchronization failed; submit a billing support ticket if the warning remains after the next scheduled synchronization.",
+    ],
+    bullets: [
+      "Compare monthly and annual packages under Enterprise Foundation > Billing & Plans",
+      "Review the active learner, resident, user, and facility measurements before Checkout",
+      "Use hosted Stripe Checkout for a new subscription and Manage Billing for an existing one",
+      "Contact CareMetric for Portfolio pricing or a quantity outside the self-service range",
+    ],
+  },
+  {
     title: "Getting Help",
     paragraphs: [
       "The Help Center is your first stop whenever something is unclear or isn't working as expected. It brings together three resources: a searchable FAQ of answers to common questions, a library of Job Aides (short, task-focused how-to guides for specific workflows), and this User Manual, all in one place so you don't have to guess which page might have the answer.",

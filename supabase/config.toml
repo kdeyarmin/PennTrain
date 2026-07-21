@@ -166,6 +166,11 @@ verify_jwt = false
 [functions.create-billing-session]
 verify_jwt = true
 
+# Hourly internal worker that measures configured active learner/resident/user/facility quantities
+# and updates mapped Stripe subscription items without mid-cycle proration.
+[functions.sync-billing-quantities]
+verify_jwt = false
+
 # Stripe cannot present a Supabase JWT. This endpoint authenticates the exact raw request body with
 # Stripe-Signature before its idempotent, out-of-order-safe event processor can mutate billing state.
 [functions.stripe-billing-webhook]

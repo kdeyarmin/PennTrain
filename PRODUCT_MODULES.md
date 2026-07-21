@@ -20,12 +20,17 @@ Public certificate, passport, guest-access, marketing, and signup paths keep the
 
 Platform administrators configure product access in **Admin → Packages**. The package editor writes `modules.train` and `modules.carebase` into the package feature document, which the existing compatibility trigger versions into typed `package_entitlements`. Organization-specific contract grants continue to take precedence through the existing entitlement engine.
 
-The migration seeds two selectable packages:
+The catalog seeds three selectable packages:
 
-- **CareMetric Train**: Train on, CareBase off.
-- **CareMetric CareBase**: Train on, CareBase on.
+- **CareMetric Train**: Train on, CareBase off; priced by active learner.
+- **CareMetric CareBase**: Train on, CareBase on; priced by active resident so staff collaboration is not penalized.
+- **CareMetric Portfolio**: Train on, CareBase on; custom annual terms for multi-facility operators.
+
+See [`BILLING_MODEL.md`](BILLING_MODEL.md) for the launch price hypotheses, market signals, Stripe mapping, and repricing guardrails. Platform administrators can revise package positioning and effective-dated monthly/annual billing configurations in **Admin → Packages & billing** without a deploy.
 
 Existing packages inherit both modules through the feature definitions’ `true` defaults, preventing a rollout from removing current customer access.
+
+Organization administrators compare the active configurations under **Enterprise foundation > Billing & plans**. The plan view measures the configured value metric automatically and uses hosted Stripe Checkout for a new subscription or the Stripe Customer Portal for an existing one. The Checkout server repeats the database measurement so client input cannot under-report the billable quantity.
 
 ## Independent deployments
 

@@ -162,6 +162,8 @@ export interface BillingSessionRequest {
   organizationId: string;
   action: "checkout" | "portal";
   packageId?: string;
+  billingInterval?: "month" | "year";
+  quantity?: number;
   seatQuantity?: number;
   successUrl?: string;
   cancelUrl?: string;
@@ -174,6 +176,11 @@ export interface BillingSessionResponse {
     kind: "checkout" | "portal";
     sessionId: string;
     url: string;
+    checkoutConfiguration?: {
+      billingMetric: string;
+      billingInterval: "month" | "year";
+      quantity: number;
+    } | null;
     expiresAt?: string;
   };
   meta: {

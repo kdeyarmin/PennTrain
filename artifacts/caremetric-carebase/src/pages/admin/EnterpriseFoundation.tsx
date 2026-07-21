@@ -20,12 +20,12 @@ import {
   type EnterpriseJson,
   type EnterpriseRecord,
   type EnterpriseRpcCommand,
-  useCreateBillingSession,
   useEnterpriseFoundation,
   useEnterpriseRpcCommand,
   useSaveEnterpriseSnapshot,
   useEnterpriseTableInsert,
 } from "@/hooks/useEnterpriseFoundation";
+import { BillingPlanSelector } from "@/components/billing/BillingPlanSelector";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -854,69 +854,6 @@ function SessionRevocationCommand() {
   );
 }
 
-function BillingCommand() {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const session = useCreateBillingSession();
-  const [organizationId, setOrganizationId] = useState(user?.organizationId ?? "");
-  const [packageId, setPackageId] = useState("");
-  const [action, setAction] = useState<"checkout" | "portal">("portal");
-
-  const submit = async () => {
-    if (!organizationId || (action === "checkout" && !packageId)) {
-      toast({ title: "Organization and package are required", variant: "destructive" });
-      return;
-    }
-    try {
-      const result = await session.mutateAsync({
-        organizationId,
-        action,
-        packageId: action === "checkout" ? packageId : undefined,
-        seatQuantity: action === "checkout" ? 1 : undefined,
-        successUrl: `${window.location.origin}/app/enterprise?billing=success`,
-        cancelUrl: `${window.location.origin}/app/enterprise?billing=cancelled`,
-        returnUrl: `${window.location.origin}/app/enterprise`,
-        idempotencyKey: crypto.randomUUID(),
-      });
-      window.location.assign(result.data.url);
-    } catch (error) {
-      toast({ title: "Billing session could not be created", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
-    }
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Stripe Billing action</CardTitle>
-        <CardDescription>Checkout uses a server-owned Price; the portal manages an existing subscription.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-1.5 md:col-span-2">
-          <Label htmlFor="phase2-billing-org">Organization ID</Label>
-          <Input id="phase2-billing-org" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Action</Label>
-          <Select value={action} onValueChange={(value) => setAction(value as "checkout" | "portal")}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="portal">Customer portal</SelectItem>
-              <SelectItem value="checkout">Subscription checkout</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="phase2-package-id">Package ID</Label>
-          <Input id="phase2-package-id" value={packageId} onChange={(event) => setPackageId(event.target.value)} disabled={action === "portal"} placeholder="Required for checkout" />
-        </div>
-        <div className="md:col-span-2">
-          <Button onClick={() => void submit()} disabled={session.isPending}>Continue securely with Stripe</Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function EntitlementCommand() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -1247,7 +1184,7 @@ const TABS = [
   { value: "workforce", label: "Workforce", icon: UsersRound },
   { value: "rules", label: "Rules", icon: Scale },
   { value: "identity", label: "Identity", icon: Fingerprint },
-  { value: "billing", label: "Entitlements", icon: CreditCard },
+  { value: "billing", label: "Billing & plans", icon: CreditCard },
   { value: "integrations", label: "Integrations", icon: Network },
   { value: "operations", label: "Operations", icon: LineChart },
 ] as const;
@@ -1315,7 +1252,11 @@ export default function EnterpriseFoundation() {
               </CardContent>
             </Card>
           </TabsContent>
-          <TabsContent value="billing" className="space-y-4"><ControlPlanePanel title="Billing and typed entitlements" description="Stripe source-of-truth state, contractual grants, limits, rollout controls, and reconciliation variance." data={data.billing} /><EntitlementCommand />{user?.role === "platform_admin" ? <BillingOverrideCommand /> : null}<BillingCommand /></TabsContent>
+          <TabsContent value="billing" className="space-y-4">
+            <BillingPlanSelector />
+            <ControlPlanePanel title="Billing and typed entitlements" description="Stripe source-of-truth state, contractual grants, limits, rollout controls, and reconciliation variance." data={data.billing} />
+            {user?.role === "platform_admin" ? <><EntitlementCommand /><BillingOverrideCommand /></> : null}
+          </TabsContent>
           <TabsContent value="integrations" className="space-y-4"><ControlPlanePanel title="Signed integration hub" description="Scoped credentials, versioned events, webhook delivery, retry, rotation, and dead-letter visibility." data={data.integrations} /><IntegrationProvisioningCommand /></TabsContent>
           <TabsContent value="operations" className="space-y-4"><EnterpriseOperationsPanel operations={data.operations} setup={data.setup} /></TabsContent>
         </Tabs>

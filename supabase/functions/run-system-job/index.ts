@@ -28,6 +28,10 @@ const EDGE_JOBS: Record<
     functionName: "process-organization-export-jobs",
     body: {},
   },
+  "billing-quantity-sync": {
+    functionName: "sync-billing-quantities",
+    body: { batchSize: 250 },
+  },
 };
 
 function json(body: unknown, status = 200) {
