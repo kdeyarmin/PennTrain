@@ -111,7 +111,10 @@
 
 **Effort:** M.
 
-**Status (partial):** slice 3 shipped — `GlobalSearch` dismissal is now race-free. The 150 ms blur timeout (and the panel's `onMouseDown`/`preventDefault` counter-hack) are replaced with an outside-`pointerdown`/`focusin` listener on a shared container ref, matching the header org-selector's pattern and extended to pointer + focus so touch and keyboard selections can't lose a click to the timer. Route-registry titles/breadcrumbs (slice 1) and help/account IA consolidation (slice 2) remain open.
+**Status (partial):** slices 1 and 3 shipped.
+- **Slice 3** — `GlobalSearch` dismissal is now race-free. The 150 ms blur timeout (and the panel's `onMouseDown`/`preventDefault` counter-hack) are replaced with an outside-`pointerdown`/`focusin` listener on a shared container ref, matching the header org-selector's pattern and extended to pointer + focus so touch and keyboard selections can't lose a click to the timer.
+- **Slice 1** — page titles now derive from a route registry, not URL string-munging. A new `src/lib/pageTitle.tsx` matches the current path against the shared `APP_PAGES` registry (including `:param` detail routes) via `registryLabelForPath`, and a `PageTitleProvider` + `usePageTitle(entityName)` hook lets detail pages publish the record itself. The Header resolves title precedence entity → section-root → registry → last-segment fallback, and now sets a distinct `document.title` per route (the app shell previously inherited index.html's static tab title). Wired into IncidentDetail, ResidentDetail, ComplaintDetail, EmployeeDetail, WorkItemDetail, and ViolationDetail; every other route gets the correct registry label automatically. "Recents" in the sidebar also uses the registry label instead of a raw UUID/munged segment.
+- **Slice 2** (help/account IA consolidation) remains open. Full entity-aware breadcrumb hierarchy (section → entity) is a minor follow-up; the entity now appears in the title and browser tab.
 
 ### PT-046 — Decide dark mode: ship a toggle or delete the dead theme
 

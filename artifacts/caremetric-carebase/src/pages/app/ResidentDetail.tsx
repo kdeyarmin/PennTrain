@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { useGetResident, useUpdateResident } from "@/hooks/useResidents";
+import { usePageTitle } from "@/lib/pageTitle";
 import { useListResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
 import {
   useListResidentDocuments, useUploadResidentDocument, useResidentDocumentSignedUrl, useDeleteResidentDocument,
@@ -67,6 +68,7 @@ export default function ResidentDetail() {
     : { href: residentPathPrefix, label: "Residents" };
 
   const { data: resident, isLoading } = useGetResident(id);
+  usePageTitle(resident ? `${resident.last_name}, ${resident.first_name}` : undefined);
   const { data: facilities } = useListFacilities();
   const { data: items, isLoading: itemsLoading } = useListResidentComplianceItems(id);
   const { data: documents, isLoading: documentsLoading } = useListResidentDocuments(id);

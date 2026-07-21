@@ -40,6 +40,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
+import { usePageTitle } from "@/lib/pageTitle";
 
 function NotificationStatusBadge({ status }: { status: string }) {
   const className =
@@ -66,6 +67,7 @@ export default function IncidentDetail() {
   const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
 
   const { data: incident, isLoading } = useGetIncident(id);
+  usePageTitle(incident ? humanize(incident.incident_type) : undefined);
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees();
   const { data: profiles } = useListProfiles();

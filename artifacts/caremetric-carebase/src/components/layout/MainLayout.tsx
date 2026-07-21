@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { IdleSessionLock, MfaPolicyGate } from "./SessionSecurityGates";
 import { useNavigationWorkspace } from "@/hooks/useProductExperience";
 import { CareMetricCopilot } from "@/components/CareMetricCopilot";
+import { PageTitleProvider, registryLabelForPath } from "@/lib/pageTitle";
 
 // Impersonation sessions auto-return after this long as a defense-in-depth backstop, independent
 // of the underlying magic-link JWT's own expiry (see useImpersonation.ts).
@@ -98,7 +99,11 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     const path = location.split(/[?#]/, 1)[0];
     if (!user || lastRecordedPath.current === path || !/^\/(admin|app|trainer|me|account)(\/|$)/.test(path)) return;
     lastRecordedPath.current = path;
-    const label = path.split("/").filter(Boolean).at(-1)?.replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()) ?? "Dashboard";
+    // Prefer the shared registry label so "Recents" reads "Incident detail", not a raw UUID or a
+    // title-cased last segment; fall back to the old munging for any route not in the registry.
+    const label = registryLabelForPath(path)
+      ?? path.split("/").filter(Boolean).at(-1)?.replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
+      ?? "Dashboard";
     navigation.recordVisit.mutate({ path, label });
   }, [location, navigation.recordVisit, user]);
 
@@ -144,6 +149,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   return (
     <MfaPolicyGate>
     <IdleSessionLock>
+    <PageTitleProvider>
     <div className="flex h-screen w-full overflow-hidden bg-background">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground">
         Skip to main content
@@ -161,6 +167,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         <CareMetricCopilot />
       </div>
     </div>
+    </PageTitleProvider>
     </IdleSessionLock>
     </MfaPolicyGate>
   );

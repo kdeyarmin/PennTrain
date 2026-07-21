@@ -27,6 +27,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { safePathForRole } from "@/lib/appDomains";
 import { useProductModuleAccess } from "@/lib/productModuleAccess";
+import { registryLabelForPath, usePageTitleContext } from "@/lib/pageTitle";
 import { GlobalSearch } from "./GlobalSearch";
 import { useLocation } from "wouter";
 
@@ -220,6 +221,7 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const handleLogout = useSignOut();
   const productChangelog = useProductChangelog();
+  const { entityTitle } = usePageTitleContext();
 
   // Stash the route on every navigation (skipping Help's own pages) so HelpCenter can contextually
   // pin whichever job aide's relatedRoute matches wherever the user came from -- see
@@ -246,8 +248,10 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
 
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-  const getPageTitle = () => {
-    if (rootTitles[location]) return rootTitles[location];
+  // Last-resort title for routes not in the shared registry: title-case the last URL segment (or
+  // its parent when the last segment is a UUID/number, i.e. a detail route). Preserved so unknown
+  // routes still get a readable title.
+  const mungePathTitle = () => {
     const segments = location.split("/").filter(Boolean);
     if (segments.length === 0) return "Dashboard";
     const last = segments[segments.length - 1];
@@ -256,6 +260,17 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
     }
     return last.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
   };
+
+  // Precedence: the entity a detail page published (usePageTitle) > a section-root override > the
+  // shared page registry (covers list and :param detail routes) > title-cased last segment.
+  const pageTitle = entityTitle ?? rootTitles[location] ?? registryLabelForPath(location) ?? mungePathTitle();
+
+  // Give each authenticated route a distinct browser-tab title -- the app shell otherwise inherits
+  // index.html's single static title. Marketing pages set their own via usePageMeta and never
+  // render this Header, so there is no conflict.
+  useEffect(() => {
+    document.title = `${pageTitle} · CareMetric CareBase`;
+  }, [pageTitle]);
 
   const getBreadcrumbs = () => {
     const segments = location.split("/").filter(Boolean);
@@ -286,7 +301,7 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
             <span className="hidden sm:inline text-muted-foreground/40 text-xs">/</span>
           </>
         )}
-        <h2 className="text-[15px] font-semibold text-foreground truncate">{getPageTitle()}</h2>
+        <h2 className="text-[15px] font-semibold text-foreground truncate">{pageTitle}</h2>
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
