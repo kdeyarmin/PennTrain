@@ -1,5 +1,5 @@
 begin;
-select plan(23);
+select plan(25);
 
 -- Confidential incident review commands: purpose-stamped audited detail reads, guarded
 -- status transitions, and reporter-identity reveal -- plus closure of the unaudited
@@ -191,6 +191,18 @@ select results_eq(
      where intake_id='13000000-0000-4000-8000-000000000102' and event_type='view_identity' $$,
   array[1],
   'even no-identity reveals are part of the access ledger'
+);
+
+select pg_temp.act_as('13000000-0000-4000-8000-000000000021');
+select is(
+  (public.get_confidential_intake_list_summary(null) ->> 'total')::integer,
+  (select count(*)::integer from public.confidential_incident_intakes),
+  'confidential intake summary total matches the RLS-visible count'
+);
+select is(
+  (public.get_confidential_intake_list_summary(null) ->> 'awaitingTriage')::integer,
+  (select count(*)::integer from public.confidential_incident_intakes where status = 'submitted'),
+  'confidential intake summary awaiting-triage matches the submitted count'
 );
 
 select * from finish();

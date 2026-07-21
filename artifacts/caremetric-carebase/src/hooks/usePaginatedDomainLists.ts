@@ -6,7 +6,7 @@ import type { PaginatedResult, SortDirection } from "@/lib/dataTable";
 export type DomainListName =
   | "residents" | "incidents" | "complaints" | "alerts" | "dhs_violations"
   | "inspection_items" | "training_documents" | "work_orders" | "employee_training_records"
-  | "policy_documents";
+  | "policy_documents" | "confidential_incident_intakes";
 
 type DomainListSource = DomainListName
   | "alert_list_rows" | "incident_list_rows" | "resident_roster_rows";
@@ -72,6 +72,7 @@ const CONFIG: Record<DomainListName, DomainListConfig> = {
   work_orders: { table: "work_orders", defaultSort: "created_at", search: ["work_order_number", "problem_description", "location_detail"], facilityColumn: "facility_id", statusColumn: "status" },
   employee_training_records: { table: "employee_training_records", defaultSort: "completion_date", search: ["trainer_name", "training_provider", "certificate_number", "notes"], facilityColumn: "facility_id", statusColumn: "status" },
   policy_documents: { table: "policy_documents", defaultSort: "title", defaultSortDir: "asc", search: ["title", "category", "description"] },
+  confidential_incident_intakes: { table: "confidential_incident_intakes", defaultSort: "reported_at", search: ["intake_number", "public_summary"], facilityColumn: "facility_id", statusColumn: "status", severityColumn: "severity" },
 };
 
 export function usePaginatedDomainList<T = Record<string, unknown>>(name: DomainListName, filters: DomainListFilters) {

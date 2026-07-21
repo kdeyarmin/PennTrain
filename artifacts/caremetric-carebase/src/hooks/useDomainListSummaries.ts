@@ -67,6 +67,34 @@ export function useComplaintListSummary(filters: ComplaintListSummaryFilters) {
   });
 }
 
+export interface ConfidentialIntakeListSummary {
+  total: number;
+  awaitingTriage: number;
+  investigating: number;
+  criticalOpen: number;
+}
+
+export const EMPTY_CONFIDENTIAL_INTAKE_LIST_SUMMARY: ConfidentialIntakeListSummary = {
+  total: 0,
+  awaitingTriage: 0,
+  investigating: 0,
+  criticalOpen: 0,
+};
+
+export function useConfidentialIntakeListSummary(filters: { facilityId?: string }) {
+  return useQuery({
+    queryKey: ["confidential_intakes", "summary", filters],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_confidential_intake_list_summary", {
+        p_facility_id: filters.facilityId,
+      });
+      if (error) throw error;
+      return (data ?? EMPTY_CONFIDENTIAL_INTAKE_LIST_SUMMARY) as unknown as ConfidentialIntakeListSummary;
+    },
+    placeholderData: (previous) => previous,
+  });
+}
+
 export interface EvidenceCollectionListSummary {
   total: number;
   draft: number;

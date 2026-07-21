@@ -32664,6 +32664,10 @@ export type Database = {
         Args: { p_version_id: string }
         Returns: string[]
       }
+      get_confidential_intake_list_summary: {
+        Args: { p_facility_id?: string }
+        Returns: Json
+      }
       get_course_version_designed_minutes: {
         Args: { p_version_id: string }
         Returns: number
