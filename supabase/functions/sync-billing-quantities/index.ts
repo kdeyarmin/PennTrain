@@ -41,6 +41,12 @@ type UsageRow = {
   facilities: number;
 };
 
+type ProviderOperationRow = {
+  id: string;
+  status: "pending" | "provider_succeeded" | "local_succeeded" | "failed";
+  provider_response_id: string | null;
+};
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -60,13 +66,15 @@ Deno.serve(async (req: Request) => {
     return json({ error: "billing_sync_not_configured" }, 503);
   }
 
-  let body: { batchSize?: number } = {};
+  let body: { batchSize?: number; maxRuntimeMs?: number } = {};
   try {
     body = await req.json();
   } catch {
     return json({ error: "invalid_json" }, 400);
   }
-  const batchSize = Math.min(Math.max(Math.trunc(body.batchSize ?? 100), 1), 250);
+  const batchSize = Math.min(Math.max(Math.trunc(body.batchSize ?? 50), 1), 50);
+  const maxRuntimeMs = Math.min(Math.max(Math.trunc(Number(body.maxRuntimeMs ?? 110_000)), 1_000), 150_000);
+  const deadlineAt = Date.now() + maxRuntimeMs;
   const correlationId = (req.headers.get("x-correlation-id") || crypto.randomUUID()).slice(0, 200);
   const requestId = (req.headers.get("x-request-id") || crypto.randomUUID()).slice(0, 200);
   const admin = createClient(supabaseUrl, serviceRoleKey, {
@@ -171,6 +179,12 @@ Deno.serve(async (req: Request) => {
   }
 
   const pricesByStripeId = new Map(prices.map((price) => [price.stripe_price_id, price]));
+  const subscriptionIdsWithItems = new Set(items.map((item) => item.subscription_id));
+  for (const subscription of subscriptions) {
+    if (!subscriptionIdsWithItems.has(subscription.id)) {
+      setOutcome(subscription.id, "unmapped", "subscription_item_unmapped");
+    }
+  }
   const usageByOrganization = new Map<string, Promise<UsageRow | null>>();
   const getUsage = (organizationId: string) => {
     const cached = usageByOrganization.get(organizationId);
@@ -200,7 +214,9 @@ Deno.serve(async (req: Request) => {
   let trackingFailures = 0;
   const concurrency = 5;
   for (let offset = 0; offset < items.length; offset += concurrency) {
+    if (Date.now() >= deadlineAt) break;
     await Promise.all(items.slice(offset, offset + concurrency).map(async (item) => {
+      if (Date.now() >= deadlineAt) return;
       const price = pricesByStripeId.get(item.stripe_price_id);
       const subscription = subscriptionsById.get(item.subscription_id);
       if (!price || !subscription) {
@@ -239,25 +255,81 @@ Deno.serve(async (req: Request) => {
 
       const idempotencyKey = [
         "billing-quantity-sync",
-        correlationId,
         item.id,
         quantity,
       ].join(":");
-      const stripeResult = await phase2StripePost(
-        `/v1/subscription_items/${encodeURIComponent(item.stripe_subscription_item_id)}`,
-        stripeSecretKey,
-        { quantity, proration_behavior: "none" },
-        idempotencyKey,
-      );
-      if (!stripeResult.ok || stripeResult.data.id !== item.stripe_subscription_item_id
-        || Number(stripeResult.data.quantity) !== quantity) {
+      const operationKey = idempotencyKey;
+      const operationPayload = {
+        operation_key: operationKey,
+        operation_type: "subscription_item_quantity_sync",
+        organization_id: item.organization_id,
+        subscription_id: item.subscription_id,
+        subscription_item_id: item.id,
+        stripe_subscription_item_id: item.stripe_subscription_item_id,
+        target_quantity: quantity,
+        idempotency_key: idempotencyKey,
+        status: "pending",
+        error_code: null,
+        attempted_at: new Date().toISOString(),
+      };
+      let operationData: ProviderOperationRow | null = null;
+      const insertOperation = await admin
+        .from("billing_provider_operations")
+        .insert(operationPayload)
+        .select("id, status, provider_response_id")
+        .single<ProviderOperationRow>();
+      if (insertOperation.error) {
+        const existingOperation = await admin
+          .from("billing_provider_operations")
+          .select("id, status, provider_response_id")
+          .eq("operation_key", operationKey)
+          .maybeSingle<ProviderOperationRow>();
+        if (existingOperation.error || !existingOperation.data) {
+          failed++;
+          setOutcome(item.subscription_id, "failed", "provider_operation_claim_failed");
+          return;
+        }
+        operationData = existingOperation.data;
+      } else {
+        operationData = insertOperation.data;
+      }
+      if (!operationData) {
         failed++;
-        setOutcome(
-          item.subscription_id,
-          "failed",
-          stripeResult.ok ? "stripe_response_invalid" : `stripe_http_${stripeResult.status}`,
-        );
+        setOutcome(item.subscription_id, "failed", "provider_operation_claim_failed");
         return;
+      }
+
+      let providerSucceeded = operationData.status === "provider_succeeded" || operationData.status === "local_succeeded";
+      if (!providerSucceeded) {
+        const stripeResult = await phase2StripePost(
+          `/v1/subscription_items/${encodeURIComponent(item.stripe_subscription_item_id)}`,
+          stripeSecretKey,
+          { quantity, proration_behavior: "none" },
+          idempotencyKey,
+        );
+        if (!stripeResult.ok || stripeResult.data.id !== item.stripe_subscription_item_id
+          || Number(stripeResult.data.quantity) !== quantity) {
+          failed++;
+          await admin.from("billing_provider_operations").update({
+            status: "failed",
+            error_code: stripeResult.ok ? "stripe_response_invalid" : `stripe_http_${stripeResult.status}`,
+            updated_at: new Date().toISOString(),
+          }).eq("id", operationData.id);
+          setOutcome(
+            item.subscription_id,
+            "failed",
+            stripeResult.ok ? "stripe_response_invalid" : `stripe_http_${stripeResult.status}`,
+          );
+          return;
+        }
+        providerSucceeded = true;
+        await admin.from("billing_provider_operations").update({
+          status: "provider_succeeded",
+          error_code: null,
+          provider_response_id: String(stripeResult.data.id),
+          provider_succeeded_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq("id", operationData.id);
       }
 
       const { error: persistenceError } = await admin.from("billing_subscription_items")
@@ -265,6 +337,11 @@ Deno.serve(async (req: Request) => {
         .eq("id", item.id);
       if (persistenceError) {
         failed++;
+        await admin.from("billing_provider_operations").update({
+          status: providerSucceeded ? "provider_succeeded" : "failed",
+          error_code: "local_quantity_persistence_failed",
+          updated_at: new Date().toISOString(),
+        }).eq("operation_key", operationKey);
         setOutcome(item.subscription_id, "failed", "local_quantity_persistence_failed");
         return;
       }
@@ -273,9 +350,20 @@ Deno.serve(async (req: Request) => {
         .eq("id", item.subscription_id);
       if (subscriptionPersistenceError) {
         failed++;
+        await admin.from("billing_provider_operations").update({
+          status: providerSucceeded ? "provider_succeeded" : "failed",
+          error_code: "subscription_quantity_persistence_failed",
+          updated_at: new Date().toISOString(),
+        }).eq("operation_key", operationKey);
         setOutcome(item.subscription_id, "failed", "subscription_quantity_persistence_failed");
         return;
       }
+      await admin.from("billing_provider_operations").update({
+        status: "local_succeeded",
+        error_code: null,
+        local_succeeded_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq("operation_key", operationKey);
       updated++;
       setOutcome(item.subscription_id, "synced", null);
     }));
@@ -283,14 +371,7 @@ Deno.serve(async (req: Request) => {
 
   const checkedAt = new Date().toISOString();
   for (const [subscriptionId, outcome] of outcomesBySubscription) {
-    if (outcome.status === "pending") {
-      outcomesBySubscription.set(subscriptionId, {
-        status: "unmapped",
-        errorCode: "subscription_item_unmapped",
-      });
-    }
-  }
-  for (const [subscriptionId, outcome] of outcomesBySubscription) {
+    if (outcome.status === "pending") continue;
     const { error } = await admin.from("billing_subscriptions").update({
       quantity_sync_checked_at: checkedAt,
       quantity_sync_status: outcome.status === "pending" ? "unmapped" : outcome.status,
@@ -303,12 +384,14 @@ Deno.serve(async (req: Request) => {
     .filter((outcome) => outcome.status === "synced").length;
   const unmappedSubscriptions = [...outcomesBySubscription.values()]
     .filter((outcome) => outcome.status === "unmapped").length;
-  const attempted = subscriptions.length;
+  const deferredSubscriptions = [...outcomesBySubscription.values()]
+    .filter((outcome) => outcome.status === "pending").length;
+  const attempted = subscriptions.length - deferredSubscriptions;
   const succeeded = syncedSubscriptions;
   const failedCount = Math.max(0, attempted - succeeded) + trackingFailures;
   const terminalStatus = (failed > 0 || trackingFailures > 0) && succeeded === 0
     ? "failed"
-    : failed > 0 || trackingFailures > 0 || outOfRange > 0 || unmappedSubscriptions > 0
+    : failed > 0 || trackingFailures > 0 || outOfRange > 0 || unmappedSubscriptions > 0 || deferredSubscriptions > 0
     ? "partial"
     : "succeeded";
   const result = {
@@ -321,6 +404,7 @@ Deno.serve(async (req: Request) => {
     unmappedSubscriptions,
     outOfRange,
     failed,
+    deferredSubscriptions,
     trackingFailures,
     prorationBehavior: "none",
     correlationId,

@@ -1763,12 +1763,21 @@ where jobname = 'process-organization-export-jobs';
 select cron.schedule(
   'process-organization-export-jobs', '*/15 * * * *',
   $$select net.http_post(
-    url := 'https://xsqobvvreaovwibxwyvv.supabase.co/functions/v1/process-organization-export-jobs',
+    url := concat(rtrim(coalesce(
+      (
+        select decrypted_secret
+        from vault.decrypted_secrets
+        where name = 'supabase_functions_base_url'
+        limit 1
+      ),
+      current_setting('app.functions_base_url', true),
+      ''
+    ), '/'), '/functions/v1/process-organization-export-jobs'),
     headers := jsonb_build_object(
       'Content-Type','application/json',
       'X-CareMetric-Cron-Secret', coalesce(
-        (select decrypted_secret from vault.decrypted_secrets where name = 'CRON_SHARED_SECRET'),
-        'local-development-cron-secret'
+        (select decrypted_secret from vault.decrypted_secrets where name = 'cron_shared_secret' limit 1),
+        ''
       )
     ),
     body := '{}'::jsonb,

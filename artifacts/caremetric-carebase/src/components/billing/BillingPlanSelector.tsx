@@ -95,6 +95,17 @@ export function BillingPlanSelector() {
   const hasManagedSubscription = !!currentSubscription;
   const hasCustomerPortal = !!billingAccountQuery.data?.account?.stripe_customer_id;
   const usage = usageQuery.data;
+  const catalogError = packagesQuery.error ?? pricesQuery.error ?? organizationQuery.error ?? billingAccountQuery.error;
+  const catalogErrorLabel = packagesQuery.error
+    ? "Plan catalog could not be loaded"
+    : pricesQuery.error
+    ? "Billing prices could not be loaded"
+    : organizationQuery.error
+    ? "Organization details could not be loaded"
+    : billingAccountQuery.error
+    ? "Billing account could not be loaded"
+    : null;
+  const isCatalogLoading = packagesQuery.isLoading || pricesQuery.isLoading || organizationQuery.isLoading || billingAccountQuery.isLoading;
   const busy = session.isPending;
 
   const openPortal = async () => {
@@ -211,7 +222,17 @@ export function BillingPlanSelector() {
                 </Tabs>
               </div>
 
-              {usageQuery.isLoading ? (
+              {isCatalogLoading ? (
+                <div className="flex items-center gap-2 rounded-lg border p-4 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading billing catalog…
+                </div>
+              ) : catalogError ? (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>{catalogErrorLabel}</AlertTitle>
+                  <AlertDescription>{catalogError.message}</AlertDescription>
+                </Alert>
+              ) : usageQuery.isLoading ? (
                 <div className="flex items-center gap-2 rounded-lg border p-4 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" /> Measuring current billable usage…
                 </div>
@@ -255,7 +276,7 @@ export function BillingPlanSelector() {
         </CardContent>
       </Card>
 
-      {organizationId && usage ? (
+      {organizationId && usage && !catalogError ? (
         <div className="grid gap-4 xl:grid-cols-3">
           {packages.map((pkg) => {
             const price = effectivePrice(pricesQuery.data ?? [], pkg.id, interval);
