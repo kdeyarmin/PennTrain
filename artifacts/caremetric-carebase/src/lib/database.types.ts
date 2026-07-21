@@ -23336,6 +23336,78 @@ export type Database = {
           },
         ]
       }
+      resident_personal_fund_accounts: {
+        Row: {
+          account_number: string
+          beginning_balance: number
+          created_at: string
+          created_by: string | null
+          facility_id: string
+          id: string
+          opened_on: string
+          organization_id: string
+          resident_id: string
+        }
+        Insert: {
+          account_number: string
+          beginning_balance?: number
+          created_at?: string
+          created_by?: string | null
+          facility_id: string
+          id?: string
+          opened_on: string
+          organization_id: string
+          resident_id: string
+        }
+        Update: {
+          account_number?: string
+          beginning_balance?: number
+          created_at?: string
+          created_by?: string | null
+          facility_id?: string
+          id?: string
+          opened_on?: string
+          organization_id?: string
+          resident_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_personal_fund_accounts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_accounts_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_accounts_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: true
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_accounts_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: true
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resident_personal_fund_payee_profiles: {
         Row: {
           benefit_amount: number | null
@@ -23417,6 +23489,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "resident_personal_fund_payee_prof_personal_fund_account_id_fkey"
+            columns: ["personal_fund_account_id"]
+            isOneToOne: false
+            referencedRelation: "resident_personal_fund_accounts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "resident_personal_fund_payee_profiles_facility_id_fkey"
             columns: ["facility_id"]
             isOneToOne: false
@@ -23428,13 +23507,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "resident_personal_fund_payee_profiles_personal_fund_account_id_fkey"
-            columns: ["personal_fund_account_id"]
-            isOneToOne: false
-            referencedRelation: "resident_personal_fund_accounts"
             referencedColumns: ["id"]
           },
           {
@@ -23456,78 +23528,6 @@ export type Database = {
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      resident_personal_fund_accounts: {
-        Row: {
-          account_number: string
-          beginning_balance: number
-          created_at: string
-          created_by: string | null
-          facility_id: string
-          id: string
-          opened_on: string
-          organization_id: string
-          resident_id: string
-        }
-        Insert: {
-          account_number: string
-          beginning_balance?: number
-          created_at?: string
-          created_by?: string | null
-          facility_id: string
-          id?: string
-          opened_on: string
-          organization_id: string
-          resident_id: string
-        }
-        Update: {
-          account_number?: string
-          beginning_balance?: number
-          created_at?: string
-          created_by?: string | null
-          facility_id?: string
-          id?: string
-          opened_on?: string
-          organization_id?: string
-          resident_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "resident_personal_fund_accounts_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "resident_personal_fund_accounts_facility_id_fkey"
-            columns: ["facility_id"]
-            isOneToOne: false
-            referencedRelation: "facilities"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "resident_personal_fund_accounts_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "resident_personal_fund_accounts_resident_id_fkey"
-            columns: ["resident_id"]
-            isOneToOne: true
-            referencedRelation: "resident_roster_rows"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "resident_personal_fund_accounts_resident_id_fkey"
-            columns: ["resident_id"]
-            isOneToOne: true
-            referencedRelation: "residents"
             referencedColumns: ["id"]
           },
         ]
@@ -33238,10 +33238,6 @@ export type Database = {
           isSetofReturn: true
         }
       }
-      upsert_resident_personal_fund_payee_profile: {
-        Args: { p_profile: Json; p_resident_id: string }
-        Returns: string
-      }
       open_resident_personal_fund_account: {
         Args: {
           p_acknowledgement_note?: string
@@ -35571,6 +35567,10 @@ export type Database = {
           p_summary?: string
           p_title: string
         }
+        Returns: string
+      }
+      upsert_resident_personal_fund_payee_profile: {
+        Args: { p_profile: Json; p_resident_id: string }
         Returns: string
       }
       upsert_resident_property_item: {
