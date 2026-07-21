@@ -6,6 +6,14 @@ select plan(14);
 select has_function('public', 'get_work_item_queue', 'paginated work queue function exists');
 select has_function('public', 'get_work_item_list_summary', 'work queue summary function exists');
 select ok(
+  has_function_privilege('authenticated', 'public.get_work_item_queue(uuid, uuid, uuid, uuid, text, boolean, text, text, text, timestamptz, boolean, timestamptz, integer, integer)', 'EXECUTE'),
+  'authenticated users may request work queue pages'
+);
+select ok(
+  not has_function_privilege('anon', 'public.get_work_item_queue(uuid, uuid, uuid, uuid, text, boolean, text, text, text, timestamptz, boolean, timestamptz, integer, integer)', 'EXECUTE'),
+  'anonymous users cannot request work queue pages'
+);
+select ok(
   has_function_privilege('authenticated', 'public.get_work_item_list_summary(uuid, uuid, uuid, uuid, text, text, text, timestamptz)', 'EXECUTE'),
   'authenticated users may request work queue tiles'
 );
