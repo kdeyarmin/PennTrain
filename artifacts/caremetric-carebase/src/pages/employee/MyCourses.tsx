@@ -178,7 +178,7 @@ export default function MyCourses() {
                   daysLeft !== null && daysLeft < 0
                     ? "text-destructive font-medium"
                     : daysLeft !== null && daysLeft <= 7
-                      ? "text-amber-600 dark:text-amber-500 font-medium"
+                      ? "text-amber-600 font-medium"
                       : "";
                 return (
                   <div key={a.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">

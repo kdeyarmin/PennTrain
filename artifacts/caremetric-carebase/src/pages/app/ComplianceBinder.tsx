@@ -20,10 +20,10 @@ const FACILITY_ALL = "all";
 const FACILITY_PICKER_ROLES: Role[] = ["org_admin", "auditor"];
 
 const EXPORT_STATUS_STYLE: Record<string, string> = {
-  pending: "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200",
-  processing: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  succeeded: "bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-200",
-  failed: "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200",
+  pending: "bg-blue-100 text-blue-900",
+  processing: "bg-amber-100 text-amber-900",
+  succeeded: "bg-green-100 text-green-900",
+  failed: "bg-red-100 text-red-900",
 };
 
 export default function ComplianceBinder() {

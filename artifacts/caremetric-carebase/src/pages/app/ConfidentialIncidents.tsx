@@ -16,16 +16,16 @@ import { ShieldAlert, Search, ChevronRight, AlertTriangle, Inbox, FolderSearch }
 
 const SEVERITY_VARIANT: Record<string, string> = {
   low: "bg-muted text-muted-foreground",
-  moderate: "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200",
-  high: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  critical: "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200",
+  moderate: "bg-blue-100 text-blue-900",
+  high: "bg-amber-100 text-amber-900",
+  critical: "bg-red-100 text-red-900",
 };
 
 const STATUS_VARIANT: Record<string, string> = {
-  submitted: "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200",
-  triage: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  investigating: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  review: "bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-200",
+  submitted: "bg-blue-100 text-blue-900",
+  triage: "bg-amber-100 text-amber-900",
+  investigating: "bg-amber-100 text-amber-900",
+  review: "bg-purple-100 text-purple-900",
   closed: "bg-muted text-muted-foreground",
   retained: "bg-muted text-muted-foreground",
 };

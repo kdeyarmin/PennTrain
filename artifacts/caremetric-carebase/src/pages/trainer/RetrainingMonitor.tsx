@@ -220,26 +220,26 @@ export default function RetrainingMonitor() {
                         </span>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-sm">
-                        <div className="rounded-lg bg-green-50 dark:bg-green-950/20 py-2">
-                          <p className="text-lg font-bold text-green-700 dark:text-green-400">
+                        <div className="rounded-lg bg-green-50 py-2">
+                          <p className="text-lg font-bold text-green-700">
                             {fac.compliantCount}
                           </p>
                           <p className="text-xs text-muted-foreground">Compliant</p>
                         </div>
-                        <div className="rounded-lg bg-yellow-50 dark:bg-yellow-950/20 py-2">
-                          <p className="text-lg font-bold text-yellow-700 dark:text-yellow-400">
+                        <div className="rounded-lg bg-yellow-50 py-2">
+                          <p className="text-lg font-bold text-yellow-700">
                             {fac.dueSoonCount}
                           </p>
                           <p className="text-xs text-muted-foreground">Due Soon</p>
                         </div>
-                        <div className="rounded-lg bg-red-50 dark:bg-red-950/20 py-2">
-                          <p className="text-lg font-bold text-red-700 dark:text-red-400">
+                        <div className="rounded-lg bg-red-50 py-2">
+                          <p className="text-lg font-bold text-red-700">
                             {fac.expiredCount}
                           </p>
                           <p className="text-xs text-muted-foreground">Expired</p>
                         </div>
-                        <div className="rounded-lg bg-gray-50 dark:bg-gray-950/20 py-2">
-                          <p className="text-lg font-bold text-gray-700 dark:text-gray-400">
+                        <div className="rounded-lg bg-gray-50 py-2">
+                          <p className="text-lg font-bold text-gray-700">
                             {fac.missingCount}
                           </p>
                           <p className="text-xs text-muted-foreground">Missing</p>

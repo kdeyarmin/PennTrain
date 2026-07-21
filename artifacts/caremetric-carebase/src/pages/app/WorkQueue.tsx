@@ -54,18 +54,18 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 const PRIORITY_CLASS: Record<string, string> = {
-  urgent: "border-red-300 bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200",
-  high: "border-amber-300 bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  normal: "border-blue-300 bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200",
+  urgent: "border-red-300 bg-red-100 text-red-900",
+  high: "border-amber-300 bg-amber-100 text-amber-900",
+  normal: "border-blue-300 bg-blue-100 text-blue-900",
   low: "bg-muted text-muted-foreground",
 };
 
 const STATE_CLASS: Record<string, string> = {
-  open: "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200",
-  in_progress: "bg-cyan-100 text-cyan-900 dark:bg-cyan-950 dark:text-cyan-200",
-  blocked: "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200",
-  pending_approval: "bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-200",
-  closed: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
+  open: "bg-blue-100 text-blue-900",
+  in_progress: "bg-cyan-100 text-cyan-900",
+  blocked: "bg-red-100 text-red-900",
+  pending_approval: "bg-purple-100 text-purple-900",
+  closed: "bg-emerald-100 text-emerald-900",
   canceled: "bg-muted text-muted-foreground",
 };
 
@@ -314,7 +314,7 @@ export default function WorkQueue() {
                             {WORK_ITEM_PRIORITY_LABELS[item.priority] ?? item.priority}
                           </Badge>
                         </td>
-                        <td className={overdue ? "font-medium text-red-700 dark:text-red-300" : "text-muted-foreground"}>
+                        <td className={overdue ? "font-medium text-red-700" : "text-muted-foreground"}>
                           <span className="inline-flex items-center gap-1 text-sm">
                             {overdue && <AlertTriangle className="h-3.5 w-3.5" />}
                             {formatDueDate(item.due_at)}

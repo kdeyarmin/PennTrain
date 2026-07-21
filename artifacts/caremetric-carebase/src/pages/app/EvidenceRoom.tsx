@@ -22,9 +22,9 @@ import { FolderLock, Plus, ChevronRight, Scale, FileCheck2, FilePen } from "luci
 
 const EVIDENCE_STATUS_VARIANT: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
-  published: "bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-200",
-  closed: "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200",
-  withdrawn: "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200",
+  published: "bg-green-100 text-green-900",
+  closed: "bg-blue-100 text-blue-900",
+  withdrawn: "bg-red-100 text-red-900",
 };
 
 export function EvidenceStatusPill({ value }: { value: string }) {

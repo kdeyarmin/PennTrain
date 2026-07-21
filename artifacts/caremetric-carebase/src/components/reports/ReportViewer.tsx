@@ -52,9 +52,9 @@ export function ReportViewer({
 
   const cardColors = {
     default: "bg-primary/10 text-primary",
-    success: "bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400",
-    warning: "bg-yellow-100 text-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-400",
-    danger: "bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400",
+    success: "bg-green-100 text-green-800",
+    warning: "bg-yellow-100 text-yellow-800",
+    danger: "bg-red-100 text-red-800",
   };
 
   return (
@@ -230,11 +230,11 @@ export function ReportViewer({
 
 function getStatusTextColor(value: string): string {
   const v = (value ?? "").toLowerCase().trim();
-  if (v === "compliant" || v === "pass") return "text-green-600 dark:text-green-400";
-  if (v === "expired" || v === "fail" || v === "overdue") return "text-red-600 dark:text-red-400";
-  if (v === "due_soon" || v === "due soon") return "text-amber-600 dark:text-amber-400";
-  if (v === "missing") return "text-gray-500 dark:text-gray-400";
-  if (v === "not_applicable" || v === "not applicable" || v === "pending_review" || v === "pending review") return "text-gray-500 dark:text-gray-400";
+  if (v === "compliant" || v === "pass") return "text-green-600";
+  if (v === "expired" || v === "fail" || v === "overdue") return "text-red-600";
+  if (v === "due_soon" || v === "due soon") return "text-amber-600";
+  if (v === "missing") return "text-gray-500";
+  if (v === "not_applicable" || v === "not applicable" || v === "pending_review" || v === "pending review") return "text-gray-500";
   return "";
 }
 
