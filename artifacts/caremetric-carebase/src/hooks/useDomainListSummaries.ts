@@ -123,6 +123,54 @@ export function useEvidenceCollectionListSummary(filters: { facilityId?: string 
   });
 }
 
+export interface WorkItemListSummary {
+  total: number;
+  open: number;
+  overdue: number;
+  blocked: number;
+  pendingApproval: number;
+}
+
+export const EMPTY_WORK_ITEM_LIST_SUMMARY: WorkItemListSummary = {
+  total: 0,
+  open: 0,
+  overdue: 0,
+  blocked: 0,
+  pendingApproval: 0,
+};
+
+interface WorkItemListSummaryFilters {
+  organizationId?: string;
+  facilityId?: string;
+  ownerProfileId?: string;
+  ownerId?: string;
+  priority?: string;
+  sourceType?: string;
+  search?: string;
+  now: string;
+}
+
+export function useWorkItemListSummary(filters: WorkItemListSummaryFilters) {
+  return useQuery({
+    queryKey: ["work-items", "summary", filters],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_work_item_list_summary", {
+        p_organization_id: filters.organizationId,
+        p_facility_id: filters.facilityId,
+        p_owner_profile_id: filters.ownerProfileId,
+        p_owner_id: filters.ownerId,
+        p_priority: filters.priority,
+        p_source_type: filters.sourceType,
+        p_search: filters.search,
+        p_now: filters.now,
+      });
+      if (error) throw error;
+      return (data ?? EMPTY_WORK_ITEM_LIST_SUMMARY) as unknown as WorkItemListSummary;
+    },
+    placeholderData: (previous) => previous,
+  });
+}
+
 interface IncidentListSummaryFilters {
   facilityId?: string;
   residentId?: string;

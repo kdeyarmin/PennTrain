@@ -33082,6 +33082,38 @@ export type Database = {
           retry_cost_units_24h: number
         }[]
       }
+      get_work_item_list_summary: {
+        Args: {
+          p_facility_id?: string
+          p_now?: string
+          p_organization_id?: string
+          p_owner_id?: string
+          p_owner_profile_id?: string
+          p_priority?: string
+          p_search?: string
+          p_source_type?: string
+        }
+        Returns: Json
+      }
+      get_work_item_queue: {
+        Args: {
+          p_active_only?: boolean
+          p_due_before?: string
+          p_facility_id?: string
+          p_limit?: number
+          p_now?: string
+          p_offset?: number
+          p_organization_id?: string
+          p_overdue_only?: boolean
+          p_owner_id?: string
+          p_owner_profile_id?: string
+          p_priority?: string
+          p_search?: string
+          p_source_type?: string
+          p_state?: string
+        }
+        Returns: Json
+      }
       get_workforce_compliance_control_plane: { Args: never; Returns: Json }
       get_workforce_retention_metrics: {
         Args: { p_facility_id?: string }
