@@ -305,6 +305,12 @@ Deno.serve(async (req: Request) => {
         return;
       }
 
+      if (operationData.status === "failed") {
+        failed++;
+        setOutcome(item.subscription_id, "failed", "provider_operation_failed");
+        return;
+      }
+
       let providerSucceeded = operationData.status === "provider_succeeded" || operationData.status === "local_succeeded";
       if (!providerSucceeded) {
         const stripeResult = await phase2StripePost(
