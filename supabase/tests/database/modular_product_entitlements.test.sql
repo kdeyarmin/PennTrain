@@ -131,7 +131,9 @@ select has_table('public', 'billing_provider_operations', 'billing quantity sync
 select ok(
   not has_table_privilege('authenticated', 'public.billing_provider_operations', 'select')
   and not has_table_privilege('authenticated', 'public.billing_provider_operations', 'insert')
-  and has_table_privilege('service_role', 'public.billing_provider_operations', 'insert'),
+  and not has_table_privilege('authenticated', 'public.billing_provider_operations', 'update')
+  and has_table_privilege('service_role', 'public.billing_provider_operations', 'insert')
+  and has_table_privilege('service_role', 'public.billing_provider_operations', 'update'),
   'billing provider-operation ledger is service-role only'
 );
 select has_table('app_private', 'product_module_resources', 'module resources have one private registry');
