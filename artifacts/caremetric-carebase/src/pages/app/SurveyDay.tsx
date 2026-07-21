@@ -17,6 +17,7 @@ import { BinderExportButton } from "@/components/reports/BinderExportButton";
 import {
   useActiveSurveyDaySession, useSurveyDayWorkspace, useSurveyDayStaffRoster,
   useActivateSurveyDay, useRefreshSurveyDay, useSetSurveyDayDisposition, useCloseSurveyDay,
+  usePinSurveyDayBinder,
   type SurveyDayChecklistItem, type SurveyDayDisposition, type ReadinessState,
 } from "@/hooks/useSurveyDay";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +32,12 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { QueryError, QueryLoading } from "@/components/QueryState";
+
+// Mirrors the server-side assert_survey_day_manager gate (app_private.assert_phase5_manager):
+// only these roles may activate/refresh/close a session or record a disposition. Auditors reach the
+// page through REPORTS_VIEW_ROLES and must see it strictly read-only rather than controls that only
+// fail with a 42501 on click.
+const SURVEY_DAY_MANAGE_ROLES = ["platform_admin", "org_admin", "facility_manager"];
 
 const HEALTH_CREDENTIAL_TYPES = ["tb_screening", "immunization"];
 const BACKGROUND_CREDENTIAL_TYPES = ["act34_criminal_history", "act73_fbi_fingerprint", "act33_child_abuse"];
@@ -68,6 +75,7 @@ function displayDate(value: string | null | undefined) {
 
 export default function SurveyDay() {
   const { user } = useAuth();
+  const canManage = !!user && SURVEY_DAY_MANAGE_ROLES.includes(user.role);
   const { toast } = useToast();
   const initialFacility = useMemo(() => new URLSearchParams(window.location.search).get("facility") ?? "", []);
   const [facilityId, setFacilityId] = useState(initialFacility);
@@ -103,8 +111,8 @@ export default function SurveyDay() {
       ) : session.isError ? (
         <QueryError what="the Survey Day session" error={session.error as Error} onRetry={() => session.refetch()} />
       ) : session.data ? (
-        <Workspace sessionId={session.data.id} facilityId={activeFacilityId} facilityName={activeFacility?.name ?? "Facility"} />
-      ) : (
+        <Workspace sessionId={session.data.id} facilityId={activeFacilityId} facilityName={activeFacility?.name ?? "Facility"} canManage={canManage} />
+      ) : canManage ? (
         <ActivationCard
           facilityId={activeFacilityId}
           facilityName={activeFacility?.name ?? "Facility"}
@@ -112,6 +120,10 @@ export default function SurveyDay() {
           organizationId={user?.organizationId ?? ""}
           onActivated={() => session.refetch()}
         />
+      ) : (
+        <Card><CardContent className="py-10 text-center text-muted-foreground">
+          No Survey Day session is active for {activeFacility?.name ?? "this facility"}. A facility manager or organization administrator can start one.
+        </CardContent></Card>
       )}
     </div>
   );
@@ -173,7 +185,7 @@ export default function SurveyDay() {
   }
 }
 
-function Workspace({ sessionId, facilityId, facilityName }: { sessionId: string; facilityId: string; facilityName: string }) {
+function Workspace({ sessionId, facilityId, facilityName, canManage }: { sessionId: string; facilityId: string; facilityName: string; canManage: boolean }) {
   const { toast } = useToast();
   const workspace = useSurveyDayWorkspace(sessionId);
   const refresh = useRefreshSurveyDay(facilityId);
@@ -196,6 +208,7 @@ function Workspace({ sessionId, facilityId, facilityName }: { sessionId: string;
               </CardDescription>
             </div>
             <div className="flex gap-2">
+              {canManage && (<>
               <Button variant="outline" disabled={refresh.isPending} onClick={() => refresh.mutate(sessionId, { onError: (e: Error) => toast({ title: "Refresh failed", description: e.message, variant: "destructive" }) })}>
                 {refresh.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Refresh live checks
               </Button>
@@ -216,13 +229,14 @@ function Workspace({ sessionId, facilityId, facilityName }: { sessionId: string;
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+              </>)}
             </div>
           </div>
         </CardHeader>
       </Card>
 
-      <EntranceConferenceSection sessionId={sessionId} facilityId={facilityId} checklist={data.checklist} readOnly={data.session.status !== "active"} />
-      <BinderSection facilityId={facilityId} organizationId={data.session.organizationId} pinnedBinderJobId={data.session.pinnedBinderJobId} />
+      <EntranceConferenceSection sessionId={sessionId} facilityId={facilityId} checklist={data.checklist} readOnly={data.session.status !== "active" || !canManage} />
+      <BinderSection sessionId={sessionId} facilityId={facilityId} organizationId={data.session.organizationId} pinnedBinderJobId={data.session.pinnedBinderJobId} canManage={canManage} />
       <StaffRosterSection sessionId={sessionId} />
       <EvidenceSection organizationId={data.session.organizationId} facilityId={facilityId} pinnedCollectionId={data.session.pinnedEvidenceCollectionId} />
     </div>
@@ -239,7 +253,7 @@ function EntranceConferenceSection({ sessionId, facilityId, checklist, readOnly 
   const { data: credentials } = useListEmployeeCredentials({ facilityId });
   const { data: inspections } = useListInspectionItems({ facilityId, isActive: true });
 
-  function liveReadiness(dataSource: string): { level: ReadinessState; detail?: string } {
+  function liveReadiness(dataSource: string, itemTypes: string[] | null): { level: ReadinessState; detail?: string } {
     switch (dataSource) {
       case "roster": {
         const count = employees?.length ?? 0;
@@ -258,7 +272,12 @@ function EntranceConferenceSection({ sessionId, facilityId, checklist, readOnly 
         return n === 0 ? { level: "ready" } : { level: "attention", detail: `${n} outstanding` };
       }
       case "inspections": {
-        const n = (inspections ?? []).filter((i: any) => OUTSTANDING.includes(i.status)).length;
+        // Only count inspection items whose type this checklist row actually covers (its item_types
+        // snapshot). Without this, one unrelated overdue inspection would flip every inspection
+        // prompt -- fire drills, extinguisher/alarm checks, emergency plan -- to Attention.
+        const scoped = (inspections ?? []).filter((i: any) =>
+          !itemTypes || itemTypes.length === 0 || itemTypes.includes(i.item_type));
+        const n = scoped.filter((i: any) => OUTSTANDING.includes(i.status)).length;
         return n === 0 ? { level: "ready" } : { level: "attention", detail: `${n} outstanding` };
       }
       default:
@@ -276,7 +295,7 @@ function EntranceConferenceSection({ sessionId, facilityId, checklist, readOnly 
         {checklist.length === 0 ? (
           <p className="text-sm text-muted-foreground">No entrance-conference items were configured at activation.</p>
         ) : checklist.map((item) => {
-          const live = liveReadiness(item.dataSource);
+          const live = liveReadiness(item.dataSource, item.itemTypes);
           return (
             <div key={item.id} className="rounded-lg border p-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -311,10 +330,11 @@ function EntranceConferenceSection({ sessionId, facilityId, checklist, readOnly 
   );
 }
 
-function BinderSection({ facilityId, organizationId, pinnedBinderJobId }: { facilityId: string; organizationId: string; pinnedBinderJobId: string | null }) {
+function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobId, canManage }: { sessionId: string; facilityId: string; organizationId: string; pinnedBinderJobId: string | null; canManage: boolean }) {
   const { toast } = useToast();
   const { data: pinned } = useGetBinderExport(pinnedBinderJobId ?? undefined);
   const download = useBinderDownloadUrl();
+  const pinBinder = usePinSurveyDayBinder();
   const completedAt = pinned?.completed_at as string | undefined;
   const isCurrent = completedAt ? (Date.now() - new Date(completedAt).valueOf()) < 24 * 60 * 60 * 1000 : false;
 
@@ -352,7 +372,18 @@ function BinderSection({ facilityId, organizationId, pinnedBinderJobId }: { faci
           <p className="text-sm text-muted-foreground">No binder is pinned yet. Generate one below or from the Compliance Binder page.</p>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          <BinderExportButton organizationId={organizationId} facilityIds={[facilityId]} label="Generate fresh binder" />
+          <BinderExportButton
+            organizationId={organizationId}
+            facilityIds={[facilityId]}
+            label="Generate fresh binder"
+            // Pin the freshly rendered binder to this session so it survives navigation/refresh
+            // instead of living only in the button's local state. Only managers may pin (the RPC is
+            // manager-gated); auditors can still generate and download from the button itself.
+            onCompleted={canManage ? (jobId) => pinBinder.mutate(
+              { sessionId, binderJobId: jobId },
+              { onError: (e: Error) => toast({ title: "Could not pin the new binder", description: e.message, variant: "destructive" }) },
+            ) : undefined}
+          />
           <Button asChild variant="ghost" size="sm"><Link href="/app/compliance-binder">Open Compliance Binder</Link></Button>
         </div>
       </CardContent>
