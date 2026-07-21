@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
+import { rangeFor } from "@/lib/utils";
+import type { PaginatedResult } from "@/lib/dataTable";
 
 export type TrainingDocument = Tables<"training_documents">;
 
@@ -46,6 +48,37 @@ export function useListDocuments(filters: ListDocumentsFilters = {}, enabled = t
       return data as unknown as TrainingDocumentWithEmployee[];
     },
     enabled,
+  });
+}
+
+export interface PaginatedDocumentsFilters {
+  facilityId?: string;
+  employeeId?: string;
+  documentType?: string;
+  page: number;
+  pageSize: number;
+}
+
+// Server-side paginated documents that keep the uploader-employee join the list renders.
+export function usePaginatedDocuments(filters: PaginatedDocumentsFilters) {
+  return useQuery({
+    queryKey: ["documents", "paginated", filters],
+    queryFn: async ({ signal }): Promise<PaginatedResult<TrainingDocumentWithEmployee>> => {
+      let query = supabase
+        .from("training_documents")
+        .select("*, employees(id, first_name, last_name)", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+        .abortSignal(signal);
+      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+      if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
+      if (filters.documentType) query = query.eq("document_type", filters.documentType);
+      const [from, to] = rangeFor(filters.page, filters.pageSize);
+      const { data, error, count } = await query.range(from, to);
+      if (error) throw error;
+      return { rows: (data ?? []) as unknown as TrainingDocumentWithEmployee[], count: count ?? 0 };
+    },
+    placeholderData: (previous) => previous,
   });
 }
 
