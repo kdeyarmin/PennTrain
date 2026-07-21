@@ -205,7 +205,7 @@ export function BillingPlanSelector() {
                     <TabsTrigger value="month">Monthly</TabsTrigger>
                     <TabsTrigger value="year" className="gap-2">
                       Annual
-                      <Badge variant="secondary" className="hidden sm:inline-flex">Save about 2 months</Badge>
+                      <Badge variant="secondary" className="hidden sm:inline-flex">Annual discount</Badge>
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
