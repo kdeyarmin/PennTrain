@@ -49,7 +49,7 @@ Every exploration finding, its nearest prior item, and its disposition. Disposit
 | Pagination adopted on 5 pages; 7 unbounded siblings | **E2** (+E16 per page) | **Promotion** (enumerated remainder) |
 | Survey Day Mode spec-only, zero code | **E19** | **Promotion** (build-or-descope decision) |
 | Sparse `/me` nav for Train-only orgs, no explanatory empty state | **E27** | **Promotion** (first-run scope added) |
-| Notification spend caps unenforced before fan-out | **E10** | **Confirmed** open |
+| Notification spend caps unenforced before fan-out | **E10** | **Already covered** — enforcement landed in `20260717015547` (concurrency-safe hard cap in `begin_notification_delivery_attempt`, pgTAP-tested, admin UI wired); ticket premise was stale. Corrected here; the only real gap was a web-push cost-accounting inconsistency, now fixed. |
 | LTI/xAPI + adaptive-path inert schema | **E8** / PT-032 | **Confirmed** open decision |
 | eMAR is an ingestion boundary without a vendor adapter | PT-003 + recorded eMAR fence | **Confirmed** — intentionally fenced; no ticket |
 | Web-push single-VAPID, weakest channel | PT-005/E10 adjacent | **Noted** in Notifications area; no ticket |
@@ -115,7 +115,7 @@ The status table in `PennTrain_Comprehensive_Review_2026-07-21.md` assigns diffe
 Full details in the companion backlog. Wave 0 is a gate, not a plan — it is unchanged from the 2026-07-20/21 backlogs and no new item may be scheduled ahead of an open P0.
 
 - **Wave 0 (in flight):** PT-001..007 P0 blockers, PT-035..042 remainders, E1/PT-007 pilot program kickoff.
-- **Wave 1 (next 30 days — honesty and cheap trust wins, all S-effort):** PT-047 (roadmap surface), PT-043 decision + deterministic slice, PT-046 decision, E19 build-or-descope decision, E10 spend caps.
+- **Wave 1 (next 30 days — honesty and cheap trust wins, all S-effort):** PT-047 (roadmap surface), PT-043 decision + deterministic slice, PT-046 decision, E19 build-or-descope decision. (E10 spend caps was found already implemented; only its web-push cost accounting needed correcting.)
 - **Wave 2 (30–60 days — verification infrastructure):** E12 promotion (DI + tests on the six riskiest orchestrators, ratcheted floor), E13 money-path e2e, PT-048 RLS/grant lint, E2 pagination remainder (+E16 per page).
 - **Wave 3 (60–90 days — product depth):** E19 Survey Day build (if chosen), PT-044 pickers (+E15), PT-045 chrome consolidation, E27 + Train-only first-run, E8 decision execution, E4/PT-049, PT-050 decision.
 
