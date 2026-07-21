@@ -1,5 +1,5 @@
 begin;
-select plan(14);
+select plan(16);
 
 -- Both queue functions must exist, be jsonb-returning, and be callable by authenticated but never
 -- anon (they run under the caller's RLS, so anon has no business reaching them).
