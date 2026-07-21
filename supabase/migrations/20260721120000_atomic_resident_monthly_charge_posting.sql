@@ -26,7 +26,9 @@ begin
   if length(btrim(coalesce(p_memo, ''))) < 3 then
     raise exception 'Monthly billing memo is required' using errcode = '22023';
   end if;
-  if jsonb_typeof(coalesce(p_charges, 'null'::jsonb)) <> 'array' or jsonb_array_length(p_charges) = 0 then
+  if p_charges is null
+    or jsonb_typeof(p_charges) <> 'array'
+    or jsonb_array_length(p_charges) = 0 then
     raise exception 'Monthly billing charges are required' using errcode = '22023';
   end if;
 
