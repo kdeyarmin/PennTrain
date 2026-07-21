@@ -86,6 +86,9 @@ begin
     auth.uid()
   )
   on conflict (resident_id) do update set
+    organization_id = excluded.organization_id,
+    facility_id = excluded.facility_id,
+    personal_fund_account_id = excluded.personal_fund_account_id,
     facility_is_representative_payee = excluded.facility_is_representative_payee,
     payee_authority_status = excluded.payee_authority_status, benefit_source = excluded.benefit_source,
     benefit_amount = excluded.benefit_amount, personal_needs_allowance = excluded.personal_needs_allowance,
