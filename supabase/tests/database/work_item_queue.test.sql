@@ -40,15 +40,18 @@ select set_config('app.privileged_write', 'off', true);
 
 -- Four in-tenant work items spanning the states/priorities the tiles measure, plus one in a second
 -- tenant that RLS must hide from the first tenant's admin.
+-- The closed row must carry closed_at + closure_reason to satisfy work_items_check
+-- (check(state <> 'closed' or (closed_at is not null and closure_reason is not null))).
 insert into public.work_items(
   id, organization_id, facility_id, source_type, source_id, deduplication_key,
-  title, description, priority, due_at, state, owner_profile_id, created_by
+  title, description, priority, due_at, state, owner_profile_id, created_by,
+  closed_at, closure_reason
 ) values
-  ('a1000000-0000-4000-8000-000000000401', 'a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000011', 'incident',  'a1000000-0000-4000-8000-000000000501', 'queue:overdue-urgent',  'Overdue urgent follow-up', 'Kitchen exit blocked', 'urgent', now() - interval '2 days', 'open', 'a1000000-0000-4000-8000-000000000101', 'a1000000-0000-4000-8000-000000000101'),
-  ('a1000000-0000-4000-8000-000000000402', 'a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000011', 'complaint', 'a1000000-0000-4000-8000-000000000502', 'queue:future-high',     'Upcoming complaint response', 'Follow up on grievance', 'high', now() + interval '3 days', 'in_progress', 'a1000000-0000-4000-8000-000000000101', 'a1000000-0000-4000-8000-000000000101'),
-  ('a1000000-0000-4000-8000-000000000403', 'a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000011', 'policy',    'a1000000-0000-4000-8000-000000000503', 'queue:blocked',         'Blocked policy attestation', 'Waiting on legal', 'normal', now() + interval '1 day', 'blocked', 'a1000000-0000-4000-8000-000000000101', 'a1000000-0000-4000-8000-000000000101'),
-  ('a1000000-0000-4000-8000-000000000404', 'a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000011', 'qapi',      'a1000000-0000-4000-8000-000000000504', 'queue:closed',          'Closed remediation', 'Done', 'low', now() - interval '5 days', 'closed', 'a1000000-0000-4000-8000-000000000101', 'a1000000-0000-4000-8000-000000000101'),
-  ('a2000000-0000-4000-8000-000000000401', 'a2000000-0000-4000-8000-000000000001', 'a2000000-0000-4000-8000-000000000011', 'incident',  'a2000000-0000-4000-8000-000000000501', 'other-queue:urgent',    'Other tenant urgent work', 'Not visible', 'urgent', now() - interval '1 day', 'open', 'a2000000-0000-4000-8000-000000000101', 'a2000000-0000-4000-8000-000000000101');
+  ('a1000000-0000-4000-8000-000000000401', 'a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000011', 'incident',  'a1000000-0000-4000-8000-000000000501', 'queue:overdue-urgent',  'Overdue urgent follow-up', 'Kitchen exit blocked', 'urgent', now() - interval '2 days', 'open', 'a1000000-0000-4000-8000-000000000101', 'a1000000-0000-4000-8000-000000000101', null, null),
+  ('a1000000-0000-4000-8000-000000000402', 'a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000011', 'complaint', 'a1000000-0000-4000-8000-000000000502', 'queue:future-high',     'Upcoming complaint response', 'Follow up on grievance', 'high', now() + interval '3 days', 'in_progress', 'a1000000-0000-4000-8000-000000000101', 'a1000000-0000-4000-8000-000000000101', null, null),
+  ('a1000000-0000-4000-8000-000000000403', 'a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000011', 'policy',    'a1000000-0000-4000-8000-000000000503', 'queue:blocked',         'Blocked policy attestation', 'Waiting on legal', 'normal', now() + interval '1 day', 'blocked', 'a1000000-0000-4000-8000-000000000101', 'a1000000-0000-4000-8000-000000000101', null, null),
+  ('a1000000-0000-4000-8000-000000000404', 'a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000011', 'qapi',      'a1000000-0000-4000-8000-000000000504', 'queue:closed',          'Closed remediation', 'Done', 'low', now() - interval '5 days', 'closed', 'a1000000-0000-4000-8000-000000000101', 'a1000000-0000-4000-8000-000000000101', now() - interval '4 days', 'Remediation verified'),
+  ('a2000000-0000-4000-8000-000000000401', 'a2000000-0000-4000-8000-000000000001', 'a2000000-0000-4000-8000-000000000011', 'incident',  'a2000000-0000-4000-8000-000000000501', 'other-queue:urgent',    'Other tenant urgent work', 'Not visible', 'urgent', now() - interval '1 day', 'open', 'a2000000-0000-4000-8000-000000000101', 'a2000000-0000-4000-8000-000000000101', null, null);
 
 create or replace function pg_temp.act_as(p_id uuid)
 returns void language plpgsql as $$
