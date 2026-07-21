@@ -12,11 +12,11 @@ Since 2026-07-20, the repository added two large, high-risk commercial surfaces:
 
 **Top 5 risks now:**
 
-1. Existing P0 trust blockers remain open: dependency scanner undercoverage, external PHI notification paths, broken export contract, controlled-pilot evidence gap, cross-tenant administrator-qualification writes, Stripe webhook drift, and eMAR gateway mismatch.
-2. #228's billing quantity sync can partially update Stripe before local persistence fails and then retries under a new idempotency key.
-3. #228 hard-codes a Supabase project URL in cron SQL, making branch/staging/prod deploys easy to miswire.
-4. #227 deliberately fails open when module definitions are absent, which is useful for rolling deploys but unsafe as a long-lived commercial-entitlement posture.
-5. Bundle headroom fell again: largest JS chunk is now 474.0 KiB (92.9% of the 510 KiB cap) and all JS is 3,404.5 KiB (92.0% of cap).
+1. Most existing P0 trust blockers remain open: broken export completeness/expiry contract, controlled-pilot evidence gap, Stripe webhook drift, and eMAR gateway mismatch. The dependency scanner undercoverage is fixed in this follow-up branch, though advisory lookup still needs network egress.
+2. Billing quantity sync now has a durable operation ledger and stable idempotency keys, but still needs mocked Stripe/DB failure tests plus Deno runtime checks before live automation.
+3. Billing cron URL configuration is no longer project-ref hard-coded, but deployments must seed `supabase_functions_base_url` or `app.functions_base_url` before enabling the schedule.
+4. Product-module route gating now fails closed by default, but server-side coverage needs pgTAP/DB CI execution in a Supabase stack.
+5. Bundle headroom remains tight: largest JS chunk is 474.0 KiB (92.9% of the 510 KiB cap) and all JS is 3,405.1 KiB (92.0% of cap).
 
 ## Scope, method, and evidence
 
@@ -32,12 +32,12 @@ Since 2026-07-20, the repository added two large, high-risk commercial surfaces:
 
 | Prior blocker | Status | Fresh current-HEAD evidence |
 |---|---|---|
-| P0-1 / PT-004 dependency vulnerability gate skips most lockfile entries | Open | `scripts/check-dependencies.mjs` still parses lockfile entries with a quoted-key regex. Command output: `Auditing 225 packages...`; current lockfile still has many unquoted `packages:` entries. |
-| P0-2 / PT-005 handoff narratives can leave through email/SMS/push | Open | Shift handoff SQL still inserts notification bodies from `left(new.note, 500)` / narrative excerpts; `_shared/notificationDelivery.ts` still falls back to raw title/body for unknown externally eligible types. |
+| P0-1 / PT-004 dependency vulnerability gate skips most lockfile entries | Fixed in follow-up | The scanner now parses quoted and unquoted package keys and reports `Auditing 604 packages (619 lockfile entries)` before the advisory network call. |
+| P0-2 / PT-005 handoff narratives can leave through email/SMS/push | Fixed in follow-up | `_shared/notificationDelivery.ts` now returns generic authenticated-review copy by default, and the shared Deno test covers shift-handoff narrative text. |
 | P0-3 / PT-006B organization export contract failures | Open | Export worker/schema files cited in 07-20 were unchanged by `git diff e027aef..HEAD -- <cited files>`; no new complete export graph, expiry-aware storage policy, binary embedding, or streaming ZIP worker was found. |
-| P0-4 / PT-006A export worker cron-secret mismatch | Open | The export cron files were unchanged; #228 fixed the new billing cron to use `cron_shared_secret`, but did not alter the old export cron using uppercase `CRON_SHARED_SECRET` fallback. |
+| P0-4 / PT-006A export worker cron-secret mismatch | Fixed in follow-up | The export cron now reads lowercase Vault `cron_shared_secret`, removes the local-development fallback, and derives its functions base URL from environment config instead of a hard-coded project ref. |
 | P0-5 / PT-007 blank controlled-pilot evidence | Open | `pnpm run check:pilot` exits with usage because no evidence file is supplied; `pilot/controlled-pilot.template.json` remains a blank template rather than a completed manifest. |
-| SP-P0-1 / PT-001 cross-tenant administrator-qualification writes | Open | The administrator qualification migrations/client hooks were unchanged by the delta; no corrective migration binding `profile_id` and `organization_id` landed. |
+| SP-P0-1 / PT-001 cross-tenant administrator-qualification writes | Fixed in follow-up | A corrective migration now enforces profile/organization consistency, tenant-binds self-service RLS, and binds administrator document paths to both tenant and profile segments. |
 | SP-P0-2 / PT-002 Stripe webhook parser vs documented API version | Open and higher risk after #228 | #228 continues using `STRIPE_API_VERSION = "2026-02-25.clover"` for outbound billing while the old webhook parser remains unversioned; configurable prices make stale webhook state more business-critical. |
 | SP-P0-3 / PT-003 medication/eMAR import rejected by integration gateway | Open | The integration gateway and medication boundary files were unchanged; hard-coded gateway scope/version remains incompatible with `medication.snapshot.import`'s registered version/scope. |
 
@@ -45,12 +45,12 @@ Since 2026-07-20, the repository added two large, high-risk commercial surfaces:
 
 | ID | One-liner | Status | Note |
 |---|---|---|---|
-| PT-001 | Tenant-bind administrator qualifications/documents | Open (unchanged) | No cited files changed since `e027aef`. |
+| PT-001 | Tenant-bind administrator qualifications/documents | Fixed in follow-up | Corrective migration and pgTAP policy coverage added. |
 | PT-002 | Version, parse, and durably process Stripe webhooks | Open (changed adjacent billing only) | #228 changed billing helper/session/quantity sync, not the stale webhook parser/durable ingest design. |
 | PT-003 | Shared integration command registry | Open (unchanged) | No gateway/medication contract correction found. |
-| PT-004 | Structural dependency audit | Open (unchanged) | Scanner still reports only 225 audited packages. |
-| PT-005 | Generic external notification content | Open (unchanged) | Renderer/notification eligibility unchanged. |
-| PT-006A | Correct export cron auth and labeling | Open (unchanged) | Export cron path unchanged. |
+| PT-004 | Structural dependency audit | Fixed in follow-up | Scanner now reports 604 packages / 619 lockfile entries; advisory fetch still depends on network egress. |
+| PT-005 | Generic external notification content | Fixed in follow-up | Provider renderer now fails closed to generic copy for unknown/sensitive types, including shift handoffs. |
+| PT-006A | Correct export cron auth and labeling | Partially fixed in follow-up | Cron auth/URL mismatch fixed; product labeling/complete-export semantics remain under PT-006B. |
 | PT-006B | Complete verifiable tenant export | Open (unchanged) | Export graph/expiry/streaming gaps unchanged. |
 | PT-007 | Controlled pilot evidence | Open (unchanged) | No completed evidence manifest added. |
 | PT-008 | SCIM/SSO/employee/login reconciliation | Open (unchanged) | No cited identity files changed. |
@@ -187,26 +187,31 @@ Since 2026-07-20, the repository added two large, high-risk commercial surfaces:
 | `pnpm --filter @workspace/caremetric-carebase run build` without env | Expected fail | Missing required build-time env vars. |
 | `pnpm --filter @workspace/caremetric-carebase run build` with local placeholder env | Pass | `✓ 2695 modules transformed`; PWA/prerender/precompress completed. |
 | `pnpm run check:bundle` | Pass with warnings | largest JS 474.0 KiB (92.9%); all JS 3404.5 KiB (92.0%). |
-| `node scripts/check-dependencies.mjs` | Warning / environment plus product defect evidence | command attempted `Auditing 225 packages...` then failed with `ENETUNREACH` to npm advisory service. |
+| `node scripts/check-dependencies.mjs` | Warning / environment | parser now reports `Auditing 604 packages (619 lockfile entries)`; advisory fetch still failed with `ENETUNREACH` to npm. |
 | `pnpm run check:pilot` | Expected fail | `Usage: pnpm run check:pilot -- <pilot-evidence.json>`. |
 | `pnpm run check:edge-functions` | Warning / environment | `Deno is required. Use the repo dev container or install Deno 2.x locally.` |
 
 ## Follow-up remediation applied on this branch
 
-After the initial report commit, this branch also applied targeted fixes for the smallest actionable findings:
+After the initial report commit, this branch also applied targeted fixes for actionable findings:
 
+- **PT-001 fixed:** administrator qualification rows now have a tenant/profile consistency trigger, self-service policies require both `auth.uid()` and `current_org_id()`, and storage document policies bind both path segments.
+- **PT-006A fixed:** the organization-export cron now uses lowercase `cron_shared_secret`, no development fallback, and environment-derived functions URL configuration.
+- **PT-005 fixed:** `_shared/notificationDelivery.ts` now fails closed to generic external provider copy and tests that shift-handoff narrative content is not rendered into email/SMS/push payload text.
+- **PT-004 fixed:** `scripts/check-dependencies.mjs` now parses quoted and unquoted pnpm lockfile package keys and reports lockfile-entry coverage before contacting npm advisories.
 - **NEW-P1-2 fixed:** the billing cron no longer embeds a specific Supabase project ref; it derives the functions base URL from Vault secret `supabase_functions_base_url` or database setting `app.functions_base_url`.
 - **NEW-P1-4 mitigated:** product-module fail-open behavior is now default-off and requires explicit `VITE_CAREMETRIC_ALLOW_LEGACY_MODULE_FAIL_OPEN=true`; normal environments fail closed when module entitlement rows are absent.
-- **NEW-P1-1/NEW-P1-3 mitigated:** the billing worker now uses stable item/quantity idempotency keys, clamps requested batch size to 50, respects an invocation deadline, and leaves unattempted subscriptions pending for the next run.
+- **NEW-P1-1/NEW-P1-3 mitigated:** the billing worker now records a durable provider-operation ledger, uses stable item/quantity idempotency keys, clamps requested batch size to 50, respects an invocation deadline, and leaves unattempted subscriptions pending for the next run.
 - **NEW-P2-1 fixed:** the billing plan selector now surfaces package, price, organization, and billing-account query failures before rendering plan cards.
 - **NEW-P2-2 fixed:** `PRODUCT_MODULES.md` no longer claims notification delivery is controlled by the frontend module decision and now calls out the need for server-side notification checks.
+- **PT-039 fixed:** the module entitlement database test now verifies every classified table has a restrictive module policy with both `USING` and `WITH CHECK`, every non-core classified bucket exists, and the new billing provider-operation ledger is service-role only.
 
-Remaining new work from this report: full durable Stripe operation ledger/reconciliation tests, NEW-P2-3 (bundle headroom), and PT-039 (generated server-side product-module/RLS coverage tests).
+Remaining new work from this report: provider-ledger reconciliation mocks/edge runtime tests and NEW-P2-3 (bundle headroom).
 
 ## Updated priorities / bottom line
 
-1. Close PT-001..PT-007 before broad pilot claims; they remain release blockers.
-2. Add NEW-P1-1 through NEW-P1-3 to the immediate billing hardening queue before enabling automated quantity sync against live Stripe subscriptions.
-3. Convert #227's rolling fail-open module behavior into an explicitly expiring deployment bridge and generate server-side entitlement coverage tests.
+1. Close the remaining prior blockers PT-002, PT-003, PT-006B, and PT-007 before broad pilot claims; PT-001, PT-004, PT-005, PT-006A, and PT-039 are fixed or materially mitigated in this branch.
+2. Add mocked Stripe/DB-failure tests and Deno runtime checks for the billing provider-operation ledger before enabling automated quantity sync against live Stripe subscriptions.
+3. Seed and smoke-test `supabase_functions_base_url` / `app.functions_base_url` in every environment before relying on scheduled cron jobs.
 4. Restore bundle headroom before adding another shell-level admin/commercial feature.
 5. Re-run this report's skipped checks in a Node 24 + Deno + local Supabase/Docker environment and attach pgTAP/edge/e2e outputs to the PR before merging a release-candidate branch.

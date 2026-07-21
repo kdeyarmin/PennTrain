@@ -41,6 +41,12 @@ type UsageRow = {
   facilities: number;
 };
 
+type ProviderOperationRow = {
+  id: string;
+  status: "pending" | "provider_succeeded" | "local_succeeded" | "failed";
+  provider_response_id: string | null;
+};
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -74,7 +80,7 @@ Deno.serve(async (req: Request) => {
   const maxRuntimeMs = Number.isFinite(parsedMaxRuntimeMs)
     ? Math.min(Math.max(Math.trunc(parsedMaxRuntimeMs), 1_000), 150_000)
     : 110_000;
-  const deadlineAt = Date.now() + maxRuntimeMs
+  const deadlineAt = Date.now() + maxRuntimeMs;
   const correlationId = (req.headers.get("x-correlation-id") || crypto.randomUUID()).slice(0, 200);
   const requestId = (req.headers.get("x-request-id") || crypto.randomUUID()).slice(0, 200);
   const admin = createClient(supabaseUrl, serviceRoleKey, {
@@ -258,21 +264,84 @@ Deno.serve(async (req: Request) => {
         item.id,
         quantity,
       ].join(":");
-      const stripeResult = await phase2StripePost(
-        `/v1/subscription_items/${encodeURIComponent(item.stripe_subscription_item_id)}`,
-        stripeSecretKey,
-        { quantity, proration_behavior: "none" },
-        idempotencyKey,
-      );
-      if (!stripeResult.ok || stripeResult.data.id !== item.stripe_subscription_item_id
-        || Number(stripeResult.data.quantity) !== quantity) {
+      const operationKey = idempotencyKey;
+      const operationPayload = {
+        operation_key: operationKey,
+        operation_type: "subscription_item_quantity_sync",
+        organization_id: item.organization_id,
+        subscription_id: item.subscription_id,
+        subscription_item_id: item.id,
+        stripe_subscription_item_id: item.stripe_subscription_item_id,
+        target_quantity: quantity,
+        idempotency_key: idempotencyKey,
+        status: "pending",
+        error_code: null,
+        attempted_at: new Date().toISOString(),
+      };
+      let operationData: ProviderOperationRow | null = null;
+      const insertOperation = await admin
+        .from("billing_provider_operations")
+        .insert(operationPayload)
+        .select("id, status, provider_response_id")
+        .single<ProviderOperationRow>();
+      if (insertOperation.error) {
+        const existingOperation = await admin
+          .from("billing_provider_operations")
+          .select("id, status, provider_response_id")
+          .eq("operation_key", operationKey)
+          .maybeSingle<ProviderOperationRow>();
+        if (existingOperation.error || !existingOperation.data) {
+          failed++;
+          setOutcome(item.subscription_id, "failed", "provider_operation_claim_failed");
+          return;
+        }
+        operationData = existingOperation.data;
+      } else {
+        operationData = insertOperation.data;
+      }
+      if (!operationData) {
         failed++;
-        setOutcome(
-          item.subscription_id,
-          "failed",
-          stripeResult.ok ? "stripe_response_invalid" : `stripe_http_${stripeResult.status}`,
-        );
+        setOutcome(item.subscription_id, "failed", "provider_operation_claim_failed");
         return;
+      }
+
+      if (operationData.status === "failed") {
+        failed++;
+        setOutcome(item.subscription_id, "failed", "provider_operation_failed");
+        return;
+      }
+
+      let providerSucceeded = operationData.status === "provider_succeeded" || operationData.status === "local_succeeded";
+      if (!providerSucceeded) {
+        const stripeResult = await phase2StripePost(
+          `/v1/subscription_items/${encodeURIComponent(item.stripe_subscription_item_id)}`,
+          stripeSecretKey,
+          { quantity, proration_behavior: "none" },
+          idempotencyKey,
+        );
+        if (!stripeResult.ok || stripeResult.data.id !== item.stripe_subscription_item_id
+          || Number(stripeResult.data.quantity) !== quantity) {
+          failed++;
+          await admin.from("billing_provider_operations").update({
+            status: "failed",
+            error_code: stripeResult.ok ? "stripe_response_invalid" : `stripe_http_${stripeResult.status}`,
+            updated_at: new Date().toISOString(),
+          }).eq("id", operationData.id);
+          setOutcome(
+            item.subscription_id,
+            "failed",
+            stripeResult.ok ? "stripe_response_invalid" : `stripe_http_${stripeResult.status}`,
+          );
+          return;
+        }
+        providerSucceeded = true;
+        await admin.from("billing_provider_operations").update({
+          status: "provider_succeeded",
+          error_code: null,
+          provider_response_id: String(stripeResult.data.id),
+          provider_succeeded_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq("id", operationData.id);
       }
 
       const { error: persistenceError } = await admin.from("billing_subscription_items")
@@ -280,6 +349,11 @@ Deno.serve(async (req: Request) => {
         .eq("id", item.id);
       if (persistenceError) {
         failed++;
+        await admin.from("billing_provider_operations").update({
+          status: providerSucceeded ? "provider_succeeded" : "failed",
+          error_code: "local_quantity_persistence_failed",
+          updated_at: new Date().toISOString(),
+        }).eq("operation_key", operationKey);
         setOutcome(item.subscription_id, "failed", "local_quantity_persistence_failed");
         return;
       }
@@ -288,9 +362,20 @@ Deno.serve(async (req: Request) => {
         .eq("id", item.subscription_id);
       if (subscriptionPersistenceError) {
         failed++;
+        await admin.from("billing_provider_operations").update({
+          status: providerSucceeded ? "provider_succeeded" : "failed",
+          error_code: "subscription_quantity_persistence_failed",
+          updated_at: new Date().toISOString(),
+        }).eq("operation_key", operationKey);
         setOutcome(item.subscription_id, "failed", "subscription_quantity_persistence_failed");
         return;
       }
+      await admin.from("billing_provider_operations").update({
+        status: "local_succeeded",
+        error_code: null,
+        local_succeeded_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq("operation_key", operationKey);
       updated++;
       setOutcome(item.subscription_id, "synced", null);
     }));

@@ -1,5 +1,5 @@
 begin;
-select plan(35);
+select plan(40);
 
 select results_eq(
   $$ select feature_key from public.feature_definitions where feature_key like 'modules.%' order by feature_key $$,
@@ -126,6 +126,16 @@ select ok(
   ),
   'billing quantity synchronization is registered as a monitored critical job'
 );
+
+select has_table('public', 'billing_provider_operations', 'billing quantity sync has a durable provider-operation ledger');
+select ok(
+  not has_table_privilege('authenticated', 'public.billing_provider_operations', 'select')
+  and not has_table_privilege('authenticated', 'public.billing_provider_operations', 'insert')
+  and not has_table_privilege('authenticated', 'public.billing_provider_operations', 'update')
+  and has_table_privilege('service_role', 'public.billing_provider_operations', 'insert')
+  and has_table_privilege('service_role', 'public.billing_provider_operations', 'update'),
+  'billing provider-operation ledger is service-role only'
+);
 select has_table('app_private', 'product_module_resources', 'module resources have one private registry');
 select has_table('app_private', 'product_module_storage_buckets', 'storage buckets have one private registry');
 select has_function('app_private', 'has_product_module', array['text'], 'RLS has a caller-scoped entitlement helper');
@@ -186,6 +196,48 @@ select ok(
     where c.oid is null
   ),
   'every classified resource resolves to a real table'
+);
+
+select ok(
+  not exists (
+    select 1
+    from app_private.product_module_resources r
+    left join pg_policies p
+      on p.schemaname = r.resource_schema
+     and p.tablename = r.resource_name
+     and p.policyname = 'product_module_entitlement'
+    where p.policyname is null
+       or p.permissive <> 'RESTRICTIVE'
+       or coalesce(p.qual, '') not like '%has_product_module%'
+       or coalesce(p.with_check, '') not like '%has_product_module%'
+  ),
+  'every classified table has a restrictive module policy with USING and WITH CHECK guards'
+);
+select ok(
+  exists (
+    select 1
+    from pg_policies p
+    where p.schemaname = 'storage'
+      and p.tablename = 'objects'
+      and p.policyname = 'product_module_entitlement'
+      and p.permissive = 'RESTRICTIVE'
+      and coalesce(p.qual, '') like '%has_product_module_for_bucket%'
+      and coalesce(p.with_check, '') like '%has_product_module_for_bucket%'
+  ),
+  'classified storage buckets have a restrictive module policy with read and write guards'
+);
+select ok(
+  not exists (
+    select 1
+    from app_private.product_module_storage_buckets b
+    where b.module_key <> 'core'
+      and not exists (
+        select 1
+        from storage.buckets sb
+        where sb.id = b.bucket_id
+      )
+  ),
+  'every non-core classified storage bucket resolves to a real bucket'
 );
 
 select * from finish();

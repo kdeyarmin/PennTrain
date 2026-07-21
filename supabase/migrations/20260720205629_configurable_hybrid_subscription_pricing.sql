@@ -330,6 +330,38 @@ grant execute on function public.get_organization_billing_usage(uuid)
 comment on function public.get_organization_billing_usage(uuid) is
   'Canonical billable quantities for an organization. Excludes synthetic records and sandbox facilities.';
 
+create table if not exists public.billing_provider_operations (
+  id uuid primary key default gen_random_uuid(),
+  operation_key text not null unique,
+  operation_type text not null check (operation_type in ('subscription_item_quantity_sync')),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  subscription_id uuid not null references public.billing_subscriptions(id) on delete cascade,
+  subscription_item_id uuid not null references public.billing_subscription_items(id) on delete cascade,
+  stripe_subscription_item_id text not null,
+  target_quantity integer not null check (target_quantity > 0),
+  idempotency_key text not null,
+  status text not null default 'pending'
+    check (status in ('pending', 'provider_succeeded', 'local_succeeded', 'failed')),
+  error_code text,
+  provider_response_id text,
+  attempted_at timestamptz,
+  provider_succeeded_at timestamptz,
+  local_succeeded_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists billing_provider_operations_subscription_idx
+  on public.billing_provider_operations(subscription_id, created_at desc);
+
+alter table public.billing_provider_operations enable row level security;
+
+revoke all on table public.billing_provider_operations from public, anon, authenticated;
+grant select, insert, update on table public.billing_provider_operations to service_role;
+
+comment on table public.billing_provider_operations is
+  'Durable provider-operation ledger for Stripe mutations that must reconcile with local billing state.';
+
 -- Keep licensed Stripe subscription quantities aligned after checkout. The
 -- worker changes only quantities that actually drifted and uses no proration,
 -- so the latest measured snapshot applies to the next recurring invoice rather

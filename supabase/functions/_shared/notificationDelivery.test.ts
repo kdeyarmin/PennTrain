@@ -136,6 +136,17 @@ Deno.test("uses generic external copy for sensitive notification types", () => {
         "A new incident report was submitted. Sign in to CareMetric CareBase to review it securely.",
     },
   );
+  assertEquals(
+    renderProviderMessage(
+      "shift_handoff_escalated",
+      "Overdue shift handoff",
+      "Resident Jane Doe fell in room 12 and needs wound follow-up",
+    ),
+    {
+      subject: "CareMetric CareBase notification",
+      body: "You have a CareMetric CareBase update. Sign in to review it securely.",
+    },
+  );
 });
 
 Deno.test("renders only allow-listed variables from a versioned template", () => {

@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
+  AlertTriangle,
+  Banknote,
+  CalendarClock,
   Download,
   FileSpreadsheet,
   History,
   Landmark,
+  MailCheck,
   Plus,
   ReceiptText,
+  Repeat,
   ShieldCheck,
   UserCheck,
+  Users,
   WalletCards,
 } from "lucide-react";
 import { hasRole, useAuth } from "@/lib/auth";
@@ -22,6 +28,7 @@ import {
   useGenerateResidentFinancialStatement,
   useOpenResidentPersonalFundAccount,
   usePostResidentFinancialTransaction,
+  usePostResidentMonthlyCharges,
   usePostResidentPersonalFundTransaction,
   useReconcileResidentPersonalFunds,
   useResidentAccountingExports,
@@ -31,6 +38,12 @@ import {
   type ResidentAccountingExport,
 } from "@/hooks/useResidentFinancialOperations";
 import { toDateTimeLocal, toLocalIsoDate } from "@/lib/dateUtils";
+import {
+  monthlyChargePreviews,
+  receivableAgingSummary,
+  type MonthlyChargePreview,
+  type ReceivableAgingSummary,
+} from "@/lib/residentBilling";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -70,6 +83,63 @@ const money = (value: number | string | null | undefined) =>
 const today = () => toLocalIsoDate(new Date());
 const monthStart = () => `${today().slice(0, 7)}-01`;
 const asNumber = (value: string) => Number.parseFloat(value || "0") || 0;
+
+const billingCapabilities = [
+  {
+    title: "Automated charge capture",
+    icon: Repeat,
+    detail:
+      "Model monthly room, care-level, ancillary, one-time, proration, leave-of-absence, move-in, move-out, late-fee, and refundable-deposit activity before posting.",
+  },
+  {
+    title: "Responsible-party billing",
+    icon: Users,
+    detail:
+      "Track family contacts, resident liability, Medicaid or other supplemental payors, payment references, and split-bill notes from the same resident workspace.",
+  },
+  {
+    title: "Online-payment readiness",
+    icon: Banknote,
+    detail:
+      "Record ACH, card, check, cash, EFT, portal, and lockbox payments with receipt evidence today; keep payment gateway reconciliation fields explicit for integrations.",
+  },
+  {
+    title: "Statements and collections",
+    icon: MailCheck,
+    detail:
+      "Generate immutable statements, carry delinquency forward, create follow-up work, and preserve statement hashes for audit-ready resident account history.",
+  },
+] as const;
+
+const chargePlaybook = [
+  {
+    category: "Monthly recurring",
+    examples:
+      "Base rent, room rate, level of care, bundled service packages",
+    control:
+      "Review census, rate agreement version, and service period before posting.",
+  },
+  {
+    category: "Event-driven",
+    examples:
+      "Move-in prorations, room changes, care changes, short-term leave, discharge refunds",
+    control:
+      "Use effective dates and service periods so statement snapshots explain timing.",
+  },
+  {
+    category: "Ancillary and one-time",
+    examples:
+      "Guest meals, transportation, salon, supplies, pharmacy pass-throughs",
+    control:
+      "Attach memo and receipt/source document when available; corrections are linked adjustments only.",
+  },
+  {
+    category: "Collections",
+    examples: "Late fees, credits, refunds, write-offs, payment plans",
+    control:
+      "Use statement delinquency plus work-item follow-up to keep manager action traceable.",
+  },
+] as const;
 
 function Field({
   label,
@@ -190,6 +260,7 @@ export default function ResidentFinancialOperations() {
   const [dialog, setDialog] = useState<
     | "rate"
     | "entry"
+    | "monthly"
     | "statement"
     | "fund-open"
     | "fund-entry"
@@ -198,6 +269,8 @@ export default function ResidentFinancialOperations() {
     | "export"
     | null
   >(null);
+  const monthlyCharges = useMemo(() => monthlyChargePreviews(data), [data]);
+  const aging = useMemo(() => receivableAgingSummary(data, today()), [data]);
 
   return (
     <div className="space-y-6">
@@ -208,13 +281,15 @@ export default function ResidentFinancialOperations() {
             Resident Financial Operations
           </h1>
           <p className="text-muted-foreground">
-            Resident contracts, charges, payments, statements, accounting
-            exports, and safeguarded personal funds—separate from CareBase
-            subscription billing.
+            Resident contracts, automated charge capture, responsible-party
+            payments, statements, accounting exports, collections follow-up,
+            and safeguarded personal funds—separate from CareBase subscription
+            billing.
           </p>
         </div>
         {!canManage && <Badge variant="outline">Read-only audit view</Badge>}
       </div>
+      <BillingCommandCenter />
       <Card>
         <CardContent className="grid gap-3 pt-6 md:grid-cols-2">
           <Field label="Facility">
@@ -300,6 +375,10 @@ export default function ResidentFinancialOperations() {
                 <WalletCards className="mr-2 h-4 w-4" />
                 Personal funds
               </TabsTrigger>
+              <TabsTrigger value="playbook">
+                <CalendarClock className="mr-2 h-4 w-4" />
+                Billing playbook
+              </TabsTrigger>
               <TabsTrigger value="exports">
                 <FileSpreadsheet className="mr-2 h-4 w-4" />
                 Accounting exports
@@ -326,6 +405,14 @@ export default function ResidentFinancialOperations() {
                     </Button>
                     <Button
                       variant="outline"
+                      disabled={!monthlyCharges.length}
+                      onClick={() => setDialog("monthly")}
+                    >
+                      <Repeat className="mr-2 h-4 w-4" />
+                      Post monthly charges
+                    </Button>
+                    <Button
+                      variant="outline"
                       onClick={() => setDialog("statement")}
                     >
                       <ReceiptText className="mr-2 h-4 w-4" />
@@ -334,6 +421,7 @@ export default function ResidentFinancialOperations() {
                   </>
                 )}
               </div>
+              <AgingSummary aging={aging} />
               <RateAndLedger data={data!} />
               <Statements statements={data?.statements ?? []} />
             </TabsContent>
@@ -370,6 +458,9 @@ export default function ResidentFinancialOperations() {
               </div>
               <PersonalFunds data={data!} />
             </TabsContent>
+            <TabsContent value="playbook">
+              <BillingPlaybook />
+            </TabsContent>
             <TabsContent value="exports" className="space-y-4">
               {canManage && (
                 <Button onClick={() => setDialog("export")}>
@@ -394,6 +485,12 @@ export default function ResidentFinancialOperations() {
             onClose={() => setDialog(null)}
             residentId={residentId}
             data={data!}
+          />
+          <MonthlyChargesDialog
+            open={dialog === "monthly"}
+            onClose={() => setDialog(null)}
+            residentId={residentId}
+            charges={monthlyCharges}
           />
           <StatementDialog
             open={dialog === "statement"}
@@ -435,6 +532,65 @@ export default function ResidentFinancialOperations() {
   );
 }
 
+function BillingCommandCenter() {
+  return (
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      {billingCapabilities.map(({ title, icon: Icon, detail }) => (
+        <Card key={title}>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Icon className="h-4 w-4" />
+              {title}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {detail}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function BillingPlaybook() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5" />
+          Facility billing playbook
+        </CardTitle>
+        <CardDescription>
+          Built from senior-living billing patterns used by Aline,
+          PointClickCare, ECP, Eldermark, Yardi, and Med e-care: capture every
+          billable event, keep resident-centric ledgers, support supplemental
+          payors and online-payment workflows, and make month-end auditable.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {chargePlaybook.map((item) => (
+          <div key={item.category} className="rounded border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <strong>{item.category}</strong>
+              <Badge variant="outline">Recommended billing control</Badge>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {item.examples}
+            </p>
+            <p className="mt-2 text-sm">{item.control}</p>
+          </div>
+        ))}
+        <div className="rounded-lg bg-muted p-3 text-sm">
+          <strong>Month-end workflow:</strong> validate census and care-level
+          changes, post recurring and one-time charges, import or post payments,
+          review aging, generate statements, create delinquency work items,
+          export accounting rows, and lock evidence through immutable history.
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function Summary({
   title,
   value,
@@ -454,6 +610,44 @@ function Summary({
       </CardHeader>
       <CardContent className="text-xs text-muted-foreground">
         {detail}
+      </CardContent>
+    </Card>
+  );
+}
+
+function AgingSummary({ aging }: { aging: ReceivableAgingSummary }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Receivables aging</CardTitle>
+        <CardDescription>
+          Open statement balances by days past due, used to prioritize
+          collection follow-up before month-end close.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid gap-2 sm:grid-cols-5">
+          {aging.buckets.map((bucket) => (
+            <div
+              key={bucket.key}
+              className={`rounded border p-3 ${
+                bucket.key === aging.highestRiskBucket &&
+                bucket.key !== "current"
+                  ? "border-destructive/60"
+                  : ""
+              }`}
+            >
+              <p className="text-xs text-muted-foreground">{bucket.label}</p>
+              <p className="font-semibold">{money(bucket.amount)}</p>
+            </div>
+          ))}
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Total open {money(aging.totalOpen)}
+          {aging.oldestOpenDueDate
+            ? ` · Oldest due ${aging.oldestOpenDueDate}`
+            : " · No open statements"}
+        </p>
       </CardContent>
     </Card>
   );
@@ -1655,6 +1849,120 @@ function EntryDialog({
     </Dialog>
   );
 }
+
+function MonthlyChargesDialog({
+  open,
+  onClose,
+  residentId,
+  charges,
+}: {
+  open: boolean;
+  onClose: () => void;
+  residentId: string;
+  charges: MonthlyChargePreview[];
+}) {
+  const mutation = usePostResidentMonthlyCharges();
+  const { toast } = useToast();
+  const [form, setForm] = useState({
+    start: monthStart(),
+    end: today(),
+    memo: "Monthly billing run",
+  });
+  const total = charges.reduce((sum, charge) => sum + charge.amount, 0);
+  const submit = () =>
+    mutation.mutate(
+      {
+        residentId,
+        periodStart: form.start,
+        periodEnd: form.end,
+        memo: form.memo,
+        charges,
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Monthly charges posted",
+            description: `${charges.length} charge(s) totaling ${money(total)} were posted atomically.`,
+          });
+          onClose();
+        },
+        onError: (error: Error) =>
+          toast({
+            title: "Could not post monthly charges",
+            description: error.message,
+            variant: "destructive" as const,
+          }),
+      },
+    );
+
+  return (
+    <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Post monthly recurring charges</DialogTitle>
+          <DialogDescription>
+            Review the current rate agreement charges before posting them as
+            immutable receivable ledger entries.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Service period start">
+            <Input
+              type="date"
+              value={form.start}
+              onChange={(e) => setForm({ ...form, start: e.target.value })}
+            />
+          </Field>
+          <Field label="Service period end">
+            <Input
+              type="date"
+              value={form.end}
+              onChange={(e) => setForm({ ...form, end: e.target.value })}
+            />
+          </Field>
+          <Field label="Batch memo" span>
+            <Input
+              value={form.memo}
+              onChange={(e) => setForm({ ...form, memo: e.target.value })}
+            />
+          </Field>
+        </div>
+        <div className="space-y-2 rounded border p-3">
+          {charges.map((charge) => (
+            <div
+              key={`${charge.category}-${charge.label}`}
+              className="flex items-center justify-between text-sm"
+            >
+              <span>{charge.label}</span>
+              <strong>{money(charge.amount)}</strong>
+            </div>
+          ))}
+          <div className="flex items-center justify-between border-t pt-2">
+            <span>Total</span>
+            <strong>{money(total)}</strong>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            disabled={
+              mutation.isPending ||
+              !charges.length ||
+              form.end < form.start ||
+              form.memo.trim().length < 3
+            }
+            onClick={submit}
+          >
+            Post {charges.length} charge(s)
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function StatementDialog({
   open,
   onClose,

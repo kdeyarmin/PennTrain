@@ -9,9 +9,12 @@ import https from "node:https";
 import path from "node:path";
 
 // Extract package name→versions from the `packages:` block of pnpm-lock.yaml.
-// That block lists every resolved package as:
+// pnpm can emit package keys quoted or unquoted, depending on the package name
+// and lockfile version, for example:
 //
-//   'package-name@x.y.z':
+//   '@scope/name@1.2.3':
+//     resolution: ...
+//   react@19.1.0:
 //     resolution: ...
 //
 // Scoped packages start with @, so the *last* @ in the key separates name from version.
@@ -31,14 +34,22 @@ function parsePackagesFromLockfile(content) {
       : content.slice(packagesStart, snapshotsStart);
 
   const map = new Map(); // package name → Set<version>
-  // Lines look like:  '(@scope/)?name@semver':
-  for (const match of section.matchAll(/^  '(.+)@([^@'(]+)':/gm)) {
-    const name = match[1];
-    const version = match[2];
+  let parsedEntries = 0;
+  for (const match of section.matchAll(/^  (?:'([^']+)'|([^\s][^:]*)):/gm)) {
+    const key = (match[1] ?? match[2] ?? "").trim().replace(/^\//, "");
+    const separator = key.lastIndexOf("@");
+    if (separator <= 0 || separator === key.length - 1) continue;
+    const name = key.slice(0, separator);
+    const version = key.slice(separator + 1);
+    if (!name || !version || version.includes("(")) continue;
+    parsedEntries++;
     if (!map.has(name)) map.set(name, new Set());
     map.get(name).add(version);
   }
-  return map;
+  if (parsedEntries === 0) {
+    throw new Error("No package entries could be parsed from pnpm-lock.yaml.");
+  }
+  return { packages: map, parsedEntries };
 }
 
 function postJson(hostname, urlPath, body) {
@@ -91,7 +102,7 @@ function postJson(hostname, urlPath, body) {
 
 const lockfilePath = path.resolve(process.cwd(), "pnpm-lock.yaml");
 const lockfileContent = await readFile(lockfilePath, "utf8");
-const packages = parsePackagesFromLockfile(lockfileContent);
+const { packages, parsedEntries } = parsePackagesFromLockfile(lockfileContent);
 
 if (packages.size === 0) {
   console.log("No packages found in pnpm-lock.yaml.");
@@ -99,7 +110,7 @@ if (packages.size === 0) {
 }
 
 console.log(
-  `Auditing ${packages.size} packages against the npm advisory database…`,
+  `Auditing ${packages.size} packages (${parsedEntries} lockfile entries) against the npm advisory database…`,
 );
 
 // Build payload: { "name": ["v1", "v2"], ... }

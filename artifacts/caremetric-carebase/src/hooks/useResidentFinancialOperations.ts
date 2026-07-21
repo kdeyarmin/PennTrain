@@ -245,6 +245,12 @@ export const usePostResidentFinancialTransaction = rpcMutation(
     }),
 );
 
+export const usePostResidentMonthlyCharges = rpcMutation(
+  (input: { residentId: string; periodStart: string; periodEnd: string; memo: string; charges: Json }) => supabase.rpc("post_resident_monthly_charges", {
+    p_resident_id: input.residentId, p_period_start: input.periodStart, p_period_end: input.periodEnd, p_memo: input.memo, p_charges: input.charges,
+  }),
+);
+
 export const useGenerateResidentFinancialStatement = rpcMutation(
   (input: {
     residentId: string;
