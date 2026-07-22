@@ -40,7 +40,7 @@ for (const path of paths) {
 }
 
 if (failures.length) {
-  process.stderr.write(`Unresolved merge-conflict markers found:\n${failures.map((line) => `- ${line}`).join("\n")}\n`);
+  process.stderr.write(`Source integrity violations found:\n${failures.map((line) => `- ${line}`).join("\n")}\n`);
   process.exit(1);
 }
 
