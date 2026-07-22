@@ -36,7 +36,13 @@ async function findTests(dir) {
 
 function runDeno(args) {
   return new Promise((resolve, reject) => {
-    const child = spawn("deno", args, { stdio: "inherit" });
+    const child = spawn("deno", args, {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        DENO_TLS_CA_STORE: process.env.DENO_TLS_CA_STORE ?? "system",
+      },
+    });
     child.on("error", reject);
     child.on("exit", (code, signal) => {
       if (signal) reject(new Error(`deno ${args[0]} terminated by ${signal}`));
