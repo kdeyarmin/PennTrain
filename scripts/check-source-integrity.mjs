@@ -17,7 +17,7 @@ const conflictMarker = /^(<{7}|={7}|>{7})(?:\s|$)/;
 const productionSourcePrefixes = [
   "artifacts/caremetric-carebase/src/",
   "artifacts/caremetric-carebase/server/",
-  "scripts/src/",
+  "scripts/",
   "supabase/functions/",
 ];
 const mockupSandboxReference = /(?:artifacts\/mockup-sandbox|@workspace\/mockup-sandbox|mockup-sandbox)/;
