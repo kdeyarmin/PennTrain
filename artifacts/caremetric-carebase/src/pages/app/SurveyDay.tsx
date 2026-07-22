@@ -6,6 +6,7 @@ import {
   FolderOpen, Loader2, RefreshCw, ShieldCheck, Users,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { surveyEvidencePacketManifest } from "@/lib/surveyEvidencePacket";
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -358,6 +359,7 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
   const queryClient = useQueryClient();
   const completedAt = pinned?.completed_at as string | undefined;
   const isCurrent = completedAt ? (Date.now() - new Date(completedAt).valueOf()) < 24 * 60 * 60 * 1000 : false;
+  const packetManifest = pinned ? surveyEvidencePacketManifest(pinned) : null;
 
   return (
     <Card>
@@ -379,6 +381,31 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
                 {isCurrent ? "Current (under 24h)" : "Stale (over 24h)"}
               </Badge>
             </div>
+            {packetManifest && (
+              <div className="mt-3 rounded-md bg-muted/40 p-3">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant={packetManifest.readiness === "failed" ? "destructive" : "outline"}
+                    className={packetManifest.readiness === "ready" ? "border-emerald-200 text-emerald-700" : packetManifest.readiness === "stale" ? "border-amber-200 text-amber-800" : ""}
+                  >
+                    {packetManifest.readinessLabel}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">Survey evidence packet manifest</span>
+                </div>
+                <p className="text-sm text-muted-foreground">{packetManifest.readinessDetail}</p>
+                <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                  <div><dt className="font-medium text-foreground">Facility scope</dt><dd className="text-muted-foreground">{packetManifest.facilityScopeLabel}</dd></div>
+                  <div><dt className="font-medium text-foreground">Checksum</dt><dd className="text-muted-foreground">{packetManifest.checksumLabel}</dd></div>
+                  <div><dt className="font-medium text-foreground">Packet size</dt><dd className="text-muted-foreground">{packetManifest.sizeLabel}</dd></div>
+                  <div><dt className="font-medium text-foreground">Attempts</dt><dd className="text-muted-foreground">{packetManifest.attemptsLabel}</dd></div>
+                  <div className="sm:col-span-2"><dt className="font-medium text-foreground">Correlation ID</dt><dd className="break-all text-muted-foreground">{packetManifest.correlationId}</dd></div>
+                  <div className="sm:col-span-2"><dt className="font-medium text-foreground">Storage</dt><dd className="break-all text-muted-foreground">{packetManifest.storageLabel}</dd></div>
+                </dl>
+                {packetManifest.errorDetail && <p className="mt-2 text-xs text-destructive">{packetManifest.errorDetail}</p>}
+                <p className="mt-3 text-xs text-muted-foreground">{packetManifest.accessControlNote}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{packetManifest.auditTrailNote}</p>
+              </div>
+            )}
             {pinned.status === "succeeded" && (
               <Button
                 variant="outline" size="sm" className="mt-3" disabled={download.isPending}

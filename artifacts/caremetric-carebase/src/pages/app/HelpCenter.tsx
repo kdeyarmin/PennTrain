@@ -18,6 +18,7 @@ import {
 } from "@/hooks/useSupportTickets";
 import { useAuth } from "@/lib/auth";
 import { viewablePathForRole } from "@/lib/appDomains";
+import { searchCarebaseGlossary } from "@/lib/carebaseGlossary";
 import { filterHelpArticlesForRole } from "@/lib/helpArticleVisibility";
 import {
   getHelpCopilotAnswer,
@@ -376,6 +377,62 @@ function JobAidesTab({ pinnedArticleId }: { pinnedArticleId?: string }) {
   );
 }
 
+
+function GlossaryTab() {
+  const [query, setQuery] = useState("");
+  const entries = useMemo(() => searchCarebaseGlossary(query), [query]);
+
+  return (
+    <div className="space-y-4">
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search terms, workflows, or routes..."
+          className="pl-9"
+          aria-label="Search glossary terms"
+        />
+      </div>
+
+      {entries.length === 0 ? (
+        <Card>
+          <CardContent className="py-10 text-center">
+            <p className="text-sm font-medium">No glossary terms match your search.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Try a workflow word like "task", "incident", or "credential".</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2">
+          {entries.map((entry) => (
+            <Card key={entry.term}>
+              <CardHeader className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <CardTitle className="text-base">{entry.term}</CardTitle>
+                  <Badge variant="outline">{entry.category}</Badge>
+                </div>
+                <CardDescription>{entry.definition}</CardDescription>
+              </CardHeader>
+              {entry.relatedRoutes.length > 0 && (
+                <CardContent className="pt-0">
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">Related pages</p>
+                  <div className="flex flex-wrap gap-2">
+                    {entry.relatedRoutes.map((route) => (
+                      <Button key={`${entry.term}-${route.href}`} asChild size="sm" variant="outline">
+                        <Link href={route.href}>{route.label}</Link>
+                      </Button>
+                    ))}
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ManualTab() {
   return (
     <Card>
@@ -639,11 +696,13 @@ export default function HelpCenter() {
           <TabsTrigger value="faq">FAQ</TabsTrigger>
           <TabsTrigger value="job-aides">Job Aides</TabsTrigger>
           <TabsTrigger value="manual">User Manual</TabsTrigger>
+          <TabsTrigger value="glossary">Glossary</TabsTrigger>
           <TabsTrigger value="support">Support</TabsTrigger>
         </TabsList>
         <TabsContent value="faq" className="mt-4"><FaqTab /></TabsContent>
         <TabsContent value="job-aides" className="mt-4"><JobAidesTab pinnedArticleId={contextualArticle?.id} /></TabsContent>
         <TabsContent value="manual" className="mt-4"><ManualTab /></TabsContent>
+        <TabsContent value="glossary" className="mt-4"><GlossaryTab /></TabsContent>
         <TabsContent value="support" className="mt-4"><SupportTab base={base} /></TabsContent>
       </Tabs>
     </div>

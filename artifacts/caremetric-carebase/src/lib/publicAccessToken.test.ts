@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { consumePublicAccessToken } from "./publicAccessToken";
+import { PUBLIC_ACCESS_FLOWS, consumePublicAccessToken, publicAccessFlowGovernanceIssues } from "./publicAccessToken";
 
 function memoryStorage() {
   const values = new Map<string, string>();
@@ -41,5 +41,33 @@ describe("consumePublicAccessToken", () => {
     });
     expect(consumePublicAccessToken(undefined, "move-in", "/move-in-access"))
       .toBe("stored-token");
+  });
+});
+
+
+describe("public access flow governance", () => {
+  it("covers each public token or slug route with an explicit governance entry", () => {
+    expect(PUBLIC_ACCESS_FLOWS.map((flow) => flow.tokenPath).sort()).toEqual([
+      "/checkin/:token",
+      "/evidence-access/:token",
+      "/move-in-access/:token",
+      "/passport/:slug",
+      "/resident-agreement-access/:token",
+      "/verify/:slug",
+    ]);
+  });
+
+  it("keeps sensitive guest token flows tab-scoped and server-auditable", () => {
+    expect(publicAccessFlowGovernanceIssues()).toEqual([]);
+    expect(PUBLIC_ACCESS_FLOWS.filter((flow) => flow.requiresServerAudit).every((flow) => flow.storageKey)).toBe(true);
+  });
+
+  it("flags sensitive tokenized flows that cannot be scrubbed into tab storage", () => {
+    expect(publicAccessFlowGovernanceIssues([
+      { name: "unsafe", tokenPath: "/unsafe/:token", cleanPath: "/unsafe", storageKey: null, requiresServerAudit: true },
+    ])).toEqual([
+      { flow: "unsafe", issue: "missing_storage_key", message: "Sensitive token flow must use a tab-scoped storage key before history is scrubbed." },
+      { flow: "unsafe", issue: "server_audit_required", message: "Sensitive guest flow must be auditable on the server boundary." },
+    ]);
   });
 });

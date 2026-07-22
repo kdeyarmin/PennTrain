@@ -88,3 +88,49 @@ export function workQueuePathForRole(role: string | undefined, itemId?: string):
   const base = role === "employee" ? "/me/work" : "/app/work";
   return itemId ? `${base}/${itemId}` : base;
 }
+
+export interface WorkQueuePresentation {
+  title: string;
+  description: string;
+  emptyTitle: string;
+  emptyDescription: string;
+  showScopeSwitcher: boolean;
+  showFacilityFilter: boolean;
+  showOwnerFilter: boolean;
+  showFacilityColumn: boolean;
+  showSourceColumn: boolean;
+  showOwnerColumn: boolean;
+}
+
+export function workQueuePresentationForRole(role: string | undefined): WorkQueuePresentation {
+  const isEmployee = role === "employee";
+  const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(role ?? "");
+
+  if (isEmployee) {
+    return {
+      title: "My Work",
+      description: "Compliance and administrative work assigned to you.",
+      emptyTitle: "No assigned work matches these filters",
+      emptyDescription: "Try a different status, priority, source, or due-date filter. New assigned work will appear here automatically.",
+      showScopeSwitcher: false,
+      showFacilityFilter: false,
+      showOwnerFilter: false,
+      showFacilityColumn: false,
+      showSourceColumn: false,
+      showOwnerColumn: false,
+    };
+  }
+
+  return {
+    title: "Operational Work Queue",
+    description: "Owned remediation across facilities, sources, approvals, and deadlines.",
+    emptyTitle: "No work matches these filters",
+    emptyDescription: "Change the scope or filters to review other work.",
+    showScopeSwitcher: true,
+    showFacilityFilter: true,
+    showOwnerFilter: canManage,
+    showFacilityColumn: true,
+    showSourceColumn: true,
+    showOwnerColumn: true,
+  };
+}

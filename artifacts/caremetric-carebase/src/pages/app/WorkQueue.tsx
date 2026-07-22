@@ -15,6 +15,7 @@ import {
   WORK_ITEM_STATES,
   WORK_ITEM_STATE_LABELS,
   workQueuePathForRole,
+  workQueuePresentationForRole,
 } from "@/lib/workItemQueue";
 import { QueryError } from "@/components/QueryState";
 import { Badge } from "@/components/ui/badge";
@@ -90,6 +91,7 @@ export default function WorkQueue() {
   const isEmployee = user?.role === "employee";
   const canSeeOrganization = ["platform_admin", "org_admin", "auditor"].includes(user?.role ?? "");
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
+  const presentation = workQueuePresentationForRole(user?.role);
   const effectiveScope = isEmployee ? "mine" : filters.scope;
   const page = Math.max(1, Number(filters.page) || 1);
 
@@ -166,15 +168,13 @@ export default function WorkQueue() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <ClipboardList className="h-6 w-6" />
-            {isEmployee ? "My Work" : "Operational Work Queue"}
+            {presentation.title}
           </h1>
           <p className="text-muted-foreground">
-            {isEmployee
-              ? "Compliance and administrative work assigned to you."
-              : "Owned remediation across facilities, sources, approvals, and deadlines."}
+            {presentation.description}
           </p>
         </div>
-        {!isEmployee && (
+        {presentation.showScopeSwitcher && (
           <div className="flex rounded-lg border p-1">
             <Button
               size="sm"
@@ -231,7 +231,7 @@ export default function WorkQueue() {
               placeholder="Search title or description"
               aria-label="Search work"
             />
-            {!isEmployee && (
+            {presentation.showFacilityFilter && (
               <Select value={filters.facilityId} onValueChange={facilityId => setFilters({ facilityId, page: "1" })}>
                 <SelectTrigger><SelectValue placeholder="All facilities" /></SelectTrigger>
                 <SelectContent>
@@ -279,7 +279,7 @@ export default function WorkQueue() {
                 <SelectItem value="30">Due in 30 days</SelectItem>
               </SelectContent>
             </Select>
-            {canManage && effectiveScope !== "mine" && (
+            {presentation.showOwnerFilter && canManage && effectiveScope !== "mine" && (
               <Select value={filters.ownerId} onValueChange={ownerId => setFilters({ ownerId, page: "1" })}>
                 <SelectTrigger><SelectValue placeholder="Owner" /></SelectTrigger>
                 <SelectContent>
@@ -305,8 +305,8 @@ export default function WorkQueue() {
           ) : total === 0 ? (
             <div className="py-12 text-center">
               <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-emerald-600" />
-              <p className="font-medium">No work matches these filters</p>
-              <p className="text-sm text-muted-foreground">Change the scope or filters to review other work.</p>
+              <p className="font-medium">{presentation.emptyTitle}</p>
+              <p className="text-sm text-muted-foreground">{presentation.emptyDescription}</p>
             </div>
           ) : (
             <>
@@ -315,9 +315,9 @@ export default function WorkQueue() {
                   <thead>
                     <tr>
                       <th>Work item</th>
-                      <th>Facility</th>
-                      <th>Source</th>
-                      <th>Owner</th>
+                      {presentation.showFacilityColumn && <th>Facility</th>}
+                      {presentation.showSourceColumn && <th>Source</th>}
+                      {presentation.showOwnerColumn && <th>Owner</th>}
                       <th>Priority</th>
                       <th>Due</th>
                       <th>Status</th>
@@ -333,13 +333,15 @@ export default function WorkQueue() {
                             <p className="max-w-[280px] truncate font-medium">{item.title}</p>
                             {item.escalated_at && <p className="text-xs text-red-600">Escalated</p>}
                           </td>
-                          <td className="text-sm">{item.facility?.name ?? "—"}</td>
-                          <td className="text-sm">{SOURCE_LABELS[item.source_type] ?? item.source_type}</td>
-                          <td className="text-sm">
-                            {item.owner
-                              ? <span className="inline-flex items-center gap-1"><UserRound className="h-3.5 w-3.5" />{item.owner.first_name} {item.owner.last_name}</span>
-                              : <span className="text-muted-foreground">Unassigned</span>}
-                          </td>
+                          {presentation.showFacilityColumn && <td className="text-sm">{item.facility?.name ?? "—"}</td>}
+                          {presentation.showSourceColumn && <td className="text-sm">{SOURCE_LABELS[item.source_type] ?? item.source_type}</td>}
+                          {presentation.showOwnerColumn && (
+                            <td className="text-sm">
+                              {item.owner
+                                ? <span className="inline-flex items-center gap-1"><UserRound className="h-3.5 w-3.5" />{item.owner.first_name} {item.owner.last_name}</span>
+                                : <span className="text-muted-foreground">Unassigned</span>}
+                            </td>
+                          )}
                           <td>
                             <Badge variant="outline" className={PRIORITY_CLASS[item.priority]}>
                               {WORK_ITEM_PRIORITY_LABELS[item.priority] ?? item.priority}
