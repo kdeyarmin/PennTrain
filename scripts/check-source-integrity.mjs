@@ -20,6 +20,7 @@ const productionSourcePrefixes = [
   "scripts/",
   "supabase/functions/",
 ];
+const mockupSandboxReferenceAllowlist = new Set(["scripts/check-source-integrity.mjs"]);
 const mockupSandboxReference = /(?:artifacts\/mockup-sandbox|@workspace\/mockup-sandbox|mockup-sandbox)/;
 const failures = [];
 
@@ -33,7 +34,11 @@ for (const path of paths) {
   const isProductionSource = productionSourcePrefixes.some((prefix) => path.startsWith(prefix));
   lines.forEach((line, index) => {
     if (conflictMarker.test(line)) failures.push(`${path}:${index + 1}: ${line.trim()}`);
-    if (isProductionSource && mockupSandboxReference.test(line)) {
+    if (
+      isProductionSource &&
+      !mockupSandboxReferenceAllowlist.has(path) &&
+      mockupSandboxReference.test(line)
+    ) {
       failures.push(`${path}:${index + 1}: production source must not reference artifacts/mockup-sandbox`);
     }
   });
