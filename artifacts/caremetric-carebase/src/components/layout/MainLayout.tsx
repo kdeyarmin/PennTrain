@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { IdleSessionLock, MfaPolicyGate } from "./SessionSecurityGates";
 import { useNavigationWorkspace } from "@/hooks/useProductExperience";
 import { CareMetricCopilot } from "@/components/CareMetricCopilot";
+import { EndUserExperiencePanel } from "./EndUserExperiencePanel";
 import { PageTitleProvider, registryLabelForPath } from "@/lib/pageTitle";
 
 // Impersonation sessions auto-return after this long as a defense-in-depth backstop, independent
@@ -161,6 +162,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         <Header onOpenMobileNav={() => setMobileNavOpen(true)} />
         <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto bg-background focus:outline-none">
           <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+            <EndUserExperiencePanel />
             <RouteErrorBoundary>{children}</RouteErrorBoundary>
           </div>
         </main>

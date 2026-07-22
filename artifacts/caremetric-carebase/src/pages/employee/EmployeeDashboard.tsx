@@ -204,9 +204,9 @@ export default function EmployeeDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">My Training</h1>
+        <h1 className="text-2xl font-bold tracking-tight">My Work</h1>
         <p className="text-muted-foreground">
-          Welcome, {user?.firstName}. View your training records and compliance status.
+          Welcome, {user?.firstName}. Start with your training, assigned work, policy signatures, credentials, and next shift.
         </p>
       </div>
 
