@@ -157,10 +157,10 @@ test.describe("role-aware release journeys", () => {
     facilityId = facility.id;
 
     await createAccount("platform_admin", "/admin", suffix);
-    await createAccount("org_admin", "/app", suffix);
-    await createAccount("facility_manager", "/app", suffix);
+    await createAccount("org_admin", "/app/today", suffix);
+    await createAccount("facility_manager", "/app/today", suffix);
     await createAccount("trainer", "/trainer", suffix);
-    await createAccount("auditor", "/app", suffix);
+    await createAccount("auditor", "/app/today", suffix);
     await createAccount("employee", "/me", suffix);
 
     // The demo account email is part of the built application configuration,
@@ -521,7 +521,7 @@ test.describe("role-aware release journeys", () => {
     await page.getByLabel("Email").fill(account.email);
     await page.getByLabel("Password").fill(account.password);
     await page.getByRole("button", { name: "Sign in" }).click();
-    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app");
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app/today");
     await verifyOrgAdminBrowserMfa(page);
     await page.goto(`/app/incidents/${incidentId}`);
     await page.getByRole("button", { name: "Fill Official DHS Reportable Incident Form" }).click();
@@ -565,7 +565,7 @@ test.describe("role-aware release journeys", () => {
     await page.getByLabel("Email").fill(account.email);
     await page.getByLabel("Password").fill(account.password);
     await page.getByRole("button", { name: "Sign in" }).click();
-    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app");
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app/today");
     await verifyOrgAdminBrowserMfa(page);
     await page.goto("/app/compliance-binder");
     await page.getByRole("button", { name: "Export Binder PDF" }).click();
@@ -611,7 +611,7 @@ test.describe("role-aware release journeys", () => {
     await page.getByRole("button", { name: /Guest auditor/ }).click();
     await expect
       .poll(() => new URL(page.url()).pathname, { timeout: 20000 })
-      .toBe("/app");
+      .toBe("/app/today");
     await expect(page.locator("h1").first()).toBeVisible();
   });
 
@@ -706,7 +706,7 @@ test.describe("role-aware release journeys", () => {
     await page.getByLabel("Email").fill(account.email);
     await page.getByLabel("Password").fill(account.password);
     await page.getByRole("button", { name: "Sign in" }).click();
-    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app");
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app/today");
     await verifyOrgAdminBrowserMfa(page);
 
     await page.getByRole("link", { name: "Onboard Employee" }).click();

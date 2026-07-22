@@ -68,11 +68,12 @@ export function EndUserExperiencePanel() {
   const moduleAccess = useProductModuleAccess();
   const navigation = useNavigationWorkspace();
 
+  const locationPath = location.split(/[?#]/, 1)[0];
   const cards = useMemo(() => {
     if (!user) return [];
     const roleCards = ROLE_ONBOARDING[user.role] ?? [];
     const recents = navigation.recentPaths
-      .filter((recent) => recent.path !== location && moduleAccess.canAccessPath(recent.path))
+      .filter((recent) => recent.path !== locationPath && moduleAccess.canAccessPath(recent.path))
       .slice(0, 2)
       .map<ExperienceCard>((recent) => ({
         id: `recent-${recent.path}`,
@@ -94,7 +95,7 @@ export function EndUserExperiencePanel() {
       tone: "success",
     }] : [];
     return [...quickCreate, ...recents, ...roleCards].slice(0, 4);
-  }, [location, moduleAccess, navigation.recentPaths, user]);
+  }, [locationPath, moduleAccess, navigation.recentPaths, user]);
 
   if (!user || cards.length === 0) return null;
 
@@ -104,7 +105,7 @@ export function EndUserExperiencePanel() {
     { label: "Last updated " + relativeUpdatedLabel(), icon: Wifi },
     { label: "Mobile friendly", icon: Smartphone },
   ];
-  const relatedPages = searchPages(location.split("/").filter(Boolean).at(-1) ?? "today", user.role, moduleAccess.enabledModules).slice(0, 3);
+  const relatedPages = searchPages(locationPath.split("/").filter(Boolean).at(-1) ?? "today", user.role, moduleAccess.enabledModules).slice(0, 3);
 
   return (
     <section className="mb-5 space-y-3" aria-label="Personalized workflow guidance">

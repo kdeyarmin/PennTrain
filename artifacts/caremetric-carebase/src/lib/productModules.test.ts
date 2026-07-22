@@ -31,8 +31,10 @@ describe("product module routing", () => {
     expect(moduleHomePathForRole("employee", trainOnly)).toBe("/me/courses");
   });
 
-  it("lands employees on the full dashboard in a CareBase organization", () => {
+  it("lands users on role-specific start pages in a CareBase organization", () => {
     const allModules = withModuleDependencies(["carebase"]);
+    expect(moduleHomePathForRole("org_admin", allModules)).toBe("/app/today");
+    expect(moduleHomePathForRole("facility_manager", allModules)).toBe("/app/today");
     expect(moduleHomePathForRole("employee", allModules)).toBe("/me");
   });
 });
