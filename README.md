@@ -134,3 +134,14 @@ organization administrator can restore the baseline from Settings, and a daily j
 Email, SMS, and push delivery plus demo-initiated Auth user provisioning are blocked for demo organizations.
 
 See `ARCHITECTURE.md` for the full architecture writeup (RLS model, storage buckets, Edge Functions, route map).
+
+## Prototype and mockup sandbox boundary
+
+`artifacts/mockup-sandbox` is a non-production UI prototyping workspace. It is useful for isolated visual experiments,
+component mockups, and stakeholder demos that should not touch the CareMetric CareBase production app, Supabase schema,
+Edge Functions, routing, authorization, reporting, or deployment configuration.
+
+Do not treat mockup-sandbox screens, data, dependencies, or routes as implemented CareBase product behavior. Production
+claims, audits, screenshots, acceptance criteria, and release notes must cite files under `artifacts/caremetric-carebase`,
+`scripts`, `supabase`, or production documentation instead. If a mockup becomes product work, recreate it through the
+CareBase app's real components, hooks, routes, permissions, tests, and Supabase-backed data model.

@@ -9,6 +9,8 @@ import {
 } from "@/hooks/useSystemJobs";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { deploymentReadinessChecks } from "@/lib/deploymentReadiness";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -71,6 +73,14 @@ export default function SystemJobs() {
   const failed = jobs.filter((job) => ["failed", "partial"].includes(job.last_status)).length;
   const healthy = jobs.filter((job) => !job.is_stale && job.last_status === "succeeded").length;
   const active = jobs.filter((job) => ["queued", "running"].includes(job.last_status)).length;
+  const readinessChecks = deploymentReadinessChecks({
+    viteSupabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+    viteSupabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+    viteTurnstileSiteKey: import.meta.env.VITE_TURNSTILE_SITE_KEY,
+    systemJobsStale: stale,
+    systemJobsFailed: failed,
+  });
+  const failingReadiness = readinessChecks.filter((check) => check.status === "fail");
 
   const askReason = (action: string, displayName: string) =>
     window.prompt(`${action} ${displayName}. Enter an operator reason (at least 8 characters):`)?.trim();
@@ -134,6 +144,35 @@ export default function SystemJobs() {
           Refresh
         </Button>
       </div>
+
+      {failingReadiness.length > 0 && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Critical deployment readiness issue</AlertTitle>
+          <AlertDescription>
+            {failingReadiness.map((check) => check.detail).join(" ")}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Deployment readiness</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {readinessChecks.map((check) => (
+            <div key={check.id} className="rounded-lg border border-border/70 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium">{check.label}</p>
+                <Badge variant={check.status === "fail" ? "destructive" : check.status === "pass" ? "default" : "outline"}>
+                  {check.status}
+                </Badge>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{check.detail}</p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>

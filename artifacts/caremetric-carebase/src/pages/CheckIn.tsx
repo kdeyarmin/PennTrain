@@ -1,21 +1,24 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "wouter";
 import { useCheckinViaToken } from "@/hooks/useTrainingClasses";
+import { consumePublicAccessToken } from "@/lib/publicAccessToken";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, Loader2, LogOut } from "lucide-react";
 
 // Public-ish route (any authenticated role can land here from a scanned QR) -- the RPC itself
 // resolves "does this signed-in account have an employee record in this class's org," so there's
 // no separate role gate needed beyond being logged in at all.
 export default function CheckIn() {
-  const { token } = useParams<{ token: string }>();
+  const { token } = useParams<{ token?: string }>();
+  const [accessToken] = useState(() =>
+    consumePublicAccessToken(token, "checkin-access-token", "/checkin"),
+  );
   const { mutate: checkin, data, error, isPending, isIdle } = useCheckinViaToken();
 
   useEffect(() => {
-    if (token) checkin(token);
+    if (accessToken) checkin(accessToken);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [accessToken]);
 
   const checkedOut = data?.checked_out_at != null;
 
@@ -24,12 +27,17 @@ export default function CheckIn() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle>Class Check-In</CardTitle>
-          {!isPending && !error && (
+          {accessToken && !isPending && !error && (
             <CardDescription>{checkedOut ? "You're checked out." : "You're checked in."}</CardDescription>
           )}
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-4 pb-8">
-          {isPending || isIdle ? (
+          {!accessToken ? (
+            <>
+              <XCircle className="h-12 w-12 text-destructive" />
+              <p className="text-sm text-center text-muted-foreground">This check-in link is missing or expired. Scan the QR code again or ask the trainer for help.</p>
+            </>
+          ) : isPending || isIdle ? (
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
           ) : error ? (
             <>

@@ -44,6 +44,17 @@ const budgets = {
 // budget gets raised deliberately on main instead of failing feature branches.
 const warningRatio = 0.9;
 
+// Route chunk budgets protect the audited, high-touch lazy routes where regressions
+// are easiest to miss during feature work. Budgets are intentionally above current
+// measurements so they catch step changes rather than normal one-line edits.
+const routeBudgets = [
+  { label: "Resident Detail route", pattern: /^ResidentDetail-.+\.js$/, budget: 100 * 1024 },
+  { label: "Help Center route", pattern: /^HelpCenter-.+\.js$/, budget: 50 * 1024 },
+  { label: "Survey Day route", pattern: /^SurveyDay-.+\.js$/, budget: 30 * 1024 },
+  { label: "System Jobs route", pattern: /^SystemJobs-.+\.js$/, budget: 20 * 1024 },
+  { label: "Work Queue route", pattern: /^WorkQueue-.+\.js$/, budget: 20 * 1024 },
+];
+
 const initialShellPattern =
   /^(index|router|query|radix|supabase|motion|icons)-.+\.(?:js|css)$/;
 
@@ -82,6 +93,18 @@ const initialShell = assets
   .filter(({ name }) => initialShellPattern.test(name))
   .reduce((sum, asset) => sum + asset.bytes, 0);
 
+const routeMeasurements = routeBudgets.map(({ label, pattern, budget }) => {
+  const matches = javascript.filter(({ name }) => pattern.test(name));
+  if (matches.length === 0) {
+    return { label, actual: 0, budget, missing: true };
+  }
+  const largestMatch = matches.reduce(
+    (largest, asset) => (asset.bytes > largest.bytes ? asset : largest),
+    { name: "none", bytes: 0 },
+  );
+  return { label: `${label} (${largestMatch.name})`, actual: largestMatch.bytes, budget, missing: false };
+});
+
 const measurements = [
   {
     label: `largest JavaScript chunk (${largestJavaScript.name})`,
@@ -99,6 +122,7 @@ const measurements = [
     actual: initialShell,
     budget: budgets.initialShell,
   },
+  ...routeMeasurements,
 ];
 
 for (const { label, actual, budget } of measurements) {
@@ -119,13 +143,15 @@ for (const { label, actual, budget } of warnings) {
   );
 }
 
-const failures = measurements.filter(({ actual, budget }) => actual > budget);
-if (failures.length > 0) {
+const missingRoutes = routeMeasurements.filter(({ missing }) => missing);
+const failures = measurements.filter(({ actual, budget, missing }) => !missing && actual > budget);
+if (missingRoutes.length > 0 || failures.length > 0) {
+  const missingDetails = missingRoutes.map(({ label }) => `${label} chunk was not found`).join("\n");
   const details = failures
     .map(
       ({ label, actual, budget }) =>
         `${label} is ${formatBytes(actual)} (budget ${formatBytes(budget)})`,
     )
     .join("\n");
-  throw new Error(`Bundle budget exceeded:\n${details}`);
+  throw new Error(`Bundle budget exceeded:\n${[missingDetails, details].filter(Boolean).join("\n")}`);
 }

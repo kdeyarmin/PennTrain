@@ -5,6 +5,7 @@ import {
   sortWorkItems,
   sourceRouteForWorkItem,
   workQueuePathForRole,
+  workQueuePresentationForRole,
 } from "./workItemQueue";
 
 type WorkItem = Tables<"work_items">;
@@ -72,5 +73,30 @@ describe("work item queue", () => {
       .toBe("/app/resident-finance");
     expect(workQueuePathForRole("employee", "w1")).toBe("/me/work/w1");
     expect(workQueuePathForRole("org_admin")).toBe("/app/work");
+  });
+
+  it("uses an employee-specific self-service presentation for /me/work", () => {
+    expect(workQueuePresentationForRole("employee")).toMatchObject({
+      title: "My Work",
+      showScopeSwitcher: false,
+      showFacilityFilter: false,
+      showOwnerFilter: false,
+      showFacilityColumn: false,
+      showSourceColumn: false,
+      showOwnerColumn: false,
+    });
+  });
+
+  it("keeps manager work queue controls and columns available", () => {
+    expect(workQueuePresentationForRole("org_admin")).toMatchObject({
+      title: "Operational Work Queue",
+      showScopeSwitcher: true,
+      showFacilityFilter: true,
+      showOwnerFilter: true,
+      showFacilityColumn: true,
+      showSourceColumn: true,
+      showOwnerColumn: true,
+    });
+    expect(workQueuePresentationForRole("auditor").showOwnerFilter).toBe(false);
   });
 });

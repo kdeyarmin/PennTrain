@@ -362,6 +362,7 @@ function Router() {
       {/* Bare, chrome-less public page intentionally left outside ProtectedRoute/MainLayout so
           signed-out visitors can open it directly after scanning a QR code. */}
       <Route path="/checkin/:token" component={CheckIn} />
+      <Route path="/checkin" component={CheckIn} />
       {/* Guest pages immediately move path credentials into tab-scoped storage and replace
           browser history with the matching clean route below. */}
       <Route path="/evidence-access/:token" component={EvidenceGuestRoom} />
@@ -787,11 +788,13 @@ function Router() {
       <Route path="/trainer/classes">
         {() => <ProtectedRoute component={TrainerClasses} allowedRoles={CLASS_SCHEDULING_ROLES} />}
       </Route>
-      <Route path="/trainer/classes/:id">
-        {() => <ProtectedRoute component={ClassDetail} allowedRoles={CLASS_SCHEDULING_ROLES} />}
-      </Route>
+      {/* Must be registered before "/trainer/classes/:id" because Wouter matches in
+          declaration order; otherwise the detail route swallows the kiosk suffix. */}
       <Route path="/trainer/classes/:id/kiosk">
         {() => <ProtectedRoute component={ClassKiosk} allowedRoles={CLASS_SCHEDULING_ROLES} chrome="kiosk" />}
+      </Route>
+      <Route path="/trainer/classes/:id">
+        {() => <ProtectedRoute component={ClassDetail} allowedRoles={CLASS_SCHEDULING_ROLES} />}
       </Route>
       <Route path="/trainer/retraining">
         {() => <ProtectedRoute component={RetrainingMonitor} allowedRoles={["trainer"]} />}
