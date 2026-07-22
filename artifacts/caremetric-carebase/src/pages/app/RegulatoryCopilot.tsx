@@ -39,6 +39,43 @@ const INTENTS: Array<{ value: CopilotIntent; label: string; question: string; he
   { value: "effectiveness_reviews", label: "Effectiveness reviews due", question: "Which corrective actions still require an effectiveness review?", help: "Uses closed work items with a due review and no recorded result." },
 ];
 
+// Intent keyword hints for the floating guide's hand-off (?q=...). The widget hands off the user's
+// raw question and cannot know this copilot's intent taxonomy, so infer the closest intent here --
+// otherwise a Plan-of-Correction, citation, or eligibility question would submit under the default
+// "due in 30 days" intent and the Edge function would select the wrong evidence/context. An
+// explicit ?intent= wins when valid. Ordered most-specific first; the first keyword match wins.
+const INTENT_HINTS: Array<{ intent: CopilotIntent; keywords: string[] }> = [
+  { intent: "draft_plan_of_correction", keywords: ["plan of correction", "poc"] },
+  { intent: "citation_evidence", keywords: ["citation evidence", "evidence for", "system evidence"] },
+  { intent: "recurring_citations", keywords: ["recur", "prior citation"] },
+  { intent: "readiness_score", keywords: ["readiness score", "score low", "why is this facility"] },
+  { intent: "mock_survey_request", keywords: ["mock survey", "mock-survey", "document request"] },
+  { intent: "missing_medical_evaluations", keywords: ["medical evaluation"] },
+  { intent: "overdue_support_plans", keywords: ["support plan"] },
+  { intent: "effectiveness_reviews", keywords: ["effectiveness review"] },
+  { intent: "employee_blocked", keywords: ["why is this employee", "eligibility", "blocked"] },
+];
+
+function resolveHandoffIntent(): CopilotIntent {
+  const params = new URLSearchParams(window.location.search);
+  const explicit = params.get("intent");
+  if (explicit && INTENTS.some((option) => option.value === explicit)) return explicit as CopilotIntent;
+  // Normalize punctuation to spaces before matching so hyphenated hand-offs ("Plan-of-Correction")
+  // match the space-separated keywords, while the word-boundary test below still rejects
+  // substrings ("poc" vs "pocket").
+  const q = (params.get("q") ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
+  if (q.length >= 3) {
+    // Whole-token/phrase match (word boundaries) rather than raw substring, so a short abbreviation
+    // like "poc" matches "poc" but not "pocket"/"epoch".
+    const hit = INTENT_HINTS.find((h) => h.keywords.some((keyword) => {
+      const pattern = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
+      return pattern.test(q);
+    }));
+    if (hit) return hit.intent;
+  }
+  return "due_next_30_days";
+}
+
 function safeSourceUrl(value: string | null) {
   return value && /^https:\/\//i.test(value) ? value : null;
 }
@@ -53,7 +90,9 @@ export default function RegulatoryCopilot() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [facilityId, setFacilityId] = useState("");
-  const [intent, setIntent] = useState<CopilotIntent>("due_next_30_days");
+  // Intent is inferred from the hand-off (?intent= or the ?q= question) so a prefilled question
+  // submits under the right intent instead of the default; falls back to "due in 30 days".
+  const [intent, setIntent] = useState<CopilotIntent>(resolveHandoffIntent);
   // Accept a question prefilled by the floating guide's hand-off (?q=...); it wins over the
   // default intent question on first render, then normal intent-syncing resumes.
   const [question, setQuestion] = useState(() => {

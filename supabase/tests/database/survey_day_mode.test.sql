@@ -1,5 +1,5 @@
 begin;
-select plan(18);
+select plan(19);
 
 -- Survey Day Mode: activation lifecycle, feature-flag + role gating, RLS scope, snapshot
 -- immutability, append-only events, disposition, roster envelope, and close/re-activate.
@@ -91,6 +91,21 @@ select ok((public.get_survey_day_staff_roster((select id from sd where key='sess
   'staff roster returns an exact count');
 select is(jsonb_typeof(public.get_survey_day_staff_roster((select id from sd where key='session'),null,1,25) -> 'rows'),
   'array', 'staff roster returns a rows array');
+
+-- Server-side auto-pin: a single-facility binder that finishes rendering while a session is active
+-- pins to that session on the completing UPDATE, with no client mounted (the export UI invites the
+-- user to leave the page while the PDF renders).
+select pg_temp.act_as('5d000000-0000-4000-8000-000000000021','service_role');
+insert into public.binder_export_jobs(id, organization_id, requested_by, facility_ids, status) values
+  ('5d000000-0000-4000-8000-0000000000b1','5d000000-0000-4000-8000-000000000001','5d000000-0000-4000-8000-000000000022',
+   array['5d000000-0000-4000-8000-000000000011']::uuid[],'pending');
+update public.binder_export_jobs
+  set status='succeeded', storage_bucket='compliance-binders', storage_path='survey/test-binder.pdf', completed_at=now()
+  where id='5d000000-0000-4000-8000-0000000000b1';
+select is((select pinned_binder_job_id from public.survey_day_sessions where id=(select id from sd where key='session')),
+  '5d000000-0000-4000-8000-0000000000b1'::uuid,
+  'a completed single-facility binder auto-pins to the facility''s active session');
+select pg_temp.act_as('5d000000-0000-4000-8000-000000000021');
 
 -- Closure, then a later activation creates a brand new session.
 select is((public.close_survey_day((select id from sd where key='session'),'Survey concluded')).status,

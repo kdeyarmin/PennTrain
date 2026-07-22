@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   AlertTriangle, CheckCircle2, ClipboardCheck, Download, FileText,
@@ -13,6 +14,8 @@ import { useListEmployeeCredentials } from "@/hooks/useEmployeeCredentials";
 import { useListInspectionItems } from "@/hooks/useInspectionItems";
 import { useListBinderExports, useGetBinderExport, useBinderDownloadUrl } from "@/hooks/useComplianceBinder";
 import { useListEvidenceCollections } from "@/hooks/useEvidenceRoom";
+import { useOrgFeatureEnabled } from "@/hooks/useFeatureRelease";
+import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
 import { BinderExportButton } from "@/components/reports/BinderExportButton";
 import {
   useActiveSurveyDaySession, useSurveyDayWorkspace, useSurveyDayStaffRoster,
@@ -31,6 +34,12 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { QueryError, QueryLoading } from "@/components/QueryState";
+
+// Mirrors the server-side assert_survey_day_manager gate (app_private.assert_phase5_manager):
+// only these roles may activate/refresh/close a session or record a disposition. Auditors reach the
+// page through REPORTS_VIEW_ROLES and must see it strictly read-only rather than controls that only
+// fail with a 42501 on click.
+const SURVEY_DAY_MANAGE_ROLES = ["platform_admin", "org_admin", "facility_manager"];
 
 const HEALTH_CREDENTIAL_TYPES = ["tb_screening", "immunization"];
 const BACKGROUND_CREDENTIAL_TYPES = ["act34_criminal_history", "act73_fbi_fingerprint", "act33_child_abuse"];
@@ -75,7 +84,23 @@ export default function SurveyDay() {
   const activeFacilityId = facilityId || facilities?.[0]?.id || "";
   const activeFacility = facilities?.find((f) => f.id === activeFacilityId);
 
+  // A facility_manager is additionally facility-scoped server-side (assert_phase5_manager ->
+  // is_assigned_to_facility); org/platform admins are not. The facility dropdown is org-wide, so
+  // gate manage rights on the *selected* facility too -- otherwise a manager who picks a facility
+  // they aren't assigned to would still see Start controls the backend rejects with 42501.
+  const myAssignments = useListMyFacilityAssignments(user?.id, user?.role === "facility_manager");
+  const assignedFacilityIds = useMemo(() => new Set((myAssignments.data ?? []).map((a) => a.facility_id)), [myAssignments.data]);
+  const roleCanManage = !!user && SURVEY_DAY_MANAGE_ROLES.includes(user.role);
+  const canManage = roleCanManage
+    && (user?.role !== "facility_manager" || (!!activeFacilityId && assignedFacilityIds.has(activeFacilityId)));
+
   const session = useActiveSurveyDaySession(activeFacilityId || undefined);
+
+  // Gate on the org's survey_day_mode entitlement, mirroring the backend command guard. Platform
+  // admins bypass the flag server-side, so never block them; for everyone else, once the read
+  // resolves to false show a "not enabled" state instead of activation controls that would 42501.
+  const surveyDayFeature = useOrgFeatureEnabled("survey_day_mode");
+  const featureBlocked = !!user && user.role !== "platform_admin" && !surveyDayFeature.isLoading && !surveyDayFeature.isEnabled;
 
   return (
     <div className="space-y-6">
@@ -96,15 +121,19 @@ export default function SurveyDay() {
         </div>
       </div>
 
-      {!activeFacilityId ? (
+      {featureBlocked ? (
+        <Card><CardContent className="py-10 text-center text-muted-foreground">
+          Survey Day Mode isn&apos;t enabled for your organization yet. Contact CareMetric to join the pilot.
+        </CardContent></Card>
+      ) : !activeFacilityId ? (
         <Card><CardContent className="py-10 text-center text-muted-foreground">Select a facility to begin.</CardContent></Card>
       ) : session.isLoading ? (
         <QueryLoading what="the Survey Day session" />
       ) : session.isError ? (
         <QueryError what="the Survey Day session" error={session.error as Error} onRetry={() => session.refetch()} />
       ) : session.data ? (
-        <Workspace sessionId={session.data.id} facilityId={activeFacilityId} facilityName={activeFacility?.name ?? "Facility"} />
-      ) : (
+        <Workspace sessionId={session.data.id} facilityId={activeFacilityId} facilityName={activeFacility?.name ?? "Facility"} canManage={canManage} />
+      ) : canManage ? (
         <ActivationCard
           facilityId={activeFacilityId}
           facilityName={activeFacility?.name ?? "Facility"}
@@ -112,6 +141,10 @@ export default function SurveyDay() {
           organizationId={user?.organizationId ?? ""}
           onActivated={() => session.refetch()}
         />
+      ) : (
+        <Card><CardContent className="py-10 text-center text-muted-foreground">
+          No Survey Day session is active for {activeFacility?.name ?? "this facility"}. A facility manager or organization administrator can start one.
+        </CardContent></Card>
       )}
     </div>
   );
@@ -173,7 +206,7 @@ export default function SurveyDay() {
   }
 }
 
-function Workspace({ sessionId, facilityId, facilityName }: { sessionId: string; facilityId: string; facilityName: string }) {
+function Workspace({ sessionId, facilityId, facilityName, canManage }: { sessionId: string; facilityId: string; facilityName: string; canManage: boolean }) {
   const { toast } = useToast();
   const workspace = useSurveyDayWorkspace(sessionId);
   const refresh = useRefreshSurveyDay(facilityId);
@@ -196,6 +229,7 @@ function Workspace({ sessionId, facilityId, facilityName }: { sessionId: string;
               </CardDescription>
             </div>
             <div className="flex gap-2">
+              {canManage && (<>
               <Button variant="outline" disabled={refresh.isPending} onClick={() => refresh.mutate(sessionId, { onError: (e: Error) => toast({ title: "Refresh failed", description: e.message, variant: "destructive" }) })}>
                 {refresh.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Refresh live checks
               </Button>
@@ -216,13 +250,14 @@ function Workspace({ sessionId, facilityId, facilityName }: { sessionId: string;
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+              </>)}
             </div>
           </div>
         </CardHeader>
       </Card>
 
-      <EntranceConferenceSection sessionId={sessionId} facilityId={facilityId} checklist={data.checklist} readOnly={data.session.status !== "active"} />
-      <BinderSection facilityId={facilityId} organizationId={data.session.organizationId} pinnedBinderJobId={data.session.pinnedBinderJobId} />
+      <EntranceConferenceSection sessionId={sessionId} facilityId={facilityId} checklist={data.checklist} readOnly={data.session.status !== "active" || !canManage} />
+      <BinderSection sessionId={sessionId} facilityId={facilityId} organizationId={data.session.organizationId} pinnedBinderJobId={data.session.pinnedBinderJobId} />
       <StaffRosterSection sessionId={sessionId} />
       <EvidenceSection organizationId={data.session.organizationId} facilityId={facilityId} pinnedCollectionId={data.session.pinnedEvidenceCollectionId} />
     </div>
@@ -239,7 +274,7 @@ function EntranceConferenceSection({ sessionId, facilityId, checklist, readOnly 
   const { data: credentials } = useListEmployeeCredentials({ facilityId });
   const { data: inspections } = useListInspectionItems({ facilityId, isActive: true });
 
-  function liveReadiness(dataSource: string): { level: ReadinessState; detail?: string } {
+  function liveReadiness(dataSource: string, itemTypes: string[] | null): { level: ReadinessState; detail?: string } {
     switch (dataSource) {
       case "roster": {
         const count = employees?.length ?? 0;
@@ -258,7 +293,12 @@ function EntranceConferenceSection({ sessionId, facilityId, checklist, readOnly 
         return n === 0 ? { level: "ready" } : { level: "attention", detail: `${n} outstanding` };
       }
       case "inspections": {
-        const n = (inspections ?? []).filter((i: any) => OUTSTANDING.includes(i.status)).length;
+        // Only count inspection items whose type this checklist row actually covers (its item_types
+        // snapshot). Without this, one unrelated overdue inspection would flip every inspection
+        // prompt -- fire drills, extinguisher/alarm checks, emergency plan -- to Attention.
+        const scoped = (inspections ?? []).filter((i: any) =>
+          !itemTypes || itemTypes.length === 0 || itemTypes.includes(i.item_type));
+        const n = scoped.filter((i: any) => OUTSTANDING.includes(i.status)).length;
         return n === 0 ? { level: "ready" } : { level: "attention", detail: `${n} outstanding` };
       }
       default:
@@ -276,7 +316,7 @@ function EntranceConferenceSection({ sessionId, facilityId, checklist, readOnly 
         {checklist.length === 0 ? (
           <p className="text-sm text-muted-foreground">No entrance-conference items were configured at activation.</p>
         ) : checklist.map((item) => {
-          const live = liveReadiness(item.dataSource);
+          const live = liveReadiness(item.dataSource, item.itemTypes);
           return (
             <div key={item.id} className="rounded-lg border p-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -311,10 +351,11 @@ function EntranceConferenceSection({ sessionId, facilityId, checklist, readOnly 
   );
 }
 
-function BinderSection({ facilityId, organizationId, pinnedBinderJobId }: { facilityId: string; organizationId: string; pinnedBinderJobId: string | null }) {
+function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobId }: { sessionId: string; facilityId: string; organizationId: string; pinnedBinderJobId: string | null }) {
   const { toast } = useToast();
   const { data: pinned } = useGetBinderExport(pinnedBinderJobId ?? undefined);
   const download = useBinderDownloadUrl();
+  const queryClient = useQueryClient();
   const completedAt = pinned?.completed_at as string | undefined;
   const isCurrent = completedAt ? (Date.now() - new Date(completedAt).valueOf()) < 24 * 60 * 60 * 1000 : false;
 
@@ -352,7 +393,21 @@ function BinderSection({ facilityId, organizationId, pinnedBinderJobId }: { faci
           <p className="text-sm text-muted-foreground">No binder is pinned yet. Generate one below or from the Compliance Binder page.</p>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          <BinderExportButton organizationId={organizationId} facilityIds={[facilityId]} label="Generate fresh binder" />
+          <BinderExportButton
+            organizationId={organizationId}
+            facilityIds={[facilityId]}
+            label="Generate fresh binder"
+            // The pin itself happens server-side: a DB trigger pins any completed single-facility
+            // binder to the facility's active session, so it works even after the user leaves this
+            // page while the PDF renders (the export runs in the background). Here we only need to
+            // refetch the workspace so the freshly pinned binder shows immediately for a user who
+            // stayed; a multi-facility export can't match a single-facility session, so skip it.
+            onCompleted={(_jobId, facilityIds) => {
+              if (facilityIds && facilityIds.length === 1 && facilityIds[0] === facilityId) {
+                queryClient.invalidateQueries({ queryKey: ["survey-day-workspace", sessionId] });
+              }
+            }}
+          />
           <Button asChild variant="ghost" size="sm"><Link href="/app/compliance-binder">Open Compliance Binder</Link></Button>
         </div>
       </CardContent>

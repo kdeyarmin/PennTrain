@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useBinderDownloadUrl,
   useGetBinderExport,
@@ -14,6 +14,11 @@ interface BinderExportButtonProps {
   /** org_admin/auditor narrowing; omit for org-wide. */
   facilityIds?: string[];
   label?: string;
+  /** Fired once when an export job reaches "succeeded", with its job id and the facility scope the
+   * server actually assigned (managers are auto-scoped to all their assigned facilities, so this
+   * may be broader than facilityIds). Lets a caller react to a completed render -- e.g. Survey Day
+   * pins the fresh binder only when its scope matches the session's single facility. */
+  onCompleted?: (jobId: string, facilityIds: string[] | null) => void;
 }
 
 /**
@@ -21,12 +26,24 @@ interface BinderExportButtonProps {
  * job while the background worker renders, then offer the signed download. Shared by the
  * Compliance Binder page, Inspection Readiness, and the platform org detail page.
  */
-export function BinderExportButton({ organizationId, facilityIds, label = "Export Binder PDF" }: BinderExportButtonProps) {
+export function BinderExportButton({ organizationId, facilityIds, label = "Export Binder PDF", onCompleted }: BinderExportButtonProps) {
   const { toast } = useToast();
   const [jobId, setJobId] = useState<string | null>(null);
   const { mutate: requestExport, isPending: requesting } = useRequestBinderExport();
   const { data: job } = useGetBinderExport(jobId ?? undefined);
   const { mutate: fetchDownload, isPending: downloading } = useBinderDownloadUrl();
+
+  // Fire onCompleted exactly once per job when the polled status first reaches "succeeded" (the
+  // status is a render state, not an event). The ref guard survives re-renders and re-polls.
+  const onCompletedRef = useRef(onCompleted);
+  onCompletedRef.current = onCompleted;
+  const completedJobRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (jobId && job?.status === "succeeded" && completedJobRef.current !== jobId) {
+      completedJobRef.current = jobId;
+      onCompletedRef.current?.(jobId, (job.facility_ids as string[] | null) ?? null);
+    }
+  }, [jobId, job?.status, job?.facility_ids]);
 
   const handleRequest = () => {
     requestExport(

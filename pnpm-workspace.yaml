@@ -55,6 +55,9 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
+  # Patch a transitive fast-uri (via ajv) off the range flagged by GHSA-v2hh-gcrm-f6hx
+  # (host confusion via a literal backslash authority delimiter); 3.1.4 is the fix.
+  'fast-uri@>=3.0.0 <=3.1.3': 3.1.4
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-arm64': '-'
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64': '-'
