@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import type { Tables } from "@/lib/database.types";
+import { navigationFavoritePaths } from "@/lib/navigationPreferences";
 
 export type NavigationPreference = Tables<"navigation_preferences">;
 export type Announcement = Tables<"org_announcements">;
@@ -9,6 +10,7 @@ export type TrainingPassport = Tables<"training_passports">;
 export type OrganizationExportJob = Tables<"organization_export_jobs">;
 
 export type RecentPath = { path: string; label: string; visitedAt: string };
+
 export type ProductChangelogEntry = {
   featureKey: string;
   title: string;
@@ -94,7 +96,7 @@ export function useNavigationWorkspace() {
   });
   return {
     ...query,
-    favoritePaths: query.data?.favorite_paths ?? [],
+    favoritePaths: navigationFavoritePaths(query.data?.favorite_paths, Boolean(query.data), user?.role),
     recentPaths: parseRecentPaths(query.data?.recent_paths),
     setFavorites,
     recordVisit,

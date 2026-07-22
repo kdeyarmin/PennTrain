@@ -2,19 +2,21 @@ import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useOrgDashboardSummary } from "@/hooks/useDashboardSummary";
 import { QueryError, QueryLoading } from "@/components/QueryState";
+import { RoleQuickStart } from "@/components/RoleQuickStart";
 import { useListAllResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
 import { useListResidents } from "@/hooks/useResidents";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { summarizeResidentComplianceAnalytics } from "@/lib/residentComplianceAnalytics";
 import { facilityTypeLabel, hasAnyFacilityType, PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 import { toLocalIsoDate } from "@/lib/dateUtils";
+import { formatTimestampLabel } from "@/lib/freshness";
 import { useAuth } from "@/lib/auth";
 import { useDailyOperationsCommandCenter } from "@/hooks/useDailyOperations";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Building2, Users, AlertTriangle, CheckCircle, Clock, XCircle, AlertCircle, ChevronRight, TrendingUp, Shield, Activity, UserPlus, FileText, LayoutGrid, Bell, GraduationCap, Upload, Download, Info, type LucideIcon } from "lucide-react";
+import { Building2, Users, AlertTriangle, CheckCircle, Clock, XCircle, AlertCircle, ChevronRight, TrendingUp, Shield, Activity, UserPlus, FileText, LayoutGrid, Bell, GraduationCap, Upload, Download, HelpCircle, Info, type LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { supabase } from "@/lib/supabase";
 
@@ -210,7 +212,7 @@ export default function OrgDashboard() {
   const { user } = useAuth();
   // One RLS-scoped server round trip replaces the previous six unbounded table
   // downloads (see get_org_dashboard_summary()); the presentation below is unchanged.
-  const { data: dashboard, isLoading: summaryLoading, isError, error, refetch } = useOrgDashboardSummary();
+  const { data: dashboard, isLoading: summaryLoading, isError, error, refetch, dataUpdatedAt: summaryUpdatedAt } = useOrgDashboardSummary();
   // RLS scopes both of these to what the viewer can see; roles without resident access simply
   // get empty results and the banner below stays hidden.
   const { data: residentItems } = useListAllResidentComplianceItems({ status: ["expired", "missing", "due_soon"] });
@@ -239,6 +241,7 @@ export default function OrgDashboard() {
     })),
   }), [dashboard]);
 
+  const lastUpdatedLabel = dashboard ? formatTimestampLabel(summaryUpdatedAt) : null;
   const recentAlerts = dashboard?.alerts.recent ?? [];
   const criticalAlertsCount = dashboard?.alerts.criticalCount ?? 0;
   const firstCriticalTitle = recentAlerts.find(a => a.severity === "critical")?.title
@@ -357,6 +360,10 @@ export default function OrgDashboard() {
   return (
     <div className="space-y-8">
       <div className="page-header">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <Badge variant="outline">Executive overview</Badge>
+          {lastUpdatedLabel && <span className="text-xs text-muted-foreground">Updated {lastUpdatedLabel}</span>}
+        </div>
         <h1>Compliance Dashboard</h1>
         <p>Welcome back, {user?.firstName}. Here's your compliance overview.</p>
       </div>
@@ -364,8 +371,8 @@ export default function OrgDashboard() {
       {["org_admin", "facility_manager"].includes(user?.role ?? "") ? (
         <div className="premium-card p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div><p className="text-lg font-semibold">Today</p><p className="text-sm text-muted-foreground">Operational work that needs a manager decision now.</p></div>
-            <Button asChild variant="outline" size="sm"><Link href="/app/pch-alr-operations">Open full operations center</Link></Button>
+            <div><div className="mb-1 flex items-center gap-2"><Badge variant="secondary">Start here for daily work</Badge></div><p className="text-lg font-semibold">Today</p><p className="text-sm text-muted-foreground">Operational work that needs a manager decision now.</p></div>
+            <div className="flex flex-wrap gap-2"><Button asChild variant="default" size="sm"><Link href="/app/today">Open Today</Link></Button><Button asChild variant="outline" size="sm"><Link href="/app/pch-alr-operations">Full operations center</Link></Button></div>
           </div>
           {dailyOperations.isError ? <div className="mt-4"><QueryError what="today's operations" error={dailyOperations.error} onRetry={() => dailyOperations.refetch()} /></div> : dailyOperations.isLoading ? <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[0,1,2,3].map((item) => <Skeleton key={item} className="h-20" />)}</div> : <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Link href="/app/shift-handoffs" className="rounded-lg border p-3 hover:bg-muted"><p className="text-xs text-muted-foreground">Open handoffs</p><p className="text-2xl font-semibold">{dailyOperations.data?.dailyExecution.openHandoffItems ?? 0}</p><p className="text-xs text-destructive">{dailyOperations.data?.dailyExecution.urgentHandoffItems ?? 0} urgent</p></Link>
@@ -375,6 +382,12 @@ export default function OrgDashboard() {
           </div>}
         </div>
       ) : null}
+
+      <RoleQuickStart
+        role={user?.role}
+        title="Portfolio quick start"
+        description="A short path from daily triage to evidence and reports."
+      />
 
       {benchmarkQuery.data?.available && benchmarkFacility ? (
         <div className="premium-card p-5">
@@ -443,6 +456,16 @@ export default function OrgDashboard() {
           </Link>
         </div>
       )}
+
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+        <div className="flex gap-3">
+          <HelpCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <div>
+            <p className="font-medium">How to read this dashboard</p>
+            <p className="text-sm text-muted-foreground">Start with critical alerts and expired requirements, then use the priority action plan to drill into the exact page that can resolve each gap. Percentages are calculated from currently tracked training and practicum requirements.</p>
+          </div>
+        </div>
+      </div>
 
       {summaryLoading ? (
         <QueryLoading what="compliance summary">
@@ -631,7 +654,11 @@ export default function OrgDashboard() {
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-center">
               <CheckCircle className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
               <p className="font-semibold text-emerald-900">No urgent actions right now</p>
-              <p className="text-sm text-emerald-700/80">Compliance, alerts, and documentation are currently on track.</p>
+              <p className="text-sm text-emerald-700/80">Compliance, alerts, and documentation are currently on track. Review Today for shift-level handoffs, coverage, and operational follow-up.</p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <Button asChild variant="outline" size="sm"><Link href="/app/today">Review today's priorities</Link></Button>
+                <Button asChild variant="outline" size="sm"><Link href="/app/reports">Run a readiness report</Link></Button>
+              </div>
             </div>
           ) : (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -684,7 +711,7 @@ export default function OrgDashboard() {
                 <p className={`text-lg font-semibold ${complianceColor}`}>
                   {compliancePct >= 90 ? "Excellent" : compliancePct >= 75 ? "Needs Improvement" : "At Risk"}
                 </p>
-                <p className="text-sm text-muted-foreground mt-1">of training records compliant</p>
+                <p className="text-sm text-muted-foreground mt-1">of tracked training and practicum requirements compliant</p>
               </div>
             </div>
             <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
