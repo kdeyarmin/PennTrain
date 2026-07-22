@@ -1,13 +1,15 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { Activity, AlertTriangle, BedDouble, Bot, CalendarDays, ClipboardList, Clock3, Radar, RefreshCw, ShieldCheck, Users } from "lucide-react";
+import { Activity, AlertTriangle, BedDouble, Bot, CalendarDays, ClipboardList, Clock3, HelpCircle, Radar, RefreshCw, ShieldCheck, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { QueryError, QueryLoading } from "@/components/QueryState";
+import { RoleQuickStart } from "@/components/RoleQuickStart";
 import { useAuth } from "@/lib/auth";
 import { getTodayDestinations, summarizeDueWork } from "@/lib/todayWorkspace";
+import { formatTimestampLabel, latestQueryUpdatedAt } from "@/lib/freshness";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
 import { useListWorkItems } from "@/hooks/useWorkItems";
@@ -67,6 +69,7 @@ export default function Today() {
   const PrimaryIcon = isAuditor ? ShieldCheck : Activity;
   const queries = [facilities, myAssignments, operations, work, alerts, value];
   const isRefreshing = queries.some((query) => query.isFetching);
+  const refreshedAt = latestQueryUpdatedAt(queries.map((query) => query.dataUpdatedAt));
 
   if (queries.some((query) => query.isLoading)) return <QueryLoading what="today's priorities" />;
   const failed = queries.find((query) => query.isError);
@@ -115,6 +118,10 @@ export default function Today() {
   return <div className="space-y-6">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div>
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <Badge variant="secondary">Start here</Badge>
+          <span className="text-xs text-muted-foreground">Refreshed {formatTimestampLabel(refreshedAt)}</span>
+        </div>
         <h1 className="text-2xl font-bold tracking-tight">Today</h1>
         <p className="text-muted-foreground">Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 18 ? "afternoon" : "evening"}, {user?.firstName}. These are the decisions and follow-ups that move care, staffing, and compliance forward now.</p>
         <p className="mt-1 text-xs text-muted-foreground">Showing {scopeLabel}.</p>
@@ -138,12 +145,29 @@ export default function Today() {
         <Button asChild variant="outline"><Link href={destinations.primary.href}><PrimaryIcon className="mr-2 h-4 w-4" />{destinations.primary.label}</Link></Button>
       </div>
     </div>
+    <RoleQuickStart
+      role={user?.role}
+      title="Your daily quick start"
+      description="Use these role-specific steps when you are not sure where to begin."
+    />
+    <Card className="border-primary/20 bg-primary/5">
+      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-3">
+          <HelpCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <div>
+            <p className="font-medium">How to use Today</p>
+            <p className="text-sm text-muted-foreground">Work left to right: clear urgent red cards first, complete due work, then review automation drafts before the end of shift.</p>
+          </div>
+        </div>
+        <Button asChild variant="outline" size="sm"><Link href="/app/help">Open help center</Link></Button>
+      </CardContent>
+    </Card>
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{priorities.map((item) => <Link key={item.label} href={item.href} className={`rounded-xl border bg-card p-5 shadow-sm transition hover:bg-muted/40 ${item.urgent ? "border-destructive/50" : ""}`}><div className="flex items-start justify-between"><div><p className="text-sm text-muted-foreground">{item.label}</p><p className="mt-1 text-3xl font-bold">{item.value}</p></div><item.icon className={`h-5 w-5 ${item.urgent ? "text-destructive" : "text-muted-foreground"}`} /></div><p className="mt-3 text-xs text-muted-foreground">{item.detail}</p></Link>)}</div>
     <div className="grid gap-5 xl:grid-cols-2">
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2"><Clock3 className="h-5 w-5" />Next work to complete</CardTitle><CardDescription>Overdue work and items due within seven days for {scopeLabel}.</CardDescription></CardHeader>
         <CardContent className="space-y-2">
-          {dueWork.visibleItems.length ? dueWork.visibleItems.map((item) => <Button key={item.id} asChild variant="outline" className="h-auto w-full justify-between py-3 text-left"><Link href={`/app/work/${item.id}`}><span><span className="block font-medium">{item.title}</span><span className="block text-xs text-muted-foreground">{item.facility?.name ?? "Facility"} · due {new Date(item.due_at).toLocaleString()}</span></span><Badge variant={item.priority === "urgent" ? "destructive" : "secondary"}>{human(item.priority)}</Badge></Link></Button>) : <div className="flex items-center gap-2 rounded border border-dashed p-6 text-sm text-emerald-700"><ShieldCheck className="h-4 w-4" />No work items are due within seven days.</div>}
+          {dueWork.visibleItems.length ? dueWork.visibleItems.map((item) => <Button key={item.id} asChild variant="outline" className="h-auto w-full justify-between py-3 text-left"><Link href={`/app/work/${item.id}`}><span><span className="block font-medium">{item.title}</span><span className="block text-xs text-muted-foreground">{item.facility?.name ?? "Facility"} · due {new Date(item.due_at).toLocaleString()}</span></span><Badge variant={item.priority === "urgent" ? "destructive" : "secondary"}>{human(item.priority)}</Badge></Link></Button>) : <div className="flex items-center gap-2 rounded border border-dashed p-6 text-sm text-emerald-700"><ShieldCheck className="h-4 w-4" />No work items are due within seven days. Use the cards above to review alerts, handoffs, and coverage next.</div>}
           {dueWork.totalCount > dueWork.visibleItems.length && <Button asChild variant="ghost" className="w-full"><Link href="/app/work">View all {dueWork.totalCount} due work items</Link></Button>}
         </CardContent>
       </Card>

@@ -15,10 +15,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { QueryError } from "@/components/QueryState";
+import { RoleQuickStart } from "@/components/RoleQuickStart";
 import {
   GraduationCap, CheckCircle, Clock, AlertTriangle, FileText, ClipboardCheck, BookOpen,
   CalendarClock, CalendarDays, MapPin, FileCheck2, FileCheck, Files, ShieldCheck, FileSignature,
-  ChevronRight, type LucideIcon,
+  ChevronRight, HelpCircle, type LucideIcon,
 } from "lucide-react";
 import { Link } from "wouter";
 import { todayIso, formatDateLabel, formatTimeLabel } from "@/lib/scheduleDates";
@@ -204,17 +205,40 @@ export default function EmployeeDashboard() {
   return (
     <div className="space-y-6">
       <div>
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <Badge variant="secondary">Start here</Badge>
+          <span className="text-xs text-muted-foreground">Your next due items are sorted by date.</span>
+        </div>
         <h1 className="text-2xl font-bold tracking-tight">My Training</h1>
         <p className="text-muted-foreground">
           Welcome, {user?.firstName}. View your training records and compliance status.
         </p>
       </div>
 
+      <RoleQuickStart
+        role={user?.role}
+        title="My quick start"
+        description="A short checklist for finishing the work managers need to verify."
+      />
+
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex gap-3">
+            <HelpCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <div>
+              <p className="font-medium">What should I do first?</p>
+              <p className="text-sm text-muted-foreground">Complete overdue items first, then anything due soon. If a record looks wrong, upload evidence or contact your facility manager.</p>
+            </div>
+          </div>
+          <Button asChild variant="outline" size="sm"><Link href="/me/help">Get help</Link></Button>
+        </CardContent>
+      </Card>
+
       {!employeeLoading && !employee ? (
         <Card>
           <CardContent className="py-8">
             <p className="text-sm text-muted-foreground text-center">
-              No employee profile is linked to this account yet. Contact your facility manager.
+              No employee profile is linked to this account yet. Contact your facility manager so your courses, schedule, credentials, and attestations can appear here.
             </p>
           </CardContent>
         </Card>

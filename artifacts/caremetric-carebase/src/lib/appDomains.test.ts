@@ -238,14 +238,14 @@ describe("role-based page visibility", () => {
     expect(canViewPath("/admin/not-a-real-page", "platform_admin")).toBe(false);
     expect(canViewPath("/trainer/not-a-real-page", "trainer")).toBe(false);
     expect(canViewPath("/me/not-a-real-page", "employee")).toBe(false);
-    expect(safePathForRole("/app/not-a-real-page", "org_admin")).toBe("/app");
+    expect(safePathForRole("/app/not-a-real-page", "org_admin")).toBe("/app/today");
   });
 
   it("does not infer nested ownership for pages without detail routes", () => {
     expect(canViewPath("/app/settings/not-a-real-page", "org_admin")).toBe(false);
     expect(canViewPath("/account/security/not-a-real-page", "employee")).toBe(false);
     expect(canViewPath("/admin/settings/not-a-real-page", "platform_admin")).toBe(false);
-    expect(safePathForRole("/app/settings/not-a-real-page", "org_admin")).toBe("/app");
+    expect(safePathForRole("/app/settings/not-a-real-page", "org_admin")).toBe("/app/today");
   });
 
   it("keeps stored links inside the current role surface", () => {
@@ -254,7 +254,7 @@ describe("role-based page visibility", () => {
     expect(safePathForRole("/app/employees/employee-1?tab=training", "trainer")).toBe("/trainer/employees/employee-1?tab=training");
     expect(safePathForRole("/me/certificates", "trainer")).toBe("/trainer");
     expect(safePathForRole("/app/users", "employee")).toBe("/me");
-    expect(safePathForRole("/admin/settings", "org_admin")).toBe("/app");
+    expect(safePathForRole("/admin/settings", "org_admin")).toBe("/app/today");
   });
 
   it("returns only viewable canonical destinations for related links", () => {

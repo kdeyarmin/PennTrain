@@ -376,12 +376,12 @@ export function helpBasePathForRole(role: Role | undefined): "/app" | "/me" | nu
   return role === "employee" ? "/me" : "/app";
 }
 
-export function homePathForRole(role: Role | undefined): "/admin" | "/app" | "/trainer" | "/me" | null {
+export function homePathForRole(role: Role | undefined): "/admin" | "/app" | "/app/today" | "/trainer" | "/me" | null {
   if (!role) return null;
   if (role === "platform_admin") return "/admin";
   if (role === "trainer") return "/trainer";
   if (role === "employee") return "/me";
-  return "/app";
+  return "/app/today";
 }
 
 export function canonicalHelpPathForRole(path: string, role: Role | undefined): string {

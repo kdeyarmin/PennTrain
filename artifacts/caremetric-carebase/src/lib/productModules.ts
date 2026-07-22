@@ -106,7 +106,7 @@ export function moduleHomePathForRole(
     if (enabledModules.has("train")) return "/me/courses";
     return "/me/help";
   }
-  if (enabledModules.has("carebase")) return "/app";
+  if (enabledModules.has("carebase")) return "/app/today";
   if (enabledModules.has("train")) return "/app/training-matrix";
   return "/app/help";
 }
