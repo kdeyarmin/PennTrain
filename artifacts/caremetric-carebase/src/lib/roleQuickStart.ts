@@ -40,6 +40,7 @@ const ROLE_QUICK_START_ITEMS: Partial<Record<Role, RoleQuickStartItem[]>> = {
   ],
 };
 
-export function roleQuickStartItems(role: string | undefined): RoleQuickStartItem[] {
-  return ROLE_QUICK_START_ITEMS[role as UserRole] ?? [];
+export function roleQuickStartItems(role: Role | undefined): RoleQuickStartItem[] {
+  if (!role) return [];
+  return ROLE_QUICK_START_ITEMS[role] ?? [];
 }
