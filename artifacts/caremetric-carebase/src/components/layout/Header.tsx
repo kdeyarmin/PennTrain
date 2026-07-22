@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { LogOut, Bell, Building2, CheckCheck, Menu, HelpCircle, ChevronDown, Search, Sparkles, Megaphone, ShieldCheck } from "lucide-react";
+import { LogOut, Bell, Building2, CheckCheck, Menu, HelpCircle, ChevronDown, Search, Sparkles, Megaphone, ShieldCheck, PlusCircle } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { safePathForRole } from "@/lib/appDomains";
+import { commandActionsForRole, safePathForRole } from "@/lib/appDomains";
 import { useProductModuleAccess } from "@/lib/productModuleAccess";
 import { registryLabelForPath, usePageTitleContext } from "@/lib/pageTitle";
 import { GlobalSearch } from "./GlobalSearch";
@@ -222,6 +222,8 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   const handleLogout = useSignOut();
   const productChangelog = useProductChangelog();
   const { entityTitle } = usePageTitleContext();
+  const moduleAccess = useProductModuleAccess();
+  const quickActions = commandActionsForRole(user?.role, moduleAccess.enabledModules).slice(0, 6);
 
   // Stash the route on every navigation (skipping Help's own pages) so HelpCenter can contextually
   // pin whichever job aide's relatedRoute matches wherever the user came from -- see
@@ -242,8 +244,9 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   const rootTitles: Record<string, string> = {
     "/admin": "Dashboard",
     "/app": "Dashboard",
+    "/app/today": "Today",
     "/trainer": "Dashboard",
-    "/me": "My Training",
+    "/me": "My Work",
   };
 
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -327,6 +330,25 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
           </>
         )}
         {user?.role === "platform_admin" && <ViewingOrgSelector />}
+        {!!user && quickActions.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="hidden h-9 gap-1.5 rounded-lg sm:inline-flex">
+                <PlusCircle className="h-4 w-4" /> Create
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuLabel>Quick actions</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {quickActions.map((action) => (
+                <DropdownMenuItem key={action.id} onClick={() => navigate(action.path)} className="flex flex-col items-start gap-0.5 py-2.5">
+                  <span className="font-medium">{action.label}</span>
+                  <span className="text-xs text-muted-foreground">{action.description}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         {!!user && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

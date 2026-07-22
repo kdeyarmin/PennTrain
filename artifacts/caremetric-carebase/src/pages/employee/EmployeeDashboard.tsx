@@ -209,9 +209,9 @@ export default function EmployeeDashboard() {
           <Badge variant="secondary">Start here</Badge>
           <span className="text-xs text-muted-foreground">Your next due items are sorted by date.</span>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight">My Training</h1>
+        <h1 className="text-2xl font-bold tracking-tight">My Work</h1>
         <p className="text-muted-foreground">
-          Welcome, {user?.firstName}. View your training records and compliance status.
+          Welcome, {user?.firstName}. Start with your training, assigned work, policy signatures, credentials, and next shift.
         </p>
       </div>
 

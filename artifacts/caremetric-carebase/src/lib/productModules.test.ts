@@ -35,6 +35,7 @@ describe("product module routing", () => {
     const allModules = withModuleDependencies(["carebase"]);
     expect(moduleHomePathForRole("org_admin", allModules)).toBe("/app/today");
     expect(moduleHomePathForRole("facility_manager", allModules)).toBe("/app/today");
+    expect(moduleHomePathForRole("auditor", allModules)).toBe("/app/today");
     expect(moduleHomePathForRole("employee", allModules)).toBe("/me");
   });
 });
