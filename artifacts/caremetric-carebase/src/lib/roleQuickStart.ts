@@ -1,3 +1,5 @@
+import type { Role } from "@/lib/auth";
+
 export interface RoleQuickStartItem {
   title: string;
   description: string;
@@ -5,9 +7,7 @@ export interface RoleQuickStartItem {
   cta: string;
 }
 
-type UserRole = "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee" | "auditor";
-
-const ROLE_QUICK_START_ITEMS: Partial<Record<UserRole, RoleQuickStartItem[]>> = {
+const ROLE_QUICK_START_ITEMS: Partial<Record<Role, RoleQuickStartItem[]>> = {
   platform_admin: [
     { title: "Triage customer health", description: "Review organizations, support tickets, and release/security signals before making account changes.", href: "/admin", cta: "Open admin dashboard" },
     { title: "Audit privileged activity", description: "Check security governance and audit evidence before impersonation or support actions.", href: "/admin/security", cta: "Review security" },
