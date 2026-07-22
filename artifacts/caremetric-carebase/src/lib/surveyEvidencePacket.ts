@@ -73,7 +73,7 @@ function packetReadiness(job: SurveyEvidencePacketJob, now: Date): Pick<SurveyEv
   return {
     readiness: "ready",
     readinessLabel: "Ready for handoff",
-    readinessDetail: "The packet completed in the last 24 hours and has recorded integrity metadata.",
+    readinessDetail: "The packet completed in the last 24 hours.",
   };
 }
 
