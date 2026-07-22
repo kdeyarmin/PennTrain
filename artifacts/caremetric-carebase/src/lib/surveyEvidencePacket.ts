@@ -37,7 +37,8 @@ export interface SurveyEvidencePacketManifest {
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 function formatBytes(bytes: number | null): string {
-  if (!bytes || bytes <= 0) return "Not recorded";
+  if (bytes == null) return "Not recorded";
+  if (bytes < 0) return "Not recorded";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
