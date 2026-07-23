@@ -52,6 +52,9 @@ async function loadMarketingData(esbuild) {
     `export { FAQS } from ${JSON.stringify(
       join(APP_DIR, "src", "components", "marketing", "faqContent.ts"),
     )};`,
+    `export { buildSitemapXml, sitemapPaths } from ${JSON.stringify(
+      join(APP_DIR, "src", "lib", "sitemap.ts"),
+    )};`,
   ].join("\n");
 
   let outDir = join(APP_DIR, "node_modules", ".cache", "prerender-heads");
@@ -206,7 +209,8 @@ async function main() {
   }
 
   const esbuild = await loadEsbuild();
-  const { SITE_URL, MARKETING_ROUTE_META, FAQS } = await loadMarketingData(esbuild);
+  const { SITE_URL, MARKETING_ROUTE_META, FAQS, buildSitemapXml, sitemapPaths } =
+    await loadMarketingData(esbuild);
   const routes = Object.keys(MARKETING_ROUTE_META);
   if (routes.length === 0) throw new Error("MARKETING_ROUTE_META is empty -- nothing to prerender.");
   if (!Array.isArray(FAQS) || FAQS.length === 0) throw new Error("FAQS is empty -- /faq JSON-LD would be meaningless.");
@@ -242,6 +246,14 @@ async function main() {
   }
 
   console.log(`prerender-heads: ${written} routes written to ${PRERENDER_DIR}`);
+
+  // Regenerate the sitemap from the same route list that drove prerendering, so the copy
+  // Railway serves can never advertise a route that no longer exists or omit a live one.
+  // This overwrites the static public/sitemap.xml that vite build copied into DIST_DIR.
+  const sitemapXml = buildSitemapXml(SITE_URL, sitemapPaths(routes));
+  const sitemapPath = join(DIST_DIR, "sitemap.xml");
+  await writeFile(sitemapPath, sitemapXml);
+  console.log(`prerender-heads: sitemap.xml written with ${sitemapPaths(routes).length} urls`);
 }
 
 main().catch((error) => {

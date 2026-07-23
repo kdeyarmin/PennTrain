@@ -60,6 +60,7 @@ const MIME_TYPES = {
   ".map": "application/json; charset=utf-8",
   ".webmanifest": "application/manifest+json",
   ".txt": "text/plain; charset=utf-8",
+  ".xml": "application/xml; charset=utf-8",
 };
 
 // Extensions worth compressing; server/precompress.mjs emits .br/.gz siblings for these at
@@ -75,6 +76,7 @@ const COMPRESSIBLE_EXTENSIONS = new Set([
   ".map",
   ".webmanifest",
   ".txt",
+  ".xml",
 ]);
 
 // Head-prerendered copies of index.html for statically-known public routes, written by

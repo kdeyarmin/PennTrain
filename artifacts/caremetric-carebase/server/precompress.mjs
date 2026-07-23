@@ -26,6 +26,7 @@ const COMPRESSIBLE_EXTENSIONS = new Set([
   ".map",
   ".webmanifest",
   ".txt",
+  ".xml",
 ]);
 
 const files = (await readdir(DIST_DIR, { recursive: true, withFileTypes: true }))
