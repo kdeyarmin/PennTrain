@@ -168,8 +168,17 @@ order through the project's `database/query` endpoint, followed by an insert int
 
 ## Deployment status
 
-_Deployment is executed against `xsqobvvreaovwibxwyvv` as part of this audit; this section is
-updated with the applied-version count and confirmation once the run completes._
+**Resolved — all 71 pending migrations deployed on 2026-07-23.**
+
+- Applied all 71 in filename order via the Supabase Management API `database/query` endpoint,
+  each migration's DDL committed atomically with its `schema_migrations` version record.
+- Remote applied-version count: **270 → 341**, matching the 341 local migration files exactly.
+- `pnpm run check:migration-drift` now reports **in sync** (341 local, 341 applied, 0 pending,
+  0 orphan).
+- Post-deploy security advisors: **0 error-level** findings. The remaining advisories are
+  WARN/INFO — the same `security definer` executable-function and `rls_enabled_no_policy`
+  advisories the full chain produces on a fresh database, which CI already accepts via
+  `db advisors --fail-on error`. No new error-level issues were introduced.
 
 ## Root cause
 
