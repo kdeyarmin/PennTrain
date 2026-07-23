@@ -21,12 +21,12 @@ export type RouteMeta = {
 export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
   "/": {
     title:
-      "CareBase — Survey-Ready Operations for PA Personal Care Homes & Assisted Living",
+      "CareBase — Survey-Ready Operations for PA Personal Care Homes & Assisted Living Facilities",
     description:
       "Training compliance, resident assessments, incidents, scheduling, and one-click survey binders for Pennsylvania PCH and ALF operators. Per-facility pricing, free trial.",
   },
   "/features": {
-    title: "CareBase Features — 50+ Capabilities for PCH & Assisted Living | CareMetric",
+    title: "CareBase Features — 50+ Capabilities for PCH & ALF | CareMetric",
     description:
       "Every CareBase capability: training compliance, AI course creation, resident assessments, incidents, scheduling, credentials, and survey evidence — one per-facility price.",
   },
@@ -46,7 +46,7 @@ export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
       "Pennsylvania annual training hours for personal care homes (12 hrs, §2600.65), Assisted Living Facility (16 hrs, §2800.65), Chapter 6400, nursing, home health, and hospice — with citations.",
   },
   "/faq": {
-    title: "CareBase FAQ — PA Personal Care Home & Assisted Living Software",
+    title: "CareBase FAQ — PA Personal Care Home & ALF Software",
     description:
       "Straight answers: what CareBase replaces, PA training-hour requirements, resident assessments, security, pricing, and how fast a facility can start.",
   },
@@ -83,6 +83,6 @@ export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
   "/signup": {
     title: "Sign Up — Start Your Free Trial — CareMetric CareBase",
     description:
-      "Create your organization and start a free trial of CareMetric CareBase for Pennsylvania personal care homes and assisted living facilities.",
+      "Create your organization and start a free trial of CareMetric CareBase for Pennsylvania personal care homes and ALFs.",
   },
 };

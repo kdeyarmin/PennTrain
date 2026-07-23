@@ -11,9 +11,8 @@ export default function Privacy() {
     <MarketingLayout>
       <section style={{ background: "#ffffff" }}>
         <div style={{ maxWidth: "720px", margin: "0 auto", padding: "56px 24px 80px", display: "flex", flexDirection: "column", gap: "22px" }}>
-          <div style={{ border: "1px solid #f0d9a8", background: "#fdf7ea", borderRadius: "10px", padding: "12px 16px", fontSize: "13px", color: "#6d5312", fontWeight: "600" }}>DRAFT — have counsel review and finalize before publishing.</div>
           <h1 style={{ margin: "0", fontSize: "36px", fontWeight: "700", letterSpacing: "-0.01em", color: "#0d2742" }}>Privacy Policy</h1>
-          <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "12px", color: "#5d7084" }}>Effective date: [DATE] · Applies to CareMetric CareBase (cmcarebase.com)</div>
+          <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "12px", color: "#5d7084" }}>Effective date: July 23, 2026 · Applies to CareMetric CareBase (cmcarebase.com)</div>
 
           <div><h2 style={{ margin: "0 0 8px", fontSize: "20px", fontWeight: "700", color: "#0d2742" }}>1. Who we are</h2><p style={{ margin: "0", fontSize: "14.5px", color: "#33465c" }}>CareMetric CareBase (&quot;CareBase,&quot; &quot;we&quot;) provides operations, workforce-compliance, and survey-readiness software for personal care homes, assisted living facilities, and related providers. This policy describes how we handle information when you use the service or visit this site.</p></div>
 

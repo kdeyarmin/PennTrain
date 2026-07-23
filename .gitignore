@@ -3,6 +3,7 @@
 # compiled output
 dist
 dev-dist
+artifacts/caremetric-carebase/test-results/
 tmp
 out-tsc
 *.tsbuildinfo
