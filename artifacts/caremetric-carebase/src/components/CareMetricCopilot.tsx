@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Bot, Lightbulb, MessageSquarePlus, Send, Sparkles, X } from "lucide-react";
+import { Bot, Lightbulb, MessageSquarePlus, Mic, Send, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
 import { answerCareMetricCopilot, getCopilotSuggestions, type CopilotAnswer } from "@/lib/caremetricCopilot";
+import { voiceAssistantEnabled } from "@/lib/voice/voiceGatewayConfig";
 import { cn } from "@/lib/utils";
 
 type ChatMessage =
@@ -68,6 +69,14 @@ function CopilotResponse({
           <Link href={aiHandoffHref}>
             <Bot className="mr-2 h-4 w-4" aria-hidden="true" />
             Get a citation-backed answer from the AI Compliance Copilot
+          </Link>
+        </Button>
+      )}
+      {aiHandoffHref && voiceAssistantEnabled && (
+        <Button asChild variant="ghost" size="sm" className="h-8 w-full justify-start rounded-lg text-primary hover:bg-primary/10" onClick={onNavigate}>
+          <Link href={aiHandoffHref}>
+            <Mic className="mr-2 h-4 w-4" aria-hidden="true" />
+            Try the voice assistant (Voice tab on the copilot page)
           </Link>
         </Button>
       )}
