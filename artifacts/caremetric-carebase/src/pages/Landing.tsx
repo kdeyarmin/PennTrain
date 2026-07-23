@@ -18,14 +18,19 @@ import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { ProductTour } from "@/components/marketing/ProductTour";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
+import { MARKETING_VIDEOS } from "@/components/marketing/marketingVideos";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 // Lazy so the video modal (and its Dialog dependency) stays out of the eager
 // landing chunk — it loads on the landing page rather than sitting in every
-// route bundle. The modal itself no-ops when the video is disabled (see
-// LANDING_VIDEO in ./marketing/landingVideo).
+// route bundle.
 const HeroOverviewVideo = lazy(() =>
   import("@/components/marketing/HeroOverviewVideo").then((m) => ({ default: m.HeroOverviewVideo })),
+);
+// Shared thumbnail (poster + play → modal) for the persona and feature videos,
+// lazy so the modal's Dialog dependency stays out of the eager landing chunk.
+const VideoThumbnail = lazy(() =>
+  import("@/components/marketing/VideoModal").then((m) => ({ default: m.VideoThumbnail })),
 );
 
 type HeroMetric = { value: string; label: string };
@@ -761,8 +766,13 @@ export default function Landing() {
             <h2 className="mb-5 text-center text-[28px] font-bold tracking-[-0.01em] text-[#0d2742]">Which facility do you run?</h2>
           </Reveal>
           <div className="grid gap-4 md:grid-cols-2">
-            {PERSONAS.map((persona, i) => (
+            {PERSONAS.map((persona, i) => {
+              const personaVideo = i === 0 ? MARKETING_VIDEOS.personaPch : MARKETING_VIDEOS.personaAlf;
+              return (
               <Reveal key={persona.title} delay={i * 0.06} className={`${cardClass} flex flex-col gap-3`}>
+                <Suspense fallback={<img src={personaVideo.poster} alt="" className="aspect-video w-full rounded-xl object-cover" />}>
+                  <VideoThumbnail video={personaVideo} />
+                </Suspense>
                 <span className="font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-[#1b6fc2]">{persona.chapter}</span>
                 <h3 className="text-[21px] font-bold text-[#0d2742]">{persona.title}</h3>
                 <p className="text-sm text-[#44566b]">{persona.copy}</p>
@@ -772,7 +782,8 @@ export default function Landing() {
                 </div>
                 <a href="#start" className="mt-auto self-start text-sm font-bold text-[#1b6fc2] hover:text-[#0d2742] hover:underline">{persona.cta}</a>
               </Reveal>
-            ))}
+              );
+            })}
           </div>
           <p className={`mx-auto mt-4 text-center text-[13px] ${aaMutedText}`}>Group home, nursing, home health, or hospice? The <Link href="/pa-training-requirements" className="font-medium text-[#1b6fc2] hover:underline">requirements guide</Link> covers your path too. Rules change — the <Link href="/regulatory-updates" className="font-medium text-[#1b6fc2] hover:underline">regulatory updates feed</Link> tracks new regulations, clarifications, and guidance as they come out.</p>
         </div>
@@ -784,6 +795,15 @@ export default function Landing() {
             <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#1b6fc2]">The whole facility, one record</p>
             <h2 className="mt-3 text-balance text-[34px] font-bold leading-tight tracking-[-0.015em] text-[#0d2742]">Stop being the person who remembers everything</h2>
             <p className="mt-3 text-[#44566b]">Residents, staff, the building, and the survey — every deadline tracked, every task assigned to someone, and every finished task leaving proof behind. Pick an area to see how it actually works.</p>
+          </Reveal>
+          <Reveal delay={0.1} className="mt-6 max-w-[440px]">
+            <Suspense fallback={<img src={MARKETING_VIDEOS.featuresRasp.poster} alt="" className="aspect-video w-full rounded-xl object-cover" />}>
+              <VideoThumbnail
+                video={MARKETING_VIDEOS.featuresRasp}
+                label="Inside CareBase — the 60-second tour"
+                sublabel="Every module, and state documentation done right"
+              />
+            </Suspense>
           </Reveal>
           <Reveal className="mt-7 flex flex-wrap gap-2">
             {DOMAINS.map((domain, index) => (

@@ -1,99 +1,80 @@
-# Landing-page overview video
+# Marketing videos
 
-The marketing video embedded in the landing hero ("Watch the overview") is an
-**AI-avatar presenter** generated with HeyGen — the same integration used for
-course training videos, but produced through a standalone, decoupled script so it
+The marketing pages embed **AI-avatar presenter videos** generated with HeyGen —
+the same integration used for course training videos, but produced through a
+standalone, decoupled script (`scripts/heygen/generate-landing-video.mjs`) so it
 never touches the `course_blocks` pipeline.
 
-- **Generation script:** `scripts/heygen/generate-landing-video.mjs`
-- **Embed component:** `src/components/marketing/HeroOverviewVideo.tsx`
-- **Committed assets:** `public/marketing/landing-overview.mp4` + `landing-overview-poster.jpg`
-- **Captions:** `public/marketing/landing-overview.vtt`
-- **Override (optional):** `VITE_LANDING_VIDEO_URL` (see `.env.example`)
+- **Presenter:** the founder's own HeyGen photo-avatar "looks" (professional
+  business attire, office/studio scenes baked in) + the founder's cloned voice.
+- **Voice settings:** pitch `-7` semitones (deeper), speed `1.0` (natural pace).
+- **Committed assets:** `public/marketing/<name>.mp4` + `<name>-poster.jpg`.
+- **Catalog / embed config:** `src/components/marketing/marketingVideos.ts`.
+- **Player:** `src/components/marketing/VideoModal.tsx` (`VideoModal` + `VideoThumbnail`).
 
-The video + poster ship as committed assets, so the modal is **on by default** —
-no build-time env var or Railway change is needed for it to reach production.
-`VITE_LANDING_VIDEO_URL` is only an optional override to serve the media from a
-CDN / public bucket instead of the app's own origin.
+Videos ship as committed static assets (no env var). To move them to a CDN,
+change the URLs in `marketingVideos.ts`.
 
-The current video was generated with the account's **"Kevin Deyarmin"** custom
-avatar (`avatar_id 179306b552d544f49100741c4a8c0f2b`). To regenerate with it, pass
-that id as `HEYGEN_AVATAR_ID`.
+## The videos
 
-## Narration (~90 seconds, ~210 words)
+| Basename | Script | Placement | Look |
+| --- | --- | --- | --- |
+| `landing-overview` | (built into the generator) | Landing hero — "Watch the overview" | dark suit |
+| `founder` | `scripts/heygen/scripts/founder.txt` | About — "Meet the founder" | dark suit |
+| `persona-pch` | `scripts/heygen/scripts/persona-pch.txt` | Landing — "Which facility do you run?" (PCH card) | blue blazer |
+| `persona-alf` | `scripts/heygen/scripts/persona-alf.txt` | Landing — "Which facility do you run?" (ALF card) | grey blazer |
+| `features-rasp` | `scripts/heygen/scripts/features-rasp.txt` | Landing — platform showcase | dark suit |
 
-> Running a Pennsylvania personal care home or assisted living facility means one
-> thing is always true: the state will show up. And when the surveyor walks in,
-> the work isn't the problem — finding the proof is.
->
-> Meet CareMetric CareBase — one system that proves your facility is doing its job.
->
-> CareBase tracks every training hour, credential, clearance, resident assessment,
-> incident, and inspection your license requires. It assigns the work to the right
-> person, before it's late. And it turns that proof into a binder you can hand
-> straight to the surveyor.
->
-> Pass your next survey — every Chapter 2600 and 2800 requirement has its own due
-> date, and the documentation is saved as the work gets done.
->
-> Spend less on required training — course builder, AI-assisted lessons, and live
-> class check-in are included, with no per-person fees.
->
-> And get your evenings back, because compliance no longer lives in one person's
-> head, or comes home in a bag of binders.
->
-> Priced per facility, every module included, with a 30-day free trial — fully
-> self-service, no phone call required.
->
-> CareMetric CareBase. Run the facility. See the risk. Prove the work. Start your
-> free trial today at cmcarebase.com.
+The narration scripts live in `scripts/heygen/scripts/*.txt` (one file per video).
+Terminology follows the project rule: customer-facing copy says **assisted living
+facility (ALF)** and **documentation** (never "ALR" / "evidence"). The founder
+script respells the name phonetically ("Dee-ar-min") so the voice pronounces it
+correctly.
 
-The narration is grounded verbatim in the shipped marketing copy
-(`src/pages/Landing.tsx`): the value statement, the three benefit pillars ("Pass
-your next survey" / "Spend less on required training" / "Get your evenings back"),
-the pricing line, and the hero headline. Keep the `NARRATION` constant in
-`scripts/heygen/generate-landing-video.mjs` and the `landing-overview.vtt` cues in
-sync with any edits here.
+## Regenerating a video (spends HeyGen credits)
 
-Terminology follows the project rule (see the root `CLAUDE.md`): customer-facing
-copy says **assisted living facility (ALF)**, never "ALR"/"residence".
-
-## Avatar & voice
-
-HeyGen v3 produces a talking-head presenter. For a professional B2B feel, choose:
-
-- **Avatar:** a business/studio "look" (blazer, neutral office/solid background),
-  not a casual or AI-twin avatar.
-- **Voice:** a natural, confident US-English voice at a measured pace.
-
-List the available options (no credits spent):
+List avatars/voices (no credits):
 
 ```bash
 HEYGEN_API_KEY=<key> node scripts/heygen/generate-landing-video.mjs --list
 ```
 
-## Generate the video (spends HeyGen credits)
+Generate one video (from `artifacts/caremetric-carebase/`):
 
 ```bash
 HEYGEN_API_KEY=<key> \
-HEYGEN_AVATAR_ID=<avatar-id> \
-HEYGEN_VOICE_ID=<voice-id> \
+HEYGEN_AVATAR_ID=<look-id> HEYGEN_VOICE_ID=<voice-id> \
+SCRIPT_FILE=scripts/heygen/scripts/founder.txt OUTPUT_BASENAME=founder \
+HEYGEN_VOICE_PITCH=-7 HEYGEN_VOICE_SPEED=1.0 HEYGEN_NO_BACKGROUND=1 \
 node scripts/heygen/generate-landing-video.mjs
 ```
 
-The script polls to completion and downloads the MP4 (and a poster if HeyGen
-returns one) into `public/marketing/`. Then host it and set:
+`HEYGEN_NO_BACKGROUND=1` keeps the photo-avatar look's own professional scene.
+The MP4 + poster download into `public/marketing/` and the page picks them up on
+the next build. See the script header for the full env var list.
 
-```bash
-# In the deploy env for the app:
-VITE_LANDING_VIDEO_URL=https://<host>/landing-overview.mp4
-# optional:
-VITE_LANDING_VIDEO_POSTER_URL=https://<host>/landing-overview-poster.jpg
-```
+## Founder narration
 
-To serve the committed file directly instead of a bucket/CDN, set
-`VITE_LANDING_VIDEO_URL=/marketing/landing-overview.mp4` (note: committing the MP4
-adds a multi-MB binary to git history — a public bucket / CDN is preferred).
+> Hi. I'm Kevin Deyarmin. For over twenty years, I've led and consulted for senior
+> care organizations — five years in nursing home management, and the last
+> seventeen in hospice. I hold a master's degree in social work, and a doctorate in
+> naturopathic medicine.
+>
+> All that time, working alongside personal care homes, I kept seeing the same
+> thing. They carry the same responsibilities as nursing homes. But they never had
+> the same tools. Until now.
+>
+> My whole career, I built my reputation on two things. Strict compliance. And real
+> patient care. But I can't be in every facility at once. So I built the software
+> that lets me be.
+>
+> CareBase handles what keeps you up at night. Compliance paperwork. Resident care.
+> Billing and financial management. Staff education. And your state documentation.
+> All in one place. So when the state surveyor walks through your door, you don't
+> panic. You're already ready.
+>
+> This is the result of twenty years of executive management and consulting. It's
+> the software you always hoped for… and could never find. Welcome to CareBase.
 
-Re-run captions timing against the final audio if the avatar's pacing differs from
-the authored cues in `landing-overview.vtt`.
+The landing-overview narration is documented inline in the generator's
+`DEFAULT_NARRATION`, and its captions live in `public/marketing/landing-overview.vtt`.

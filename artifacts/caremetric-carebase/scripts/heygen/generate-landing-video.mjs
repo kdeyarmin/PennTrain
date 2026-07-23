@@ -1,35 +1,38 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Generate the CareMetric CareBase landing-page overview video with HeyGen.
+ * Generate a CareMetric CareBase marketing video with HeyGen (avatar + voice).
  *
- * This is a deliberate, one-off, CREDIT-SPENDING run-step -- it is NOT wired into
- * the app or CI. It reuses the exact HeyGen v3 request/poll/download contract that
- * the production course-video pipeline already proves out
- * (supabase/functions/generate-course-video/index.ts and
- * supabase/functions/_shared/heygenPolling.ts) but stays fully decoupled from the
- * course_blocks table, RLS, and the private course-videos bucket -- it just writes
- * a plain MP4 into public/marketing/ for the landing hero to embed.
+ * A deliberate, one-off, CREDIT-SPENDING run-step -- NOT wired into the app or CI.
+ * It reuses the exact HeyGen v3 request/poll/download contract the production
+ * course-video pipeline proves out (supabase/functions/generate-course-video and
+ * _shared/heygenPolling.ts) but stays decoupled from course_blocks/RLS -- it just
+ * writes a plain MP4 + poster into public/marketing/ for a marketing page to embed.
  *
  * Usage:
  *   HEYGEN_API_KEY=xxx node scripts/heygen/generate-landing-video.mjs --list
- *       List available avatars + voices (no video generated, no credits spent).
+ *       List avatars + voices (no credits spent).
  *
  *   HEYGEN_API_KEY=xxx HEYGEN_AVATAR_ID=<id> HEYGEN_VOICE_ID=<id> \
+ *   SCRIPT_FILE=scripts/heygen/scripts/founder.txt OUTPUT_BASENAME=founder \
+ *   HEYGEN_VOICE_PITCH=-6 HEYGEN_VOICE_SPEED=0.92 HEYGEN_NO_BACKGROUND=1 \
  *       node scripts/heygen/generate-landing-video.mjs
- *       Generate the video, poll to completion, and download it (spends credits).
  *
  * Env:
- *   HEYGEN_API_KEY   (required) HeyGen API key. Same key held server-side as the
- *                    Supabase Edge Function secret; never commit it.
- *   HEYGEN_AVATAR_ID (required to generate) avatar "look" id from --list.
- *   HEYGEN_VOICE_ID  (required to generate) voice id from --list.
- *   LANDING_VIDEO_OUT_DIR (optional) output directory; defaults to the app's
- *                    public/marketing/.
- *
- * After it finishes, host the MP4 (public bucket / CDN, or serve the committed
- * public/marketing/landing-overview.mp4) and set VITE_LANDING_VIDEO_URL so the
- * landing hero shows the "Watch the overview" modal.
+ *   HEYGEN_API_KEY          (required) HeyGen key. Never commit it.
+ *   HEYGEN_AVATAR_ID        (required) avatar / photo-avatar look id.
+ *   HEYGEN_VOICE_ID         (required) voice id.
+ *   SCRIPT_FILE             (optional) path to a UTF-8 file with the narration;
+ *                           defaults to the built-in landing-overview narration.
+ *   OUTPUT_BASENAME         (optional) output file base; default "landing-overview"
+ *                           -> public/marketing/<base>.mp4 + <base>-poster.jpg.
+ *   VIDEO_TITLE             (optional) HeyGen video title.
+ *   HEYGEN_VOICE_PITCH      (optional) semitones -50..50 (negative = deeper).
+ *   HEYGEN_VOICE_SPEED      (optional) 0.5..1.5 (below 1 = slower / more pause).
+ *   HEYGEN_VOICE_VOLUME     (optional) 0..1.
+ *   HEYGEN_NO_BACKGROUND=1  keep a photo-avatar look's own scene (no compositing).
+ *   HEYGEN_BACKGROUND_IMAGE_URL / HEYGEN_BACKGROUND_COLOR  otherwise composite.
+ *   LANDING_VIDEO_OUT_DIR   (optional) output dir; defaults to public/marketing.
  */
 
 import { fileURLToPath } from "node:url";
@@ -40,9 +43,10 @@ const HEYGEN_BASE = "https://api.heygen.com";
 const POLL_INTERVAL_MS = 10_000;
 const POLL_TIMEOUT_MS = 30 * 60_000; // 30 minutes
 
-// Narration -- keep in sync with docs/marketing/landing-video-script.md (the human
-// reference). Grounded verbatim in the shipped marketing copy (src/pages/Landing.tsx).
-const NARRATION = [
+// Default narration -- the landing overview. Kept in sync with
+// docs/marketing/landing-video-script.md and grounded in the shipped marketing
+// copy (src/pages/Landing.tsx). Other videos pass their own SCRIPT_FILE.
+const DEFAULT_NARRATION = [
   "Running a Pennsylvania personal care home or assisted living facility means one thing is always true: the state will show up. And when the surveyor walks in, the work isn't the problem — finding the proof is.",
   "Meet CareMetric CareBase — one system that proves your facility is doing its job.",
   "CareBase tracks every training hour, credential, clearance, resident assessment, incident, and inspection your license requires. It assigns the work to the right person, before it's late. And it turns that proof into a binder you can hand straight to the surveyor.",
@@ -52,8 +56,6 @@ const NARRATION = [
   "Priced per facility, every module included, with a 30-day free trial — fully self-service, no phone call required.",
   "CareMetric CareBase. Run the facility. See the risk. Prove the work. Start your free trial today at cmcarebase.com.",
 ].join(" ");
-
-const VIDEO_TITLE = "CareMetric CareBase — Landing Overview";
 
 function fail(message) {
   console.error(`\n✖ ${message}\n`);
@@ -65,8 +67,7 @@ function heygenHeaders(apiKey, extra = {}) {
 }
 
 async function heygenJson(res) {
-  const body = await res.json().catch(() => null);
-  return body;
+  return res.json().catch(() => null);
 }
 
 async function listOptions(apiKey) {
@@ -78,30 +79,16 @@ async function listOptions(apiKey) {
   if (!avatarsRes.ok) fail(`Failed to list avatars: ${avatarsBody?.message ?? avatarsRes.status}`);
   if (!voicesRes.ok) fail(`Failed to list voices: ${voicesBody?.message ?? voicesRes.status}`);
 
-  const avatars = avatarsBody?.data ?? [];
-  const voices = voicesBody?.data ?? [];
-
-  console.log(`\nAvatars (${avatars.length}) — pick a professional business look:`);
-  for (const a of avatars) {
-    console.log(`  ${a.id}\t${a.name ?? ""}${a.gender ? ` (${a.gender})` : ""}`);
-  }
-  console.log(`\nVoices (${voices.length}) — pick a natural, confident English voice:`);
-  for (const v of voices) {
-    console.log(`  ${v.voice_id}\t${v.name ?? ""}${v.language ? ` [${v.language}]` : ""}${v.gender ? ` (${v.gender})` : ""}`);
-  }
-  console.log(
-    "\nNext: re-run with HEYGEN_AVATAR_ID and HEYGEN_VOICE_ID set to the ids you chose.\n",
-  );
+  console.log(`\nAvatars (${(avatarsBody?.data ?? []).length}):`);
+  for (const a of avatarsBody?.data ?? []) console.log(`  ${a.id}\t${a.name ?? ""}${a.gender ? ` (${a.gender})` : ""}`);
+  console.log(`\nVoices (${(voicesBody?.data ?? []).length}):`);
+  for (const v of voicesBody?.data ?? []) console.log(`  ${v.voice_id}\t${v.name ?? ""}${v.language ? ` [${v.language}]` : ""}${v.gender ? ` (${v.gender})` : ""}`);
+  console.log("\nNext: re-run with HEYGEN_AVATAR_ID and HEYGEN_VOICE_ID set.\n");
 }
 
-// Background compositing: HeyGen's /v3/videos replaces the avatar's recorded
-// background when a `background` is supplied (works for photo/instant/video
-// avatars alike). Without this, a custom avatar filmed at home keeps that room.
-// Default to a clean, on-brand studio color; override with an office image via
-// HEYGEN_BACKGROUND_IMAGE_URL (a public HTTPS URL) or a different HEYGEN_BACKGROUND_COLOR.
+// HeyGen composites onto a new background when one is supplied. For photo-avatar
+// looks that already carry a professional scene, set HEYGEN_NO_BACKGROUND=1.
 function resolveBackground() {
-  // For photo-avatar "looks" that already have a professional scene baked in,
-  // set HEYGEN_NO_BACKGROUND=1 to keep that scene instead of compositing.
   if (process.env.HEYGEN_NO_BACKGROUND === "1") return null;
   const imageUrl = process.env.HEYGEN_BACKGROUND_IMAGE_URL?.trim();
   if (imageUrl) return { type: "image", url: imageUrl };
@@ -109,20 +96,32 @@ function resolveBackground() {
   return { type: "color", value: color };
 }
 
-async function startGeneration(apiKey, avatarId, voiceId) {
+// voice_settings: speed 0.5..1.5, pitch -50..50 semitones, volume 0..1.
+function resolveVoiceSettings() {
+  const s = {};
+  if (process.env.HEYGEN_VOICE_SPEED) s.speed = Number(process.env.HEYGEN_VOICE_SPEED);
+  if (process.env.HEYGEN_VOICE_PITCH) s.pitch = Number(process.env.HEYGEN_VOICE_PITCH);
+  if (process.env.HEYGEN_VOICE_VOLUME) s.volume = Number(process.env.HEYGEN_VOICE_VOLUME);
+  return Object.keys(s).length ? s : null;
+}
+
+async function startGeneration(apiKey, { avatarId, voiceId, script, title }) {
   console.log("⚠  This request spends HeyGen credits.");
   const background = resolveBackground();
+  const voiceSettings = resolveVoiceSettings();
   console.log(`▸ Background: ${background ? (background.type === "image" ? background.url : background.value) : "(keep avatar look's own scene)"}`);
+  if (voiceSettings) console.log(`▸ Voice settings: ${JSON.stringify(voiceSettings)}`);
   const payload = {
     type: "avatar",
     avatar_id: avatarId,
     voice_id: voiceId,
-    script: NARRATION,
-    title: VIDEO_TITLE,
+    script,
+    title,
     aspect_ratio: "16:9",
     resolution: "720p",
   };
   if (background) payload.background = background;
+  if (voiceSettings) payload.voice_settings = voiceSettings;
   const res = await fetch(`${HEYGEN_BASE}/v3/videos`, {
     method: "POST",
     headers: heygenHeaders(apiKey, { "Content-Type": "application/json" }),
@@ -143,18 +142,12 @@ async function pollUntilDone(apiKey, videoId) {
   while (true) {
     const res = await fetch(`${HEYGEN_BASE}/v3/videos/${videoId}`, { headers: heygenHeaders(apiKey) });
     const body = await heygenJson(res);
-    if (!res.ok || !body?.data) {
-      fail(`Failed to check status: ${body?.message ?? res.status}`);
-    }
+    if (!res.ok || !body?.data) fail(`Failed to check status: ${body?.message ?? res.status}`);
     const status = body.data.status;
     console.log(`  status: ${status}`);
     if (status === "completed") return body.data;
-    if (status === "failed") {
-      fail(`HeyGen reported failure: ${body.data.failure_message ?? "video generation failed"}`);
-    }
-    if (Date.now() > deadline) {
-      fail(`Timed out after ${POLL_TIMEOUT_MS / 60_000} minutes waiting for video ${videoId}.`);
-    }
+    if (status === "failed") fail(`HeyGen reported failure: ${body.data.failure_message ?? "video generation failed"}`);
+    if (Date.now() > deadline) fail(`Timed out after ${POLL_TIMEOUT_MS / 60_000} minutes waiting for video ${videoId}.`);
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
   }
 }
@@ -171,47 +164,46 @@ async function main() {
   const apiKey = process.env.HEYGEN_API_KEY;
   if (!apiKey) fail("HEYGEN_API_KEY is not set. Export it before running (never commit it).");
 
-  const listOnly = process.argv.includes("--list");
-  const avatarId = process.env.HEYGEN_AVATAR_ID;
-  const voiceId = process.env.HEYGEN_VOICE_ID;
-
-  if (listOnly) {
+  if (process.argv.includes("--list")) {
     await listOptions(apiKey);
     return;
   }
+
+  const avatarId = process.env.HEYGEN_AVATAR_ID;
+  const voiceId = process.env.HEYGEN_VOICE_ID;
   if (!avatarId || !voiceId) {
     await listOptions(apiKey);
     fail("Set HEYGEN_AVATAR_ID and HEYGEN_VOICE_ID (see the list above), then re-run.");
   }
 
   const here = path.dirname(fileURLToPath(import.meta.url));
+  const script = process.env.SCRIPT_FILE
+    ? (await fs.readFile(path.resolve(process.env.SCRIPT_FILE), "utf8")).trim()
+    : DEFAULT_NARRATION;
+  const basename = process.env.OUTPUT_BASENAME?.trim() || "landing-overview";
+  const title = process.env.VIDEO_TITLE?.trim() || `CareMetric CareBase — ${basename}`;
+
   const outDir = process.env.LANDING_VIDEO_OUT_DIR
     ? path.resolve(process.env.LANDING_VIDEO_OUT_DIR)
     : path.resolve(here, "../../public/marketing");
   await fs.mkdir(outDir, { recursive: true });
 
-  const videoId = await startGeneration(apiKey, avatarId, voiceId);
+  console.log(`▸ Video: ${basename}  (${script.length} chars of script)`);
+  const videoId = await startGeneration(apiKey, { avatarId, voiceId, script, title });
   console.log("▸ Polling for completion (this usually takes a few minutes)...");
   const data = await pollUntilDone(apiKey, videoId);
 
-  const mp4Path = path.join(outDir, "landing-overview.mp4");
+  const mp4Path = path.join(outDir, `${basename}.mp4`);
   const bytes = await download(data.video_url, mp4Path);
   console.log(`✔ Saved ${(bytes / 1_048_576).toFixed(1)} MB → ${mp4Path}`);
 
   const thumbUrl = data.thumbnail_url ?? data.cover_image_url;
   if (thumbUrl) {
-    const posterPath = path.join(outDir, "landing-overview-poster.jpg");
+    const posterPath = path.join(outDir, `${basename}-poster.jpg`);
     await download(thumbUrl, posterPath);
     console.log(`✔ Saved poster → ${posterPath}`);
   }
-
-  console.log(
-    "\nDone. Next steps:\n" +
-      "  1. Host the MP4 (public bucket / CDN) or serve it from public/.\n" +
-      "  2. Set VITE_LANDING_VIDEO_URL to its URL (and optionally\n" +
-      "     VITE_LANDING_VIDEO_POSTER_URL) so the landing hero shows the\n" +
-      "     'Watch the overview' modal.\n",
-  );
+  console.log("\nDone.\n");
 }
 
 main().catch((err) => fail(err?.stack ?? String(err)));
