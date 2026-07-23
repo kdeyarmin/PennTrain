@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { LogoMark } from "@/components/brand/Logo";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
+import { ProductTour } from "@/components/marketing/ProductTour";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
@@ -721,7 +722,7 @@ export default function Landing() {
               </Reveal>
             ))}
           </div>
-          <p className={`mx-auto mt-4 text-center text-[13px] ${aaMutedText}`}>Group home, nursing, home health, or hospice? The <Link href="/pa-training-requirements" className="font-medium text-[#1b6fc2] hover:underline">requirements guide</Link> covers your pathway too.</p>
+          <p className={`mx-auto mt-4 text-center text-[13px] ${aaMutedText}`}>Group home, nursing, home health, or hospice? The <Link href="/pa-training-requirements" className="font-medium text-[#1b6fc2] hover:underline">requirements guide</Link> covers your pathway too. Rules change — the <Link href="/regulatory-updates" className="font-medium text-[#1b6fc2] hover:underline">regulatory updates feed</Link> tracks new regulations, clarifications, and guidance as they land.</p>
         </div>
       </section>
 
@@ -794,6 +795,10 @@ export default function Landing() {
         </div>
       </section>
 
+      <div id="product-tour" className="scroll-mt-[72px]">
+        <ProductTour />
+      </div>
+
       <section className="bg-gradient-to-r from-[#1b6fc2] to-[#143a5c] text-white">
         <div className="mx-auto flex max-w-[1160px] flex-col gap-5 px-6 py-9 sm:flex-row sm:items-center sm:justify-between">
           <Reveal>
@@ -829,7 +834,7 @@ export default function Landing() {
               </Reveal>
             ))}
           </div>
-          <p className={`mx-auto mt-4 max-w-[640px] text-center text-[12.5px] ${aaMutedText}`}>These prices feed the <Link href="/savings" className="font-bold text-[#1b6fc2] hover:underline">savings worksheet below</Link> automatically — model your net opportunity with your own coordination hours and tool spend, risk avoidance excluded.</p>
+          <p className={`mx-auto mt-4 max-w-[640px] text-center text-[12.5px] ${aaMutedText}`}>These prices feed the <Link href="/savings" className="font-bold text-[#1b6fc2] hover:underline">savings worksheet</Link> automatically — model your net opportunity with your own coordination hours and tool spend, risk avoidance excluded.</p>
         </div>
       </section>
 
