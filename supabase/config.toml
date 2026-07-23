@@ -259,3 +259,9 @@ verify_jwt = false
 # because platform cron and the system-jobs control plane call it without a user JWT.
 [functions.process-organization-export-jobs]
 verify_jwt = false
+
+# Tool-execution callback for the voice gateway (artifacts/voice-gateway).
+# The gateway forwards the end user's JWT, so the standard gateway-level JWT
+# check applies; the function re-checks role + facility scope under RLS.
+[functions.voice-tools]
+verify_jwt = true
