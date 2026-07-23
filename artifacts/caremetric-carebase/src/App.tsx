@@ -19,6 +19,7 @@ const Savings = lazy(() => import("@/pages/marketing/Savings"));
 const Faq = lazy(() => import("@/pages/marketing/Faq"));
 const About = lazy(() => import("@/pages/marketing/About"));
 const PaTrainingRequirements = lazy(() => import("@/pages/marketing/PaTrainingRequirements"));
+const PaDhsCitations = lazy(() => import("@/pages/marketing/PaDhsCitations"));
 const RegulatoryUpdates = lazy(() => import("@/pages/marketing/RegulatoryUpdates"));
 const Privacy = lazy(() => import("@/pages/marketing/Privacy"));
 const Terms = lazy(() => import("@/pages/marketing/Terms"));
@@ -407,6 +408,7 @@ function Router() {
       <Route path="/how-it-works" component={HowItWorks} />
       <Route path="/savings" component={Savings} />
       <Route path="/pa-training-requirements" component={PaTrainingRequirements} />
+      <Route path="/pa-dhs-citations" component={PaDhsCitations} />
       <Route path="/regulatory-updates" component={RegulatoryUpdates} />
       <Route path="/faq" component={Faq} />
       <Route path="/about" component={About} />

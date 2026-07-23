@@ -343,6 +343,7 @@ function MarketingFooter() {
             <Link href="/how-it-works" className={footerLink}>How it works</Link>
             <Link href="/savings" className={footerLink}>Savings</Link>
             <Link href="/pa-training-requirements" className={footerLink}>PA requirements guide</Link>
+            <Link href="/pa-dhs-citations" className={footerLink}>Top DHS citations</Link>
             <Link href="/regulatory-updates" className={footerLink}>Regulatory updates</Link>
             <NavAnchorLink href="/#pricing" className={footerLink}>Pricing</NavAnchorLink>
             <Link href="/faq" className={footerLink}>FAQ</Link>
