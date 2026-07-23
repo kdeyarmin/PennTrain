@@ -9,7 +9,6 @@ import {
   MessageCircle,
   Minimize2,
   Send,
-  Sparkles,
   Target,
   TrendingUp,
   X,
@@ -31,15 +30,6 @@ import {
   type LeadProfile,
   type Message,
 } from "@/lib/marketingAIBotSales";
-
-const QUICK_PROMPTS = [
-  "Sell me on CareBase in 30 seconds",
-  "What problems do you solve for my facility?",
-  "Show me the ROI for replacing spreadsheets",
-  "Why should I buy this instead of a basic LMS?",
-  "How fast can we roll this out?",
-  "What would a demo prove to my team?",
-];
 
 const SALES_CARDS: { icon: LucideIcon; label: string; detail: string }[] = [
   {
@@ -78,10 +68,6 @@ export function MarketingAIBot() {
   ]);
   const transcriptRef = useRef<HTMLDivElement>(null);
 
-  const smartPrompt = useMemo(
-    () => QUICK_PROMPTS[Math.floor(messages.length % QUICK_PROMPTS.length)],
-    [messages.length],
-  );
   const profileLabel = leadProfileSummary(leadProfile);
   const currentLeadScore = leadScore(leadProfile, messages.length);
   const currentLeadStage = leadStage(currentLeadScore);
@@ -116,12 +102,6 @@ export function MarketingAIBot() {
   if (!open) {
     return (
       <aside className="fixed bottom-5 right-4 z-50 flex flex-col items-end gap-3 sm:right-6" aria-label="CareBase customer service assistant">
-        <div className="hidden max-w-xs rounded-2xl border border-primary/20 bg-background/95 p-3 text-sm shadow-2xl backdrop-blur sm:block">
-          <div className="flex items-center gap-2 font-semibold">
-            <Sparkles className="h-4 w-4 text-primary" /> Ask CareBase Customer Service
-          </div>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">{smartPrompt}</p>
-        </div>
         <Button
           size="lg"
           className="h-14 rounded-full px-5 shadow-2xl"
