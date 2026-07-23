@@ -52,6 +52,12 @@ export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
     description:
       "Pennsylvania annual training hours for personal care homes (12 hrs, §2600.65), assisted living (16 hrs, §2800.65), Chapter 6400, nursing, home health, and hospice — with citations.",
   },
+  "/pa-dhs-citations": {
+    title:
+      "Top 15 PA DHS Citations for PCH & Assisted Living (2026 Guide) | CareBase",
+    description:
+      "The 15 most frequently cited 55 Pa. Code Chapter 2600 and 2800 regulations from Pennsylvania DHS — medication records, staff training, fire drills, and more — with why each citation is issued and how to avoid it. Ranked from the 2025 BHSL Annual Report.",
+  },
   "/faq": {
     title: "CareBase FAQ — PA Personal Care Home & Assisted Living Software",
     description:
