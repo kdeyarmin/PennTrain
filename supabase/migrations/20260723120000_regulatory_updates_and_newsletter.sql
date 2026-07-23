@@ -47,7 +47,12 @@ create table public.regulatory_updates (
   published_at timestamptz,
   status text not null default 'draft' check (status in ('draft', 'published', 'archived')),
   is_featured boolean not null default false,
-  created_by uuid references auth.users(id) on delete set null
+  created_by uuid references auth.users(id) on delete set null,
+  -- The public feed (list_regulatory_updates) requires published_at, so a 'published' row without
+  -- one would silently never surface. Enforce that published always carries a timestamp; draft and
+  -- archived leave it null.
+  constraint regulatory_updates_published_has_timestamp
+    check (status <> 'published' or published_at is not null)
 );
 
 create index regulatory_updates_public_feed_idx

@@ -2,9 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { RegulatoryUpdate, RegulatoryUpdateStatus } from "@/lib/regulatoryUpdates";
 
-// The regulatory_updates table and list_regulatory_updates RPC are newer than the checked-in
-// generated types, so reach them through small structural adapters (the same escape hatch used by
-// useGovernedLearning / usePaginatedDomainLists) rather than the full typed client.
+// regulatory_updates and list_regulatory_updates() are present in the generated types, but we still
+// reach them through a small structural adapter (the same escape hatch as useGovernedLearning /
+// usePaginatedDomainLists) because the generated RPC signature doesn't fit our usage: its args are
+// typed non-null (string/number) yet we pass null as the "no filter" sentinel, and its Returns mark
+// nullable columns (body, citation, source_uri, effective_date, ...) as non-null. The hand-written
+// RegulatoryUpdate type below models the real nullability.
 interface RpcResult<T> {
   data: T | null;
   error: { message: string } | null;

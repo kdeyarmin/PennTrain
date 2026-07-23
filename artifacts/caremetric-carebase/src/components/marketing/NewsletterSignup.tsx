@@ -169,7 +169,7 @@ export function NewsletterSignup({ topics, showNameFields = false, className }: 
           <p className="mt-1 text-muted-foreground">
             {alreadySubscribed
               ? "This email is already receiving CareBase regulatory updates."
-              : "Watch your inbox for a confirmation. We'll email a plain-language note whenever PA regulations change."}
+              : "We'll email a plain-language note whenever PA regulations change."}
           </p>
         </div>
       </div>
