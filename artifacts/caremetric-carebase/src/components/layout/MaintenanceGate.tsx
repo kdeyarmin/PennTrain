@@ -2,28 +2,30 @@ import { useState } from "react";
 import { AlertTriangle, LogOut, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LogoMark, BrandName } from "@/components/brand/Logo";
-import { supabase } from "@/lib/supabase";
+import { useSignOut } from "@/lib/auth";
 
 /**
- * Full-screen hold shown to non-platform-admin users while maintenance_mode is enabled.
- * Rendered by ProtectedRoute in place of the authenticated app (see App.tsx) so nobody
- * reads or writes tenant data mid-migration. Platform admins never reach this -- they bypass
- * the gate so they can finish the work and turn maintenance mode back off.
+ * Full-screen hold shown while maintenance_mode is enabled: to non-platform-admin users inside the
+ * app (ProtectedRoute) and to visitors on data-bearing public/guest routes (MaintenanceGatedRoute).
+ * Platform admins never reach the in-app gate -- they bypass it so they can turn maintenance off.
  *
- * The user keeps their session; "Check again" re-reads platform status (a plain reload, since
- * usePlatformStatus fails open and re-fetches on mount) and lets them straight back in once
- * maintenance ends. "Sign out" is offered for anyone who would rather not wait.
+ * "Check again" re-reads platform status (a plain reload; usePlatformStatus fails open and
+ * re-fetches on mount) and lets the user straight back in once maintenance ends. "Sign out" is
+ * shown only for signed-in users (`showSignOut`); it goes through the shared useSignOut() so an
+ * impersonating admin's origin tokens, the query cache, and the Supabase runtime cache are all
+ * cleared -- a raw supabase.auth.signOut() would strand the impersonation session in sessionStorage.
  */
-export default function MaintenanceGate() {
+export default function MaintenanceGate({ showSignOut = true }: { showSignOut?: boolean }) {
+  const signOut = useSignOut();
   const [signingOut, setSigningOut] = useState(false);
 
   const handleSignOut = async () => {
     setSigningOut(true);
     try {
-      await supabase.auth.signOut();
-    } finally {
-      // AuthProvider observes the auth change and redirects to /login; reload guarantees a
-      // clean slate even if sign-out failed, so the user is never stranded on this screen.
+      await signOut();
+    } catch {
+      // useSignOut() already surfaces its own errors; reload as a last resort so the user is
+      // never stranded on this screen.
       window.location.reload();
     }
   };
@@ -53,15 +55,17 @@ export default function MaintenanceGate() {
               <RefreshCw className="h-4 w-4" />
               Check again
             </Button>
-            <Button
-              variant="outline"
-              onClick={handleSignOut}
-              className="gap-2"
-              disabled={signingOut}
-            >
-              <LogOut className="h-4 w-4" />
-              {signingOut ? "Signing out…" : "Sign out"}
-            </Button>
+            {showSignOut && (
+              <Button
+                variant="outline"
+                onClick={handleSignOut}
+                className="gap-2"
+                disabled={signingOut}
+              >
+                <LogOut className="h-4 w-4" />
+                {signingOut ? "Signing out…" : "Sign out"}
+              </Button>
+            )}
           </div>
         </div>
 

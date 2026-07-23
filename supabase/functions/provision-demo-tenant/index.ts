@@ -179,6 +179,9 @@ Deno.serve(async (req: Request) => {
       p_user_id: existing.id,
       p_role: account.role,
       p_organization_id: organizationId,
+      // Reactivate: a previously deactivated demo profile is signed straight back out by
+      // AuthProvider, so the refreshed credentials would otherwise be unable to enter /demo.
+      p_is_active: true,
     });
     accounts.push({
       email: account.email,
@@ -213,6 +216,88 @@ Deno.serve(async (req: Request) => {
     seed = `error: ${error instanceof Error ? error.message : "unknown"}`;
   }
 
+  // 3b. Link the facility-scoped demo roles so their /demo workspaces aren't empty under RLS.
+  //     seed_demo_organization seeds operational data but not these per-profile links: the
+  //     facility_manager/trainer need facility_assignments and the manager/trainer/employee need
+  //     an employees row (mirrors supabase/seed.sql). org_admin/auditor are org-wide and need
+  //     neither. Best-effort and idempotent (check-then-insert) -- never fails provisioning.
+  let links = "skipped";
+  try {
+    const nameOf = (email: string) => DEMO_ACCOUNTS.find((a) => a.email === email)!;
+    const { data: facilities } = await admin
+      .from("facilities")
+      .select("id, name")
+      .eq("organization_id", organizationId);
+    const facilityId = (name: string) => facilities?.find((f) => f.name === name)?.id ?? null;
+    const manor = facilityId("Sunrise Manor");
+    const gardens = facilityId("Sunrise Gardens");
+
+    const profileId = async (email: string) => {
+      const { data } = await admin.from("profiles").select("id").eq("email", email).maybeSingle();
+      return (data?.id as string | undefined) ?? null;
+    };
+    const managerId = await profileId("manager@sunrisemanor.com");
+    const trainerId = await profileId("trainer@sunrisehealthcare.com");
+    const employeeId = await profileId("employee@sunrisehealthcare.com");
+
+    if (!manor) {
+      links = "no demo facilities yet (re-run after the tenant is seeded)";
+    } else {
+      const assignments = [
+        managerId ? { profile_id: managerId, facility_id: manor } : null,
+        trainerId ? { profile_id: trainerId, facility_id: manor } : null,
+        trainerId && gardens ? { profile_id: trainerId, facility_id: gardens } : null,
+      ].filter(Boolean) as Array<{ profile_id: string; facility_id: string }>;
+      for (const assignment of assignments) {
+        const { data: existing } = await admin
+          .from("facility_assignments")
+          .select("profile_id")
+          .eq("profile_id", assignment.profile_id)
+          .eq("facility_id", assignment.facility_id)
+          .maybeSingle();
+        if (!existing) await admin.from("facility_assignments").insert(assignment);
+      }
+
+      const employeeRows = [
+        managerId
+          ? { profile_id: managerId, email: "manager@sunrisemanor.com", job_title: "Facility Administrator", hire_date: "2023-03-01", extra: {} }
+          : null,
+        trainerId
+          ? { profile_id: trainerId, email: "trainer@sunrisehealthcare.com", job_title: "Staff Trainer", hire_date: "2022-08-15", extra: { trainer_status: true } }
+          : null,
+        employeeId
+          ? { profile_id: employeeId, email: "employee@sunrisehealthcare.com", job_title: "Direct Care Staff", hire_date: "2026-02-12", extra: { administers_medications: true } }
+          : null,
+      ].filter(Boolean) as Array<{ profile_id: string; email: string; job_title: string; hire_date: string; extra: Record<string, unknown> }>;
+      for (const row of employeeRows) {
+        const { data: existing } = await admin
+          .from("employees")
+          .select("id")
+          .eq("profile_id", row.profile_id)
+          .maybeSingle();
+        if (!existing) {
+          const account = nameOf(row.email);
+          await admin.from("employees").insert({
+            organization_id: organizationId,
+            facility_id: manor,
+            profile_id: row.profile_id,
+            first_name: account.first_name,
+            last_name: account.last_name,
+            email: row.email,
+            job_title: row.job_title,
+            hire_date: row.hire_date,
+            status: "active",
+            is_synthetic: true,
+            ...row.extra,
+          });
+        }
+      }
+      links = "linked";
+    }
+  } catch (error) {
+    links = `error: ${error instanceof Error ? error.message : "unknown"}`;
+  }
+
   // 4. Return the exact VITE_DEMO_ACCOUNTS_JSON to publish to the browser build, so the login
   //    buttons and these accounts can never drift.
   const viteDemoAccountsJson = JSON.stringify(
@@ -230,6 +315,7 @@ Deno.serve(async (req: Request) => {
     organization_id: organizationId,
     accounts,
     seed,
+    links,
     viteDemoAccountsJson,
   });
 });

@@ -193,6 +193,19 @@ function FullPageLoading({ label = "Loading CareBase" }: { label?: string }) {
 // overwhelmingly common non-maintenance case. Rendered under the Router's <Suspense> boundary.
 const MaintenanceGate = lazy(() => import("@/components/layout/MaintenanceGate"));
 
+// Wraps a data-bearing public/guest route (safety intake, kiosk check-in, evidence/move-in/
+// resident-agreement portals, designated-person portal) so maintenance mode holds those tenant
+// read/write flows too -- not just the authenticated app. Guests have no app role, so any confirmed
+// maintenance blocks them (shouldBlockForMaintenance treats a missing role as non-admin). Fails open
+// while status is unknown. Read-only public verification routes (/verify, /passport) stay open.
+function MaintenanceGatedRoute({ component: Component }: { component: ComponentType }) {
+  const { data: platformStatus } = usePlatformStatus();
+  if (shouldBlockForMaintenance(platformStatus?.maintenanceMode, undefined)) {
+    return <MaintenanceGate showSignOut={false} />;
+  }
+  return <Component />;
+}
+
 function ProtectedRoute({
   component: Component,
   allowedRoles,
@@ -382,20 +395,20 @@ function Router() {
       <Route path="/legal/facility-signup" component={FacilitySignupLegal} />
       <Route path="/verify/:slug" component={VerifyCertificate} />
       <Route path="/passport/:slug" component={TrainingPassport} />
-      <Route path="/report-safety" component={SafetyReport} />
+      <Route path="/report-safety">{() => <MaintenanceGatedRoute component={SafetyReport} />}</Route>
       {/* Bare, chrome-less public page intentionally left outside ProtectedRoute/MainLayout so
           signed-out visitors can open it directly after scanning a QR code. */}
-      <Route path="/checkin/:token" component={CheckIn} />
-      <Route path="/checkin" component={CheckIn} />
+      <Route path="/checkin/:token">{() => <MaintenanceGatedRoute component={CheckIn} />}</Route>
+      <Route path="/checkin">{() => <MaintenanceGatedRoute component={CheckIn} />}</Route>
       {/* Guest pages immediately move path credentials into tab-scoped storage and replace
           browser history with the matching clean route below. */}
-      <Route path="/evidence-access/:token" component={EvidenceGuestRoom} />
-      <Route path="/evidence-access" component={EvidenceGuestRoom} />
-      <Route path="/move-in-access/:token" component={MoveInGuestPortal} />
-      <Route path="/move-in-access" component={MoveInGuestPortal} />
-      <Route path="/resident-agreement-access/:token" component={ResidentAgreementGuestPortal} />
-      <Route path="/resident-agreement-access" component={ResidentAgreementGuestPortal} />
-      <Route path="/resident-portal" component={ResidentDesignatedPersonPortal} />
+      <Route path="/evidence-access/:token">{() => <MaintenanceGatedRoute component={EvidenceGuestRoom} />}</Route>
+      <Route path="/evidence-access">{() => <MaintenanceGatedRoute component={EvidenceGuestRoom} />}</Route>
+      <Route path="/move-in-access/:token">{() => <MaintenanceGatedRoute component={MoveInGuestPortal} />}</Route>
+      <Route path="/move-in-access">{() => <MaintenanceGatedRoute component={MoveInGuestPortal} />}</Route>
+      <Route path="/resident-agreement-access/:token">{() => <MaintenanceGatedRoute component={ResidentAgreementGuestPortal} />}</Route>
+      <Route path="/resident-agreement-access">{() => <MaintenanceGatedRoute component={ResidentAgreementGuestPortal} />}</Route>
+      <Route path="/resident-portal">{() => <MaintenanceGatedRoute component={ResidentDesignatedPersonPortal} />}</Route>
 
       <Route path="/account/security">
         {() => <ProtectedRoute component={MfaSettings} allowedRoles={ANY_ROLE} />}

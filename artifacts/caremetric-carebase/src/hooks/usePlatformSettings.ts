@@ -31,7 +31,12 @@ export function useUpdatePlatformSetting() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["platform_settings"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["platform_settings"] });
+      // Also refresh the public platform-status cache so the admin's own maintenance banner/gate
+      // (and anything else reading usePlatformStatus in this tab) reflects the change immediately.
+      queryClient.invalidateQueries({ queryKey: ["platform-status"] });
+    },
   });
 }
 
@@ -66,5 +71,9 @@ export function usePlatformStatus() {
       }
     },
     staleTime: 60000,
+    // Poll so that turning maintenance mode on actually holds already-open, non-admin sessions out
+    // within about a minute (react-query has no cross-client push; the settings mutation only
+    // invalidates the admin's own tab). refetchOnWindowFocus (default) covers tab re-focus sooner.
+    refetchInterval: 60000,
   });
 }
