@@ -1,204 +1,350 @@
-import {
-  ArrowRight,
-  CheckCircle2,
-  ClipboardList,
-  Clock3,
-  FileStack,
-  Network,
-  Target,
-} from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { Link } from "wouter";
-import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
-import { CtaBanner } from "@/components/marketing/CtaBanner";
-import { PageHero, Reveal } from "@/components/marketing/primitives";
-import { STEPS } from "@/components/marketing/content";
+import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
 
-const IMPLEMENTATION_SEQUENCE = [
-  "Foundation: confirm facilities, license types, roles, access scope, residents, employees, and the records that will be imported or retained in another system.",
-  "Rules: configure training plans, credential and practicum requirements, resident deadlines, alert windows, review gates, and facility workflows.",
-  "Adoption: invite users and launch the highest-value workflows first—typically training and qualification, resident compliance, incidents, daily work, or survey readiness.",
-  "Proof: review dashboards and work queues, resolve baseline gaps, validate reports, and generate the first facility-scoped binder or evidence room.",
-];
-
-const DELIVERABLES = [
-  "Employee training and compliance plans tied to role, facility, and license type",
-  "Completion evidence from assigned training, live classes, outside records, practicums, services, attestations, observations, approvals, and manager reviews",
-  "Operational work across admissions, residents, dietary, scheduling, incidents, complaints, emergency readiness, maintenance, finance, and quality routed to an owner",
-  "Dashboards, alerts, certificates, documents, regulatory crosswalks, evidence rooms, audit history, reports, and binder exports",
-];
-
-const DEMO_PREP = [
+const WORKFLOW_STEPS = [
   {
-    icon: FileStack,
-    title: "Your current tool list",
+    title: "Configure the operation",
     description:
-      "Bring the spreadsheets, shared folders, calendars, LMS, logs, and point tools involved in the workflow.",
+      "Add facilities, roles, residents, and employees. Import your roster by CSV. Set the training, credential, and alert rules that apply.",
+    example:
+      "A PCH direct care worker automatically gets the 12-hour §2600.65 bucket.",
   },
   {
-    icon: Target,
-    title: "One high-risk workflow",
+    title: "Route the work",
     description:
-      "Choose a real example such as new-hire readiness, resident reassessment, incident follow-up, or survey evidence.",
+      "Training, resident services, schedules, incident follow-up, and approvals go to the person responsible — each with an owner and a deadline.",
+    example:
+      "A hospital return opens notification, reassessment, and plan-review tasks.",
   },
   {
-    icon: Network,
-    title: "Your role and access map",
+    title: "Capture proof as it happens",
     description:
-      "Identify who starts the work, who completes it, who verifies it, and who should only review the result.",
+      "Completions, signatures, uploads, sign-ins, and audit events attach to the right employee, resident, requirement, and date.",
+    example: "A QR class check-in becomes logged in-service hours instantly.",
   },
   {
-    icon: ClipboardList,
-    title: "One finished record",
+    title: "See risk, share evidence",
     description:
-      "Use a de-identified binder, report, checklist, or packet to define what defensible completion looks like.",
+      "Dashboards and escalating alerts surface gaps early. Binders and evidence rooms answer leadership, auditors, and surveyors.",
+    example: "The binder PDF rebuilds from live records in one click.",
   },
 ] as const;
 
+const SWITCHING_POINTS = [
+  {
+    lead: "An afternoon, not a project.",
+    text: "CSV import brings your whole roster in; your binder stays untouched while you ramp.",
+  },
+  {
+    lead: "Staff need only a browser.",
+    text: "QR check-in from their own phones, a phone-installable training player — no app store, no IT.",
+  },
+  {
+    lead: "Run both for month one.",
+    text: "Keep the paper binder alongside until CareBase has earned your trust.",
+  },
+  {
+    lead: "Your data leaves with you.",
+    text: "Export everything if you cancel — records are yours, not hostages.",
+  },
+] as const;
+
+const WEEK_EVENTS = [
+  {
+    day: "Monday",
+    text: "A new aide is hired. Her 12-hour §2600.65 plan, orientation checklist, Act 34 countdown, and TB screen are assigned before lunch — nobody built a spreadsheet row.",
+  },
+  {
+    day: "Tuesday",
+    text: "Mr. Alvarez returns from the hospital. Provider notification, reassessment, and support-plan review open automatically, each with an owner and a clock.",
+  },
+  {
+    day: "Wednesday",
+    text: "Dementia in-service, 2 p.m. Staff scan the rotating QR at the door; the hours land on each record the moment they sign in. No paper sheet to file.",
+  },
+  {
+    day: "Thursday",
+    text: "Second-shift fire drill, east wing. Logged from a phone during the drill — evacuation time, every §2600.132 field, PDF filed before the shift ends.",
+  },
+  {
+    day: "Friday",
+    text: "Corporate asks how the facility looks. You export the binder PDF from live records and go home on time. That's the product.",
+  },
+] as const;
+
+const SPECIFIC_PROMISES = [
+  {
+    title: "We don't replace your eMAR, EHR, or payroll.",
+    text: "CareBase runs the coordination layer around them — and routes medication events from your external source instead of pretending to administer them.",
+  },
+  {
+    title: "We don't guarantee a deficiency-free survey.",
+    text: "We make requirements, deadlines, ownership, and evidence visible so your team closes gaps before the surveyor finds them.",
+  },
+  {
+    title: "We don't quote a universal ROI.",
+    text: "You model savings with your own hours, labor cost, and tool spend — risk avoidance deliberately excluded.",
+  },
+] as const;
+
+const TRUST_NOTES = [
+  {
+    lead: "Real binder DNA.",
+    text: "The 60+ forms are adapted from an actual PA survey-readiness binder, not invented.",
+  },
+  {
+    lead: "Citation-weighted.",
+    text: "Readiness scoring is ranked by what DHS actually cites, not a generic checklist.",
+  },
+] as const;
+
+function SectionIntro({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+}) {
+  return (
+    <Reveal className="mx-auto flex max-w-[620px] flex-col gap-2.5 text-center">
+      <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#1b6fc2]">
+        {eyebrow}
+      </p>
+      <h2 className="m-0 text-balance text-[32px] font-bold leading-tight tracking-[-0.01em] text-[#0d2742] max-sm:text-3xl">
+        {title}
+      </h2>
+      {description && <p className="m-0 text-[15px] text-[#44566b]">{description}</p>}
+    </Reveal>
+  );
+}
+
 export default function HowItWorks() {
-  usePageMeta({ ...MARKETING_ROUTE_META["/how-it-works"], path: "/how-it-works" });
+  usePageMeta({
+    ...MARKETING_ROUTE_META["/how-it-works"],
+    path: "/how-it-works",
+  });
+
   return (
     <MarketingLayout>
-      <PageHero
-        eyebrow="One closed-loop operating model"
-        title="From facility setup to daily work to defensible evidence"
-        subtitle="Configure what applies, route each action to the right role, capture proof as the work happens, and use live risk views to decide what needs attention next."
-        highlights={[
-          "Configure what applies",
-          "Assign owners and deadlines",
-          "Preserve the evidence trail",
-        ]}
-      />
-
-      <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          {STEPS.map((step, i) => (
-            <Reveal key={step.title} delay={i * 0.1} className="relative">
-              <Card className="h-full border-border/60 p-6 shadow-sm">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-lg font-bold text-primary-foreground">
-                  {i + 1}
-                </div>
-                <h3 className="mt-5 text-lg font-semibold">{step.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {step.description}
-                </p>
-              </Card>
-              {i < STEPS.length - 1 && (
-                <ArrowRight className="absolute right-0 top-1/2 hidden h-5 w-5 -translate-y-1/2 text-muted-foreground/40 lg:-right-4 lg:block" />
-              )}
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      <section className="border-y border-border/60 bg-muted/30">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <Reveal className="mx-auto max-w-3xl text-center">
-            <p className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-              Make the demo specific
-            </p>
-            <h2 className="mt-3 text-2xl font-extrabold tracking-tight">
-              Bring four things to a workflow-mapping session
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              The most useful evaluation follows one of your records from trigger
-              to proof. These inputs let the team show what CareBase replaces,
-              what remains connected, and where ownership changes.
-            </p>
-          </Reveal>
-          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {DEMO_PREP.map((item, index) => (
-              <Reveal key={item.title} delay={index * 0.05}>
-                <Card className="h-full border-border/60 p-6 shadow-sm">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10">
-                    <item.icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <h3 className="mt-4 text-base font-semibold">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    {item.description}
-                  </p>
-                </Card>
-              </Reveal>
-            ))}
-          </div>
-          <Reveal className="mx-auto mt-8 max-w-3xl rounded-2xl border border-primary/20 bg-primary/[0.035] p-5 text-center text-sm leading-6 text-muted-foreground">
-            The output is a workflow map: source record, responsible roles,
-            deadlines, review gates, evidence, replacement candidates, and known
-            system boundaries. It is an evaluation aid—not a fixed implementation timeline.
-          </Reveal>
-        </div>
-      </section>
-
-      <section className="border-y border-border/60 bg-background">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.85fr_1.15fr] lg:px-8">
-          <Reveal>
-            <div className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs font-semibold text-primary shadow-sm">
-              <Clock3 className="h-3.5 w-3.5" />
-              Practical implementation sequence
-            </div>
-            <h2 className="mt-4 text-2xl font-extrabold tracking-tight">
-              Launch in the order that matches your highest-risk workflow
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              There is no universal four-week promise. The sequence is consistent,
-              but timing depends on facility count, data quality, integrations, and
-              how many workflows an organization chooses to launch at once.
-            </p>
-          </Reveal>
-          <Reveal delay={0.1} className="grid gap-3">
-            {IMPLEMENTATION_SEQUENCE.map((item) => (
-              <div
-                key={item}
-                className="flex items-start gap-3 rounded-xl border bg-card p-4 shadow-sm"
-              >
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                <span className="text-sm text-foreground/85">{item}</span>
-              </div>
-            ))}
-          </Reveal>
-        </div>
-      </section>
-
-      <section className="border-b border-border/60 bg-muted/30">
-        <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
-          <Reveal className="text-center">
-            <h2 className="text-2xl font-extrabold tracking-tight">
-              The output is a defensible facility record
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Every action in the app is designed to answer a surveyor's
-              practical question: what was required, who completed it, who
-              verified it, and where is the proof?
-            </p>
-          </Reveal>
-          <div className="mt-8 grid gap-3">
-            {DELIVERABLES.map((item) => (
-              <Reveal key={item}>
-                <div className="flex items-start gap-3 rounded-xl border bg-card p-4 shadow-sm">
-                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                  <span className="text-sm text-foreground/85">{item}</span>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-4 py-14 text-center sm:px-6 lg:px-8">
-        <Reveal>
-          <Link
-            href="/savings"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-          >
-            Map the workflow to replacement and savings
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+      <section className="relative overflow-hidden bg-gradient-to-br from-[#071626] via-[#0d2742] to-[#143a5c] text-white">
+        <TechGrid />
+        <Reveal className="relative mx-auto flex max-w-[860px] flex-col items-center gap-[15px] px-6 py-[60px] text-center">
+          <span className="inline-flex rounded-full border border-white/20 bg-white/[0.08] px-3.5 py-1.5 text-xs font-bold text-[#b9e4ff]">
+            How it works
+          </span>
+          <h1 className="m-0 text-balance text-[42px] font-bold leading-[1.1] tracking-[-0.015em] max-sm:text-4xl">
+            From spreadsheet chaos to survey-ready
+          </h1>
+          <p className="m-0 max-w-[56ch] text-pretty text-[16.5px] text-white/85">
+            The four moves every module follows, what switching actually takes,
+            and what a normal week looks like once CareBase is running your
+            facility.
+          </p>
         </Reveal>
       </section>
 
-      <CtaBanner />
+      <section
+        id="how"
+        className="scroll-mt-24 border-b border-[#e5eaf0] bg-white"
+      >
+        <div className="mx-auto max-w-[1160px] px-6 py-[72px]">
+          <SectionIntro
+            eyebrow="How it works"
+            title="Set it up once. It nags so you don't have to."
+            description="Every module — training, residents, incidents, maintenance — follows the same four moves, so staff learn it once."
+          />
+
+          <div className="mt-9 grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+            {WORKFLOW_STEPS.map((step, index) => (
+              <Reveal key={step.title} delay={index * 0.05}>
+                <article className="flex h-full flex-col gap-2.5 rounded-xl border border-[#e5eaf0] p-[22px]">
+                  <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#0d2742] font-mono text-sm font-bold text-white">
+                    {index + 1}
+                  </span>
+                  <h3 className="text-[15.5px] font-bold text-[#0d2742]">
+                    {step.title}
+                  </h3>
+                  <p className="m-0 text-[13.5px] text-[#44566b]">
+                    {step.description}
+                  </p>
+                  <p className="mt-auto border-t border-[#eef2f6] pt-2.5 text-xs text-[#5d7084]">
+                    {step.example}
+                  </p>
+                </article>
+              </Reveal>
+            ))}
+          </div>
+
+          <p className="mx-auto mt-5 text-center text-[13px] text-[#5d7084]">
+            Setup is self-serve — most single facilities are entering real
+            records the same day.
+          </p>
+
+          <Reveal className="mt-10 rounded-[14px] border border-[#dfe6ee] bg-[#f6f8fa] p-[26px]">
+            <h3 className="mb-4 text-center text-xl font-bold text-[#0d2742]">
+              Switching without the drama
+            </h3>
+            <div className="grid gap-3.5 md:grid-cols-2">
+              {SWITCHING_POINTS.map((point) => (
+                <div
+                  key={point.lead}
+                  className="flex gap-2.5 text-[13.5px] text-[#33465c]"
+                >
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#1e7a35]" />
+                  <span>
+                    <strong>{point.lead}</strong> {point.text}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="border-b border-[#e5eaf0] bg-white">
+        <div className="mx-auto max-w-[1160px] px-6 py-16">
+          <SectionIntro
+            eyebrow="A week with CareBase"
+            title="What actually changes, day by day"
+          />
+          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {WEEK_EVENTS.map((event, index) => (
+              <Reveal key={event.day} delay={index * 0.04}>
+                <article className="flex h-full flex-col gap-2 rounded-xl border border-[#dfe6ee] p-[18px]">
+                  <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-[#1b6fc2]">
+                    {event.day}
+                  </h3>
+                  <p className="m-0 text-[13.5px] text-[#33465c]">
+                    {event.text}
+                  </p>
+                </article>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section
+        id="promises"
+        className="scroll-mt-24 bg-[#071626] text-white"
+      >
+        <div className="relative overflow-hidden">
+          <TechGrid />
+          <div className="relative mx-auto max-w-[1160px] px-6 py-[72px]">
+            <Reveal className="flex max-w-[620px] flex-col gap-3">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#8ec8ff]">
+                Why operators trust us
+              </p>
+              <h2 className="m-0 text-balance text-[30px] font-extrabold leading-tight tracking-[-0.02em]">
+                Our promises are unusually specific
+              </h2>
+              <p className="m-0 text-[15px] text-white/82">
+                Compliance software is full of guarantees nobody can keep. We'd
+                rather tell you the boundaries.
+              </p>
+            </Reveal>
+
+            <div className="mt-7 grid gap-3.5 lg:grid-cols-3">
+              {SPECIFIC_PROMISES.map((promise, index) => (
+                <Reveal key={promise.title} delay={index * 0.05}>
+                  <article className="h-full rounded-xl border border-white/15 bg-white/[0.06] p-5">
+                    <h3 className="text-[15px] font-extrabold text-[#b9e4ff]">
+                      {promise.title}
+                    </h3>
+                    <p className="mt-2 text-[13.5px] leading-[1.55] text-white/80">
+                      {promise.text}
+                    </p>
+                  </article>
+                </Reveal>
+              ))}
+            </div>
+
+            <div className="mt-5 grid items-stretch gap-3.5 lg:grid-cols-2">
+              <Reveal className="flex flex-col gap-2.5">
+                <div className="flex flex-col justify-center gap-1.5 rounded-xl border border-dashed border-white/30 px-[18px] py-4">
+                  <p className="font-mono text-[11px] text-white/60">
+                    [ operator quote — real testimonial, name, title, facility ]
+                  </p>
+                  <p className="text-[12.5px] text-white/75">
+                    This space stays empty until it's real. No invented customers.
+                  </p>
+                </div>
+                <div className="grid gap-2 text-[12.5px] sm:grid-cols-3">
+                  {TRUST_NOTES.map((note) => (
+                    <div
+                      key={note.lead}
+                      className="rounded-[10px] border border-white/15 bg-white/[0.06] px-3.5 py-3 text-white/85"
+                    >
+                      <strong className="text-[#b9e4ff]">{note.lead}</strong>{" "}
+                      {note.text}
+                    </div>
+                  ))}
+                  <div className="rounded-[10px] border border-white/15 bg-white/[0.06] px-3.5 py-3 text-white/85">
+                    <strong className="text-[#b9e4ff]">People you can call.</strong>{" "}
+                    <Link className="text-[#b9e4ff] hover:underline" href="/about">
+                      Meet the team
+                    </Link>{" "}
+                    — one inbox, answered by the builders.
+                  </div>
+                </div>
+              </Reveal>
+
+              <Reveal delay={0.08} className="flex h-full flex-col justify-center gap-2.5 rounded-xl border border-white/15 bg-white/[0.06] p-5">
+                <h3 className="text-[15px] font-extrabold">
+                  Founding-partner pricing for early operators
+                </h3>
+                <p className="text-[13px] text-white/80">
+                  Early PCH and ALF operators get locked-in pricing and a direct
+                  line to the builders — the product shapes itself around your
+                  real workflows.
+                </p>
+                <Button
+                  asChild
+                  variant="secondary"
+                  className="self-start rounded-lg bg-white px-4 py-2 text-[13.5px] font-bold text-[#0d2742] hover:bg-[#dcebfa]"
+                >
+                  <Link href="/request-demo">Become a founding partner</Link>
+                </Button>
+              </Reveal>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-[#071626] text-white">
+        <Reveal className="mx-auto flex max-w-[860px] flex-col items-center gap-3.5 px-6 py-14 text-center">
+          <h2 className="m-0 text-[28px] font-bold tracking-[-0.01em]">
+            See it run your own workflows
+          </h2>
+          <p className="m-0 max-w-[52ch] text-[15px] text-white/82">
+            Self-serve trial with every module included — signup to first binder
+            without a single phone call.
+          </p>
+          <div className="mt-1.5 flex flex-wrap justify-center gap-3">
+            <Button
+              asChild
+              variant="secondary"
+              className="rounded-[9px] bg-white px-5 py-3 text-[14.5px] font-bold text-[#0d2742] hover:bg-[#dcebfa]"
+            >
+              <Link href="/signup">Start a free trial</Link>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              className="rounded-[9px] border-white/30 bg-transparent px-5 py-3 text-[14.5px] font-bold text-white hover:bg-white/10 hover:text-white"
+            >
+              <Link href="/faq">Questions? Read the FAQ</Link>
+            </Button>
+          </div>
+        </Reveal>
+      </section>
     </MarketingLayout>
   );
 }

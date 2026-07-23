@@ -217,10 +217,10 @@ export default function RequestDemo() {
                   </p>
                   <p className="flex flex-wrap gap-x-4 gap-y-2">
                     <Link
-                      href="/#product-tour"
+                      href="/#platform"
                       className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline"
                     >
-                      Explore the product tour meanwhile
+                      Explore the platform meanwhile
                       <ArrowRight className="h-4 w-4" />
                     </Link>
                     <Link

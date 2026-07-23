@@ -1,26 +1,14 @@
-import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { Link } from "wouter";
-import { HelpCircle, Mail, MessageSquareText, Search, X } from "lucide-react";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
-import { CtaBanner } from "@/components/marketing/CtaBanner";
-import { PageHero, Reveal } from "@/components/marketing/primitives";
+import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { FAQS } from "@/components/marketing/content";
+import { FAQ_CATEGORIES, type MarketingFaq } from "@/components/marketing/faqContent";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta, useJsonLd } from "@/lib/usePageMeta";
 
-const FEATURED_QUESTIONS = FAQS.slice(0, 4);
-const REMAINING_QUESTIONS = FAQS.slice(4);
-
-// Built directly from FAQS -- the same data rendered on the page -- so the
-// structured data can never drift from what visitors actually see.
 const FAQ_JSON_LD = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -34,162 +22,86 @@ const FAQ_JSON_LD = {
   })),
 };
 
-export default function Faq() {
-  const [query, setQuery] = useState("");
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredQuestions = useMemo(
-    () =>
-      FAQS.filter((faq) =>
-        `${faq.question} ${faq.answer}`.toLowerCase().includes(normalizedQuery),
-      ),
-    [normalizedQuery],
-  );
-  const accordionQuestions = normalizedQuery
-    ? filteredQuestions
-    : REMAINING_QUESTIONS;
+function FaqCard({ faq }: { faq: MarketingFaq }) {
+  const answerParts = faq.links?.reduce<ReactNode[]>((parts, link) => {
+    const nextParts: ReactNode[] = [];
+    parts.forEach((part) => {
+      if (typeof part !== "string") {
+        nextParts.push(part);
+        return;
+      }
+      const [before, ...rest] = part.split(link.label);
+      nextParts.push(before);
+      rest.forEach((text, index) => {
+        nextParts.push(
+          <Link
+            key={`${link.href}-${index}`}
+            href={link.href}
+            className="font-semibold text-[#1b6fc2] hover:text-[#0d2742] hover:underline"
+          >
+            {link.label}
+          </Link>,
+        );
+        nextParts.push(text);
+      });
+    });
+    return nextParts;
+  }, [faq.answer]) ?? [faq.answer];
 
+  return (
+    <article className="rounded-xl border border-[#e5eaf0] bg-white px-5 py-[18px] shadow-[0_1px_0_rgba(13,39,66,0.02)]">
+      <h3 className="text-[15px] font-bold leading-snug text-[#0d2742]">{faq.question}</h3>
+      <p className="mt-1.5 text-sm leading-6 text-[#44566b]">{answerParts}</p>
+    </article>
+  );
+}
+
+export default function Faq() {
   usePageMeta({ ...MARKETING_ROUTE_META["/faq"], path: "/faq" });
   useJsonLd("faq-jsonld", FAQ_JSON_LD);
+
   return (
     <MarketingLayout>
-      <PageHero
-        eyebrow="Straight answers for buyers and operators"
-        title="Frequently asked questions"
-        subtitle="What CareMetric CareBase does, what it replaces, what it does not replace, and how it supports personal care and assisted living operations."
-        highlights={[
-          "Product and replacement",
-          "Compliance boundaries",
-          "Implementation and security",
-        ]}
-      />
-
-      <section className="border-b border-border/60 bg-background">
-        <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
-          <Reveal className="text-center">
-            <h2 className="text-2xl font-extrabold tracking-tight">
-              Search product, compliance, security, or implementation
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Find the exact answer your buying team needs without reading the
-              full page.
-            </p>
-          </Reveal>
-          <div className="relative mt-7">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search all frequently asked questions"
-              aria-label="Search frequently asked questions"
-              className="h-12 bg-card pl-11 pr-12 shadow-sm"
-            />
-            {query && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => setQuery("")}
-                aria-label="Clear FAQ search"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-          <p className="mt-3 text-center text-xs text-muted-foreground" aria-live="polite">
-            {normalizedQuery
-              ? `${filteredQuestions.length} matching ${filteredQuestions.length === 1 ? "answer" : "answers"}`
-              : `${FAQS.length} answers available`}
+      <section className="relative overflow-hidden bg-gradient-to-br from-[#071626] via-[#0d2742] to-[#143a5c] text-white">
+        <TechGrid />
+        <div className="relative mx-auto flex max-w-[860px] flex-col items-center gap-3.5 px-4 py-14 text-center sm:px-6">
+          <h1 className="text-balance text-[42px] font-bold leading-[1.1] tracking-[-0.015em] sm:text-[42px]">
+            Frequently asked questions
+          </h1>
+          <p className="max-w-[54ch] text-base leading-7 text-white/85">
+            Straight answers on what CareBase does, what it replaces, what it doesn't, and how to start.
           </p>
         </div>
       </section>
 
-      {!normalizedQuery && (
-        <section className="border-b border-border/60 bg-muted/30">
-          <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-            <Reveal className="mx-auto max-w-3xl text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
-                <MessageSquareText className="h-6 w-6 text-primary" />
-              </div>
-              <h2 className="mt-4 text-2xl font-extrabold tracking-tight">
-                Start with the questions teams ask first
-              </h2>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Start with the product, replacement, and savings questions below.
-                The remaining answers explain compliance boundaries, implementation,
-                staff workflows, resident operations, and evidence.
-              </p>
-            </Reveal>
-            <div className="mt-10 grid gap-4 md:grid-cols-2">
-              {FEATURED_QUESTIONS.map((faq) => (
-                <Reveal key={faq.question}>
-                  <article className="h-full rounded-2xl border bg-card p-5 shadow-sm">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-                      <HelpCircle className="h-5 w-5 text-primary" />
-                    </div>
-                    <h3 className="mt-4 text-base font-semibold">{faq.question}</h3>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{faq.answer}</p>
-                  </article>
-                </Reveal>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
+      <section className="bg-white">
+        <div className="mx-auto flex max-w-[820px] flex-col gap-10 px-4 py-14 sm:px-6">
+          {FAQ_CATEGORIES.map((category) => {
+            const faqs = FAQS.filter((faq) => faq.category === category);
+            return (
+              <Reveal key={category} className="flex flex-col gap-2.5">
+                <h2 className="mb-1.5 text-[22px] font-bold leading-tight text-[#0d2742]">{category}</h2>
+                {faqs.map((faq) => (
+                  <FaqCard key={faq.question} faq={faq} />
+                ))}
+              </Reveal>
+            );
+          })}
 
-      <section className="mx-auto max-w-3xl px-4 py-20 sm:px-6 lg:px-8">
-        <Reveal className="mb-8 text-center">
-          <h2 className="text-2xl font-extrabold tracking-tight">
-            {normalizedQuery ? "Search results" : "More details"}
-          </h2>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            {normalizedQuery
-              ? "Every match is shown below with its complete answer."
-              : "Browse implementation, access, reporting, and setup questions in one place."}
-          </p>
-        </Reveal>
-        {accordionQuestions.length > 0 ? (
-          <Accordion type="single" collapsible className="rounded-2xl border bg-card px-5 shadow-sm">
-            {accordionQuestions.map((faq) => (
-              <AccordionItem key={faq.question} value={faq.question}>
-                <AccordionTrigger className="gap-4 text-left text-base font-semibold">
-                  {faq.question}
-                </AccordionTrigger>
-                <AccordionContent className="text-sm leading-6 text-muted-foreground">
-                  {faq.answer}
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        ) : (
-          <div className="rounded-2xl border bg-card p-8 text-center shadow-sm">
-            <h3 className="font-semibold">No matching answer found</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Try a broader term, or clear the search to browse every answer.
+          <Reveal className="flex flex-col items-center gap-2.5 rounded-[14px] border border-[#cfe2f4] bg-[#eaf3fc] p-6 text-center">
+            <h2 className="text-xl font-bold leading-tight text-[#0d2742]">Want to see it on your own data?</h2>
+            <p className="max-w-[48ch] text-sm leading-6 text-[#44566b]">
+              The trial includes every module — create your organization, import your roster, and see your facility's real compliance picture today.
             </p>
-            <Button type="button" variant="outline" onClick={() => setQuery("")} className="mt-5">
-              Clear search
+            <Button asChild className="mt-1 bg-[#1b6fc2] px-[18px] py-[11px] text-sm font-bold hover:bg-[#14548f]">
+              <Link href="/signup">
+                Start a free trial
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </Button>
-          </div>
-        )}
-
-        <Reveal className="mt-10 rounded-2xl border border-primary/20 bg-primary/[0.03] p-6 text-center">
-          <h3 className="text-lg font-semibold">Have a requirement we did not cover?</h3>
-          <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-            Send your facility type, state, and current training workflow. We can walk
-            through how CareMetric CareBase would model it.
-          </p>
-          <Button asChild className="mt-5 gap-2">
-            <Link href="/request-demo">
-              <Mail className="h-4 w-4" />
-              Ask about your workflow
-            </Link>
-          </Button>
-        </Reveal>
+          </Reveal>
+        </div>
       </section>
-
-      <CtaBanner />
     </MarketingLayout>
   );
 }
