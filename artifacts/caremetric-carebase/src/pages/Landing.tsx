@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import {
   ArrowRight,
@@ -19,6 +19,19 @@ import { ProductTour } from "@/components/marketing/ProductTour";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
+
+// Lazy so the video modal (and its Dialog dependency) stays out of the eager
+// landing chunk; it is only fetched when a marketing video is actually
+// configured (VITE_LANDING_VIDEO_URL). Without a video, the hero shows its
+// animated mockup and this chunk is never loaded. The enablement flag is read
+// inline from env here (not via the landingVideo module) to keep the eager
+// landing chunk's footprint at zero.
+const HeroOverviewVideo = lazy(() =>
+  import("@/components/marketing/HeroOverviewVideo").then((m) => ({ default: m.HeroOverviewVideo })),
+);
+const LANDING_VIDEO_ENABLED = Boolean(
+  (import.meta.env.VITE_LANDING_VIDEO_URL as string | undefined)?.trim(),
+);
 
 type HeroMetric = { value: string; label: string };
 type PlainEnglishCard = {
@@ -662,6 +675,11 @@ export default function Landing() {
                 <Link href="/demo">Explore the live demo</Link>
               </Button>
             </Reveal>
+            {LANDING_VIDEO_ENABLED && (
+              <Suspense fallback={null}>
+                <HeroOverviewVideo />
+              </Suspense>
+            )}
             <Reveal delay={0.18}>
               <p className="text-[13px] text-white/75">Fully self-service — log into a sandbox or start your own {TRIAL_DAYS}-day trial, no phone call. <Link href="/how-it-works" className="font-semibold text-[#b9e4ff] hover:text-white hover:underline">See how it works →</Link></p>
             </Reveal>
