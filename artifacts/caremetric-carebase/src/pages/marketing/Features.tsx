@@ -17,7 +17,7 @@ const RESIDENT_LIFECYCLE = [
     label: "02 — First 15 days",
     title: "First 15 days",
     description:
-      "The initial assessment lands on its own regulatory clock, the support plan opens automatically, and orientation evidence attaches to the record.",
+      "The initial assessment lands on its own regulatory clock, the support plan opens automatically, and orientation documentation attaches to the record.",
   },
   {
     label: "03 — Every day",
@@ -115,7 +115,7 @@ const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
       "Maintenance & work orders",
       "QAPI & quality projects",
       "Closed-loop work queue",
-      "Evidence rooms & regulatory crosswalk",
+      "Documentation rooms & regulatory crosswalk",
     ],
   },
   {
@@ -128,7 +128,7 @@ const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
       "Monthly OIG / SAM exclusion screening",
       "Administrator qualification & CE tracking",
       "Live pass-meds authorization roster",
-      "Policy attestation campaigns (ESIGN/UETA evidence)",
+      "Policy attestation campaigns (ESIGN/UETA documentation)",
       "Shift scheduling & auto-fill",
       "Cross-facility float staff",
     ],
@@ -169,7 +169,7 @@ const USER_ROLES = [
     title: "Trainer",
     sees: "class rosters, retraining queues, and course drafts.",
     does:
-      "runs classes with QR check-in, drafts AI-assisted courses, manages practicum evidence.",
+      "runs classes with QR check-in, drafts AI-assisted courses, manages practicum documentation.",
   },
   {
     title: "Employee",
@@ -178,7 +178,7 @@ const USER_ROLES = [
   },
   {
     title: "Auditor / surveyor",
-    sees: "read-only evidence scoped to exactly what was requested.",
+    sees: "read-only documentation scoped to exactly what was requested.",
     does: "reviews the record without the ability to change anything.",
   },
 ] as const;
@@ -188,13 +188,13 @@ const RECENTLY_SHIPPED = [
     tag: "Survey Day Mode",
     title: "A single workspace for the entrance conference",
     body:
-      "When a licensing surveyor arrives, one screen pins the entrance-conference checklist and its live readiness, your latest compliance binder, a searchable on-shift staff roster with training and clearance flags, and the evidence rooms you've prepared. Activation and closure are facility-scoped audit events, and nothing new is created or exposed — it surfaces the proof you already have.",
+      "When a licensing surveyor arrives, one screen pins the entrance-conference checklist and its live readiness, your latest compliance binder, a searchable on-shift staff roster with training and clearance flags, and the documentation rooms you've prepared. Activation and closure are facility-scoped audit events, and nothing new is created or exposed — it surfaces the proof you already have.",
   },
   {
     tag: "Compliance Copilot",
     title: "Cited answers, grounded in your own records",
     body:
-      "Ask why an employee is blocked, what's due in 30 days, which residents lack a current medical evaluation, or for a drafted Plan of Correction. Every answer is read-only synthesis over governed rule versions and your facility's own evidence, carrying its source, effective date, and citation — and human confirmation stays mandatory, so a draft is never approved or submitted on its own.",
+      "Ask why an employee is blocked, what's due in 30 days, which residents lack a current medical evaluation, or for a drafted Plan of Correction. Every answer is read-only synthesis over governed rule versions and your facility's own documentation, carrying its source, effective date, and citation — and human confirmation stays mandatory, so a draft is never approved or submitted on its own.",
   },
   {
     tag: "Today",
@@ -241,7 +241,7 @@ export default function Features() {
         <div className="mx-auto max-w-[1160px] px-6 py-[72px]">
           <Reveal className="mx-auto flex max-w-[640px] flex-col gap-2.5 text-center">
             <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#1b6fc2]">
-              Recently shipped
+              What's new
             </p>
             <h2 className="m-0 text-[32px] font-bold leading-tight tracking-[-0.01em] text-[#0d2742]">
               The newest capabilities, explained

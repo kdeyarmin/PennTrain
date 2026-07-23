@@ -54,7 +54,7 @@ const SECURITY_CONTROLS = [
   },
   {
     icon: Fingerprint,
-    title: "Version-bound e-signature evidence",
+    title: "Version-bound e-signature documentation",
     description:
       "Policy attestations capture the signer, timestamp, IP, user agent, and a content hash of the exact document version reviewed — designed to support ESIGN/UETA recordkeeping.",
   },
@@ -69,7 +69,7 @@ const SECURITY_CONTROLS = [
 const DEMO_TESTS = [
   'Can a facility manager only reach assigned-facility records — and does an out-of-scope facility show "Not Assigned," never a false all-clear?',
   "Can an employee see their own training without seeing coworker credentials?",
-  "Can an auditor review evidence without the ability to change it?",
+  "Can an auditor review documentation without the ability to change it?",
   "Can support impersonation, AI review, certificate issuance, and policy signatures be audited afterward?",
 ] as const;
 
@@ -80,9 +80,9 @@ const DUE_DILIGENCE_AREAS = [
       "Role permissions, org and facility scope, employee self-service boundaries, MFA support, and auditor read-only behavior.",
   },
   {
-    title: "Evidence & file handling",
+    title: "Documentation & file handling",
     description:
-      "Private storage, short-lived access links, controlled evidence sharing, record ownership, and file access boundaries.",
+      "Private storage, short-lived access links, controlled documentation sharing, record ownership, and file access boundaries.",
   },
   {
     title: "Operational controls",

@@ -86,7 +86,7 @@ const HERO_METRICS: HeroMetric[] = [
   { value: "60+", label: "survey-ready form templates included" },
   {
     value: "1 record",
-    label: "every role — admin to auditor — works from the same evidence",
+    label: "every role — admin to auditor — works from the same documentation",
   },
 ];
 
@@ -191,7 +191,7 @@ const DOMAINS: Domain[] = [
     mockup: <FacilityMockup />,
   },
   {
-    label: "Survey evidence",
+    label: "Survey documentation",
     title: "Ready before the surveyor sits down",
     intro: "Proof is collected as the work happens, so your binder is ready to export — not a project to assemble.",
     tags: [
@@ -200,12 +200,12 @@ const DOMAINS: Domain[] = [
       "Survey Day Mode workspace",
       "Grounded compliance copilot",
       "Ch. 2600 / 2800 crosswalk",
-      "Time-limited evidence rooms",
+      "Time-limited documentation rooms",
       "Immutable audit trail",
       "Report center",
     ],
     note: "60+ printable survey-readiness forms included, adapted from a real PA survey readiness binder.",
-    mockup: <EvidenceMockup />,
+    mockup: <DocumentationMockup />,
   },
 ];
 
@@ -281,7 +281,7 @@ const NEW_FEATURES: NewFeature[] = [
     icon: Radar,
     eyebrow: "Survey Day Mode",
     title: "One screen for the moment the surveyor walks in",
-    body: "Switch the facility into Survey Day Mode and everything the entrance conference needs is pinned in one place: the checklist and its live readiness, your most recent compliance binder, a searchable roster of who's on shift with their training and clearance flags, and the evidence rooms you've prepared. It doesn't build a second binder or expose anything new — it puts the proof you already have one click away while someone is standing at your desk. Starting and closing it are logged as audit events.",
+    body: "Switch the facility into Survey Day Mode and everything the entrance conference needs is pinned in one place: the checklist and its live readiness, your most recent compliance binder, a searchable roster of who's on shift with their training and clearance flags, and the documentation rooms you've prepared. It doesn't build a second binder or expose anything new — it puts the proof you already have one click away while someone is standing at your desk. Starting and closing it are logged as audit events.",
     href: "/features#survey-readiness",
     link: "See everything it pins →",
   },
@@ -289,7 +289,7 @@ const NEW_FEATURES: NewFeature[] = [
     icon: Bot,
     eyebrow: "Compliance Copilot",
     title: "Ask a plain question, get a cited answer from your own records",
-    body: "\"Why is this aide blocked from the schedule?\" \"What's due in the next 30 days?\" \"Which residents are missing a current medical evaluation?\" The copilot answers from your facility's own recorded data and shows the exact evidence and regulation behind every answer. It's read-only and human confirmation stays mandatory — it can draft a Plan of Correction or a mock-survey request, but a draft is only a recommendation until a person approves it, and it never invents a citation or closes a finding on its own.",
+    body: "\"Why is this aide blocked from the schedule?\" \"What's due in the next 30 days?\" \"Which residents are missing a current medical evaluation?\" The copilot answers from your facility's own recorded data and shows the exact documentation and regulation behind every answer. It's read-only and human confirmation stays mandatory — it can draft a Plan of Correction or a mock-survey request, but a draft is only a recommendation until a person approves it, and it never invents a citation or closes a finding on its own.",
     href: "/features#ai-course-creation",
     link: "How it stays grounded →",
   },
@@ -309,7 +309,7 @@ const PLANS: Plan[] = [
     price: STARTER_PRICE,
     suffix: " / facility / month",
     features: [
-      "All modules — residents, workforce, facility, evidence",
+      "All modules — residents, workforce, facility, documentation",
       "Unlimited employees & residents",
       "Email + SMS alerts, binder exports",
       "Self-serve setup, CSV roster import",
@@ -326,7 +326,7 @@ const PLANS: Plan[] = [
       "Everything in Single facility",
       "Org-wide rollups & facility comparisons",
       "Cross-facility float staff scheduling",
-      "Controlled evidence rooms for auditors",
+      "Controlled documentation rooms for auditors",
     ],
     cta: `Start ${TRIAL_DAYS}-day free trial`,
     href: "/signup",
@@ -379,7 +379,7 @@ const FAQS: Faq[] = [
   {
     question: "Can a surveyor or auditor get access?",
     answer:
-      "Yes — a read-only auditor role, plus time-limited evidence rooms scoped to exactly what was requested.",
+      "Yes — a read-only auditor role, plus time-limited documentation rooms scoped to exactly what was requested.",
   },
   {
     question: "How fast can we start?",
@@ -540,7 +540,7 @@ function FacilityMockup() {
     ["INC-114 · Fall, witnessed — no injury", "State hotline notified 2h ago · investigation open · report PDF drafted", "Follow-up due 48h", "warn"],
     ["Fire drill — 2nd shift, east wing", "Evacuation 4m 12s · every §2600.132 field logged · PDF filed", "Complete", "success"],
     ["WO-58 · Generator monthly load test", "Vendor on-site Thu · fuel level recorded · photos attached", "Verify to close", "info"],
-    ["POC · §2600.65(a) training citation", "Evidence attached for follow-up visit · Plan of Correction PDF generated", "POC submitted", "warn"],
+    ["POC · §2600.65(a) training citation", "Documentation attached for follow-up visit · Plan of Correction PDF generated", "POC submitted", "warn"],
   ];
   return (
     <div className="overflow-hidden rounded-[14px] border border-[#dfe6ee] bg-white shadow-[0_10px_30px_rgba(13,39,66,0.07)]">
@@ -564,7 +564,7 @@ function FacilityMockup() {
   );
 }
 
-function EvidenceMockup() {
+function DocumentationMockup() {
   return (
     <div className="overflow-hidden rounded-[14px] border border-[#dfe6ee] bg-white shadow-[0_10px_30px_rgba(13,39,66,0.07)]">
       <div className="flex flex-col gap-1 border-b border-[#e5eaf0] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -587,7 +587,7 @@ function EvidenceMockup() {
         </div>
       </div>
       <div className={`border-t border-[#eef2f6] bg-[#fafbfc] px-4 py-3 text-xs ${aaMutedText}`}>
-        Auditors and surveyors get read-only, time-limited evidence rooms — never edit access, never the whole application.
+        Auditors and surveyors get read-only, time-limited documentation rooms — never edit access, never the whole application.
       </div>
     </div>
   );
@@ -707,7 +707,7 @@ export default function Landing() {
             </div>
             <div className="absolute -bottom-4 -left-4 hidden rounded-[10px] border border-[#e5eaf0] bg-white px-3.5 py-2.5 text-[#1c2b3a] shadow-[0_14px_30px_rgba(0,0,0,0.3)] sm:block">
               <div className="text-xs font-bold text-[#0d2742]">Risk caught before survey day</div>
-              <div className={`font-mono text-[10.5px] ${aaMutedText}`}>Retraining assigned · due Aug 2 · evidence attached</div>
+              <div className={`font-mono text-[10.5px] ${aaMutedText}`}>Retraining assigned · due Aug 2 · documentation attached</div>
             </div>
           </Reveal>
         </div>

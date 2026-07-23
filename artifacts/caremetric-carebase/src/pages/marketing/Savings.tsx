@@ -55,7 +55,7 @@ const COMPARISON_ROWS = [
     "Credentials & clearances",
     "A separate spreadsheet",
     "—",
-    "Act 34/73/33, licenses, TB — with expirations & evidence",
+    "Act 34/73/33, licenses, TB — with expirations & documentation",
   ],
   [
     "Resident assessments",
@@ -85,7 +85,7 @@ const COMPARISON_ROWS = [
     "Auditor access",
     "Hand over the binder",
     "A shared login",
-    "Read-only role + time-limited evidence rooms",
+    "Read-only role + time-limited documentation rooms",
   ],
 ] as const;
 

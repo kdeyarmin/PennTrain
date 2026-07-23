@@ -25,7 +25,7 @@ type TourScenario = {
   title: string;
   description: string;
   stages: Array<{ label: string; detail: string }>;
-  evidence: string[];
+  documentation: string[];
 };
 
 const TOUR_SCENARIOS: TourScenario[] = [
@@ -42,7 +42,7 @@ const TOUR_SCENARIOS: TourScenario[] = [
       { label: "Control", detail: "Managers see missing, expiring, blocked, and completed requirements." },
       { label: "Prove", detail: "Certificates, sign-ins, outside records, and approvals stay with the employee record." },
     ],
-    evidence: ["Annual-hour buckets", "Credentials and screenings", "Practicum and competency evidence"],
+    documentation: ["Annual-hour buckets", "Credentials and screenings", "Practicum and competency documentation"],
   },
   {
     id: "resident",
@@ -57,7 +57,7 @@ const TOUR_SCENARIOS: TourScenario[] = [
       { label: "Control", detail: "Open and overdue steps remain visible in the work queue." },
       { label: "Prove", detail: "Observations, documents, decisions, approvals, and timestamps remain connected." },
     ],
-    evidence: ["Change timeline", "Assessment and plan linkage", "Completed follow-up history"],
+    documentation: ["Change timeline", "Assessment and plan linkage", "Completed follow-up history"],
   },
   {
     id: "facility",
@@ -65,29 +65,29 @@ const TOUR_SCENARIOS: TourScenario[] = [
     icon: Building2,
     title: "A safety issue gets fixed and verified",
     description:
-      "An inspection item, complaint, or maintenance concern moves from immediate protective action through ownership, remediation, review, and evidence-backed closure.",
+      "An inspection item, complaint, or maintenance concern moves from immediate protective action through ownership, remediation, review, and documentation-backed closure.",
     stages: [
       { label: "Trigger", detail: "A walkthrough, complaint, work order, or inspection exposes an issue." },
       { label: "Route", detail: "Protective action and corrective work are assigned with priority and deadlines." },
       { label: "Control", detail: "Dependencies, approvals, and unresolved risk stay visible to managers." },
-      { label: "Prove", detail: "Repair evidence and supervisor verification close the loop." },
+      { label: "Prove", detail: "Repair documentation and supervisor verification close the loop." },
     ],
-    evidence: ["Protective action", "Work and approval history", "Photos, files, and closure evidence"],
+    documentation: ["Protective action", "Work and approval history", "Photos, files, and closure documentation"],
   },
   {
     id: "survey",
     label: "Survey request",
     icon: FileCheck2,
-    title: "A survey request becomes a controlled evidence package",
+    title: "A survey request becomes a controlled documentation package",
     description:
-      "CareBase brings the underlying training, resident, incident, inspection, policy, and facility records into a binder or time-limited evidence room without opening the whole application.",
+      "CareBase brings the underlying training, resident, incident, inspection, policy, and facility records into a binder or time-limited documentation room without opening the whole application.",
     stages: [
-      { label: "Trigger", detail: "Leadership, an auditor, or a surveyor asks for a defined body of evidence." },
+      { label: "Trigger", detail: "Leadership, an auditor, or a surveyor asks for a defined body of documentation." },
       { label: "Route", detail: "The request is scoped to the correct facility, period, people, and requirements." },
-      { label: "Control", detail: "Missing or unresolved items remain visible before the evidence is shared." },
-      { label: "Prove", detail: "A binder export or controlled evidence room preserves the response." },
+      { label: "Control", detail: "Missing or unresolved items remain visible before the documentation is shared." },
+      { label: "Prove", detail: "A binder export or controlled documentation room preserves the response." },
     ],
-    evidence: ["Regulatory crosswalk", "Facility or organization binder", "Read-only evidence collection"],
+    documentation: ["Regulatory crosswalk", "Facility or organization binder", "Read-only documentation collection"],
   },
 ];
 
@@ -214,9 +214,9 @@ export function ProductTour() {
                 </ol>
 
                 <div className="mt-5 rounded-2xl border border-white/10 bg-[#061321]/70 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-white/52">Evidence attached to the outcome</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-white/52">Documentation attached to the outcome</p>
                   <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                    {selected.evidence.map((item) => (
+                    {selected.documentation.map((item) => (
                       <div key={item} className="flex items-start gap-2 text-xs leading-5 text-white/74">
                         <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#59b2ff]" />
                         {item}

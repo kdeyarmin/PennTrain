@@ -29,12 +29,12 @@ export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
     title:
       "CareBase Features — 50+ Capabilities for PCH & Assisted Living | CareMetric",
     description:
-      "Every CareBase capability: training compliance, AI course creation, a grounded compliance copilot, Survey Day Mode, resident assessments, incidents, scheduling, credentials, and survey evidence — one per-facility price.",
+      "Every CareBase capability: training compliance, AI course creation, a grounded compliance copilot, Survey Day Mode, resident assessments, incidents, scheduling, credentials, and survey documentation — one per-facility price.",
   },
   "/security": {
     title: "Security & Trust — CareBase for PA Senior Care Facilities",
     description:
-      "Row-level security, private evidence storage, immutable audit trails, and read-only auditor access — controls you can verify in a CareBase demo.",
+      "Row-level security, private documentation storage, immutable audit trails, and read-only auditor access — controls you can verify in a CareBase demo.",
   },
   "/how-it-works": {
     title: "How CareBase Works — From Spreadsheet Chaos to Survey-Ready",
@@ -92,7 +92,7 @@ export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
   "/login": {
     title: "Log In — CareMetric CareBase",
     description:
-      "Sign in to CareMetric CareBase to manage operations, workforce compliance, training, and survey evidence for your facility.",
+      "Sign in to CareMetric CareBase to manage operations, workforce compliance, training, and survey documentation for your facility.",
   },
   "/signup": {
     title: "Sign Up — Start Your Free Trial — CareMetric CareBase",

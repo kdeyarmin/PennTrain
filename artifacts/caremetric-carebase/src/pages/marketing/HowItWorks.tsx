@@ -28,9 +28,9 @@ const WORKFLOW_STEPS = [
     example: "A QR class check-in becomes logged in-service hours instantly.",
   },
   {
-    title: "See risk, share evidence",
+    title: "See risk, share documentation",
     description:
-      "Dashboards and escalating alerts surface gaps early. Binders and evidence rooms answer leadership, auditors, and surveyors.",
+      "Dashboards and escalating alerts surface gaps early. Binders and documentation rooms answer leadership, auditors, and surveyors.",
     example: "The binder PDF rebuilds from live records in one click.",
   },
 ] as const;
@@ -84,7 +84,7 @@ const SPECIFIC_PROMISES = [
   },
   {
     title: "We don't guarantee a deficiency-free survey.",
-    text: "We make requirements, deadlines, ownership, and evidence visible so your team closes gaps before the surveyor finds them.",
+    text: "We make requirements, deadlines, ownership, and documentation visible so your team closes gaps before the surveyor finds them.",
   },
   {
     title: "We don't quote a universal ROI.",

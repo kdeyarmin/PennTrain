@@ -36,7 +36,7 @@ const PRIVACY_SECTIONS = [
   {
     title: "3. How we use information",
     body:
-      "To provide and secure the service; to deliver alerts, reminders, and reports your organization configures; to provide support; to maintain audit and compliance evidence; and to improve the product. We do not sell personal information and we do not use resident or employee records for advertising.",
+      "To provide and secure the service; to deliver alerts, reminders, and reports your organization configures; to provide support; to maintain audit and compliance documentation; and to improve the product. We do not sell personal information and we do not use resident or employee records for advertising.",
   },
   {
     title: "4. Your organization controls its data",

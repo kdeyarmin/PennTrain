@@ -7,7 +7,7 @@ import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 const STORY = [
-  "Most personal care homes don't fail surveys because staff never learned the material. They struggle because the proof lives in paper sign-in sheets, old PDFs, email attachments, and a spreadsheet only one person understands. When the surveyor arrives, the work was done — but the evidence can't be found.",
+  "Most personal care homes don't fail surveys because staff never learned the material. They struggle because the proof lives in paper sign-in sheets, old PDFs, email attachments, and a spreadsheet only one person understands. When the surveyor arrives, the work was done — but the documentation can't be found.",
   "CareBase is our answer: one operating record where training, credentials, resident assessments, incidents, drills, maintenance, and scheduling all attach their own proof as the work happens. Your binder becomes something you export, not a project you dread.",
   "We build it against the actual regulations — 55 Pa. Code Chapters 2600 and 2800 first — and we prove it in real Pennsylvania facilities every day. CareBase is part of the CareMetric family of care-operations products.",
 ] as const;
@@ -23,7 +23,7 @@ const PRINCIPLES = [
   },
   {
     label: "03 — SECURITY AT THE DATABASE",
-    text: "Role and facility scope are enforced by database policy, evidence lives in private storage behind short-lived links, and compliance actions are immutably logged.",
+    text: "Role and facility scope are enforced by database policy, documentation lives in private storage behind short-lived links, and compliance actions are immutably logged.",
   },
 ] as const;
 

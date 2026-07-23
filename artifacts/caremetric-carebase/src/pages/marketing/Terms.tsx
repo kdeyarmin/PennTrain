@@ -8,7 +8,7 @@ const TERMS_SECTIONS = [
   {
     title: "1. The service",
     body:
-      "CareBase is subscription software for facility operations, workforce compliance, and survey-readiness evidence. It is not an EHR, eMAR, payroll, or accounting system, and it does not provide legal, clinical, or regulatory advice.",
+      "CareBase is subscription software for facility operations, workforce compliance, and survey-readiness documentation. It is not an EHR, eMAR, payroll, or accounting system, and it does not provide legal, clinical, or regulatory advice.",
   },
   {
     title: "2. Accounts",
@@ -44,7 +44,7 @@ const TERMS_SECTIONS = [
   {
     title: "6. Compliance disclaimer",
     body:
-      "CareBase helps you track requirements and preserve evidence. It does not guarantee regulatory compliance, survey outcomes, or the sufficiency of any record. Official forms, professional judgment, and compliance itself remain your organization's responsibility. Dashboards and AI-assisted tools are decision support, not legal advice.",
+      "CareBase helps you track requirements and preserve documentation. It does not guarantee regulatory compliance, survey outcomes, or the sufficiency of any record. Official forms, professional judgment, and compliance itself remain your organization's responsibility. Dashboards and AI-assisted tools are decision support, not legal advice.",
   },
   {
     title: "7. AI features",
