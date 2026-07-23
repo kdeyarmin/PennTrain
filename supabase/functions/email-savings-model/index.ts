@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { parseFromAddress } from "../_shared/notificationDelivery.ts";
 
 // Public, unauthenticated "email me my savings model" intake for the /savings marketing
@@ -95,13 +94,34 @@ async function verifyTurnstile(token: string | undefined, ip: string): Promise<v
 // Best-effort, in-process burst cap keyed by hashed IP. It resets on cold start and is not shared
 // across instances, so it is defense in depth on top of Turnstile (the real control) -- enough to
 // blunt repeat clicks from a single warm instance without a durable store.
+const BURST_WINDOW_MS = 60 * 60 * 1000;
+const BURST_MAX_PER_HOUR = 10;
+// Hard ceiling on distinct IP hashes retained so a warm instance can't grow the map without bound.
+const BURST_MAX_TRACKED_IPS = 10_000;
 const recentByIpHash = new Map<string, number[]>();
+
+function pruneBurstMap(now: number): void {
+  if (recentByIpHash.size <= BURST_MAX_TRACKED_IPS) return;
+  // First drop entries whose window has fully expired.
+  for (const [key, timestamps] of recentByIpHash) {
+    const live = timestamps.filter((ts) => now - ts < BURST_WINDOW_MS);
+    if (live.length === 0) recentByIpHash.delete(key);
+    else recentByIpHash.set(key, live);
+  }
+  // If sustained distinct-IP load keeps it over the cap, evict oldest-inserted keys until under it
+  // (Map preserves insertion order, so the first key is the oldest).
+  while (recentByIpHash.size > BURST_MAX_TRACKED_IPS) {
+    const oldest = recentByIpHash.keys().next().value;
+    if (oldest === undefined) break;
+    recentByIpHash.delete(oldest);
+  }
+}
+
 function enforceBurstCap(ipHash: string): void {
-  const windowMs = 60 * 60 * 1000;
-  const maxPerHour = 10;
   const now = Date.now();
-  const hits = (recentByIpHash.get(ipHash) ?? []).filter((ts) => now - ts < windowMs);
-  if (hits.length >= maxPerHour) {
+  pruneBurstMap(now);
+  const hits = (recentByIpHash.get(ipHash) ?? []).filter((ts) => now - ts < BURST_WINDOW_MS);
+  if (hits.length >= BURST_MAX_PER_HOUR) {
     throw new HttpError(429, "rate_limited", "Too many requests. Please try again later.");
   }
   hits.push(now);

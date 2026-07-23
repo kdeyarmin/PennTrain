@@ -584,7 +584,7 @@ export default function Savings() {
 
             {modelSent ? (
               <div className="text-center text-[13px] font-semibold text-[#8fd9a0]">
-                ✓ Sent — check your inbox for the worksheet with these numbers.
+                ✓ Sent — check your inbox for your savings worksheet.
               </div>
             ) : turnstileSiteKey ? (
               <form className="flex flex-col gap-2" onSubmit={handleEmailModel}>

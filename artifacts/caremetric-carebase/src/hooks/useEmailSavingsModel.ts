@@ -45,10 +45,12 @@ export function useEmailSavingsModel() {
         },
       );
       if (error) throw error;
-      if (data && data.ok === false) {
-        throw new Error(data.error ?? "Could not send your savings model");
+      // The Edge Function returns { ok: true } on success; treat anything else -- including a
+      // missing or malformed body -- as a failure so the UI can never show a false "sent" state.
+      if (!data || data.ok !== true) {
+        throw new Error(data?.error ?? "Could not send your savings model");
       }
-      return data as EmailSavingsModelResponse;
+      return data;
     },
   });
 }
