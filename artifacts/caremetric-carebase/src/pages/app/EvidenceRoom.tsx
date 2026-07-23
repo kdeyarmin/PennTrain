@@ -99,7 +99,7 @@ export default function EvidenceRoom() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <FolderLock className="h-6 w-6" /> Evidence Room
+            <FolderLock className="h-6 w-6" /> Documentation Room
           </h1>
           <p className="text-muted-foreground max-w-3xl">
             Share checksummed compliance binder exports with surveyors through revocable, expiring guest
@@ -166,7 +166,7 @@ export default function EvidenceRoom() {
           </div>
 
           {isError ? (
-            <QueryError what="evidence collections" error={error} onRetry={() => refetch()} />
+            <QueryError what="documentation collections" error={error} onRetry={() => refetch()} />
           ) : isLoading ? (
             <div className="space-y-2">
               {[...Array(4)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded-lg" />)}
@@ -174,7 +174,7 @@ export default function EvidenceRoom() {
           ) : rows.length === 0 ? (
             <p className="text-muted-foreground text-sm text-center py-10">
               {!hasFilters && total === 0
-                ? "No evidence collections yet. Create one to assemble survey-ready exports."
+                ? "No documentation collections yet. Create one to assemble survey-ready exports."
                 : "No collections match the current filters."}
             </p>
           ) : (
@@ -241,7 +241,7 @@ export default function EvidenceRoom() {
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New evidence collection</DialogTitle>
+            <DialogTitle>New documentation collection</DialogTitle>
             <DialogDescription>
               A collection gathers immutable binder exports for one facility. Publish it when it is
               ready, then issue expiring guest links to surveyors.

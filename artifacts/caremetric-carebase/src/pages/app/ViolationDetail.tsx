@@ -94,7 +94,7 @@ export default function ViolationDetail() {
         file, organizationId: violation.organization_id, facilityId: violation.facility_id, violationId: violation.id,
         documentLabel: uploadLabel.trim() || undefined,
       });
-      toast({ title: "Evidence uploaded" });
+      toast({ title: "Documentation uploaded" });
     } catch (err) {
       toast({ title: "Upload failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     } finally {
@@ -107,7 +107,7 @@ export default function ViolationDetail() {
     if (!docPendingDelete) return;
     try {
       await deleteDocument.mutateAsync(docPendingDelete);
-      toast({ title: "Evidence document deleted" });
+      toast({ title: "Documentation document deleted" });
     } catch (err) {
       toast({ title: "Delete failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     } finally {
@@ -334,7 +334,7 @@ export default function ViolationDetail() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> Evidence Documents</CardTitle>
+            <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> Documentation Documents</CardTitle>
             {canManage && (
               <div className="flex items-center gap-2">
                 <Input placeholder="Label (optional)" value={uploadLabel} onChange={(e) => setUploadLabel(e.target.value)} className="h-9 w-40" />
@@ -427,7 +427,7 @@ export default function ViolationDetail() {
       <AlertDialog open={!!docPendingDelete} onOpenChange={(open) => !open && setDocPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Evidence Document</AlertDialogTitle>
+            <AlertDialogTitle>Delete Documentation Document</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete "{docPendingDelete?.file_name}"? This action cannot be undone.
             </AlertDialogDescription>

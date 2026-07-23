@@ -69,7 +69,7 @@ const ROUTE_CONTEXTS: Array<{ test: RegExp; context: RouteContext }> = [
     context: {
       label: "Compliance Work",
       intent: "risk",
-      focus: "prioritize high-severity items, assign owners, gather evidence, and close the loop before deadlines",
+      focus: "prioritize high-severity items, assign owners, gather documentation, and close the loop before deadlines",
       suggestedPrompt: "Help me prioritize the compliance risks on this page.",
       links: [{ label: "Compliance Binder", href: "/app/compliance-binder", roles: ORG_ROLES }],
     },
@@ -99,7 +99,7 @@ const ROUTE_CONTEXTS: Array<{ test: RegExp; context: RouteContext }> = [
     context: {
       label: "Documents",
       intent: "documents",
-      focus: "find the right form or policy, complete required fields, capture signatures, and retain evidence in the correct record",
+      focus: "find the right form or policy, complete required fields, capture signatures, and retain documentation in the correct record",
       suggestedPrompt: "Which document workflow should I use here?",
       links: [{ label: "Documents", href: "/app/documents", roles: ORG_ROLES }],
     },
@@ -123,7 +123,7 @@ const KNOWLEDGE_BASE: KnowledgeItem[] = [
     keywords: ["training", "course", "quiz", "assignment", "matrix", "certificate", "class", "in-service", "competency", "retraining", "attestation", "ceu"],
     title: "Training and competency workflow",
     answer:
-      "Treat training questions as a gap-closure workflow: identify the missing requirement, assign or document the learning, validate hands-on competency when required, and confirm the employee has durable evidence such as a certificate, class roster, or competency record.",
+      "Treat training questions as a gap-closure workflow: identify the missing requirement, assign or document the learning, validate hands-on competency when required, and confirm the employee has durable documentation such as a certificate, class roster, or competency record.",
     nextSteps: [
       "Use Training Matrix to separate overdue, due-soon, missing, and completed requirements before acting.",
       "If multiple people need the same requirement, use Training Assignments or Training Plans instead of updating employees one-by-one.",
@@ -136,7 +136,7 @@ const KNOWLEDGE_BASE: KnowledgeItem[] = [
       { label: "Competency Records", href: "/app/competency-records", roles: ORG_ROLES },
       { label: "My Training", href: "/me/courses" },
     ],
-    followUpQuestions: ["Is this gap for one employee or a group?", "Does the requirement need observed competency evidence?", "Is the deadline tied to inspection readiness?"],
+    followUpQuestions: ["Is this gap for one employee or a group?", "Does the requirement need observed competency documentation?", "Is the deadline tied to inspection readiness?"],
   },
   {
     intent: "risk",
@@ -144,11 +144,11 @@ const KNOWLEDGE_BASE: KnowledgeItem[] = [
     keywords: ["alert", "risk", "overdue", "expired", "inspection", "compliance", "violation", "survey", "binder", "evidence", "citation", "deadline", "audit"],
     title: "Compliance risk triage",
     answer:
-      "Triage compliance work by resident or staff safety impact, regulatory deadline, evidence availability, and owner clarity. The fastest path is usually: assign an owner, attach proof, document the corrective action, and verify the item no longer appears as an active risk.",
+      "Triage compliance work by resident or staff safety impact, regulatory deadline, documentation availability, and owner clarity. The fastest path is usually: assign an owner, attach proof, document the corrective action, and verify the item no longer appears as an active risk.",
     nextSteps: [
       "Sort or filter the list by severity and due date so urgent risks are handled first.",
       "Open the source record before closing anything; confirm the underlying staff, resident, document, or facility data is corrected.",
-      "Store proof in Evidence Room or Compliance Binder when the item may be reviewed during survey or audit.",
+      "Store proof in Documentation Room or Compliance Binder when the item may be reviewed during survey or audit.",
       "If the risk reflects a trend, create QAPI follow-up or corrective action instead of treating it as a one-off task.",
     ],
     links: [
@@ -157,7 +157,7 @@ const KNOWLEDGE_BASE: KnowledgeItem[] = [
       { label: "Compliance Binder", href: "/app/compliance-binder", roles: ORG_ROLES },
       { label: "QAPI & Quality", href: "/app/qapi", roles: MANAGER_ROLES },
     ],
-    followUpQuestions: ["What is the due date?", "Who owns the corrective action?", "What evidence would prove this is resolved?"],
+    followUpQuestions: ["What is the due date?", "Who owns the corrective action?", "What documentation would prove this is resolved?"],
   },
   {
     intent: "resident",
@@ -168,7 +168,7 @@ const KNOWLEDGE_BASE: KnowledgeItem[] = [
       "For resident questions, anchor the work to the resident record and the operational queue that owns the next action: admissions for move-in, assessments and service delivery for care needs, change-of-condition for follow-up, medication integration for med safety, and QAPI when patterns or quality projects emerge.",
     nextSteps: [
       "Open the resident or admission workspace and confirm demographics, responsible parties, assessment status, and required signatures are current.",
-      "Use Change Follow-Up when a condition change needs owner tracking, due dates, or closure evidence.",
+      "Use Change Follow-Up when a condition change needs owner tracking, due dates, or closure documentation.",
       "Document service or medication-related actions in the operational module that produced the work so downstream reports stay accurate.",
       "Escalate recurring events, avoidable delays, or high-risk patterns to QAPI.",
     ],
@@ -189,7 +189,7 @@ const KNOWLEDGE_BASE: KnowledgeItem[] = [
       "Workforce questions usually require checking both the employee profile and the requirement that drives the task. Confirm the person, role, facility scope, schedule impact, and credential or screening status before assigning follow-up.",
     nextSteps: [
       "Open the employee profile to verify role, facility assignment, manager, and active status.",
-      "Check Credentials & Clearances, Background Checks, or Exclusion Screening for requirement-specific evidence.",
+      "Check Credentials & Clearances, Background Checks, or Exclusion Screening for requirement-specific documentation.",
       "Use Schedule or Workforce Operations when the issue affects coverage, shift handoff, or staffing readiness.",
     ],
     links: [
@@ -205,7 +205,7 @@ const KNOWLEDGE_BASE: KnowledgeItem[] = [
     keywords: ["document", "form", "policy", "signature", "template", "dhs", "upload", "file", "scan", "agreement", "packet"],
     title: "Document and form workflow",
     answer:
-      "Document work is strongest when the completed form, signature status, and retention location all line up. Use templates and state-form workflows for structured packets, policies for governed content, and the resident or staff record for evidence that belongs to a person.",
+      "Document work is strongest when the completed form, signature status, and retention location all line up. Use templates and state-form workflows for structured packets, policies for governed content, and the resident or staff record for documentation that belongs to a person.",
     nextSteps: [
       "Start from the workflow-specific form library or template instead of uploading a disconnected file when possible.",
       "Check whether signatures, attachments, approvals, or renewal dates are required before marking the item complete.",

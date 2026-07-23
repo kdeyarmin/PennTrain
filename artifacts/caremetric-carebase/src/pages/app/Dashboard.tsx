@@ -386,7 +386,7 @@ export default function OrgDashboard() {
       <RoleQuickStart
         role={user?.role}
         title="Portfolio quick start"
-        description="A short path from daily triage to evidence and reports."
+        description="A short path from daily triage to documentation and reports."
       />
 
       {benchmarkQuery.data?.available && benchmarkFacility ? (

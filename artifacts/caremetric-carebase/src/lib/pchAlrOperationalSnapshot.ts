@@ -99,7 +99,7 @@ export function buildPchAlrOperationsQueue(input: PchAlrSnapshotInput): PchAlrOp
       count: residentStateFormGaps,
       severity: severityFor(residentStateFormGaps),
       route: "/app/state-forms",
-      guidance: "Attach state-approved form evidence for admission, annual, significant-change, and Department-requested items.",
+      guidance: "Attach state-approved form documentation for admission, annual, significant-change, and Department-requested items.",
     },
     {
       id: "medication-safety",
@@ -115,7 +115,7 @@ export function buildPchAlrOperationsQueue(input: PchAlrSnapshotInput): PchAlrOp
       count: unresolvedIncidents,
       severity: severityFor(unresolvedIncidents),
       route: "/app/incidents",
-      guidance: "Verify notifications, resident/designated-person follow-up, investigation status, and final report evidence.",
+      guidance: "Verify notifications, resident/designated-person follow-up, investigation status, and final report documentation.",
     },
     {
       id: "corrective-actions",
@@ -123,7 +123,7 @@ export function buildPchAlrOperationsQueue(input: PchAlrSnapshotInput): PchAlrOp
       count: overdueActions,
       severity: severityFor(overdueActions),
       route: "/app/violations",
-      guidance: "Update owners, due dates, proof of completion, and POC evidence before the next huddle.",
+      guidance: "Update owners, due dates, proof of completion, and POC documentation before the next huddle.",
     },
     {
       id: "policy-attestations",
@@ -131,7 +131,7 @@ export function buildPchAlrOperationsQueue(input: PchAlrSnapshotInput): PchAlrOp
       count: policyAttestationGaps,
       severity: severityFor(policyAttestationGaps),
       route: "/app/policy-documents",
-      guidance: "Remind required audiences and file attestation evidence behind the citation-aware policy/template section.",
+      guidance: "Remind required audiences and file attestation documentation behind the citation-aware policy/template section.",
     },
   ];
 }
@@ -155,7 +155,7 @@ export function buildPchAlrOperationsQueueFromSnapshot(
       count: signals.residentReadinessGaps,
       severity: severityFor(signals.residentReadinessGaps),
       route: "/app/state-forms",
-      guidance: "Attach state-approved form evidence for admission, annual, significant-change, and Department-requested items.",
+      guidance: "Attach state-approved form documentation for admission, annual, significant-change, and Department-requested items.",
     },
     {
       id: "medication-safety",
@@ -171,7 +171,7 @@ export function buildPchAlrOperationsQueueFromSnapshot(
       count: signals.incidentComplaintOpen,
       severity: severityFor(signals.incidentComplaintOpen),
       route: "/app/complaints",
-      guidance: "Verify notifications, investigation status, non-retaliation safeguards, response deadlines, and closure evidence.",
+      guidance: "Verify notifications, investigation status, non-retaliation safeguards, response deadlines, and closure documentation.",
     },
     {
       id: "corrective-actions",
@@ -179,7 +179,7 @@ export function buildPchAlrOperationsQueueFromSnapshot(
       count: signals.overdueCorrectiveActions,
       severity: severityFor(signals.overdueCorrectiveActions),
       route: "/app/work",
-      guidance: "Update owners, due dates, proof of completion, approvals, and effectiveness review evidence.",
+      guidance: "Update owners, due dates, proof of completion, approvals, and effectiveness review documentation.",
     },
     {
       id: "policy-attestations",
@@ -187,7 +187,7 @@ export function buildPchAlrOperationsQueueFromSnapshot(
       count: signals.overduePolicyAttestations,
       severity: severityFor(signals.overduePolicyAttestations),
       route: "/app/policy-documents",
-      guidance: "Remind required audiences and file attestation evidence behind the citation-aware policy section.",
+      guidance: "Remind required audiences and file attestation documentation behind the citation-aware policy section.",
     },
     {
       id: "emergency-operations",

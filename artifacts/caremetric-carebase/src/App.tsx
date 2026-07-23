@@ -295,7 +295,7 @@ const ORG_ADMIN_ONLY: UserRole[] = ["org_admin"];
 // Read-only compliance views auditor needs alongside the org admin roles -- auditor never
 // gets ORG_MANAGE_ROLES (Users/Settings are true admin config, not audit-relevant).
 const REPORTS_VIEW_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
-// Phase 1 adds facility_id to audit evidence and enforces assigned-facility scope in RLS.
+// Phase 1 adds facility_id to audit documentation and enforces assigned-facility scope in RLS.
 const AUDIT_LOG_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
 // Matches employee_credentials_select RLS -- trainer is excluded, unlike ORG_ROLES, because
 // clearance/license data is more sensitive than training records.
@@ -309,7 +309,7 @@ const INCIDENT_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
 // review RPCs themselves. platform_admin is included so support can reach the console
 // directly via the Viewing-as-Org selector.
 const CONFIDENTIAL_INTAKE_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
-// Matches the evidence RLS surface: managers run the room, auditors read it.
+// Matches the documentation RLS surface: managers run the room, auditors read it.
 const EVIDENCE_ROOM_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 // Matches dhs_violations_select RLS -- same no-trainer, no-self-service sensitivity model as
 // incidents (a cited DHS violation and its POC are an org-compliance matter).
@@ -333,7 +333,7 @@ const TEMPLATE_DOCUMENT_ROLES: UserRole[] = ["org_admin", "facility_manager", "a
 // route to reach the same trainer-facing pages instead of needing a separate trainer account.
 const CLASS_SCHEDULING_ROLES: UserRole[] = ["trainer", "org_admin", "facility_manager"];
 // External certificate approvals are an operational training queue: admins/managers oversee it,
-// and trainers can approve training evidence. Auditors stay out of this action queue.
+// and trainers can approve training documentation. Auditors stay out of this action queue.
 const PENDING_APPROVAL_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer"];
 // Matches schedules_write / facility_units_write / shift_definitions_write / employee_schedule_preferences_write
 // RLS -- shift scheduling is org_admin/facility_manager only (no trainer, no auditor write).
@@ -347,7 +347,7 @@ const CHANGE_EVENT_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility
 const DIETARY_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 const RESIDENT_CALENDAR_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 const RESIDENT_FINANCE_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
-// Emergency operations includes sensitive resident assistance and live accountability evidence.
+// Emergency operations includes sensitive resident assistance and live accountability documentation.
 // Managers command events; auditors and platform support receive the same scoped read surface.
 const EMERGENCY_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 

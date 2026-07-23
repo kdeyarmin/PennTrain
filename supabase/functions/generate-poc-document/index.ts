@@ -149,9 +149,9 @@ async function buildPocPdf(input: {
     }
   }
 
-  w.heading("Evidence for Follow-Up Visit");
+  w.heading("Documentation for Follow-Up Visit");
   w.paragraph(
-    "Supporting evidence (corrected policies, training completion records, photos, invoices, etc.) is tracked " +
+    "Supporting documentation (corrected policies, training completion records, photos, invoices, etc.) is tracked " +
       "alongside this Plan of Correction in the app and made available to the surveyor at the follow-up visit.",
   );
 

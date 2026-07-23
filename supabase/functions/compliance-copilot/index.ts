@@ -273,7 +273,7 @@ async function collectResidentCompliance(client: any, facilityId: string, asOf: 
 
 async function collectCitationEvidence(client: any, facilityId: string, citationQuery: string | undefined) {
   const query = citationQuery?.trim().toLowerCase();
-  if (!query) return { evidence: [], missing: ["Enter a citation or regulatory topic to locate evidence."] };
+  if (!query) return { evidence: [], missing: ["Enter a citation or regulatory topic to locate documentation."] };
   const topics = await queryOrThrow(client.from("dhs_citation_topics").select("id,chapter,citation_ref,category,title,notes"), "citation topics") as any[];
   const matchingTopics = topics.filter((topic) => `${topic.chapter} ${topic.citation_ref ?? ""} ${topic.category} ${topic.title}`.toLowerCase().includes(query));
   const topicIds = matchingTopics.map((topic) => topic.id);
@@ -304,7 +304,7 @@ async function collectCitationEvidence(client: any, facilityId: string, citation
     ...inspections.map((row) => evidence(`inspection:${row.id}`, "inspection_item", row.label, row.status, null, row.next_due_date, `/app/inspection-items/${row.id}`, { citationTopicId: row.citation_topic_id, itemType: row.item_type })),
     ...training.map((row) => evidence(`training:${row.id}`, "training_record", `${trainingTypeMap.get(row.training_type_id)?.name ?? "Training"} for ${employeeMap.get(row.employee_id) ?? row.employee_id}`, row.status, row.completion_date, row.due_date, "/app/training-matrix", { trainingTypeId: row.training_type_id, citationTopicId: trainingTypeMap.get(row.training_type_id)?.citation_topic_id })),
   ];
-  return { evidence: collected, missing: collected.length === 0 ? [`No system evidence matched “${citationQuery}”.`] : [] };
+  return { evidence: collected, missing: collected.length === 0 ? [`No system documentation matched “${citationQuery}”.`] : [] };
 }
 
 async function collectRecurringCitations(client: any, facilityId: string) {
@@ -520,9 +520,9 @@ Deno.serve(async (req: Request) => {
     await recordFailure(`Grounding failed: ${message}`);
     return json({ error: "Failed to collect a complete facility-scoped grounding packet" }, 500);
   }
-  if (!facility.state) missingInformation.push("The facility state is blank; Pennsylvania is assumed from the PCH/ALR product scope.");
+  if (!facility.state) missingInformation.push("The facility state is blank; Pennsylvania is assumed from the PCH/ALF product scope.");
   if (sources.length === 0) missingInformation.push("No active governed rule version matched this question, jurisdiction, facility type, and as-of date.");
-  if (systemEvidence.length === 0) missingInformation.push("No matching facility-scoped system evidence was found for this question.");
+  if (systemEvidence.length === 0) missingInformation.push("No matching facility-scoped system documentation was found for this question.");
   missingInformation = uniqueStrings(missingInformation);
 
   const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
@@ -568,7 +568,7 @@ Deno.serve(async (req: Request) => {
   const groundingError = validateGroundedResponse(response, sources, systemEvidence);
   if (groundingError) {
     await recordFailure(groundingError, providerResult.model);
-    return json({ error: "Compliance copilot response failed citation or evidence validation" }, 502);
+    return json({ error: "Compliance copilot response failed citation or documentation validation" }, 502);
   }
   const citedSourceIds = new Set(response.source_ids);
   const citedEvidenceIds = new Set(response.evidence_ids);

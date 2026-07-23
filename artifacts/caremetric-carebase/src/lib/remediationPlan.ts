@@ -29,7 +29,7 @@ function dueDaysFor(action: InspectionReadinessAction): number {
 
 function evidenceFor(action: InspectionReadinessAction): string {
   if (action.kind === "citation_topic") return "Updated compliance record, supporting document, or corrective action linked to the citation topic.";
-  return "Entrance-conference checklist item marked ready with supporting evidence attached or documented.";
+  return "Entrance-conference checklist item marked ready with supporting documentation attached or documented.";
 }
 
 export function buildRemediationPlanDraft(actions: InspectionReadinessAction[]): RemediationPlanDraft {
@@ -45,7 +45,7 @@ export function buildRemediationPlanDraft(actions: InspectionReadinessAction[]):
       dueInDays: dueDaysFor(action),
       evidence: evidenceFor(action),
     })),
-    reviewerNote: "Human review required: confirm owners, due dates, and evidence before assigning this plan.",
+    reviewerNote: "Human review required: confirm owners, due dates, and documentation before assigning this plan.",
   };
 }
 
@@ -56,7 +56,7 @@ export function remediationPlanToText(plan: RemediationPlanDraft): string {
         `${index + 1}. ${step.title}`,
         `   Owner: ${step.owner}`,
         `   Due: ${step.dueInDays} day${step.dueInDays === 1 ? "" : "s"}`,
-        `   Evidence: ${step.evidence}`,
+        `   Documentation: ${step.evidence}`,
       ].join("\n")).join("\n");
 
   return [plan.title, "", plan.summary, "", steps, "", plan.reviewerNote].join("\n");

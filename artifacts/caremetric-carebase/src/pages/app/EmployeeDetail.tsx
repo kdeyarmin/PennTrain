@@ -857,7 +857,7 @@ export default function EmployeeDetail() {
             </div>
             {!!documents?.length && (
               <div className="col-span-2 space-y-1.5">
-                <Label className="text-[13px]">Evidence Document</Label>
+                <Label className="text-[13px]">Documentation Document</Label>
                 <Select
                   value={trainingForm.documentId || "none"}
                   onValueChange={v => setTrainingForm(f => ({ ...f, documentId: v === "none" ? "" : v }))}

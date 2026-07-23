@@ -401,7 +401,7 @@ export function useWorkItemEvidenceUrl() {
   return useMutation({
     mutationFn: async (evidence: WorkItemEvidence) => {
       if (!evidence.storage_bucket || !evidence.storage_path) {
-        throw new Error("This evidence links to another record.");
+        throw new Error("This documentation links to another record.");
       }
       const { data, error } = await supabase.storage
         .from(evidence.storage_bucket)

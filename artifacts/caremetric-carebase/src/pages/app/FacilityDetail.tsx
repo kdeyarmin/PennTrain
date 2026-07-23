@@ -331,7 +331,7 @@ export default function FacilityDetail() {
               </div>
               <div className="mt-3 text-xs text-muted-foreground space-y-1">
                 <p>{specialCareSummary.designatedUnits.length} designated unit(s); {specialCareSummary.residentPlacements} resident placement(s)</p>
-                <p>{specialCareSummary.trainedStaffCount} of {specialCareSummary.assignedStaffCount} assigned staff have current dementia/special-care training evidence.</p>
+                <p>{specialCareSummary.trainedStaffCount} of {specialCareSummary.assignedStaffCount} assigned staff have current dementia/special-care training documentation.</p>
               </div>
             </CardContent>
           </Card>

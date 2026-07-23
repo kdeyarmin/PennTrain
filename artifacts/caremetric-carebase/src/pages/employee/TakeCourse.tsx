@@ -891,7 +891,7 @@ useEffect(() => {
                   )}
                   {currentQuiz && completionEvidenceLocked ? (
                     <p className="text-sm text-muted-foreground">
-                      Assessment evidence is locked after course completion.
+                      Assessment documentation is locked after course completion.
                     </p>
                   ) : currentQuiz ? (
                     <Button asChild>
@@ -940,7 +940,7 @@ useEffect(() => {
                       )}
                       <p className={`text-xs ${learningToolsStorageError ? "text-destructive" : "text-muted-foreground"}`}>
                         {completionEvidenceLocked
-                          ? "Completed responses and confidence checks are read-only evidence."
+                          ? "Completed responses and confidence checks are read-only documentation."
                           : learningToolsStorageError
                           ? learningToolsStorageError
                           : lastStudyToolsSavedAt

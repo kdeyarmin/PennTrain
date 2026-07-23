@@ -163,7 +163,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
               <CardTitle>Administrator rule pack</CardTitle>
-              <CardDescription>Facility-type-specific PCH/ALF qualification, CE, orientation, and designee coverage evidence for inspection binders.</CardDescription>
+              <CardDescription>Facility-type-specific PCH/ALF qualification, CE, orientation, and designee coverage documentation for inspection binders.</CardDescription>
             </div>
             <Badge className={administratorRuleSummary.ready ? "bg-success text-success-foreground hover:bg-success/80" : "bg-warning text-warning-foreground hover:bg-warning/80"}>
               {administratorRuleSummary.status.replaceAll("_", " ")}
@@ -298,7 +298,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
               {rollingTotal.toFixed(1)} / {ROLLING_WINDOW_HOURS_REQUIRED} hrs (trailing 12 months)
             </Badge>
           </div>
-          <CardDescription>Rolling 24-hour annual CE requirement, with source and evidence captured per entry.</CardDescription>
+          <CardDescription>Rolling 24-hour annual CE requirement, with source and documentation captured per entry.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end">

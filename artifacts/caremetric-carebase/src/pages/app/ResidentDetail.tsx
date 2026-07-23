@@ -361,7 +361,7 @@ export default function ResidentDetail() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">Admission/readmission evidence packet for state-form, signature, contact, medication-determination, and resident-rights proof.</p>
+          <p className="text-xs text-muted-foreground">Admission/readmission documentation packet for state-form, signature, contact, medication-determination, and resident-rights proof.</p>
           <div className="grid gap-2 md:grid-cols-2">
             {moveInPacket.items.map((packetItem) => (
               <div key={packetItem.id} className="rounded-md border p-2 text-sm">

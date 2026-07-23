@@ -166,7 +166,7 @@ export default function SecurityGovernance() {
           <div>
             <CardTitle>Audit Coverage</CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">
-              Approved evidence mode and trigger health for regulated and administrative tables.
+              Approved documentation mode and trigger health for regulated and administrative tables.
             </p>
           </div>
           <Badge variant={coverageGaps.length === 0 ? "secondary" : "destructive"}>
@@ -185,7 +185,7 @@ export default function SecurityGovernance() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Table</TableHead>
-                  <TableHead>Evidence mode</TableHead>
+                  <TableHead>Documentation mode</TableHead>
                   <TableHead>Coverage</TableHead>
                   <TableHead>Rationale</TableHead>
                 </TableRow>

@@ -72,7 +72,7 @@ describe("deriveStateFormWorkflow", () => {
     expect(state.steps[1].state).toBe("current");
   });
 
-  it("moves to awaiting_signed_upload once the reference PDF exists, and never treats it as completion evidence", () => {
+  it("moves to awaiting_signed_upload once the reference PDF exists, and never treats it as completion documentation", () => {
     const referencePdf = doc({ id: "ref-pdf", document_label: assessmentFormDocumentLabel("form-1") });
     const state = deriveStateFormWorkflow(item(), [form({ status: "finalized" })], [referencePdf], "PCH");
     expect(state.step).toBe("awaiting_signed_upload");

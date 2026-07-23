@@ -32,7 +32,7 @@ describe("summarizeDueWork", () => {
 describe("getTodayDestinations", () => {
   it("keeps auditor actions on auditor-accessible routes", () => {
     expect(getTodayDestinations("auditor")).toEqual({
-      primary: { href: "/app/evidence", label: "Open Evidence Room" },
+      primary: { href: "/app/evidence", label: "Open Documentation Room" },
       handoffs: "/app/audit",
       coverage: "/app/reports",
       inspection: "/app/evidence",

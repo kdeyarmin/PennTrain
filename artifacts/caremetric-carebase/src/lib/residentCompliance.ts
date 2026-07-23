@@ -46,7 +46,7 @@ export function getComplianceFormLabel(facilityType: string | undefined): string
   return "Resident Compliance";
 }
 
-// Names the specific DHS-prescribed form each item type requires as evidence -- every item type
+// Names the specific DHS-prescribed form each item type requires as documentation -- every item type
 // maps to a real state form (see documentTemplates.ts's FE-03 "Official DHS Forms Index"), so this
 // covers all six, not just the four the digital RASP/ASP editor drafts. Used by the "attach the
 // state form" completion dialog so the prompt names the actual document staff need in hand instead

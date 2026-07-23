@@ -71,7 +71,7 @@ describe("MarketingAIBot sales engine", () => {
       "Replace spreadsheet/binder tracking with one live compliance workspace",
       "Create a survey-readiness fast-start plan",
       "Review executive rollups and facility-level drill-downs",
-      "Review AI-assisted training and evidence workflows",
+      "Review AI-assisted training and documentation workflows",
       "Tailor dashboards and permissions for owner/executive",
     ]);
     expect(decodeURIComponent(buildDemoMailtoHref(profile))).toContain(

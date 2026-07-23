@@ -68,8 +68,8 @@ export default function ClosedLoopCompliance() {
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex flex-wrap justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Closed-loop compliance and evidence</h1>
-          <p className="text-muted-foreground">Owned remediation, confidential intake, move-in readiness, reproducible reports, and external evidence access.</p>
+          <h1 className="text-2xl font-bold">Closed-loop compliance and documentation</h1>
+          <p className="text-muted-foreground">Owned remediation, confidential intake, move-in readiness, reproducible reports, and external documentation access.</p>
         </div>
         <Button variant="outline" onClick={() => void query.refetch()}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button>
       </div>
@@ -81,13 +81,13 @@ export default function ClosedLoopCompliance() {
       <div className="grid gap-4 xl:grid-cols-3">
         <Metrics title="Owned work" description="Deadline-driven remediation and escalation." values={data.work} href="/app/work" />
         <Metrics title="Confidential intake" description="Restricted triage and investigation queues." values={data.incidents} href={user?.role === "platform_admin" ? undefined : "/app/confidential-incidents"} />
-        <Metrics title="Evidence room" description="Published collections and external access." values={data.evidenceRoom} href="/app/evidence" />
+        <Metrics title="Documentation room" description="Published collections and external access." values={data.evidenceRoom} href="/app/evidence" />
       </div>
       <Tabs defaultValue="moveins">
         <TabsList className="h-auto flex-wrap">
           <TabsTrigger value="moveins">Move-ins</TabsTrigger>
           <TabsTrigger value="reports">Historical reports</TabsTrigger>
-          <TabsTrigger value="evidence">Evidence room</TabsTrigger>
+          <TabsTrigger value="evidence">Documentation room</TabsTrigger>
         </TabsList>
         <TabsContent value="moveins" className="mt-4">
           <Metrics title="Move-in readiness" description="Owned tasks, dependencies, signatures, approvals, and guest scope." values={data.moveIns} />
@@ -96,7 +96,7 @@ export default function ClosedLoopCompliance() {
           <Metrics title="Reproducible reporting" description="Versioned definitions, schedules, as-of snapshots, and reconciliation." values={data.reports} />
         </TabsContent>
         <TabsContent value="evidence" className="mt-4">
-          <Metrics title="External evidence access" description="Non-enumerable grants, expiration, revocation, legal hold, and access audit." values={data.evidenceRoom} />
+          <Metrics title="External documentation access" description="Non-enumerable grants, expiration, revocation, legal hold, and access audit." values={data.evidenceRoom} />
         </TabsContent>
       </Tabs>
       {data.generatedAt ? <p className="text-xs text-muted-foreground">Snapshot generated {new Date(data.generatedAt).toLocaleString()}</p> : null}

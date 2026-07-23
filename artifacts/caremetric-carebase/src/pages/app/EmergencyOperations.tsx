@@ -374,7 +374,7 @@ export default function EmergencyOperations() {
               <Card>
                 <CardHeader>
                   <CardTitle>Emergency event history</CardTitle>
-                  <CardDescription>Each activation preserves its plan version and live accountability evidence.</CardDescription>
+                  <CardDescription>Each activation preserves its plan version and live accountability documentation.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {!events.data?.length ? (

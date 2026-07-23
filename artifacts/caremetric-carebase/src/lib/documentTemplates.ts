@@ -72,7 +72,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     category: "State Entrance & Handoff",
     description: "Assemble the first packet handed to DHS/BHSL surveyors at entrance.",
     headerFields: ["Facility", "Date prepared", "Binder owner", "Backup owner", "Survey window", "Last updated"],
-    body: { kind: "table", columns: ["Document / evidence item", "Current?", "Location in binder / electronic system", "Person responsible", "Notes / update needed"], blankRows: 12 },
+    body: { kind: "table", columns: ["Document / documentation item", "Current?", "Location in binder / electronic system", "Person responsible", "Notes / update needed"], blankRows: 12 },
   },
   {
     code: "BF-02",
@@ -100,11 +100,11 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
   },
   {
     code: "BF-17",
-    title: "Evidence Handoff Cover Sheet",
+    title: "Documentation Handoff Cover Sheet",
     category: "State Entrance & Handoff",
-    description: "Place this on top of copied evidence provided to surveyors or used in a mock survey response.",
+    description: "Place this on top of copied documentation provided to surveyors or used in a mock survey response.",
     headerFields: ["Request #", "Date/time requested", "Surveyor/requester", "Prepared by", "Resident/staff if applicable", "Date/time provided"],
-    body: { kind: "table", columns: ["Evidence included", "Where original is maintained", "Verified current by", "Notes / limitations"], blankRows: 8 },
+    body: { kind: "table", columns: ["Documentation included", "Where original is maintained", "Verified current by", "Notes / limitations"], blankRows: 8 },
   },
   {
     code: "FE-02",
@@ -112,7 +112,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     category: "State Entrance & Handoff",
     description: "Keep this packet ready so the facility can respond calmly when surveyors arrive.",
     body: {
-      kind: "checklist", options: ["Ready"], notes: true, notesLabel: "Evidence / location",
+      kind: "checklist", options: ["Ready"], notes: true, notesLabel: "Documentation / location",
       items: [
         "Current license and posted inspection information",
         "Resident list with admission dates, room numbers and demographic notes",
@@ -214,7 +214,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     category: "Resident Records & Care Plans",
     description: "Use this to keep resident charts survey-ready from admission through annual review.",
     body: {
-      kind: "reference", columns: ["Timing", "Chart items to verify"], blankColumns: ["Evidence / notes"],
+      kind: "reference", columns: ["Timing", "Chart items to verify"], blankColumns: ["Documentation / notes"],
       rows: [
         ["Before admission", "Preadmission screening, appropriateness for PCH, preliminary care needs, home ability to meet needs."],
         ["At admission", "Contract, rights notification, photo, emergency contacts, pharmacy/physician, personal needs, orders, diet, DME."],
@@ -335,7 +335,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     category: "Medication Compliance",
     description: "Use for each resident receiving insulin, sliding scale coverage or diabetes-related medication administration.",
     body: {
-      kind: "checklist", options: ["Yes", "No", "N/A"], notes: true, notesLabel: "Evidence location / notes",
+      kind: "checklist", options: ["Yes", "No", "N/A"], notes: true, notesLabel: "Documentation location / notes",
       items: [
         "Current insulin/diabetes orders in chart",
         "Sliding-scale parameters clear if applicable",
@@ -542,7 +542,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     code: "FE-25",
     title: "Maintenance Preventive Schedule",
     category: "Walkthroughs & Environmental Rounds",
-    description: "Use monthly/quarterly to keep building evidence current.",
+    description: "Use monthly/quarterly to keep building documentation current.",
     body: {
       kind: "table", columns: ["Item", "Frequency", "Last completed", "Vendor/staff", "Proof location", "Next due", "Notes"],
       fixedFirstColumn: ["Fire extinguishers", "Exit/emergency lighting", "Smoke/CO alarms/system check", "Pest control", "Water temperature checks", "HVAC/filter maintenance", "Kitchen equipment", "Laundry equipment", "Outdoor hazards/snow/ice", "Trash removal/receptacles"],
@@ -579,7 +579,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
         "Outdoor trash covered/secured and not attracting pests",
         "Indoor trash removed timely and containers clean",
         "Pest control service current or internal monitoring documented",
-        "No visible pest evidence in kitchen, food storage, resident areas or trash areas",
+        "No visible signs of pests in kitchen, food storage, resident areas or trash areas",
         "Corrective actions documented with owner and due date",
       ],
     },
@@ -609,7 +609,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     category: "Rights, Complaints & Incidents",
     description: "Use when deciding whether an event must be reported to DHS/BHSL and what follow-up proof is needed.",
     headerFields: ["Resident / event", "Date/time", "Reviewer", "Administrator notified"],
-    body: { kind: "table", columns: ["Decision step", "Yes / No / N/A", "Evidence reviewed", "Action taken / due date"], blankRows: 8 },
+    body: { kind: "table", columns: ["Decision step", "Yes / No / N/A", "Documentation reviewed", "Action taken / due date"], blankRows: 8 },
   },
   {
     code: "FE-26",
@@ -651,7 +651,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
       items: [
         "Ensure resident safety and separate alleged staff/person if needed",
         "Notify administrator/designee immediately",
-        "Preserve evidence and do not alter records improperly",
+        "Preserve documentation and do not alter records improperly",
         "Complete required protective services/DHS/reporting steps as applicable",
         "Notify physician/family/designated person if required by policy/situation",
         "Begin written investigation log with dates/times/witnesses",
@@ -673,11 +673,11 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
   // ---------- Mock Survey & POC Readiness ----------
   {
     code: "BF-18",
-    title: "Evidence Gap Correction Worksheet",
+    title: "Documentation Gap Correction Worksheet",
     category: "Mock Survey & POC Readiness",
-    description: "Use when a record, training item, incident file, or other evidence is missing, incomplete, inconsistent, or outdated.",
+    description: "Use when a record, training item, incident file, or other documentation is missing, incomplete, inconsistent, or outdated.",
     headerFields: ["Gap identified by", "Date", "Area", "Immediate risk?", "Resident/staff affected", "Owner"],
-    body: { kind: "table", columns: ["Gap / issue", "Immediate correction", "Root cause", "Prevent recurrence", "Evidence of completion", "Due date"], blankRows: 8 },
+    body: { kind: "table", columns: ["Gap / issue", "Immediate correction", "Root cause", "Prevent recurrence", "Documentation of completion", "Due date"], blankRows: 8 },
   },
   {
     code: "BF-19",
@@ -685,7 +685,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     category: "Mock Survey & POC Readiness",
     description: "Use as the facility master action list during the survey window.",
     headerFields: ["Facility", "Week of", "Administrator", "Reviewer"],
-    body: { kind: "table", columns: ["Issue / risk", "Regulatory area", "Immediate action", "Owner", "Due date", "Completed / verified", "Evidence location"], blankRows: 10 },
+    body: { kind: "table", columns: ["Issue / risk", "Regulatory area", "Immediate action", "Owner", "Due date", "Completed / verified", "Documentation location"], blankRows: 10 },
   },
   {
     code: "BF-20",
@@ -712,14 +712,14 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     title: "POC Readiness and 10-Day Response Playbook",
     category: "Mock Survey & POC Readiness",
     description: "Use immediately after a Licensing Inspection Summary or survey findings are received.",
-    note: "The plan should explain what was corrected, who is responsible, how future compliance will be monitored, and what evidence proves completion.",
+    note: "The plan should explain what was corrected, who is responsible, how future compliance will be monitored, and what documentation proves completion.",
     body: {
       kind: "reference", columns: ["Step", "Action", "Proof to keep"],
       rows: [
-        ["1. Triage", "Read each citation and identify the exact regulation, resident/staff sample, and evidence gap.", "Citation worksheet and assignment log"],
+        ["1. Triage", "Read each citation and identify the exact regulation, resident/staff sample, and documentation gap.", "Citation worksheet and assignment log"],
         ["2. Immediate action", "Correct safety or resident-impacting concerns immediately when possible.", "Date/time of correction, photos, staff notes, retraining proof"],
         ["3. Root cause", "Determine why the problem occurred and whether it is isolated or systemic.", "Root-cause notes and sample expansion results"],
-        ["4. Corrective plan", "Write a measurable plan with owner, due date, monitoring method and completion evidence.", "POC draft and completed evidence"],
+        ["4. Corrective plan", "Write a measurable plan with owner, due date, monitoring method and completion documentation.", "POC draft and completed documentation"],
         ["5. Monitoring", "Audit the corrected area to show the fix is working.", "Monitoring logs and leadership review"],
         ["6. Submit / retain", "Submit through the required DHS/SansWrite process and retain copies.", "Submission proof and binder copy"],
       ],
@@ -738,12 +738,12 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
   // ---------- Admin, License & Reference Tools ----------
   {
     code: "FE-01",
-    title: "Chapter 2600 Regulation-to-Evidence Crosswalk",
+    title: "Chapter 2600 Regulation-to-Documentation Crosswalk",
     category: "Admin, License & Reference Tools",
     description: "Use this as the master map that tells the facility what proof to maintain for major survey areas.",
-    note: "Each regulation area should have one owner, one backup, and one location where evidence is maintained.",
+    note: "Each regulation area should have one owner, one backup, and one location where documentation is maintained.",
     body: {
-      kind: "reference", columns: ["Regulation area", "Survey focus", "Evidence to maintain", "Owner"],
+      kind: "reference", columns: ["Regulation area", "Survey focus", "Documentation to maintain", "Owner"],
       rows: [
         ["2600.11-16", "Licensure, reportable incidents, capacity", "Current license, incident reports, capacity census, SansWrite/incident proof", "Administrator / designee"],
         ["2600.22-25", "Admission documents and preadmission screening", "Admission packet, Preadmission Screening, contract, rights notice, resident photo", "Admissions / administrator"],
@@ -771,7 +771,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
       rows: [
         ["Required DHS/BHSL forms", "Use the current DHS version when required", "Reportable Incident Form, Request for Waiver, Preadmission Screening, Documentation of Medical Evaluation, and any other current DHS-required form."],
         ["DHS model forms", "May be used or adapted if allowed", "Training record, fire drill record, resident-home contract, medication administration record, entrance conference guide, and other model forms."],
-        ["Binder internal worksheets", "Internal readiness and audit tools only", "Use to prepare, organize evidence, track gaps and train staff. Do not substitute for required DHS submissions unless allowed by DHS."],
+        ["Binder internal worksheets", "Internal readiness and audit tools only", "Use to prepare, organize documentation, track gaps and train staff. Do not substitute for required DHS submissions unless allowed by DHS."],
         ["Facility policy forms", "Use facility-approved forms", "Incident investigations, internal corrective actions, resident funds/property logs, complaint resolution, and quality reviews."],
       ],
     },
@@ -797,7 +797,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     body: {
       kind: "reference", columns: ["Surveyor question", "What they may compare", "Facility readiness action"],
       rows: [
-        ["Is the requirement met?", "Regulation and facility policy", "Know the rule and where the evidence is kept."],
+        ["Is the requirement met?", "Regulation and facility policy", "Know the rule and where the documentation is kept."],
         ["Is the record current?", "Chart/file/log dates against current resident/staff needs", "Audit due dates weekly and correct gaps promptly."],
         ["Does practice match the record?", "Observation/interview against written documentation", "Use walkthrough and interview prep tools."],
         ["Is the correction real?", "POC/evidence against monitoring and current practice", "Keep proof of correction and re-audit."],
@@ -816,7 +816,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
         ["Backdating or recreating records", "Creates credibility and compliance risk", "Correct records using facility correction policy and document the late entry/correction."],
         ["Guessing at answers", "Inaccurate answers may expand survey concern", "Say you will verify and get the responsible person or record."],
         ["Arguing in front of staff/residents", "Escalates the survey tone", "Ask for clarification and document the concern for the exit conference."],
-        ["Handing over disorganized records", "Makes compliance harder to prove", "Use the document request log and evidence handoff cover sheet."],
+        ["Handing over disorganized records", "Makes compliance harder to prove", "Use the document request log and documentation handoff cover sheet."],
         ["Ignoring a real-time safety issue", "Immediate resident safety issues can worsen findings", "Correct immediately and document what was done."],
       ],
     },
@@ -832,7 +832,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
       rows: [
         ["1. Print", "Print the PDF single-sided for active working forms. Color printing is recommended for section dividers and headers."],
         ["2. Tab", "Use the Quick Page Finder to create binder tabs. Place Blank Forms / Copy Masters at the back."],
-        ["3. Insert facility records", "Add current policies, official DHS forms, rosters, schedules, logs and evidence behind the correct tab."],
+        ["3. Insert facility records", "Add current policies, official DHS forms, rosters, schedules, logs and documentation behind the correct tab."],
         ["4. Copy working forms", "Make extra copies of blank forms the facility will use weekly/monthly."],
         ["5. Assign owners", "Each section should have one owner and one backup owner."],
         ["6. Review weekly", "Use the survey-window huddle and open issue logs to keep the binder current."],
@@ -872,7 +872,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
         ["Days 4-7", "Build entrance handoff packet, verify official DHS forms, update resident/staff rosters and schedules."],
         ["Week 2", "Audit resident charts, medication system, med admin training, staff files and fire drill logs."],
         ["Week 3", "Run walkthroughs, food/sanitation checks, complaint/incident review and change-of-condition audits."],
-        ["Week 4", "Hold mock entrance conference, review evidence standards, close open issues and leadership sign-off."],
+        ["Week 4", "Hold mock entrance conference, review documentation standards, close open issues and leadership sign-off."],
         ["Ongoing", "Use weekly huddle, open issue log and regulatory update log during the survey window."],
       ],
     },
@@ -905,7 +905,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     description: "Keep the binder organized, current, and ready to use.",
     note: "Complete weekly during survey window.",
     body: {
-      kind: "checklist", options: ["Done"], notes: true, notesLabel: "Notes / evidence, Owner / due",
+      kind: "checklist", options: ["Done"], notes: true, notesLabel: "Notes / documentation, Owner / due",
       items: [
         "TOC and divider tabs match the binder order.",
         "Resident roster, staff roster, census, schedule, and contacts are current.",

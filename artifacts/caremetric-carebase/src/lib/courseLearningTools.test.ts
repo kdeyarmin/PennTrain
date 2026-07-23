@@ -66,7 +66,7 @@ describe("course learning tools", () => {
     expect(isAppliedResponseComplete(lesson, "")).toBe(true);
   });
 
-  it("allows evidence writes only for the assignment's learner before completion", () => {
+  it("allows documentation writes only for the assignment's learner before completion", () => {
     expect(canMutateCourseEvidence("employee-1", "employee-1", "in_progress")).toBe(true);
     expect(canMutateCourseEvidence("employee-1", "employee-2", "in_progress")).toBe(false);
     expect(canMutateCourseEvidence("employee-1", undefined, "in_progress")).toBe(false);

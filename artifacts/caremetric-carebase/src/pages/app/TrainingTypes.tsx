@@ -240,7 +240,7 @@ export default function TrainingTypes() {
             <div className="space-y-1.5 flex items-end">
               <label className="flex items-center gap-2 cursor-pointer pb-2">
                 <input type="checkbox" checked={form.documentRequired} onChange={e => field("documentRequired", e.target.checked)} className="h-4 w-4" />
-                <span className="text-sm">Evidence document required</span>
+                <span className="text-sm">Documentation document required</span>
               </label>
             </div>
             <div className="col-span-2 flex gap-6">

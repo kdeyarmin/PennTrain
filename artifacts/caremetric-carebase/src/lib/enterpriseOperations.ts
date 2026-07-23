@@ -31,6 +31,6 @@ export function metricHasSafeDenominator(metric: { denominator?: unknown }) {
 export const ENTERPRISE_OPERATION_GUARDRAILS = [
   "Provider secrets stay in managed backend configuration and are never returned to React.",
   "Entitlements, rollout cohorts, release flags, and kill switches are tracked separately from authorization.",
-  "Historical executive snapshots are immutable evidence; live summaries are safely recomputable.",
+  "Historical executive snapshots are immutable documentation; live summaries are safely recomputable.",
   "Import previews must reconcile rows before active records are changed.",
 ] as const;

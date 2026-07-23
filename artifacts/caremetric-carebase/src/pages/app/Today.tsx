@@ -111,7 +111,7 @@ export default function Today() {
     },
     { label: "Open handoffs", value: Number(daily.openHandoffItems ?? 0), detail: `${Number(daily.urgentHandoffItems ?? 0)} urgent`, href: destinations.handoffs, icon: RefreshCw, urgent: Number(daily.urgentHandoffItems ?? 0) > 0 },
     { label: "Coverage gaps", value: Number(daily.unfilledShifts ?? 0), detail: `${Number(daily.openShiftOffers ?? 0)} open-shift offers`, href: destinations.coverage, icon: Users, urgent: Number(daily.unfilledShifts ?? 0) > 0 },
-    { label: "Inspection requests", value: warRoomRequests.length, detail: "Evidence requests awaiting verification", href: destinations.inspection, icon: Radar, urgent: false },
+    { label: "Inspection requests", value: warRoomRequests.length, detail: "Documentation requests awaiting verification", href: destinations.inspection, icon: Radar, urgent: false },
     { label: "Resident & med requests", value: portalRequests.length + medicationExceptions.length, detail: `${portalRequests.length} portal · ${medicationExceptions.length} medication`, href: destinations.residentAndMedication, icon: BedDouble, urgent: medicationExceptions.some((item) => item.severity === "urgent") },
   ];
 

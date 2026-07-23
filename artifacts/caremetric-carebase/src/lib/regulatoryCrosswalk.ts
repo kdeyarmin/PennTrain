@@ -57,7 +57,7 @@ export const REGULATORY_OBLIGATIONS: RegulatoryObligation[] = [
   {
     id: "staff-training",
     citation: "55 Pa. Code 2600/2800 — staff training",
-    requirement: "Maintain role-specific orientation, annual training, competency, and retraining evidence for staff assigned to the home/residence.",
+    requirement: "Maintain role-specific orientation, annual training, competency, and retraining documentation for staff assigned to the home/residence.",
     facilityTypes: ["PCH", "ALR"],
     responsibleRole: "Administrator / training coordinator",
     evidenceSource: "training",
@@ -68,7 +68,7 @@ export const REGULATORY_OBLIGATIONS: RegulatoryObligation[] = [
   {
     id: "administrator-qualification",
     citation: "55 Pa. Code 2800.64 / Chapter 2600 administrator qualification",
-    requirement: "Keep administrator qualification, orientation, approved-course/test, continuing education, and backup coverage evidence current.",
+    requirement: "Keep administrator qualification, orientation, approved-course/test, continuing education, and backup coverage documentation current.",
     facilityTypes: ["PCH", "ALR"],
     responsibleRole: "Organization administrator",
     evidenceSource: "training",
@@ -90,7 +90,7 @@ export const REGULATORY_OBLIGATIONS: RegulatoryObligation[] = [
   {
     id: "resident-rights-grievances",
     citation: "55 Pa. Code 2600/2800 — resident rights and complaints",
-    requirement: "Show rights acknowledgements, complaint procedure evidence, grievance follow-up, and ombudsman/contact information availability.",
+    requirement: "Show rights acknowledgements, complaint procedure documentation, grievance follow-up, and ombudsman/contact information availability.",
     facilityTypes: ["PCH", "ALR"],
     responsibleRole: "Resident rights / grievance lead",
     evidenceSource: "resident",
@@ -101,7 +101,7 @@ export const REGULATORY_OBLIGATIONS: RegulatoryObligation[] = [
   {
     id: "medication-administration",
     citation: "55 Pa. Code 2600.181 and Chapter 2800 medication administration",
-    requirement: "Maintain medication self-administration determinations, medication-assistance qualifications, error/adverse-reaction follow-up, and retraining evidence.",
+    requirement: "Maintain medication self-administration determinations, medication-assistance qualifications, error/adverse-reaction follow-up, and retraining documentation.",
     facilityTypes: ["PCH", "ALR"],
     responsibleRole: "Medication lead",
     evidenceSource: "incident",
@@ -123,7 +123,7 @@ export const REGULATORY_OBLIGATIONS: RegulatoryObligation[] = [
   {
     id: "physical-site-emergency",
     citation: "55 Pa. Code 2600/2800 — fire safety and emergency preparedness",
-    requirement: "Keep physical-site inspections, emergency plan reviews, fire drill evidence, equipment checks, and failed-item corrections current.",
+    requirement: "Keep physical-site inspections, emergency plan reviews, fire drill documentation, equipment checks, and failed-item corrections current.",
     facilityTypes: ["PCH", "ALR"],
     responsibleRole: "Safety officer / administrator",
     evidenceSource: "physical_site",
@@ -144,14 +144,14 @@ export const REGULATORY_OBLIGATIONS: RegulatoryObligation[] = [
   },
   {
     id: "binder-evidence-room",
-    citation: "55 Pa. Code 2600/2800 — survey evidence production",
-    requirement: "Maintain a current compliance binder and controlled evidence-room package for surveyor/regulator review.",
+    citation: "55 Pa. Code 2600/2800 — survey documentation production",
+    requirement: "Maintain a current compliance binder and controlled documentation-room package for surveyor/regulator review.",
     facilityTypes: ["PCH", "ALR"],
     responsibleRole: "Binder owner / compliance lead",
     evidenceSource: "binder",
-    evidenceLabel: "Compliance binder exports, evidence-room collections, report snapshots, and guest access audit trail",
+    evidenceLabel: "Compliance binder exports, documentation-room collections, report snapshots, and guest access audit trail",
     route: "/app/evidence",
-    binderLocation: "Compliance Binder / Evidence Room",
+    binderLocation: "Compliance Binder / Documentation Room",
   },
 ];
 

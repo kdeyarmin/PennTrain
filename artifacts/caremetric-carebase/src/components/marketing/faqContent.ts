@@ -30,7 +30,7 @@ export const FAQS: MarketingFaq[] = [
     category: "Product & replacement",
     question: "What is CareMetric CareBase?",
     answer:
-      "An operations, staff-compliance, and survey-readiness platform built first for Pennsylvania personal care homes and assisted living facilities. It connects training, credentials, resident operations, incidents, inspections, scheduling, documents, and evidence in one system, with each role seeing only what it should. It is not an EHR or eMAR.",
+      "An operations, staff-compliance, and survey-readiness platform built first for Pennsylvania personal care homes and assisted living facilities. It connects training, credentials, resident operations, incidents, inspections, scheduling, documents, and documentation in one system, with each role seeing only what it should. It is not an EHR or eMAR.",
   },
   {
     category: "Product & replacement",
@@ -64,13 +64,13 @@ export const FAQS: MarketingFaq[] = [
     category: "Compliance boundaries",
     question: "Which regulations does it help with?",
     answer:
-      "Anchored to 55 Pa. Code Chapters 2600 (PCH) and 2800 (ALF): staff orientation and annual training, resident assessments and support plans, administrator qualifications, medication practicums, fire drills, incidents, resident rights, and survey evidence. The training catalog also supports Chapter 6400 and federal aide in-service pathways. It tracks and preserves evidence — it doesn't replace legal advice or official DHS forms.",
+      "Anchored to 55 Pa. Code Chapters 2600 (PCH) and 2800 (ALF): staff orientation and annual training, resident assessments and support plans, administrator qualifications, medication practicums, fire drills, incidents, resident rights, and survey documentation. The training catalog also supports Chapter 6400 and federal aide in-service pathways. It tracks and preserves documentation — it doesn't replace legal advice or official DHS forms.",
   },
   {
     category: "Compliance boundaries",
     question: "Does it guarantee compliance or a deficiency-free survey?",
     answer:
-      "No. CareBase makes requirements, deadlines, ownership, and evidence visible so your team can close gaps before review. Outcomes still depend on accurate configuration, qualified staff, truthful documentation, and management follow-through.",
+      "No. CareBase makes requirements, deadlines, ownership, and documentation visible so your team can close gaps before review. Outcomes still depend on accurate configuration, qualified staff, truthful documentation, and management follow-through.",
   },
   {
     category: "Compliance boundaries",
@@ -131,7 +131,7 @@ export const FAQS: MarketingFaq[] = [
     category: "Access & security",
     question: "Can our auditor or surveyor get read-only access?",
     answer:
-      "Yes. The auditor role sees dashboards, the training matrix, reports, and documents with zero ability to edit — plus time-limited evidence rooms scoped to exactly what was requested. More on the security page.",
+      "Yes. The auditor role sees dashboards, the training matrix, reports, and documents with zero ability to edit — plus time-limited documentation rooms scoped to exactly what was requested. More on the security page.",
     links: [{ label: "security page", href: "/security" }],
   },
   {
@@ -156,7 +156,7 @@ export const FAQS: MarketingFaq[] = [
     category: "The questions owners actually ask",
     question: "What if my administrator quits?",
     answer:
-      "The compliance picture doesn't leave with them. Requirements, deadlines, evidence, and history live in the record — a new administrator inherits a working system on day one instead of deciphering a predecessor's spreadsheet.",
+      "The compliance picture doesn't leave with them. Requirements, deadlines, documentation, and history live in the record — a new administrator inherits a working system on day one instead of deciphering a predecessor's spreadsheet.",
   },
   {
     category: "The questions owners actually ask",

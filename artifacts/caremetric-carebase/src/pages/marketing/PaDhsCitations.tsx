@@ -127,7 +127,7 @@ const TOP_15: Citation[] = [
     avoid:
       "Log refrigerator temperatures daily, pull expired and discontinued stock on a set schedule, keep a second lock on controlled substances, and document every destruction with a witness and date.",
     carebase:
-      "CareBase turns temperature checks, expiration pulls, and witnessed destruction into tracked recurring tasks, then files the dated destruction evidence straight into the one-click compliance binder.",
+      "CareBase turns temperature checks, expiration pulls, and witnessed destruction into tracked recurring tasks, then files the dated destruction documentation straight into the one-click compliance binder.",
   },
   {
     rank: 5,
@@ -143,7 +143,7 @@ const TOP_15: Citation[] = [
     avoid:
       "Get a dated rights acknowledgment at admission, keep clean personal-funds ledgers with receipts, and train staff that dignity, privacy, and access are operational rules, not slogans.",
     carebase:
-      "Policy-attestation campaigns capture the signed rights acknowledgment at admission with ESIGN/UETA evidence, and resident financial operations keep an auditable personal-funds ledger — the two rights failures cited most.",
+      "Policy-attestation campaigns capture the signed rights acknowledgment at admission with ESIGN/UETA documentation, and resident financial operations keep an auditable personal-funds ledger — the two rights failures cited most.",
   },
   {
     rank: 6,
@@ -187,7 +187,7 @@ const TOP_15: Citation[] = [
     requires:
       "Clean, sanitary, pest-free conditions throughout the home, safe handling of waste, and hot water delivered within the required temperature range at resident fixtures.",
     why:
-      "A walk-through citation: evidence of insects or rodents, soiled bathrooms or common areas, kitchens out of sanitary condition, garbage not handled properly, or water at fixtures too hot (a scald risk) or too cold. These are visible on inspection day and hard to explain away after the fact.",
+      "A walk-through citation: documentation of insects or rodents, soiled bathrooms or common areas, kitchens out of sanitary condition, garbage not handled properly, or water at fixtures too hot (a scald risk) or too cold. These are visible on inspection day and hard to explain away after the fact.",
     avoid:
       "Run a documented cleaning schedule, keep a pest-control contract with service records, and check and log water temperatures at resident fixtures.",
     carebase:

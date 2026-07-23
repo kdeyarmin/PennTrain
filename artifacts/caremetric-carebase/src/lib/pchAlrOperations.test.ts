@@ -21,9 +21,9 @@ describe("PCH/ALR operations catalog", () => {
     expect(getPchAlrItemsByProgram("ALR").some((item) => item.citations.some((citation) => citation.includes("2800")))).toBe(true);
   });
 
-  it("finds workflows by citation, evidence source, and title text", () => {
+  it("finds workflows by citation, documentation source, and title text", () => {
     expect(searchPchAlrOperations("2800.64").map((item) => item.id)).toContain("administrator-rule-packs");
-    expect(searchPchAlrOperations("evidence room").map((item) => item.id)).toContain("inspection-day-package");
+    expect(searchPchAlrOperations("documentation room").map((item) => item.id)).toContain("inspection-day-package");
     expect(searchPchAlrOperations("grievance").map((item) => item.id)).toContain("rights-grievances");
   });
 
@@ -36,7 +36,7 @@ describe("PCH/ALR operations catalog", () => {
     expect(buildInspectionDayChecklist()[0]).toContain(":");
   });
 
-  it("builds exportable evidence package sections from playbooks and queue counts", () => {
+  it("builds exportable documentation package sections from playbooks and queue counts", () => {
     const packageSections = buildPchAlrEvidencePackage({
       facilityName: "Example Home",
       asOfDate: "2026-07-13",

@@ -87,7 +87,7 @@ function ScheduleCard({
           <div className="flex flex-wrap items-center gap-2">
             <CardTitle className="text-base">{schedule.name}</CardTitle>
             <Badge variant={schedule.enabled ? "outline" : "secondary"}>{schedule.enabled ? "Active" : "Paused"}</Badge>
-            <Badge variant="secondary">{schedule.deliveryMode === "email_link" ? "Email link + in-app" : schedule.deliveryMode === "evidence_room" ? "Legacy evidence room" : "In-app"}</Badge>
+            <Badge variant="secondary">{schedule.deliveryMode === "email_link" ? "Email link + in-app" : schedule.deliveryMode === "evidence_room" ? "Legacy documentation room" : "In-app"}</Badge>
           </div>
           <CardDescription className="mt-1">
             {describeReportSchedule(schedule)} · {schedule.timeZone}
@@ -109,7 +109,7 @@ function ScheduleCard({
         <div><span className="text-muted-foreground">Next run:</span> {schedule.nextRunAt ? formatReportScheduleRunAt(schedule.nextRunAt, schedule.timeZone) : "Pending"}</div>
       </div>
       {isLegacyEvidenceRoom && <p className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-        This legacy evidence-room subscription is read-only here so editing timing or audience settings cannot change its delivery channel. Pause it or create a new in-app or email-link subscription instead.
+        This legacy documentation-room subscription is read-only here so editing timing or audience settings cannot change its delivery channel. Pause it or create a new in-app or email-link subscription instead.
       </p>}
       <div>
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Recent delivery history</p>
