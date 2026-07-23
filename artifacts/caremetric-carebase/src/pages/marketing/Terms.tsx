@@ -85,16 +85,11 @@ export default function Terms() {
       <section className="bg-white">
         <div className="mx-auto flex max-w-[720px] flex-col gap-5 px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
           <Reveal>
-            <div className="rounded-[10px] border border-[#f0d9a8] bg-[#fdf7ea] px-4 py-3 text-[13px] font-semibold text-[#6d5312]">
-              DRAFT — have counsel review and finalize before publishing.
-            </div>
-          </Reveal>
-          <Reveal delay={0.05}>
             <h1 className="font-serif text-4xl font-bold tracking-tight text-[#0d2742]">
               Terms of Service
             </h1>
             <p className="mt-3 font-mono text-xs text-[#5d7084]">
-              Effective date: [DATE] · Applies to CareMetric CareBase
+              Effective date: July 23, 2026 · Applies to CareMetric CareBase
               (cmcarebase.com)
             </p>
           </Reveal>
