@@ -1,21 +1,43 @@
 /**
  * Single source of truth for the public (signed-out) surface of the site.
  *
- * Two consumers must agree on this list, so it lives in one place:
- *  - MarketingLayout renders these in the header nav and footer.
+ * Several consumers must agree on this list, so it lives in one place:
+ *  - MarketingLayout renders these in the header nav (desktop dropdowns) and
+ *    the mobile menu. (The footer's link list is maintained separately in that
+ *    same file and does not derive from these arrays.)
  *  - AuthProvider allows these paths for signed-out visitors; anything else
  *    bounces to /login. If a marketing page isn't listed here, loading it
  *    directly (refresh, bookmark, new tab) would redirect to login.
+ *
+ * The header is deliberately condensed into two dropdowns plus one direct
+ * link: ten top-level links overflowed the bar and collided with the logo.
+ *  - MARKETING_PRODUCT_NAV   -> the "Product" dropdown (overview pages).
+ *  - MARKETING_NAV           -> inline links that stand on their own (Pricing;
+ *                               high-intent, kept one click away).
+ *  - MARKETING_RESOURCES_NAV -> the "Resources" dropdown (PA regulatory
+ *                               guides, updates, FAQ, About).
+ * Every entry is a public page, so all three feed the auth allow-list below.
  */
-export const MARKETING_NAV = [
+export const MARKETING_PRODUCT_NAV = [
   { href: "/#platform", label: "Platform" },
-  { href: "/how-it-works", label: "How it works" },
   { href: "/features", label: "Features" },
-  { href: "/#pricing", label: "Pricing" },
+  { href: "/how-it-works", label: "How it works" },
   { href: "/savings", label: "Savings" },
-  { href: "/pa-training-requirements", label: "Requirements" },
-  { href: "/pa-dhs-citations", label: "Citations" },
-  { href: "/regulatory-updates", label: "Updates" },
+] as const;
+
+/** Inline (non-grouped) header links. */
+export const MARKETING_NAV = [
+  { href: "/#pricing", label: "Pricing" },
+] as const;
+
+/**
+ * Secondary links grouped under the header's "Resources" dropdown (and listed
+ * flat, under a heading, in the mobile menu). Each is a standalone public page.
+ */
+export const MARKETING_RESOURCES_NAV = [
+  { href: "/pa-training-requirements", label: "PA requirements guide" },
+  { href: "/pa-dhs-citations", label: "Top DHS citations" },
+  { href: "/regulatory-updates", label: "Regulatory updates" },
   { href: "/faq", label: "FAQ" },
   { href: "/about", label: "About" },
 ] as const;
@@ -40,6 +62,8 @@ const MARKETING_PATHS: readonly string[] = [
   // Nav entries may be landing-page hash links (e.g. "/#pricing"); only real
   // pathnames belong in the auth guard's allow list.
   ...MARKETING_NAV.map((item) => item.href).filter((href) => !href.includes("#")),
+  ...MARKETING_PRODUCT_NAV.map((item) => item.href).filter((href) => !href.includes("#")),
+  ...MARKETING_RESOURCES_NAV.map((item) => item.href).filter((href) => !href.includes("#")),
   ...MARKETING_EXTRA_PATHS,
 ];
 

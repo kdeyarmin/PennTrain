@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { APP_PAGES } from "./appDomains";
-import { MARKETING_NAV } from "./publicPaths";
+import { MARKETING_NAV, MARKETING_PRODUCT_NAV, MARKETING_RESOURCES_NAV } from "./publicPaths";
 import { PUBLIC_ACCESS_FLOWS } from "./publicAccessToken";
 import { LEGACY_ROUTE_REDIRECTS } from "./routeContracts";
 import { routeRegistrationIssues, type RouteRegistrationSource } from "./routeManifest";
@@ -23,6 +23,14 @@ const registrationSources: RouteRegistrationSource[] = [
     // Nav entries may be landing-page hash links (e.g. "/#pricing"); the
     // registered route is the pathname portion.
     paths: MARKETING_NAV.map((item) => item.href.split("#")[0] || "/"),
+  },
+  {
+    source: "MARKETING_PRODUCT_NAV public navigation metadata",
+    paths: MARKETING_PRODUCT_NAV.map((item) => item.href.split("#")[0] || "/"),
+  },
+  {
+    source: "MARKETING_RESOURCES_NAV public navigation metadata",
+    paths: MARKETING_RESOURCES_NAV.map((item) => item.href.split("#")[0] || "/"),
   },
   { source: "LEGACY_ROUTE_REDIRECTS source routes", paths: legacyRedirectSources },
   { source: "LEGACY_ROUTE_REDIRECTS canonical destinations", paths: legacyRedirectDestinations },
