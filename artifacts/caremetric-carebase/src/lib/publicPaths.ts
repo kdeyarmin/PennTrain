@@ -8,15 +8,35 @@
  *    directly (refresh, bookmark, new tab) would redirect to login.
  */
 export const MARKETING_NAV = [
+  { href: "/#platform", label: "Platform" },
+  { href: "/how-it-works", label: "How it works" },
   { href: "/features", label: "Features" },
-  { href: "/who-its-for", label: "Who It's For" },
-  { href: "/security", label: "Security" },
-  { href: "/how-it-works", label: "How It Works" },
+  { href: "/#pricing", label: "Pricing" },
   { href: "/savings", label: "Savings" },
+  { href: "/pa-training-requirements", label: "Requirements" },
   { href: "/faq", label: "FAQ" },
+  { href: "/about", label: "About" },
 ] as const;
 
-const MARKETING_PATHS: readonly string[] = MARKETING_NAV.map((item) => item.href);
+/**
+ * Marketing routes that live outside the header nav (footer / legal links)
+ * but must still be reachable while signed out.
+ */
+export const MARKETING_EXTRA_PATHS = [
+  "/security",
+  "/privacy",
+  "/terms",
+  // Retired page from the previous marketing site; kept public so old
+  // bookmarks still resolve (App.tsx redirects it to /features).
+  "/who-its-for",
+] as const;
+
+const MARKETING_PATHS: readonly string[] = [
+  // Nav entries may be landing-page hash links (e.g. "/#pricing"); only real
+  // pathnames belong in the auth guard's allow list.
+  ...MARKETING_NAV.map((item) => item.href).filter((href) => !href.includes("#")),
+  ...MARKETING_EXTRA_PATHS,
+];
 
 // Deployments may serve the app under a base path (vite `base` / BASE_PATH,
 // e.g. "/train/"). Wouter strips this before matching routes, but the auth

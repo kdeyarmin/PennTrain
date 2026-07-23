@@ -1,294 +1,362 @@
-import { useMemo, useState } from "react";
-import {
-  ArrowRight,
-  CheckCircle2,
-  ClipboardList,
-  FileSearch,
-  Search,
-  Workflow,
-  X,
-} from "lucide-react";
+import type { ReactNode } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
-import { CtaBanner } from "@/components/marketing/CtaBanner";
-import { PageHero, Reveal } from "@/components/marketing/primitives";
-import { FEATURE_CATEGORIES } from "@/components/marketing/content";
+import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
 
-const PROOF_CHAIN = [
+const RESIDENT_LIFECYCLE = [
   {
-    icon: ClipboardList,
-    title: "Requirement",
+    label: "01 — Inquiry & admission",
+    title: "Inquiry & admission",
     description:
-      "Start with the training hour, credential, resident assessment, policy, incident, or inspection item your facility must prove.",
+      "Prospect tracking, preadmission RASP/ASP screening, room readiness, and the resident agreement — handled before move-in day.",
   },
   {
-    icon: Workflow,
-    title: "Workflow",
+    label: "02 — First 15 days",
+    title: "First 15 days",
     description:
-      "Assign the right action to the right role: employee training, trainer class, manager review, admin approval, or auditor read-only review.",
+      "The initial assessment lands on its own regulatory clock, the support plan opens automatically, and orientation evidence attaches to the record.",
   },
   {
-    icon: FileSearch,
-    title: "Evidence",
+    label: "03 — Every day",
+    title: "Every day",
     description:
-      "Store the certificate, sign-in, attestation, generated PDF, document upload, and audit event together so the record is explainable later.",
+      "Services assigned and recorded — completed, refused, or escalated — plus dietary rounds, appointments, transportation, and routed medication events.",
   },
-];
+  {
+    label: "04 — When something changes",
+    title: "When something changes",
+    description:
+      "A fall or hospital return routes provider notification, reassessment, support-plan review, and documented follow-up — no informal handoffs.",
+  },
+  {
+    label: "05 — Every year",
+    title: "Every year",
+    description:
+      "Annual reassessment is scheduled automatically — and completing it triggers the support-plan update Chapter 2600 and 2800 require.",
+  },
+  {
+    label: "06 — Move-out",
+    title: "Move-out",
+    description:
+      "Discharge documentation, financial closeout, and a retained record that still answers a surveyor's question months later.",
+  },
+] as const;
 
-const FEATURE_OUTCOMES = [
-  "Connect workforce compliance, resident operations, facility work, quality follow-up, and survey evidence instead of managing each in a separate tracker.",
-  "See overdue, expiring, completed, blocked, and missing evidence before survey day.",
-  "Give owners, managers, trainers, employees, and auditors a secure role-specific workspace instead of one generic admin dashboard.",
-  "Keep the EHR, eMAR, payroll, HRIS, and accounting platforms that remain authoritative while replacing the coordination spreadsheets around them.",
-];
+type CapabilityGroup = {
+  id: string;
+  anchorAliases?: readonly string[];
+  title: string;
+  items: readonly string[];
+};
+
+const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
+  {
+    id: "training-compliance",
+    title: "Training & compliance core",
+    items: [
+      "Compliance tracking & automatic alerts",
+      "Built-in course builder with graded quizzes",
+      "Competency checklists & templates",
+      "Role-based training plans",
+      "Custom requirement catalog",
+      "Interactive compliance matrix + CSV export",
+      "Compliance reporting center",
+      "Audit-ready document storage",
+    ],
+  },
+  {
+    id: "ai-course-creation",
+    anchorAliases: ["live-classes"],
+    title: "AI & live training",
+    items: [
+      "AI curriculum generation from your documents",
+      "AI avatar video lessons",
+      "Targeted block-level regeneration",
+      "Live class scheduling & digital sign-in",
+      "Rotating QR & kiosk PIN check-in",
+      "Printable meeting notices with QR",
+    ],
+  },
+  {
+    id: "resident-care",
+    anchorAliases: ["resident-operations"],
+    title: "Resident care & operations",
+    items: [
+      "Digital RASP/ASP assessment prep",
+      "Automatic reassessment & support-plan triggers",
+      "Facility-wide resident compliance dashboard",
+      "Admissions, census & room readiness",
+      "Resident services & daily work",
+      "Change-of-condition follow-up",
+      "Dietary & food-safety operations",
+      "Services calendar & transportation",
+      "Resident financial subledger",
+      "Medication event integration",
+    ],
+  },
+  {
+    id: "survey-readiness",
+    anchorAliases: ["facility-operations"],
+    title: "Survey, safety & facility",
+    items: [
+      "One-click compliance binder PDF",
+      "Citation-weighted readiness score",
+      "Incident & complaint tracking with notification clocks",
+      "Violations & plan-of-correction workflow",
+      "Fire drills & life-safety records",
+      "60+ template document library",
+      "Emergency operations",
+      "Maintenance & work orders",
+      "QAPI & quality projects",
+      "Closed-loop work queue",
+      "Evidence rooms & regulatory crosswalk",
+    ],
+  },
+  {
+    id: "credentials-screening",
+    anchorAliases: ["scheduling"],
+    title: "Credentials & workforce",
+    items: [
+      "Credentials & clearances (Act 34 / 73 / 33, licenses, TB, I-9)",
+      "OAPSA provisional-employment countdown",
+      "Monthly OIG / SAM exclusion screening",
+      "Administrator qualification & CE tracking",
+      "Live pass-meds authorization roster",
+      "Policy attestation campaigns (ESIGN/UETA evidence)",
+      "Shift scheduling & auto-fill",
+      "Cross-facility float staff",
+    ],
+  },
+  {
+    id: "access-onboarding",
+    title: "Access & onboarding",
+    items: [
+      "Six database-enforced roles",
+      "Public certificate verification links",
+      "Bulk CSV employee import",
+      "Email, SMS & in-app alerts with escalation",
+      "Email-invite user provisioning",
+      "Instant self-service signup",
+      "Installable mobile app for employees",
+    ],
+  },
+] as const;
+
+const USER_ROLES = [
+  {
+    title: "Owner / executive",
+    sees: "org-wide rollups, trends, and unresolved risk across every facility.",
+    does:
+      "compares facilities and reviews readiness before leadership or diligence questions arrive.",
+  },
+  {
+    title: "Org admin",
+    sees: "compliance across the whole organization, including resident assessments.",
+    does: "configures rules, requirements, and access once for every facility.",
+  },
+  {
+    title: "Facility manager",
+    sees: "assigned sites only — overdue staff, open work, shift coverage.",
+    does: "resolves gaps, approves work, validates outside training records.",
+  },
+  {
+    title: "Trainer",
+    sees: "class rosters, retraining queues, and course drafts.",
+    does:
+      "runs classes with QR check-in, drafts AI-assisted courses, manages practicum evidence.",
+  },
+  {
+    title: "Employee",
+    sees: "their own assignments, schedule, and certificates — never coworker data.",
+    does: "completes training, signs policies, and uploads records from their phone.",
+  },
+  {
+    title: "Auditor / surveyor",
+    sees: "read-only evidence scoped to exactly what was requested.",
+    does: "reviews the record without the ability to change anything.",
+  },
+] as const;
+
+function DarkSurface({ children }: { children: ReactNode }) {
+  return (
+    <div className="relative overflow-hidden">
+      <TechGrid />
+      <div className="relative mx-auto max-w-[1160px] px-6 py-[72px]">
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function Features() {
-  const [query, setQuery] = useState("");
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredCategories = useMemo(() => {
-    if (!normalizedQuery) return FEATURE_CATEGORIES;
-
-    return FEATURE_CATEGORIES.map((category) => {
-      const categoryMatches = `${category.category} ${category.blurb}`
-        .toLowerCase()
-        .includes(normalizedQuery);
-      return {
-        ...category,
-        items: categoryMatches
-          ? category.items
-          : category.items.filter((feature) =>
-              `${feature.title} ${feature.description}`
-                .toLowerCase()
-                .includes(normalizedQuery),
-            ),
-      };
-    }).filter((category) => category.items.length > 0);
-  }, [normalizedQuery]);
-  const visibleFeatureCount = filteredCategories.reduce(
-    (total, category) => total + category.items.length,
-    0,
-  );
-
   usePageMeta({ ...MARKETING_ROUTE_META["/features"], path: "/features" });
+
   return (
     <MarketingLayout>
-      <PageHero
-        eyebrow="Connected product capabilities"
-        title="Every operational record should lead to the work, the owner, and the proof"
-        subtitle="CareMetric CareBase connects workforce compliance, resident and facility operations, training, scheduling, safety, quality, documents, alerts, and survey evidence—while leaving clinical charting, medication administration, payroll, and accounting in their authoritative systems."
-        highlights={[
-          `${FEATURE_CATEGORIES.length} connected feature domains`,
-          "Role- and facility-aware access",
-          "Evidence attached to the work",
-        ]}
-      />
-
-      <section className="border-b border-border/60 bg-muted/30">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
-          <Reveal>
-            <h2 className="text-2xl font-extrabold tracking-tight">
-              What changes after you launch
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Instead of asking managers to manually chase certificates,
-              reconcile sign-in sheets, and rebuild binders, CareMetric CareBase
-              keeps every training signal connected to the employee, facility,
-              role, and deadline it belongs to.
-            </p>
-          </Reveal>
-          <Reveal delay={0.1} className="grid gap-3">
-            {FEATURE_OUTCOMES.map((outcome) => (
-              <div
-                key={outcome}
-                className="flex items-start gap-3 rounded-xl border bg-card p-4 shadow-sm"
-              >
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                <span className="text-sm text-foreground/85">{outcome}</span>
-              </div>
-            ))}
-            <Link
-              href="/savings"
-              className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-            >
-              See exactly what it can replace
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Reveal>
-        </div>
-      </section>
-
-      <section className="border-b border-border/60 bg-background">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <Reveal className="mx-auto max-w-3xl text-center">
-            <h2 className="text-2xl font-extrabold tracking-tight">
-              Every feature supports the same proof chain
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Buyers should not have to guess how a feature turns into survey
-              evidence. CareMetric CareBase organizes each module around a simple
-              chain: define the requirement, route the work, and preserve the
-              proof.
-            </p>
-          </Reveal>
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
-            {PROOF_CHAIN.map((item, i) => (
-              <Reveal key={item.title} delay={i * 0.06}>
-                <Card className="h-full border-border/60 p-6 shadow-sm">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 ring-8 ring-primary/[0.03]">
-                    <item.icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <h3 className="mt-5 text-base font-semibold">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    {item.description}
-                  </p>
-                </Card>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="border-b border-border/60 bg-muted/30">
-        <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
-          <Reveal className="text-center">
-            <h2 className="text-2xl font-extrabold tracking-tight">
-              Find the workflow you need to replace
-            </h2>
-            <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Search by task, record, role, or outcome—for example training,
-              incidents, scheduling, assessments, evidence rooms, or QAPI.
-            </p>
-          </Reveal>
-          <div className="relative mx-auto mt-7 max-w-2xl">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search all CareBase capabilities"
-              aria-label="Search CareBase capabilities"
-              className="h-12 bg-card pl-11 pr-12 shadow-sm"
-            />
-            {query && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => setQuery("")}
-                aria-label="Clear feature search"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-          <p className="mt-3 text-center text-xs text-muted-foreground" aria-live="polite">
-            {normalizedQuery
-              ? `${visibleFeatureCount} matching ${visibleFeatureCount === 1 ? "capability" : "capabilities"}`
-              : `${visibleFeatureCount} capabilities across ${filteredCategories.length} connected domains`}
+      <section className="relative overflow-hidden bg-gradient-to-br from-[#071626] via-[#0d2742] to-[#143a5c] text-white">
+        <TechGrid />
+        <Reveal className="relative mx-auto flex max-w-[860px] flex-col items-center gap-3.5 px-6 py-14 text-center">
+          <h1 className="m-0 text-balance text-[42px] font-bold leading-[1.1] tracking-[-0.015em] max-sm:text-4xl">
+            Everything CareBase does, in one place
+          </h1>
+          <p className="m-0 max-w-[56ch] text-pretty text-base text-white/85">
+            The complete capability index and the six roles that use it. Every
+            plan includes all of it — no modules, no upsells, unlimited staff
+            and residents.
           </p>
-        </div>
-      </section>
-
-      {/* Jump nav -- the feature set spans multiple categories, so let visitors skip to what matters to them. */}
-      <nav
-        aria-label="Feature categories"
-        className="border-b border-border/60 bg-background"
-      >
-        <div className="mx-auto max-w-7xl overflow-x-auto px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex w-max gap-2 sm:w-auto sm:flex-wrap">
-            {filteredCategories.map((cat) => (
-              <a
-                key={cat.id}
-                href={`#${cat.id}`}
-                className="whitespace-nowrap rounded-full border border-border/60 bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-              >
-                {cat.category}
-              </a>
-            ))}
-          </div>
-        </div>
-      </nav>
-
-      {filteredCategories.length === 0 && (
-        <section className="mx-auto max-w-3xl px-4 py-20 text-center sm:px-6 lg:px-8">
-          <Reveal>
-            <h2 className="text-xl font-bold">No matching capability found</h2>
-            <p className="mt-3 text-sm text-muted-foreground">
-              Try a broader term, or clear the search to explore every workflow.
-            </p>
-            <Button type="button" variant="outline" onClick={() => setQuery("")} className="mt-6">
-              Clear search
-            </Button>
-          </Reveal>
-        </section>
-      )}
-
-      {filteredCategories.map((cat, catIndex) => (
-        <section
-          key={cat.id}
-          id={cat.id}
-          className={`mx-auto max-w-7xl scroll-mt-16 px-4 py-16 sm:px-6 lg:px-8 ${
-            catIndex < filteredCategories.length - 1
-              ? "border-b border-border/60"
-              : ""
-          }`}
-        >
-          <Reveal className="max-w-2xl">
-            <h2 className="text-2xl font-extrabold tracking-tight">
-              {cat.category}
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              {cat.blurb}
-            </p>
-          </Reveal>
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {cat.items.map((feature, i) => (
-              <Reveal key={feature.title} delay={(i % 3) * 0.05}>
-                <Card className="group h-full overflow-hidden border-border/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
-                  <CardHeader>
-                    <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 ring-8 ring-primary/[0.03]">
-                      <feature.icon className="h-5 w-5 text-primary" />
-                    </div>
-                    <CardTitle className="text-base">{feature.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-sm leading-6 text-muted-foreground">
-                      {feature.description}
-                    </p>
-                  </CardContent>
-                </Card>
-              </Reveal>
-            ))}
-          </div>
-        </section>
-      ))}
-
-      <section className="mx-auto max-w-7xl px-4 pb-16 pt-4 text-center sm:px-6 lg:px-8">
-        <Reveal className="flex flex-wrap items-center justify-center gap-6">
-          <Link
-            href="/how-it-works"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-          >
-            See the workflow
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-          <Link
-            href="/savings"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-          >
-            Model value and savings
-            <ArrowRight className="h-4 w-4" />
-          </Link>
         </Reveal>
       </section>
 
-      <CtaBanner />
+      <section
+        id="resident-lifecycle"
+        className="scroll-mt-24 bg-[#071626] text-white"
+      >
+        <DarkSurface>
+          <Reveal className="flex max-w-[640px] flex-col gap-2.5">
+            <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#8ec8ff]">
+              The resident lifecycle
+            </p>
+            <h2 className="m-0 text-balance text-[32px] font-bold leading-tight tracking-[-0.01em]">
+              Every resident, managed from inquiry to move-out
+            </h2>
+            <p className="m-0 text-[15px] text-white/82">
+              Staff compliance is half the job. The other half — assessments,
+              support plans, daily services — is where surveyors spend their
+              afternoon. Same record, same clocks.
+            </p>
+          </Reveal>
+          <div className="mt-8 grid gap-3.5 md:grid-cols-2 lg:grid-cols-3">
+            {RESIDENT_LIFECYCLE.map((item, index) => (
+              <Reveal key={item.label} delay={(index % 3) * 0.05}>
+                <article className="flex h-full flex-col gap-2 rounded-xl border border-white/15 bg-white/[0.06] p-5">
+                  <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-[#8ec8ff]">
+                    {item.label}
+                  </p>
+                  <h3 className="sr-only">{item.title}</h3>
+                  <p className="m-0 text-[13.5px] leading-[1.55] text-white/82">
+                    {item.description}
+                  </p>
+                </article>
+              </Reveal>
+            ))}
+          </div>
+        </DarkSurface>
+      </section>
+
+      <section
+        id="capability-index"
+        className="scroll-mt-24 border-b border-[#e5eaf0] bg-[#f6f8fa]"
+      >
+        <div className="mx-auto max-w-[1160px] px-6 py-[72px]">
+          <Reveal className="mx-auto flex max-w-[620px] flex-col gap-2.5 text-center">
+            <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#1b6fc2]">
+              Everything included
+            </p>
+            <h2 className="m-0 text-[32px] font-bold leading-tight tracking-[-0.01em] text-[#0d2742]">
+              50+ capabilities. One price. No module upsells.
+            </h2>
+            <p className="m-0 text-[15px] text-[#44566b]">
+              Every plan ships the complete platform — this is the full index.
+            </p>
+          </Reveal>
+
+          <div className="mt-9 grid items-start gap-3.5 md:grid-cols-2 lg:grid-cols-3">
+            {CAPABILITY_GROUPS.map((group, index) => (
+              <Reveal key={group.id} delay={(index % 3) * 0.05}>
+                <article
+                  id={group.id}
+                  className="relative scroll-mt-24 rounded-xl border border-[#dfe6ee] bg-white p-5"
+                >
+                  {group.anchorAliases?.map((alias) => (
+                    <span
+                      key={alias}
+                      id={alias}
+                      className="absolute -top-24"
+                      aria-hidden="true"
+                    />
+                  ))}
+                  <h3 className="font-mono text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#5d7084]">
+                    {group.title}
+                  </h3>
+                  <ul className="mt-2 flex flex-col gap-1.5 text-[13px] text-[#33465c]">
+                    {group.items.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </article>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section
+        id="roles"
+        className="scroll-mt-24 border-b border-[#e5eaf0] bg-white"
+      >
+        <div className="mx-auto max-w-[1160px] px-6 py-[72px]">
+          <Reveal className="mx-auto flex max-w-[620px] flex-col gap-2.5 text-center">
+            <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#1b6fc2]">
+              Built for every role
+            </p>
+            <h2 className="m-0 text-[32px] font-bold leading-tight tracking-[-0.01em] text-[#0d2742]">
+              Six roles, each scoped to exactly their job
+            </h2>
+            <p className="m-0 text-[15px] text-[#44566b]">
+              Access is enforced by database policy — not just hidden menus.
+            </p>
+          </Reveal>
+
+          <div className="mt-9 grid gap-3.5 md:grid-cols-2 lg:grid-cols-3">
+            {USER_ROLES.map((role, index) => (
+              <Reveal key={role.title} delay={(index % 3) * 0.05}>
+                <article className="flex h-full flex-col gap-2 rounded-xl border border-[#dfe6ee] bg-white p-5">
+                  <h3 className="text-[15px] font-bold text-[#0d2742]">
+                    {role.title}
+                  </h3>
+                  <p className="text-[13px] text-[#44566b]">
+                    <strong className="text-[#33465c]">Sees:</strong> {role.sees}
+                  </p>
+                  <p className="text-[13px] text-[#44566b]">
+                    <strong className="text-[#33465c]">Does:</strong> {role.does}
+                  </p>
+                </article>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-[#071626] text-white">
+        <Reveal className="mx-auto flex max-w-[860px] flex-col items-center gap-3.5 px-6 py-14 text-center">
+          <h2 className="m-0 text-[28px] font-bold tracking-[-0.01em]">
+            Every capability, from day one of the trial
+          </h2>
+          <p className="m-0 max-w-[52ch] text-[15px] text-white/82">
+            Import your roster and see your own facility's compliance picture
+            this week.
+          </p>
+          <div className="mt-1.5 flex flex-wrap justify-center gap-3">
+            <Button
+              asChild
+              variant="secondary"
+              className="rounded-[9px] bg-white px-5 py-3 text-[14.5px] font-bold text-[#0d2742] hover:bg-[#dcebfa]"
+            >
+              <Link href="/signup">Start a free trial</Link>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              className="rounded-[9px] border-white/30 bg-transparent px-5 py-3 text-[14.5px] font-bold text-white hover:bg-white/10 hover:text-white"
+            >
+              <Link href="/faq">Questions? Read the FAQ</Link>
+            </Button>
+          </div>
+        </Reveal>
+      </section>
     </MarketingLayout>
   );
 }

@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
-import { MARKETING_NAV } from "@/lib/publicPaths";
+import { MARKETING_NAV, stripBase } from "@/lib/publicPaths";
 
 /**
  * Wouter doesn't reset scroll between route changes -- handle it ourselves, in
@@ -121,6 +121,56 @@ function ScrollToTop() {
   return null;
 }
 
+/**
+ * wouter only re-renders when the pathname changes, so clicking a landing-page
+ * hash link (e.g. "/#pricing") while already on "/" would be a no-op: pushState
+ * updates the hash but ScrollToTop never re-runs. This handler catches the
+ * same-page case and performs the scroll itself; cross-page navigations fall
+ * through to wouter, whose route change triggers ScrollToTop's hash handling.
+ */
+function hashNavClickHandler(href: string): ((event: React.MouseEvent) => void) | undefined {
+  const hashIndex = href.indexOf("#");
+  if (hashIndex === -1) return undefined;
+  const targetPath = href.slice(0, hashIndex) || "/";
+  const targetId = href.slice(hashIndex + 1);
+  return (event) => {
+    if (stripBase(window.location.pathname) !== targetPath) return;
+    event.preventDefault();
+    window.history.pushState(null, "", href);
+    document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth" });
+  };
+}
+
+/** A header/footer nav link that supports landing-page hash targets. */
+function NavAnchorLink({
+  href,
+  className,
+  children,
+  onNavigate,
+  "aria-current": ariaCurrent,
+}: {
+  href: string;
+  className?: string;
+  children: ReactNode;
+  onNavigate?: () => void;
+  "aria-current"?: "page";
+}) {
+  const hashClick = hashNavClickHandler(href);
+  return (
+    <Link
+      href={href}
+      className={className}
+      aria-current={ariaCurrent}
+      onClick={(event) => {
+        hashClick?.(event);
+        onNavigate?.();
+      }}
+    >
+      {children}
+    </Link>
+  );
+}
+
 function MarketingHeader() {
   const [location] = useLocation();
   const { isAuthenticated } = useAuth();
@@ -132,43 +182,43 @@ function MarketingHeader() {
   }, [location]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-sm">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/90 backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-[1160px] items-center justify-between gap-4 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2.5 min-w-0" data-testid="link-home">
-          <LogoMark className="h-10 w-10" />
-          <div className="flex flex-col leading-none min-w-0">
+          <LogoMark className="h-9 w-9" />
+          <div className="flex flex-col leading-tight min-w-0">
             <BrandName
-              className="truncate text-[15px] font-bold tracking-tight"
+              className="truncate text-[15px] font-extrabold tracking-tight"
               style={{ color: BRAND_BLUE }}
             />
-            <span className="hidden whitespace-nowrap text-[11px] font-medium text-muted-foreground sm:block">
-              Operations &amp; Compliance Platform
+            <span className="hidden whitespace-nowrap text-[11px] font-semibold text-muted-foreground sm:block">
+              PCH &amp; assisted living operations
             </span>
           </div>
         </Link>
 
-        <nav className="hidden items-center gap-6 lg:flex xl:gap-8">
+        <nav className="hidden items-center gap-5 lg:flex" aria-label="Primary">
           {MARKETING_NAV.map((item) => {
             const active = location === item.href;
             return (
-              <Link
+              <NavAnchorLink
                 key={item.href}
                 href={item.href}
                 className={
                   active
-                    ? "text-sm font-medium text-foreground"
-                    : "text-sm font-medium text-foreground/75 hover:text-foreground"
+                    ? "whitespace-nowrap text-sm font-semibold text-foreground"
+                    : "whitespace-nowrap text-sm font-semibold text-foreground/70 hover:text-foreground"
                 }
                 aria-current={active ? "page" : undefined}
               >
                 {item.label}
-              </Link>
+              </NavAnchorLink>
             );
           })}
         </nav>
 
         {/* Desktop actions */}
-        <div className="hidden lg:flex items-center gap-2 shrink-0">
+        <div className="hidden lg:flex items-center gap-3 shrink-0">
           {isAuthenticated ? (
             <Button asChild size="sm" data-testid="button-open-app">
               {/* "/" redirects signed-in visitors to their role's home. */}
@@ -176,17 +226,18 @@ function MarketingHeader() {
             </Button>
           ) : (
             <>
-              <Button asChild variant="ghost" size="sm" data-testid="link-login">
-                <Link href="/login">Log In</Link>
-              </Button>
-              <Button asChild variant="outline" size="sm" data-testid="link-signup">
-                <Link href="/signup">Sign Up</Link>
+              <Link
+                href="/login"
+                className="text-sm font-semibold text-foreground/70 hover:text-foreground"
+                data-testid="link-login"
+              >
+                Log In
+              </Link>
+              <Button asChild size="sm" data-testid="link-signup">
+                <Link href="/signup">Start free trial</Link>
               </Button>
             </>
           )}
-          <Button asChild size="sm" data-testid="button-request-demo">
-            <Link href="/request-demo">Request a Demo</Link>
-          </Button>
         </div>
 
         {/* Mobile menu */}
@@ -207,10 +258,10 @@ function MarketingHeader() {
               {MARKETING_NAV.map((item) => {
                 const active = location === item.href;
                 return (
-                  <Link
+                  <NavAnchorLink
                     key={item.href}
                     href={item.href}
-                    onClick={() => setMenuOpen(false)}
+                    onNavigate={() => setMenuOpen(false)}
                     className={cn(
                       "rounded-md px-3 py-2 text-sm font-medium",
                       active
@@ -220,7 +271,7 @@ function MarketingHeader() {
                     aria-current={active ? "page" : undefined}
                   >
                     {item.label}
-                  </Link>
+                  </NavAnchorLink>
                 );
               })}
             </nav>
@@ -238,18 +289,13 @@ function MarketingHeader() {
                       Log In
                     </Link>
                   </Button>
-                  <Button asChild variant="outline" className="w-full">
+                  <Button asChild className="w-full">
                     <Link href="/signup" onClick={() => setMenuOpen(false)}>
-                      Sign Up
+                      Start free trial
                     </Link>
                   </Button>
                 </>
               )}
-              <Button asChild className="w-full">
-                <Link href="/request-demo" onClick={() => setMenuOpen(false)}>
-                  Request a Demo
-                </Link>
-              </Button>
             </div>
           </SheetContent>
         </Sheet>
@@ -259,68 +305,65 @@ function MarketingHeader() {
 }
 
 function MarketingFooter() {
+  const footerLink = "text-white/75 hover:text-white hover:underline";
   return (
-    <footer className="border-t border-border/60">
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
-          <div className="max-w-sm">
+    <footer className="bg-[#071626] text-white/75">
+      <div className="mx-auto max-w-[1160px] px-4 pb-8 pt-12 sm:px-6">
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
+          <div className="flex flex-col gap-2.5">
             <Link href="/" className="flex items-center gap-2.5">
               <LogoMark className="h-8 w-8" />
-              <BrandName className="text-sm font-bold" style={{ color: BRAND_BLUE }} />
+              {/* Not BrandName: its fixed two-tone gray fails contrast on the dark footer. */}
+              <span className="text-sm font-extrabold text-white">CareMetric CareBase</span>
             </Link>
-            <p className="mt-3 text-sm text-muted-foreground">
-              Operations, workforce compliance, and survey-readiness software built
-              first for personal care homes and assisted living facilities.
+            <p className="max-w-[34ch] text-[13px] text-white/70">
+              Operations, compliance, and survey readiness for personal care
+              homes and assisted living facilities.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
-            <div>
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Product
-              </h2>
-              <ul className="mt-3 space-y-2 text-sm">
-                {MARKETING_NAV.map((item) => (
-                  <li key={item.href}>
-                    <Link href={item.href} className="text-muted-foreground hover:text-foreground">
-                      {item.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Account
-              </h2>
-              <ul className="mt-3 space-y-2 text-sm">
-                <li><Link href="/login" className="text-muted-foreground hover:text-foreground">Log In</Link></li>
-                <li><Link href="/signup" className="text-muted-foreground hover:text-foreground">Sign Up</Link></li>
-                <li><Link href="/request-demo" className="text-muted-foreground hover:text-foreground">Request a Demo</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                The CareMetric Family
-              </h2>
-              <ul className="mt-3 space-y-2 text-sm">
-                <li>
-                  <a href="https://caremetric.ai" target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground">
-                    CareMetric AI
-                  </a>
-                </li>
-                <li>
-                  <a href="https://cmbreathe.com" target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground">
-                    CareMetric Breathe
-                  </a>
-                </li>
-              </ul>
-            </div>
+          <div className="flex flex-col gap-2 text-[13.5px]">
+            <h2 className="font-mono text-[10.5px] font-semibold tracking-[0.1em] text-white/60">
+              PRODUCT
+            </h2>
+            <NavAnchorLink href="/#platform" className={footerLink}>Platform</NavAnchorLink>
+            <Link href="/how-it-works" className={footerLink}>How it works</Link>
+            <Link href="/savings" className={footerLink}>Savings</Link>
+            <Link href="/pa-training-requirements" className={footerLink}>PA requirements guide</Link>
+            <NavAnchorLink href="/#pricing" className={footerLink}>Pricing</NavAnchorLink>
+            <Link href="/faq" className={footerLink}>FAQ</Link>
+            <Link href="/security" className={footerLink}>Security</Link>
+          </div>
+
+          <div className="flex flex-col gap-2 text-[13.5px]">
+            <h2 className="font-mono text-[10.5px] font-semibold tracking-[0.1em] text-white/60">
+              ACCOUNT
+            </h2>
+            <Link href="/login" className={footerLink}>Log in</Link>
+            <Link href="/signup" className={footerLink}>Start free trial</Link>
+            <Link href="/request-demo" className={footerLink}>Request a demo</Link>
+          </div>
+
+          <div className="flex flex-col gap-2 text-[13.5px]">
+            <h2 className="font-mono text-[10.5px] font-semibold tracking-[0.1em] text-white/60">
+              COMPANY
+            </h2>
+            <Link href="/about" className={footerLink}>About CareBase</Link>
+            <a href="https://caremetric.ai" target="_blank" rel="noreferrer" className={footerLink}>
+              CareMetric AI
+            </a>
+            <a href="https://cmbreathe.com" target="_blank" rel="noreferrer" className={footerLink}>
+              CareMetric Breathe
+            </a>
           </div>
         </div>
 
-        <div className="mt-10 border-t border-border/60 pt-6 text-xs text-muted-foreground">
+        <div className="mt-9 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-5 text-[12.5px] text-white/65">
           <span>&copy; {new Date().getFullYear()} CareMetric CareBase. All rights reserved.</span>
+          <span className="flex gap-4">
+            <Link href="/privacy" className={footerLink}>Privacy Policy</Link>
+            <Link href="/terms" className={footerLink}>Terms of Service</Link>
+          </span>
         </div>
       </div>
     </footer>
