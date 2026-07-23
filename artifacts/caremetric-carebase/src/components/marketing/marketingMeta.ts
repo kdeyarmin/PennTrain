@@ -43,7 +43,7 @@ export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
   "/requirements": {
     title: "PA Annual Training Requirements by Facility Type (2026 Guide) | CareBase",
     description:
-      "Pennsylvania annual training hours for personal care homes (12 hrs, §2600.65), assisted living (16 hrs, §2800.65), Chapter 6400, nursing, home health, and hospice — with citations.",
+      "Pennsylvania annual training hours for personal care homes (12 hrs, §2600.65), Assisted Living Facility (16 hrs, §2800.65), Chapter 6400, nursing, home health, and hospice — with citations.",
   },
   "/faq": {
     title: "CareBase FAQ — PA Personal Care Home & Assisted Living Software",
