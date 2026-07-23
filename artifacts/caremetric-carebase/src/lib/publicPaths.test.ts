@@ -4,11 +4,14 @@ import { isPublicPath } from "./publicPaths";
 describe("isPublicPath", () => {
   it("allows every public marketing route", () => {
     expect(isPublicPath("/features")).toBe(true);
-    expect(isPublicPath("/who-its-for")).toBe(true);
     expect(isPublicPath("/security")).toBe(true);
     expect(isPublicPath("/how-it-works")).toBe(true);
     expect(isPublicPath("/savings")).toBe(true);
+    expect(isPublicPath("/requirements")).toBe(true);
     expect(isPublicPath("/faq")).toBe(true);
+    expect(isPublicPath("/about")).toBe(true);
+    expect(isPublicPath("/privacy")).toBe(true);
+    expect(isPublicPath("/terms")).toBe(true);
   });
 
   it("allows the public safety reporting route", () => {

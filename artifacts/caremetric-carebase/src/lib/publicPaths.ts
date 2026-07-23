@@ -8,15 +8,24 @@
  *    directly (refresh, bookmark, new tab) would redirect to login.
  */
 export const MARKETING_NAV = [
+  { href: "/how-it-works", label: "How it works" },
   { href: "/features", label: "Features" },
-  { href: "/who-its-for", label: "Who It's For" },
-  { href: "/security", label: "Security" },
-  { href: "/how-it-works", label: "How It Works" },
   { href: "/savings", label: "Savings" },
+  { href: "/requirements", label: "Requirements" },
   { href: "/faq", label: "FAQ" },
+  { href: "/about", label: "About" },
 ] as const;
 
-const MARKETING_PATHS: readonly string[] = MARKETING_NAV.map((item) => item.href);
+/** Public pages linked from the footer (and in-page CTAs) but not the header nav. */
+export const MARKETING_SECONDARY_NAV = [
+  { href: "/security", label: "Security" },
+  { href: "/privacy", label: "Privacy" },
+  { href: "/terms", label: "Terms" },
+] as const;
+
+const MARKETING_PATHS: readonly string[] = [...MARKETING_NAV, ...MARKETING_SECONDARY_NAV].map(
+  (item) => item.href,
+);
 
 // Deployments may serve the app under a base path (vite `base` / BASE_PATH,
 // e.g. "/train/"). Wouter strips this before matching routes, but the auth
@@ -42,7 +51,6 @@ export function isPublicPath(path: string): boolean {
     p === "/" ||
     p === "/login" ||
     p === "/demo" ||
-    p === "/request-demo" ||
     p === "/signup" ||
     p === "/forgot-password" ||
     p === "/reset-password" ||
