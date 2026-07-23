@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="icon" href="assets/carebase-mark.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600..900&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#ffffff;color:#1c2b3a;font-family:'Instrument Sans',system-ui,sans-serif;font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  h1,h2{font-family:'Source Serif 4',Georgia,serif}
+  a{color:#1b6fc2;text-decoration:none}
+  a:hover{color:#0d2742;text-decoration:underline}
+</style>
+</helmet>
+
+<header style="position: sticky; top: 0; z-index: 40; background: rgba(255,255,255,0.92); backdrop-filter: blur(8px); border-bottom: 1px solid #e5eaf0;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+    <a href="CareBase Landing v2.dc.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
+      <img src="assets/carebase-mark.png" alt="CareMetric CareBase" style="width: 36px; height: 36px; border-radius: 9px; object-fit: cover;">
+      <span style="font-weight: 800; font-size: 15px; color: #0d2742;">CareMetric CareBase</span>
+    </a>
+    <div style="display: flex; align-items: center; gap: 18px; font-size: 14px; font-weight: 600;">
+      <a href="CareBase Landing v2.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Home</a>
+      <a href="Privacy Policy.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Privacy</a>
+    </div>
+  </div>
+</header>
+
+<section data-screen-label="Terms of service" style="background: #ffffff;">
+  <div style="max-width: 720px; margin: 0 auto; padding: 56px 24px 80px; display: flex; flex-direction: column; gap: 22px;">
+    <div style="border: 1px solid #f0d9a8; background: #fdf7ea; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #6d5312; font-weight: 600;">DRAFT — have counsel review and finalize before publishing.</div>
+    <h1 style="margin: 0; font-size: 36px; font-weight: 700; letter-spacing: -0.01em; color: #0d2742;">Terms of Service</h1>
+    <div style="font-family: ui-monospace, monospace; font-size: 12px; color: #64768a;">Effective date: [DATE] · Applies to CareMetric CareBase (cmcarebase.com)</div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">1. The service</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;">CareBase is subscription software for facility operations, workforce compliance, and survey-readiness evidence. It is not an EHR, eMAR, payroll, or accounting system, and it does not provide legal, clinical, or regulatory advice.</p></div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">2. Accounts</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;">Your organization is responsible for its users, the accuracy of information entered, and maintaining the confidentiality of credentials. You must be authorized to act for the organization you register.</p></div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">3. Subscriptions and billing</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;">Plans are priced per facility per month and include a free trial period. Subscriptions renew until canceled; cancellation takes effect at the end of the current billing term. Pilot-program terms, when offered, are set in the pilot agreement.</p></div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">4. Your data</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;">Your organization owns the records it enters. You grant us the rights needed to host, process, back up, and display that data to your authorized users. You are responsible for having the lawful right to enter employee and resident information and for your regulatory retention obligations. Data handling is described in the <a href="Privacy Policy.dc.html">Privacy Policy</a>.</p></div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">5. Acceptable use</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;">No unlawful use, no attempting to circumvent access controls or audit logging, no reselling the service, and no entering data you lack the right to process.</p></div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">6. Compliance disclaimer</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;">CareBase helps you track requirements and preserve evidence. It does not guarantee regulatory compliance, survey outcomes, or the sufficiency of any record. Official forms, professional judgment, and compliance itself remain your organization's responsibility. Dashboards and AI-assisted tools are decision support, not legal advice.</p></div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">7. AI features</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;">AI-drafted content is generated from the materials you provide and must be reviewed and approved by your named reviewer before use. You are responsible for validating AI outputs before relying on them.</p></div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">8. Availability, warranty, and liability</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;">The service is provided "as is." We work to keep it available and backed up but do not warrant uninterrupted operation. To the maximum extent permitted by law, our aggregate liability is limited to the fees your organization paid in the twelve months before the claim, and neither party is liable for indirect or consequential damages.</p></div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">9. Termination</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;">Either party may terminate per the subscription terms; we may suspend accounts for material breach. After termination your organization has a wind-down window to export its data, after which it is deleted or de-identified except where retention is required by law.</p></div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">10. Governing law; changes; contact</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;">These terms are governed by the laws of the Commonwealth of Pennsylvania. We will post updates here with a new effective date; material changes will be notified to org admins. Questions: <a href="mailto:hello@caremetric.ai">hello@caremetric.ai</a>.</p></div>
+  </div>
+</section>
+
+<footer style="background: #071626; color: rgba(255,255,255,0.7); font-size: 12.5px;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+    <span>© 2026 CareMetric CareBase. All rights reserved.</span>
+    <span style="display: flex; gap: 18px;">
+      <a href="CareBase Landing v2.dc.html" style="color: rgba(255,255,255,0.7);" style-hover="color: #ffffff;">Home</a>
+      <a href="Privacy Policy.dc.html" style="color: rgba(255,255,255,0.7);" style-hover="color: #ffffff;">Privacy</a>
+    </span>
+  </div>
+</footer>
+</x-dc>
+</body>
+</html>

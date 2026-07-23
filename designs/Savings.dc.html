@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<title>Where the Money Comes From — CareBase Savings for PCH & ALF</title>
+<meta name="description" content="Coordination labor you stop paying for, tools you retire, and the education line item you stop paying three times. Model your own numbers — risk avoidance excluded.">
+<link rel="icon" href="assets/carebase-mark.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600..900&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
+<style>
+  html{scroll-behavior:smooth}
+  html,body{margin:0;padding:0;background:#ffffff;color:#1c2b3a;font-family:'Instrument Sans',system-ui,sans-serif;font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  h1,h2,h3{font-family:'Source Serif 4',Georgia,serif}
+  a{color:#1b6fc2;text-decoration:none}
+  a:hover{color:#0d2742;text-decoration:underline}
+</style>
+</helmet>
+
+<header style="position: sticky; top: 0; z-index: 40; background: rgba(255,255,255,0.92); backdrop-filter: blur(8px); border-bottom: 1px solid #e5eaf0;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+    <a href="CareBase Landing v2.dc.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
+      <img src="assets/carebase-mark.png" alt="CareMetric CareBase" style="width: 36px; height: 36px; border-radius: 9px; object-fit: cover;">
+      <span style="display: flex; flex-direction: column; line-height: 1.1;">
+        <span style="font-weight: 800; font-size: 15px; color: #0d2742;">CareMetric CareBase</span>
+        <span style="font-size: 11px; color: #64768a; font-weight: 600;">PCH &amp; assisted living operations</span>
+      </span>
+    </a>
+    <nav style="display: flex; align-items: center; gap: 18px; font-size: 14px; font-weight: 600; flex-wrap: wrap;">
+      <a href="CareBase Landing v2.dc.html#platform" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Platform</a>
+      <a href="How It Works.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">How it works</a>
+      <a href="Features.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Features</a>
+      <a href="CareBase Landing v2.dc.html#pricing" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Pricing</a>
+      <a href="Savings.dc.html" style="color: #0d2742; white-space: nowrap;" aria-current="page">Savings</a>
+      <a href="PA Training Requirements.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Requirements</a>
+      <a href="FAQ.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">FAQ</a>
+      <a href="About CareBase.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">About</a>
+    </nav>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <a href="https://cmcarebase.com/login" style="font-size: 14px; font-weight: 600; color: #44566b; padding: 8px 12px; white-space: nowrap;" style-hover="color: #0d2742;">Log in</a>
+      <a href="CareBase Landing v2.dc.html#pricing" style="font-size: 14px; font-weight: 700; color: #ffffff; background: #1b6fc2; padding: 9px 16px; border-radius: 8px; text-decoration: none; white-space: nowrap;" style-hover="background: #14548f; text-decoration: none;">Start free trial</a>
+    </div>
+  </div>
+</header>
+
+<section data-screen-label="Hero" style="position: relative; overflow: hidden; background: linear-gradient(135deg, #071626 0%, #0d2742 55%, #143a5c 100%); color: #ffffff;">
+  <div style="position: absolute; inset: 0; background-image: repeating-linear-gradient(to bottom, transparent, transparent 31px, rgba(255,255,255,0.05) 32px), repeating-linear-gradient(to right, transparent, transparent 31px, rgba(255,255,255,0.05) 32px);"></div>
+  <div style="position: relative; max-width: 860px; margin: 0 auto; padding: 60px 24px; text-align: center; display: flex; flex-direction: column; gap: 15px; align-items: center;">
+    <span style="display: inline-flex; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08); border-radius: 99px; padding: 6px 14px; font-size: 12px; font-weight: 700; color: #b9e4ff;">The business case</span>
+    <h1 style="margin: 0; font-size: 42px; font-weight: 700; letter-spacing: -0.015em; line-height: 1.1; text-wrap: balance;">Where the money comes from</h1>
+    <p style="margin: 0; font-size: 16.5px; color: rgba(255,255,255,0.85); max-width: 56ch; text-wrap: pretty;">Coordination labor you stop paying for, tools you retire, and an education line item you stop paying three times over. Model it with your own numbers — risk avoidance deliberately excluded.</p>
+  </div>
+</section>
+
+<section data-screen-label="Education costs" style="background: #ffffff; border-bottom: 1px solid #e5eaf0;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 72px 24px;">
+    <div style="max-width: 680px; display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #1b6fc2;">The education line item</span>
+      <h2 style="margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.01em; color: #0d2742; text-wrap: balance;">Stop paying three times for the same required training</h2>
+      <p style="margin: 0; color: #44566b; font-size: 15px; text-wrap: pretty;">The annual hours are mandatory. Most facilities pay for them at least three times over.</p>
+    </div>
+    <div style="margin-top: 28px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 16px; align-items: stretch;">
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+          <div style="font-weight: 700; font-size: 14.5px; color: #8a99a8; text-decoration: line-through;">A per-seat LMS subscription</div>
+          <p style="margin: 6px 0 0; font-size: 13.5px; color: #64768a;">Generic courses priced per employee per month — that still don't match your §2600 / §2800 topic list.</p>
+        </div>
+        <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+          <div style="font-weight: 700; font-size: 14.5px; color: #8a99a8; text-decoration: line-through;">Content libraries &amp; repeat instructor fees</div>
+          <p style="margin: 6px 0 0; font-size: 13.5px; color: #64768a;">Paying again every year for the same dementia, fire-safety, and abuse-reporting material.</p>
+        </div>
+        <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+          <div style="font-weight: 700; font-size: 14.5px; color: #8a99a8; text-decoration: line-through;">Admin hours nobody counts</div>
+          <p style="margin: 6px 0 0; font-size: 13.5px; color: #64768a;">Re-typing sign-in sheets, chasing certificates, and rebuilding the binder before every visit.</p>
+        </div>
+      </div>
+      <div style="border: 2px solid #1b6fc2; background: #f4f9fe; border-radius: 14px; padding: 26px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 16px 40px rgba(27,111,194,0.1);">
+        <div style="font-family: ui-monospace, monospace; font-size: 10.5px; font-weight: 700; letter-spacing: 0.12em; color: #1b6fc2;">INCLUDED IN YOUR PER-FACILITY PRICE</div>
+        <div style="display: flex; flex-direction: column; gap: 9px; font-size: 14px; color: #33465c;">
+          <div style="display: flex; gap: 9px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Course builder with graded quizzes &amp; certificates</div>
+          <div style="display: flex; gap: 9px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>AI course creation from your own policies — human-approved before publishing</div>
+          <div style="display: flex; gap: 9px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Live classes with QR sign-in — hours log themselves</div>
+          <div style="display: flex; gap: 9px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Up to 6 on-the-job hours captured, the way §2600.65 allows</div>
+          <div style="display: flex; gap: 9px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Unlimited staff — no per-seat math, ever</div>
+        </div>
+        <a href="#savings" style="margin-top: auto; align-self: flex-start; font-weight: 700; font-size: 14px;">Model your own numbers below ↓</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="Comparison" style="background: #ffffff; border-bottom: 1px solid #e5eaf0;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 72px 24px;">
+    <div style="text-align: center; max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #1b6fc2;">An honest comparison</span>
+      <h2 style="margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.01em; color: #0d2742;">Compared with what you're using now</h2>
+      <p style="margin: 0; color: #44566b; font-size: 15px;">If you only need course delivery, a basic LMS is cheaper. CareBase is for operators who need the whole record to agree.</p>
+    </div>
+    <div style="margin-top: 32px; border: 1px solid #dfe6ee; border-radius: 14px; overflow-x: auto; box-shadow: 0 10px 30px rgba(13,39,66,0.05);">
+      <div style="display: grid; grid-template-columns: 1.1fr 1fr 1fr 1.25fr; font-size: 13px; min-width: 720px;">
+        <div style="padding: 13px 18px; font-family: ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.08em; color: #64768a; background: #fafbfc; border-bottom: 1px solid #e5eaf0;"></div>
+        <div style="padding: 13px 14px; font-family: ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.08em; color: #64768a; background: #fafbfc; border-bottom: 1px solid #e5eaf0;">SPREADSHEETS &amp; BINDERS</div>
+        <div style="padding: 13px 14px; font-family: ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.08em; color: #64768a; background: #fafbfc; border-bottom: 1px solid #e5eaf0;">TRAINING-ONLY LMS</div>
+        <div style="padding: 13px 18px 13px 14px; font-family: ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.08em; color: #0d2742; font-weight: 700; background: #eaf3fc; border-bottom: 1px solid #cfe2f4;">CAREBASE</div>
+        <div style="padding: 12px 18px; border-bottom: 1px solid #eef2f6; font-weight: 700; color: #0d2742;">Annual in-service hours</div><div style="padding: 12px 14px; border-bottom: 1px solid #eef2f6; color: #64768a;">Manual reconciliation, once a year</div><div style="padding: 12px 14px; border-bottom: 1px solid #eef2f6; color: #64768a;">Course completions only</div><div style="padding: 12px 18px 12px 14px; border-bottom: 1px solid #dcebf8; background: #f3f9fe; color: #0d2742; font-weight: 600;">All sources — courses, live classes, outside records</div>
+        <div style="padding: 12px 18px; border-bottom: 1px solid #eef2f6; font-weight: 700; color: #0d2742;">Live class attendance</div><div style="padding: 12px 14px; border-bottom: 1px solid #eef2f6; color: #64768a;">Paper sign-in sheets</div><div style="padding: 12px 14px; border-bottom: 1px solid #eef2f6; color: #64768a;">—</div><div style="padding: 12px 18px 12px 14px; border-bottom: 1px solid #dcebf8; background: #f3f9fe; color: #0d2742; font-weight: 600;">Rotating QR + kiosk PIN check-in</div>
+        <div style="padding: 12px 18px; border-bottom: 1px solid #eef2f6; font-weight: 700; color: #0d2742;">Credentials &amp; clearances</div><div style="padding: 12px 14px; border-bottom: 1px solid #eef2f6; color: #64768a;">A separate spreadsheet</div><div style="padding: 12px 14px; border-bottom: 1px solid #eef2f6; color: #64768a;">—</div><div style="padding: 12px 18px 12px 14px; border-bottom: 1px solid #dcebf8; background: #f3f9fe; color: #0d2742; font-weight: 600;">Act 34/73/33, licenses, TB — with expirations &amp; evidence</div>
+        <div style="padding: 12px 18px; border-bottom: 1px solid #eef2f6; font-weight: 700; color: #0d2742;">Resident assessments</div><div style="padding: 12px 14px; border-bottom: 1px solid #eef2f6; color: #64768a;">Wall calendar &amp; memory</div><div style="padding: 12px 14px; border-bottom: 1px solid #eef2f6; color: #64768a;">—</div><div style="padding: 12px 18px 12px 14px; border-bottom: 1px solid #dcebf8; background: #f3f9fe; color: #0d2742; font-weight: 600;">RASP/ASP on their own due-date clocks + drafting tool</div>
+        <div style="padding: 12px 18px; border-bottom: 1px solid #eef2f6; font-weight: 700; color: #0d2742;">Incidents &amp; corrections</div><div style="padding: 12px 14px; border-bottom: 1px solid #eef2f6; color: #64768a;">Word docs in a folder</div><div style="padding: 12px 14px; border-bottom: 1px solid #eef2f6; color: #64768a;">—</div><div style="padding: 12px 18px 12px 14px; border-bottom: 1px solid #dcebf8; background: #f3f9fe; color: #0d2742; font-weight: 600;">Notification clocks + generated incident &amp; POC PDFs</div>
+        <div style="padding: 12px 18px; border-bottom: 1px solid #eef2f6; font-weight: 700; color: #0d2742;">Shift scheduling</div><div style="padding: 12px 14px; border-bottom: 1px solid #eef2f6; color: #64768a;">Whiteboard or spreadsheet</div><div style="padding: 12px 14px; border-bottom: 1px solid #eef2f6; color: #64768a;">—</div><div style="padding: 12px 18px 12px 14px; border-bottom: 1px solid #dcebf8; background: #f3f9fe; color: #0d2742; font-weight: 600;">Auto-fill from each employee's typical pattern</div>
+        <div style="padding: 12px 18px; border-bottom: 1px solid #eef2f6; font-weight: 700; color: #0d2742;">Survey binder</div><div style="padding: 12px 14px; border-bottom: 1px solid #eef2f6; color: #64768a;">A night of printing</div><div style="padding: 12px 14px; border-bottom: 1px solid #eef2f6; color: #64768a;">Partial export</div><div style="padding: 12px 18px 12px 14px; border-bottom: 1px solid #dcebf8; background: #f3f9fe; color: #0d2742; font-weight: 600;">One-click PDF rebuilt from live records</div>
+        <div style="padding: 12px 18px; font-weight: 700; color: #0d2742;">Auditor access</div><div style="padding: 12px 14px; color: #64768a;">Hand over the binder</div><div style="padding: 12px 14px; color: #64768a;">A shared login</div><div style="padding: 12px 18px 12px 14px; background: #f3f9fe; color: #0d2742; font-weight: 600;">Read-only role + time-limited evidence rooms</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="savings" data-screen-label="Savings worksheet" style="scroll-margin-top: 72px; background: #ffffff; border-bottom: 1px solid #e5eaf0;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 72px 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 48px; align-items: start;">
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <span style="font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #1b6fc2;">Model your savings</span>
+      <h2 style="margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.01em; color: #0d2742; text-wrap: balance;">Build the case with your own numbers</h2>
+      <p style="margin: 0; color: #44566b; font-size: 15px;">Starting values are an illustration, not a customer result. Risk avoidance — citations, penalties, turnover — is deliberately excluded.</p>
+      <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 20px;">
+        <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13.5px; font-weight: 700; color: #33465c;">
+          <span style="display: flex; justify-content: space-between; align-items: baseline;"><span>Weekly admin hours coordinating records</span><span style="font-family: ui-monospace, monospace; font-size: 13px; color: #1b6fc2;">{{ calcHours }} hrs/wk</span></span>
+          <input type="range" min="1" max="60" step="1" value="{{ calcHours }}" onChange="{{ setHours }}" style="accent-color: #1b6fc2; width: 100%;">
+          <span style="font-weight: 400; font-size: 12px; color: #8a99a8;">Chasing documents, reconciling training, copying deadlines, checking follow-up.</span>
+        </label>
+        <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13.5px; font-weight: 700; color: #33465c;">
+          <span style="display: flex; justify-content: space-between; align-items: baseline;"><span>Loaded hourly labor cost</span><span style="font-family: ui-monospace, monospace; font-size: 13px; color: #1b6fc2;">${{ calcRate }} /hr</span></span>
+          <input type="range" min="18" max="80" step="1" value="{{ calcRate }}" onChange="{{ setRate }}" style="accent-color: #1b6fc2; width: 100%;">
+          <span style="font-weight: 400; font-size: 12px; color: #8a99a8;">Wage plus payroll burden and benefits.</span>
+        </label>
+        <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13.5px; font-weight: 700; color: #33465c;">
+          <span style="display: flex; justify-content: space-between; align-items: baseline;"><span>Monthly spend on tools you could retire</span><span style="font-family: ui-monospace, monospace; font-size: 13px; color: #1b6fc2;">${{ calcTools }} /mo</span></span>
+          <input type="range" min="0" max="2000" step="50" value="{{ calcTools }}" onChange="{{ setTools }}" style="accent-color: #1b6fc2; width: 100%;">
+          <span style="font-weight: 400; font-size: 12px; color: #8a99a8;">Only software the comparison table above says CareBase truly replaces.</span>
+        </label>
+        <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13.5px; font-weight: 700; color: #33465c;">
+          <span style="display: flex; justify-content: space-between; align-items: baseline;"><span>Expected reduction in coordination time</span><span style="font-family: ui-monospace, monospace; font-size: 13px; color: #1b6fc2;">{{ calcCut }}%</span></span>
+          <input type="range" min="5" max="60" step="5" value="{{ calcCut }}" onChange="{{ setCut }}" style="accent-color: #1b6fc2; width: 100%;">
+          <span style="font-weight: 400; font-size: 12px; color: #8a99a8;">Keep it conservative — validate it during your trial month.</span>
+        </label>
+        <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13.5px; font-weight: 700; color: #33465c;">
+          <span style="display: flex; justify-content: space-between; align-items: baseline;"><span>Facilities</span><span style="font-family: ui-monospace, monospace; font-size: 13px; color: #1b6fc2;">{{ calcFac }}</span></span>
+          <input type="range" min="1" max="20" step="1" value="{{ calcFac }}" onChange="{{ setFac }}" style="accent-color: #1b6fc2; width: 100%;">
+          <span style="font-weight: 400; font-size: 12px; color: #8a99a8;">Sets which per-facility rate applies from the pricing above.</span>
+        </label>
+      </div>
+    </div>
+    <div style="background: #0d2742; color: #ffffff; border-radius: 14px; padding: 28px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 20px 50px rgba(13,39,66,0.25); position: sticky; top: 88px;">
+      <div style="font-family: ui-monospace, monospace; font-size: 11px; letter-spacing: 0.1em; color: #8ec8ff;">MODELED ANNUAL OPPORTUNITY</div>
+      <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; border-bottom: 1px solid rgba(255,255,255,0.14); padding-bottom: 10px;"><span style="color: rgba(255,255,255,0.78);">Current coordination labor</span><span style="font-family: ui-monospace, monospace; font-weight: 600;">{{ laborFmt }} /yr</span></div>
+      <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; border-bottom: 1px solid rgba(255,255,255,0.14); padding-bottom: 10px;"><span style="color: rgba(255,255,255,0.78);">Replaceable tool spend</span><span style="font-family: ui-monospace, monospace; font-weight: 600;">{{ toolYFmt }} /yr</span></div>
+      <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; border-bottom: 1px solid rgba(255,255,255,0.14); padding-bottom: 10px;"><span style="color: rgba(255,255,255,0.78);">CareBase at your size <span style="color: rgba(255,255,255,0.55);">({{ planNote }})</span></span><span style="font-family: ui-monospace, monospace; font-weight: 600;">{{ planFmt }} /yr</span></div>
+      <div>
+        <div style="font-size: 12.5px; color: rgba(255,255,255,0.7);">Gross opportunity before CareBase</div>
+        <div style="font-family: ui-monospace, monospace; font-size: 36px; font-weight: 700; letter-spacing: -0.01em; color: #8ec8ff;">{{ grossFmt }}</div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14); border-radius: 10px; padding: 14px;">
+          <div style="font-size: 11.5px; color: rgba(255,255,255,0.65);">Net after CareBase</div>
+          <div style="font-family: ui-monospace, monospace; font-size: 20px; font-weight: 700; color: {{ netColor }};">{{ netFmt }}</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14); border-radius: 10px; padding: 14px;">
+          <div style="font-size: 11.5px; color: rgba(255,255,255,0.65);">Modeled payback</div>
+          <div style="font-family: ui-monospace, monospace; font-size: 20px; font-weight: 700;">{{ paybackFmt }}</div>
+        </div>
+      </div>
+      <p style="margin: 0; font-size: 11.5px; line-height: 1.5; color: rgba(255,255,255,0.6);">Applies your chosen reduction to labor only and assumes the tool spend is fully removable. A planning estimate — not a quote or a guarantee.</p>
+      <a href="CareBase Landing v2.dc.html#start" style="text-align: center; background: #ffffff; color: #0d2742; font-weight: 700; font-size: 14px; padding: 11px 16px; border-radius: 9px; text-decoration: none;" style-hover="background: #dcebfa; text-decoration: none;">Verify these numbers in your trial</a>
+      <sc-if value="{{ modelNotSent }}" hint-placeholder-val="{{ true }}">
+      <form onSubmit="{{ submitModel }}" style="display: flex; gap: 8px;">
+        <input type="email" required="required" placeholder="you@yourfacility.com" style="flex: 1; min-width: 0; font-family: inherit; font-size: 13px; padding: 10px 12px; border: 1px solid rgba(255,255,255,0.25); border-radius: 8px; background: rgba(255,255,255,0.1); color: #ffffff;">
+        <button type="submit" style="cursor: pointer; font-family: inherit; background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.25); color: #ffffff; font-weight: 700; font-size: 13px; padding: 10px 14px; border-radius: 8px; white-space: nowrap;">Email my model</button>
+      </form>
+      </sc-if>
+      <sc-if value="{{ modelSent }}" hint-placeholder-val="{{ false }}">
+      <div style="text-align: center; font-size: 13px; color: #8fd9a0; font-weight: 600;">✓ Sent — check your inbox for the worksheet with these numbers.</div>
+      </sc-if>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="CTA" style="background: #071626; color: #ffffff;">
+  <div style="max-width: 860px; margin: 0 auto; padding: 56px 24px; text-align: center; display: flex; flex-direction: column; gap: 14px; align-items: center;">
+    <h2 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.01em;">Test the model on your own facility</h2>
+    <p style="margin: 0; font-size: 15px; color: rgba(255,255,255,0.82); max-width: 52ch;">Run the trial for a month and compare the worksheet against reality — no call required to start, no call required to cancel.</p>
+    <div style="display: flex; gap: 12px; margin-top: 6px; flex-wrap: wrap; justify-content: center;">
+      <a href="CareBase Landing v2.dc.html#pricing" style="background: #ffffff; color: #0d2742; font-weight: 700; font-size: 14.5px; padding: 12px 20px; border-radius: 9px; text-decoration: none;" style-hover="background: #dcebfa; text-decoration: none;">Start a free trial</a>
+      <a href="FAQ.dc.html" style="border: 1px solid rgba(255,255,255,0.3); color: #ffffff; font-weight: 700; font-size: 14.5px; padding: 12px 20px; border-radius: 9px; text-decoration: none;" style-hover="background: rgba(255,255,255,0.12); text-decoration: none;">Questions? Read the FAQ</a>
+    </div>
+  </div>
+</section>
+
+<footer style="background: #071626; border-top: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.7); font-size: 12.5px;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+    <span>© 2026 CareMetric CareBase. All rights reserved.</span>
+    <span style="display: flex; gap: 18px;">
+      <a href="CareBase Landing v2.dc.html" style="color: rgba(255,255,255,0.7);" style-hover="color: #ffffff;">Home</a>
+      <a href="Security.dc.html" style="color: rgba(255,255,255,0.7);" style-hover="color: #ffffff;">Security</a>
+      <a href="Privacy Policy.dc.html" style="color: rgba(255,255,255,0.7);" style-hover="color: #ffffff;">Privacy</a>
+      <a href="Terms of Service.dc.html" style="color: rgba(255,255,255,0.7);" style-hover="color: #ffffff;">Terms</a>
+    </span>
+  </div>
+</footer>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;starterPrice&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:349,&quot;min&quot;:0,&quot;max&quot;:2000,&quot;unit&quot;:&quot;$/facility/mo&quot;,&quot;section&quot;:&quot;Pricing&quot;,&quot;tsType&quot;:&quot;number&quot;},&quot;growthPrice&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:299,&quot;min&quot;:0,&quot;max&quot;:2000,&quot;unit&quot;:&quot;$/facility/mo&quot;,&quot;section&quot;:&quot;Pricing&quot;,&quot;tsType&quot;:&quot;number&quot;}}">
+class Component extends DCLogic {
+  state = { modelSent: false, hours: 10, rate: 35, tools: 400, cut: 25, fac: 2 };
+  renderVals() {
+    const p1 = this.props.starterPrice ?? 349;
+    const p2 = this.props.growthPrice ?? 299;
+    const { hours, rate, tools, cut, fac } = this.state;
+    const money = (n) => "$" + Math.round(n).toLocaleString("en-US");
+    const labor = hours * 52 * rate;
+    const toolY = tools * 12;
+    const gross = (labor * cut) / 100 + toolY;
+    const unit = fac >= 3 ? p2 : p1;
+    const annualPrice = unit * 12 * fac;
+    const net = gross - annualPrice;
+    const payback = gross > 0 ? annualPrice / (gross / 12) : null;
+    const set = (k) => (e) => this.setState({ [k]: +e.target.value });
+    return {
+      calcHours: hours, calcRate: rate, calcTools: tools, calcCut: cut, calcFac: fac,
+      setHours: set("hours"), setRate: set("rate"), setTools: set("tools"), setCut: set("cut"), setFac: set("fac"),
+      laborFmt: money(labor), toolYFmt: money(toolY), grossFmt: money(gross),
+      planFmt: money(annualPrice),
+      planNote: fac >= 3 ? "organization rate" : "single-facility rate",
+      netFmt: (net < 0 ? "\u2212" : "") + money(Math.abs(net)),
+      netColor: net >= 0 ? "#8fd9a0" : "#f2a9a0",
+      paybackFmt: payback === null ? "\u2014" : Math.round(payback * 10) / 10 + " mo",
+      modelSent: this.state.modelSent, modelNotSent: !this.state.modelSent,
+      submitModel: (e) => { e.preventDefault(); this.setState({ modelSent: true }); },
+    };
+  }
+}
+</script>
+</body>
+</html>

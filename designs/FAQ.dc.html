@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<title>CareBase FAQ — PA Personal Care Home &amp; Assisted Living Software</title>
+<meta name="description" content="Straight answers: what CareBase replaces, PA training-hour requirements, resident assessments, security, pricing, and how fast a facility can start.">
+<link rel="icon" href="assets/carebase-mark.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600..900&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
+<style>
+  html{scroll-behavior:smooth}
+  html,body{margin:0;padding:0;background:#ffffff;color:#1c2b3a;font-family:'Instrument Sans',system-ui,sans-serif;font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  h1,h2,h3{font-family:'Source Serif 4',Georgia,serif}
+  a{color:#1b6fc2;text-decoration:none}
+  a:hover{color:#0d2742;text-decoration:underline}
+</style>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What is CareMetric CareBase?","acceptedAnswer":{"@type":"Answer","text":"A multi-tenant operations, workforce-compliance, and survey-readiness platform built first for Pennsylvania personal care homes and assisted living facilities. It is not an EHR or eMAR."}},{"@type":"Question","name":"How much does CareBase cost?","acceptedAnswer":{"@type":"Answer","text":"Per facility per month with every module included and unlimited employees and residents. Multi-site organizations get a reduced per-facility rate."}},{"@type":"Question","name":"How many annual training hours does a PA personal care home need?","acceptedAnswer":{"@type":"Answer","text":"12 hours per direct care worker under 55 Pa. Code 2600.65, up to 6 of which may be supervised on-the-job training, plus 6 additional hours for staff on a secured dementia unit."}},{"@type":"Question","name":"How many annual training hours does a PA assisted living residence need?","acceptedAnswer":{"@type":"Answer","text":"16 hours per direct care worker under 55 Pa. Code 2800.65, plus dementia-specific training under 2800.69 that does not count toward the 16."}},{"@type":"Question","name":"Does CareBase guarantee a deficiency-free survey?","acceptedAnswer":{"@type":"Answer","text":"No. CareBase makes requirements, deadlines, ownership, and evidence visible so teams can close gaps before review, but outcomes depend on accurate configuration and follow-through."}},{"@type":"Question","name":"Can a surveyor or auditor get access?","acceptedAnswer":{"@type":"Answer","text":"Yes, through a read-only auditor role and time-limited evidence rooms scoped to exactly what was requested."}},{"@type":"Question","name":"Can I cancel and keep my records?","acceptedAnswer":{"@type":"Answer","text":"Yes. Your organization owns its data and can export everything during the wind-down window after cancellation."}},{"@type":"Question","name":"How fast can a facility start?","acceptedAnswer":{"@type":"Answer","text":"Same day. Self-serve signup creates the organization and bulk CSV import onboards a full staff roster in minutes under the free trial."}}]}</script>
+</helmet>
+
+<header style="position: sticky; top: 0; z-index: 40; background: rgba(255,255,255,0.92); backdrop-filter: blur(8px); border-bottom: 1px solid #e5eaf0;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+    <a href="CareBase Landing v2.dc.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
+      <img src="assets/carebase-mark.png" alt="CareMetric CareBase" style="width: 36px; height: 36px; border-radius: 9px; object-fit: cover;">
+      <span style="display: flex; flex-direction: column; line-height: 1.1;">
+        <span style="font-weight: 800; font-size: 15px; color: #0d2742;">CareMetric CareBase</span>
+        <span style="font-size: 11px; color: #64768a; font-weight: 600;">PCH &amp; assisted living operations</span>
+      </span>
+    </a>
+    <nav style="display: flex; align-items: center; gap: 18px; font-size: 14px; font-weight: 600; flex-wrap: wrap;">
+      <a href="CareBase Landing v2.dc.html#platform" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Platform</a>
+      <a href="How It Works.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">How it works</a>
+      <a href="Features.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Features</a>
+      <a href="CareBase Landing v2.dc.html#pricing" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Pricing</a>
+      <a href="Savings.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Savings</a>
+      <a href="PA Training Requirements.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Requirements</a>
+      <a href="FAQ.dc.html" style="color: #0d2742; white-space: nowrap;" aria-current="page">FAQ</a>
+      <a href="About CareBase.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">About</a>
+    </nav>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <a href="https://cmcarebase.com/login" style="font-size: 14px; font-weight: 600; color: #44566b; padding: 8px 12px; white-space: nowrap;" style-hover="color: #0d2742;">Log in</a>
+      <a href="CareBase Landing v2.dc.html#pricing" style="font-size: 14px; font-weight: 700; color: #ffffff; background: #1b6fc2; padding: 9px 16px; border-radius: 8px; text-decoration: none; white-space: nowrap;" style-hover="background: #14548f; text-decoration: none;">Start free trial</a>
+    </div>
+  </div>
+</header>
+
+<section data-screen-label="FAQ hero" style="position: relative; overflow: hidden; background: linear-gradient(135deg, #071626 0%, #0d2742 55%, #143a5c 100%); color: #ffffff;">
+  <div style="position: absolute; inset: 0; background-image: repeating-linear-gradient(to bottom, transparent, transparent 31px, rgba(255,255,255,0.05) 32px), repeating-linear-gradient(to right, transparent, transparent 31px, rgba(255,255,255,0.05) 32px);"></div>
+  <div style="position: relative; max-width: 860px; margin: 0 auto; padding: 56px 24px; text-align: center; display: flex; flex-direction: column; gap: 14px; align-items: center;">
+    <h1 style="margin: 0; font-size: 42px; font-weight: 700; letter-spacing: -0.015em; line-height: 1.1;">Frequently asked questions</h1>
+    <p style="margin: 0; font-size: 16px; color: rgba(255,255,255,0.85); max-width: 54ch;">Straight answers on what CareBase does, what it replaces, what it doesn't, and how to start.</p>
+  </div>
+</section>
+
+<section data-screen-label="FAQ list" style="background: #ffffff;">
+  <div style="max-width: 820px; margin: 0 auto; padding: 56px 24px; display: flex; flex-direction: column; gap: 40px;">
+
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0 0 6px; font-size: 22px; font-weight: 700; color: #0d2742;">Product &amp; replacement</h2>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">What is CareMetric CareBase?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">A multi-tenant operations, workforce-compliance, and survey-readiness platform built first for Pennsylvania personal care homes and assisted living facilities. It connects training, credentials, resident operations, incidents, inspections, scheduling, documents, and evidence in one role-based system. It is not an EHR or eMAR.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">What can it replace?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Depending on how you work today: a training LMS, training and credential spreadsheets, shared-drive compliance folders, paper survey binders, assessment due-date calendars, basic staff scheduling, admissions and census trackers, incident and POC logs, policy acknowledgment tools, work-order sheets, QAPI workbooks, and basic resident receivable ledgers.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">What does it not replace?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Your eMAR or pharmacy platform, EHR or clinical chart, payroll and timeclock, HRIS, accounting general ledger, claims or billing system, emergency-call system, and any accredited external training provider your rules still require. CareBase works alongside them.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">How much does it cost?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Per facility per month, every module included, unlimited employees and residents. <a href="CareBase Landing v2.dc.html#pricing">See pricing</a> and <a href="Savings.dc.html">model your savings</a>.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">Where do the savings come from?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Less duplicate entry and reconciliation, retired point tools, auto-filled schedules, bulk roster import, automatic reminders, one work queue, and reports generated from live records. We don't promise a universal percentage — the savings worksheet uses your own numbers and excludes risk avoidance.</p>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0 0 6px; font-size: 22px; font-weight: 700; color: #0d2742;">Compliance boundaries</h2>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">Which regulations does it help with?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Anchored to 55 Pa. Code Chapters 2600 (PCH) and 2800 (ALR): staff orientation and annual training, resident assessments and support plans, administrator qualifications, medication practicums, fire drills, incidents, resident rights, and survey evidence. The training catalog also supports Chapter 6400 and federal aide in-service pathways. It tracks and preserves evidence — it doesn't replace legal advice or official DHS forms.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">Does it guarantee compliance or a deficiency-free survey?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">No. CareBase makes requirements, deadlines, ownership, and evidence visible so your team can close gaps before review. Outcomes still depend on accurate configuration, qualified staff, truthful documentation, and management follow-through.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">How many annual training hours does my provider type need?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">It depends on license type, role, and population served — 12 hours for PCH direct care workers, 16 for ALR, 24/12 for Chapter 6400, 12 for nurse, home health, and hospice aides. See the full <a href="PA Training Requirements.dc.html">PA training requirements guide</a>.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">Does it track resident-level compliance, not just staff?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Yes, for PCH and ALF: RASP/ASP preadmission screening, the 15-day initial assessment, annual and significant-change reassessments, and support-plan updates — each on its own due date. The signed, DHS-prescribed form on file is still what closes the requirement.</p>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0 0 6px; font-size: 22px; font-weight: 700; color: #0d2742;">Training &amp; daily operations</h2>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">How does it track yearly in-service hours?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Every employee gets a training plan built from the hours, topics, and renewal windows your facility requires. Assigned training, live classes, and outside records all log hours automatically, and anyone falling behind is flagged before their deadline.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">Do you support in-person, instructor-led training?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Yes. Trainers schedule live classes and capture attendance with a rotating QR code, a shared-device kiosk mode, or a printed sign-in sheet — sessions count toward in-service hours alongside assigned items.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">Who reviews AI-generated training content?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">A named human reviewer, every time. Drafts are grounded in your own source documents, the model flags gaps instead of inventing citations, and nothing publishes without explicit sign-off — which resets if any block is regenerated.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">How are incidents, violations, and plans of correction handled?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Logging a reportable incident schedules the required notifications — state hotline, law enforcement, licensing — each with its own due-by clock, and generates a formatted report PDF. DHS-cited violations track against their citation and POC due date through Corrected and Verified.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">Can it schedule staff shifts too?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Yes. Set up each facility's units and shift types, capture each employee's typical pattern, auto-fill a draft schedule, and publish it to My Schedule. Float staff can work multiple facilities but never double-book across the organization.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">Do you screen against background-check and exclusion requirements?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Yes. OAPSA provisional-employment countdowns for new hires, Act 34/73/33 clearance tracking, and automatic monthly screening of every active employee against the OIG exclusion list (and SAM.gov when configured) — fuzzy matches go to a human review queue.</p>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0 0 6px; font-size: 22px; font-weight: 700; color: #0d2742;">Access &amp; security</h2>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">Can one organization manage multiple facilities?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Yes — multi-facility from the ground up. Org admins see every facility; facility managers see only their assigned sites. Reports respect the same scoping.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">Can our auditor or surveyor get read-only access?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Yes. The auditor role sees dashboards, the training matrix, reports, and documents with zero ability to edit — plus time-limited evidence rooms scoped to exactly what was requested. More on the <a href="Security.dc.html">security page</a>.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">Do employees need to install anything?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">No. CareBase runs in the browser on any device; the employee training player can also install to a phone's home screen as a lightweight app — no app store required.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">Can staff get text or email reminders?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Yes — due-soon and expired alerts by email and (once enabled) text, unresolved alerts escalate to admins, plus a weekly digest and a delivery log so you can confirm a reminder actually went out.</p>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0 0 6px; font-size: 22px; font-weight: 700; color: #0d2742;">The questions owners actually ask</h2>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">What happens during an actual survey?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">You open the readiness dashboard at the entrance conference, hand the surveyor a read-only auditor login or a printed binder generated that morning, and answer document requests from live records instead of a filing cabinet. Anything cited goes straight into the plan-of-correction workflow with its due date.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">What if my administrator quits?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">The compliance picture doesn't leave with them. Requirements, deadlines, evidence, and history live in the record — a new administrator inherits a working system on day one instead of deciphering a predecessor's spreadsheet.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">Can I cancel and keep my records?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Yes. Your organization owns its data. If you cancel, you export everything during the wind-down window — records are yours, not hostages.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">My aides aren't tech people. Will they use it?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">They scan a QR code with their own phone to sign into class, and their training player installs to a home screen like any app — no passwords to remember for kiosk check-in, no app store, no IT department.</p>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0 0 6px; font-size: 22px; font-weight: 700; color: #0d2742;">Getting started</h2>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">Can a new organization start immediately?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Yes. Self-serve signup creates your organization with a name, admin contact, and password — no sales call — and you can start entering employees and records the same day under the free trial.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 700; font-size: 15px; color: #0d2742;">Can we bring over our existing roster?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Yes — bulk CSV import onboards an entire facility's staff in minutes instead of one-by-one entry.</p>
+      </div>
+    </div>
+
+    <div style="border: 1px solid #cfe2f4; background: #eaf3fc; border-radius: 14px; padding: 24px; text-align: center; display: flex; flex-direction: column; gap: 10px; align-items: center;">
+      <h2 style="margin: 0; font-size: 20px; font-weight: 700; color: #0d2742;">Want to see it on your own data?</h2>
+      <p style="margin: 0; font-size: 14px; color: #44566b; max-width: 48ch;">The trial includes every module — create your organization, import your roster, and see your facility's real compliance picture today.</p>
+      <a href="CareBase Landing v2.dc.html#start" style="background: #1b6fc2; color: #ffffff; font-weight: 700; font-size: 14px; padding: 11px 18px; border-radius: 9px; text-decoration: none;" style-hover="background: #14548f; text-decoration: none;">Start the free trial</a>
+    </div>
+  </div>
+</section>
+
+<footer style="background: #071626; border-top: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.7); font-size: 12.5px;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+    <span>© 2026 CareMetric CareBase. All rights reserved.</span>
+    <span style="display: flex; gap: 18px;">
+      <a href="CareBase Landing v2.dc.html" style="color: rgba(255,255,255,0.7);" style-hover="color: #ffffff;">Home</a>
+      <a href="Security.dc.html" style="color: rgba(255,255,255,0.7);" style-hover="color: #ffffff;">Security</a>
+      <a href="Privacy Policy.dc.html" style="color: rgba(255,255,255,0.7);" style-hover="color: #ffffff;">Privacy</a>
+      <a href="Terms of Service.dc.html" style="color: rgba(255,255,255,0.7);" style-hover="color: #ffffff;">Terms</a>
+    </span>
+  </div>
+</footer>
+</x-dc>
+</body>
+</html>

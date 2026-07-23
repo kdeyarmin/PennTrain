@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<title>How CareBase Works — From Spreadsheet Chaos to Survey-Ready</title>
+<meta name="description" content="The four moves every CareBase module follows, what switching from binders and spreadsheets actually takes, and what a week looks like once it runs your PA facility.">
+<link rel="icon" href="assets/carebase-mark.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600..900&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
+<style>
+  html{scroll-behavior:smooth}
+  html,body{margin:0;padding:0;background:#ffffff;color:#1c2b3a;font-family:'Instrument Sans',system-ui,sans-serif;font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  h1,h2,h3{font-family:'Source Serif 4',Georgia,serif}
+  a{color:#1b6fc2;text-decoration:none}
+  a:hover{color:#0d2742;text-decoration:underline}
+</style>
+</helmet>
+
+<header style="position: sticky; top: 0; z-index: 40; background: rgba(255,255,255,0.92); backdrop-filter: blur(8px); border-bottom: 1px solid #e5eaf0;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+    <a href="CareBase Landing v2.dc.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
+      <img src="assets/carebase-mark.png" alt="CareMetric CareBase" style="width: 36px; height: 36px; border-radius: 9px; object-fit: cover;">
+      <span style="display: flex; flex-direction: column; line-height: 1.1;">
+        <span style="font-weight: 800; font-size: 15px; color: #0d2742;">CareMetric CareBase</span>
+        <span style="font-size: 11px; color: #64768a; font-weight: 600;">PCH &amp; assisted living operations</span>
+      </span>
+    </a>
+    <nav style="display: flex; align-items: center; gap: 18px; font-size: 14px; font-weight: 600; flex-wrap: wrap;">
+      <a href="CareBase Landing v2.dc.html#platform" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Platform</a>
+      <a href="How It Works.dc.html" style="color: #0d2742; white-space: nowrap;" aria-current="page">How it works</a>
+      <a href="Features.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Features</a>
+      <a href="CareBase Landing v2.dc.html#pricing" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Pricing</a>
+      <a href="Savings.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Savings</a>
+      <a href="PA Training Requirements.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Requirements</a>
+      <a href="FAQ.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">FAQ</a>
+      <a href="About CareBase.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">About</a>
+    </nav>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <a href="https://cmcarebase.com/login" style="font-size: 14px; font-weight: 600; color: #44566b; padding: 8px 12px; white-space: nowrap;" style-hover="color: #0d2742;">Log in</a>
+      <a href="CareBase Landing v2.dc.html#pricing" style="font-size: 14px; font-weight: 700; color: #ffffff; background: #1b6fc2; padding: 9px 16px; border-radius: 8px; text-decoration: none; white-space: nowrap;" style-hover="background: #14548f; text-decoration: none;">Start free trial</a>
+    </div>
+  </div>
+</header>
+
+<section data-screen-label="Hero" style="position: relative; overflow: hidden; background: linear-gradient(135deg, #071626 0%, #0d2742 55%, #143a5c 100%); color: #ffffff;">
+  <div style="position: absolute; inset: 0; background-image: repeating-linear-gradient(to bottom, transparent, transparent 31px, rgba(255,255,255,0.05) 32px), repeating-linear-gradient(to right, transparent, transparent 31px, rgba(255,255,255,0.05) 32px);"></div>
+  <div style="position: relative; max-width: 860px; margin: 0 auto; padding: 60px 24px; text-align: center; display: flex; flex-direction: column; gap: 15px; align-items: center;">
+    <span style="display: inline-flex; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08); border-radius: 99px; padding: 6px 14px; font-size: 12px; font-weight: 700; color: #b9e4ff;">How it works</span>
+    <h1 style="margin: 0; font-size: 42px; font-weight: 700; letter-spacing: -0.015em; line-height: 1.1; text-wrap: balance;">From spreadsheet chaos to survey-ready</h1>
+    <p style="margin: 0; font-size: 16.5px; color: rgba(255,255,255,0.85); max-width: 56ch; text-wrap: pretty;">The four moves every module follows, what switching actually takes, and what a normal week looks like once CareBase is running your facility.</p>
+  </div>
+</section>
+
+<section id="how" data-screen-label="How it works" style="scroll-margin-top: 72px; background: #ffffff; border-bottom: 1px solid #e5eaf0;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 72px 24px;">
+    <div style="text-align: center; max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #1b6fc2;">How it works</span>
+      <h2 style="margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.01em; color: #0d2742; text-wrap: balance;">Set it up once. It nags so you don't have to.</h2>
+      <p style="margin: 0; color: #44566b; font-size: 15px;">Every module — training, residents, incidents, maintenance — follows the same four moves, so staff learn it once.</p>
+    </div>
+    <div style="margin-top: 36px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 14px;">
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 22px; display: flex; flex-direction: column; gap: 10px;">
+        <span style="width: 34px; height: 34px; border-radius: 99px; background: #0d2742; color: #ffffff; display: flex; align-items: center; justify-content: center; font-family: ui-monospace, monospace; font-size: 14px; font-weight: 700;">1</span>
+        <div style="font-weight: 700; font-size: 15.5px; color: #0d2742;">Configure the operation</div>
+        <p style="margin: 0; font-size: 13.5px; color: #44566b;">Add facilities, roles, residents, and employees. Import your roster by CSV. Set the training, credential, and alert rules that apply.</p>
+        <div style="margin-top: auto; font-size: 12px; color: #64768a; border-top: 1px solid #eef2f6; padding-top: 10px;">A PCH direct care worker automatically gets the 12-hour §2600.65 bucket.</div>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 22px; display: flex; flex-direction: column; gap: 10px;">
+        <span style="width: 34px; height: 34px; border-radius: 99px; background: #0d2742; color: #ffffff; display: flex; align-items: center; justify-content: center; font-family: ui-monospace, monospace; font-size: 14px; font-weight: 700;">2</span>
+        <div style="font-weight: 700; font-size: 15.5px; color: #0d2742;">Route the work</div>
+        <p style="margin: 0; font-size: 13.5px; color: #44566b;">Training, resident services, schedules, incident follow-up, and approvals go to the person responsible — each with an owner and a deadline.</p>
+        <div style="margin-top: auto; font-size: 12px; color: #64768a; border-top: 1px solid #eef2f6; padding-top: 10px;">A hospital return opens notification, reassessment, and plan-review tasks.</div>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 22px; display: flex; flex-direction: column; gap: 10px;">
+        <span style="width: 34px; height: 34px; border-radius: 99px; background: #0d2742; color: #ffffff; display: flex; align-items: center; justify-content: center; font-family: ui-monospace, monospace; font-size: 14px; font-weight: 700;">3</span>
+        <div style="font-weight: 700; font-size: 15.5px; color: #0d2742;">Capture proof as it happens</div>
+        <p style="margin: 0; font-size: 13.5px; color: #44566b;">Completions, signatures, uploads, sign-ins, and audit events attach to the right employee, resident, requirement, and date.</p>
+        <div style="margin-top: auto; font-size: 12px; color: #64768a; border-top: 1px solid #eef2f6; padding-top: 10px;">A QR class check-in becomes logged in-service hours instantly.</div>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 22px; display: flex; flex-direction: column; gap: 10px;">
+        <span style="width: 34px; height: 34px; border-radius: 99px; background: #0d2742; color: #ffffff; display: flex; align-items: center; justify-content: center; font-family: ui-monospace, monospace; font-size: 14px; font-weight: 700;">4</span>
+        <div style="font-weight: 700; font-size: 15.5px; color: #0d2742;">See risk, share evidence</div>
+        <p style="margin: 0; font-size: 13.5px; color: #44566b;">Dashboards and escalating alerts surface gaps early. Binders and evidence rooms answer leadership, auditors, and surveyors.</p>
+        <div style="margin-top: auto; font-size: 12px; color: #64768a; border-top: 1px solid #eef2f6; padding-top: 10px;">The binder PDF rebuilds from live records in one click.</div>
+      </div>
+    </div>
+    <p style="margin: 20px auto 0; text-align: center; font-size: 13px; color: #64768a;">Setup is self-serve — most single facilities are entering real records the same day.</p>
+
+    <div style="margin-top: 40px; border: 1px solid #dfe6ee; background: #f6f8fa; border-radius: 14px; padding: 26px;">
+      <h3 style="margin: 0 0 16px; font-size: 20px; font-weight: 700; color: #0d2742; text-align: center;">Switching without the drama</h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px;">
+        <div style="display: flex; gap: 10px; font-size: 13.5px; color: #33465c;"><span style="color: #1e7a35; font-weight: 800;">✓</span><span><strong>An afternoon, not a project.</strong> CSV import brings your whole roster in; your binder stays untouched while you ramp.</span></div>
+        <div style="display: flex; gap: 10px; font-size: 13.5px; color: #33465c;"><span style="color: #1e7a35; font-weight: 800;">✓</span><span><strong>Staff need only a browser.</strong> QR check-in from their own phones, a phone-installable training player — no app store, no IT.</span></div>
+        <div style="display: flex; gap: 10px; font-size: 13.5px; color: #33465c;"><span style="color: #1e7a35; font-weight: 800;">✓</span><span><strong>Run both for month one.</strong> Keep the paper binder alongside until CareBase has earned your trust.</span></div>
+        <div style="display: flex; gap: 10px; font-size: 13.5px; color: #33465c;"><span style="color: #1e7a35; font-weight: 800;">✓</span><span><strong>Your data leaves with you.</strong> Export everything if you cancel — records are yours, not hostages.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="A week with CareBase" style="background: #ffffff; border-bottom: 1px solid #e5eaf0;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 64px 24px;">
+    <div style="text-align: center; max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #1b6fc2;">A week with CareBase</span>
+      <h2 style="margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.01em; color: #0d2742;">What actually changes, day by day</h2>
+    </div>
+    <div style="margin-top: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 12px;">
+      <div style="border: 1px solid #dfe6ee; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #1b6fc2;">MONDAY</div>
+        <p style="margin: 0; font-size: 13.5px; color: #33465c;">A new aide is hired. Her 12-hour §2600.65 plan, orientation checklist, Act 34 countdown, and TB screen are assigned before lunch — nobody built a spreadsheet row.</p>
+      </div>
+      <div style="border: 1px solid #dfe6ee; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #1b6fc2;">TUESDAY</div>
+        <p style="margin: 0; font-size: 13.5px; color: #33465c;">Mr. Alvarez returns from the hospital. Provider notification, reassessment, and support-plan review open automatically, each with an owner and a clock.</p>
+      </div>
+      <div style="border: 1px solid #dfe6ee; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #1b6fc2;">WEDNESDAY</div>
+        <p style="margin: 0; font-size: 13.5px; color: #33465c;">Dementia in-service, 2 p.m. Staff scan the rotating QR at the door; the hours land on each record the moment they sign in. No paper sheet to file.</p>
+      </div>
+      <div style="border: 1px solid #dfe6ee; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #1b6fc2;">THURSDAY</div>
+        <p style="margin: 0; font-size: 13.5px; color: #33465c;">Second-shift fire drill, east wing. Logged from a phone during the drill — evacuation time, every §2600.132 field, PDF filed before the shift ends.</p>
+      </div>
+      <div style="border: 1px solid #dfe6ee; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #1b6fc2;">FRIDAY</div>
+        <p style="margin: 0; font-size: 13.5px; color: #33465c;">Corporate asks how the facility looks. You export the binder PDF from live records and go home on time. That's the product.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="promises" data-screen-label="Honest promises" style="scroll-margin-top: 72px; background: #071626; color: #ffffff;">
+  <div style="position: relative; overflow: hidden;">
+    <div style="position: absolute; inset: 0; background-image: repeating-linear-gradient(to bottom, transparent, transparent 31px, rgba(255,255,255,0.05) 32px), repeating-linear-gradient(to right, transparent, transparent 31px, rgba(255,255,255,0.05) 32px);"></div>
+    <div style="position: relative; max-width: 1160px; margin: 0 auto; padding: 72px 24px;">
+      <div style="max-width: 620px; display: flex; flex-direction: column; gap: 12px;">
+        <span style="font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #8ec8ff;">Why operators trust us</span>
+        <h2 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.02em; text-wrap: balance;">Our promises are unusually specific</h2>
+        <p style="margin: 0; color: rgba(255,255,255,0.82); font-size: 15px;">Compliance software is full of guarantees nobody can keep. We'd rather tell you the boundaries.</p>
+      </div>
+      <div style="margin-top: 28px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 14px;">
+        <div style="border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); border-radius: 12px; padding: 20px;">
+          <div style="font-weight: 800; font-size: 15px; color: #b9e4ff;">We don't replace your eMAR, EHR, or payroll.</div>
+          <p style="margin: 8px 0 0; font-size: 13.5px; line-height: 1.55; color: rgba(255,255,255,0.8);">CareBase runs the coordination layer around them — and routes medication events from your external source instead of pretending to administer them.</p>
+        </div>
+        <div style="border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); border-radius: 12px; padding: 20px;">
+          <div style="font-weight: 800; font-size: 15px; color: #b9e4ff;">We don't guarantee a deficiency-free survey.</div>
+          <p style="margin: 8px 0 0; font-size: 13.5px; line-height: 1.55; color: rgba(255,255,255,0.8);">We make requirements, deadlines, ownership, and evidence visible so your team closes gaps before the surveyor finds them.</p>
+        </div>
+        <div style="border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); border-radius: 12px; padding: 20px;">
+          <div style="font-weight: 800; font-size: 15px; color: #b9e4ff;">We don't quote a universal ROI.</div>
+          <p style="margin: 8px 0 0; font-size: 13.5px; line-height: 1.55; color: rgba(255,255,255,0.8);">You model savings with your own hours, labor cost, and tool spend — risk avoidance deliberately excluded.</p>
+        </div>
+      </div>
+      <div style="margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 14px; align-items: stretch;">
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="border: 1px dashed rgba(255,255,255,0.3); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; justify-content: center;">
+            <div style="font-family: ui-monospace, monospace; font-size: 11px; color: rgba(255,255,255,0.6);">[ operator quote — real testimonial, name, title, facility ]</div>
+            <div style="font-size: 12.5px; color: rgba(255,255,255,0.75);">This space stays empty until it's real. No invented customers.</div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; font-size: 12.5px;">
+            <div style="border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); border-radius: 10px; padding: 12px 14px; color: rgba(255,255,255,0.85);"><strong style="color: #b9e4ff;">Real binder DNA.</strong> The 60+ forms are adapted from an actual PA survey-readiness binder, not invented.</div>
+            <div style="border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); border-radius: 10px; padding: 12px 14px; color: rgba(255,255,255,0.85);"><strong style="color: #b9e4ff;">Citation-weighted.</strong> Readiness scoring is ranked by what DHS actually cites, not a generic checklist.</div>
+            <div style="border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); border-radius: 10px; padding: 12px 14px; color: rgba(255,255,255,0.85);"><strong style="color: #b9e4ff;">People you can call.</strong> <a href="About CareBase.dc.html" style="color: #b9e4ff;">Meet the team</a> — one inbox, answered by the builders.</div>
+          </div>
+        </div>
+        <div style="border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 10px; justify-content: center;">
+          <div style="font-weight: 800; font-size: 15px;">Founding-partner pricing for early operators</div>
+          <div style="font-size: 13px; color: rgba(255,255,255,0.8);">Early PCH and ALF operators get locked-in pricing and a direct line to the builders — the product shapes itself around your real workflows.</div>
+          <a href="CareBase Landing v2.dc.html#start" style="align-self: flex-start; background: #ffffff; color: #0d2742; font-weight: 700; font-size: 13.5px; padding: 9px 16px; border-radius: 8px; text-decoration: none;" style-hover="background: #dcebfa; text-decoration: none;">Become a founding partner</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="CTA" style="background: #071626; color: #ffffff;">
+  <div style="max-width: 860px; margin: 0 auto; padding: 56px 24px; text-align: center; display: flex; flex-direction: column; gap: 14px; align-items: center;">
+    <h2 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.01em;">See it run your own workflows</h2>
+    <p style="margin: 0; font-size: 15px; color: rgba(255,255,255,0.82); max-width: 52ch;">Self-serve trial with every module included — signup to first binder without a single phone call.</p>
+    <div style="display: flex; gap: 12px; margin-top: 6px; flex-wrap: wrap; justify-content: center;">
+      <a href="CareBase Landing v2.dc.html#pricing" style="background: #ffffff; color: #0d2742; font-weight: 700; font-size: 14.5px; padding: 12px 20px; border-radius: 9px; text-decoration: none;" style-hover="background: #dcebfa; text-decoration: none;">Start a free trial</a>
+      <a href="FAQ.dc.html" style="border: 1px solid rgba(255,255,255,0.3); color: #ffffff; font-weight: 700; font-size: 14.5px; padding: 12px 20px; border-radius: 9px; text-decoration: none;" style-hover="background: rgba(255,255,255,0.12); text-decoration: none;">Questions? Read the FAQ</a>
+    </div>
+  </div>
+</section>
+
+<footer style="background: #071626; border-top: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.7); font-size: 12.5px;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+    <span>© 2026 CareMetric CareBase. All rights reserved.</span>
+    <span style="display: flex; gap: 18px;">
+      <a href="CareBase Landing v2.dc.html" style="color: rgba(255,255,255,0.7);" style-hover="color: #ffffff;">Home</a>
+      <a href="Security.dc.html" style="color: rgba(255,255,255,0.7);" style-hover="color: #ffffff;">Security</a>
+      <a href="Privacy Policy.dc.html" style="color: rgba(255,255,255,0.7);" style-hover="color: #ffffff;">Privacy</a>
+      <a href="Terms of Service.dc.html" style="color: rgba(255,255,255,0.7);" style-hover="color: #ffffff;">Terms</a>
+    </span>
+  </div>
+</footer>
+</x-dc>
+</body>
+</html>

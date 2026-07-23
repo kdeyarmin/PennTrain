@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<title>CareBase — Survey-Ready Operations for PA Personal Care Homes &amp; Assisted Living</title>
+<meta name="description" content="Training compliance, resident assessments, incidents, scheduling, and one-click survey binders for Pennsylvania PCH and ALF operators. Per-facility pricing, free trial.">
+<link rel="icon" href="assets/carebase-mark.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600..900&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
+<style>
+  html{scroll-behavior:smooth}
+  html,body{margin:0;padding:0;background:#ffffff;color:#1c2b3a;font-family:'Instrument Sans',system-ui,sans-serif;font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  h1,h2,h3{font-family:'Source Serif 4',Georgia,serif}
+  @keyframes cbFadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+  @keyframes cbPulse{0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,0.55)}50%{box-shadow:0 0 0 7px rgba(74,222,128,0)}}
+  @keyframes cbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+  a{color:#1b6fc2;text-decoration:none}
+  a:hover{color:#0d2742;text-decoration:underline}
+  input::placeholder,textarea::placeholder{color:#8a99a8}
+</style>
+</helmet>
+
+<header style="position: sticky; top: 0; z-index: 40; background: rgba(255,255,255,0.92); backdrop-filter: blur(8px); border-bottom: 1px solid #e5eaf0;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+    <a href="#top" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
+      <img src="assets/carebase-mark.png" alt="CareMetric CareBase" style="width: 36px; height: 36px; border-radius: 9px; object-fit: cover;">
+      <span style="display: flex; flex-direction: column; line-height: 1.1;">
+        <span style="font-weight: 800; font-size: 15px; color: #0d2742;">CareMetric CareBase</span>
+        <span style="font-size: 11px; color: #64768a; font-weight: 600;">PCH &amp; assisted living operations</span>
+      </span>
+    </a>
+    <nav style="display: flex; align-items: center; gap: 18px; font-size: 14px; font-weight: 600; flex-wrap: wrap;">
+      <a href="#platform" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Platform</a>
+      <a href="How It Works.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">How it works</a>
+      <a href="Features.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Features</a>
+      <a href="#pricing" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Pricing</a>
+      <a href="Savings.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Savings</a>
+      <a href="PA Training Requirements.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Requirements</a>
+      <a href="FAQ.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">FAQ</a>
+      <a href="About CareBase.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">About</a>
+    </nav>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <a href="https://cmcarebase.com/login" style="font-size: 14px; font-weight: 600; color: #44566b; padding: 8px 12px; white-space: nowrap;" style-hover="color: #0d2742;">Log in</a>
+      <a href="#start" style="font-size: 14px; font-weight: 700; color: #ffffff; background: #1b6fc2; padding: 9px 16px; border-radius: 8px; text-decoration: none; white-space: nowrap;" style-hover="background: #14548f; text-decoration: none;">Start free trial</a>
+    </div>
+  </div>
+</header>
+
+<section id="top" data-screen-label="Hero" style="position: relative; overflow: hidden; background: linear-gradient(135deg, #071626 0%, #0d2742 55%, #143a5c 100%); color: #ffffff;">
+  <div style="position: absolute; inset: 0; background-image: repeating-linear-gradient(to bottom, transparent, transparent 31px, rgba(255,255,255,0.05) 32px), repeating-linear-gradient(to right, transparent, transparent 31px, rgba(255,255,255,0.05) 32px);"></div>
+  <div style="position: relative; max-width: 1160px; margin: 0 auto; padding: 72px 24px 56px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 48px; align-items: center;">
+    <div style="display: flex; flex-direction: column; gap: 22px;">
+      <span style="align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08); border-radius: 99px; padding: 6px 14px; font-size: 12px; font-weight: 700; color: #b9e4ff; animation: cbFadeUp 0.6s ease-out both;"><span style="width: 8px; height: 8px; border-radius: 99px; background: #4ade80; animation: cbPulse 2.2s ease-in-out infinite;"></span>Built for Pennsylvania PCH &amp; ALF operators</span>
+      <h1 style="margin: 0; font-size: 58px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; text-wrap: balance;"><span style="display: block; animation: cbFadeUp 0.6s ease-out 0.05s both;">Run the facility.</span><span style="display: block; animation: cbFadeUp 0.6s ease-out 0.18s both;">See the risk.</span><span style="display: block; color: #8ec8ff; animation: cbFadeUp 0.6s ease-out 0.31s both;">Prove the work.</span></h1>
+      <p style="margin: 0; font-size: 19px; line-height: 1.5; color: rgba(255,255,255,0.85); max-width: 34ch; text-wrap: pretty; animation: cbFadeUp 0.6s ease-out 0.42s both;">Know you're survey-ready before the knock — without running your facility out of spreadsheets, binders, and one person's memory.</p>
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <a href="#pricing" style="background: #ffffff; color: #0d2742; font-weight: 700; font-size: 15px; padding: 13px 22px; border-radius: 9px; text-decoration: none;" style-hover="background: #dcebfa; text-decoration: none;">Start a free trial</a>
+        <a href="How It Works.dc.html" style="border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.06); color: #ffffff; font-weight: 700; font-size: 15px; padding: 13px 22px; border-radius: 9px; text-decoration: none;" style-hover="background: rgba(255,255,255,0.14); text-decoration: none;">See how it works</a>
+      </div>
+      <div style="font-size: 13px; color: rgba(255,255,255,0.75);">Fully self-service — signup to first binder without a phone call. {{ trialDays }}-day free trial.</div>
+    </div>
+
+    <div style="position: relative;">
+      <div style="background: #ffffff; color: #1c2b3a; border-radius: 14px; box-shadow: 0 30px 60px rgba(0,0,0,0.4); overflow: hidden; animation: cbFadeUp 0.7s ease-out 0.3s both;">
+        <div style="display: flex; align-items: center; gap: 6px; padding: 10px 16px; border-bottom: 1px solid #e5eaf0; background: #f6f8fa;">
+          <span style="width: 9px; height: 9px; border-radius: 99px; background: #e4b1ab;"></span>
+          <span style="width: 9px; height: 9px; border-radius: 99px; background: #e8d3a4;"></span>
+          <span style="width: 9px; height: 9px; border-radius: 99px; background: #aed4b3;"></span>
+          <span style="margin-left: 8px; font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: 0.06em; color: #64768a;">CAREBASE / FACILITY COMMAND CENTER</span>
+        </div>
+        <div style="padding: 16px 18px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e5eaf0;">
+          <div>
+            <div style="font-weight: 700; font-size: 15px;">Sunrise Healthcare Group</div>
+            <div style="font-family: ui-monospace, monospace; font-size: 10px; color: #64768a;">4 facilities · 186 employees · binder ready</div>
+          </div>
+          <span style="background: #eaf6ec; color: #1e7a35; font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; border-radius: 99px; padding: 4px 10px;">{{ heroScore }}% compliant</span>
+        </div>
+        <div style="padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;">
+          <div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px;"><span style="font-weight: 600;">Annual in-service hours</span><span style="color: #1e7a35; font-family: ui-monospace, monospace; font-size: 11px;">On track</span></div>
+            <div style="height: 8px; border-radius: 99px; background: #edf1f5;"><div style="height: 8px; width: 92%; border-radius: 99px; background: linear-gradient(to right, #1b6fc2, #59b2ff);"></div></div>
+          </div>
+          <div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px;"><span style="font-weight: 600;">Medication practicums</span><span style="color: #1e7a35; font-family: ui-monospace, monospace; font-size: 11px;">Current</span></div>
+            <div style="height: 8px; border-radius: 99px; background: #edf1f5;"><div style="height: 8px; width: 88%; border-radius: 99px; background: linear-gradient(to right, #1b6fc2, #59b2ff);"></div></div>
+          </div>
+          <div style="background: #fdf4e3; border: 1px solid #f0d9a8; border-radius: 10px; padding: 10px 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px;"><span style="font-weight: 700; color: #8a5a00;">Expiring credentials</span><span style="color: #8a5a00; font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700;">3 due in 21 days</span></div>
+            <div style="height: 8px; border-radius: 99px; background: #f3e4c2;"><div style="height: 8px; width: 74%; border-radius: 99px; background: #d99a1b;"></div></div>
+            <div style="margin-top: 7px; font-size: 11px; color: #6d5312;">Act 34 clearance — J. Miller, R. Chen, T. Brooks · alert sent to facility manager</div>
+          </div>
+          <div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px;"><span style="font-weight: 600;">Resident assessments</span><span style="color: #1e7a35; font-family: ui-monospace, monospace; font-size: 11px;">5 due · scheduled</span></div>
+            <div style="height: 8px; border-radius: 99px; background: #edf1f5;"><div style="height: 8px; width: 90%; border-radius: 99px; background: linear-gradient(to right, #1b6fc2, #59b2ff);"></div></div>
+          </div>
+        </div>
+      </div>
+      <div style="position: absolute; bottom: -18px; left: -18px; background: #ffffff; color: #1c2b3a; border: 1px solid #e5eaf0; border-radius: 10px; padding: 10px 14px; box-shadow: 0 14px 30px rgba(0,0,0,0.3); animation: cbFloat 5s ease-in-out infinite;">
+        <div style="font-size: 12px; font-weight: 700; color: #0d2742;">Risk caught before survey day</div>
+        <div style="font-family: ui-monospace, monospace; font-size: 10.5px; color: #64768a;">Retraining assigned · due Aug 2 · evidence attached</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="position: relative; max-width: 1160px; margin: 0 auto; padding: 0 24px 56px;">
+    <div style="border-top: 1px solid rgba(255,255,255,0.14); padding-top: 26px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 24px;">
+      <div><div style="font-family: ui-monospace, monospace; font-size: 22px; font-weight: 700;">12–16 hrs</div><div style="margin-top: 3px; font-size: 12.5px; color: rgba(255,255,255,0.78);">annual training tracked per direct care worker, by facility type</div></div>
+      <div><div style="font-family: ui-monospace, monospace; font-size: 22px; font-weight: 700;">Ch. 2600 + 2800</div><div style="margin-top: 3px; font-size: 12.5px; color: rgba(255,255,255,0.78);">PA regulations crosswalked to the records that prove them</div></div>
+      <div><div style="font-family: ui-monospace, monospace; font-size: 22px; font-weight: 700;">60+</div><div style="margin-top: 3px; font-size: 12.5px; color: rgba(255,255,255,0.78);">survey-ready form templates included</div></div>
+      <div><div style="font-family: ui-monospace, monospace; font-size: 22px; font-weight: 700;">1 record</div><div style="margin-top: 3px; font-size: 12.5px; color: rgba(255,255,255,0.78);">every role — admin to auditor — works from the same evidence</div></div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="Plain English" style="background: #ffffff; border-bottom: 1px solid #e5eaf0;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 72px 24px;">
+    <div style="text-align: center; max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px;">
+      <span style="font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #1b6fc2;">In plain English</span>
+      <h2 style="margin: 0; font-size: 36px; font-weight: 700; letter-spacing: -0.015em; color: #0d2742; text-wrap: balance;">One system that proves your facility is doing its job</h2>
+      <p style="margin: 0; color: #44566b; font-size: 16.5px; line-height: 1.6; text-wrap: pretty;">CareBase tracks every training hour, credential, clearance, resident assessment, incident, and inspection your Pennsylvania license requires — assigns the work to the right person before it's late, and turns the proof into a binder your surveyor can't argue with.</p>
+    </div>
+    <div style="margin-top: 40px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px;">
+      <div style="border: 1px solid #dfe6ee; border-radius: 14px; padding: 26px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 6px 20px rgba(13,39,66,0.04);">
+        <div style="font-family: 'Source Serif 4', Georgia, serif; font-size: 40px; font-weight: 800; color: #dcebfa; line-height: 1;">01</div>
+        <div style="font-family: ui-monospace, monospace; font-size: 10.5px; font-weight: 700; letter-spacing: 0.12em; color: #1b6fc2;">SURVEY READINESS</div>
+        <h3 style="margin: 0; font-size: 19px; font-weight: 700; color: #0d2742;">Pass your next survey</h3>
+        <p style="margin: 0; font-size: 14px; color: #44566b;">Every §2600 / §2800 requirement lives on its own clock with evidence attached as work happens. When the surveyor knocks, the binder is an export — not a lost weekend.</p>
+        <a href="How It Works.dc.html" style="margin-top: auto; font-weight: 700; font-size: 13.5px;">See how it works →</a>
+      </div>
+      <div style="border: 1px solid #dfe6ee; border-radius: 14px; padding: 26px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 6px 20px rgba(13,39,66,0.04);">
+        <div style="font-family: 'Source Serif 4', Georgia, serif; font-size: 40px; font-weight: 800; color: #dcebfa; line-height: 1;">02</div>
+        <div style="font-family: ui-monospace, monospace; font-size: 10.5px; font-weight: 700; letter-spacing: 0.12em; color: #1b6fc2;">EDUCATION SPEND</div>
+        <h3 style="margin: 0; font-size: 19px; font-weight: 700; color: #0d2742;">Spend less on required education</h3>
+        <p style="margin: 0; font-size: 14px; color: #44566b;">The course builder, AI course creation from your own policies, live QR classes, and certificates are built in — stop paying per-seat LMS fees and yearly content libraries for the same mandatory topics.</p>
+        <a href="Savings.dc.html" style="margin-top: auto; font-weight: 700; font-size: 13.5px;">See where the money comes from →</a>
+      </div>
+      <div style="border: 1px solid #dfe6ee; border-radius: 14px; padding: 26px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 6px 20px rgba(13,39,66,0.04);">
+        <div style="font-family: 'Source Serif 4', Georgia, serif; font-size: 40px; font-weight: 800; color: #dcebfa; line-height: 1;">03</div>
+        <div style="font-family: ui-monospace, monospace; font-size: 10.5px; font-weight: 700; letter-spacing: 0.12em; color: #1b6fc2;">YOUR TIME</div>
+        <h3 style="margin: 0; font-size: 19px; font-weight: 700; color: #0d2742;">Get your evenings back</h3>
+        <p style="margin: 0; font-size: 14px; color: #44566b;">The system nags, routes, escalates, and files so compliance stops living in one person's memory — and stops following you home in a tote bag of binders.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="Persona paths" style="background: #ffffff; border-bottom: 1px solid #e5eaf0;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 56px 24px;">
+    <h2 style="margin: 0 0 22px; font-size: 28px; font-weight: 700; letter-spacing: -0.01em; color: #0d2742; text-align: center;">Which facility do you run?</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
+      <div style="border: 1px solid #dfe6ee; border-radius: 14px; padding: 26px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 6px 20px rgba(13,39,66,0.04);">
+        <span style="font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #1b6fc2;">55 PA. CODE CHAPTER 2600</span>
+        <h3 style="margin: 0; font-size: 21px; font-weight: 700; color: #0d2742;">I run a personal care home</h3>
+        <p style="margin: 0; font-size: 14px; color: #44566b;">Your surveyor wants 12 annual in-service hours per direct care worker (§2600.65, up to 6 on-the-job), current RASP assessments and support plans, medication practicums, Act 34 clearances, and fire drill logs — with proof for each.</p>
+        <p style="margin: 0; font-size: 14px; color: #44566b;"><strong style="color: #0d2742;">Your usual failure mode isn't missing training — it's the sign-in sheet nobody can find.</strong> CareBase logs the hours as they happen and keeps the evidence attached.</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 7px;">
+          <span style="background: #f0f5fa; border-radius: 99px; padding: 4px 11px; font-size: 12px; font-weight: 600; color: #33465c;">12-hr buckets auto-applied</span>
+          <span style="background: #f0f5fa; border-radius: 99px; padding: 4px 11px; font-size: 12px; font-weight: 600; color: #33465c;">+6 hrs secured dementia unit</span>
+          <span style="background: #f0f5fa; border-radius: 99px; padding: 4px 11px; font-size: 12px; font-weight: 600; color: #33465c;">Ch. 2600 crosswalk</span>
+        </div>
+        <a href="#start" style="margin-top: auto; align-self: flex-start; font-weight: 700; font-size: 14px;">Set up your PCH in minutes →</a>
+      </div>
+      <div style="border: 1px solid #dfe6ee; border-radius: 14px; padding: 26px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 6px 20px rgba(13,39,66,0.04);">
+        <span style="font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #1b6fc2;">55 PA. CODE CHAPTER 2800</span>
+        <h3 style="margin: 0; font-size: 21px; font-weight: 700; color: #0d2742;">I run an assisted living residence</h3>
+        <p style="margin: 0; font-size: 14px; color: #44566b;">You carry the heavier load: 16 annual hours per direct care worker (§2800.65), dementia training that <em>doesn't</em> count toward the 16 (§2800.69), special-care-unit add-ons, and ASP assessments on their own clocks.</p>
+        <p style="margin: 0; font-size: 14px; color: #44566b;"><strong style="color: #0d2742;">The dementia-hours carve-out is where ALRs get cited.</strong> CareBase tracks the buckets separately so nothing double-counts.</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 7px;">
+          <span style="background: #f0f5fa; border-radius: 99px; padding: 4px 11px; font-size: 12px; font-weight: 600; color: #33465c;">16-hr buckets auto-applied</span>
+          <span style="background: #f0f5fa; border-radius: 99px; padding: 4px 11px; font-size: 12px; font-weight: 600; color: #33465c;">Dementia hrs tracked separately</span>
+          <span style="background: #f0f5fa; border-radius: 99px; padding: 4px 11px; font-size: 12px; font-weight: 600; color: #33465c;">Ch. 2800 crosswalk</span>
+        </div>
+        <a href="#start" style="margin-top: auto; align-self: flex-start; font-weight: 700; font-size: 14px;">Set up your ALR in minutes →</a>
+      </div>
+    </div>
+    <p style="margin: 18px auto 0; text-align: center; font-size: 13px; color: #64768a;">Group home, nursing, home health, or hospice? The <a href="PA Training Requirements.dc.html">requirements guide</a> covers your pathway too.</p>
+  </div>
+</section>
+
+<section id="platform" data-screen-label="Platform domains" style="scroll-margin-top: 72px; background: #f6f8fa; border-bottom: 1px solid #e5eaf0;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 72px 24px;">
+    <div style="max-width: 640px; display: flex; flex-direction: column; gap: 12px;">
+      <span style="font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #1b6fc2;">The whole facility, one record</span>
+      <h2 style="margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.015em; color: #0d2742; text-wrap: balance;">Stop being the person who remembers everything</h2>
+      <p style="margin: 0; color: #44566b; text-wrap: pretty;">Residents, staff, the building, and the survey — every deadline on its own clock, every task owned, every completion leaving proof. Pick a domain to see the actual workflow.</p>
+    </div>
+
+    <div style="margin-top: 28px; display: flex; gap: 8px; flex-wrap: wrap;">
+      <button onClick="{{ tab0 }}" style="cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 700; padding: 10px 18px; border-radius: 99px; border: 1px solid {{ t0bd }}; background: {{ t0bg }}; color: {{ t0fg }};">Residents</button>
+      <button onClick="{{ tab1 }}" style="cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 700; padding: 10px 18px; border-radius: 99px; border: 1px solid {{ t1bd }}; background: {{ t1bg }}; color: {{ t1fg }};">Workforce</button>
+      <button onClick="{{ tab2 }}" style="cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 700; padding: 10px 18px; border-radius: 99px; border: 1px solid {{ t2bd }}; background: {{ t2bg }}; color: {{ t2fg }};">Facility &amp; safety</button>
+      <button onClick="{{ tab3 }}" style="cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 700; padding: 10px 18px; border-radius: 99px; border: 1px solid {{ t3bd }}; background: {{ t3bg }}; color: {{ t3fg }};">Survey evidence</button>
+    </div>
+
+    <sc-if value="{{ showD0 }}" hint-placeholder-val="{{ true }}">
+    <div style="margin-top: 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 24px; align-items: start;">
+      <div style="background: #ffffff; border: 1px solid #dfe6ee; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(13,39,66,0.07);">
+        <div style="padding: 12px 18px; border-bottom: 1px solid #e5eaf0; display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 700; font-size: 14px;">Resident compliance — Maple Grove</span>
+          <span style="font-family: ui-monospace, monospace; font-size: 11px; color: #64768a;">Census 42 / 48 · 3 move-ins this month</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1.2fr 0.5fr 1.1fr 1.1fr; gap: 0; font-size: 13px;">
+          <div style="padding: 10px 18px; font-family: ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.08em; color: #64768a; border-bottom: 1px solid #eef2f6;">RESIDENT</div>
+          <div style="padding: 10px 8px; font-family: ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.08em; color: #64768a; border-bottom: 1px solid #eef2f6;">ROOM</div>
+          <div style="padding: 10px 8px; font-family: ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.08em; color: #64768a; border-bottom: 1px solid #eef2f6;">RASP STATUS</div>
+          <div style="padding: 10px 18px 10px 8px; font-family: ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.08em; color: #64768a; border-bottom: 1px solid #eef2f6;">SUPPORT PLAN</div>
+          <div style="padding: 11px 18px; border-bottom: 1px solid #eef2f6; font-weight: 600;">M. Alvarez</div><div style="padding: 11px 8px; border-bottom: 1px solid #eef2f6; color: #64768a;">12</div><div style="padding: 11px 8px; border-bottom: 1px solid #eef2f6;"><span style="background: #eaf6ec; color: #1e7a35; border-radius: 99px; padding: 2px 9px; font-size: 11.5px; font-weight: 700;">Current</span></div><div style="padding: 11px 18px 11px 8px; border-bottom: 1px solid #eef2f6; color: #44566b;">Updated May 2</div>
+          <div style="padding: 11px 18px; border-bottom: 1px solid #eef2f6; font-weight: 600;">J. Okafor</div><div style="padding: 11px 8px; border-bottom: 1px solid #eef2f6; color: #64768a;">07</div><div style="padding: 11px 8px; border-bottom: 1px solid #eef2f6;"><span style="background: #fdf4e3; color: #8a5a00; border-radius: 99px; padding: 2px 9px; font-size: 11.5px; font-weight: 700;">Annual due · 14d</span></div><div style="padding: 11px 18px 11px 8px; border-bottom: 1px solid #eef2f6; color: #44566b;">Review opened</div>
+          <div style="padding: 11px 18px; border-bottom: 1px solid #eef2f6; font-weight: 600;">R. Santos</div><div style="padding: 11px 8px; border-bottom: 1px solid #eef2f6; color: #64768a;">21</div><div style="padding: 11px 8px; border-bottom: 1px solid #eef2f6;"><span style="background: #fbe9e7; color: #a83a2c; border-radius: 99px; padding: 2px 9px; font-size: 11.5px; font-weight: 700;">Overdue · 3d</span></div><div style="padding: 11px 18px 11px 8px; border-bottom: 1px solid #eef2f6; color: #a83a2c; font-weight: 600;">Reassess first</div>
+          <div style="padding: 11px 18px;" ><span style="font-weight: 600;">E. Werner</span></div><div style="padding: 11px 8px; color: #64768a;">09</div><div style="padding: 11px 8px;"><span style="background: #eaf6ec; color: #1e7a35; border-radius: 99px; padding: 2px 9px; font-size: 11.5px; font-weight: 700;">Current</span></div><div style="padding: 11px 18px 11px 8px; color: #44566b;">Updated Jun 10</div>
+        </div>
+        <div style="padding: 12px 18px; border-top: 1px solid #eef2f6; background: #fafbfc; font-size: 12px; color: #64768a;">Completing a reassessment auto-opens the support-plan update it requires — §2600.225/.227 tracked per resident.</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <h3 style="margin: 0; font-size: 18px; font-weight: 800; color: #0d2742;">From inquiry to discharge</h3>
+        <p style="margin: 0 0 4px; font-size: 14px; color: #44566b;">Resident-level compliance and the daily work around it — each item on its own due-date clock.</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 7px;">
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Admissions &amp; census</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">RASP / ASP assessments</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Support-plan triggers</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Resident services &amp; refusals</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Change-of-condition follow-up</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Dietary &amp; food safety rounds</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Appointments &amp; transport</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Resident finance subledger</span>
+        </div>
+        <div style="margin-top: 6px; font-size: 12.5px; color: #64768a; border-left: 3px solid #d7dfe8; padding-left: 12px;">Not an EHR or eMAR — CareBase runs the non-clinical operation around the chart, and routes medication events from your external source.</div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ showD1 }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top: 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 24px; align-items: start;">
+      <div style="background: #ffffff; border: 1px solid #dfe6ee; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(13,39,66,0.07);">
+        <div style="padding: 12px 18px; border-bottom: 1px solid #e5eaf0; display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 700; font-size: 14px;">Compliance matrix — direct care staff</span>
+          <span style="font-family: ui-monospace, monospace; font-size: 11px; color: #64768a;">Click any cell to edit the record</span>
+        </div>
+        <div style="padding: 16px 18px;">
+          <div style="display: grid; grid-template-columns: 110px repeat(5, 1fr); gap: 6px; font-size: 11px; align-items: center;">
+            <div></div>
+            <div style="font-family: ui-monospace, monospace; font-size: 9.5px; color: #64768a; text-align: center;">IN-SERVICE</div>
+            <div style="font-family: ui-monospace, monospace; font-size: 9.5px; color: #64768a; text-align: center;">DEMENTIA</div>
+            <div style="font-family: ui-monospace, monospace; font-size: 9.5px; color: #64768a; text-align: center;">PRACTICUM</div>
+            <div style="font-family: ui-monospace, monospace; font-size: 9.5px; color: #64768a; text-align: center;">ACT 34</div>
+            <div style="font-family: ui-monospace, monospace; font-size: 9.5px; color: #64768a; text-align: center;">TB SCREEN</div>
+            <div style="font-weight: 600;">J. Miller</div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div><div style="height: 24px; border-radius: 6px; background: #f2d791;"></div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div>
+            <div style="font-weight: 600;">R. Chen</div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div><div style="height: 24px; border-radius: 6px; background: #f2d791;"></div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div><div style="height: 24px; border-radius: 6px; background: #f2d791;"></div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div>
+            <div style="font-weight: 600;">T. Brooks</div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div><div style="height: 24px; border-radius: 6px; background: #e8a99f;"></div><div style="height: 24px; border-radius: 6px; background: #f2d791;"></div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div>
+            <div style="font-weight: 600;">A. Novak</div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div>
+            <div style="font-weight: 600;">D. Ferraro</div><div style="height: 24px; border-radius: 6px; background: #f2d791;"></div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div><div style="height: 24px; border-radius: 6px; background: #bfe3c6;"></div>
+          </div>
+          <div style="margin-top: 14px; display: flex; gap: 16px; font-size: 11.5px; color: #64768a; align-items: center;">
+            <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 3px; background: #bfe3c6;"></span>Current</span>
+            <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 3px; background: #f2d791;"></span>Due soon</span>
+            <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 3px; background: #e8a99f;"></span>Overdue — retraining assigned</span>
+          </div>
+        </div>
+        <div style="padding: 12px 18px; border-top: 1px solid #eef2f6; background: #fafbfc; font-size: 12px; color: #64768a;">One pass-meds roster cross-checks certification, this year's practicum, and insulin authorization into a single yes/no per aide.</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <h3 style="margin: 0; font-size: 18px; font-weight: 800; color: #0d2742;">Hire to qualified, on its own clock</h3>
+        <p style="margin: 0 0 4px; font-size: 14px; color: #44566b;">Every requirement a new hire needs — training, clearances, screenings, competencies — routed and tracked automatically by role and facility type.</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 7px;">
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Training plans by role</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Live classes · QR check-in</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">AI-drafted courses, human-approved</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Act 34 / 73 / 33 clearances</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Monthly OIG exclusion screening</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Pass-meds roster</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Shift scheduling &amp; auto-fill</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Policy attestations</span>
+        </div>
+        <div style="margin-top: 6px; font-size: 12.5px; color: #64768a; border-left: 3px solid #d7dfe8; padding-left: 12px;">AI-touched training content can't publish until a named reviewer signs off — and the sign-off clears if any block is regenerated.</div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ showD2 }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top: 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 24px; align-items: start;">
+      <div style="background: #ffffff; border: 1px solid #dfe6ee; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(13,39,66,0.07);">
+        <div style="padding: 12px 18px; border-bottom: 1px solid #e5eaf0; display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 700; font-size: 14px;">Open facility work — this week</span>
+          <span style="font-family: ui-monospace, monospace; font-size: 11px; color: #64768a;">4 items · 1 needs verification</span>
+        </div>
+        <div style="display: flex; flex-direction: column;">
+          <div style="padding: 13px 18px; border-bottom: 1px solid #eef2f6; display: flex; justify-content: space-between; gap: 14px; align-items: center;">
+            <div><div style="font-weight: 600; font-size: 13.5px;">INC-114 · Fall, witnessed — no injury</div><div style="font-size: 12px; color: #64768a;">State hotline notified 2h ago · investigation open · report PDF drafted</div></div>
+            <span style="background: #fdf4e3; color: #8a5a00; border-radius: 99px; padding: 3px 10px; font-size: 11.5px; font-weight: 700; white-space: nowrap;">Follow-up due 48h</span>
+          </div>
+          <div style="padding: 13px 18px; border-bottom: 1px solid #eef2f6; display: flex; justify-content: space-between; gap: 14px; align-items: center;">
+            <div><div style="font-weight: 600; font-size: 13.5px;">Fire drill — 2nd shift, east wing</div><div style="font-size: 12px; color: #64768a;">Evacuation 4m 12s · every §2600.132 field logged · PDF filed</div></div>
+            <span style="background: #eaf6ec; color: #1e7a35; border-radius: 99px; padding: 3px 10px; font-size: 11.5px; font-weight: 700; white-space: nowrap;">Complete</span>
+          </div>
+          <div style="padding: 13px 18px; border-bottom: 1px solid #eef2f6; display: flex; justify-content: space-between; gap: 14px; align-items: center;">
+            <div><div style="font-weight: 600; font-size: 13.5px;">WO-58 · Generator monthly load test</div><div style="font-size: 12px; color: #64768a;">Vendor on-site Thu · fuel level recorded · photos attached</div></div>
+            <span style="background: #e5effa; color: #14548f; border-radius: 99px; padding: 3px 10px; font-size: 11.5px; font-weight: 700; white-space: nowrap;">Verify to close</span>
+          </div>
+          <div style="padding: 13px 18px; display: flex; justify-content: space-between; gap: 14px; align-items: center;">
+            <div><div style="font-weight: 600; font-size: 13.5px;">POC · §2600.65(a) training citation</div><div style="font-size: 12px; color: #64768a;">Evidence attached for follow-up visit · Plan of Correction PDF generated</div></div>
+            <span style="background: #fdf4e3; color: #8a5a00; border-radius: 99px; padding: 3px 10px; font-size: 11.5px; font-weight: 700; white-space: nowrap;">POC submitted</span>
+          </div>
+        </div>
+        <div style="padding: 12px 18px; border-top: 1px solid #eef2f6; background: #fafbfc; font-size: 12px; color: #64768a;">Nothing closes without an owner, a deadline, and supervisor verification — a warning becomes completed work, not another unresolved alert.</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <h3 style="margin: 0; font-size: 18px; font-weight: 800; color: #0d2742;">The building, on the record too</h3>
+        <p style="margin: 0 0 4px; font-size: 14px; color: #44566b;">Incidents, drills, repairs, complaints, and emergencies each generate their own survey-ready PDF trail.</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 7px;">
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Incidents &amp; notification clocks</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Violations &amp; plans of correction</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Fire drills &amp; life-safety logs</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Emergency operations</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Maintenance work orders</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Complaints &amp; resident rights</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">QAPI projects</span>
+        </div>
+        <div style="margin-top: 6px; font-size: 12.5px; color: #64768a; border-left: 3px solid #d7dfe8; padding-left: 12px;">Reportable incidents auto-schedule the required notifications — state hotline, law enforcement, licensing — each with its own due-by clock.</div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ showD3 }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top: 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 24px; align-items: start;">
+      <div style="background: #ffffff; border: 1px solid #dfe6ee; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(13,39,66,0.07);">
+        <div style="padding: 12px 18px; border-bottom: 1px solid #e5eaf0; display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 700; font-size: 14px;">Survey readiness — Maple Grove</span>
+          <span style="background: #eaf6ec; color: #1e7a35; font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; border-radius: 99px; padding: 3px 10px;">Score 94 / 100</span>
+        </div>
+        <div style="padding: 16px 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div style="display: flex; flex-direction: column; gap: 9px;">
+            <div style="font-family: ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.08em; color: #64768a;">BINDER CONTENTS · LIVE</div>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 13px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Training compliance &amp; certificates</div>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 13px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Credentials &amp; clearances</div>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 13px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Medication practicums</div>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 13px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Resident assessments</div>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 13px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Incidents &amp; plans of correction</div>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 13px;"><span style="color: #8a5a00; font-weight: 800;">→</span><span>Fire drills — <span style="color: #8a5a00; font-weight: 600;">1 sleeping-hours drill due</span></span></div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="font-family: ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.08em; color: #64768a;">CITATION-WEIGHTED RISK</div>
+            <div style="font-size: 12.5px; color: #44566b;">Topics surface in the order DHS actually cites them — the most-cited regulation your facility is exposed on appears first.</div>
+            <div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px;">
+              <span style="background: #0d2742; color: #ffffff; border-radius: 8px; padding: 10px 14px; font-size: 13px; font-weight: 700; text-align: center;">Generate binder PDF</span>
+              <div style="font-size: 11.5px; color: #64768a; text-align: center;">Rebuilt from live records · delivered via short-lived secure link</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding: 12px 18px; border-top: 1px solid #eef2f6; background: #fafbfc; font-size: 12px; color: #64768a;">Auditors and surveyors get read-only, time-limited evidence rooms — never edit access, never the whole application.</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <h3 style="margin: 0; font-size: 18px; font-weight: 800; color: #0d2742;">Ready before the entrance conference</h3>
+        <p style="margin: 0 0 4px; font-size: 14px; color: #44566b;">Proof is collected as work happens, so the binder is an export — not a project.</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 7px;">
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">One-click binder PDF</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Citation-weighted readiness score</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Ch. 2600 / 2800 crosswalk</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Time-limited evidence rooms</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Immutable audit trail</span>
+          <span style="background: #ffffff; border: 1px solid #dbe3ec; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: #33465c;">Report center</span>
+        </div>
+        <div style="margin-top: 6px; font-size: 12.5px; color: #64768a; border-left: 3px solid #d7dfe8; padding-left: 12px;">60+ printable survey-readiness forms included, adapted from a real PA survey readiness binder.</div>
+      </div>
+    </div>
+    </sc-if>
+  </div>
+</section>
+
+<section data-screen-label="Old way vs CareBase" style="background: #f6f8fa; border-bottom: 1px solid #e5eaf0;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 64px 24px;">
+    <h2 style="margin: 0 0 28px; font-size: 28px; font-weight: 800; letter-spacing: -0.02em; color: #0d2742; text-align: center;">Facilities don't fail surveys for lack of training.<br>They fail to find the proof.</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 14px;">
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="font-size: 13.5px; color: #8a99a8; text-decoration: line-through;">Sign-in sheets reconciled once a year</div>
+        <div style="font-size: 14px; font-weight: 700; color: #0d2742;">Hours logged as training happens</div>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="font-size: 13.5px; color: #8a99a8; text-decoration: line-through;">Binder night before the survey</div>
+        <div style="font-size: 14px; font-weight: 700; color: #0d2742;">Binder PDF generated from live records</div>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="font-size: 13.5px; color: #8a99a8; text-decoration: line-through;">Expirations discovered by the surveyor</div>
+        <div style="font-size: 14px; font-weight: 700; color: #0d2742;">Alerts escalate before anything lapses</div>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="font-size: 13.5px; color: #8a99a8; text-decoration: line-through;">Nine spreadsheets, one person who gets them</div>
+        <div style="font-size: 14px; font-weight: 700; color: #0d2742;">One record every role works from</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="Differentiators" style="background: #ffffff; border-bottom: 1px solid #e5eaf0;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 72px 24px;">
+    <div style="max-width: 640px; display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #1b6fc2;">What sets it apart</span>
+      <h2 style="margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.01em; color: #0d2742; text-wrap: balance;">Four things you won't find in a training portal</h2>
+    </div>
+    <div style="margin-top: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px;">
+      <div style="border: 1px solid #dfe6ee; border-radius: 14px; padding: 26px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 6px 20px rgba(13,39,66,0.04);">
+        <h3 style="margin: 0; font-size: 20px; font-weight: 700; color: #0d2742;">AI course creation with a human gate</h3>
+        <p style="margin: 0; font-size: 14px; color: #44566b;">Paste a regulation, policy, or reference document and CareBase drafts the complete course — modules, lesson text or video scripts, and graded quizzes — grounded strictly in your source. It flags gaps instead of inventing citations.</p>
+        <p style="margin: 0; font-size: 14px; color: #44566b;">Add an AI avatar presenter video if you want one. Nothing publishes until a named reviewer signs off — and the sign-off clears automatically the moment any block is regenerated.</p>
+        <div style="margin-top: auto; font-family: ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: #1b6fc2; border-top: 1px solid #eef2f6; padding-top: 12px;">REVIEWED BY A REAL PERSON, EVERY TIME</div>
+      </div>
+      <div style="border: 1px solid #dfe6ee; border-radius: 14px; padding: 26px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 6px 20px rgba(13,39,66,0.04);">
+        <h3 style="margin: 0; font-size: 20px; font-weight: 700; color: #0d2742;">Citation-weighted readiness score</h3>
+        <p style="margin: 0; font-size: 14px; color: #44566b;">A live, per-facility score weighted by how often DHS actually cites each regulation — not a generic checklist percentage.</p>
+        <p style="margin: 0; font-size: 14px; color: #44566b;">Training, credentials, background checks, inspections, incidents, and policy attestations roll into one number, sorted so your most-citable exposure surfaces first.</p>
+        <div style="margin-top: auto; font-family: ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: #1b6fc2; border-top: 1px solid #eef2f6; padding-top: 12px;">SEE WHAT THE SURVEYOR WILL FLAG, FIRST</div>
+      </div>
+      <div style="border: 1px solid #dfe6ee; border-radius: 14px; padding: 26px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 6px 20px rgba(13,39,66,0.04);">
+        <h3 style="margin: 0; font-size: 20px; font-weight: 700; color: #0d2742;">Live pass-meds authorization roster</h3>
+        <p style="margin: 0; font-size: 14px; color: #44566b;">The question a surveyor asks on-site: who is authorized to administer medications <em>right now</em>?</p>
+        <p style="margin: 0; font-size: 14px; color: #44566b;">One roster cross-checks each employee's medication-administration certification, current-year practicum, and insulin authorization into a single yes or no.</p>
+        <div style="margin-top: auto; font-family: ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: #1b6fc2; border-top: 1px solid #eef2f6; padding-top: 12px;">ONE ANSWER PER EMPLOYEE, ALWAYS CURRENT</div>
+      </div>
+      <div style="border: 1px solid #dfe6ee; border-radius: 14px; padding: 26px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 6px 20px rgba(13,39,66,0.04);">
+        <h3 style="margin: 0; font-size: 20px; font-weight: 700; color: #0d2742;">Paperless live-class attendance</h3>
+        <p style="margin: 0; font-size: 14px; color: #44566b;">Each class shows a QR code that rotates every 30 seconds — staff scan with their own phones, or a shared kiosk takes name and PIN. No app installs.</p>
+        <p style="margin: 0; font-size: 14px; color: #44566b;">A printable meeting notice with an embedded QR and a backup paper table covers anyone who can't scan; upload the completed sheet back into the class record.</p>
+        <div style="margin-top: auto; font-family: ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: #1b6fc2; border-top: 1px solid #eef2f6; padding-top: 12px;">HOURS COUNT THE MOMENT THEY SIGN IN</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="Mid-page CTA" style="background: linear-gradient(120deg, #1b6fc2, #143a5c); color: #ffffff;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 36px 24px; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;">
+    <div>
+      <div style="font-size: 20px; font-weight: 700; font-family: 'Source Serif 4', Georgia, serif;">Seen enough to be curious?</div>
+      <div style="font-size: 14px; color: rgba(255,255,255,0.85); margin-top: 3px;">Import your roster this afternoon — the trial is self-serve and every module is included.</div>
+    </div>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+      <a href="#pricing" style="background: #ffffff; color: #0d2742; font-weight: 700; font-size: 14.5px; padding: 12px 20px; border-radius: 9px; text-decoration: none;" style-hover="background: #dcebfa; text-decoration: none;">Start free trial</a>
+      <a href="Features.dc.html" style="border: 1px solid rgba(255,255,255,0.45); color: #ffffff; font-weight: 700; font-size: 14.5px; padding: 12px 20px; border-radius: 9px; text-decoration: none;" style-hover="background: rgba(255,255,255,0.12); text-decoration: none;">See all 50+ capabilities</a>
+    </div>
+  </div>
+</section>
+
+<section id="pricing" data-screen-label="Pricing" style="scroll-margin-top: 72px; background: #ffffff; border-bottom: 1px solid #e5eaf0;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 72px 24px;">
+    <div style="text-align: center; max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #1b6fc2;">Pricing</span>
+      <h2 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.02em; color: #0d2742;">Priced per facility. Every module included.</h2>
+      <p style="margin: 0; color: #44566b; font-size: 15px;">No per-seat math, no module upsells. Unlimited employees and residents on every plan.</p>
+    </div>
+    <div style="margin-top: 36px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; align-items: stretch;">
+      <div style="border: 1px solid #dfe6ee; border-radius: 14px; padding: 26px; display: flex; flex-direction: column; gap: 14px;">
+        <div style="font-weight: 800; font-size: 16px; color: #0d2742;">Single facility</div>
+        <div><span style="font-size: 38px; font-weight: 800; color: #0d2742; letter-spacing: -0.02em;">{{ starterPrice }}</span><span style="font-size: 14px; color: #64768a;"> / facility / month</span></div>
+        <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; color: #33465c;">
+          <div style="display: flex; gap: 8px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>All modules — residents, workforce, facility, evidence</div>
+          <div style="display: flex; gap: 8px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Unlimited employees &amp; residents</div>
+          <div style="display: flex; gap: 8px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Email + SMS alerts, binder exports</div>
+          <div style="display: flex; gap: 8px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Self-serve setup, CSV roster import</div>
+        </div>
+        <a href="#start" style="margin-top: auto; text-align: center; border: 1px solid #c8d4e0; color: #0d2742; font-weight: 700; font-size: 14px; padding: 11px 16px; border-radius: 9px; text-decoration: none;" style-hover="background: #f0f5fa; text-decoration: none;">Start {{ trialDays }}-day free trial</a>
+      </div>
+      <div style="border: 2px solid #1b6fc2; border-radius: 14px; padding: 26px; display: flex; flex-direction: column; gap: 14px; position: relative; box-shadow: 0 16px 40px rgba(27,111,194,0.12);">
+        <span style="position: absolute; top: -12px; left: 24px; background: #1b6fc2; color: #ffffff; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; border-radius: 99px; padding: 4px 12px;">MULTI-SITE</span>
+        <div style="font-weight: 800; font-size: 16px; color: #0d2742;">Organization · 3+ facilities</div>
+        <div><span style="font-size: 38px; font-weight: 800; color: #0d2742; letter-spacing: -0.02em;">{{ growthPrice }}</span><span style="font-size: 14px; color: #64768a;"> / facility / month</span></div>
+        <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; color: #33465c;">
+          <div style="display: flex; gap: 8px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Everything in Single facility</div>
+          <div style="display: flex; gap: 8px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Org-wide rollups &amp; facility comparisons</div>
+          <div style="display: flex; gap: 8px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Cross-facility float staff scheduling</div>
+          <div style="display: flex; gap: 8px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Controlled evidence rooms for auditors</div>
+        </div>
+        <a href="#start" style="margin-top: auto; text-align: center; background: #1b6fc2; color: #ffffff; font-weight: 700; font-size: 14px; padding: 12px 16px; border-radius: 9px; text-decoration: none;" style-hover="background: #14548f; text-decoration: none;">Start {{ trialDays }}-day free trial</a>
+      </div>
+      <div style="border: 1px solid #dfe6ee; border-radius: 14px; padding: 26px; display: flex; flex-direction: column; gap: 14px; background: #fafbfc;">
+        <div style="font-weight: 800; font-size: 16px; color: #0d2742;">Enterprise &amp; groups</div>
+        <div><span style="font-size: 38px; font-weight: 800; color: #0d2742; letter-spacing: -0.02em;">Custom</span></div>
+        <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; color: #33465c;">
+          <div style="display: flex; gap: 8px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Volume pricing across 10+ facilities</div>
+          <div style="display: flex; gap: 8px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Guided migration &amp; onboarding</div>
+          <div style="display: flex; gap: 8px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Contract, hosting &amp; security review</div>
+          <div style="display: flex; gap: 8px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Priority support</div>
+        </div>
+        <a href="#start" style="margin-top: auto; text-align: center; border: 1px solid #c8d4e0; color: #0d2742; font-weight: 700; font-size: 14px; padding: 11px 16px; border-radius: 9px; text-decoration: none;" style-hover="background: #f0f5fa; text-decoration: none;">Talk to us</a>
+      </div>
+    </div>
+    <p style="margin: 18px auto 0; max-width: 640px; text-align: center; font-size: 12.5px; color: #64768a;">These prices feed the <a href="Savings.dc.html"><strong>savings worksheet below</strong></a> automatically — model your net opportunity with your own coordination hours and tool spend, risk avoidance excluded.</p>
+  </div>
+</section>
+
+<section data-screen-label="Straight talk" style="background: #071626; color: #ffffff;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 26px 24px; display: flex; align-items: center; justify-content: center; gap: 10px 26px; flex-wrap: wrap; font-size: 13.5px; text-align: center;">
+    <span style="color: rgba(255,255,255,0.88);">No guaranteed survey outcomes</span>
+    <span style="color: rgba(255,255,255,0.35);">·</span>
+    <span style="color: rgba(255,255,255,0.88);">No per-seat fees</span>
+    <span style="color: rgba(255,255,255,0.35);">·</span>
+    <span style="color: rgba(255,255,255,0.88);">Your data exports if you leave</span>
+    <a href="How It Works.dc.html#promises" style="color: #8ec8ff; font-weight: 700;">Read our promises →</a>
+  </div>
+</section>
+
+<section id="start" data-screen-label="Get started" style="scroll-margin-top: 72px; background: #f6f8fa; border-bottom: 1px solid #e5eaf0;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 72px 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 48px; align-items: start;">
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <span style="font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #1b6fc2;">Fully self-service</span>
+      <h2 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.02em; color: #0d2742; text-wrap: balance;">Signup to survey-ready, without talking to anyone</h2>
+      <p style="margin: 0; color: #44566b; font-size: 15px; text-wrap: pretty;">No sales call. No onboarding call. No "book time with our team." Every module is live the moment your organization exists.</p>
+      <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 10px; font-size: 13.5px; color: #33465c;">
+        <div style="display: flex; gap: 10px;"><span style="color: #1b6fc2; font-weight: 800;">1</span><span><strong>Create your organization</strong> — name, facility type, admin email. About two minutes.</span></div>
+        <div style="display: flex; gap: 10px;"><span style="color: #1b6fc2; font-weight: 800;">2</span><span><strong>Import your roster</strong> — one CSV brings every employee in; add facilities as you go.</span></div>
+        <div style="display: flex; gap: 10px;"><span style="color: #1b6fc2; font-weight: 800;">3</span><span><strong>Requirements apply themselves</strong> — hour buckets, renewal windows, and alerts start from your facility type and each person's role.</span></div>
+        <div style="display: flex; gap: 10px;"><span style="color: #1b6fc2; font-weight: 800;">4</span><span><strong>Export your first binder</strong> — see your real compliance picture the same day.</span></div>
+      </div>
+      <div style="font-size: 13px; color: #64768a; margin-top: 6px;">Stuck on something? <a href="FAQ.dc.html">The FAQ</a> answers the common questions; <a href="mailto:hello@caremetric.ai">hello@caremetric.ai</a> answers async — never a required call.</div>
+    </div>
+    <div style="background: #ffffff; border: 2px solid #1b6fc2; border-radius: 14px; padding: 28px; display: flex; flex-direction: column; gap: 16px; box-shadow: 0 16px 40px rgba(27,111,194,0.12);">
+      <div style="font-family: ui-monospace, monospace; font-size: 10.5px; font-weight: 700; letter-spacing: 0.12em; color: #1b6fc2;">START NOW — ALL YOU NEED</div>
+      <div style="display: flex; flex-direction: column; gap: 9px; font-size: 14px; color: #33465c;">
+        <div style="display: flex; gap: 9px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Your facility name and license type</div>
+        <div style="display: flex; gap: 9px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>A work email for the admin account</div>
+        <div style="display: flex; gap: 9px;"><span style="color: #1e7a35; font-weight: 800;">✓</span>Optional: a roster CSV for bulk import</div>
+      </div>
+      <a href="https://cmcarebase.com/signup" style="text-align: center; background: #1b6fc2; color: #ffffff; font-weight: 700; font-size: 15.5px; padding: 14px 16px; border-radius: 9px; text-decoration: none;" style-hover="background: #14548f; text-decoration: none;">Create your organization — free for {{ trialDays }} days</a>
+      <div style="font-size: 12px; color: #8a99a8; text-align: center;">Every module included · unlimited staff · cancel in-app, export everything · <a href="Privacy Policy.dc.html">Privacy</a></div>
+    </div>
+  </div>
+</section>
+
+<section id="faq" data-screen-label="FAQ" style="scroll-margin-top: 72px; background: #ffffff;">
+  <div style="max-width: 780px; margin: 0 auto; padding: 72px 24px;">
+    <h2 style="margin: 0 0 24px; font-size: 28px; font-weight: 800; letter-spacing: -0.02em; color: #0d2742; text-align: center;">Straight answers</h2>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 800; font-size: 15px; color: #0d2742;">What is CareBase?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">The operations, workforce-compliance, and survey-readiness platform for Pennsylvania personal care homes and assisted living facilities. Not an EHR or eMAR.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 800; font-size: 15px; color: #0d2742;">How much does it cost?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">From {{ growthPrice }}/facility/month for multi-site organizations, {{ starterPrice }} for a single facility — every module, unlimited staff. <a href="#pricing">See pricing.</a></p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 800; font-size: 15px; color: #0d2742;">What does it replace — and not replace?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Replaces training spreadsheets, paper binders, point trackers, and basic scheduling. Works alongside — never replaces — your eMAR, EHR, payroll, HRIS, and accounting.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 800; font-size: 15px; color: #0d2742;">Can a surveyor or auditor get access?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Yes — a read-only auditor role, plus time-limited evidence rooms scoped to exactly what was requested.</p>
+      </div>
+      <div style="border: 1px solid #e5eaf0; border-radius: 12px; padding: 18px 20px;">
+        <div style="font-weight: 800; font-size: 15px; color: #0d2742;">How fast can we start?</div>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #44566b;">Same day. Self-serve signup creates your organization; CSV import onboards a full roster in minutes.</p>
+      </div>
+    </div>
+    <p style="margin: 20px 0 0; text-align: center; font-size: 14px;"><a href="FAQ.dc.html" style="font-weight: 700;">Read the full FAQ — 20+ answers →</a></p>
+  </div>
+</section>
+
+<footer data-screen-label="Footer" style="background: #071626; color: rgba(255,255,255,0.78);">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 48px 24px 32px;">
+    <div style="display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 32px;">
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <img src="assets/carebase-mark.png" alt="CareMetric CareBase" style="width: 32px; height: 32px; border-radius: 8px; object-fit: cover;">
+          <span style="font-weight: 800; font-size: 14px; color: #ffffff;">CareMetric CareBase</span>
+        </div>
+        <p style="margin: 0; font-size: 13px; max-width: 34ch; color: rgba(255,255,255,0.7);">Operations, compliance, and survey readiness for personal care homes and assisted living facilities.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13.5px;">
+        <span style="font-family: ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.1em; color: rgba(255,255,255,0.5);">PRODUCT</span>
+        <a href="#platform" style="color: rgba(255,255,255,0.78);" style-hover="color: #ffffff;">Platform</a>
+        <a href="How It Works.dc.html" style="color: rgba(255,255,255,0.78);" style-hover="color: #ffffff;">How it works</a>
+        <a href="Savings.dc.html" style="color: rgba(255,255,255,0.78);" style-hover="color: #ffffff;">Savings</a>
+        <a href="PA Training Requirements.dc.html" style="color: rgba(255,255,255,0.78);" style-hover="color: #ffffff;">PA requirements guide</a>
+        <a href="#pricing" style="color: rgba(255,255,255,0.78);" style-hover="color: #ffffff;">Pricing</a>
+        <a href="FAQ.dc.html" style="color: rgba(255,255,255,0.78);" style-hover="color: #ffffff;">FAQ</a>
+        <a href="Security.dc.html" style="color: rgba(255,255,255,0.78);" style-hover="color: #ffffff;">Security</a>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13.5px;">
+        <span style="font-family: ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.1em; color: rgba(255,255,255,0.5);">ACCOUNT</span>
+        <a href="https://cmcarebase.com/login" style="color: rgba(255,255,255,0.78);" style-hover="color: #ffffff;">Log in</a>
+        <a href="#pricing" style="color: rgba(255,255,255,0.78);" style-hover="color: #ffffff;">Start free trial</a>
+        <a href="#start" style="color: rgba(255,255,255,0.78);" style-hover="color: #ffffff;">Get started</a>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13.5px;">
+        <span style="font-family: ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.1em; color: rgba(255,255,255,0.5);">COMPANY</span>
+        <a href="About CareBase.dc.html" style="color: rgba(255,255,255,0.78);" style-hover="color: #ffffff;">About CareBase</a>
+        <a href="https://caremetric.ai" target="_blank" rel="noreferrer" style="color: rgba(255,255,255,0.78);" style-hover="color: #ffffff;">CareMetric AI</a>
+        <a href="https://cmbreathe.com" target="_blank" rel="noreferrer" style="color: rgba(255,255,255,0.78);" style-hover="color: #ffffff;">CareMetric Breathe</a>
+      </div>
+    </div>
+    <div style="margin-top: 36px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.12); display: flex; justify-content: space-between; align-items: center; gap: 16px; font-size: 12.5px; color: rgba(255,255,255,0.6); flex-wrap: wrap;">
+      <span>© 2026 CareMetric CareBase. All rights reserved.</span>
+      <span style="display: flex; gap: 18px;">
+        <a href="Privacy Policy.dc.html" style="color: rgba(255,255,255,0.7);" style-hover="color: #ffffff;">Privacy Policy</a>
+        <a href="Terms of Service.dc.html" style="color: rgba(255,255,255,0.7);" style-hover="color: #ffffff;">Terms of Service</a>
+      </span>
+    </div>
+  </div>
+</footer>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;starterPrice&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:349,&quot;min&quot;:0,&quot;max&quot;:2000,&quot;unit&quot;:&quot;$/facility/mo&quot;,&quot;section&quot;:&quot;Pricing&quot;,&quot;tsType&quot;:&quot;number&quot;},&quot;growthPrice&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:299,&quot;min&quot;:0,&quot;max&quot;:2000,&quot;unit&quot;:&quot;$/facility/mo&quot;,&quot;section&quot;:&quot;Pricing&quot;,&quot;tsType&quot;:&quot;number&quot;},&quot;trialDays&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:30,&quot;min&quot;:7,&quot;max&quot;:60,&quot;unit&quot;:&quot;days&quot;,&quot;section&quot;:&quot;Pricing&quot;,&quot;tsType&quot;:&quot;number&quot;}}">
+class Component extends DCLogic {
+  state = { domain: 0 };
+  componentDidMount() {
+    let t = 0;
+    this._scoreTimer = setInterval(() => {
+      t++;
+      const v = Math.min(94, Math.round(94 * (1 - Math.pow(1 - t / 45, 3))));
+      this.setState({ heroScore: v });
+      if (v >= 94) clearInterval(this._scoreTimer);
+    }, 26);
+  }
+  componentWillUnmount() { if (this._scoreTimer) clearInterval(this._scoreTimer); }
+  renderVals() {
+    const d = this.state.domain;
+    const mk = (i) => () => this.setState({ domain: i });
+    const sty = (i) => d === i
+      ? { bg: "#0d2742", fg: "#ffffff", bd: "#0d2742" }
+      : { bg: "#ffffff", fg: "#44566b", bd: "#c8d4e0" };
+    const s0 = sty(0), s1 = sty(1), s2 = sty(2), s3 = sty(3);
+    const p1 = this.props.starterPrice ?? 349;
+    const p2 = this.props.growthPrice ?? 299;
+    return {
+      showD0: d === 0, showD1: d === 1, showD2: d === 2, showD3: d === 3,
+      tab0: mk(0), tab1: mk(1), tab2: mk(2), tab3: mk(3),
+      t0bg: s0.bg, t0fg: s0.fg, t0bd: s0.bd,
+      t1bg: s1.bg, t1fg: s1.fg, t1bd: s1.bd,
+      t2bg: s2.bg, t2fg: s2.fg, t2bd: s2.bd,
+      t3bg: s3.bg, t3fg: s3.fg, t3bd: s3.bd,
+      starterPrice: "$" + p1, growthPrice: "$" + p2,
+      trialDays: this.props.trialDays ?? 14,
+      heroScore: this.state.heroScore ?? 94,
+    };
+  }
+}
+</script>
+</body>
+</html>

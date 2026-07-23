@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="icon" href="assets/carebase-mark.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600..900&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#ffffff;color:#1c2b3a;font-family:'Instrument Sans',system-ui,sans-serif;font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  h1,h2{font-family:'Source Serif 4',Georgia,serif}
+  a{color:#1b6fc2;text-decoration:none}
+  a:hover{color:#0d2742;text-decoration:underline}
+</style>
+</helmet>
+
+<header style="position: sticky; top: 0; z-index: 40; background: rgba(255,255,255,0.92); backdrop-filter: blur(8px); border-bottom: 1px solid #e5eaf0;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+    <a href="CareBase Landing v2.dc.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
+      <img src="assets/carebase-mark.png" alt="CareMetric CareBase" style="width: 36px; height: 36px; border-radius: 9px; object-fit: cover;">
+      <span style="font-weight: 800; font-size: 15px; color: #0d2742;">CareMetric CareBase</span>
+    </a>
+    <div style="display: flex; align-items: center; gap: 18px; font-size: 14px; font-weight: 600;">
+      <a href="CareBase Landing v2.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Home</a>
+      <a href="Terms of Service.dc.html" style="color: #44566b; white-space: nowrap;" style-hover="color: #0d2742;">Terms</a>
+    </div>
+  </div>
+</header>
+
+<section data-screen-label="Privacy policy" style="background: #ffffff;">
+  <div style="max-width: 720px; margin: 0 auto; padding: 56px 24px 80px; display: flex; flex-direction: column; gap: 22px;">
+    <div style="border: 1px solid #f0d9a8; background: #fdf7ea; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #6d5312; font-weight: 600;">DRAFT — have counsel review and finalize before publishing.</div>
+    <h1 style="margin: 0; font-size: 36px; font-weight: 700; letter-spacing: -0.01em; color: #0d2742;">Privacy Policy</h1>
+    <div style="font-family: ui-monospace, monospace; font-size: 12px; color: #64768a;">Effective date: [DATE] · Applies to CareMetric CareBase (cmcarebase.com)</div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">1. Who we are</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;">CareMetric CareBase ("CareBase," "we") provides operations, workforce-compliance, and survey-readiness software for personal care homes, assisted living facilities, and related providers. This policy describes how we handle information when you use the service or visit this site.</p></div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">2. Information we collect</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;"><strong>Account information:</strong> name, work email, organization, and role for each user your organization creates. <strong>Records your organization enters:</strong> employee training, credential, and screening records; resident operational and assessment records; facility, incident, scheduling, and document data. <strong>Usage and technical data:</strong> log data, device and browser information, and audit events (including the signer metadata captured for policy attestations). <strong>Communications:</strong> messages you send us, and delivery logs for alerts we send on your organization's behalf.</p></div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">3. How we use information</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;">To provide and secure the service; to deliver alerts, reminders, and reports your organization configures; to provide support; to maintain audit and compliance evidence; and to improve the product. We do not sell personal information and we do not use resident or employee records for advertising.</p></div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">4. Your organization controls its data</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;">Your organization is the controller of the records it enters; CareBase processes them to provide the service. Access within the service is scoped by organization, facility, and role, enforced at the database layer. Individuals seeking access to or correction of records held by a facility should contact that facility's administrator.</p></div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">5. Storage and security</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;">Data is stored with established cloud infrastructure providers. Documents and certificates live in private storage accessed through short-lived signed links; traffic is encrypted in transit; compliance-determining actions are written to an immutable audit log. No system is perfectly secure — see the <a href="Security.dc.html">security overview</a> for the controls you can verify.</p></div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">6. Sharing and subprocessors</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;">We share data only with service providers needed to operate CareBase — cloud hosting and database infrastructure, and email/SMS delivery providers for the notifications your organization enables — under agreements limiting their use of the data. We may disclose information when required by law. A current subprocessor list is available on request at hello@caremetric.ai.</p></div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">7. Retention and deletion</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;">Records are retained while your organization's account is active and as needed for its regulatory retention obligations. On termination, your organization may export its data; we delete or de-identify it after a wind-down period, except where retention is required by law.</p></div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">8. Children</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;">The service is for use by care organizations and their staff; it is not directed to children under 13.</p></div>
+
+    <div><h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0d2742;">9. Changes and contact</h2>
+    <p style="margin: 0; font-size: 14.5px; color: #33465c;">We will post changes to this policy here with an updated effective date. Questions: <a href="mailto:hello@caremetric.ai">hello@caremetric.ai</a>.</p></div>
+  </div>
+</section>
+
+<footer style="background: #071626; color: rgba(255,255,255,0.7); font-size: 12.5px;">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+    <span>© 2026 CareMetric CareBase. All rights reserved.</span>
+    <span style="display: flex; gap: 18px;">
+      <a href="CareBase Landing v2.dc.html" style="color: rgba(255,255,255,0.7);" style-hover="color: #ffffff;">Home</a>
+      <a href="Terms of Service.dc.html" style="color: rgba(255,255,255,0.7);" style-hover="color: #ffffff;">Terms</a>
+    </span>
+  </div>
+</footer>
+</x-dc>
+</body>
+</html>
