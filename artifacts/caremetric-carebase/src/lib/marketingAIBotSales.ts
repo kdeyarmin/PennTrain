@@ -432,7 +432,7 @@ export function answerQuestion(question: string, profile: LeadProfile): Message 
     {
       role: "assistant",
       content:
-        "Let me put on the CareBase sales-rep hat: if your question touches compliance work, training proof, resident operations, evidence, or inspection readiness, the buying case is that CareBase replaces scattered manual follow-up with one system that shows what is due, who owns it, and what proof is ready.",
+        "As your CareBase customer service assistant: if your question touches compliance work, training proof, resident operations, evidence, or inspection readiness, the short version is that CareBase replaces scattered manual follow-up with one system that shows what is due, who owns it, and what proof is ready.",
       bullets: [
         "Ask me about ROI, survey readiness, AI training creation, rollout, security, or replacing a basic LMS.",
         "I will connect the answer to business value and a concrete next step instead of giving a generic product blurb.",
