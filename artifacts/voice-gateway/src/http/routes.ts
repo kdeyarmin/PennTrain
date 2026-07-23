@@ -17,6 +17,7 @@ import type { ActiveSessionTracker } from "../session/voice-session.js";
 import type { PhoneRuntime } from "../transports/twilio-media.js";
 import { validateTwilioSignature } from "../phone/signature.js";
 import {
+  busyTwiml,
   connectStreamTwiml,
   dialTwiml,
   hangupTwiml,
@@ -106,10 +107,17 @@ export function buildHttpApp(deps: GatewayHttpDeps): express.Express {
       res.status(403).json({ error: "invalid_twilio_signature" });
       return;
     }
+    // Phone calls share the browser sessions' cost caps: at capacity, a
+    // polite busy line beats opening an uncapped Realtime session.
+    const callSid = params.CallSid ?? "";
+    if (!deps.tracker.canStart(`phone:${callSid}`, deps.config)) {
+      res.type("text/xml").send(busyTwiml());
+      return;
+    }
     const sid = crypto.randomUUID();
     deps.phone.pendingStore.register({
       sid,
-      callSid: params.CallSid ?? "",
+      callSid,
       from: params.From ?? "",
     });
     const wsBase = (deps.config.publicBaseUrl ?? "").replace(/^http/, "ws");
@@ -119,6 +127,7 @@ export function buildHttpApp(deps: GatewayHttpDeps): express.Express {
         connectStreamTwiml(
           `${wsBase}/phone/stream?sid=${sid}`,
           `${deps.config.publicBaseUrl}/phone/after`,
+          { sid },
         ),
       );
   });

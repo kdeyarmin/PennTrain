@@ -121,14 +121,22 @@ export class VoiceSession {
       sendControl({ type: "ready" });
       if (app.agentSpeaksFirst) this.bridge.requestGreeting();
     });
+    // Idle means "no conversational activity" — speech detected, transcript
+    // flowing, or a tool running. Raw audio frames deliberately do NOT
+    // count: the mic streams silence continuously, so resetting on frames
+    // would mean the idle cap never fires for an abandoned-but-connected
+    // tab and every session would burn until the hard max duration.
+    client.on("input.speech_started", () => this.resetIdleTimer());
 
-    this.bridge.on("transcript.delta", (d) =>
-      sendControl({ type: "transcript.delta", role: d.role, text: d.text }),
-    );
+    this.bridge.on("transcript.delta", (d) => {
+      this.resetIdleTimer();
+      sendControl({ type: "transcript.delta", role: d.role, text: d.text });
+    });
     this.bridge.on("transcript.turn", (t) =>
       sendControl({ type: "transcript.turn", role: t.role, text: t.text }),
     );
     this.bridge.on("tool.status", (s) => {
+      this.resetIdleTimer();
       this.log("voice.tool.status", {
         tool: s.tool,
         state: s.state,
@@ -187,9 +195,9 @@ export class VoiceSession {
     });
   }
 
-  /** User audio frame from the transport (base64, session input format). */
+  /** User audio frame from the transport (base64, session input format).
+   *  Does NOT reset the idle timer — see the activity listeners above. */
   forwardAudio(base64Audio: string): void {
-    this.resetIdleTimer();
     this.bridge.forwardCallerAudio(base64Audio);
   }
 

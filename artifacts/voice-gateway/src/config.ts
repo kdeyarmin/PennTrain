@@ -71,7 +71,12 @@ export function readGatewayConfig(
     idleTimeoutSeconds: intFromEnv(env, "VOICE_IDLE_TIMEOUT_SECONDS", 90),
     maxConcurrentSessions: intFromEnv(env, "VOICE_MAX_CONCURRENT_SESSIONS", 5),
     maxSessionsPerUser: intFromEnv(env, "VOICE_MAX_SESSIONS_PER_USER", 1),
-    toolTimeoutMs: intFromEnv(env, "VOICE_TOOL_TIMEOUT_MS", 60_000),
+    // Timeout cascade for grounded lookups: the compliance copilot's own
+    // Anthropic call times out at 60s (returning a voiceable error), the
+    // voice-tools function aborts at 65s, and the gateway must outlast
+    // BOTH so the app-owned, speakable error reaches the model instead of
+    // a generic dispatcher failure.
+    toolTimeoutMs: intFromEnv(env, "VOICE_TOOL_TIMEOUT_MS", 75_000),
     twilioAuthToken: env.TWILIO_AUTH_TOKEN || undefined,
     publicBaseUrl: env.VOICE_PUBLIC_BASE_URL?.replace(/\/+$/, "") || undefined,
     playbackGraceMs: intFromEnv(env, "VOICE_PLAYBACK_GRACE_MS", 1_500),

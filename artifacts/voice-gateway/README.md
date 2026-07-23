@@ -56,7 +56,7 @@ Security posture (inherited from PennFit's ADR):
 | `VOICE_IDLE_TIMEOUT_SECONDS` | no | End after silence (default 90). |
 | `VOICE_MAX_CONCURRENT_SESSIONS` | no | Global cap (default 5). |
 | `VOICE_MAX_SESSIONS_PER_USER` | no | Per-user cap (default 1). |
-| `VOICE_TOOL_TIMEOUT_MS` | no | Tool callback timeout (default 60000 — the compliance copilot can take ~30-60s). |
+| `VOICE_TOOL_TIMEOUT_MS` | no | Tool callback timeout (default 75000 — must outlast voice-tools' 65s copilot window so app-owned, speakable errors surface instead of a generic dispatcher failure). |
 | `TWILIO_AUTH_TOKEN` | phone | Validates `X-Twilio-Signature` on phone webhooks. Absent → phone channel dark (503), browser voice unaffected. |
 | `VOICE_PUBLIC_BASE_URL` | phone | Public https origin of this gateway (e.g. `https://voice-gateway.up.railway.app`) — used for signature validation and the TwiML stream/action URLs. |
 | `PENNFIT_TRANSFER_NUMBER` | no | PennFit's existing Twilio number (E.164). Present → the triage agent offers PennFit and warm-transfers callers to it. |

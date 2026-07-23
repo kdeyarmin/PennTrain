@@ -307,6 +307,65 @@ describe("shared phone number", () => {
     expect(again).toContain("<Hangup");
   });
 
+  it("claims the ticket from <Parameter> customParameters when the URL query is stripped", async () => {
+    const base = await startServer();
+    // The TwiML must carry the ticket as a <Parameter> (Twilio's <Stream>
+    // url officially drops query strings).
+    const params = { CallSid: "CA_param_1", From: "+15551234567" };
+    const res = await fetch(`${base}/phone/inbound`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-Twilio-Signature": twilioSign(`${PUBLIC_BASE}/phone/inbound`, params),
+      },
+      body: new URLSearchParams(params).toString(),
+    });
+    const twiml = await res.text();
+    expect(twiml).toContain('<Parameter name="sid"');
+    const sid = /Parameter name="sid" value="([0-9a-f-]+)"/.exec(twiml)?.[1] as string;
+    expect(sid).toBeTruthy();
+
+    // Connect WITHOUT the query string, as Twilio would after stripping it.
+    const call = new PhoneCallClient(`${base.replace("http", "ws")}/phone/stream`);
+    clients.push(call);
+    expect(await call.rejectionStatus).toBe(0);
+    call.send({
+      event: "start",
+      start: { streamSid: "MZ_param_1", customParameters: { sid } },
+    });
+    const upstream = await waitFor(() => upstreamSockets()[0], "upstream socket");
+    await waitFor(
+      () => upstream.sentOfType("session.update").length > 0,
+      "session from customParameters claim",
+    );
+    expect(call.closed).toBe(false);
+  });
+
+  it("answers busy TwiML when the concurrency cap is reached", async () => {
+    const base = await startServer({
+      config: { ...CONFIG, maxConcurrentSessions: 1 },
+    });
+    const { sid } = await inboundCall(base, "CA_cap_1");
+    const call = new PhoneCallClient(`${base.replace("http", "ws")}/phone/stream?sid=${sid}`);
+    clients.push(call);
+    expect(await call.rejectionStatus).toBe(0);
+    await waitFor(() => upstreamSockets().length > 0, "first call session");
+
+    const params = { CallSid: "CA_cap_2", From: "+15559876543" };
+    const res = await fetch(`${base}/phone/inbound`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-Twilio-Signature": twilioSign(`${PUBLIC_BASE}/phone/inbound`, params),
+      },
+      body: new URLSearchParams(params).toString(),
+    });
+    const twiml = await res.text();
+    expect(twiml).toContain("<Say>");
+    expect(twiml).toContain("<Hangup");
+    expect(twiml).not.toContain("<Connect");
+  });
+
   it("rejects a reused stream ticket", async () => {
     const base = await startServer();
     const { sid } = await inboundCall(base);

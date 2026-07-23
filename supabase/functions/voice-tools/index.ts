@@ -34,9 +34,12 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 const ALLOWED_ROLES = ["platform_admin", "org_admin", "facility_manager", "auditor"];
-// Below the gateway's 60s dispatcher timeout so this function, not the
-// gateway, reports a copilot timeout in a voiceable shape.
-const COPILOT_TIMEOUT_MS = 55_000;
+// Timeout cascade: the copilot's own Anthropic call times out at 60s and
+// returns a voiceable 504 error, so this abort sits ABOVE it (65s) and the
+// gateway dispatcher default sits above both (75s). Ordering matters — if
+// this fired first, a slow-but-successful copilot answer would be thrown
+// away as a generic failure.
+const COPILOT_TIMEOUT_MS = 65_000;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -105,21 +108,32 @@ Deno.serve(async (req: Request) => {
   try {
     switch (tool) {
       case "ask_compliance_question": {
-        const copilotRes = await fetch(`${supabaseUrl}/functions/v1/compliance-copilot`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: authHeader,
-            apikey: anonKey,
-          },
-          body: JSON.stringify({
-            facilityId,
-            intent: copilotIntentForTopic(args.topic as CopilotTopic),
-            question: args.question,
-            citationQuery: typeof args.citation_query === "string" ? args.citation_query : undefined,
-          }),
-          signal: AbortSignal.timeout(COPILOT_TIMEOUT_MS),
-        });
+        let copilotRes: Response;
+        try {
+          copilotRes = await fetch(`${supabaseUrl}/functions/v1/compliance-copilot`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: authHeader,
+              apikey: anonKey,
+            },
+            body: JSON.stringify({
+              facilityId,
+              intent: copilotIntentForTopic(args.topic as CopilotTopic),
+              question: args.question,
+              citationQuery: typeof args.citation_query === "string" ? args.citation_query : undefined,
+            }),
+            signal: AbortSignal.timeout(COPILOT_TIMEOUT_MS),
+          });
+        } catch (error) {
+          if (error instanceof DOMException && (error.name === "TimeoutError" || error.name === "AbortError")) {
+            return toolError(
+              "copilot_timeout",
+              "The compliance lookup is taking longer than expected. Offer to try again in a moment.",
+            );
+          }
+          throw error;
+        }
         const copilotBody = await copilotRes.json().catch(() => null);
         if (!copilotRes.ok) {
           // Copilot error strings are already user-facing (e.g. the
@@ -147,17 +161,22 @@ Deno.serve(async (req: Request) => {
         const days = typeof args.days === "number" ? args.days : 30;
         const asOf = new Date().toISOString().slice(0, 10);
         const through = addDays(asOf, days);
-        // Same caller-scoped selects as the copilot's due-date grounding.
+        // Same caller-scoped selects as the copilot's due-date grounding,
+        // ordered by due date BEFORE the limit so a facility with >100
+        // matches keeps its nearest deadlines rather than an arbitrary page.
         const [training, credentials, residentItems] = await Promise.all([
           callerClient.from("employee_training_records")
             .select("status,due_date")
-            .eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through).limit(100),
+            .eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through)
+            .order("due_date", { ascending: true }).limit(100),
           callerClient.from("employee_credentials")
             .select("credential_type,credential_label,status,expiration_date")
-            .eq("facility_id", facilityId).gte("expiration_date", asOf).lte("expiration_date", through).limit(100),
+            .eq("facility_id", facilityId).gte("expiration_date", asOf).lte("expiration_date", through)
+            .order("expiration_date", { ascending: true }).limit(100),
           callerClient.from("resident_compliance_items")
             .select("item_type,status,due_date")
-            .eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through).limit(100),
+            .eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through)
+            .order("due_date", { ascending: true }).limit(100),
         ]);
         for (const result of [training, credentials, residentItems]) {
           if (result.error) throw new Error(`deadline query: ${result.error.message}`);

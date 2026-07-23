@@ -291,6 +291,42 @@ describe("gateway session flow", () => {
     await waitFor(() => upstream.closeCalls.length > 0, "upstream close");
   });
 
+  it("fires the idle timeout even while silent audio frames keep streaming", async () => {
+    const { fetchImpl } = makeFetchStub();
+    const sockets: FakeRealtimeSocket[] = [];
+    const base = await startServer({
+      fetchImpl,
+      sockets,
+      config: { ...CONFIG, idleTimeoutSeconds: 1 },
+    });
+    const res = await createSession(base);
+    const { wsUrl } = (await res.json()) as { wsUrl: string };
+    const client = connect(wsUrl);
+    openSockets.push(client.ws);
+    await waitFor(
+      () => client.control.some((m) => m.type === "ready"),
+      "ready frame",
+    );
+
+    // A live mic streams silence continuously; frames alone must not keep
+    // the session alive.
+    const frames = setInterval(() => {
+      if (client.ws.readyState === WebSocket.OPEN) {
+        client.ws.send(Buffer.alloc(96));
+      }
+    }, 100);
+    try {
+      const closed = await waitFor(
+        () => client.control.find((m) => m.type === "closed"),
+        "idle-timeout close",
+        4_000,
+      );
+      expect(closed.reason).toBe("idle_timeout");
+    } finally {
+      clearInterval(frames);
+    }
+  });
+
   it("enforces the per-user concurrency cap", async () => {
     const { fetchImpl } = makeFetchStub();
     const sockets: FakeRealtimeSocket[] = [];

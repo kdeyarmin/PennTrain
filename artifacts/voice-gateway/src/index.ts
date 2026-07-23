@@ -112,6 +112,7 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
           config: opts.config,
           registry: opts.registry,
           phone,
+          tracker,
           webSocketFactory: opts.webSocketFactory,
         },
         wss,

@@ -85,6 +85,12 @@ export class PhoneVoiceSession implements ToolDispatcher {
       // Phone etiquette: the callee speaks first.
       this.bridge.requestGreeting();
     });
+    // Idle = no conversational activity. Twilio streams µ-law frames
+    // continuously even in silence, so frames must not reset the timer
+    // (an abandoned call would otherwise burn Realtime minutes until the
+    // hard max-duration cap).
+    this.client.on("input.speech_started", () => this.resetIdleTimer());
+    this.bridge.on("transcript.delta", () => this.resetIdleTimer());
     this.bridge.on("error", (err) => {
       this.log("phone.session.error", { code: err.code, message: err.message });
     });
@@ -94,6 +100,7 @@ export class PhoneVoiceSession implements ToolDispatcher {
       deps.onClosed(reason);
     });
     this.client.on("tool.call", (call) => {
+      this.resetIdleTimer();
       this.toolCallResponseId = call.responseId;
       this.log("phone.tool.invoked", { tool: call.name });
     });
@@ -121,8 +128,8 @@ export class PhoneVoiceSession implements ToolDispatcher {
     });
   }
 
+  /** Caller audio frame. Does NOT reset the idle timer — see above. */
   forwardAudio(base64Mulaw: string): void {
-    this.resetIdleTimer();
     this.bridge.forwardCallerAudio(base64Mulaw);
   }
 
