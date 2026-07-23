@@ -141,6 +141,12 @@ verify_jwt = false
 [functions.request-demo]
 verify_jwt = false
 
+# Public, unauthenticated newsletter/regulatory-update signup -- subscribers have no session.
+# Enforces Turnstile and a hashed-IP submission cap before its service-role upsert into
+# newsletter_subscribers, which has no anon/authenticated INSERT policy. Mirrors request-demo.
+[functions.subscribe-updates]
+verify_jwt = false
+
 # Public, unauthenticated "email me my savings model" delivery for the /savings calculator --
 # visitors have no session. The function verifies Turnstile and generates the email body entirely
 # from validated numeric inputs (no user free text, no persistence) before sending via SendGrid.

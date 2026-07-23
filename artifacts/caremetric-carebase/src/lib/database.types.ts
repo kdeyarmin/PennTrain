@@ -14848,6 +14848,51 @@ export type Database = {
           },
         ]
       }
+      newsletter_subscribers: {
+        Row: {
+          confirmed_at: string | null
+          created_at: string
+          email: string
+          id: string
+          ip_hash: string | null
+          name: string | null
+          organization: string | null
+          source_path: string | null
+          status: string
+          topics: string[]
+          unsubscribe_token: string
+          updated_at: string
+        }
+        Insert: {
+          confirmed_at?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          ip_hash?: string | null
+          name?: string | null
+          organization?: string | null
+          source_path?: string | null
+          status?: string
+          topics?: string[]
+          unsubscribe_token?: string
+          updated_at?: string
+        }
+        Update: {
+          confirmed_at?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          ip_hash?: string | null
+          name?: string | null
+          organization?: string | null
+          source_path?: string | null
+          status?: string
+          topics?: string[]
+          unsubscribe_token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notification_channel_policies: {
         Row: {
           created_at: string
@@ -19591,6 +19636,69 @@ export type Database = {
           source_key?: string
           source_kind?: string
           source_uri?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      regulatory_updates: {
+        Row: {
+          body: string | null
+          category: string
+          citation: string | null
+          created_at: string
+          created_by: string | null
+          effective_date: string | null
+          facility_types: string[]
+          id: string
+          is_featured: boolean
+          published_at: string | null
+          slug: string
+          source_name: string | null
+          source_uri: string | null
+          state: string
+          status: string
+          summary: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body?: string | null
+          category?: string
+          citation?: string | null
+          created_at?: string
+          created_by?: string | null
+          effective_date?: string | null
+          facility_types?: string[]
+          id?: string
+          is_featured?: boolean
+          published_at?: string | null
+          slug: string
+          source_name?: string | null
+          source_uri?: string | null
+          state?: string
+          status?: string
+          summary: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string | null
+          category?: string
+          citation?: string | null
+          created_at?: string
+          created_by?: string | null
+          effective_date?: string | null
+          facility_types?: string[]
+          id?: string
+          is_featured?: boolean
+          published_at?: string | null
+          slug?: string
+          source_name?: string | null
+          source_uri?: string | null
+          state?: string
+          status?: string
+          summary?: string
+          title?: string
           updated_at?: string
         }
         Relationships: []
@@ -33568,6 +33676,29 @@ export type Database = {
           sequence_number: number
         }[]
       }
+      list_regulatory_updates: {
+        Args: {
+          p_category?: string
+          p_facility_type?: string
+          p_limit?: number
+        }
+        Returns: {
+          body: string
+          category: string
+          citation: string
+          effective_date: string
+          facility_types: string[]
+          id: string
+          is_featured: boolean
+          published_at: string
+          slug: string
+          source_name: string
+          source_uri: string
+          state: string
+          summary: string
+          title: string
+        }[]
+      }
       list_shift_swap_candidates: {
         Args: { p_requester_assignment_id: string }
         Returns: {
@@ -36413,3 +36544,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

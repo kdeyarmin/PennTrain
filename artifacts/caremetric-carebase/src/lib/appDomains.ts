@@ -205,6 +205,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/admin/security", label: "Security & governance", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["roles", "audit", "access"] },
   { path: "/admin/support-tickets", label: "Support tickets", domain: "support", roles: PLATFORM_ADMIN, keywords: ["help", "queue"] },
   { path: "/admin/help-content", label: "Help center content", domain: "support", roles: PLATFORM_ADMIN, keywords: ["articles", "knowledge base"] },
+  { path: "/admin/regulatory-updates", label: "Regulatory updates", domain: "support", roles: PLATFORM_ADMIN, keywords: ["regulations", "clarifications", "guidance", "newsletter", "compliance changes"] },
   { path: "/admin/settings", label: "Platform settings", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["feature flags", "maintenance", "signup"] },
   { path: "/admin/roadmap", label: "Improvement roadmap", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["phases", "planning", "suggestions", "implementation"] },
 

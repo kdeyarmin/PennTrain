@@ -698,7 +698,7 @@ export default function Landing() {
               </Reveal>
             ))}
           </div>
-          <p className={`mx-auto mt-4 text-center text-[13px] ${aaMutedText}`}>Group home, nursing, home health, or hospice? The <Link href="/pa-training-requirements" className="font-medium text-[#1b6fc2] hover:underline">requirements guide</Link> covers your pathway too.</p>
+          <p className={`mx-auto mt-4 text-center text-[13px] ${aaMutedText}`}>Group home, nursing, home health, or hospice? The <Link href="/pa-training-requirements" className="font-medium text-[#1b6fc2] hover:underline">requirements guide</Link> covers your pathway too. Rules change — the <Link href="/regulatory-updates" className="font-medium text-[#1b6fc2] hover:underline">regulatory updates feed</Link> tracks new regulations, clarifications, and guidance as they land.</p>
         </div>
       </section>
 
