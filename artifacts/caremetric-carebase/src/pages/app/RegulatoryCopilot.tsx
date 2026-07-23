@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
-import { AlertTriangle, Bot, CheckCircle2, ClipboardList, ExternalLink, FileSearch, History, Loader2, LockKeyhole, Sparkles } from "lucide-react";
+import { AlertTriangle, Bot, CheckCircle2, ClipboardList, ExternalLink, FileSearch, History, Loader2, LockKeyhole, Mic, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -25,6 +25,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateCopilotActionDraft } from "@/hooks/useProductValueOperatingSystem";
+import { VoiceAssistantPanel } from "@/components/voice/VoiceAssistantPanel";
+import { voiceAssistantEnabled } from "@/hooks/useVoiceSession";
 
 const INTENTS: Array<{ value: CopilotIntent; label: string; question: string; help: string }> = [
   { value: "employee_blocked", label: "Why is this employee blocked?", question: "Explain the latest recorded scheduling eligibility decision for this employee.", help: "Uses recorded blocks, warnings, overrides, and decision checksum only." },
@@ -149,7 +151,7 @@ export default function RegulatoryCopilot() {
       </Alert>
 
       <Tabs defaultValue="ask">
-        <TabsList><TabsTrigger value="ask"><Sparkles className="mr-2 h-4 w-4" />Ask</TabsTrigger><TabsTrigger value="history"><History className="mr-2 h-4 w-4" />Immutable history</TabsTrigger></TabsList>
+        <TabsList><TabsTrigger value="ask"><Sparkles className="mr-2 h-4 w-4" />Ask</TabsTrigger>{voiceAssistantEnabled && <TabsTrigger value="voice"><Mic className="mr-2 h-4 w-4" />Voice</TabsTrigger>}<TabsTrigger value="history"><History className="mr-2 h-4 w-4" />Immutable history</TabsTrigger></TabsList>
         <TabsContent value="ask" className="space-y-5">
           <Card>
             <CardHeader><CardTitle>Grounded question</CardTitle><CardDescription>{selectedIntent.help}</CardDescription></CardHeader>
@@ -182,6 +184,14 @@ export default function RegulatoryCopilot() {
             })}
           />}
         </TabsContent>
+        {voiceAssistantEnabled && (
+          <TabsContent value="voice">
+            <VoiceAssistantPanel
+              facilityId={activeFacilityId}
+              facilityName={(facilities ?? []).find((facility) => facility.id === activeFacilityId)?.name}
+            />
+          </TabsContent>
+        )}
         <TabsContent value="history">
           <Card><CardHeader><CardTitle>Immutable response receipts</CardTitle><CardDescription>History includes failed attempts, request/response checksums, the facility scope, model, determination label, and cited snapshots. Prior rows cannot be edited or deleted.</CardDescription></CardHeader><CardContent className="space-y-3">
             {history.isLoading ? <p className="text-sm text-muted-foreground">Loading history…</p> : (history.data ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No copilot history for this facility.</p> : (history.data ?? []).map((run) => <div key={run.id} className="rounded-lg border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-medium">{run.question}</p><p className="text-xs text-muted-foreground">{displayDate(run.created_at)} · {run.intent.replaceAll("_", " ")} · as of {run.as_of_date}</p></div><div className="flex gap-2"><Badge variant={run.status === "completed" ? "secondary" : "destructive"}>{run.status}</Badge><Badge variant="outline">{run.determination_kind.replaceAll("_", " ")}</Badge></div></div>{run.error_message && <p className="mt-2 text-sm text-destructive">{run.error_message}</p>}<p className="mt-2 break-all text-[11px] text-muted-foreground">Request SHA-256: {run.request_checksum_sha256}{run.response_checksum_sha256 ? ` · Response SHA-256: ${run.response_checksum_sha256}` : ""}</p></div>)}</CardContent></Card>
