@@ -52,7 +52,7 @@ export function useListAllResidentComplianceItems(filters: ListAllResidentCompli
 // supabase/migrations/20260706090100_resident_compliance_cross_triggers_and_change_of_condition.sql.
 // p_document_id is required server-side (a resident_documents row linked to this item with
 // is_state_form = true) -- documents like the RASP/ASP and DME must be on the state-approved form,
-// no exception, so there is no "complete without evidence" call shape anymore.
+// no exception, so there is no "complete without documentation" call shape anymore.
 export function useCompleteResidentComplianceItem() {
   const queryClient = useQueryClient();
   return useMutation({

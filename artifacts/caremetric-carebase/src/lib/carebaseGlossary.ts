@@ -44,7 +44,7 @@ export const CAREBASE_GLOSSARY_TERMS: CarebaseGlossaryTerm[] = [
   {
     term: "Violation",
     category: "Compliance",
-    definition: "A compliance finding or regulatory deficiency that must be tracked, remediated, and supported with evidence.",
+    definition: "A compliance finding or regulatory deficiency that must be tracked, remediated, and supported with documentation.",
     relatedRoutes: [{ label: "Compliance", href: "/app/compliance" }],
   },
   {
@@ -54,7 +54,7 @@ export const CAREBASE_GLOSSARY_TERMS: CarebaseGlossaryTerm[] = [
     relatedRoutes: [{ label: "Compliance", href: "/app/compliance" }],
   },
   {
-    term: "Evidence",
+    term: "Documentation",
     category: "Compliance",
     definition: "A file, note, attestation, training record, or other artifact used to prove that a requirement was met or an issue was corrected.",
     relatedRoutes: [{ label: "Compliance Binder", href: "/app/compliance-binder" }],
@@ -62,7 +62,7 @@ export const CAREBASE_GLOSSARY_TERMS: CarebaseGlossaryTerm[] = [
   {
     term: "Compliance binder",
     category: "Compliance",
-    definition: "The organized collection of evidence, policies, reports, and exports used to support survey readiness and audits.",
+    definition: "The organized collection of documentation, policies, reports, and exports used to support survey readiness and audits.",
     relatedRoutes: [{ label: "Compliance Binder", href: "/app/compliance-binder" }],
   },
   {
@@ -122,7 +122,7 @@ export const CAREBASE_GLOSSARY_TERMS: CarebaseGlossaryTerm[] = [
   {
     term: "Survey Day",
     category: "Compliance",
-    definition: "A readiness view focused on records, evidence, tasks, and exports that are commonly needed during a regulatory survey.",
+    definition: "A readiness view focused on records, documentation, tasks, and exports that are commonly needed during a regulatory survey.",
     relatedRoutes: [{ label: "Survey Day", href: "/app/survey-day" }],
   },
   {

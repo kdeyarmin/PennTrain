@@ -27,7 +27,7 @@ describe("regulatory crosswalk", () => {
     expect(rows).toEqual([expect.objectContaining({ id: "administrator-qualification" })]);
   });
 
-  it("surfaces overdue and missing evidence statuses", () => {
+  it("surfaces overdue and missing documentation statuses", () => {
     const rows = baseRows();
     expect(rows.some((row) => row.status === "overdue")).toBe(true);
     expect(rows.find((row) => row.id === "binder-evidence-room")?.status).toBe("missing_evidence");

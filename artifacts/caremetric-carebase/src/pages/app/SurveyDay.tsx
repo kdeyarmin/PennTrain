@@ -184,7 +184,7 @@ export default function SurveyDay() {
           <Alert>
             <ClipboardCheck className="h-4 w-4" />
             <AlertTitle>Starting Survey Day is audit-logged</AlertTitle>
-            <AlertDescription>Activation records who started the mode, for which facility, and when. Existing binder, evidence, and guest-access controls remain explicit and unchanged.</AlertDescription>
+            <AlertDescription>Activation records who started the mode, for which facility, and when. Existing binder, documentation, and guest-access controls remain explicit and unchanged.</AlertDescription>
           </Alert>
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -390,7 +390,7 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
                   >
                     {packetManifest.readinessLabel}
                   </Badge>
-                  <span className="text-xs text-muted-foreground">Survey evidence packet manifest</span>
+                  <span className="text-xs text-muted-foreground">Survey documentation packet manifest</span>
                 </div>
                 <p className="text-sm text-muted-foreground">{packetManifest.readinessDetail}</p>
                 <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">

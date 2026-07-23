@@ -26,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const STATUS_LABELS: Record<CrosswalkStatus, string> = {
   inspection_ready: "Inspection-ready",
   needs_attention: "Needs attention",
-  missing_evidence: "Missing evidence",
+  missing_evidence: "Missing documentation",
   overdue: "Overdue",
 };
 
@@ -118,7 +118,7 @@ export default function RegulatoryCrosswalk() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Chapter 2600 / 2800 Regulatory Crosswalk</h1>
-          <p className="text-muted-foreground">Citation-by-citation map from PCH/ALF obligations to live CareBase evidence, owners, due dates, and binder destinations.</p>
+          <p className="text-muted-foreground">Citation-by-citation map from PCH/ALF obligations to live CareBase documentation, owners, due dates, and binder destinations.</p>
         </div>
         <Button variant="outline" onClick={downloadCsv}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
       </div>
@@ -126,7 +126,7 @@ export default function RegulatoryCrosswalk() {
       <div className="grid gap-4 md:grid-cols-4">
         <SummaryCard title="Inspection-ready" value={summary.ready} icon="ready" />
         <SummaryCard title="Needs attention" value={summary.attention} />
-        <SummaryCard title="Missing evidence" value={summary.missing} icon="warning" />
+        <SummaryCard title="Missing documentation" value={summary.missing} icon="warning" />
         <SummaryCard title="Overdue" value={summary.overdue} icon="danger" />
       </div>
 
@@ -143,7 +143,7 @@ export default function RegulatoryCrosswalk() {
       <Card>
         <CardHeader>
           <CardTitle>Filters</CardTitle>
-          <CardDescription>Answer “show me proof for this citation” by narrowing facility, program type, citation, status, and evidence source.</CardDescription>
+          <CardDescription>Answer “show me proof for this citation” by narrowing facility, program type, citation, status, and documentation source.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-5">
           <Select value={activeFacilityId} onValueChange={setFacilityId}>
@@ -159,7 +159,7 @@ export default function RegulatoryCrosswalk() {
             <SelectContent><SelectItem value="all">All statuses</SelectItem>{Object.entries(STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={evidenceSource} onValueChange={(value) => setEvidenceSource(value as CrosswalkEvidenceSource | "all")}>
-            <SelectTrigger><SelectValue placeholder="Evidence source" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Documentation source" /></SelectTrigger>
             <SelectContent><SelectItem value="all">All sources</SelectItem>{Object.entries(SOURCE_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
           </Select>
           <Input value={citation} onChange={(event) => setCitation(event.target.value)} placeholder="Citation or requirement" />
@@ -181,16 +181,16 @@ export default function RegulatoryCrosswalk() {
                   <CardTitle className="text-lg">{row.requirement}</CardTitle>
                   <CardDescription>{row.evidenceLabel}</CardDescription>
                 </div>
-                <Button asChild variant="outline" size="sm"><Link href={row.route}>Open evidence <ExternalLink className="ml-2 h-3.5 w-3.5" /></Link></Button>
+                <Button asChild variant="outline" size="sm"><Link href={row.route}>Open documentation <ExternalLink className="ml-2 h-3.5 w-3.5" /></Link></Button>
               </div>
             </CardHeader>
             <CardContent className="grid gap-3 text-sm md:grid-cols-4">
               <div><p className="font-medium">Responsible role</p><p className="text-muted-foreground">{row.responsibleRole}</p></div>
-              <div><p className="font-medium">Evidence source</p><p className="text-muted-foreground">{SOURCE_LABELS[row.evidenceSource]}</p></div>
-              <div><p className="font-medium">Next due date</p><p className="text-muted-foreground">{row.nextDueDate ?? "No dated evidence"}</p></div>
+              <div><p className="font-medium">Documentation source</p><p className="text-muted-foreground">{SOURCE_LABELS[row.evidenceSource]}</p></div>
+              <div><p className="font-medium">Next due date</p><p className="text-muted-foreground">{row.nextDueDate ?? "No dated documentation"}</p></div>
               <div><p className="font-medium">Binder location</p><p className="text-muted-foreground">{row.binderLocation}</p></div>
               <div className="md:col-span-4 rounded-md bg-muted/30 p-3 text-xs text-muted-foreground">
-                {row.evidenceCount} evidence row{row.evidenceCount === 1 ? "" : "s"} · {row.gapCount} open gap{row.gapCount === 1 ? "" : "s"} · {row.canEdit ? "Managers can update linked evidence." : "Auditor access is read-only."}
+                {row.evidenceCount} documentation row{row.evidenceCount === 1 ? "" : "s"} · {row.gapCount} open gap{row.gapCount === 1 ? "" : "s"} · {row.canEdit ? "Managers can update linked documentation." : "Auditor access is read-only."}
                 {row.governedRule ? <span className="mt-1 block">Effective {row.governedRule.effective_from} · content checksum {row.governedRule.content_checksum_sha256.slice(0, 16)}...{row.governedRule.source_uri ? <> · <a href={row.governedRule.source_uri} target="_blank" rel="noreferrer" className="text-primary hover:underline">Official source</a></> : null}</span> : null}
               </div>
             </CardContent>

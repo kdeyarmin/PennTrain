@@ -205,11 +205,11 @@ export default function WorkItemDetail() {
       { workItem: work, evidenceType: evidenceType.trim(), file: evidenceFile },
       {
         onSuccess: () => {
-          toast({ title: "Evidence uploaded" });
+          toast({ title: "Documentation uploaded" });
           setEvidenceFile(null);
           setEvidenceType("");
         },
-        onError: notifyError("Couldn't upload evidence"),
+        onError: notifyError("Couldn't upload documentation"),
       },
     );
   };
@@ -269,8 +269,8 @@ export default function WorkItemDetail() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Paperclip className="h-5 w-5" /> Evidence</CardTitle>
-              <CardDescription>Upload a file or link an existing governed record. Required evidence gates closure.</CardDescription>
+              <CardTitle className="flex items-center gap-2"><Paperclip className="h-5 w-5" /> Documentation</CardTitle>
+              <CardDescription>Upload a file or link an existing governed record. Required documentation gates closure.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {requiredEvidence.length > 0 && (
@@ -298,7 +298,7 @@ export default function WorkItemDetail() {
                           variant="outline"
                           onClick={() => evidenceUrl.mutate(evidence, {
                             onSuccess: url => window.open(url, "_blank", "noopener,noreferrer"),
-                            onError: notifyError("Couldn't open evidence"),
+                            onError: notifyError("Couldn't open documentation"),
                           })}
                         >
                           Open
@@ -309,14 +309,14 @@ export default function WorkItemDetail() {
                     </div>
                   ))}
                 </div>
-              ) : <p className="text-sm text-muted-foreground">No evidence submitted yet.</p>}
+              ) : <p className="text-sm text-muted-foreground">No documentation submitted yet.</p>}
 
               {canContribute && (
                 <div className="grid gap-4 border-t pt-4 lg:grid-cols-2">
                   <div className="space-y-3">
-                    <Label>Upload evidence</Label>
+                    <Label>Upload documentation</Label>
                     <Select value={evidenceType} onValueChange={setEvidenceType}>
-                      <SelectTrigger><SelectValue placeholder="Evidence type" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Documentation type" /></SelectTrigger>
                       <SelectContent>
                         {requiredEvidence.map(type => <SelectItem key={type} value={type}>{type.replace(/_/g, " ")}</SelectItem>)}
                         <SelectItem value="supporting_document">Supporting document</SelectItem>
@@ -333,7 +333,7 @@ export default function WorkItemDetail() {
                     <Label>Link governed record</Label>
                     <Input value={linkedRecordType} onChange={event => setLinkedRecordType(event.target.value)} placeholder="Record type, e.g. incident" />
                     <Input value={linkedRecordId} onChange={event => setLinkedRecordId(event.target.value)} placeholder="Record UUID" />
-                    <Input value={evidenceType} onChange={event => setEvidenceType(event.target.value)} placeholder="Evidence type" />
+                    <Input value={evidenceType} onChange={event => setEvidenceType(event.target.value)} placeholder="Documentation type" />
                     <Button
                       variant="outline"
                       disabled={!linkedRecordType.trim() || !linkedRecordId || !evidenceType.trim() || submitLinkedEvidence.isPending}
@@ -344,12 +344,12 @@ export default function WorkItemDetail() {
                         linkedRecordId,
                       }, {
                         onSuccess: () => {
-                          toast({ title: "Record linked as evidence" });
+                          toast({ title: "Record linked as documentation" });
                           setLinkedRecordType("");
                           setLinkedRecordId("");
                           setEvidenceType("");
                         },
-                        onError: notifyError("Couldn't link evidence"),
+                        onError: notifyError("Couldn't link documentation"),
                       })}
                     >
                       <Link2 className="mr-2 h-4 w-4" /> Link record
@@ -471,7 +471,7 @@ export default function WorkItemDetail() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><History className="h-5 w-5" /> Immutable history</CardTitle>
-              <CardDescription>Append-only record of creation, assignment, evidence, transitions, approvals, and reviews.</CardDescription>
+              <CardDescription>Append-only record of creation, assignment, documentation, transitions, approvals, and reviews.</CardDescription>
             </CardHeader>
             <CardContent>
               {activity.isError ? (
@@ -607,7 +607,7 @@ export default function WorkItemDetail() {
                         <AlertTriangle className="h-4 w-4" />
                         <AlertTitle>Approval requirements remain</AlertTitle>
                         <AlertDescription>
-                          {missingEvidence.length > 0 && `Missing evidence: ${missingEvidence.join(", ")}. `}
+                          {missingEvidence.length > 0 && `Missing documentation: ${missingEvidence.join(", ")}. `}
                           {blockingDependencies.length > 0 && `${blockingDependencies.length} blocking dependencies remain open.`}
                         </AlertDescription>
                       </Alert>

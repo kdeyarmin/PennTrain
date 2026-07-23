@@ -125,7 +125,7 @@ export function buildMoveInReadinessPacket({
       status: supportPlan ? itemStatus(supportPlan, hasLinkedSignedStateForm(supportPlan, documents)) : itemStatus(assessment, hasLinkedSignedStateForm(assessment, documents)),
       dueDate: supportPlan?.due_date ?? assessment?.due_date ?? null,
       blocker: true,
-      evidence: "Support-plan evidence aligns to current care needs and assessment reason.",
+      evidence: "Support-plan documentation aligns to current care needs and assessment reason.",
       routeHint: "state_forms",
     },
     {
@@ -165,7 +165,7 @@ export function buildMoveInReadinessPacket({
       status: medicationItem ? itemStatus(medicationItem, hasLinkedSignedStateForm(medicationItem, documents), false) : "needs_review",
       dueDate: medicationItem?.due_date ?? resident.admission_date ?? null,
       blocker: true,
-      evidence: "Medication ability/assistance determination documented in assessment/support-plan evidence.",
+      evidence: "Medication ability/assistance determination documented in assessment/support-plan documentation.",
       routeHint: "state_forms",
     },
   ];

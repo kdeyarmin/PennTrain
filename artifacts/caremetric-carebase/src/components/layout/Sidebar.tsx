@@ -275,7 +275,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           ...(role === "org_admin"
             ? [{ href: "/app/enterprise", label: "Enterprise Foundation", icon: Network }]
             : []),
-          // Phase 1 audit evidence carries facility scope, so managers see only their assigned
+          // Phase 1 audit documentation carries facility scope, so managers see only their assigned
           // facilities while org administrators retain organization-wide visibility.
           ...(["org_admin", "facility_manager"].includes(role ?? "")
             ? [{ href: "/app/audit", label: "Audit Log", icon: ShieldAlert }]

@@ -68,8 +68,8 @@ export default function ClosedLoopCompliance() {
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex flex-wrap justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Closed-loop compliance and evidence</h1>
-          <p className="text-muted-foreground">Owned remediation, confidential intake, move-in readiness, reproducible reports, and external evidence access.</p>
+          <h1 className="text-2xl font-bold">Closed-loop compliance and documentation</h1>
+          <p className="text-muted-foreground">Owned remediation, confidential intake, move-in readiness, reproducible reports, and external documentation access.</p>
         </div>
         <Button variant="outline" onClick={() => void query.refetch()}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button>
       </div>
@@ -96,7 +96,7 @@ export default function ClosedLoopCompliance() {
           <Metrics title="Reproducible reporting" description="Versioned definitions, schedules, as-of snapshots, and reconciliation." values={data.reports} />
         </TabsContent>
         <TabsContent value="evidence" className="mt-4">
-          <Metrics title="External evidence access" description="Non-enumerable grants, expiration, revocation, legal hold, and access audit." values={data.evidenceRoom} />
+          <Metrics title="External documentation access" description="Non-enumerable grants, expiration, revocation, legal hold, and access audit." values={data.evidenceRoom} />
         </TabsContent>
       </Tabs>
       {data.generatedAt ? <p className="text-xs text-muted-foreground">Snapshot generated {new Date(data.generatedAt).toLocaleString()}</p> : null}

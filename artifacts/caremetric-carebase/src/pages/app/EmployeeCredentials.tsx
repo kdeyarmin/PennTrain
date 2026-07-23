@@ -138,7 +138,7 @@ function CredentialDocuments({ credential, canManage, canDelete }: { credential:
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <Label className="text-[13px]">Evidence Documents</Label>
+        <Label className="text-[13px]">Documentation Documents</Label>
         {canManage && (
           <>
             <Button variant="outline" size="sm" disabled={uploadDocument.isPending} onClick={() => fileInputRef.current?.click()}>
@@ -175,9 +175,9 @@ function CredentialDocuments({ credential, canManage, canDelete }: { credential:
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Evidence Document</AlertDialogTitle>
+            <AlertDialogTitle>Delete Documentation Document</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently destroy "{deleteTarget?.file_name}" as compliance evidence for this credential.
+              This will permanently destroy "{deleteTarget?.file_name}" as compliance documentation for this credential.
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -367,7 +367,7 @@ export default function EmployeeCredentials() {
         <button type="button" className="premium-card p-4 text-left hover:border-border" onClick={() => setFilters({ statusFilter: "missing", page: "1" })}>
           <p className="text-xs font-medium text-muted-foreground">Missing</p>
           <p className="mt-1 text-2xl font-semibold">{credentialSummary.missing}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Evidence has not been recorded.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Documentation has not been recorded.</p>
         </button>
         <div className="premium-card p-4">
           <p className="text-xs font-medium text-muted-foreground">Employees with gaps</p>

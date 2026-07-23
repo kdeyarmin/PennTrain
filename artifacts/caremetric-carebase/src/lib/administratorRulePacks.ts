@@ -89,7 +89,7 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
 
   requirements.push({
     id: isAlr ? "alr-approved-course-test" : "pch-administrator-qualification",
-    label: isAlr ? "ALF approved administrator course and competency test" : "PCH administrator qualification evidence",
+    label: isAlr ? "ALF approved administrator course and competency test" : "PCH administrator qualification documentation",
     citation: commonCitation,
     facilityTypes: [facilityType],
     binderDestination: "Administrator Qualifications / Qualification Path",
@@ -98,20 +98,20 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
     detail: qualifiedByCourse
       ? "100-hour course, certificate, and competency test are documented."
       : qualifiedByNha
-        ? "NHA exemption evidence is documented."
-        : "Missing approved-course/test proof or current NHA exemption evidence.",
+        ? "NHA exemption documentation is documented."
+        : "Missing approved-course/test proof or current NHA exemption documentation.",
   });
 
   if (isAlr) {
     requirements.push({
       id: "alr-orientation-and-dementia",
-      label: "ALF orientation and dementia-specific training evidence",
+      label: "ALF orientation and dementia-specific training documentation",
       citation: "55 Pa. Code 2800.64; Chapter 2800 dementia-care training references",
       facilityTypes: ["ALR"],
       binderDestination: "Administrator Qualifications / Orientation and Dementia Training",
       dueDate: null,
       status: profile?.hundred_hour_course_completed_date || profile?.nha_license_number ? "compliant" : "missing",
-      detail: "Track ALF orientation, approved-course, competency, and dementia-specific administrator evidence together.",
+      detail: "Track ALF orientation, approved-course, competency, and dementia-specific administrator documentation together.",
     });
   }
 
@@ -134,7 +134,7 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
 
   requirements.push({
     id: "administrator-coverage",
-    label: "Acting/designee/on-call coverage evidence",
+    label: "Acting/designee/on-call coverage documentation",
     citation: commonCitation,
     facilityTypes: [facilityType],
     binderDestination: "Administrator Qualifications / Designee Coverage",

@@ -30,7 +30,7 @@ const ROLE_ONBOARDING: Record<Role, ExperienceCard[]> = {
   org_admin: [
     { id: "org-today", title: "Start with Today", detail: "Use the huddle, overdue work, alerts, and review queue as the daily operating rhythm.", href: "/app/today", cta: "Open Today", icon: CalendarClock },
     { id: "org-setup", title: "Complete setup", detail: "Verify facilities, invite users, import employees, assign plans, and configure notification preferences.", href: "/app/settings", cta: "Open settings", icon: ListChecks },
-    { id: "org-survey", title: "Prepare inspection evidence", detail: "Use readiness, binder, documentation room, crosswalk, and copilot together as one survey workflow.", href: "/app/inspection-readiness", cta: "Start inspection mode", icon: ShieldCheck },
+    { id: "org-survey", title: "Prepare inspection documentation", detail: "Use readiness, binder, documentation room, crosswalk, and copilot together as one survey workflow.", href: "/app/inspection-readiness", cta: "Start inspection mode", icon: ShieldCheck },
   ],
   facility_manager: [
     { id: "manager-today", title: "Run the shift from Today", detail: "Focus on facility-scoped alerts, handoffs, due work, coverage gaps, and review queues.", href: "/app/today", cta: "Open Today", icon: CalendarClock },
@@ -47,7 +47,7 @@ const ROLE_ONBOARDING: Record<Role, ExperienceCard[]> = {
   ],
   auditor: [
     { id: "auditor-evidence", title: "Review without changing records", detail: "Use Today, reports, binder, documentation room, and crosswalk to trace proof without editing operational records.", href: "/app/today", cta: "Open Today", icon: ShieldCheck },
-    { id: "auditor-provenance", title: "Trace every metric", detail: "Use citations, audit log, source documents, and freshness indicators before relying on exported evidence.", href: "/app/audit", cta: "Open audit log", icon: Info },
+    { id: "auditor-provenance", title: "Trace every metric", detail: "Use citations, audit log, source documents, and freshness indicators before relying on exported documentation.", href: "/app/audit", cta: "Open audit log", icon: Info },
   ],
 };
 

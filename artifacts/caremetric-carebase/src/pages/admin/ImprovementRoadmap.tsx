@@ -9,12 +9,12 @@ const phases = [
     timeline: "Code complete; pilot pending",
     status: "code-complete",
     icon: ShieldCheck,
-    goal: "Make existing evidence transactional, observable, testable, and recoverable.",
+    goal: "Make existing documentation transactional, observable, testable, and recoverable.",
     outcomes: [
       "Clean-room release gate with database, role-journey, Edge, app, accessibility, and artifact validation.",
       "Append-only audit governance with integrity checks, retention, holds, manifests, and facility scope.",
       "Atomic completions/certificates, last-known-good exclusion screening, and final-outcome notifications.",
-      "Shared system-job control plane with freshness, circuit, reconciliation, retry, and dead-letter evidence.",
+      "Shared system-job control plane with freshness, circuit, reconciliation, retry, and dead-letter documentation.",
     ],
   },
   {
@@ -41,7 +41,7 @@ const phases = [
     goal: "Connect intake, credentials, qualifications, classes, and schedules into one authoritative workflow.",
     outcomes: [
       "Replay-safe HRIS ingestion with resumable batches, explicit duplicate decisions, and exception queues.",
-      "Versioned certification evidence plus human-reviewed, malware-scanned credential renewal extraction.",
+      "Versioned certification documentation plus human-reviewed, malware-scanned credential renewal extraction.",
       "Qualified instructors, capacity and waitlists, signed attendance, and exactly-once completion credit.",
       "One explainable eligibility gate for assignments, open shifts, availability, and governed swaps.",
     ],
@@ -55,21 +55,21 @@ const phases = [
     goal: "Make content governed, interoperable, adaptive, and safely available offline.",
     outcomes: [
       "Course/content lifecycle governance with review, approval, supersession, and retained versions.",
-      "SCORM/LTI interoperability and import/export conformance evidence.",
+      "SCORM/LTI interoperability and import/export conformance documentation.",
       "Adaptive remediation, accessible media, offline sync, and conflict-safe employee progress.",
     ],
   },
   {
     name: "Phase 5",
-    title: "Closed-loop compliance and evidence",
+    title: "Closed-loop compliance and documentation",
     timeline: "Code complete; production pilots pending",
     status: "code-complete",
     icon: Rocket,
-    goal: "Turn findings and resident workflows into owned work, reproducible reports, and regulator-ready evidence.",
+    goal: "Turn findings and resident workflows into owned work, reproducible reports, and regulator-ready documentation.",
     outcomes: [
       "Owned findings, corrective actions, escalation, root cause, recurrence, and effectiveness review.",
-      "Resident assessment/care-plan traceability with privacy-aware evidence boundaries.",
-      "As-of reporting, evidence snapshots, external auditor access, and regulator-ready export packages.",
+      "Resident assessment/care-plan traceability with privacy-aware documentation boundaries.",
+      "As-of reporting, documentation snapshots, external auditor access, and regulator-ready export packages.",
     ],
   },
 ];
@@ -83,7 +83,7 @@ const currentFoundation = [
   "Signed integrations",
   "Qualified workforce operations",
   "Governed content and training",
-  "Closed-loop compliance and evidence",
+  "Closed-loop compliance and documentation",
 ];
 
 export default function ImprovementRoadmap() {

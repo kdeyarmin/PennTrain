@@ -88,7 +88,7 @@ export default function PchAlrOperations() {
   const copyEvidencePackage = async () => {
     try {
       await navigator.clipboard.writeText(evidencePackageToText(evidencePackage));
-      toast({ title: "Evidence package copied" });
+      toast({ title: "Documentation package copied" });
     } catch (error) {
       toast({ title: "Unable to copy package", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     }
@@ -99,7 +99,7 @@ export default function PchAlrOperations() {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `pch-alr-evidence-package-${toLocalIsoDate()}.csv`;
+    anchor.download = `pch-alr-documentation-package-${toLocalIsoDate()}.csv`;
     document.body.append(anchor);
     anchor.click();
     anchor.remove();
@@ -117,7 +117,7 @@ export default function PchAlrOperations() {
         <div className="max-w-3xl">
           <h1 className="text-2xl font-bold tracking-tight">PCH / ALF Operations Center</h1>
           <p className="text-muted-foreground">
-            A survey-focused control room for Pennsylvania personal care homes and assisted living facilities (ALF). It ties Chapter 2600/2800 citation areas to the app workflows that hold evidence, owners, cadence, and inspection-day prompts.
+            A survey-focused control room for Pennsylvania personal care homes and assisted living facilities (ALF). It ties Chapter 2600/2800 citation areas to the app workflows that hold documentation, owners, cadence, and inspection-day prompts.
           </p>
         </div>
         <Button asChild>
@@ -281,7 +281,7 @@ export default function PchAlrOperations() {
         <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="playbooks">Playbooks</TabsTrigger>
           <TabsTrigger value="inspection-day">Inspection day</TabsTrigger>
-          <TabsTrigger value="evidence-package">Evidence package</TabsTrigger>
+          <TabsTrigger value="evidence-package">Documentation package</TabsTrigger>
         </TabsList>
         <TabsContent value="playbooks" className="mt-4">
           <div className="grid gap-4 xl:grid-cols-2">
@@ -307,8 +307,8 @@ export default function PchAlrOperations() {
             <CardHeader>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <CardTitle>As-of evidence package outline</CardTitle>
-                  <CardDescription>Export a survey handoff index that pairs citation prompts with evidence sources and open queue counts.</CardDescription>
+                  <CardTitle>As-of documentation package outline</CardTitle>
+                  <CardDescription>Export a survey handoff index that pairs citation prompts with documentation sources and open queue counts.</CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" onClick={copyEvidencePackage}>Copy package</Button>
@@ -329,7 +329,7 @@ export default function PchAlrOperations() {
                   <div className="mt-2 flex flex-wrap gap-1">
                     {section.citations.map((citation) => <Badge key={citation} variant="secondary" className="text-[10px]">{citation}</Badge>)}
                   </div>
-                  <p className="mt-2 text-xs text-muted-foreground">Evidence: {section.evidenceSources.join(" · ")}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">Documentation: {section.evidenceSources.join(" · ")}</p>
                 </div>
               ))}
             </CardContent>
@@ -390,7 +390,7 @@ function OperationsCard({ item }: { item: PchAlrOperationsItem }) {
           <div><dt className="font-medium">Owner</dt><dd className="text-muted-foreground">{item.owner}</dd></div>
           <div><dt className="font-medium">Cadence</dt><dd className="text-muted-foreground">{item.cadence}</dd></div>
           <div className="md:col-span-2"><dt className="font-medium">Survey prompt</dt><dd className="text-muted-foreground">{item.surveyPrompt}</dd></div>
-          <div className="md:col-span-2"><dt className="font-medium">Evidence sources</dt><dd className="text-muted-foreground">{item.evidenceSources.join(" · ")}</dd></div>
+          <div className="md:col-span-2"><dt className="font-medium">Documentation sources</dt><dd className="text-muted-foreground">{item.evidenceSources.join(" · ")}</dd></div>
         </dl>
         <Button asChild variant="outline" size="sm"><Link href={item.route}>Open owning workflow</Link></Button>
       </CardContent>

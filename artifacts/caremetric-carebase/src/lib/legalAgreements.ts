@@ -15,8 +15,8 @@ export const facilityAdminAgreementSections: LegalSection[] = [
     "If the signer is acting for multiple licensed facilities or affiliated entities, the signer confirms they have authority for each participating entity and will keep facility, license, administrator, and billing information accurate.",
   ] },
   { title: "Services", body: [
-    "CareMetric provides a healthcare learning, training, compliance, documentation, reporting, evidence-management, resident operations, and administrative workflow platform for Pennsylvania personal care homes, assisted living facilities (ALFs), and related care settings.",
-    "The platform may include training matrices, employee records, credential tracking, incident and complaint workflows, resident-administrative workflows, policy attestation, notifications, reporting, AI-assisted drafting or summaries, guest evidence links, integrations, and related support services.",
+    "CareMetric provides a healthcare learning, training, compliance, documentation, reporting, documentation-management, resident operations, and administrative workflow platform for Pennsylvania personal care homes, assisted living facilities (ALFs), and related care settings.",
+    "The platform may include training matrices, employee records, credential tracking, incident and complaint workflows, resident-administrative workflows, policy attestation, notifications, reporting, AI-assisted drafting or summaries, guest documentation links, integrations, and related support services.",
     "CareMetric is not a law firm, accounting firm, insurer, licensing agency, medical provider, clinical decision maker, or substitute for Customer's professional judgment. Customer remains responsible for determining whether platform outputs, templates, reminders, and workflows satisfy applicable law, survey expectations, contracts, payer requirements, and internal policy.",
   ] },
   { title: "Customer responsibilities", body: [
@@ -32,7 +32,7 @@ export const facilityAdminAgreementSections: LegalSection[] = [
   ] },
   { title: "Accounts, security, and audit logs", body: [
     "Customer is responsible for all activity under its tenant and user accounts except to the extent caused by CareMetric's breach of this Agreement. Customer will require strong passwords, protect credentials, and promptly notify CareMetric of suspected unauthorized access.",
-    "CareMetric may maintain audit logs, access records, security events, delivery records, and administrative metadata to operate the services, investigate abuse, support compliance, preserve evidence, and satisfy legal obligations.",
+    "CareMetric may maintain audit logs, access records, security events, delivery records, and administrative metadata to operate the services, investigate abuse, support compliance, preserve documentation, and satisfy legal obligations.",
   ] },
   { title: "Data rights and confidentiality", body: [
     "As between the parties, Customer owns Customer Data. Customer grants CareMetric the rights needed to host, process, transmit, display, secure, back up, analyze, and support Customer Data for the services and as otherwise allowed by this Agreement and the Business Associate Agreement below.",

@@ -193,7 +193,7 @@ function LifecycleCommand() {
     <Card>
       <CardHeader>
         <CardTitle>Guarded employee transition</CardTitle>
-        <CardDescription>Lifecycle commands retain evidence, capture the reason, and apply access changes transactionally.</CardDescription>
+        <CardDescription>Lifecycle commands retain documentation, capture the reason, and apply access changes transactionally.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5 md:col-span-2">
@@ -620,7 +620,7 @@ function IdentityDomainRevocationCommand() {
     <Card>
       <CardHeader>
         <CardTitle>Revoke an identity domain</CardTitle>
-        <CardDescription>Emergency revocation suspends attached SSO connections and deactivates linked profiles with retained evidence.</CardDescription>
+        <CardDescription>Emergency revocation suspends attached SSO connections and deactivates linked profiles with retained documentation.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
@@ -837,7 +837,7 @@ function SessionRevocationCommand() {
     <Card>
       <CardHeader>
         <CardTitle>Emergency session revocation</CardTitle>
-        <CardDescription>Revokes active sessions, deactivates the profile, and records immutable AAL2-authorized evidence.</CardDescription>
+        <CardDescription>Revokes active sessions, deactivates the profile, and records immutable AAL2-authorized documentation.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
@@ -1233,10 +1233,10 @@ export default function EnterpriseFoundation() {
             ))}
           </TabsList>
           <TabsContent value="scope" className="space-y-4"><ControlPlanePanel title="Hierarchy and permissions" description="Effective portfolio, regional, organization, and facility scope with explicit governed permissions." data={data.scope} /><ScopeGrantCommand /></TabsContent>
-          <TabsContent value="workforce" className="space-y-4"><ControlPlanePanel title="Workforce lifecycle and compliance profiles" description="Effective employment state, retained evidence, profile explanations, and unresolved mappings." data={data.workforce} /><LifecycleCommand /><ComplianceProfileAssignmentCommand /></TabsContent>
+          <TabsContent value="workforce" className="space-y-4"><ControlPlanePanel title="Workforce lifecycle and compliance profiles" description="Effective employment state, retained documentation, profile explanations, and unresolved mappings." data={data.workforce} /><LifecycleCommand /><ComplianceProfileAssignmentCommand /></TabsContent>
           <TabsContent value="rules" className="space-y-4"><ControlPlanePanel title="Approved regulatory rule packs" description="Sourced versions, approval separation, golden fixtures, shadow comparisons, and activation readiness." data={data.rules} />{user?.role === "platform_admin" ? <><RegulatoryExpansionPanel /><RegulatoryRuleCommand /></> : null}</TabsContent>
           <TabsContent value="identity" className="space-y-4">
-            <ControlPlanePanel title="Enterprise identity" description="Verified domains, SAML connections, AAL2 policy, SCIM replay safety, and session revocation evidence." data={data.identity} />
+            <ControlPlanePanel title="Enterprise identity" description="Verified domains, SAML connections, AAL2 policy, SCIM replay safety, and session revocation documentation." data={data.identity} />
             <IdentityDomainCommand />
             <IdentityDomainRevocationCommand />
             <SsoConnectionCommand />

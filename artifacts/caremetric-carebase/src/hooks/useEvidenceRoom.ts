@@ -4,7 +4,7 @@ import type { Tables } from "@/lib/database.types";
 import { rangeFor } from "@/lib/utils";
 import type { PaginatedResult } from "@/lib/dataTable";
 
-// The evidence room shares immutable, checksummed report artifacts with outside
+// The documentation room shares immutable, checksummed report artifacts with outside
 // surveyors: staff assemble a facility-scoped collection from completed binder exports,
 // publish it, and mint revocable expiring guest links. Reads ride RLS; every write goes
 // through a lifecycle RPC, and the guest surface is token-scoped and anon-callable.
@@ -47,7 +47,7 @@ export interface PaginatedEvidenceCollectionsFilters {
   pageSize: number;
 }
 
-// Server-side paginated evidence collections that keep the facility-name join the list renders.
+// Server-side paginated documentation collections that keep the facility-name join the list renders.
 export function usePaginatedEvidenceCollections(filters: PaginatedEvidenceCollectionsFilters) {
   return useQuery({
     queryKey: ["evidence", "collections", "paginated", filters],

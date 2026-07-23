@@ -351,7 +351,7 @@ export default function CourseAssignments() {
     setCompletingId(assignment.id);
     completeAssignment(assignment.id, {
       onSuccess: () => {
-        // The completion RPC now commits the assignment, compliance evidence, certificate,
+        // The completion RPC now commits the assignment, compliance documentation, certificate,
         // lifecycle event, and PDF job together. There is deliberately no second issuance call.
         toast({ title: "Marked complete", description: "Certificate issued and PDF preparation queued." });
       },

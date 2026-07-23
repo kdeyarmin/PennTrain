@@ -156,7 +156,7 @@ export default function WorkOrderDetail() {
       workOrderId: order.id,
       documentType,
     }, {
-      onSuccess: () => { setDocumentFile(undefined); toast({ title: "Maintenance evidence uploaded" }); },
+      onSuccess: () => { setDocumentFile(undefined); toast({ title: "Maintenance documentation uploaded" }); },
       onError: (error: Error) => toast({ title: "Upload failed", description: error.message, variant: "destructive" }),
     });
   };
@@ -187,7 +187,7 @@ export default function WorkOrderDetail() {
         </div>
       </div>
 
-      {order.status === "pending_verification" && <div className="flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 p-4"><ShieldCheck className="mt-0.5 h-5 w-5 text-warning" /><div><p className="font-semibold">Repair is not yet verified compliant</p><p className="text-sm text-muted-foreground">Completion is recorded, but this item remains in the supervisor verification queue until the repair and evidence are reviewed.</p></div></div>}
+      {order.status === "pending_verification" && <div className="flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 p-4"><ShieldCheck className="mt-0.5 h-5 w-5 text-warning" /><div><p className="font-semibold">Repair is not yet verified compliant</p><p className="text-sm text-muted-foreground">Completion is recorded, but this item remains in the supervisor verification queue until the repair and documentation are reviewed.</p></div></div>}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card><CardContent className="pt-5"><div className="flex items-center gap-2 text-sm text-muted-foreground"><ShieldCheck className="h-4 w-4" /> Risk / priority</div><p className="mt-2 font-semibold">{humanize(order.safety_risk)} · {humanize(order.priority)}</p></CardContent></Card>
@@ -208,8 +208,8 @@ export default function WorkOrderDetail() {
           </CardContent></Card>
 
           <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileImage className="h-5 w-5" /> Photos &amp; documents</CardTitle></CardHeader><CardContent className="space-y-4">
-            {canManage && !["verified","canceled"].includes(order.status) && <div className="grid items-end gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[180px_1fr_auto]"><div><Label>Evidence type</Label><Select value={documentType} onValueChange={(value) => setDocumentType(value as typeof documentType)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{DOCUMENT_TYPES.map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div><div><Label>JPEG, PNG, WebP, or PDF</Label><Input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setDocumentFile(event.target.files?.[0])} /></div><Button onClick={upload} disabled={!documentFile || uploadDocument.isPending}><Upload className="mr-2 h-4 w-4" /> Upload</Button></div>}
-            {!documents?.length ? <p className="py-6 text-center text-sm text-muted-foreground">No repair evidence uploaded yet.</p> : <div className="grid gap-2 sm:grid-cols-2">{documents.map((doc) => <div key={doc.id} className="flex items-center justify-between gap-3 rounded-lg border p-3"><div className="min-w-0"><p className="truncate text-sm font-medium">{doc.file_name}</p><p className="text-xs text-muted-foreground">{humanize(doc.document_type)} · {new Date(doc.created_at).toLocaleDateString()}</p></div><div className="flex gap-1"><Button variant="ghost" size="icon" onClick={() => viewDocument(doc)}><Download className="h-4 w-4" /></Button>{canDeleteDocuments && <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteDocument.mutate(doc)}><Trash2 className="h-4 w-4" /></Button>}</div></div>)}</div>}
+            {canManage && !["verified","canceled"].includes(order.status) && <div className="grid items-end gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[180px_1fr_auto]"><div><Label>Documentation type</Label><Select value={documentType} onValueChange={(value) => setDocumentType(value as typeof documentType)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{DOCUMENT_TYPES.map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div><div><Label>JPEG, PNG, WebP, or PDF</Label><Input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setDocumentFile(event.target.files?.[0])} /></div><Button onClick={upload} disabled={!documentFile || uploadDocument.isPending}><Upload className="mr-2 h-4 w-4" /> Upload</Button></div>}
+            {!documents?.length ? <p className="py-6 text-center text-sm text-muted-foreground">No repair documentation uploaded yet.</p> : <div className="grid gap-2 sm:grid-cols-2">{documents.map((doc) => <div key={doc.id} className="flex items-center justify-between gap-3 rounded-lg border p-3"><div className="min-w-0"><p className="truncate text-sm font-medium">{doc.file_name}</p><p className="text-xs text-muted-foreground">{humanize(doc.document_type)} · {new Date(doc.created_at).toLocaleDateString()}</p></div><div className="flex gap-1"><Button variant="ghost" size="icon" onClick={() => viewDocument(doc)}><Download className="h-4 w-4" /></Button>{canDeleteDocuments && <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteDocument.mutate(doc)}><Trash2 className="h-4 w-4" /></Button>}</div></div>)}</div>}
           </CardContent></Card>
         </div>
 
