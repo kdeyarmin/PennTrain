@@ -26,7 +26,7 @@ const HOW_WE_TRACK = [
   {
     icon: FileSearch,
     title: "We translate it",
-    body: "Every new regulation, clarification, or update is rewritten in plain language — what changed, who it affects, and what you have to documentation.",
+    body: "Every new regulation, clarification, or update is rewritten in plain language — what changed, who it affects, and what you have to document.",
   },
   {
     icon: ScrollText,

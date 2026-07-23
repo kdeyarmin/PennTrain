@@ -520,7 +520,7 @@ Deno.serve(async (req: Request) => {
     await recordFailure(`Grounding failed: ${message}`);
     return json({ error: "Failed to collect a complete facility-scoped grounding packet" }, 500);
   }
-  if (!facility.state) missingInformation.push("The facility state is blank; Pennsylvania is assumed from the PCH/ALR product scope.");
+  if (!facility.state) missingInformation.push("The facility state is blank; Pennsylvania is assumed from the PCH/ALF product scope.");
   if (sources.length === 0) missingInformation.push("No active governed rule version matched this question, jurisdiction, facility type, and as-of date.");
   if (systemEvidence.length === 0) missingInformation.push("No matching facility-scoped system documentation was found for this question.");
   missingInformation = uniqueStrings(missingInformation);

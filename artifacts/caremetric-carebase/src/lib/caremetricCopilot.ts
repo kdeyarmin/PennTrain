@@ -65,7 +65,7 @@ const ROUTE_CONTEXTS: Array<{ test: RegExp; context: RouteContext }> = [
     },
   },
   {
-    test: /^\/app\/(alerts|inspection-readiness|compliance-binder|violations|documentation)/,
+    test: /^\/app\/(alerts|inspection-readiness|compliance-binder|violations|evidence)/,
     context: {
       label: "Compliance Work",
       intent: "risk",

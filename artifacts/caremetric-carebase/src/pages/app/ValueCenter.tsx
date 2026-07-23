@@ -150,7 +150,7 @@ export default function ValueCenter() {
   const isRefreshing = [workspace, facilities, value, staffing, admissions].some((query) => query.isFetching);
   const quickLinks: Array<{ title: string; description: string; href: string; icon: LucideIcon }> = [
     { title: "Daily work", description: "Role-based priorities, exceptions, shifts, and work items in one queue.", href: "/app/today", icon: Activity },
-    { title: "Inspection readiness", description: "Convert readiness work into an documentation-backed response room.", href: "/app/inspection-readiness", icon: ClipboardCheck },
+    { title: "Inspection readiness", description: "Convert readiness work into a documentation-backed response room.", href: "/app/inspection-readiness", icon: ClipboardCheck },
     { title: "Governed assistant", description: "Ground responses in citations and send proposed work through approval.", href: "/app/regulatory-copilot", icon: Bot },
   ];
 
