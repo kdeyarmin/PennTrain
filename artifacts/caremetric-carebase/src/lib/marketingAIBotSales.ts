@@ -409,7 +409,7 @@ export function answerQuestion(question: string, profile: LeadProfile): Message 
   const ranked = BOT_INTENTS.map((intent) => ({
     intent,
     score: intent.terms.reduce(
-      (score, term) => score + (words.some((word) => word.includes(term) || term.includes(word)) ? 1 : 0),
+      (score, term) => score + (words.some((word) => word.includes(term)) ? 1 : 0),
       0,
     ),
   })).sort((a, b) => b.score - a.score);
