@@ -35,7 +35,7 @@ import { usePageMeta } from "@/lib/usePageMeta";
  *
  * Ranking and percentages come from the DHS Bureau of Human Services Licensing
  * (BHSL) 2025 Annual Report -- the "Ten Most Frequently Cited Violations"
- * tables for PCH and ALR, published June 2026 (the most recent citation data
+ * tables for PCH and ALF, published June 2026 (the most recent citation data
  * available). "Percent of inspections cited" is the share of licensing
  * inspections in which that section was cited at least once. Entries are
  * ordered by the higher of the PCH or ALF 2025 rate. The final three are the
@@ -343,7 +343,8 @@ const ALF_TOP_10 = [
 const HOW_CITATIONS_WORK = [
   {
     label: "What triggers a citation",
-    body: "A personal care home must comply with roughly 500 individual regulatory requirements; an assisted living facility (the regulation calls it an \"assisted living residence\") with even more. When a licensing inspector finds non-compliance with any one of them, they record a violation against that section. A full inspection measures every regulation at once.",
+    body:
+      "A personal care home must comply with roughly 500 individual regulatory requirements; an assisted living facility with even more. When a licensing inspector finds non-compliance with any one of them, they record a violation against that section. A full inspection measures every regulation at once.",
   },
   {
     label: "Correction timeframes",
@@ -364,15 +365,15 @@ const HOW_CITATIONS_WORK = [
 
 const SOURCES = [
   {
-    label: "DHS BHSL 2025 Annual Report (PCH & ALR) — citation rankings",
+    label: "DHS BHSL 2025 Annual Report (PCH & ALF) — citation rankings",
     href: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/providers/clearances-and-licensing/documents/pch-residential-licensing/2026-06-22-bhsl-annual-report-2025-final.pdf",
   },
   {
-    label: "DHS BHSL 2024 Annual Report (PCH & ALR)",
+    label: "DHS BHSL 2024 Annual Report (PCH & ALF)",
     href: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/providers/clearances-and-licensing/documents/pch-residential-licensing/2025-09-04-2024-bhsl-annual-report.pdf",
   },
   {
-    label: "Personal Care Home & Assisted Living Residence reports (all years)",
+    label: "Personal Care Home & Assisted Living Facility reports (all years)",
     href: "https://www.pa.gov/agencies/dhs/resources/for-providers/ltc-providers/personal-care-home-reports",
   },
   {
@@ -380,7 +381,7 @@ const SOURCES = [
     href: "https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/055/chapter2600/chap2600toc.html",
   },
   {
-    label: "55 Pa. Code Chapter 2800 — Assisted Living Residences",
+    label: "55 Pa. Code Chapter 2800 — Assisted Living Facilities (ALF)",
     href: "https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/055/chapter2800/chap2800toc.html",
   },
 ] as const;
