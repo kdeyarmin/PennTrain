@@ -16,12 +16,10 @@ import {
   pcmCaptureWorkletUrl,
 } from "@/lib/voice/pcmCaptureWorklet";
 
-export const VOICE_GATEWAY_URL = (
-  (import.meta.env.VITE_VOICE_GATEWAY_URL as string | undefined) ?? ""
-).replace(/\/+$/, "");
-
-/** Feature flag by env presence — no URL, no voice UI anywhere. */
-export const voiceAssistantEnabled = VOICE_GATEWAY_URL.length > 0;
+import {
+  VOICE_GATEWAY_URL,
+  voiceAssistantEnabled,
+} from "@/lib/voice/voiceGatewayConfig";
 
 export type VoiceSessionStatus =
   | "idle"

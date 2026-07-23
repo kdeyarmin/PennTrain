@@ -26,7 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateCopilotActionDraft } from "@/hooks/useProductValueOperatingSystem";
 import { VoiceAssistantPanel } from "@/components/voice/VoiceAssistantPanel";
-import { voiceAssistantEnabled } from "@/hooks/useVoiceSession";
+import { voiceAssistantEnabled } from "@/lib/voice/voiceGatewayConfig";
 
 const INTENTS: Array<{ value: CopilotIntent; label: string; question: string; help: string }> = [
   { value: "employee_blocked", label: "Why is this employee blocked?", question: "Explain the latest recorded scheduling eligibility decision for this employee.", help: "Uses recorded blocks, warnings, overrides, and decision checksum only." },

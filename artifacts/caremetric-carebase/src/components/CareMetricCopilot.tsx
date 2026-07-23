@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
 import { answerCareMetricCopilot, getCopilotSuggestions, type CopilotAnswer } from "@/lib/caremetricCopilot";
-import { voiceAssistantEnabled } from "@/hooks/useVoiceSession";
+import { voiceAssistantEnabled } from "@/lib/voice/voiceGatewayConfig";
 import { cn } from "@/lib/utils";
 
 type ChatMessage =
