@@ -46,7 +46,7 @@ const INTENTS: Array<{ value: CopilotIntent; label: string; question: string; he
 // explicit ?intent= wins when valid. Ordered most-specific first; the first keyword match wins.
 const INTENT_HINTS: Array<{ intent: CopilotIntent; keywords: string[] }> = [
   { intent: "draft_plan_of_correction", keywords: ["plan of correction", "poc"] },
-  { intent: "citation_evidence", keywords: ["citation documentation", "documentation for", "system documentation"] },
+  { intent: "citation_evidence", keywords: ["citation documentation", "citation evidence", "documentation for", "evidence for", "system documentation", "system evidence"] },
   { intent: "recurring_citations", keywords: ["recur", "prior citation"] },
   { intent: "readiness_score", keywords: ["readiness score", "score low", "why is this facility"] },
   { intent: "mock_survey_request", keywords: ["mock survey", "mock-survey", "document request"] },

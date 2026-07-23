@@ -579,7 +579,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
         "Outdoor trash covered/secured and not attracting pests",
         "Indoor trash removed timely and containers clean",
         "Pest control service current or internal monitoring documented",
-        "No visible pest documentation in kitchen, food storage, resident areas or trash areas",
+        "No visible signs of pests in kitchen, food storage, resident areas or trash areas",
         "Corrective actions documented with owner and due date",
       ],
     },
