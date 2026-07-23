@@ -1,23 +1,18 @@
-import { useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode } from "react";
 import { Link } from "wouter";
-import { HelpCircle, Mail, MessageSquareText, Search, X } from "lucide-react";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
-import { CtaBanner } from "@/components/marketing/CtaBanner";
-import { PageHero, Reveal } from "@/components/marketing/primitives";
-import { FAQS } from "@/components/marketing/content";
+import { FAQS } from "@/components/marketing/faqContent";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
-import { usePageMeta, useJsonLd } from "@/lib/usePageMeta";
+import { useJsonLd, usePageMeta } from "@/lib/usePageMeta";
 
-const FEATURED_QUESTIONS = FAQS.slice(0, 4);
-const REMAINING_QUESTIONS = FAQS.slice(4);
+const FAQ_CATEGORIES = [
+  { title: "Product & replacement", items: FAQS.slice(0, 5) },
+  { title: "Compliance boundaries", items: FAQS.slice(5, 9) },
+  { title: "Training & daily operations", items: FAQS.slice(9, 15) },
+  { title: "Access & security", items: FAQS.slice(15, 19) },
+  { title: "The questions owners actually ask", items: FAQS.slice(19, 23) },
+  { title: "Getting started", items: FAQS.slice(23, 25) },
+];
 
 // Built directly from FAQS -- the same data rendered on the page -- so the
 // structured data can never drift from what visitors actually see.
@@ -34,162 +29,158 @@ const FAQ_JSON_LD = {
   })),
 };
 
-export default function Faq() {
-  const [query, setQuery] = useState("");
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredQuestions = useMemo(
-    () =>
-      FAQS.filter((faq) =>
-        `${faq.question} ${faq.answer}`.toLowerCase().includes(normalizedQuery),
-      ),
-    [normalizedQuery],
-  );
-  const accordionQuestions = normalizedQuery
-    ? filteredQuestions
-    : REMAINING_QUESTIONS;
+const gridOverlayStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  backgroundImage:
+    "repeating-linear-gradient(to bottom, transparent, transparent 31px, rgba(255,255,255,0.05) 32px), repeating-linear-gradient(to right, transparent, transparent 31px, rgba(255,255,255,0.05) 32px)",
+};
 
+const renderAnswer = (question: string, answer: string): ReactNode => {
+  if (question === "How much does it cost?") {
+    return (
+      <>
+        Per facility per month, every module included, unlimited employees and residents. Single-facility pricing is
+        $349 per facility per month; organizations with 3 or more facilities use the $299 per-facility monthly rate. The
+        free trial lasts 14 days. <a href="/#pricing">See pricing</a> and <Link href="/savings">model your savings</Link>.
+      </>
+    );
+  }
+
+  if (question === "How many annual training hours does my provider type need?") {
+    return (
+      <>
+        It depends on license type, role, and population served — 12 hours for PCH direct care workers, 16 for ALF, 24/12
+        for Chapter 6400, 12 for nurse, home health, and hospice aides. See the full{" "}
+        <Link href="/requirements">PA training requirements guide</Link>.
+      </>
+    );
+  }
+
+  if (question === "Can our auditor or surveyor get read-only access?") {
+    return (
+      <>
+        Yes. The auditor role sees dashboards, the training matrix, reports, and documents with zero ability to edit —
+        plus time-limited evidence rooms scoped to exactly what was requested. More on the{" "}
+        <Link href="/security">security page</Link>.
+      </>
+    );
+  }
+
+  return answer;
+};
+
+export default function Faq() {
   usePageMeta({ ...MARKETING_ROUTE_META["/faq"], path: "/faq" });
   useJsonLd("faq-jsonld", FAQ_JSON_LD);
+
   return (
     <MarketingLayout>
-      <PageHero
-        eyebrow="Straight answers for buyers and operators"
-        title="Frequently asked questions"
-        subtitle="What CareMetric CareBase does, what it replaces, what it does not replace, and how it supports personal care and assisted living operations."
-        highlights={[
-          "Product and replacement",
-          "Compliance boundaries",
-          "Implementation and security",
-        ]}
-      />
-
-      <section className="border-b border-border/60 bg-background">
-        <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
-          <Reveal className="text-center">
-            <h2 className="text-2xl font-extrabold tracking-tight">
-              Search product, compliance, security, or implementation
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Find the exact answer your buying team needs without reading the
-              full page.
-            </p>
-          </Reveal>
-          <div className="relative mt-7">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search all frequently asked questions"
-              aria-label="Search frequently asked questions"
-              className="h-12 bg-card pl-11 pr-12 shadow-sm"
-            />
-            {query && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => setQuery("")}
-                aria-label="Clear FAQ search"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-          <p className="mt-3 text-center text-xs text-muted-foreground" aria-live="polite">
-            {normalizedQuery
-              ? `${filteredQuestions.length} matching ${filteredQuestions.length === 1 ? "answer" : "answers"}`
-              : `${FAQS.length} answers available`}
+      <section
+        data-screen-label="FAQ hero"
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background: "linear-gradient(135deg, #071626 0%, #0d2742 55%, #143a5c 100%)",
+          color: "#ffffff",
+        }}
+      >
+        <div style={gridOverlayStyle} />
+        <div
+          style={{
+            position: "relative",
+            maxWidth: 860,
+            margin: "0 auto",
+            padding: "56px 24px",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            gap: 14,
+            alignItems: "center",
+          }}
+        >
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 42,
+              fontWeight: 700,
+              letterSpacing: "-0.015em",
+              lineHeight: 1.1,
+            }}
+          >
+            Frequently asked questions
+          </h1>
+          <p style={{ margin: 0, fontSize: 16, color: "rgba(255,255,255,0.85)", maxWidth: "54ch" }}>
+            Straight answers on what CareBase does, what it replaces, what it doesn't, and how to start.
           </p>
         </div>
       </section>
 
-      {!normalizedQuery && (
-        <section className="border-b border-border/60 bg-muted/30">
-          <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-            <Reveal className="mx-auto max-w-3xl text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
-                <MessageSquareText className="h-6 w-6 text-primary" />
-              </div>
-              <h2 className="mt-4 text-2xl font-extrabold tracking-tight">
-                Start with the questions teams ask first
+      <section data-screen-label="FAQ list" style={{ background: "#ffffff" }}>
+        <div
+          style={{
+            maxWidth: 820,
+            margin: "0 auto",
+            padding: "56px 24px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 40,
+          }}
+        >
+          {FAQ_CATEGORIES.map((category) => (
+            <div key={category.title} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <h2 style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 700, color: "#0d2742" }}>
+                {category.title}
               </h2>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Start with the product, replacement, and savings questions below.
-                The remaining answers explain compliance boundaries, implementation,
-                staff workflows, resident operations, and evidence.
-              </p>
-            </Reveal>
-            <div className="mt-10 grid gap-4 md:grid-cols-2">
-              {FEATURED_QUESTIONS.map((faq) => (
-                <Reveal key={faq.question}>
-                  <article className="h-full rounded-2xl border bg-card p-5 shadow-sm">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-                      <HelpCircle className="h-5 w-5 text-primary" />
-                    </div>
-                    <h3 className="mt-4 text-base font-semibold">{faq.question}</h3>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{faq.answer}</p>
-                  </article>
-                </Reveal>
+              {category.items.map((faq) => (
+                <div key={faq.question} style={{ border: "1px solid #e5eaf0", borderRadius: 12, padding: "18px 20px" }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: "#0d2742" }}>{faq.question}</div>
+                  <p style={{ margin: "6px 0 0", fontSize: 14, color: "#44566b" }}>
+                    {renderAnswer(faq.question, faq.answer)}
+                  </p>
+                </div>
               ))}
             </div>
-          </div>
-        </section>
-      )}
+          ))}
 
-      <section className="mx-auto max-w-3xl px-4 py-20 sm:px-6 lg:px-8">
-        <Reveal className="mb-8 text-center">
-          <h2 className="text-2xl font-extrabold tracking-tight">
-            {normalizedQuery ? "Search results" : "More details"}
-          </h2>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            {normalizedQuery
-              ? "Every match is shown below with its complete answer."
-              : "Browse implementation, access, reporting, and setup questions in one place."}
-          </p>
-        </Reveal>
-        {accordionQuestions.length > 0 ? (
-          <Accordion type="single" collapsible className="rounded-2xl border bg-card px-5 shadow-sm">
-            {accordionQuestions.map((faq) => (
-              <AccordionItem key={faq.question} value={faq.question}>
-                <AccordionTrigger className="gap-4 text-left text-base font-semibold">
-                  {faq.question}
-                </AccordionTrigger>
-                <AccordionContent className="text-sm leading-6 text-muted-foreground">
-                  {faq.answer}
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        ) : (
-          <div className="rounded-2xl border bg-card p-8 text-center shadow-sm">
-            <h3 className="font-semibold">No matching answer found</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Try a broader term, or clear the search to browse every answer.
+          <div
+            style={{
+              border: "1px solid #cfe2f4",
+              background: "#eaf3fc",
+              borderRadius: 14,
+              padding: 24,
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+              alignItems: "center",
+            }}
+          >
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#0d2742" }}>
+              Want to see it on your own data?
+            </h2>
+            <p style={{ margin: 0, fontSize: 14, color: "#44566b", maxWidth: "48ch" }}>
+              The trial includes every module — create your organization, import your roster, and see your facility's
+              real compliance picture today.
             </p>
-            <Button type="button" variant="outline" onClick={() => setQuery("")} className="mt-5">
-              Clear search
-            </Button>
+            <a
+              href="/#start"
+              className="hover:bg-[#14548f] hover:no-underline"
+              style={{
+                background: "#1b6fc2",
+                color: "#ffffff",
+                fontWeight: 700,
+                fontSize: 14,
+                padding: "11px 18px",
+                borderRadius: 9,
+                textDecoration: "none",
+              }}
+            >
+              Start the free trial
+            </a>
           </div>
-        )}
-
-        <Reveal className="mt-10 rounded-2xl border border-primary/20 bg-primary/[0.03] p-6 text-center">
-          <h3 className="text-lg font-semibold">Have a requirement we did not cover?</h3>
-          <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-            Send your facility type, state, and current training workflow. We can walk
-            through how CareMetric CareBase would model it.
-          </p>
-          <Button asChild className="mt-5 gap-2">
-            <Link href="/request-demo">
-              <Mail className="h-4 w-4" />
-              Ask about your workflow
-            </Link>
-          </Button>
-        </Reveal>
+        </div>
       </section>
-
-      <CtaBanner />
     </MarketingLayout>
   );
 }

@@ -1,224 +1,208 @@
-import {
-  CheckCircle2,
-  ClipboardCheck,
-  Database,
-  FileLock2,
-  KeyRound,
-  LockKeyhole,
-  ScrollText,
-  ShieldCheck,
-} from "lucide-react";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
-import { CtaBanner } from "@/components/marketing/CtaBanner";
-import {
-  PageHero,
-  Reveal,
-  TechGrid,
-  TechIcon,
-} from "@/components/marketing/primitives";
-import { SECURITY_FEATURES } from "@/components/marketing/content";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
 
-const SECURITY_CHECKLIST = [
-  "Can a facility manager only access assigned-facility records?",
+const securityControls = [
+  {
+    title: "Row-level security by design",
+    text: "Organization, facility, role, and record-scope rules are enforced by Postgres Row-Level Security at the database boundary — not just in the interface.",
+  },
+  {
+    title: "Six enforced access levels",
+    text: "Platform admin, org admin, facility manager, trainer, employee, and auditor — each scoped to exactly the data their role should touch.",
+  },
+  {
+    title: "Private storage, signed URLs",
+    text: "Documents, certificates, sign-in sheets, and binders live in private storage, accessed only through short-lived signed links.",
+  },
+  {
+    title: "Immutable audit trail",
+    text: "Compliance-determining actions — quiz grading, certificate issuance, course publishing — are logged and can't be altered after the fact.",
+  },
+  {
+    title: "Human review gate on AI content",
+    text: "AI-touched training content can't publish until a named reviewer signs off — and the approval clears automatically the moment any block is regenerated.",
+  },
+  {
+    title: "Audited support impersonation",
+    text: "Support sign-in-as-user requires a written reason, can't target another admin or a deactivated account, and every session start and end is immutably logged.",
+  },
+  {
+    title: "Version-bound e-signature evidence",
+    text: "Policy attestations capture the signer, timestamp, IP, user agent, and a content hash of the exact document version reviewed — designed to support ESIGN/UETA recordkeeping.",
+  },
+  {
+    title: "Hashed, never-plaintext secrets",
+    text: "Class check-in PINs are bcrypt-hashed at rest and verified inside the database — the plaintext value is never stored.",
+  },
+];
+
+const testQuestions = [
+  "Can a facility manager only reach assigned-facility records — and does an out-of-scope facility show \"Not Assigned,\" never a false all-clear?",
   "Can an employee see their own training without seeing coworker credentials?",
-  "Can an auditor review evidence without changing it?",
-  "Can support impersonation, AI review, certificate issuance, and policy signatures be audited later?",
+  "Can an auditor review evidence without the ability to change it?",
+  "Can support impersonation, AI review, certificate issuance, and policy signatures be audited afterward?",
 ];
 
-const SECURITY_PROMISES = [
-  "Users are scoped by organization, facility, and role before records are shown.",
-  "Private evidence files use short-lived access links instead of public buckets.",
-  "Compliance-impacting actions are preserved in an audit trail for review.",
-  "A facility outside a viewer's assigned scope shows as 'Not Assigned' — never a false all-clear.",
-];
-
-const DUE_DILIGENCE_AREAS = [
+const diligenceAreas = [
   {
-    icon: KeyRound,
-    title: "Identity and access",
-    verify:
-      "Role permissions, organization and facility scope, employee self-service boundaries, MFA support, and auditor read-only behavior.",
+    title: "Identity & access",
+    text: "Role permissions, org and facility scope, employee self-service boundaries, MFA support, and auditor read-only behavior.",
   },
   {
-    icon: FileLock2,
-    title: "Evidence and file handling",
-    verify:
-      "Private storage, short-lived access links, controlled evidence sharing, record ownership, and file access boundaries.",
+    title: "Evidence & file handling",
+    text: "Private storage, short-lived access links, controlled evidence sharing, record ownership, and file access boundaries.",
   },
   {
-    icon: Database,
     title: "Operational controls",
-    verify:
-      "Database-enforced policies, approval and review gates, audit events, support access, and out-of-scope facility behavior.",
+    text: "Database-enforced policies, approval and review gates, audit events, support access, and out-of-scope facility behavior.",
   },
   {
-    icon: ScrollText,
-    title: "Deployment and contract",
-    verify:
-      "Hosting responsibility, backups, recovery, retention and deletion, incident response, subprocessors, and any required agreement or certification.",
+    title: "Deployment & contract",
+    text: "Hosting responsibility, backups, recovery, retention and deletion, incident response, subprocessors, and any required agreement or certification.",
   },
-] as const;
+];
 
 export default function Security() {
   usePageMeta({ ...MARKETING_ROUTE_META["/security"], path: "/security" });
+
   return (
     <MarketingLayout>
-      <PageHero
-        eyebrow="Security and trust"
-        title="Security controls buyers can verify in the product"
-        subtitle="CareMetric CareBase protects facility, resident, staff, training, and compliance records with role-aware workflows, private evidence storage, database-enforced access boundaries, and reviewable audit evidence."
-        highlights={[
-          "Database-enforced scope",
-          "Private evidence storage",
-          "Reviewable security events",
-        ]}
-      />
+      <section
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background: "linear-gradient(135deg, #071626 0%, #0d2742 55%, #143a5c 100%)",
+          color: "#ffffff",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage:
+              "repeating-linear-gradient(to bottom, transparent, transparent 31px, rgba(255,255,255,0.05) 32px), repeating-linear-gradient(to right, transparent, transparent 31px, rgba(255,255,255,0.05) 32px)",
+          }}
+        />
+        <div
+          style={{
+            position: "relative",
+            maxWidth: "860px",
+            margin: "0 auto",
+            padding: "64px 24px",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+            alignItems: "center",
+          }}
+        >
+          <span
+            style={{
+              display: "inline-flex",
+              border: "1px solid rgba(255,255,255,0.18)",
+              background: "rgba(255,255,255,0.08)",
+              borderRadius: "99px",
+              padding: "6px 14px",
+              fontSize: "12px",
+              fontWeight: 700,
+              color: "#b9e4ff",
+            }}
+          >
+            Security & trust
+          </span>
+          <h1 style={{ margin: 0, fontSize: "42px", fontWeight: 700, letterSpacing: "-0.015em", lineHeight: 1.1, textWrap: "balance" }}>
+            Security controls you can verify in the product
+          </h1>
+          <p style={{ margin: 0, fontSize: "17px", color: "rgba(255,255,255,0.85)", maxWidth: "54ch", textWrap: "pretty" }}>
+            Your residents' and staff's records are safer here than in a filing cabinet or a shared drive: every boundary is enforced at the database, every sensitive action is logged, and every claim below is something you can test yourself in the free trial.
+          </p>
+        </div>
+      </section>
 
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#071626] via-[#0d2742] to-[#143a5c] text-white">
-        <TechGrid />
-        <div className="absolute right-0 top-0 h-[420px] w-[420px] -translate-y-1/3 translate-x-1/4 rounded-full bg-[#59b2ff]/10 blur-3xl" />
-        <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-          <Reveal className="mx-auto max-w-3xl text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/15 bg-white/10">
-              <LockKeyhole className="h-7 w-7 text-[#59b2ff]" />
-            </div>
-            <h2 className="mt-5 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
-              Security is part of the product workflow, not a separate promise
-              page.
-            </h2>
-            <p className="mt-4 text-white/68">
-              The same boundaries that make the app easier to use also reduce
-              risk: managers see their facilities, employees see their own
-              assignments, and auditors can review evidence without changing
-              records.
-            </p>
-          </Reveal>
-
-          <div className="mt-12 grid gap-6 sm:grid-cols-2">
-            {SECURITY_FEATURES.map((feature, i) => (
-              <Reveal key={feature.title} delay={(i % 2) * 0.08}>
-                <div className="flex h-full gap-4 rounded-xl border border-white/10 bg-white/[0.055] p-6 backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#59b2ff]/40 hover:bg-white/[0.075]">
-                  <TechIcon icon={feature.icon} />
-                  <div>
-                    <h3 className="font-semibold text-white">
-                      {feature.title}
-                    </h3>
-                    <p className="mt-1.5 text-sm leading-6 text-white/62">
-                      {feature.description}
-                    </p>
-                  </div>
-                </div>
-              </Reveal>
+      <section style={{ background: "#071626", color: "#ffffff", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+        <div style={{ maxWidth: "1160px", margin: "0 auto", padding: "56px 24px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+            {securityControls.map((control) => (
+              <div key={control.title} style={{ border: "1px solid rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.055)", borderRadius: "12px", padding: "22px" }}>
+                <div style={{ fontWeight: 700, fontSize: "15px", color: "#b9e4ff" }}>{control.title}</div>
+                <p style={{ margin: "8px 0 0", fontSize: "13.5px", lineHeight: 1.6, color: "rgba(255,255,255,0.8)" }}>{control.text}</p>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="border-b border-border/60 bg-muted/30">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8">
-          <Reveal>
-            <div className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs font-semibold text-primary shadow-sm">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              Practical safeguards for survey evidence
-            </div>
-            <h2 className="mt-4 text-2xl font-extrabold tracking-tight">
-              Designed around least-privilege access
+      <section style={{ background: "#ffffff", borderBottom: "1px solid #e5eaf0" }}>
+        <div
+          style={{
+            maxWidth: "1160px",
+            margin: "0 auto",
+            padding: "64px 24px",
+            display: "grid",
+            gridTemplateColumns: "0.9fr 1.1fr",
+            gap: "40px",
+            alignItems: "start",
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <span style={{ fontFamily: "ui-monospace, monospace", fontSize: "11px", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#1b6fc2" }}>
+              Test it yourself
+            </span>
+            <h2 style={{ margin: 0, fontSize: "28px", fontWeight: 700, letterSpacing: "-0.01em", color: "#0d2742", textWrap: "balance" }}>
+              Four things to test in any system — ours included
             </h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Compliance systems collect sensitive employee records, signatures,
-              certificates, credentials, and corrective-action evidence.
-              CareMetric CareBase keeps those assets organized without making them
-              broadly visible.
-            </p>
-          </Reveal>
-          <Reveal delay={0.1} className="grid gap-3">
-            {SECURITY_PROMISES.map((promise) => (
-              <div
-                key={promise}
-                className="flex items-start gap-3 rounded-xl border bg-card p-4 shadow-sm"
-              >
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                <span className="text-sm text-foreground/85">{promise}</span>
+            <p style={{ margin: 0, fontSize: "14.5px", color: "#44566b" }}>Trust claims should translate into access behavior you can watch happen.</p>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {testQuestions.map((question) => (
+              <div key={question} style={{ border: "1px solid #dfe6ee", borderRadius: "12px", padding: "14px 18px", fontSize: "14px", color: "#33465c" }}>
+                {question}
               </div>
             ))}
-            <div className="rounded-xl border border-primary/20 bg-primary/[0.03] p-4 text-sm leading-6 text-muted-foreground">
-              These product controls are not, by themselves, a claim of a particular
-              certification, a signed business associate agreement, or compliance for
-              every deployment. Buyers should confirm the hosted environment, contract,
-              retention requirements, and organizational safeguards that apply to their use.
-            </div>
-          </Reveal>
+          </div>
         </div>
       </section>
 
-      <section className="border-b border-border/60 bg-background">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <Reveal className="mx-auto max-w-3xl text-center">
-            <p className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+      <section style={{ background: "#f6f8fa", borderBottom: "1px solid #e5eaf0" }}>
+        <div style={{ maxWidth: "1160px", margin: "0 auto", padding: "64px 24px" }}>
+          <div style={{ maxWidth: "640px", display: "flex", flexDirection: "column", gap: "10px" }}>
+            <span style={{ fontFamily: "ui-monospace, monospace", fontSize: "11px", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#1b6fc2" }}>
               Buyer due diligence
-            </p>
-            <h2 className="mt-3 text-2xl font-extrabold tracking-tight">
+            </span>
+            <h2 style={{ margin: 0, fontSize: "28px", fontWeight: 700, letterSpacing: "-0.01em", color: "#0d2742" }}>
               Evaluate product controls and deployment obligations separately
             </h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              A secure workflow is only one part of a security review. Use these
-              four areas to verify the product behavior you can see and the
-              operating commitments that belong in hosting and contract review.
-            </p>
-          </Reveal>
-          <div className="mt-10 grid gap-5 md:grid-cols-2">
-            {DUE_DILIGENCE_AREAS.map((area, index) => (
-              <Reveal key={area.title} delay={(index % 2) * 0.06}>
-                <article className="flex h-full gap-4 rounded-2xl border bg-card p-6 shadow-sm">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                    <area.icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">{area.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      {area.verify}
-                    </p>
-                  </div>
-                </article>
-              </Reveal>
+          </div>
+          <div style={{ marginTop: "24px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+            {diligenceAreas.map((area) => (
+              <div key={area.title} style={{ background: "#ffffff", border: "1px solid #dfe6ee", borderRadius: "12px", padding: "20px" }}>
+                <div style={{ fontWeight: 700, fontSize: "14.5px", color: "#0d2742" }}>{area.title}</div>
+                <p style={{ margin: "8px 0 0", fontSize: "13.5px", color: "#44566b" }}>{area.text}</p>
+              </div>
             ))}
+          </div>
+          <div style={{ marginTop: "18px", border: "1px solid #f0d9a8", background: "#fdf7ea", borderRadius: "10px", padding: "14px 18px", fontSize: "13px", color: "#6d5312" }}>
+            These product controls are not, by themselves, a claim of a particular certification, a signed business associate agreement, or compliance for every deployment. Confirm the hosted environment, contract, retention requirements, and organizational safeguards that apply to your use.
           </div>
         </div>
       </section>
 
-      <section className="border-b border-border/60 bg-muted/30">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
-          <Reveal>
-            <div className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs font-semibold text-primary shadow-sm">
-              <ClipboardCheck className="h-3.5 w-3.5" />
-              Questions security-minded buyers ask
-            </div>
-            <h2 className="mt-4 text-2xl font-extrabold tracking-tight">
-              Trust claims are translated into verifiable product behavior
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Instead of relying on broad promises, CareMetric CareBase frames
-              safeguards as practical access questions buyers can validate
-              during a demo.
-            </p>
-          </Reveal>
-          <Reveal delay={0.1} className="grid gap-3">
-            {SECURITY_CHECKLIST.map((item) => (
-              <div
-                key={item}
-                className="flex items-start gap-3 rounded-xl border bg-card p-4 shadow-sm"
-              >
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                <span className="text-sm text-foreground/85">{item}</span>
-              </div>
-            ))}
-          </Reveal>
+      <section style={{ background: "#071626", color: "#ffffff" }}>
+        <div style={{ maxWidth: "860px", margin: "0 auto", padding: "56px 24px", textAlign: "center", display: "flex", flexDirection: "column", gap: "14px", alignItems: "center" }}>
+          <h2 style={{ margin: 0, fontSize: "28px", fontWeight: 700, letterSpacing: "-0.01em" }}>Give your security reviewer their own login</h2>
+          <p style={{ margin: 0, fontSize: "15px", color: "rgba(255,255,255,0.82)", maxWidth: "52ch" }}>
+            Create a trial organization and let them probe every boundary themselves. Hosting and contract documentation is available for download.
+          </p>
+          <a
+            href="/#start"
+            className="hover:bg-[#dcebfa] hover:no-underline"
+            style={{ background: "#ffffff", color: "#0d2742", fontWeight: 700, fontSize: "14.5px", padding: "12px 20px", borderRadius: "9px", textDecoration: "none", marginTop: "6px" }}
+          >
+            Start the free trial
+          </a>
         </div>
       </section>
-
-      <CtaBanner />
     </MarketingLayout>
   );
 }

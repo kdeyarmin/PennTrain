@@ -5,8 +5,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
-import { MARKETING_NAV } from "@/lib/publicPaths";
+import { LogoMark, BrandName } from "@/components/brand/Logo";
+import { MARKETING_NAV, MARKETING_SECONDARY_NAV } from "@/lib/publicPaths";
 
 /**
  * Wouter doesn't reset scroll between route changes -- handle it ourselves, in
@@ -121,6 +121,24 @@ function ScrollToTop() {
   return null;
 }
 
+/**
+ * Header navigation: page routes from MARKETING_NAV interleaved with the two
+ * landing-page section anchors the design calls for. Hash links are plain
+ * anchors on purpose -- on the landing page the browser's native anchor scroll
+ * handles them, and from any other page the full navigation lands on "/" with
+ * the hash, which ScrollToTop scrolls into view.
+ */
+const HEADER_NAV: ReadonlyArray<{ href: string; label: string; hash?: boolean }> = [
+  { href: "/#platform", label: "Platform", hash: true },
+  { href: "/how-it-works", label: "How it works" },
+  { href: "/features", label: "Features" },
+  { href: "/#pricing", label: "Pricing", hash: true },
+  { href: "/savings", label: "Savings" },
+  { href: "/requirements", label: "Requirements" },
+  { href: "/faq", label: "FAQ" },
+  { href: "/about", label: "About" },
+];
+
 function MarketingHeader() {
   const [location] = useLocation();
   const { isAuthenticated } = useAuth();
@@ -131,62 +149,72 @@ function MarketingHeader() {
     setMenuOpen(false);
   }, [location]);
 
+  const navLink = (item: (typeof HEADER_NAV)[number], className: string) => {
+    const active = !item.hash && location === item.href;
+    const cls = cn(className, active ? "text-[#0d2742]" : "text-[#44566b] hover:text-[#0d2742]");
+    return item.hash ? (
+      <a key={item.href} href={item.href} className={cls} onClick={() => setMenuOpen(false)}>
+        {item.label}
+      </a>
+    ) : (
+      <Link
+        key={item.href}
+        href={item.href}
+        className={cls}
+        aria-current={active ? "page" : undefined}
+        onClick={() => setMenuOpen(false)}
+      >
+        {item.label}
+      </Link>
+    );
+  };
+
   return (
-    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-sm">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-2.5 min-w-0" data-testid="link-home">
-          <LogoMark className="h-10 w-10" />
-          <div className="flex flex-col leading-none min-w-0">
-            <BrandName
-              className="truncate text-[15px] font-bold tracking-tight"
-              style={{ color: BRAND_BLUE }}
-            />
-            <span className="hidden whitespace-nowrap text-[11px] font-medium text-muted-foreground sm:block">
-              Operations &amp; Compliance Platform
+    <header className="sticky top-0 z-40 border-b border-[#e5eaf0] bg-white/90 backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-[1160px] items-center justify-between gap-4 px-6">
+        <Link href="/" className="flex min-w-0 items-center gap-2.5" data-testid="link-home">
+          <LogoMark className="h-9 w-9" />
+          <span className="flex min-w-0 flex-col leading-tight">
+            <BrandName className="truncate text-[15px] font-extrabold" style={{ color: "#0d2742" }} />
+            <span className="hidden whitespace-nowrap text-[11px] font-semibold text-[#5d7084] sm:block">
+              PCH &amp; assisted living operations
             </span>
-          </div>
+          </span>
         </Link>
 
-        <nav className="hidden items-center gap-6 lg:flex xl:gap-8">
-          {MARKETING_NAV.map((item) => {
-            const active = location === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={
-                  active
-                    ? "text-sm font-medium text-foreground"
-                    : "text-sm font-medium text-foreground/75 hover:text-foreground"
-                }
-                aria-current={active ? "page" : undefined}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav className="hidden items-center gap-[18px] lg:flex">
+          {HEADER_NAV.map((item) => navLink(item, "whitespace-nowrap text-sm font-semibold"))}
         </nav>
 
         {/* Desktop actions */}
-        <div className="hidden lg:flex items-center gap-2 shrink-0">
+        <div className="hidden shrink-0 items-center gap-2.5 lg:flex">
           {isAuthenticated ? (
-            <Button asChild size="sm" data-testid="button-open-app">
+            <Link
+              href="/"
+              className="whitespace-nowrap rounded-lg bg-[#1b6fc2] px-4 py-[9px] text-sm font-bold text-white hover:bg-[#14548f]"
+              data-testid="button-open-app"
+            >
               {/* "/" redirects signed-in visitors to their role's home. */}
-              <Link href="/">Open CareBase</Link>
-            </Button>
+              Open CareBase
+            </Link>
           ) : (
             <>
-              <Button asChild variant="ghost" size="sm" data-testid="link-login">
-                <Link href="/login">Log In</Link>
-              </Button>
-              <Button asChild variant="outline" size="sm" data-testid="link-signup">
-                <Link href="/signup">Sign Up</Link>
-              </Button>
+              <Link
+                href="/login"
+                className="whitespace-nowrap px-3 py-2 text-sm font-semibold text-[#44566b] hover:text-[#0d2742]"
+                data-testid="link-login"
+              >
+                Log in
+              </Link>
+              <Link
+                href="/signup"
+                className="whitespace-nowrap rounded-lg bg-[#1b6fc2] px-4 py-[9px] text-sm font-bold text-white hover:bg-[#14548f]"
+                data-testid="link-signup"
+              >
+                Start free trial
+              </Link>
             </>
           )}
-          <Button asChild size="sm" data-testid="button-request-demo">
-            <Link href="/request-demo">Request a Demo</Link>
-          </Button>
         </div>
 
         {/* Mobile menu */}
@@ -201,55 +229,40 @@ function MarketingHeader() {
               <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="w-[280px] max-w-[85vw]">
+          <SheetContent side="right" className="w-[280px] max-w-[85vw] bg-white">
             <SheetTitle className="sr-only">Navigation menu</SheetTitle>
             <nav className="mt-8 flex flex-col gap-1">
-              {MARKETING_NAV.map((item) => {
-                const active = location === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setMenuOpen(false)}
-                    className={cn(
-                      "rounded-md px-3 py-2 text-sm font-medium",
-                      active
-                        ? "bg-muted text-foreground"
-                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                    )}
-                    aria-current={active ? "page" : undefined}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
+              {HEADER_NAV.map((item) =>
+                navLink(item, "rounded-md px-3 py-2 text-sm font-semibold"),
+              )}
             </nav>
-            <div className="mt-6 flex flex-col gap-2 border-t border-border/60 pt-6">
+            <div className="mt-6 flex flex-col gap-2 border-t border-[#e5eaf0] pt-6">
               {isAuthenticated ? (
-                <Button asChild className="w-full">
-                  <Link href="/" onClick={() => setMenuOpen(false)}>
-                    Open CareBase
-                  </Link>
-                </Button>
+                <Link
+                  href="/"
+                  onClick={() => setMenuOpen(false)}
+                  className="rounded-lg bg-[#1b6fc2] px-4 py-2.5 text-center text-sm font-bold text-white hover:bg-[#14548f]"
+                >
+                  Open CareBase
+                </Link>
               ) : (
                 <>
-                  <Button asChild variant="outline" className="w-full">
-                    <Link href="/login" onClick={() => setMenuOpen(false)}>
-                      Log In
-                    </Link>
-                  </Button>
-                  <Button asChild variant="outline" className="w-full">
-                    <Link href="/signup" onClick={() => setMenuOpen(false)}>
-                      Sign Up
-                    </Link>
-                  </Button>
+                  <Link
+                    href="/login"
+                    onClick={() => setMenuOpen(false)}
+                    className="rounded-lg border border-[#c8d4e0] px-4 py-2.5 text-center text-sm font-bold text-[#0d2742] hover:bg-[#f0f5fa]"
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    href="/signup"
+                    onClick={() => setMenuOpen(false)}
+                    className="rounded-lg bg-[#1b6fc2] px-4 py-2.5 text-center text-sm font-bold text-white hover:bg-[#14548f]"
+                  >
+                    Start free trial
+                  </Link>
                 </>
               )}
-              <Button asChild className="w-full">
-                <Link href="/request-demo" onClick={() => setMenuOpen(false)}>
-                  Request a Demo
-                </Link>
-              </Button>
             </div>
           </SheetContent>
         </Sheet>
@@ -260,68 +273,24 @@ function MarketingHeader() {
 
 function MarketingFooter() {
   return (
-    <footer className="border-t border-border/60">
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
-          <div className="max-w-sm">
-            <Link href="/" className="flex items-center gap-2.5">
-              <LogoMark className="h-8 w-8" />
-              <BrandName className="text-sm font-bold" style={{ color: BRAND_BLUE }} />
+    <footer className="border-t border-white/10 bg-[#071626] text-[12.5px] text-white/70">
+      <div className="mx-auto flex max-w-[1160px] flex-wrap items-center justify-between gap-4 px-6 py-5">
+        <span>&copy; {new Date().getFullYear()} CareMetric CareBase. All rights reserved.</span>
+        <span className="flex flex-wrap gap-[18px]">
+          <Link href="/" className="text-white/70 hover:text-white">
+            Home
+          </Link>
+          {MARKETING_NAV.map((item) => (
+            <Link key={item.href} href={item.href} className="text-white/70 hover:text-white">
+              {item.label}
             </Link>
-            <p className="mt-3 text-sm text-muted-foreground">
-              Operations, workforce compliance, and survey-readiness software built
-              first for personal care homes and assisted living facilities.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
-            <div>
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Product
-              </h2>
-              <ul className="mt-3 space-y-2 text-sm">
-                {MARKETING_NAV.map((item) => (
-                  <li key={item.href}>
-                    <Link href={item.href} className="text-muted-foreground hover:text-foreground">
-                      {item.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Account
-              </h2>
-              <ul className="mt-3 space-y-2 text-sm">
-                <li><Link href="/login" className="text-muted-foreground hover:text-foreground">Log In</Link></li>
-                <li><Link href="/signup" className="text-muted-foreground hover:text-foreground">Sign Up</Link></li>
-                <li><Link href="/request-demo" className="text-muted-foreground hover:text-foreground">Request a Demo</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                The CareMetric Family
-              </h2>
-              <ul className="mt-3 space-y-2 text-sm">
-                <li>
-                  <a href="https://caremetric.ai" target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground">
-                    CareMetric AI
-                  </a>
-                </li>
-                <li>
-                  <a href="https://cmbreathe.com" target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground">
-                    CareMetric Breathe
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-10 border-t border-border/60 pt-6 text-xs text-muted-foreground">
-          <span>&copy; {new Date().getFullYear()} CareMetric CareBase. All rights reserved.</span>
-        </div>
+          ))}
+          {MARKETING_SECONDARY_NAV.map((item) => (
+            <Link key={item.href} href={item.href} className="text-white/70 hover:text-white">
+              {item.label}
+            </Link>
+          ))}
+        </span>
       </div>
     </footer>
   );
@@ -330,7 +299,7 @@ function MarketingFooter() {
 /** Shared chrome (header + footer) wrapping every public marketing page. */
 export function MarketingLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen w-full bg-background text-foreground">
+    <div className="cb-marketing min-h-screen w-full bg-white">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-md focus:ring-2 focus:ring-ring"

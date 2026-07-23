@@ -13,12 +13,14 @@ import Landing from "@/pages/Landing";
 import { ProductTelemetry } from "@/components/ProductTelemetry";
 
 const Features = lazy(() => import("@/pages/marketing/Features"));
-const WhoItsFor = lazy(() => import("@/pages/marketing/WhoItsFor"));
 const Security = lazy(() => import("@/pages/marketing/Security"));
 const HowItWorks = lazy(() => import("@/pages/marketing/HowItWorks"));
 const Savings = lazy(() => import("@/pages/marketing/Savings"));
 const Faq = lazy(() => import("@/pages/marketing/Faq"));
-const RequestDemo = lazy(() => import("@/pages/marketing/RequestDemo"));
+const About = lazy(() => import("@/pages/marketing/About"));
+const Requirements = lazy(() => import("@/pages/marketing/Requirements"));
+const Privacy = lazy(() => import("@/pages/marketing/Privacy"));
+const Terms = lazy(() => import("@/pages/marketing/Terms"));
 
 const Login = lazy(() => import("@/pages/auth/Login"));
 const Demo = lazy(() => import("@/pages/auth/Demo"));
@@ -395,12 +397,14 @@ function Router() {
 
       {/* Public marketing pages (nav targets from the landing page) */}
       <Route path="/features" component={Features} />
-      <Route path="/who-its-for" component={WhoItsFor} />
       <Route path="/security" component={Security} />
       <Route path="/how-it-works" component={HowItWorks} />
       <Route path="/savings" component={Savings} />
+      <Route path="/requirements" component={Requirements} />
       <Route path="/faq" component={Faq} />
-      <Route path="/request-demo" component={RequestDemo} />
+      <Route path="/about" component={About} />
+      <Route path="/privacy" component={Privacy} />
+      <Route path="/terms" component={Terms} />
 
       {/* Platform Admin routes */}
       <Route path="/admin">

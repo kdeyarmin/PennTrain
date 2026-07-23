@@ -1,294 +1,420 @@
-import { useMemo, useState } from "react";
-import {
-  ArrowRight,
-  CheckCircle2,
-  ClipboardList,
-  FileSearch,
-  Search,
-  Workflow,
-  X,
-} from "lucide-react";
 import { Link } from "wouter";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
-import { CtaBanner } from "@/components/marketing/CtaBanner";
-import { PageHero, Reveal } from "@/components/marketing/primitives";
-import { FEATURE_CATEGORIES } from "@/components/marketing/content";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
 
-const PROOF_CHAIN = [
+const residentLifecycle = [
   {
-    icon: ClipboardList,
-    title: "Requirement",
-    description:
-      "Start with the training hour, credential, resident assessment, policy, incident, or inspection item your facility must prove.",
+    label: "01 — INQUIRY & ADMISSION",
+    text: "Prospect tracking, preadmission RASP/ASP screening, room readiness, and the resident agreement — handled before move-in day.",
   },
   {
-    icon: Workflow,
-    title: "Workflow",
-    description:
-      "Assign the right action to the right role: employee training, trainer class, manager review, admin approval, or auditor read-only review.",
+    label: "02 — FIRST 15 DAYS",
+    text: "The initial assessment lands on its own regulatory clock, the support plan opens automatically, and orientation evidence attaches to the record.",
   },
   {
-    icon: FileSearch,
-    title: "Evidence",
-    description:
-      "Store the certificate, sign-in, attestation, generated PDF, document upload, and audit event together so the record is explainable later.",
+    label: "03 — EVERY DAY",
+    text: "Services assigned and recorded — completed, refused, or escalated — plus dietary rounds, appointments, transportation, and routed medication events.",
+  },
+  {
+    label: "04 — WHEN SOMETHING CHANGES",
+    text: "A fall or hospital return routes provider notification, reassessment, support-plan review, and documented follow-up — no informal handoffs.",
+  },
+  {
+    label: "05 — EVERY YEAR",
+    text: "Annual reassessment is scheduled automatically — and completing it triggers the support-plan update Chapter 2600 and 2800 require.",
+  },
+  {
+    label: "06 — MOVE-OUT",
+    text: "Discharge documentation, financial closeout, and a retained record that still answers a surveyor's question months later.",
   },
 ];
 
-const FEATURE_OUTCOMES = [
-  "Connect workforce compliance, resident operations, facility work, quality follow-up, and survey evidence instead of managing each in a separate tracker.",
-  "See overdue, expiring, completed, blocked, and missing evidence before survey day.",
-  "Give owners, managers, trainers, employees, and auditors a secure role-specific workspace instead of one generic admin dashboard.",
-  "Keep the EHR, eMAR, payroll, HRIS, and accounting platforms that remain authoritative while replacing the coordination spreadsheets around them.",
+const capabilityGroups = [
+  {
+    title: "TRAINING & COMPLIANCE CORE",
+    items: [
+      "Compliance tracking & automatic alerts",
+      "Built-in course builder with graded quizzes",
+      "Competency checklists & templates",
+      "Role-based training plans",
+      "Custom requirement catalog",
+      "Interactive compliance matrix + CSV export",
+      "Compliance reporting center",
+      "Audit-ready document storage",
+    ],
+  },
+  {
+    title: "AI & LIVE TRAINING",
+    items: [
+      "AI curriculum generation from your documents",
+      "AI avatar video lessons",
+      "Targeted block-level regeneration",
+      "Live class scheduling & digital sign-in",
+      "Rotating QR & kiosk PIN check-in",
+      "Printable meeting notices with QR",
+    ],
+  },
+  {
+    title: "RESIDENT CARE & OPERATIONS",
+    items: [
+      "Digital RASP/ASP assessment prep",
+      "Automatic reassessment & support-plan triggers",
+      "Facility-wide resident compliance dashboard",
+      "Admissions, census & room readiness",
+      "Resident services & daily work",
+      "Change-of-condition follow-up",
+      "Dietary & food-safety operations",
+      "Services calendar & transportation",
+      "Resident financial subledger",
+      "Medication event integration",
+    ],
+  },
+  {
+    title: "SURVEY, SAFETY & FACILITY",
+    items: [
+      "One-click compliance binder PDF",
+      "Citation-weighted readiness score",
+      "Incident & complaint tracking with notification clocks",
+      "Violations & plan-of-correction workflow",
+      "Fire drills & life-safety records",
+      "60+ template document library",
+      "Emergency operations",
+      "Maintenance & work orders",
+      "QAPI & quality projects",
+      "Closed-loop work queue",
+      "Evidence rooms & regulatory crosswalk",
+    ],
+  },
+  {
+    title: "CREDENTIALS & WORKFORCE",
+    items: [
+      "Credentials & clearances (Act 34 / 73 / 33, licenses, TB, I-9)",
+      "OAPSA provisional-employment countdown",
+      "Monthly OIG / SAM exclusion screening",
+      "Administrator qualification & CE tracking",
+      "Live pass-meds authorization roster",
+      "Policy attestation campaigns (ESIGN/UETA evidence)",
+      "Shift scheduling & auto-fill",
+      "Cross-facility float staff",
+    ],
+  },
+  {
+    title: "ACCESS & ONBOARDING",
+    items: [
+      "Six database-enforced roles",
+      "Public certificate verification links",
+      "Bulk CSV employee import",
+      "Email, SMS & in-app alerts with escalation",
+      "Email-invite user provisioning",
+      "Instant self-service signup",
+      "Installable mobile app for employees",
+    ],
+  },
+];
+
+const roleCards = [
+  {
+    role: "Owner / executive",
+    sees: "org-wide rollups, trends, and unresolved risk across every facility.",
+    does: "compares facilities and reviews readiness before leadership or diligence questions arrive.",
+  },
+  {
+    role: "Org admin",
+    sees: "compliance across the whole organization, including resident assessments.",
+    does: "configures rules, requirements, and access once for every facility.",
+  },
+  {
+    role: "Facility manager",
+    sees: "assigned sites only — overdue staff, open work, shift coverage.",
+    does: "resolves gaps, approves work, validates outside training records.",
+  },
+  {
+    role: "Trainer",
+    sees: "class rosters, retraining queues, and course drafts.",
+    does: "runs classes with QR check-in, drafts AI-assisted courses, manages practicum evidence.",
+  },
+  {
+    role: "Employee",
+    sees: "their own assignments, schedule, and certificates — never coworker data.",
+    does: "completes training, signs policies, and uploads records from their phone.",
+  },
+  {
+    role: "Auditor / surveyor",
+    sees: "read-only evidence scoped to exactly what was requested.",
+    does: "reviews the record without the ability to change anything.",
+  },
 ];
 
 export default function Features() {
-  const [query, setQuery] = useState("");
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredCategories = useMemo(() => {
-    if (!normalizedQuery) return FEATURE_CATEGORIES;
-
-    return FEATURE_CATEGORIES.map((category) => {
-      const categoryMatches = `${category.category} ${category.blurb}`
-        .toLowerCase()
-        .includes(normalizedQuery);
-      return {
-        ...category,
-        items: categoryMatches
-          ? category.items
-          : category.items.filter((feature) =>
-              `${feature.title} ${feature.description}`
-                .toLowerCase()
-                .includes(normalizedQuery),
-            ),
-      };
-    }).filter((category) => category.items.length > 0);
-  }, [normalizedQuery]);
-  const visibleFeatureCount = filteredCategories.reduce(
-    (total, category) => total + category.items.length,
-    0,
-  );
-
   usePageMeta({ ...MARKETING_ROUTE_META["/features"], path: "/features" });
+
   return (
     <MarketingLayout>
-      <PageHero
-        eyebrow="Connected product capabilities"
-        title="Every operational record should lead to the work, the owner, and the proof"
-        subtitle="CareMetric CareBase connects workforce compliance, resident and facility operations, training, scheduling, safety, quality, documents, alerts, and survey evidence—while leaving clinical charting, medication administration, payroll, and accounting in their authoritative systems."
-        highlights={[
-          `${FEATURE_CATEGORIES.length} connected feature domains`,
-          "Role- and facility-aware access",
-          "Evidence attached to the work",
-        ]}
-      />
-
-      <section className="border-b border-border/60 bg-muted/30">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
-          <Reveal>
-            <h2 className="text-2xl font-extrabold tracking-tight">
-              What changes after you launch
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Instead of asking managers to manually chase certificates,
-              reconcile sign-in sheets, and rebuild binders, CareMetric CareBase
-              keeps every training signal connected to the employee, facility,
-              role, and deadline it belongs to.
-            </p>
-          </Reveal>
-          <Reveal delay={0.1} className="grid gap-3">
-            {FEATURE_OUTCOMES.map((outcome) => (
-              <div
-                key={outcome}
-                className="flex items-start gap-3 rounded-xl border bg-card p-4 shadow-sm"
-              >
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                <span className="text-sm text-foreground/85">{outcome}</span>
-              </div>
-            ))}
-            <Link
-              href="/savings"
-              className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-            >
-              See exactly what it can replace
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Reveal>
-        </div>
-      </section>
-
-      <section className="border-b border-border/60 bg-background">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <Reveal className="mx-auto max-w-3xl text-center">
-            <h2 className="text-2xl font-extrabold tracking-tight">
-              Every feature supports the same proof chain
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Buyers should not have to guess how a feature turns into survey
-              evidence. CareMetric CareBase organizes each module around a simple
-              chain: define the requirement, route the work, and preserve the
-              proof.
-            </p>
-          </Reveal>
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
-            {PROOF_CHAIN.map((item, i) => (
-              <Reveal key={item.title} delay={i * 0.06}>
-                <Card className="h-full border-border/60 p-6 shadow-sm">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 ring-8 ring-primary/[0.03]">
-                    <item.icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <h3 className="mt-5 text-base font-semibold">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    {item.description}
-                  </p>
-                </Card>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="border-b border-border/60 bg-muted/30">
-        <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
-          <Reveal className="text-center">
-            <h2 className="text-2xl font-extrabold tracking-tight">
-              Find the workflow you need to replace
-            </h2>
-            <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Search by task, record, role, or outcome—for example training,
-              incidents, scheduling, assessments, evidence rooms, or QAPI.
-            </p>
-          </Reveal>
-          <div className="relative mx-auto mt-7 max-w-2xl">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search all CareBase capabilities"
-              aria-label="Search CareBase capabilities"
-              className="h-12 bg-card pl-11 pr-12 shadow-sm"
-            />
-            {query && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => setQuery("")}
-                aria-label="Clear feature search"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-          <p className="mt-3 text-center text-xs text-muted-foreground" aria-live="polite">
-            {normalizedQuery
-              ? `${visibleFeatureCount} matching ${visibleFeatureCount === 1 ? "capability" : "capabilities"}`
-              : `${visibleFeatureCount} capabilities across ${filteredCategories.length} connected domains`}
+      <section
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background: "linear-gradient(135deg, #071626 0%, #0d2742 55%, #143a5c 100%)",
+          color: "#ffffff",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage:
+              "repeating-linear-gradient(to bottom, transparent, transparent 31px, rgba(255,255,255,0.05) 32px), repeating-linear-gradient(to right, transparent, transparent 31px, rgba(255,255,255,0.05) 32px)",
+          }}
+        />
+        <div
+          style={{
+            position: "relative",
+            maxWidth: "860px",
+            margin: "0 auto",
+            padding: "56px 24px",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            gap: "14px",
+            alignItems: "center",
+          }}
+        >
+          <h1
+            style={{
+              margin: 0,
+              fontSize: "42px",
+              fontWeight: 700,
+              letterSpacing: "-0.015em",
+              lineHeight: 1.1,
+              textWrap: "balance",
+            }}
+          >
+            Everything CareBase does, in one place
+          </h1>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "16px",
+              color: "rgba(255,255,255,0.85)",
+              maxWidth: "56ch",
+              textWrap: "pretty",
+            }}
+          >
+            The complete capability index and the six roles that use it. Every plan includes all of it — no modules, no upsells, unlimited staff and residents.
           </p>
         </div>
       </section>
 
-      {/* Jump nav -- the feature set spans multiple categories, so let visitors skip to what matters to them. */}
-      <nav
-        aria-label="Feature categories"
-        className="border-b border-border/60 bg-background"
-      >
-        <div className="mx-auto max-w-7xl overflow-x-auto px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex w-max gap-2 sm:w-auto sm:flex-wrap">
-            {filteredCategories.map((cat) => (
-              <a
-                key={cat.id}
-                href={`#${cat.id}`}
-                className="whitespace-nowrap rounded-full border border-border/60 bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+      <section style={{ background: "#071626", color: "#ffffff" }}>
+        <div style={{ position: "relative", overflow: "hidden" }}>
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              backgroundImage:
+                "repeating-linear-gradient(to bottom, transparent, transparent 31px, rgba(255,255,255,0.05) 32px), repeating-linear-gradient(to right, transparent, transparent 31px, rgba(255,255,255,0.05) 32px)",
+            }}
+          />
+          <div style={{ position: "relative", maxWidth: "1160px", margin: "0 auto", padding: "72px 24px" }}>
+            <div style={{ maxWidth: "640px", display: "flex", flexDirection: "column", gap: "10px" }}>
+              <span
+                style={{
+                  fontFamily: "ui-monospace, monospace",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  color: "#8ec8ff",
+                }}
               >
-                {cat.category}
-              </a>
+                The resident lifecycle
+              </span>
+              <h2 style={{ margin: 0, fontSize: "32px", fontWeight: 700, letterSpacing: "-0.01em", textWrap: "balance" }}>
+                Every resident, managed from inquiry to move-out
+              </h2>
+              <p style={{ margin: 0, color: "rgba(255,255,255,0.82)", fontSize: "15px" }}>
+                Staff compliance is half the job. The other half — assessments, support plans, daily services — is where surveyors spend their afternoon. Same record, same clocks.
+              </p>
+            </div>
+            <div
+              style={{
+                marginTop: "32px",
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))",
+                gap: "14px",
+              }}
+            >
+              {residentLifecycle.map((item) => (
+                <div
+                  key={item.label}
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.14)",
+                    background: "rgba(255,255,255,0.06)",
+                    borderRadius: "12px",
+                    padding: "20px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                  }}
+                >
+                  <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "11px", letterSpacing: "0.1em", color: "#8ec8ff" }}>
+                    {item.label}
+                  </div>
+                  <p style={{ margin: 0, fontSize: "13.5px", lineHeight: 1.55, color: "rgba(255,255,255,0.82)" }}>{item.text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section style={{ background: "#f6f8fa", borderBottom: "1px solid #e5eaf0" }}>
+        <div style={{ maxWidth: "1160px", margin: "0 auto", padding: "72px 24px" }}>
+          <div style={{ textAlign: "center", maxWidth: "620px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "10px" }}>
+            <span
+              style={{
+                fontFamily: "ui-monospace, monospace",
+                fontSize: "11px",
+                fontWeight: 700,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: "#1b6fc2",
+              }}
+            >
+              Everything included
+            </span>
+            <h2 style={{ margin: 0, fontSize: "32px", fontWeight: 700, letterSpacing: "-0.01em", color: "#0d2742" }}>
+              50+ capabilities. One price. No module upsells.
+            </h2>
+            <p style={{ margin: 0, color: "#44566b", fontSize: "15px" }}>Every plan ships the complete platform — this is the full index.</p>
+          </div>
+          <div
+            style={{
+              marginTop: "36px",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+              gap: "14px",
+              alignItems: "start",
+            }}
+          >
+            {capabilityGroups.map((group) => (
+              <div
+                key={group.title}
+                style={{
+                  background: "#ffffff",
+                  border: "1px solid #dfe6ee",
+                  borderRadius: "12px",
+                  padding: "20px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                }}
+              >
+                <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.1em", color: "#5d7084" }}>
+                  {group.title}
+                </div>
+                <div style={{ fontSize: "13px", color: "#33465c", display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {group.items.map((item) => (
+                    <span key={item}>{item}</span>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </div>
-      </nav>
-
-      {filteredCategories.length === 0 && (
-        <section className="mx-auto max-w-3xl px-4 py-20 text-center sm:px-6 lg:px-8">
-          <Reveal>
-            <h2 className="text-xl font-bold">No matching capability found</h2>
-            <p className="mt-3 text-sm text-muted-foreground">
-              Try a broader term, or clear the search to explore every workflow.
-            </p>
-            <Button type="button" variant="outline" onClick={() => setQuery("")} className="mt-6">
-              Clear search
-            </Button>
-          </Reveal>
-        </section>
-      )}
-
-      {filteredCategories.map((cat, catIndex) => (
-        <section
-          key={cat.id}
-          id={cat.id}
-          className={`mx-auto max-w-7xl scroll-mt-16 px-4 py-16 sm:px-6 lg:px-8 ${
-            catIndex < filteredCategories.length - 1
-              ? "border-b border-border/60"
-              : ""
-          }`}
-        >
-          <Reveal className="max-w-2xl">
-            <h2 className="text-2xl font-extrabold tracking-tight">
-              {cat.category}
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              {cat.blurb}
-            </p>
-          </Reveal>
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {cat.items.map((feature, i) => (
-              <Reveal key={feature.title} delay={(i % 3) * 0.05}>
-                <Card className="group h-full overflow-hidden border-border/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
-                  <CardHeader>
-                    <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 ring-8 ring-primary/[0.03]">
-                      <feature.icon className="h-5 w-5 text-primary" />
-                    </div>
-                    <CardTitle className="text-base">{feature.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-sm leading-6 text-muted-foreground">
-                      {feature.description}
-                    </p>
-                  </CardContent>
-                </Card>
-              </Reveal>
-            ))}
-          </div>
-        </section>
-      ))}
-
-      <section className="mx-auto max-w-7xl px-4 pb-16 pt-4 text-center sm:px-6 lg:px-8">
-        <Reveal className="flex flex-wrap items-center justify-center gap-6">
-          <Link
-            href="/how-it-works"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-          >
-            See the workflow
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-          <Link
-            href="/savings"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-          >
-            Model value and savings
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </Reveal>
       </section>
 
-      <CtaBanner />
+      <section style={{ background: "#ffffff", borderBottom: "1px solid #e5eaf0" }}>
+        <div style={{ maxWidth: "1160px", margin: "0 auto", padding: "72px 24px" }}>
+          <div style={{ textAlign: "center", maxWidth: "620px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "10px" }}>
+            <span
+              style={{
+                fontFamily: "ui-monospace, monospace",
+                fontSize: "11px",
+                fontWeight: 700,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: "#1b6fc2",
+              }}
+            >
+              Built for every role
+            </span>
+            <h2 style={{ margin: 0, fontSize: "32px", fontWeight: 700, letterSpacing: "-0.01em", color: "#0d2742" }}>
+              Six roles, each scoped to exactly their job
+            </h2>
+            <p style={{ margin: 0, color: "#44566b", fontSize: "15px" }}>Access is enforced by database policy — not just hidden menus.</p>
+          </div>
+          <div style={{ marginTop: "36px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "14px" }}>
+            {roleCards.map((card) => (
+              <div
+                key={card.role}
+                style={{
+                  background: "#ffffff",
+                  border: "1px solid #dfe6ee",
+                  borderRadius: "12px",
+                  padding: "20px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: "15px", color: "#0d2742" }}>{card.role}</div>
+                <div style={{ fontSize: "13px", color: "#44566b" }}>
+                  <strong style={{ color: "#33465c" }}>Sees:</strong> {card.sees}
+                </div>
+                <div style={{ fontSize: "13px", color: "#44566b" }}>
+                  <strong style={{ color: "#33465c" }}>Does:</strong> {card.does}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section style={{ background: "#071626", color: "#ffffff" }}>
+        <div
+          style={{
+            maxWidth: "860px",
+            margin: "0 auto",
+            padding: "56px 24px",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            gap: "14px",
+            alignItems: "center",
+          }}
+        >
+          <h2 style={{ margin: 0, fontSize: "28px", fontWeight: 700, letterSpacing: "-0.01em" }}>Every capability, from day one of the trial</h2>
+          <p style={{ margin: 0, fontSize: "15px", color: "rgba(255,255,255,0.82)", maxWidth: "52ch" }}>
+            Import your roster and see your own facility's compliance picture this week.
+          </p>
+          <div style={{ display: "flex", gap: "12px", marginTop: "6px", flexWrap: "wrap", justifyContent: "center" }}>
+            <a
+              href="/#pricing"
+              className="hover:bg-[#dcebfa] hover:no-underline"
+              style={{ background: "#ffffff", color: "#0d2742", fontWeight: 700, fontSize: "14.5px", padding: "12px 20px", borderRadius: "9px", textDecoration: "none" }}
+            >
+              Start a free trial
+            </a>
+            <Link
+              href="/faq"
+              className="hover:bg-[rgba(255,255,255,0.12)] hover:no-underline"
+              style={{
+                border: "1px solid rgba(255,255,255,0.3)",
+                color: "#ffffff",
+                fontWeight: 700,
+                fontSize: "14.5px",
+                padding: "12px 20px",
+                borderRadius: "9px",
+                textDecoration: "none",
+              }}
+            >
+              Questions? Read the FAQ
+            </Link>
+          </div>
+        </div>
+      </section>
     </MarketingLayout>
   );
 }
