@@ -38,7 +38,7 @@ import fs from "node:fs/promises";
 
 const HEYGEN_BASE = "https://api.heygen.com";
 const POLL_INTERVAL_MS = 10_000;
-const POLL_TIMEOUT_MS = 15 * 60_000; // 15 minutes
+const POLL_TIMEOUT_MS = 30 * 60_000; // 30 minutes
 
 // Narration -- keep in sync with docs/marketing/landing-video-script.md (the human
 // reference). Grounded verbatim in the shipped marketing copy (src/pages/Landing.tsx).
@@ -46,7 +46,7 @@ const NARRATION = [
   "Running a Pennsylvania personal care home or assisted living facility means one thing is always true: the state will show up. And when the surveyor walks in, the work isn't the problem — finding the proof is.",
   "Meet CareMetric CareBase — one system that proves your facility is doing its job.",
   "CareBase tracks every training hour, credential, clearance, resident assessment, incident, and inspection your license requires. It assigns the work to the right person, before it's late. And it turns that proof into a binder you can hand straight to the surveyor.",
-  "Pass your next survey — every Chapter 2600 and 2800 requirement has its own due date, with evidence saved as the work gets done.",
+  "Pass your next survey — every Chapter 2600 and 2800 requirement has its own due date, and the documentation is saved as the work gets done.",
   "Spend less on required training — course builder, AI-assisted lessons, and live class check-in are included, with no per-person fees.",
   "And get your evenings back, because compliance no longer lives in one person's head, or comes home in a bag of binders.",
   "Priced per facility, every module included, with a 30-day free trial — fully self-service, no phone call required.",
@@ -94,18 +94,39 @@ async function listOptions(apiKey) {
   );
 }
 
+// Background compositing: HeyGen's /v3/videos replaces the avatar's recorded
+// background when a `background` is supplied (works for photo/instant/video
+// avatars alike). Without this, a custom avatar filmed at home keeps that room.
+// Default to a clean, on-brand studio color; override with an office image via
+// HEYGEN_BACKGROUND_IMAGE_URL (a public HTTPS URL) or a different HEYGEN_BACKGROUND_COLOR.
+function resolveBackground() {
+  // For photo-avatar "looks" that already have a professional scene baked in,
+  // set HEYGEN_NO_BACKGROUND=1 to keep that scene instead of compositing.
+  if (process.env.HEYGEN_NO_BACKGROUND === "1") return null;
+  const imageUrl = process.env.HEYGEN_BACKGROUND_IMAGE_URL?.trim();
+  if (imageUrl) return { type: "image", url: imageUrl };
+  const color = process.env.HEYGEN_BACKGROUND_COLOR?.trim() || "#143a5c";
+  return { type: "color", value: color };
+}
+
 async function startGeneration(apiKey, avatarId, voiceId) {
   console.log("⚠  This request spends HeyGen credits.");
+  const background = resolveBackground();
+  console.log(`▸ Background: ${background ? (background.type === "image" ? background.url : background.value) : "(keep avatar look's own scene)"}`);
+  const payload = {
+    type: "avatar",
+    avatar_id: avatarId,
+    voice_id: voiceId,
+    script: NARRATION,
+    title: VIDEO_TITLE,
+    aspect_ratio: "16:9",
+    resolution: "720p",
+  };
+  if (background) payload.background = background;
   const res = await fetch(`${HEYGEN_BASE}/v3/videos`, {
     method: "POST",
     headers: heygenHeaders(apiKey, { "Content-Type": "application/json" }),
-    body: JSON.stringify({
-      type: "avatar",
-      avatar_id: avatarId,
-      voice_id: voiceId,
-      script: NARRATION,
-      title: VIDEO_TITLE,
-    }),
+    body: JSON.stringify(payload),
   });
   const body = await heygenJson(res);
   const videoId = body?.data?.video_id;

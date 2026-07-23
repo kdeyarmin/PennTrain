@@ -7,11 +7,18 @@ never touches the `course_blocks` pipeline.
 
 - **Generation script:** `scripts/heygen/generate-landing-video.mjs`
 - **Embed component:** `src/components/marketing/HeroOverviewVideo.tsx`
-- **Enablement:** `VITE_LANDING_VIDEO_URL` (see `.env.example`)
+- **Committed assets:** `public/marketing/landing-overview.mp4` + `landing-overview-poster.jpg`
 - **Captions:** `public/marketing/landing-overview.vtt`
+- **Override (optional):** `VITE_LANDING_VIDEO_URL` (see `.env.example`)
 
-Until a video is generated and `VITE_LANDING_VIDEO_URL` is set, the hero shows its
-animated dashboard mockup and the play affordance stays hidden.
+The video + poster ship as committed assets, so the modal is **on by default** —
+no build-time env var or Railway change is needed for it to reach production.
+`VITE_LANDING_VIDEO_URL` is only an optional override to serve the media from a
+CDN / public bucket instead of the app's own origin.
+
+The current video was generated with the account's **"Kevin Deyarmin"** custom
+avatar (`avatar_id 179306b552d544f49100741c4a8c0f2b`). To regenerate with it, pass
+that id as `HEYGEN_AVATAR_ID`.
 
 ## Narration (~90 seconds, ~210 words)
 
@@ -27,7 +34,7 @@ animated dashboard mockup and the play affordance stays hidden.
 > straight to the surveyor.
 >
 > Pass your next survey — every Chapter 2600 and 2800 requirement has its own due
-> date, with evidence saved as the work gets done.
+> date, and the documentation is saved as the work gets done.
 >
 > Spend less on required training — course builder, AI-assisted lessons, and live
 > class check-in are included, with no per-person fees.
