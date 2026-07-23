@@ -310,7 +310,7 @@ export default function HowItWorks() {
                   variant="secondary"
                   className="self-start rounded-lg bg-white px-4 py-2 text-[13.5px] font-bold text-[#0d2742] hover:bg-[#dcebfa]"
                 >
-                  <Link href="/request-demo">Become a founding partner</Link>
+                  <Link href="/signup">Become a founding partner</Link>
                 </Button>
               </Reveal>
             </div>

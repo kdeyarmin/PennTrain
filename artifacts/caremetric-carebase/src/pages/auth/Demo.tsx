@@ -165,7 +165,7 @@ export default function Demo() {
                 </Link>
               </p>
               <Button asChild variant="ghost" size="sm">
-                <Link href="/request-demo">Request a dedicated demo</Link>
+                <Link href="/signup">Start your own free trial</Link>
               </Button>
             </div>
           </CardContent>

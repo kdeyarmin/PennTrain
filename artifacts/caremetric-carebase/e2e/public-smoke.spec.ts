@@ -22,10 +22,14 @@ test.describe("public release smoke journeys", () => {
     expect(results.violations).toEqual([]);
   });
 
-  test("request-demo route renders a usable lead form", async ({ page }) => {
-    await page.goto("/request-demo");
+  test("demo route offers the self-serve sandbox with a trial fallback", async ({ page }) => {
+    await page.goto("/demo");
 
+    // Self-serve sandbox — no lead form. Assert on elements that don't depend on
+    // VITE_DEMO_ACCOUNTS_JSON (the role picker is empty when it's unset).
     await expect(page.getByRole("heading", { level: 1 })).toContainText(/demo/i);
-    await expect(page.getByRole("button", { name: /request|submit|send/i })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: /free trial/i }).first(),
+    ).toHaveAttribute("href", "/signup");
   });
 });

@@ -73,7 +73,7 @@ export function MarketingAIBot() {
         "I can pitch the platform, handle objections, explain ROI, compare against an LMS, or help you prepare for a demo.",
       ],
       closer: "Start with one question, choose a buying context, or tap a sales prompt below.",
-      cta: { label: "Request a demo", href: "/request-demo" },
+      cta: { label: "Start your free trial", href: "/signup" },
     },
   ]);
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -276,7 +276,7 @@ export function MarketingAIBot() {
           <div className="border-t border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
             <span className="font-semibold text-foreground">Next best action:</span> {currentLeadStage.detail}.
             <Button asChild variant="link" size="sm" className="ml-1 h-auto p-0 text-xs">
-              <Link href="/request-demo">Turn this into a demo agenda</Link>
+              <Link href="/signup">Start your free trial</Link>
             </Button>
             <Button asChild variant="link" size="sm" className="ml-2 h-auto p-0 text-xs">
               <a href={demoMailtoHref}>Email sales context</a>

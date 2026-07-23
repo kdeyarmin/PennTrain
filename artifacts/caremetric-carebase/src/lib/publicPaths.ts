@@ -30,6 +30,9 @@ export const MARKETING_EXTRA_PATHS = [
   // Retired page from the previous marketing site; kept public so old
   // bookmarks still resolve (App.tsx redirects it to /features).
   "/who-its-for",
+  // Retired lead-capture form; kept public so old bookmarks still resolve
+  // (App.tsx redirects it to /demo).
+  "/request-demo",
 ] as const;
 
 const MARKETING_PATHS: readonly string[] = [
@@ -63,7 +66,6 @@ export function isPublicPath(path: string): boolean {
     p === "/" ||
     p === "/login" ||
     p === "/demo" ||
-    p === "/request-demo" ||
     p === "/signup" ||
     p === "/forgot-password" ||
     p === "/reset-password" ||

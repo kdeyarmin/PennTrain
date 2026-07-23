@@ -74,7 +74,7 @@ const BOT_INTENTS: BotIntent[] = [
     ],
     closer:
       "If that sounds like the operating discipline you want, the best move is to book a demo and bring one real compliance headache for us to map live.",
-    cta: { label: "Book the sales demo", href: "/request-demo" },
+    cta: { label: "Start your free trial", href: "/signup" },
   },
   {
     id: "pain",
@@ -88,7 +88,7 @@ const BOT_INTENTS: BotIntent[] = [
     ],
     closer:
       "The easiest way to evaluate fit is to compare one current spreadsheet or binder process against the CareBase workflow in a guided walkthrough.",
-    cta: { label: "Map my workflow", href: "/request-demo" },
+    cta: { label: "Explore the live demo", href: "/demo" },
   },
   {
     id: "role",
@@ -102,7 +102,7 @@ const BOT_INTENTS: BotIntent[] = [
     ],
     closer:
       "The strongest demo should be role-based: show each stakeholder the one screen or workflow that makes their job measurably easier.",
-    cta: { label: "Build my demo agenda", href: "/request-demo" },
+    cta: { label: "Explore the live demo", href: "/demo" },
   },
   {
     id: "survey",
@@ -186,7 +186,7 @@ const BOT_INTENTS: BotIntent[] = [
     ],
     closer:
       "The sales next step is a rollout plan that names the first facility, first workflow, success metric, and go-live path.",
-    cta: { label: "Plan my rollout", href: "/request-demo" },
+    cta: { label: "Start your free trial", href: "/signup" },
   },
   {
     id: "multisite",
@@ -200,7 +200,7 @@ const BOT_INTENTS: BotIntent[] = [
     ],
     closer:
       "In a demo, bring two facilities with different pain points so the team can see both local detail and enterprise rollup value.",
-    cta: { label: "Discuss multi-site fit", href: "/request-demo" },
+    cta: { label: "Start your free trial", href: "/signup" },
   },
   {
     id: "demo",
@@ -214,7 +214,7 @@ const BOT_INTENTS: BotIntent[] = [
     ],
     closer:
       "If you are serious about evaluating the platform, schedule the demo now while the pain is fresh.",
-    cta: { label: "Request a demo", href: "/request-demo" },
+    cta: { label: "Start your free trial", href: "/signup" },
   },
 ];
 
@@ -313,8 +313,8 @@ export const buildProspectEmail = (profile: LeadProfile): ProspectEmail => {
     "• AI-assisted course creation from your own source material, with review before publication.",
     "• Role-scoped views for leaders, managers, trainers, employees, and auditors.",
     "",
-    "Ready to see it with your workflow? Start a free trial or request a guided demo:",
-    "https://caremetric.ai/request-demo",
+    "Ready to see it with your workflow? Start a free trial — no call required:",
+    "https://cmcarebase.com/signup",
   ].join("\n");
   const html = `
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f8fc;padding:24px;font-family:Inter,Arial,sans-serif;color:#0f172a;">
@@ -342,7 +342,7 @@ export const buildProspectEmail = (profile: LeadProfile): ProspectEmail => {
               <div style="padding:12px 14px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;">AI-assisted course creation from your own source material, reviewed before publication.</div>
               <div style="padding:12px 14px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;">Role-scoped views for leaders, managers, trainers, employees, and auditors.</div>
             </div>
-            <a href="https://caremetric.ai/request-demo" style="display:inline-block;background:#2552b8;color:#ffffff;text-decoration:none;font-weight:800;border-radius:999px;padding:13px 18px;">Request a guided demo</a>
+            <a href="https://cmcarebase.com/signup" style="display:inline-block;background:#2552b8;color:#ffffff;text-decoration:none;font-weight:800;border-radius:999px;padding:13px 18px;">Start a free trial</a>
           </td>
         </tr>
       </table>
@@ -439,7 +439,7 @@ export function answerQuestion(question: string, profile: LeadProfile): Message 
         "For legal or facility-specific regulatory decisions, CareBase helps organize evidence but does not replace your regulator, counsel, or compliance advisor.",
       ],
       closer: "Want the strongest next step? Ask for a demo focused on your most painful compliance workflow.",
-      cta: { label: "Talk to sales", href: "/request-demo" },
+      cta: { label: "Start your free trial", href: "/signup" },
     },
     profile,
   );

@@ -11,14 +11,14 @@ import {
 } from "@/lib/marketingAIBotSales";
 
 describe("MarketingAIBot sales engine", () => {
-  it("answers pitch questions with a sales demo CTA", () => {
+  it("answers pitch questions with a self-serve trial CTA", () => {
     const response = answerQuestion("Sell me on CareBase in 30 seconds", {});
 
     expect(response.content).toContain("executive pitch");
     expect(response.bullets).toEqual(
       expect.arrayContaining([expect.stringContaining("more than training")]),
     );
-    expect(response.cta).toEqual({ label: "Book the sales demo", href: "/request-demo" });
+    expect(response.cta).toEqual({ label: "Start your free trial", href: "/signup" });
   });
 
   it("personalizes closers with captured lead context", () => {

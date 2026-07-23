@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import {
   ArrowRight,
@@ -301,7 +301,7 @@ const PLANS: Plan[] = [
       "Priority support",
     ],
     cta: "Talk to us",
-    href: "/request-demo",
+    href: "/signup",
   },
 ];
 
@@ -562,10 +562,34 @@ function StatusBadge({ tone, children }: { tone: string; children: ReactNode }) 
   return <span className={`self-start whitespace-nowrap rounded-full px-2.5 py-1 text-[11.5px] font-bold ${cls}`}>{children}</span>;
 }
 
+/**
+ * Animates the hero compliance badge from 0 to `target` on mount (cubic
+ * ease-out, matching the design prototype). Renders `target` during SSR /
+ * prerender and for visitors who prefer reduced motion, so the resting value
+ * is always correct without JS.
+ */
+function useHeroCountUp(target: number) {
+  const [value, setValue] = useState(target);
+  useEffect(() => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
+    let tick = 0;
+    setValue(0);
+    const id = window.setInterval(() => {
+      tick += 1;
+      const next = Math.min(target, Math.round(target * (1 - Math.pow(1 - tick / 45, 3))));
+      setValue(next);
+      if (next >= target) window.clearInterval(id);
+    }, 26);
+    return () => window.clearInterval(id);
+  }, [target]);
+  return value;
+}
+
 export default function Landing() {
   usePageMeta({ ...MARKETING_ROUTE_META["/"], path: "/" });
   const [domainIndex, setDomainIndex] = useState(0);
   const activeDomain = DOMAINS[domainIndex];
+  const heroScore = useHeroCountUp(94);
 
   return (
     <MarketingLayout>
@@ -593,12 +617,12 @@ export default function Landing() {
               <Button asChild size="lg" className="bg-white font-bold text-[#0d2742] hover:bg-[#dcebfa]" data-testid="button-hero-signup">
                 <Link href="/signup">Start a Free Trial</Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="border-white/30 bg-white/[0.06] font-bold text-white hover:bg-white/15">
-                <Link href="/how-it-works">See how it works</Link>
+              <Button asChild size="lg" variant="outline" className="border-white/30 bg-white/[0.06] font-bold text-white hover:bg-white/15" data-testid="button-hero-demo">
+                <Link href="/demo">Explore the live demo</Link>
               </Button>
             </Reveal>
             <Reveal delay={0.18}>
-              <p className="text-[13px] text-white/75">Fully self-service — signup to first binder without a phone call. {TRIAL_DAYS}-day free trial.</p>
+              <p className="text-[13px] text-white/75">Fully self-service — log into a sandbox or start your own {TRIAL_DAYS}-day trial, no phone call. <Link href="/how-it-works" className="font-semibold text-[#b9e4ff] hover:text-white hover:underline">See how it works →</Link></p>
             </Reveal>
           </div>
 
@@ -618,7 +642,7 @@ export default function Landing() {
                     <div className={`font-mono text-[10px] ${aaMutedText}`}>4 facilities · 186 employees · binder ready</div>
                   </div>
                 </div>
-                <span className="rounded-full bg-[#eaf6ec] px-2.5 py-1 font-mono text-[11px] font-bold text-[#1e7a35]">94% compliant</span>
+                <span className="rounded-full bg-[#eaf6ec] px-2.5 py-1 font-mono text-[11px] font-bold text-[#1e7a35]">{heroScore}% compliant</span>
               </div>
               <div className="space-y-3 px-[18px] py-4">
                 {HERO_ROWS.map((row) => (
@@ -844,6 +868,7 @@ export default function Landing() {
               <CheckLine>Optional: a roster CSV for bulk import</CheckLine>
             </div>
             <Button asChild size="lg" className="bg-[#1b6fc2] font-bold text-white hover:bg-[#14548f]"><Link href="/signup">Create your organization — free for {TRIAL_DAYS} days</Link></Button>
+            <Link href="/demo" className="text-center text-[13px] font-semibold text-[#1b6fc2] hover:underline" data-testid="link-start-demo">Prefer to look around first? Explore the live demo — no signup needed →</Link>
             <div className={`text-center text-xs ${aaMutedText}`}>Every module included · unlimited staff · cancel in-app, export everything · <Link href="/privacy" className="text-[#1b6fc2] hover:underline">Privacy</Link></div>
           </Reveal>
         </div>

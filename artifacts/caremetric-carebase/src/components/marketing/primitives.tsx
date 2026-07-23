@@ -99,8 +99,8 @@ export function PageHero({
         )}
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Button asChild size="lg" variant="secondary" className="gap-2">
-            <Link href="/request-demo">
-              Request a Demo
+            <Link href="/signup">
+              Start a free trial
               <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>

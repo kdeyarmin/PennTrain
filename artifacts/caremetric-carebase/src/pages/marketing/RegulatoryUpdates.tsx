@@ -6,7 +6,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { NewsletterSignup } from "@/components/marketing/NewsletterSignup";
-import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
 import { useRegulatoryUpdates } from "@/hooks/useRegulatoryUpdates";
@@ -303,8 +302,6 @@ export default function RegulatoryUpdates() {
           </Reveal>
         </div>
       </section>
-
-      <CtaBanner />
     </MarketingLayout>
   );
 }

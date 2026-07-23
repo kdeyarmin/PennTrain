@@ -22,7 +22,6 @@ const PaTrainingRequirements = lazy(() => import("@/pages/marketing/PaTrainingRe
 const RegulatoryUpdates = lazy(() => import("@/pages/marketing/RegulatoryUpdates"));
 const Privacy = lazy(() => import("@/pages/marketing/Privacy"));
 const Terms = lazy(() => import("@/pages/marketing/Terms"));
-const RequestDemo = lazy(() => import("@/pages/marketing/RequestDemo"));
 
 const Login = lazy(() => import("@/pages/auth/Login"));
 const Demo = lazy(() => import("@/pages/auth/Demo"));
@@ -402,6 +401,8 @@ function Router() {
       <Route path="/features" component={Features} />
       {/* Retired in the marketing redesign; old bookmarks land on Features. */}
       <Route path="/who-its-for">{() => <Redirect to="/features" />}</Route>
+      {/* Retired lead-capture form; old bookmarks/backlinks forward to /demo. */}
+      <Route path="/request-demo">{() => <Redirect to="/demo" />}</Route>
       <Route path="/security" component={Security} />
       <Route path="/how-it-works" component={HowItWorks} />
       <Route path="/savings" component={Savings} />
@@ -411,7 +412,6 @@ function Router() {
       <Route path="/about" component={About} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
-      <Route path="/request-demo" component={RequestDemo} />
 
       {/* Platform Admin routes */}
       <Route path="/admin">

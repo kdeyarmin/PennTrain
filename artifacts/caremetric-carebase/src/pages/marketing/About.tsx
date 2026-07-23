@@ -175,8 +175,8 @@ export default function About() {
             <a href="mailto:hello@caremetric.ai" className="text-[15px] font-bold text-[#1b6fc2] hover:text-[#0d2742] hover:underline">
               hello@caremetric.ai
             </a>
-            <Link href="/request-demo" className="text-sm text-[#1b6fc2] hover:text-[#0d2742] hover:underline">
-              or book a workflow-mapping demo →
+            <Link href="/signup" className="text-sm text-[#1b6fc2] hover:text-[#0d2742] hover:underline">
+              or start your trial and map your workflows →
             </Link>
           </Reveal>
         </div>
