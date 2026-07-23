@@ -2,10 +2,13 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import {
   ArrowRight,
+  Bot,
   Check,
   ClipboardCheck,
   GraduationCap,
+  LayoutDashboard,
   Pill,
+  Radar,
   ScanLine,
   type LucideIcon,
 } from "lucide-react";
@@ -194,6 +197,8 @@ const DOMAINS: Domain[] = [
     tags: [
       "One-click binder PDF",
       "Citation-weighted readiness score",
+      "Survey Day Mode workspace",
+      "Grounded compliance copilot",
       "Ch. 2600 / 2800 crosswalk",
       "Time-limited evidence rooms",
       "Immutable audit trail",
@@ -259,6 +264,42 @@ const DIFFERENTIATORS: Differentiator[] = [
       "A printable meeting notice with an embedded QR and a backup paper table covers anyone who can't scan; upload the completed sheet back into the class record.",
     ],
     footer: "Hours count the moment they sign in",
+  },
+];
+
+type NewFeature = {
+  icon: LucideIcon;
+  eyebrow: string;
+  title: string;
+  body: string;
+  href: string;
+  link: string;
+};
+
+const NEW_FEATURES: NewFeature[] = [
+  {
+    icon: Radar,
+    eyebrow: "Survey Day Mode",
+    title: "One screen for the moment the surveyor walks in",
+    body: "Switch the facility into Survey Day Mode and everything the entrance conference needs is pinned in one place: the checklist and its live readiness, your most recent compliance binder, a searchable roster of who's on shift with their training and clearance flags, and the evidence rooms you've prepared. It doesn't build a second binder or expose anything new — it puts the proof you already have one click away while someone is standing at your desk. Starting and closing it are logged as audit events.",
+    href: "/features#survey-readiness",
+    link: "See everything it pins →",
+  },
+  {
+    icon: Bot,
+    eyebrow: "Compliance Copilot",
+    title: "Ask a plain question, get a cited answer from your own records",
+    body: "\"Why is this aide blocked from the schedule?\" \"What's due in the next 30 days?\" \"Which residents are missing a current medical evaluation?\" The copilot answers from your facility's own recorded data and shows the exact evidence and regulation behind every answer. It's read-only and human confirmation stays mandatory — it can draft a Plan of Correction or a mock-survey request, but a draft is only a recommendation until a person approves it, and it never invents a citation or closes a finding on its own.",
+    href: "/features#ai-course-creation",
+    link: "How it stays grounded →",
+  },
+  {
+    icon: LayoutDashboard,
+    eyebrow: "Today",
+    title: "The one screen your team opens every morning",
+    body: "Today is the daily home for the whole operation — every task, assessment, drill, and expiring credential that's due, across one facility or your entire portfolio, with overdue work called out first. It counts the real backlog, not a capped preview, so \"what needs doing today\" stops living in one person's memory.",
+    href: "/how-it-works",
+    link: "See a week in the life →",
   },
 ];
 
@@ -789,6 +830,30 @@ export default function Landing() {
                 <h3 className="text-xl font-bold text-[#0d2742]">{item.title}</h3>
                 {item.body.map((paragraph) => <p key={paragraph} className="text-sm text-[#44566b]">{paragraph}</p>)}
                 <div className="mt-auto border-t border-[#eef2f6] pt-3 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-[#1b6fc2]">{item.footer}</div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="whats-new" className="scroll-mt-[72px] border-b border-[#e5eaf0] bg-[#f6f8fa]">
+        <div className="mx-auto max-w-[1160px] px-6 py-[72px]">
+          <Reveal className="max-w-[680px]">
+            <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#1b6fc2]">Newest in CareBase</p>
+            <h2 className="mt-2.5 text-balance text-[32px] font-bold leading-tight tracking-[-0.01em] text-[#0d2742]">The three additions that change the day the most</h2>
+            <p className="mt-3 text-[#44566b]">The platform keeps growing, but these are the ones worth stopping on: a focused workspace for the moment a surveyor arrives, an AI copilot grounded in your own records, and one daily home for everything that's due.</p>
+          </Reveal>
+          <div className="mt-8 grid gap-4 lg:grid-cols-3">
+            {NEW_FEATURES.map((item, i) => (
+              <Reveal key={item.title} delay={i * 0.06} className={`${cardClass} flex flex-col gap-3`}>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#dcebfa] text-[#1b6fc2]"><item.icon className="h-5 w-5" /></div>
+                  <span className="rounded-full bg-[#eaf6ec] px-2.5 py-1 font-mono text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#1e7a35]">New</span>
+                </div>
+                <div className="font-mono text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#1b6fc2]">{item.eyebrow}</div>
+                <h3 className="text-xl font-bold text-[#0d2742]">{item.title}</h3>
+                <p className="text-sm text-[#44566b]">{item.body}</p>
+                <Link href={item.href} className="mt-auto text-[13.5px] font-bold text-[#1b6fc2] hover:text-[#0d2742] hover:underline">{item.link}</Link>
               </Reveal>
             ))}
           </div>
