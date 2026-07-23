@@ -17,6 +17,7 @@ import {
   Pill,
   Printer,
   Scale,
+  ShieldCheck,
   Stethoscope,
   UtensilsCrossed,
 } from "lucide-react";
@@ -59,6 +60,8 @@ type Citation = {
   requires: string;
   why: string;
   avoid: string;
+  /** How CareMetric CareBase closes this specific gap. */
+  carebase: string;
 };
 
 const TOP_15: Citation[] = [
@@ -75,6 +78,8 @@ const TOP_15: Citation[] = [
       "The single most-cited regulation in Pennsylvania. Surveyors find blank boxes on the MAR (a dose with no initial can't be proven given), doses initialed at the wrong time, PRN medications with no reason or effect documented, discontinued drugs still listed, or a MAR that doesn't match the current physician order. The care may have happened -- but if it isn't documented correctly, the regulation treats it as not done.",
     avoid:
       "Reconcile the MAR against current orders every cycle, require real-time initialing (not end-of-shift catch-up), and audit a sample of MARs weekly for blanks before the surveyor does.",
+    carebase:
+      "CareBase's medication-event integration surfaces missing and exception medication records, and the compliance reporting center flags MAR gaps before a surveyor ever opens the binder — while credential tracking confirms only currently-certified staff are administering.",
   },
   {
     rank: 2,
@@ -89,6 +94,8 @@ const TOP_15: Citation[] = [
       "Cited when a personnel file can't prove the hours: annual training completed late or short of the minimum, orientation missing or undated, no record of the topics covered, or dementia-specific hours absent for staff on a secured or special-care unit. Surveyors count documented hours -- an untracked in-service didn't happen.",
     avoid:
       "Track hours per employee against their hire-date anniversary, tie completion to signed rosters that name the subject and duration, and flag anyone approaching their window before it closes.",
+    carebase:
+      "Role-based training plans assign the exact required hours by role and setting, track every employee against their own hire-date anniversary, and warn managers before a window closes — the compliance reporting center shows the whole roster's status at a glance.",
   },
   {
     rank: 3,
@@ -103,6 +110,8 @@ const TOP_15: Citation[] = [
       "One of the easiest citations to earn on paper. Drills bunched on the day shift, months with no drill, evacuation times over the standard with no corrective note, or drill logs missing the required fields. An unannounced overnight drill is frequently the one facilities skip -- and the one surveyors look for.",
     avoid:
       "Schedule drills across every shift and month in advance, rotate the simulated exit, and record evacuation time plus a corrective note every single time -- even when the drill goes well.",
+    carebase:
+      "The fire-drill & life-safety log captures date, time, shift, and evacuation time for every drill and flags a missed month or a shift you haven't drilled — so the bunched-up, day-shift-only pattern surveyors look for never forms.",
   },
   {
     rank: 4,
@@ -117,6 +126,8 @@ const TOP_15: Citation[] = [
       "Surveyors open the med cart and the fridge. Common findings: an unlocked cart or med room, expired medications still in stock, a discharged resident's drugs never destroyed, controlled substances not double-locked, or a refrigerator with no temperature log. Destruction with no witnessed, dated record is cited even when the drugs are gone.",
     avoid:
       "Log refrigerator temperatures daily, pull expired and discontinued stock on a set schedule, keep a second lock on controlled substances, and document every destruction with a witness and date.",
+    carebase:
+      "CareBase turns temperature checks, expiration pulls, and witnessed destruction into tracked recurring tasks, then files the dated destruction evidence straight into the one-click compliance binder.",
   },
   {
     rank: 5,
@@ -131,6 +142,8 @@ const TOP_15: Citation[] = [
       "Cited when the daily reality doesn't match the rights on paper: mail or visits controlled without cause, a resident's funds handled without records or receipts, personal belongings restricted, privacy not maintained during care, or no signed acknowledgment that the resident was informed of their rights at admission.",
     avoid:
       "Get a dated rights acknowledgment at admission, keep clean personal-funds ledgers with receipts, and train staff that dignity, privacy, and access are operational rules, not slogans.",
+    carebase:
+      "Policy-attestation campaigns capture the signed rights acknowledgment at admission with ESIGN/UETA evidence, and resident financial operations keep an auditable personal-funds ledger — the two rights failures cited most.",
   },
   {
     rank: 6,
@@ -145,6 +158,8 @@ const TOP_15: Citation[] = [
       "Findings cluster around the gap between the menu and the plate: a posted menu the kitchen didn't follow with no substitution recorded, a physician-ordered therapeutic diet not actually served, meals short of nutritional requirements, or an overnight fast longer than allowed. Food storage, labeling, and dating problems land here too.",
     avoid:
       "Post the menu you actually serve, record every substitution and its nutritional equivalence, keep ordered diets visible to kitchen staff, and date-label stored food.",
+    carebase:
+      "Dietary & food-safety operations tie each resident's ordered therapeutic diet to the menu, log every substitution, and track meal timing — so the plate always matches the order and the fast between meals stays inside the limit.",
   },
   {
     rank: 7,
@@ -159,6 +174,8 @@ const TOP_15: Citation[] = [
       "The count doesn't add up, or there's no count at all. Surveyors ask to reconcile a Schedule II drug and find gaps, missing shift counts, a discrepancy never investigated, or destruction that no one witnessed. This is the accountability half of the medication rules -- separate from the storage citation, and often cited alongside it.",
     avoid:
       "Count controlled substances at every shift change with two signatures, reconcile against the MAR, and investigate and document any variance the same day.",
+    carebase:
+      "Medication-event integration keeps the controlled-substance trail intact and surfaces any unreconciled variance in the compliance reporting center — before a missing count becomes a citation.",
   },
   {
     rank: 8,
@@ -173,6 +190,8 @@ const TOP_15: Citation[] = [
       "A walk-through citation: evidence of insects or rodents, soiled bathrooms or common areas, kitchens out of sanitary condition, garbage not handled properly, or water at fixtures too hot (a scald risk) or too cold. These are visible on inspection day and hard to explain away after the fact.",
     avoid:
       "Run a documented cleaning schedule, keep a pest-control contract with service records, and check and log water temperatures at resident fixtures.",
+    carebase:
+      "This one's a walk-through finding CareBase can't scrub for you — but its maintenance module turns cleaning, pest control, and water-temperature checks into tracked recurring tasks with a dated record, so the routine is provable at survey.",
   },
   {
     rank: 9,
@@ -188,6 +207,8 @@ const TOP_15: Citation[] = [
       "Cited when the assessment is late, missing a domain, unsigned or undated, or never updated after a fall, hospitalization, or clear change in condition. Because the support plan is built from the assessment, a weak assessment usually drags a support-plan citation along with it.",
     avoid:
       "Calendar every resident's annual assessment from their admission date, trigger a reassessment on any change of condition, and confirm each one is complete and signed before it's filed.",
+    carebase:
+      "Digital RASP/ASP assessment prep schedules each annual from the admission date and auto-triggers a reassessment on any change of condition — and because the support plan is built from it, closing the assessment gap closes the support-plan citation that usually rides along.",
   },
   {
     rank: 10,
@@ -203,6 +224,8 @@ const TOP_15: Citation[] = [
       "The admission or annual physical is missing, incomplete, or done outside the allowed window; the TB screening isn't documented; or the examiner never signed the form. Surveyors also cite failure to arrange follow-up care a resident clearly needed.",
     avoid:
       "Make the initial medical evaluation and TB screening a hard gate on admission, track annual evaluations like any other renewal, and confirm the examiner signed before filing.",
+    carebase:
+      "CareBase gates the initial medical evaluation and TB screening at admission and tracks the annual like any other renewal — flagging a missing, expired, or unsigned exam long before the surveyor asks for it.",
   },
   {
     rank: 11,
@@ -218,6 +241,8 @@ const TOP_15: Citation[] = [
       "The plan is late, doesn't address a need the assessment flagged, isn't signed, or -- most consequentially -- isn't actually followed. When a resident's care doesn't match their own support plan, surveyors cite the gap. Reassessments that never flow into an updated plan are a frequent finding.",
     avoid:
       "Generate the plan from the assessment so nothing is dropped, get every required signature, and re-open the plan every time a reassessment changes the picture.",
+    carebase:
+      "Automatic support-plan triggers build the plan straight from the assessment so no flagged need is dropped, and re-open it the moment a reassessment changes the picture — keeping the plan and the resident's actual care in sync.",
   },
   {
     rank: 12,
@@ -233,6 +258,8 @@ const TOP_15: Citation[] = [
       "Occupancy above what the room's square footage allows, missing required furnishings, or rooms in poor repair. Chapter 2800 sets a higher bar for ALF living units, so assisted living earns this citation more often than personal care.",
     avoid:
       "Verify square footage against occupancy before assigning a room, keep required furnishings in place, and fold bedrooms into the routine maintenance and repair cycle.",
+    carebase:
+      "The living-unit standard still needs the building — but CareBase's facility and maintenance records document room condition and required furnishings and route repairs to closure, so the upkeep is provable at survey.",
   },
   {
     rank: 13,
@@ -248,6 +275,8 @@ const TOP_15: Citation[] = [
       "A resident keeps and takes their own medication with no assessment on file showing they can do it safely, or the capability was assessed once and never revisited as the resident declined. Part of the medication cluster that -- across records, storage, accountability, and self-administration -- drives more citations than any other subject in Pennsylvania.",
     avoid:
       "Document a self-administration capability assessment before allowing it, reassess on any change of condition, and address where and how self-administered medication is stored.",
+    carebase:
+      "CareBase's digital assessment captures each self-administration capability determination and re-triggers it on a change of condition, so no resident self-medicates without a current one on file.",
   },
   {
     rank: 14,
@@ -263,6 +292,8 @@ const TOP_15: Citation[] = [
       "In the 2022 report, not following the prescriber's directions when administering medication was the single most common finding statewide. Surveyors cite the wrong dose, time, or route; staff assisting with medications without the DHS-approved training and passing test score; and needed health services that were never arranged.",
     avoid:
       "Let only medication-trained, currently-certified staff assist with medications, hold them to the exact order, and build a clear path for arranging the outside health care residents need.",
+    carebase:
+      "The med-admin roster confirms only medication-trained, currently-certified staff are assisting with medications, and medication-event integration catches any administration that strays from the prescriber's order.",
   },
   {
     rank: 15,
@@ -278,6 +309,8 @@ const TOP_15: Citation[] = [
       "The 2022 report named late or missing reporting -- incidents not reported within 24 hours -- as a top-three finding. Surveyors cite reportable events that were never filed, filed late, or filed without the required follow-up and corrective action. Because BHSL receives tens of thousands of incident reports a year, gaps are easy to spot against the record.",
     avoid:
       "Give every shift a plain-language list of what's reportable and the deadline, log the report time against the event time, and document the corrective action that followed.",
+    carebase:
+      "Incident & complaint tracking starts the regulatory notification clock the instant an event is logged and counts down to the DHS deadline — closing the exact 24-hour reporting gap the 2022 report flagged, with the corrective-action trail attached.",
   },
 ];
 
@@ -436,6 +469,16 @@ function CitationCard({ item }: { item: Citation }) {
               Stay clear
             </h4>
             <p className="mt-1.5 text-[13px] leading-6 text-[#44566b]">{item.avoid}</p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-2.5 rounded-xl border border-[#cfe2f4] bg-[#eaf3fc] px-4 py-3">
+          <ShieldCheck className="mt-0.5 h-[18px] w-[18px] shrink-0 text-primary" />
+          <div>
+            <h4 className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.08em] text-primary">
+              How CareBase helps prevent it
+            </h4>
+            <p className="mt-1 text-[13px] leading-6 text-[#2c4a68]">{item.carebase}</p>
           </div>
         </div>
       </div>
@@ -597,7 +640,9 @@ export default function PaDhsCitations() {
             <p className="mt-1.5 max-w-[74ch] text-[14.5px] leading-6 text-[#44566b]">
               Ordered by the higher of the PCH or ALF citation rate in the 2025
               report. Each badge is the percent of that setting&apos;s 2025
-              inspections in which the section was cited.
+              inspections in which the section was cited — and each card ends
+              with how CareBase closes that specific gap before a surveyor finds
+              it.
             </p>
           </Reveal>
           <div className="mt-6 flex flex-col gap-3.5">
