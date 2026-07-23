@@ -15,6 +15,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-demo-provision-secret",
 };
@@ -22,18 +23,29 @@ const CORS_HEADERS = {
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: {
+      "Content-Type": "application/json",
+      // The success payload carries the demo password; keep every response out of shared/proxy
+      // and client caches.
+      "Cache-Control": "no-store",
+      ...CORS_HEADERS,
+    },
   });
 }
 
-// Constant-time comparison so a wrong provisioning secret can't be recovered by timing the response.
-function timingSafeEqual(a: string, b: string): boolean {
+// Constant-time secret comparison. Hashing both sides to a fixed 32-byte SHA-256 digest first means
+// the compare loop length never depends on the provided value, so neither the secret's contents nor
+// its length can be recovered by timing the response.
+async function secretsMatch(provided: string, expected: string): Promise<boolean> {
   const enc = new TextEncoder();
-  const ab = enc.encode(a);
-  const bb = enc.encode(b);
-  if (ab.length !== bb.length) return false;
+  const [providedHash, expectedHash] = await Promise.all([
+    crypto.subtle.digest("SHA-256", enc.encode(provided)),
+    crypto.subtle.digest("SHA-256", enc.encode(expected)),
+  ]);
+  const a = new Uint8Array(providedHash);
+  const b = new Uint8Array(expectedHash);
   let mismatch = 0;
-  for (let i = 0; i < ab.length; i++) mismatch |= ab[i] ^ bb[i];
+  for (let i = 0; i < a.length; i++) mismatch |= a[i] ^ b[i];
   return mismatch === 0;
 }
 
@@ -98,7 +110,7 @@ Deno.serve(async (req: Request) => {
     );
   }
   const provided = req.headers.get("x-demo-provision-secret") ?? "";
-  if (!timingSafeEqual(provided, provisionSecret)) {
+  if (!(await secretsMatch(provided, provisionSecret))) {
     return json({ error: "Unauthorized" }, 401);
   }
   if (password.length < 8) {

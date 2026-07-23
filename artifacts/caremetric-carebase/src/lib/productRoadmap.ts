@@ -48,7 +48,11 @@ export function groupChangelogByPeriod(
     .sort((a, b) => (a.key < b.key ? 1 : a.key > b.key ? -1 : 0))
     .map((group) => ({
       ...group,
-      entries: [...group.entries].sort((a, b) => (a.releasedAt < b.releasedAt ? 1 : a.releasedAt > b.releasedAt ? -1 : 0)),
+      // Sort by parsed timestamp, not lexicographically, so ordering is robust even if the
+      // timestamptz JSON encoding's format or timezone offset ever varies.
+      entries: [...group.entries].sort(
+        (a, b) => new Date(b.releasedAt).getTime() - new Date(a.releasedAt).getTime(),
+      ),
     }));
 }
 
@@ -58,8 +62,15 @@ export function changelogSummary(entries: readonly ProductChangelogEntry[]): {
   latestReleasedAt: string | null;
 } {
   let latest: string | null = null;
+  let latestTime = -Infinity;
   for (const entry of entries) {
-    if (latest === null || entry.releasedAt > latest) latest = entry.releasedAt;
+    // Compare parsed timestamps rather than raw strings so the "latest" pick doesn't depend on a
+    // stable lexicographic timestamptz format.
+    const time = new Date(entry.releasedAt).getTime();
+    if (!Number.isNaN(time) && time > latestTime) {
+      latestTime = time;
+      latest = entry.releasedAt;
+    }
   }
   return { total: entries.length, latestReleasedAt: latest };
 }
