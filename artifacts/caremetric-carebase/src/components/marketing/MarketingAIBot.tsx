@@ -182,7 +182,7 @@ export function MarketingAIBot() {
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <span className="rounded-full bg-background px-2 py-1 font-mono text-[10px] text-muted-foreground">
-                  {currentLeadScore}% fit
+                  {Math.min(currentLeadScore, 100)}% fit
                 </span>
                 {profileLabel ? (
                   <button
