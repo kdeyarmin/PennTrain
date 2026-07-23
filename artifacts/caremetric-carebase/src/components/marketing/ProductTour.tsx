@@ -35,7 +35,7 @@ const TOUR_SCENARIOS: TourScenario[] = [
     icon: ClipboardCheck,
     title: "A new hire becomes ready for the right facility and role",
     description:
-      "CareBase translates the employee's assignment into the training, credentials, screenings, competencies, and practicums that apply—then keeps each requirement on its own clock.",
+      "CareBase turns the employee's assignment into the training, credentials, screenings, competencies, and practicums that apply — then keeps each one on its own due date.",
     stages: [
       { label: "Trigger", detail: "Employee joins a facility in a defined role." },
       { label: "Route", detail: "Applicable plans, classes, documents, and reviews go to the responsible people." },
@@ -48,7 +48,7 @@ const TOUR_SCENARIOS: TourScenario[] = [
     id: "resident",
     label: "Resident change",
     icon: BriefcaseMedical,
-    title: "A hospital return becomes accountable follow-up",
+    title: "A hospital return becomes tracked follow-up",
     description:
       "A change-of-condition workflow connects the observation to notifications, reassessment, support-plan review, service changes, and the record of who completed each step.",
     stages: [
@@ -63,7 +63,7 @@ const TOUR_SCENARIOS: TourScenario[] = [
     id: "facility",
     label: "Facility issue",
     icon: Building2,
-    title: "A safety finding becomes verified closure",
+    title: "A safety issue gets fixed and verified",
     description:
       "An inspection item, complaint, or maintenance concern moves from immediate protective action through ownership, remediation, review, and evidence-backed closure.",
     stages: [
@@ -78,7 +78,7 @@ const TOUR_SCENARIOS: TourScenario[] = [
     id: "survey",
     label: "Survey request",
     icon: FileCheck2,
-    title: "A survey request becomes a controlled evidence response",
+    title: "A survey request becomes a controlled evidence package",
     description:
       "CareBase brings the underlying training, resident, incident, inspection, policy, and facility records into a binder or time-limited evidence room without opening the whole application.",
     stages: [
@@ -129,14 +129,14 @@ export function ProductTour() {
           <Reveal className="mx-auto max-w-3xl text-center">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1 text-xs font-semibold text-[#b9e4ff]">
               <ArrowRight className="h-3.5 w-3.5" />
-              Follow the record, not just the feature
+              Follow one record from start to finish
             </div>
             <h2 className="mt-4 text-balance text-3xl font-extrabold tracking-tight sm:text-4xl">
-              See how daily events become owned work and defensible proof
+              See how everyday events turn into assigned work and solid proof
             </h2>
             <p className="mt-4 text-white/68">
-              Choose a real facility scenario. Each one follows the same operating model:
-              capture the trigger, route the next action, keep risk visible, and preserve evidence.
+              Choose a real facility scenario. Each one works the same way:
+              something happens, the next step gets assigned, risks stay visible, and the proof is saved.
             </p>
           </Reveal>
 
@@ -195,7 +195,7 @@ export function ProductTour() {
                     <p className="mt-3 text-sm leading-6 text-white/66">{selected.description}</p>
                   </div>
                   <div className="shrink-0 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-semibold text-emerald-100">
-                    Closed-loop workflow
+                    Nothing slips through
                   </div>
                 </div>
 

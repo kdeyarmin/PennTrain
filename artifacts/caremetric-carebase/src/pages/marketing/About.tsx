@@ -8,7 +8,7 @@ import { usePageMeta } from "@/lib/usePageMeta";
 
 const STORY = [
   "Most personal care homes don't fail surveys because staff never learned the material. They struggle because the proof lives in paper sign-in sheets, old PDFs, email attachments, and a spreadsheet only one person understands. When the surveyor arrives, the work was done — but the evidence can't be found.",
-  "CareBase is our answer: one operational record where training, credentials, resident assessments, incidents, drills, maintenance, and scheduling all attach their own evidence as the work happens. The binder becomes an export, not a project.",
+  "CareBase is our answer: one operating record where training, credentials, resident assessments, incidents, drills, maintenance, and scheduling all attach their own proof as the work happens. Your binder becomes something you export, not a project you dread.",
   "We build it against the actual regulations — 55 Pa. Code Chapters 2600 and 2800 first — and we prove it in real Pennsylvania facilities every day. CareBase is part of the CareMetric family of care-operations products.",
 ] as const;
 
@@ -18,8 +18,8 @@ const PRINCIPLES = [
     text: "We name what CareBase doesn't replace — your eMAR, EHR, payroll, and accounting stay authoritative. No compliance guarantee, no universal ROI number.",
   },
   {
-    label: "02 — HUMANS GATE THE AI",
-    text: "AI drafts training content grounded in your own documents and flags gaps instead of inventing citations — and nothing publishes without a named reviewer's sign-off.",
+    label: "02 — A HUMAN CHECKS THE AI",
+    text: "AI drafts training content based on your own documents and points out gaps instead of inventing citations — and nothing goes live without a named reviewer's sign-off.",
   },
   {
     label: "03 — SECURITY AT THE DATABASE",
