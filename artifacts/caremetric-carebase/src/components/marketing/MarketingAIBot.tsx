@@ -9,7 +9,6 @@ import {
   MessageCircle,
   Minimize2,
   Send,
-  Sparkles,
   Target,
   TrendingUp,
   X,
@@ -31,15 +30,6 @@ import {
   type LeadProfile,
   type Message,
 } from "@/lib/marketingAIBotSales";
-
-const QUICK_PROMPTS = [
-  "Sell me on CareBase in 30 seconds",
-  "What problems do you solve for my facility?",
-  "Show me the ROI for replacing spreadsheets",
-  "Why should I buy this instead of a basic LMS?",
-  "How fast can we roll this out?",
-  "What would a demo prove to my team?",
-];
 
 const SALES_CARDS: { icon: LucideIcon; label: string; detail: string }[] = [
   {
@@ -68,20 +58,16 @@ export function MarketingAIBot() {
     {
       role: "assistant",
       content:
-        "Hi — I’m the CareBase AI sales guide. Tell me what you are trying to fix, and I’ll show how CareBase can reduce admin work, strengthen survey readiness, and prove value to your buying team.",
+        "Hi — I’m the CareBase customer service assistant. Tell me what you are trying to fix, and I’ll show how CareBase can reduce admin work, strengthen survey readiness, and prove value to your team.",
       bullets: [
-        "I can pitch the platform, handle objections, explain ROI, compare against an LMS, or help you prepare for a demo.",
+        "I can walk you through the platform, answer questions, explain ROI, compare against an LMS, or help you prepare for a demo.",
       ],
-      closer: "Start with one question, choose a buying context, or tap a sales prompt below.",
+      closer: "Start with one question, choose a context, or tap a prompt below.",
       cta: { label: "Start your free trial", href: "/signup" },
     },
   ]);
   const transcriptRef = useRef<HTMLDivElement>(null);
 
-  const smartPrompt = useMemo(
-    () => QUICK_PROMPTS[Math.floor(messages.length % QUICK_PROMPTS.length)],
-    [messages.length],
-  );
   const profileLabel = leadProfileSummary(leadProfile);
   const currentLeadScore = leadScore(leadProfile, messages.length);
   const currentLeadStage = leadStage(currentLeadScore);
@@ -115,20 +101,14 @@ export function MarketingAIBot() {
 
   if (!open) {
     return (
-      <aside className="fixed bottom-5 right-4 z-50 flex flex-col items-end gap-3 sm:right-6" aria-label="CareBase AI sales guide">
-        <div className="hidden max-w-xs rounded-2xl border border-primary/20 bg-background/95 p-3 text-sm shadow-2xl backdrop-blur sm:block">
-          <div className="flex items-center gap-2 font-semibold">
-            <Sparkles className="h-4 w-4 text-primary" /> Ask the CareBase sales guide
-          </div>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">{smartPrompt}</p>
-        </div>
+      <aside className="fixed bottom-5 right-4 z-50 flex flex-col items-end gap-3 sm:right-6" aria-label="CareBase customer service assistant">
         <Button
           size="lg"
           className="h-14 rounded-full px-5 shadow-2xl"
           onClick={() => setOpen(true)}
           data-testid="button-open-marketing-ai-bot"
         >
-          <MessageCircle className="mr-2 h-5 w-5" /> Ask Sales AI
+          <MessageCircle className="mr-2 h-5 w-5" /> Ask Customer Service
         </Button>
       </aside>
     );
@@ -137,7 +117,7 @@ export function MarketingAIBot() {
   return (
     <aside
       className="fixed inset-x-3 bottom-3 z-50 max-h-[calc(100dvh-1.5rem)] overflow-hidden rounded-3xl border border-border/70 bg-background shadow-2xl sm:inset-x-auto sm:right-6 sm:bottom-4 sm:w-[28rem] md:w-[30rem]"
-      aria-label="CareBase AI sales guide"
+      aria-label="CareBase customer service assistant"
     >
       <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-[#071626] to-[#2552b8] p-3 text-white sm:p-4">
         <div className="flex min-w-0 items-center gap-3">
@@ -145,8 +125,8 @@ export function MarketingAIBot() {
             <Bot className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <div className="truncate font-semibold">CareBase Sales AI</div>
-            <div className="truncate text-xs text-white/70">Consultative answers that move buyers to action</div>
+            <div className="truncate font-semibold">CareBase Customer Service AI</div>
+            <div className="truncate text-xs text-white/70">Answers to help you get the most from CareBase</div>
           </div>
         </div>
         <div className="flex gap-1">
@@ -155,7 +135,7 @@ export function MarketingAIBot() {
             size="icon"
             className="h-8 w-8 text-white hover:bg-white/10"
             onClick={() => setMinimized((value) => !value)}
-            aria-label="Minimize AI guide"
+            aria-label="Minimize customer service assistant"
           >
             <Minimize2 className="h-4 w-4" />
           </Button>
@@ -164,7 +144,7 @@ export function MarketingAIBot() {
             size="icon"
             className="h-8 w-8 text-white hover:bg-white/10"
             onClick={() => setOpen(false)}
-            aria-label="Close AI guide"
+            aria-label="Close customer service assistant"
           >
             <X className="h-4 w-4" />
           </Button>
@@ -177,7 +157,7 @@ export function MarketingAIBot() {
               <div className="min-w-0">
                 <div className="font-semibold text-primary">{currentLeadStage.label}</div>
                 <div className="truncate text-muted-foreground">
-                  {profileLabel ? `Sales context: ${profileLabel}` : currentLeadStage.detail}
+                  {profileLabel ? `Your context: ${profileLabel}` : currentLeadStage.detail}
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
@@ -279,25 +259,25 @@ export function MarketingAIBot() {
               <Link href="/signup">Start your free trial</Link>
             </Button>
             <Button asChild variant="link" size="sm" className="ml-2 h-auto p-0 text-xs">
-              <a href={demoMailtoHref}>Email sales context</a>
+              <a href={demoMailtoHref}>Email your context</a>
             </Button>
             <Button asChild variant="link" size="sm" className="ml-2 h-auto p-0 text-xs">
-              <a href={prospectEmail.mailtoHref}>Send prospect email</a>
+              <a href={prospectEmail.mailtoHref}>Email a summary</a>
             </Button>
           </div>
           <form onSubmit={submit} className="flex gap-2 border-t border-border/60 p-2 sm:p-3">
             <Input
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Ask sales AI about ROI, fit, demo, rollout..."
-              aria-label="Ask the CareBase AI sales guide"
+              placeholder="Ask customer service about ROI, fit, demo, rollout..."
+              aria-label="Ask the CareBase customer service assistant"
             />
             <Button type="submit" size="icon" aria-label="Send question">
               <Send className="h-4 w-4" />
             </Button>
           </form>
           <div className="flex items-start gap-2 bg-muted/30 px-3 py-2 text-[11px] leading-4 text-muted-foreground sm:px-4">
-            <FileCheck2 className="h-3.5 w-3.5" /> Sales guidance is informational; CareBase helps organize
+            <FileCheck2 className="h-3.5 w-3.5" /> This guidance is informational; CareBase helps organize
             evidence but does not replace your regulator, counsel, or compliance advisor.
           </div>
         </>
