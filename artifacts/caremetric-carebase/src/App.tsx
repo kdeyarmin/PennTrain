@@ -21,7 +21,6 @@ const About = lazy(() => import("@/pages/marketing/About"));
 const PaTrainingRequirements = lazy(() => import("@/pages/marketing/PaTrainingRequirements"));
 const Privacy = lazy(() => import("@/pages/marketing/Privacy"));
 const Terms = lazy(() => import("@/pages/marketing/Terms"));
-const RequestDemo = lazy(() => import("@/pages/marketing/RequestDemo"));
 
 const Login = lazy(() => import("@/pages/auth/Login"));
 const Demo = lazy(() => import("@/pages/auth/Demo"));
@@ -408,7 +407,6 @@ function Router() {
       <Route path="/about" component={About} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
-      <Route path="/request-demo" component={RequestDemo} />
 
       {/* Platform Admin routes */}
       <Route path="/admin">

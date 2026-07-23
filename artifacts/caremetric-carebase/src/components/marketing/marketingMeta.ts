@@ -72,11 +72,6 @@ export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
     description:
       "The terms that govern use of CareMetric CareBase, including accounts, subscriptions, data ownership, acceptable use, and compliance boundaries.",
   },
-  "/request-demo": {
-    title: "Request a Demo — CareMetric CareBase",
-    description:
-      "Tell us about your Pennsylvania personal care home or assisted living facility and we'll walk through how CareMetric CareBase fits your workflow.",
-  },
   "/demo": {
     title: "Live Demo — Explore CareMetric CareBase",
     description:

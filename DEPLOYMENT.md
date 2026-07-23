@@ -221,7 +221,7 @@ can see the whole workspace and lockfile.
 | `VITE_TURNSTILE_SITE_KEY` | yes | Cloudflare Turnstile site key for `/signup`. **Build-time**, same redeploy caveat as other `VITE_` values |
 | `VITE_CLIENT_ERROR_REPORTING_ENABLED` | no | Build-time switch for PHI-scrubbed client error events. Reporting is enabled by default in production; set `false` only during an incident |
 | `VITE_RELEASE_ID` | recommended | Build-time release identifier, normally `RAILWAY_GIT_COMMIT_SHA`, attached to client error events |
-| `VITE_DEMO_ACCOUNTS_JSON` | no | Optional JSON array for a deliberate demo environment. Leave unset in production unless public demo access is intentionally enabled |
+| `VITE_DEMO_ACCOUNTS_JSON` | no | Optional JSON array powering the self-serve sandbox at `/demo` (the "Live demo" links). Leave unset in production unless public demo access is intentionally enabled. See "Public demo sandbox" below |
 | `VITE_CAREMETRIC_MODULES` | no | Comma-separated build-time product allow-list. Leave unset for a universal build, use `train` for a standalone CareMetric Train deployment, or `carebase` for the full CareBase deployment (which includes Train). Runtime organization entitlements are still authoritative. |
 | `NODE_ENV` | no | Railpack already sets `production`; setting it yourself is harmless |
 | `PORT` | no | Railway injects this automatically; the server reads it |
@@ -234,6 +234,29 @@ for the `VITE_TURNSTILE_SITE_KEY` used by this service. A missing hostname autho
 produces client error `110200`, leaves signup and confidential intake disabled, and cannot be
 fixed by a Railway redeploy alone. Use a separate site key or explicitly authorized hostname
 for each staging environment.
+
+### Public demo sandbox (`/demo`)
+
+The marketing site links to a self-serve sandbox at `/demo` (header, footer, landing
+hero, and the `#start` card). A visitor picks a role and is signed straight into a demo
+tenant — no human contact. The role picker is populated **entirely** from
+`VITE_DEMO_ACCOUNTS_JSON` (a build-time `VITE_` value); when it is unset the page renders
+with no accounts, so the "Live demo" links are a dead end. Set it wherever you want the
+sandbox live.
+
+- **Shape:** a JSON array of `{ label, email, password, role, description? }`. `role` must be
+  one of `org_admin | facility_manager | trainer | employee | auditor`
+  (`src/lib/demoAccounts.ts` allow-lists these so a stray production credential can't leak in).
+- **Local dev:** `supabase/seed.sql` already creates matching auth users for every role (all
+  password `demo123`). Copy the ready-made `VITE_DEMO_ACCOUNTS_JSON` line from `.env.example`
+  into your `.env` and the sandbox works immediately.
+- **Hosted / prod:** never reuse the seed passwords. Create dedicated public-demo auth users
+  (synthetic credentials only) attached to the demo organization, then set
+  `VITE_DEMO_ACCOUNTS_JSON` to those. The demo tenant's sample data and its
+  reset-to-baseline routine live in
+  `supabase/migrations/20260717163659_demo_playground_seed_and_reset.sql`
+  (`app_private.seed_demo_organization` / `public.restore_demo_baseline`).
+- Because it is a `VITE_` value, changing it requires a **rebuild/redeploy**, not just a restart.
 
 ### Deployment asset continuity
 
