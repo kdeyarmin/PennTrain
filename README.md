@@ -1,147 +1,68 @@
-<p align="center">
-  <img src="artifacts/caremetric-carebase/public/logo.png" alt="CareMetric CareBase" width="360" />
-</p>
+# Handoff: CareBase Marketing Site Redesign
 
-# CareMetric CareBase
+## Overview
+A complete redesign of the CareMetric CareBase marketing site (currently in `artifacts/caremetric-carebase/src/pages/Landing.tsx` and `src/pages/marketing/`) for the PennTrain repo. Eight pages targeting Pennsylvania personal care home (PCH) and assisted living residence (ALR) owners: an owner-outcome-focused landing page, a Features index, Security, FAQ, a PA training-requirements SEO guide, About/pilot program, and Privacy/Terms drafts.
 
-**[CMCareBase.com](https://cmcarebase.com)**
+## About the Design Files
+The files in `designs/` are **design references created in HTML** — prototypes showing intended look, copy, and behavior. They are NOT production code to copy directly. The task is to **recreate these designs in the existing React + Vite + Tailwind codebase** (`artifacts/caremetric-carebase/`), using its established patterns: `MarketingLayout`, `PageHero`, the `marketing/primitives` components, React Router routes in `publicPaths.ts`, and the shared `content.ts` single-source-of-content pattern.
 
-CareMetric CareBase is a multi-tenant personal care home and assisted living facility management platform for operators that need one system for staff compliance, resident assessments, incidents, inspections, documents, scheduling, and training. It is built directly on Supabase: Postgres with
-Row-Level Security, Supabase Auth, Supabase Storage, and Edge Functions. There is no separate API server -- the
-React frontend talks to Supabase directly via `supabase-js`.
+Open each `.dc.html` file in a browser to see the rendered design. Ignore `support.js` and the `<x-dc>` wrapper — they are the prototype runtime. All styling is inline on each element (exact hex values, px sizes), so the markup itself is the spec.
 
-**Production**: https://cmcarebase.com (Railway-hosted; see `DEPLOYMENT.md`).
+## Fidelity
+**High-fidelity.** Colors, typography, spacing, copy, and interactions are final. Recreate pixel-perfectly, but translate to Tailwind utility classes / existing primitives rather than inline styles.
 
-The platform can also be licensed or deployed as **CareMetric Train**, a learning-only product with the shared
-facility/learner directory. See [`PRODUCT_MODULES.md`](PRODUCT_MODULES.md) for package composition, independent
-builds, route segregation, and the database enforcement boundary.
+## Update (July 22, 2026)
+This package reflects the latest revision. Key changes since the first handoff:
+- **Fully self-service:** the demo-request form is GONE. The landing `#start` section links to `/signup`; header ghost buttons are "Log in" (`/login`); no "Book a demo" anywhere. Do not add contact/demo forms.
+- **New pages:** `How It Works.dc.html` (route `/how-it-works`) and `Savings.dc.html` (route `/savings` — owns the education-cost section, replaces/doesn't-replace comparison, and the interactive calculator + its email capture).
+- **Landing slimmed to ~11 sections;** capability index + roles live on Features, resident lifecycle moved to Features.
+- **No "pilot" language** — reframed as a founding-partner program (About, How It Works). Hero badge reads "Built for Pennsylvania PCH & ALF operators."
+- Hero has entrance animations + an animated 0→94% count-up on the compliance badge; header links use white-space: nowrap.
+- `screenshots/`: landing.png, how-it-works.png, savings.png are current; others show an earlier revision of unchanged-layout pages — the HTML files are the truth.
 
-## Implementation roadmap
+## Pages
+| Design file | Suggested route | Purpose |
+|---|---|---|
+| `CareBase Landing v2.dc.html` | `/` | Main landing: hero, persona paths, platform domain tabs, how-it-works + switching strip, week-with-CareBase vignette, resident lifecycle, differentiators, mid-page CTA, comparison table, requirements teaser, promises/proof, security teaser, pricing, savings calculator, demo form, FAQ teaser |
+| `How It Works.dc.html` | `/how-it-works` | Four-move loop, switching strip, week vignette, promises/founding-partner |
+| `Savings.dc.html` | `/savings` | Education line item, comparison table, savings calculator + email capture |
+| `Features.dc.html` | `/features` | Full 50+ capability index (6 groups) + six-roles grid |
+| `Security.dc.html` | `/security` | 8 verifiable controls, demo questions, due-diligence areas |
+| `FAQ.dc.html` | `/faq` | 25+ Q&As in 6 groups; includes FAQPage JSON-LD (in `<helmet>`) |
+| `PA Training Requirements.dc.html` | `/resources/pa-training-requirements` | SEO lead-magnet guide with citation tables + email-capture band |
+| `About CareBase.dc.html` | `/about` | Story, principles, team (photo slots), pilot program |
+| `Privacy Policy.dc.html` | `/privacy` | DRAFT — counsel review required before publishing |
+| `Terms of Service.dc.html` | `/terms` | DRAFT — counsel review required before publishing |
 
-The canonical program plan for the 29 approved improvements is
-[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). It defines five
-dependency-aware phases, delivery gates, migration and rollout rules, and the
-complete recommendation-to-phase crosswalk. Multilingual experience is
-explicitly excluded from that program.
+## Key Interactions & Behavior
+- **Platform domain tabs (landing):** 4 pill tabs (Residents / Workforce / Facility & safety / Survey evidence) toggle which product mock + chip list renders. State: single `domain` index.
+- **Savings worksheet (landing):** 5 range sliders (weekly admin hours 1–60, loaded rate $18–80, tool spend $0–2000/50, reduction 5–60%/5, facilities 1–20). Computed: labor = hours×52×rate; toolY = tools×12; gross = labor×cut% + toolY; unit price = facilities ≥ 3 ? $299 : $349; annualPrice = unit×12×facilities; net = gross − annualPrice (green #8fd9a0 if ≥0, red #f2a9a0 if negative); payback months = annualPrice/(gross/12), 1 decimal. Sticky result card (top: 88px).
+- **Demo form (landing):** name, work email (required), organization, facility type select (PCH Ch. 2600 / ALR Ch. 2800 / Both / Group home Ch. 6400 / Other), facilities select, optional phone, textarea. On submit show success card ("Request received… one business day"). Wire to a real backend/CRM — the prototype only swaps UI state. Grid rows must use `minmax(0, 1fr)` columns with `min-width: 0` controls (overflow fix).
+- **Email captures:** guide page ("Email me the PDF") and savings card ("Email my model") — same submit-to-success pattern; need backend wiring.
+- **Nav:** identical on all pages: Platform · Features · Pricing · Savings (landing anchors) · Security · Requirements · FAQ · About + "Book a demo" ghost + "Start free trial" primary button. Sticky, `rgba(255,255,255,0.92)` + backdrop blur.
+- **Smooth scrolling** to landing anchors (`#platform`, `#pricing`, `#savings`, `#demo`, `#faq`); sections have `scroll-margin-top: 72px`.
 
-ROADMAP.md remains the historical product review and recommendation rationale.
+## Design Tokens
+- **Fonts:** headings `Source Serif 4` (Google Fonts, weights 600–900); body/UI `Instrument Sans` (400–700); data/labels `ui-monospace` stack.
+- **Colors:** navy ink `#0d2742`; deep navy bg `#071626`; hero gradient `135deg #071626 → #0d2742 55% → #143a5c`; primary blue `#1b6fc2` (hover `#14548f`); light blue accent `#8ec8ff` / `#b9e4ff`; body text `#1c2b3a` / `#33465c` / `#44566b`; muted `#64768a` / `#8a99a8`; borders `#e5eaf0` / `#dfe6ee`; section alt bg `#f6f8fa`; success `#1e7a35` on `#eaf6ec`; warning `#8a5a00` on `#fdf4e3`; danger `#a83a2c` on `#fbe9e7`.
+- **Pattern:** navy sections carry a 32px grid overlay: `repeating-linear-gradient` both axes, `rgba(255,255,255,0.05)` 1px lines.
+- **Radii:** cards 12–14px, buttons 8–9px, pills 99px. Section padding: 56–72px vertical, max-width 1160px (content pages 720–980px).
+- **Responsive:** card grids use `repeat(auto-fit, minmax(min(100%, Npx), 1fr))`; wide tables get `overflow-x: auto` + `min-width` on the grid.
 
+## Assets
+- `designs/assets/carebase-mark.png` — logo mark (cropped from provided lockup); used in header (36px), footer (32px), favicon.
+- Team photos on About are drag-and-drop placeholder slots — replace with real `<img>` when photos exist.
+- No stock imagery anywhere by design; all product visuals are hand-built HTML mocks (keep as coded components, not screenshots).
 
-## What's included
+## Content Notes
+- All regulatory citations (§2600.65, §2800.65/.69, §6400.52, 42 CFR 483.95/484.80/418.76) came from the repo's `PA_DHS_ANNUAL_TRAINING_MATRIX.md` — keep them in sync with it.
+- Pricing ($349 single / $299 multi-site, 30-day trial) is illustrative — confirm before launch. The savings calculator and FAQ answer must read from the same pricing constants.
+- The testimonial slot is intentionally empty ("no invented customers") — fill only with a real pilot quote.
+- Privacy/Terms are drafts flagged for counsel review; set real effective dates.
+- Every page needs its `<title>` + `meta description` (already written in each file's `<helmet>`), and FAQ page keeps its JSON-LD.
 
-- Six-role RBAC (`platform_admin`, `org_admin`, `facility_manager`, `trainer`, `employee`, `auditor`) enforced by
-  Postgres Row-Level Security, not application code.
-- Core compliance tracking: organizations, facilities, employees, configurable training types, training records,
-  medication practicums, live training classes, document uploads (Supabase Storage, signed URLs), alerts, audit
-  logs, and a report center.
-- An integrated training suite: training-content version/block authoring, quizzes with server-side grading, training assignments and
-  progress tracking, certificates (with a public `/verify/:slug` verification route), training plans, and
-  competency checklist templates/records.
-- A real, generated Compliance Binder PDF (`generate-compliance-binder` Edge Function using `pdf-lib`), replacing
-  the earlier print-to-PDF mock.
-- Admin user provisioning, role/org management, and bulk CSV employee import, all via Edge Functions running with
-  the service-role key behind an authorization check on the caller's own role.
-- A platform_admin-only "Viewing as Org X" UX filter for the admin console -- a convenience, not a security
-  boundary, since `is_platform_admin()` already grants unrestricted RLS access.
-
-## Run locally
-
-The preferred local environment is the checked-in dev container, which pins Node 24.15.x, pnpm 10.28.x, Deno 2.x,
-the Supabase CLI, and OS packages used by the app/test workflow. Open the repo in VS Code or GitHub Codespaces and
-choose **Reopen in Container**; the container runs `pnpm install --frozen-lockfile` and `pnpm run doctor` after it is
-created.
-
-```bash
-pnpm install
-pnpm --filter @workspace/caremetric-carebase dev
-```
-
-Copy `artifacts/caremetric-carebase/.env.example` to `.env` and fill in your Supabase project URL, publishable
-(anon) key, and Cloudflare Turnstile site key. The workspace installs native optional dependencies for the current
-developer machine plus linux-x64-glibc CI/deploys via pnpm `supportedArchitectures`.
-
-Useful validation commands inside the dev container:
-
-```bash
-pnpm run typecheck
-pnpm run test
-pnpm run check:edge-functions
-pnpm run check:all
-pnpm run check:release
-```
-
-`check:release` is the local Phase 1 clean-room gate. It starts the pinned
-Supabase stack, reapplies every migration, runs pgTAP, linting and advisors,
-checks generated type drift, and verifies the application artifact. Docker is
-required. CI additionally runs the disposable role, public-verification,
-guest, and accessibility journeys in Chromium.
-
-For production deployment (Railway + Supabase), see `DEPLOYMENT.md`.
-Phase 1 rollout, recovery, ownership, and pilot procedures are in
-[`PHASE1_OPERATIONS.md`](PHASE1_OPERATIONS.md).
-Phase 2 hierarchy, workforce, rule, identity, billing, integration, and pilot
-procedures are in [`PHASE2_OPERATIONS.md`](PHASE2_OPERATIONS.md).
-Phase 3 HRIS, qualification, credential renewal, instructor-led training,
-eligibility, and pilot procedures are in
-[`PHASE3_OPERATIONS.md`](PHASE3_OPERATIONS.md).
-Phase 4 content governance, policy lifecycle, standards interoperability,
-adaptive learning, offline safety, and pilot procedures are in
-[`PHASE4_OPERATIONS.md`](PHASE4_OPERATIONS.md).
-Phase 5 remediation, confidential intake, move-in collaboration, historical
-reporting, evidence-room access, and pilot procedures are in
-[`PHASE5_OPERATIONS.md`](PHASE5_OPERATIONS.md).
-
-## Database / backend setup
-
-All schema, RLS policies, functions, and storage buckets live in `supabase/migrations/`, applied in order via the
-Supabase CLI or `mcp__Supabase__apply_migration`. Edge Function source lives in `supabase/functions/*/index.ts` and
-must be declared in `supabase/config.toml` to auto-deploy via the Supabase GitHub integration.
-
-1. Create a Supabase project (Postgres 17+).
-2. Apply every migration under `supabase/migrations/` in filename order.
-3. Deploy the Edge Functions under `supabase/functions/`.
-4. Create environment-specific admin/demo users through the Supabase Admin API, `invite-user`, or
-   `signup-organization`. Do not seed reusable passwords from SQL.
-5. Run `mcp__Supabase__generate_typescript_types` (or `supabase gen types typescript`) to produce
-  `artifacts/caremetric-carebase/src/lib/database.types.ts`.
-
-For proven email/SMS/web-push delivery, deploy `dispatch-notifications`,
-`push-subscriptions`, and `send-auth-email`,
-configure the hosted Supabase Auth **Send Email** hook to point at `send-auth-email`,
-and configure the signed SendGrid Event Webhook plus Twilio status/inbound-message
-callbacks to the two notification webhook functions. Set `SENDGRID_API_KEY`,
-`NOTIFICATION_FROM_EMAIL`, `SEND_EMAIL_HOOK_SECRET`,
-`SENDGRID_EVENT_WEBHOOK_PUBLIC_KEY`, `NOTIFICATION_RECIPIENT_HASH_SECRET`, the
-Twilio credentials, `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`,
-`WEB_PUSH_VAPID_SUBJECT`, and `CRON_SHARED_SECRET` as Supabase Edge Function secrets;
-never expose them to the Vite application. The checked-in local hook stanza stays
-disabled unless a developer opts in with a base64-encoded
-`SEND_EMAIL_HOOK_SECRET_BASE64`. Twilio Advanced Opt-Out should route inbound
-STOP/START events to `twilio-notification-webhook?kind=consent`.
-
-## Demo users
-
-The `/demo` page offers one-click role entry when `VITE_DEMO_ACCOUNTS_JSON` contains valid `org_admin`,
-`facility_manager`, `trainer`, `employee`, or `auditor` accounts. The parser always rejects `platform_admin`.
-Because `VITE_*` values are visible in the browser, every configured account must belong only to an isolated
-organization marked `is_demo`; never point this configuration at a customer tenant. Hosted demo users are created
-per environment through the Admin API and use deploy-time credentials. The predictable passwords in
-`supabase/seed.sql` are only for a disposable local Supabase stack and must never be reused in a hosted environment.
-
-The Sunrise demo baseline includes synthetic staffing, residents, schedules, admissions, service tasks, incidents,
-inspections, maintenance, complaints, QAPI, emergency operations, and an evidence-room starter collection. An
-organization administrator can restore the baseline from Settings, and a daily job repairs it automatically.
-Email, SMS, and push delivery plus demo-initiated Auth user provisioning are blocked for demo organizations.
-
-See `ARCHITECTURE.md` for the full architecture writeup (RLS model, storage buckets, Edge Functions, route map).
-
-## Prototype and mockup sandbox boundary
-
-`artifacts/mockup-sandbox` is a non-production UI prototyping workspace. It is useful for isolated visual experiments,
-component mockups, and stakeholder demos that should not touch the CareMetric CareBase production app, Supabase schema,
-Edge Functions, routing, authorization, reporting, or deployment configuration.
-
-Do not treat mockup-sandbox screens, data, dependencies, or routes as implemented CareBase product behavior. Production
-claims, audits, screenshots, acceptance criteria, and release notes must cite files under `artifacts/caremetric-carebase`,
-`scripts`, `supabase`, or production documentation instead. If a mockup becomes product work, recreate it through the
-CareBase app's real components, hooks, routes, permissions, tests, and Supabase-backed data model.
+## Files
+- `designs/*.dc.html` — the eight page designs (open in browser)
+- `designs/assets/carebase-mark.png` — logo mark
+- `designs/support.js`, `designs/image-slot.js` — prototype runtime only; do not port
+- `screenshots/*.png` — full-page reference captures of each page (landing, features, security, faq, pa-training-requirements, about, privacy, terms). Note: screenshots capture default state only — open the HTML files to see tab switching, calculator, and form success states.
