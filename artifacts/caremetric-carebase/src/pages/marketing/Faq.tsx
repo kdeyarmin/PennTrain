@@ -14,8 +14,8 @@ const FAQ_CATEGORIES = [
   { title: "Getting started", items: FAQS.slice(23, 25) },
 ];
 
-// Built directly from FAQS -- the same data rendered on the page -- so the
-// structured data can never drift from what visitors actually see.
+// Structured data is built from FAQS (the source of truth). If FAQ rendering ever
+// diverges from FAQS (e.g. custom link rendering), update this mapping too.
 const FAQ_JSON_LD = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
