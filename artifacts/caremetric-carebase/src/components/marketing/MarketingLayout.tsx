@@ -199,7 +199,9 @@ function NavDropdown({
         <button
           type="button"
           className={cn(
-            "flex items-center gap-1 whitespace-nowrap text-sm font-semibold outline-none transition-colors",
+            // outline-none drops the browser default; the focus-visible ring is
+            // the replacement so keyboard focus stays clearly visible.
+            "flex items-center gap-1 whitespace-nowrap rounded-md text-sm font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
             groupActive ? "text-foreground" : "text-foreground/70 hover:text-foreground"
           )}
         >

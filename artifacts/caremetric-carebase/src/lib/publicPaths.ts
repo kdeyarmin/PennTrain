@@ -2,7 +2,9 @@
  * Single source of truth for the public (signed-out) surface of the site.
  *
  * Several consumers must agree on this list, so it lives in one place:
- *  - MarketingLayout renders these in the header nav and footer.
+ *  - MarketingLayout renders these in the header nav (desktop dropdowns) and
+ *    the mobile menu. (The footer's link list is maintained separately in that
+ *    same file and does not derive from these arrays.)
  *  - AuthProvider allows these paths for signed-out visitors; anything else
  *    bounces to /login. If a marketing page isn't listed here, loading it
  *    directly (refresh, bookmark, new tab) would redirect to login.
