@@ -341,7 +341,7 @@ function MarketingFooter() {
             </h2>
             <Link href="/login" className={footerLink}>Log in</Link>
             <Link href="/signup" className={footerLink}>Start free trial</Link>
-            <Link href="/request-demo" className={footerLink}>Request a demo</Link>
+            <Link href="/#start" className={footerLink}>Get started</Link>
           </div>
 
           <div className="flex flex-col gap-2 text-[13.5px]">

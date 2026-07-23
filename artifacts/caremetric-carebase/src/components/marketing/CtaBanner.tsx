@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
 
 /**
- * The closing "Request a Demo" banner. Shared by the landing page (where it
- * anchors #contact) and every dedicated marketing page.
+ * The closing call-to-action banner. Shared by the landing page (where it
+ * anchors #contact) and every dedicated marketing page. Self-service only —
+ * primary starts the trial, secondary routes to the FAQ, never a human handoff.
  */
 export function CtaBanner({
   id,
   title = "Ready to replace scattered trackers with one accountable operation?",
-  subtitle = "Tell us about your facilities, current systems, and highest-risk workflow. We'll show what CareMetric CareBase can consolidate and what should stay connected.",
+  subtitle = "Start the free trial, import your roster, and see exactly what CareMetric CareBase consolidates and what stays connected — no call required.",
 }: {
   id?: string;
   title?: string;
@@ -37,11 +38,11 @@ export function CtaBanner({
             size="lg"
             variant="outline"
             className="gap-2 border-white/30 bg-transparent text-white hover:bg-white/10"
-            data-testid="button-cta-demo"
+            data-testid="button-cta-faq"
           >
-            <Link href="/request-demo">
+            <Link href="/faq">
               <Mail className="h-4 w-4" />
-              Request a Demo
+              Questions? Read the FAQ
             </Link>
           </Button>
         </div>
