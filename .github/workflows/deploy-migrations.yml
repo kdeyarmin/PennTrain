@@ -1,22 +1,25 @@
 name: Deploy migrations
 
-# Deploys committed migrations to the production Supabase project when they land on main.
+# Deploys committed migrations to the production Supabase project -- but only after CI has
+# validated the exact commit on main. Root cause this closes (see MIGRATION_DEPLOYMENT_AUDIT.md):
+# CI validated the migration chain on a throwaway local stack but nothing deployed it to the
+# remote, so migrations merged to main could sit undeployed indefinitely.
 #
-# Root cause this closes (see MIGRATION_DEPLOYMENT_AUDIT.md): CI validated the migration
-# chain on a throwaway local stack but nothing deployed it to the remote, so migrations
-# merged to main could sit undeployed indefinitely. This job runs `supabase db push` on every
-# migration change to main and then fails if any drift remains, so "merged" implies "deployed".
+# Why `workflow_run` and not `push`: triggering directly on push to main would let
+# `supabase db push` mutate production in parallel with -- and possibly before -- the CI
+# `database` job that reapplies and tests the whole migration chain (reset, tests, lint,
+# advisors). Instead this runs only after the "CI" workflow finishes successfully on main, and
+# checks out exactly the SHA CI validated, so production is never changed ahead of validation.
 #
 # Required repository secrets (Settings -> Secrets and variables -> Actions):
 #   SUPABASE_ACCESS_TOKEN  -- a Supabase personal access token (https://supabase.com/dashboard/account/tokens)
 #   SUPABASE_DB_PASSWORD   -- the project's database password (Project Settings -> Database)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "supabase/migrations/**"
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch: {}
 
 # Never let two deploys run against the database at once; queue them instead of cancelling,
@@ -28,6 +31,11 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Gate on a *successful* CI run on main, or a manual dispatch that is itself on main. This
+    # keeps production changes behind CI validation and prevents deploying an arbitrary ref.
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     permissions:
       contents: read
     env:
@@ -36,6 +44,10 @@ jobs:
       SUPABASE_PROJECT_ID: xsqobvvreaovwibxwyvv
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          # Deploy exactly the commit CI validated; for a manual dispatch, main's tip. Never a
+          # caller-selected feature ref, so unmerged migrations cannot reach production.
+          ref: ${{ github.event.workflow_run.head_sha || 'refs/heads/main' }}
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:

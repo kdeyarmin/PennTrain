@@ -205,12 +205,14 @@ reappears.
 
 ### 1. Automated deploy on merge — `.github/workflows/deploy-migrations.yml`
 
-Runs on every push to `main` that changes `supabase/migrations/**` (and on manual
-`workflow_dispatch`): it links the project, runs `supabase db push --include-all`, then runs the
-drift check to confirm the remote is in sync. `--include-all` lets it backfill any pending
+Runs **after the `CI` workflow succeeds on `main`** (via `workflow_run`), plus manual
+`workflow_dispatch` restricted to `main`. It checks out exactly the commit CI validated, links
+the project, runs `supabase db push --include-all`, then runs the drift check to confirm the
+remote is in sync. Gating on CI success means production is never mutated ahead of the `database`
+job that reapplies and tests the whole chain; `--include-all` lets it backfill any pending
 version that sorts before an already-applied one (the out-of-order situation this audit found),
-which a plain `db push` would refuse. This makes "merged to `main`" imply "deployed", independent
-of whether Supabase's native GitHub integration is doing production deploys.
+which a plain `db push` would refuse. This makes "validated on `main`" imply "deployed",
+independent of whether Supabase's native GitHub integration is doing production deploys.
 
 **One-time setup — add two repository secrets** (Settings → Secrets and variables → Actions):
 
