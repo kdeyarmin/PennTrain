@@ -246,7 +246,7 @@ sandbox live.
 
 - **Shape:** a JSON array of `{ label, email, password, role, description? }`. `role` must be
   one of `org_admin | facility_manager | trainer | employee | auditor`
-  (`src/lib/demoAccounts.ts` allow-lists these so a stray production credential can't leak in).
+  (`artifacts/caremetric-carebase/src/lib/demoAccounts.ts` allow-lists these so a stray production credential can't leak in).
 - **Local dev:** `supabase/seed.sql` already creates matching auth users for every role (all
   password `demo123`). Copy the ready-made `VITE_DEMO_ACCOUNTS_JSON` line from `.env.example`
   into your `.env` and the sandbox works immediately.
