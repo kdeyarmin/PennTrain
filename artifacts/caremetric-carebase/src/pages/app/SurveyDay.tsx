@@ -110,7 +110,7 @@ export default function SurveyDay() {
           <div className="flex items-center gap-2"><ShieldCheck className="h-6 w-6" /><h1 className="text-2xl font-bold tracking-tight">Survey Day Mode</h1></div>
           <p className="max-w-3xl text-muted-foreground">
             One focused workspace for when a licensing representative arrives. It composes your existing
-            entrance-conference checklist, compliance binder, staff readiness, and evidence room.
+            entrance-conference checklist, compliance binder, staff readiness, and documentation room.
           </p>
         </div>
         <div className="w-full md:w-72">
@@ -177,7 +177,7 @@ export default function SurveyDay() {
               <p className="text-muted-foreground">{latestBinder ? displayDate(latestBinder.completed_at) : "No completed binder yet"}</p>
             </div>
             <div className="rounded-lg border p-3 text-sm">
-              <p className="font-medium">Latest published evidence collection</p>
+              <p className="font-medium">Latest published documentation collection</p>
               <p className="text-muted-foreground">{latestCollection ? (latestCollection as any).name : "No published collection yet"}</p>
             </div>
           </div>
@@ -547,7 +547,7 @@ function EvidenceSection({ organizationId, facilityId, pinnedCollectionId }: { o
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><FolderOpen className="h-5 w-5" />Evidence room</CardTitle>
+        <CardTitle className="flex items-center gap-2"><FolderOpen className="h-5 w-5" />Documentation room</CardTitle>
         <CardDescription>Internal quick links to the facility’s current collection and access controls. Guest links stay in the existing explicit publish/grant flow.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -563,10 +563,10 @@ function EvidenceSection({ organizationId, facilityId, pinnedCollectionId }: { o
           <Alert>
             <FolderOpen className="h-4 w-4" />
             <AlertTitle>No published collection</AlertTitle>
-            <AlertDescription>Survey Day is not blocked. Open the Evidence Room to prepare a collection if you need one.</AlertDescription>
+            <AlertDescription>Survey Day is not blocked. Open the Documentation Room to prepare a collection if you need one.</AlertDescription>
           </Alert>
         )}
-        <Button asChild variant="ghost" size="sm"><Link href="/app/evidence">Open Evidence Room</Link></Button>
+        <Button asChild variant="ghost" size="sm"><Link href="/app/evidence">Open Documentation Room</Link></Button>
       </CardContent>
     </Card>
   );

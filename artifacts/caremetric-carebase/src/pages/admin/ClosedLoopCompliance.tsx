@@ -81,13 +81,13 @@ export default function ClosedLoopCompliance() {
       <div className="grid gap-4 xl:grid-cols-3">
         <Metrics title="Owned work" description="Deadline-driven remediation and escalation." values={data.work} href="/app/work" />
         <Metrics title="Confidential intake" description="Restricted triage and investigation queues." values={data.incidents} href={user?.role === "platform_admin" ? undefined : "/app/confidential-incidents"} />
-        <Metrics title="Evidence room" description="Published collections and external access." values={data.evidenceRoom} href="/app/evidence" />
+        <Metrics title="Documentation room" description="Published collections and external access." values={data.evidenceRoom} href="/app/evidence" />
       </div>
       <Tabs defaultValue="moveins">
         <TabsList className="h-auto flex-wrap">
           <TabsTrigger value="moveins">Move-ins</TabsTrigger>
           <TabsTrigger value="reports">Historical reports</TabsTrigger>
-          <TabsTrigger value="evidence">Evidence room</TabsTrigger>
+          <TabsTrigger value="evidence">Documentation room</TabsTrigger>
         </TabsList>
         <TabsContent value="moveins" className="mt-4">
           <Metrics title="Move-in readiness" description="Owned tasks, dependencies, signatures, approvals, and guest scope." values={data.moveIns} />

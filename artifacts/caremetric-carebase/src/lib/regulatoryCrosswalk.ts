@@ -145,13 +145,13 @@ export const REGULATORY_OBLIGATIONS: RegulatoryObligation[] = [
   {
     id: "binder-evidence-room",
     citation: "55 Pa. Code 2600/2800 — survey evidence production",
-    requirement: "Maintain a current compliance binder and controlled evidence-room package for surveyor/regulator review.",
+    requirement: "Maintain a current compliance binder and controlled documentation-room package for surveyor/regulator review.",
     facilityTypes: ["PCH", "ALR"],
     responsibleRole: "Binder owner / compliance lead",
     evidenceSource: "binder",
-    evidenceLabel: "Compliance binder exports, evidence-room collections, report snapshots, and guest access audit trail",
+    evidenceLabel: "Compliance binder exports, documentation-room collections, report snapshots, and guest access audit trail",
     route: "/app/evidence",
-    binderLocation: "Compliance Binder / Evidence Room",
+    binderLocation: "Compliance Binder / Documentation Room",
   },
 ];
 

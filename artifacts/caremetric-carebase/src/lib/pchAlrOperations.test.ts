@@ -23,7 +23,7 @@ describe("PCH/ALR operations catalog", () => {
 
   it("finds workflows by citation, evidence source, and title text", () => {
     expect(searchPchAlrOperations("2800.64").map((item) => item.id)).toContain("administrator-rule-packs");
-    expect(searchPchAlrOperations("evidence room").map((item) => item.id)).toContain("inspection-day-package");
+    expect(searchPchAlrOperations("documentation room").map((item) => item.id)).toContain("inspection-day-package");
     expect(searchPchAlrOperations("grievance").map((item) => item.id)).toContain("rights-grievances");
   });
 

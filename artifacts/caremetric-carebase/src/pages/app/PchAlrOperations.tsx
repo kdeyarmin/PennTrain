@@ -293,7 +293,7 @@ export default function PchAlrOperations() {
           <Card>
             <CardHeader>
               <CardTitle>Surveyor request checklist</CardTitle>
-              <CardDescription>Use these prompts to build an entrance packet or evidence-room collection before state walks in.</CardDescription>
+              <CardDescription>Use these prompts to build an entrance packet or documentation-room collection before state walks in.</CardDescription>
             </CardHeader>
             <CardContent>
               <ol className="list-decimal space-y-3 pl-5 text-sm">

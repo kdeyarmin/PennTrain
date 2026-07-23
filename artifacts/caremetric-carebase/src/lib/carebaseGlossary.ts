@@ -129,13 +129,13 @@ export const CAREBASE_GLOSSARY_TERMS: CarebaseGlossaryTerm[] = [
     term: "Guest access",
     category: "Security",
     definition: "A limited public or external access flow that lets a guest use a specific tokenized workflow without receiving ordinary staff access.",
-    relatedRoutes: [{ label: "Family Portal", href: "/resident-portal" }, { label: "Guest Evidence", href: "/evidence-access" }],
+    relatedRoutes: [{ label: "Family Portal", href: "/resident-portal" }, { label: "Guest Documentation", href: "/evidence-access" }],
   },
   {
     term: "Public token",
     category: "Security",
     definition: "A time-limited access token used by selected guest workflows; it should be scoped, auditable, and scrubbed from browser history after use.",
-    relatedRoutes: [{ label: "Guest Evidence", href: "/evidence-access" }],
+    relatedRoutes: [{ label: "Guest Documentation", href: "/evidence-access" }],
   },
 ];
 

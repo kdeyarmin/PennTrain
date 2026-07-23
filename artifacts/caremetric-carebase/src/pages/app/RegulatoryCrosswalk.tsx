@@ -36,7 +36,7 @@ const SOURCE_LABELS: Record<CrosswalkEvidenceSource, string> = {
   incident: "Incidents / medication",
   physical_site: "Physical site",
   policy: "Policies",
-  binder: "Binder / evidence room",
+  binder: "Binder / documentation room",
 };
 
 function statusVariant(status: CrosswalkStatus): "default" | "secondary" | "destructive" | "outline" {

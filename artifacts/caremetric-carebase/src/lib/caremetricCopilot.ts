@@ -148,7 +148,7 @@ const KNOWLEDGE_BASE: KnowledgeItem[] = [
     nextSteps: [
       "Sort or filter the list by severity and due date so urgent risks are handled first.",
       "Open the source record before closing anything; confirm the underlying staff, resident, document, or facility data is corrected.",
-      "Store proof in Evidence Room or Compliance Binder when the item may be reviewed during survey or audit.",
+      "Store proof in Documentation Room or Compliance Binder when the item may be reviewed during survey or audit.",
       "If the risk reflects a trend, create QAPI follow-up or corrective action instead of treating it as a one-off task.",
     ],
     links: [
