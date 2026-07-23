@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 import { MARKETING_NAV } from "@/lib/publicPaths";
+import { MarketingAIBot } from "@/components/marketing/MarketingAIBot";
 
 /**
  * Wouter doesn't reset scroll between route changes -- handle it ourselves, in
@@ -344,6 +345,7 @@ export function MarketingLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
       <MarketingFooter />
+      <MarketingAIBot />
     </div>
   );
 }
