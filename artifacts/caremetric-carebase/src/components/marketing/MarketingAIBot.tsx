@@ -115,7 +115,7 @@ export function MarketingAIBot() {
 
   if (!open) {
     return (
-      <div className="fixed bottom-5 right-4 z-50 flex flex-col items-end gap-3 sm:right-6">
+      <aside className="fixed bottom-5 right-4 z-50 flex flex-col items-end gap-3 sm:right-6" aria-label="CareBase AI sales guide">
         <div className="hidden max-w-xs rounded-2xl border border-primary/20 bg-background/95 p-3 text-sm shadow-2xl backdrop-blur sm:block">
           <div className="flex items-center gap-2 font-semibold">
             <Sparkles className="h-4 w-4 text-primary" /> Ask the CareBase sales guide
@@ -130,7 +130,7 @@ export function MarketingAIBot() {
         >
           <MessageCircle className="mr-2 h-5 w-5" /> Ask Sales AI
         </Button>
-      </div>
+      </aside>
     );
   }
 
