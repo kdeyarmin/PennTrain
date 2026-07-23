@@ -25,7 +25,7 @@ const SETTINGS_CONFIG: Record<string, SettingConfig> = {
   },
   maintenance_mode: {
     label: "Maintenance Mode",
-    description: "Shows a site-wide banner; does not currently block logins.",
+    description: "Shows a site-wide banner and holds non-admin users on a maintenance screen. Platform admins keep full access.",
     type: "boolean",
   },
   default_trial_days: {
@@ -122,7 +122,7 @@ const CONFIRM_COPY: Record<string, { title: string; description: string; confirm
   maintenance_mode: {
     title: "Enable Maintenance Mode?",
     description:
-      "This immediately shows a maintenance banner to every signed-in user in every organization on the platform. It does not block logins or sign anyone out -- turn it back off the moment maintenance is complete.",
+      "This immediately holds every non-admin user in every organization on a maintenance screen and shows a site-wide banner. Platform admins keep full access so you can finish the work and turn it back off. Existing sessions are not force-signed-out -- turn it back off the moment maintenance is complete.",
     confirmLabel: "Enable Maintenance Mode",
   },
   signup_enabled: {

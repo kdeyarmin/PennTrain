@@ -169,6 +169,8 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { KioskLayout } from "@/components/layout/KioskLayout";
 import MaintenanceBanner from "@/components/layout/MaintenanceBanner";
 import { useAuth } from "@/lib/auth";
+import { usePlatformStatus } from "@/hooks/usePlatformSettings";
+import { shouldBlockForMaintenance } from "@/lib/maintenanceMode";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { helpBasePathForRole } from "@/lib/appDomains";
 import { PCH_ALR_ONLY_FACILITY_TYPES, hasAnyFacilityType } from "@/lib/facilityTypes";
@@ -185,6 +187,11 @@ function FullPageLoading({ label = "Loading CareBase" }: { label?: string }) {
     </div>
   );
 }
+
+// Lazily loaded: it only renders while a platform admin has maintenance mode on, so keeping it
+// out of the eager app shell (which the bundle budget watches closely) costs nothing in the
+// overwhelmingly common non-maintenance case. Rendered under the Router's <Suspense> boundary.
+const MaintenanceGate = lazy(() => import("@/components/layout/MaintenanceGate"));
 
 function ProtectedRoute({
   component: Component,
@@ -203,6 +210,10 @@ function ProtectedRoute({
   const { user, isLoading, isAuthenticated } = useAuth();
   const moduleAccess = useProductModuleAccess();
   const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
+  // Shares the cached ["platform-status"] query that MaintenanceBanner already runs, so this
+  // adds no extra request. Fails open: `data` is undefined while loading and resolves to
+  // maintenanceMode:false on any error, so the gate below only ever engages on a confirmed true.
+  const { data: platformStatus } = usePlatformStatus();
 
   if (isLoading || moduleAccess.isLoading) {
     return <FullPageLoading />;
@@ -211,6 +222,14 @@ function ProtectedRoute({
   if (!isAuthenticated) {
     const loginPath = loginPathWithNext(window.location.pathname, window.location.search, window.location.hash);
     return <Redirect to={loginPath} />;
+  }
+
+  // Maintenance mode holds every non-platform-admin out of the authenticated app until a
+  // platform admin turns it back off; admins pass through so they can reach /admin/settings and
+  // do exactly that. Applied before the role/module checks so a maintenance user always lands on
+  // the explanatory screen rather than being bounced between routes.
+  if (shouldBlockForMaintenance(platformStatus?.maintenanceMode, user?.role)) {
+    return <MaintenanceGate />;
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role as UserRole)) {
