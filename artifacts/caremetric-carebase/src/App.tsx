@@ -399,6 +399,8 @@ function Router() {
       <Route path="/features" component={Features} />
       {/* Retired in the marketing redesign; old bookmarks land on Features. */}
       <Route path="/who-its-for">{() => <Redirect to="/features" />}</Route>
+      {/* Retired lead-capture form; old bookmarks/backlinks forward to /demo. */}
+      <Route path="/request-demo">{() => <Redirect to="/demo" />}</Route>
       <Route path="/security" component={Security} />
       <Route path="/how-it-works" component={HowItWorks} />
       <Route path="/savings" component={Savings} />

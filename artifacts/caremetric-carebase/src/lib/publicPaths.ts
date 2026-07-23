@@ -29,8 +29,8 @@ export const MARKETING_EXTRA_PATHS = [
   // Retired page from the previous marketing site; kept public so old
   // bookmarks still resolve (App.tsx redirects it to /features).
   "/who-its-for",
-  // Retired lead-form URL; kept public so old bookmarks/backlinks don't hit
-  // the auth guard and get bounced to /login before the router can redirect.
+  // Retired lead-capture form; kept public so old bookmarks still resolve
+  // (App.tsx redirects it to /demo).
   "/request-demo",
 ] as const;
 
