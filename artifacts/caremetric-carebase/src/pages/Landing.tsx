@@ -94,7 +94,7 @@ export default function Landing() {
 
               <span style={{ width: "9px", height: "9px", borderRadius: "99px", background: "#aed4b3" }}></span>
 
-              <span style={{ marginLeft: "8px", fontFamily: "ui-monospace, monospace", fontSize: "10px", letterSpacing: "0.06em", color: "#64768a" }}>CAREBASE / FACILITY COMMAND CENTER</span>
+              <span style={{ marginLeft: "8px", fontFamily: "ui-monospace, monospace", fontSize: "10px", letterSpacing: "0.06em", color: "#5d7084" }}>CAREBASE / FACILITY COMMAND CENTER</span>
         </div>
 
             <div style={{ padding: "16px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #e5eaf0" }}>
@@ -103,7 +103,7 @@ export default function Landing() {
 
                 <div style={{ fontWeight: "700", fontSize: "15px" }}>Sunrise Healthcare Group</div>
 
-                <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "10px", color: "#64768a" }}>4 facilities · 186 employees · binder ready</div>
+                <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "10px", color: "#5d7084" }}>4 facilities · 186 employees · binder ready</div>
           </div>
 
               <span style={{ background: "#eaf6ec", color: "#1e7a35", fontFamily: "ui-monospace, monospace", fontSize: "11px", fontWeight: "700", borderRadius: "99px", padding: "4px 10px" }}>{heroScore}% compliant</span>
@@ -159,7 +159,7 @@ export default function Landing() {
 
             <div style={{ fontSize: "12px", fontWeight: "700", color: "#0d2742" }}>Risk caught before survey day</div>
 
-            <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "10.5px", color: "#64768a" }}>Retraining assigned · due Aug 2 · evidence attached</div>
+            <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "10.5px", color: "#5d7084" }}>Retraining assigned · due Aug 2 · evidence attached</div>
       </div>
     </div>
   </div>
@@ -206,7 +206,7 @@ export default function Landing() {
 
           <div style={{ border: "1px solid #dfe6ee", borderRadius: "14px", padding: "26px", display: "flex", flexDirection: "column", gap: "10px", boxShadow: "0 6px 20px rgba(13,39,66,0.04)" }}>
 
-            <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: "40px", fontWeight: "800", color: "#dcebfa", lineHeight: "1" }}>01</div>
+            <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: "40px", fontWeight: "800", color: "#5b8fc7", lineHeight: "1" }}>01</div>
 
             <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "10.5px", fontWeight: "700", letterSpacing: "0.12em", color: "#1b6fc2" }}>SURVEY READINESS</div>
 
@@ -219,7 +219,7 @@ export default function Landing() {
 
           <div style={{ border: "1px solid #dfe6ee", borderRadius: "14px", padding: "26px", display: "flex", flexDirection: "column", gap: "10px", boxShadow: "0 6px 20px rgba(13,39,66,0.04)" }}>
 
-            <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: "40px", fontWeight: "800", color: "#dcebfa", lineHeight: "1" }}>02</div>
+            <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: "40px", fontWeight: "800", color: "#5b8fc7", lineHeight: "1" }}>02</div>
 
             <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "10.5px", fontWeight: "700", letterSpacing: "0.12em", color: "#1b6fc2" }}>EDUCATION SPEND</div>
 
@@ -232,7 +232,7 @@ export default function Landing() {
 
           <div style={{ border: "1px solid #dfe6ee", borderRadius: "14px", padding: "26px", display: "flex", flexDirection: "column", gap: "10px", boxShadow: "0 6px 20px rgba(13,39,66,0.04)" }}>
 
-            <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: "40px", fontWeight: "800", color: "#dcebfa", lineHeight: "1" }}>03</div>
+            <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: "40px", fontWeight: "800", color: "#5b8fc7", lineHeight: "1" }}>03</div>
 
             <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "10.5px", fontWeight: "700", letterSpacing: "0.12em", color: "#1b6fc2" }}>YOUR TIME</div>
 
@@ -301,7 +301,7 @@ export default function Landing() {
       </div>
     </div>
 
-        <p style={{ margin: "18px auto 0", textAlign: "center", fontSize: "13px", color: "#64768a" }}>Group home, nursing, home health, or hospice? The
+        <p style={{ margin: "18px auto 0", textAlign: "center", fontSize: "13px", color: "#5d7084" }}>Group home, nursing, home health, or hospice? The
           <Link href="/requirements">requirements guide</Link> covers your pathway too.</p>
   </div>
 </section>
@@ -342,46 +342,46 @@ export default function Landing() {
 
                 <span style={{ fontWeight: "700", fontSize: "14px" }}>Resident compliance — Maple Grove</span>
 
-                <span style={{ fontFamily: "ui-monospace, monospace", fontSize: "11px", color: "#64768a" }}>Census 42 / 48 · 3 move-ins this month</span>
+                <span style={{ fontFamily: "ui-monospace, monospace", fontSize: "11px", color: "#5d7084" }}>Census 42 / 48 · 3 move-ins this month</span>
         </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.5fr 1.1fr 1.1fr", gap: "0", fontSize: "13px" }}>
 
-                <div style={{ padding: "10px 18px", fontFamily: "ui-monospace, monospace", fontSize: "10.5px", letterSpacing: "0.08em", color: "#64768a", borderBottom: "1px solid #eef2f6" }}>RESIDENT</div>
+                <div style={{ padding: "10px 18px", fontFamily: "ui-monospace, monospace", fontSize: "10.5px", letterSpacing: "0.08em", color: "#5d7084", borderBottom: "1px solid #eef2f6" }}>RESIDENT</div>
 
-                <div style={{ padding: "10px 8px", fontFamily: "ui-monospace, monospace", fontSize: "10.5px", letterSpacing: "0.08em", color: "#64768a", borderBottom: "1px solid #eef2f6" }}>ROOM</div>
+                <div style={{ padding: "10px 8px", fontFamily: "ui-monospace, monospace", fontSize: "10.5px", letterSpacing: "0.08em", color: "#5d7084", borderBottom: "1px solid #eef2f6" }}>ROOM</div>
 
-                <div style={{ padding: "10px 8px", fontFamily: "ui-monospace, monospace", fontSize: "10.5px", letterSpacing: "0.08em", color: "#64768a", borderBottom: "1px solid #eef2f6" }}>RASP STATUS</div>
+                <div style={{ padding: "10px 8px", fontFamily: "ui-monospace, monospace", fontSize: "10.5px", letterSpacing: "0.08em", color: "#5d7084", borderBottom: "1px solid #eef2f6" }}>RASP STATUS</div>
 
-                <div style={{ padding: "10px 18px 10px 8px", fontFamily: "ui-monospace, monospace", fontSize: "10.5px", letterSpacing: "0.08em", color: "#64768a", borderBottom: "1px solid #eef2f6" }}>SUPPORT PLAN</div>
+                <div style={{ padding: "10px 18px 10px 8px", fontFamily: "ui-monospace, monospace", fontSize: "10.5px", letterSpacing: "0.08em", color: "#5d7084", borderBottom: "1px solid #eef2f6" }}>SUPPORT PLAN</div>
 
                 <div style={{ padding: "11px 18px", borderBottom: "1px solid #eef2f6", fontWeight: "600" }}>M. Alvarez</div>
-                <div style={{ padding: "11px 8px", borderBottom: "1px solid #eef2f6", color: "#64768a" }}>12</div>
+                <div style={{ padding: "11px 8px", borderBottom: "1px solid #eef2f6", color: "#5d7084" }}>12</div>
                 <div style={{ padding: "11px 8px", borderBottom: "1px solid #eef2f6" }}>
                   <span style={{ background: "#eaf6ec", color: "#1e7a35", borderRadius: "99px", padding: "2px 9px", fontSize: "11.5px", fontWeight: "700" }}>Current</span></div>
                 <div style={{ padding: "11px 18px 11px 8px", borderBottom: "1px solid #eef2f6", color: "#44566b" }}>Updated May 2</div>
 
                 <div style={{ padding: "11px 18px", borderBottom: "1px solid #eef2f6", fontWeight: "600" }}>J. Okafor</div>
-                <div style={{ padding: "11px 8px", borderBottom: "1px solid #eef2f6", color: "#64768a" }}>07</div>
+                <div style={{ padding: "11px 8px", borderBottom: "1px solid #eef2f6", color: "#5d7084" }}>07</div>
                 <div style={{ padding: "11px 8px", borderBottom: "1px solid #eef2f6" }}>
                   <span style={{ background: "#fdf4e3", color: "#8a5a00", borderRadius: "99px", padding: "2px 9px", fontSize: "11.5px", fontWeight: "700" }}>Annual due · 14d</span></div>
                 <div style={{ padding: "11px 18px 11px 8px", borderBottom: "1px solid #eef2f6", color: "#44566b" }}>Review opened</div>
 
                 <div style={{ padding: "11px 18px", borderBottom: "1px solid #eef2f6", fontWeight: "600" }}>R. Santos</div>
-                <div style={{ padding: "11px 8px", borderBottom: "1px solid #eef2f6", color: "#64768a" }}>21</div>
+                <div style={{ padding: "11px 8px", borderBottom: "1px solid #eef2f6", color: "#5d7084" }}>21</div>
                 <div style={{ padding: "11px 8px", borderBottom: "1px solid #eef2f6" }}>
                   <span style={{ background: "#fbe9e7", color: "#a83a2c", borderRadius: "99px", padding: "2px 9px", fontSize: "11.5px", fontWeight: "700" }}>Overdue · 3d</span></div>
                 <div style={{ padding: "11px 18px 11px 8px", borderBottom: "1px solid #eef2f6", color: "#a83a2c", fontWeight: "600" }}>Reassess first</div>
 
                 <div style={{ padding: "11px 18px" }}>
                   <span style={{ fontWeight: "600" }}>E. Werner</span></div>
-                <div style={{ padding: "11px 8px", color: "#64768a" }}>09</div>
+                <div style={{ padding: "11px 8px", color: "#5d7084" }}>09</div>
                 <div style={{ padding: "11px 8px" }}>
                   <span style={{ background: "#eaf6ec", color: "#1e7a35", borderRadius: "99px", padding: "2px 9px", fontSize: "11.5px", fontWeight: "700" }}>Current</span></div>
                 <div style={{ padding: "11px 18px 11px 8px", color: "#44566b" }}>Updated Jun 10</div>
         </div>
 
-              <div style={{ padding: "12px 18px", borderTop: "1px solid #eef2f6", background: "#fafbfc", fontSize: "12px", color: "#64768a" }}>Completing a reassessment auto-opens the support-plan update it requires — §2600.225/.227 tracked per resident.</div>
+              <div style={{ padding: "12px 18px", borderTop: "1px solid #eef2f6", background: "#fafbfc", fontSize: "12px", color: "#5d7084" }}>Completing a reassessment auto-opens the support-plan update it requires — §2600.225/.227 tracked per resident.</div>
       </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -409,7 +409,7 @@ export default function Landing() {
                 <span style={{ background: "#ffffff", border: "1px solid #dbe3ec", borderRadius: "99px", padding: "5px 12px", fontSize: "12.5px", fontWeight: "600", color: "#33465c" }}>Resident finance subledger</span>
         </div>
 
-              <div style={{ marginTop: "6px", fontSize: "12.5px", color: "#64768a", borderLeft: "3px solid #d7dfe8", paddingLeft: "12px" }}>Not an EHR or eMAR — CareBase runs the non-clinical operation around the chart, and routes medication events from your external source.</div>
+              <div style={{ marginTop: "6px", fontSize: "12.5px", color: "#5d7084", borderLeft: "3px solid #d7dfe8", paddingLeft: "12px" }}>Not an EHR or eMAR — CareBase runs the non-clinical operation around the chart, and routes medication events from your external source.</div>
       </div>
     </div>
         )}
@@ -424,7 +424,7 @@ export default function Landing() {
 
                 <span style={{ fontWeight: "700", fontSize: "14px" }}>Compliance matrix — direct care staff</span>
 
-                <span style={{ fontFamily: "ui-monospace, monospace", fontSize: "11px", color: "#64768a" }}>Click any cell to edit the record</span>
+                <span style={{ fontFamily: "ui-monospace, monospace", fontSize: "11px", color: "#5d7084" }}>Click any cell to edit the record</span>
         </div>
 
               <div style={{ padding: "16px 18px" }}>
@@ -433,15 +433,15 @@ export default function Landing() {
 
                   <div></div>
 
-                  <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "9.5px", color: "#64768a", textAlign: "center" }}>IN-SERVICE</div>
+                  <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "9.5px", color: "#5d7084", textAlign: "center" }}>IN-SERVICE</div>
 
-                  <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "9.5px", color: "#64768a", textAlign: "center" }}>DEMENTIA</div>
+                  <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "9.5px", color: "#5d7084", textAlign: "center" }}>DEMENTIA</div>
 
-                  <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "9.5px", color: "#64768a", textAlign: "center" }}>PRACTICUM</div>
+                  <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "9.5px", color: "#5d7084", textAlign: "center" }}>PRACTICUM</div>
 
-                  <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "9.5px", color: "#64768a", textAlign: "center" }}>ACT 34</div>
+                  <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "9.5px", color: "#5d7084", textAlign: "center" }}>ACT 34</div>
 
-                  <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "9.5px", color: "#64768a", textAlign: "center" }}>TB SCREEN</div>
+                  <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "9.5px", color: "#5d7084", textAlign: "center" }}>TB SCREEN</div>
 
                   <div style={{ fontWeight: "600" }}>J. Miller</div>
                   <div style={{ height: "24px", borderRadius: "6px", background: "#bfe3c6" }}></div>
@@ -479,7 +479,7 @@ export default function Landing() {
                   <div style={{ height: "24px", borderRadius: "6px", background: "#bfe3c6" }}></div>
           </div>
 
-                <div style={{ marginTop: "14px", display: "flex", gap: "16px", fontSize: "11.5px", color: "#64768a", alignItems: "center" }}>
+                <div style={{ marginTop: "14px", display: "flex", gap: "16px", fontSize: "11.5px", color: "#5d7084", alignItems: "center" }}>
 
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
                     <span style={{ width: "10px", height: "10px", borderRadius: "3px", background: "#bfe3c6" }}></span>Current</span>
@@ -492,7 +492,7 @@ export default function Landing() {
           </div>
         </div>
 
-              <div style={{ padding: "12px 18px", borderTop: "1px solid #eef2f6", background: "#fafbfc", fontSize: "12px", color: "#64768a" }}>One pass-meds roster cross-checks certification, this year's practicum, and insulin authorization into a single yes/no per aide.</div>
+              <div style={{ padding: "12px 18px", borderTop: "1px solid #eef2f6", background: "#fafbfc", fontSize: "12px", color: "#5d7084" }}>One pass-meds roster cross-checks certification, this year's practicum, and insulin authorization into a single yes/no per aide.</div>
       </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -520,7 +520,7 @@ export default function Landing() {
                 <span style={{ background: "#ffffff", border: "1px solid #dbe3ec", borderRadius: "99px", padding: "5px 12px", fontSize: "12.5px", fontWeight: "600", color: "#33465c" }}>Policy attestations</span>
         </div>
 
-              <div style={{ marginTop: "6px", fontSize: "12.5px", color: "#64768a", borderLeft: "3px solid #d7dfe8", paddingLeft: "12px" }}>AI-touched training content can't publish until a named reviewer signs off — and the sign-off clears if any block is regenerated.</div>
+              <div style={{ marginTop: "6px", fontSize: "12.5px", color: "#5d7084", borderLeft: "3px solid #d7dfe8", paddingLeft: "12px" }}>AI-touched training content can't publish until a named reviewer signs off — and the sign-off clears if any block is regenerated.</div>
       </div>
     </div>
         )}
@@ -535,7 +535,7 @@ export default function Landing() {
 
                 <span style={{ fontWeight: "700", fontSize: "14px" }}>Open facility work — this week</span>
 
-                <span style={{ fontFamily: "ui-monospace, monospace", fontSize: "11px", color: "#64768a" }}>4 items · 1 needs verification</span>
+                <span style={{ fontFamily: "ui-monospace, monospace", fontSize: "11px", color: "#5d7084" }}>4 items · 1 needs verification</span>
         </div>
 
               <div style={{ display: "flex", flexDirection: "column" }}>
@@ -544,7 +544,7 @@ export default function Landing() {
 
                   <div>
                     <div style={{ fontWeight: "600", fontSize: "13.5px" }}>INC-114 · Fall, witnessed — no injury</div>
-                    <div style={{ fontSize: "12px", color: "#64768a" }}>State hotline notified 2h ago · investigation open · report PDF drafted</div></div>
+                    <div style={{ fontSize: "12px", color: "#5d7084" }}>State hotline notified 2h ago · investigation open · report PDF drafted</div></div>
 
                   <span style={{ background: "#fdf4e3", color: "#8a5a00", borderRadius: "99px", padding: "3px 10px", fontSize: "11.5px", fontWeight: "700", whiteSpace: "nowrap" }}>Follow-up due 48h</span>
           </div>
@@ -553,7 +553,7 @@ export default function Landing() {
 
                   <div>
                     <div style={{ fontWeight: "600", fontSize: "13.5px" }}>Fire drill — 2nd shift, east wing</div>
-                    <div style={{ fontSize: "12px", color: "#64768a" }}>Evacuation 4m 12s · every §2600.132 field logged · PDF filed</div></div>
+                    <div style={{ fontSize: "12px", color: "#5d7084" }}>Evacuation 4m 12s · every §2600.132 field logged · PDF filed</div></div>
 
                   <span style={{ background: "#eaf6ec", color: "#1e7a35", borderRadius: "99px", padding: "3px 10px", fontSize: "11.5px", fontWeight: "700", whiteSpace: "nowrap" }}>Complete</span>
           </div>
@@ -562,7 +562,7 @@ export default function Landing() {
 
                   <div>
                     <div style={{ fontWeight: "600", fontSize: "13.5px" }}>WO-58 · Generator monthly load test</div>
-                    <div style={{ fontSize: "12px", color: "#64768a" }}>Vendor on-site Thu · fuel level recorded · photos attached</div></div>
+                    <div style={{ fontSize: "12px", color: "#5d7084" }}>Vendor on-site Thu · fuel level recorded · photos attached</div></div>
 
                   <span style={{ background: "#e5effa", color: "#14548f", borderRadius: "99px", padding: "3px 10px", fontSize: "11.5px", fontWeight: "700", whiteSpace: "nowrap" }}>Verify to close</span>
           </div>
@@ -571,13 +571,13 @@ export default function Landing() {
 
                   <div>
                     <div style={{ fontWeight: "600", fontSize: "13.5px" }}>POC · §2600.65(a) training citation</div>
-                    <div style={{ fontSize: "12px", color: "#64768a" }}>Evidence attached for follow-up visit · Plan of Correction PDF generated</div></div>
+                    <div style={{ fontSize: "12px", color: "#5d7084" }}>Evidence attached for follow-up visit · Plan of Correction PDF generated</div></div>
 
                   <span style={{ background: "#fdf4e3", color: "#8a5a00", borderRadius: "99px", padding: "3px 10px", fontSize: "11.5px", fontWeight: "700", whiteSpace: "nowrap" }}>POC submitted</span>
           </div>
         </div>
 
-              <div style={{ padding: "12px 18px", borderTop: "1px solid #eef2f6", background: "#fafbfc", fontSize: "12px", color: "#64768a" }}>Nothing closes without an owner, a deadline, and supervisor verification — a warning becomes completed work, not another unresolved alert.</div>
+              <div style={{ padding: "12px 18px", borderTop: "1px solid #eef2f6", background: "#fafbfc", fontSize: "12px", color: "#5d7084" }}>Nothing closes without an owner, a deadline, and supervisor verification — a warning becomes completed work, not another unresolved alert.</div>
       </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -603,7 +603,7 @@ export default function Landing() {
                 <span style={{ background: "#ffffff", border: "1px solid #dbe3ec", borderRadius: "99px", padding: "5px 12px", fontSize: "12.5px", fontWeight: "600", color: "#33465c" }}>QAPI projects</span>
         </div>
 
-              <div style={{ marginTop: "6px", fontSize: "12.5px", color: "#64768a", borderLeft: "3px solid #d7dfe8", paddingLeft: "12px" }}>Reportable incidents auto-schedule the required notifications — state hotline, law enforcement, licensing — each with its own due-by clock.</div>
+              <div style={{ marginTop: "6px", fontSize: "12.5px", color: "#5d7084", borderLeft: "3px solid #d7dfe8", paddingLeft: "12px" }}>Reportable incidents auto-schedule the required notifications — state hotline, law enforcement, licensing — each with its own due-by clock.</div>
       </div>
     </div>
         )}
@@ -625,7 +625,7 @@ export default function Landing() {
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
 
-                  <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "10.5px", letterSpacing: "0.08em", color: "#64768a" }}>BINDER CONTENTS · LIVE</div>
+                  <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "10.5px", letterSpacing: "0.08em", color: "#5d7084" }}>BINDER CONTENTS · LIVE</div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
                     <span style={{ color: "#1e7a35", fontWeight: "800" }}>✓</span>Training compliance & certificates</div>
@@ -650,7 +650,7 @@ export default function Landing() {
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
 
-                  <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "10.5px", letterSpacing: "0.08em", color: "#64768a" }}>CITATION-WEIGHTED RISK</div>
+                  <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "10.5px", letterSpacing: "0.08em", color: "#5d7084" }}>CITATION-WEIGHTED RISK</div>
 
                   <div style={{ fontSize: "12.5px", color: "#44566b" }}>Topics surface in the order DHS actually cites them — the most-cited regulation your facility is exposed on appears first.</div>
 
@@ -658,12 +658,12 @@ export default function Landing() {
 
                     <span style={{ background: "#0d2742", color: "#ffffff", borderRadius: "8px", padding: "10px 14px", fontSize: "13px", fontWeight: "700", textAlign: "center" }}>Generate binder PDF</span>
 
-                    <div style={{ fontSize: "11.5px", color: "#64768a", textAlign: "center" }}>Rebuilt from live records · delivered via short-lived secure link</div>
+                    <div style={{ fontSize: "11.5px", color: "#5d7084", textAlign: "center" }}>Rebuilt from live records · delivered via short-lived secure link</div>
             </div>
           </div>
         </div>
 
-              <div style={{ padding: "12px 18px", borderTop: "1px solid #eef2f6", background: "#fafbfc", fontSize: "12px", color: "#64768a" }}>Auditors and surveyors get read-only, time-limited evidence rooms — never edit access, never the whole application.</div>
+              <div style={{ padding: "12px 18px", borderTop: "1px solid #eef2f6", background: "#fafbfc", fontSize: "12px", color: "#5d7084" }}>Auditors and surveyors get read-only, time-limited evidence rooms — never edit access, never the whole application.</div>
       </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -687,7 +687,7 @@ export default function Landing() {
                 <span style={{ background: "#ffffff", border: "1px solid #dbe3ec", borderRadius: "99px", padding: "5px 12px", fontSize: "12.5px", fontWeight: "600", color: "#33465c" }}>Report center</span>
         </div>
 
-              <div style={{ marginTop: "6px", fontSize: "12.5px", color: "#64768a", borderLeft: "3px solid #d7dfe8", paddingLeft: "12px" }}>60+ printable survey-readiness forms included, adapted from a real PA survey readiness binder.</div>
+              <div style={{ marginTop: "6px", fontSize: "12.5px", color: "#5d7084", borderLeft: "3px solid #d7dfe8", paddingLeft: "12px" }}>60+ printable survey-readiness forms included, adapted from a real PA survey readiness binder.</div>
       </div>
     </div>
         )}
@@ -706,28 +706,28 @@ export default function Landing() {
 
           <div style={{ border: "1px solid #e5eaf0", borderRadius: "12px", padding: "18px", display: "flex", flexDirection: "column", gap: "10px" }}>
 
-            <div style={{ fontSize: "13.5px", color: "#8a99a8", textDecoration: "line-through" }}>Sign-in sheets reconciled once a year</div>
+            <div style={{ fontSize: "13.5px", color: "#5d7084", textDecoration: "line-through" }}>Sign-in sheets reconciled once a year</div>
 
             <div style={{ fontSize: "14px", fontWeight: "700", color: "#0d2742" }}>Hours logged as training happens</div>
       </div>
 
           <div style={{ border: "1px solid #e5eaf0", borderRadius: "12px", padding: "18px", display: "flex", flexDirection: "column", gap: "10px" }}>
 
-            <div style={{ fontSize: "13.5px", color: "#8a99a8", textDecoration: "line-through" }}>Binder night before the survey</div>
+            <div style={{ fontSize: "13.5px", color: "#5d7084", textDecoration: "line-through" }}>Binder night before the survey</div>
 
             <div style={{ fontSize: "14px", fontWeight: "700", color: "#0d2742" }}>Binder PDF generated from live records</div>
       </div>
 
           <div style={{ border: "1px solid #e5eaf0", borderRadius: "12px", padding: "18px", display: "flex", flexDirection: "column", gap: "10px" }}>
 
-            <div style={{ fontSize: "13.5px", color: "#8a99a8", textDecoration: "line-through" }}>Expirations discovered by the surveyor</div>
+            <div style={{ fontSize: "13.5px", color: "#5d7084", textDecoration: "line-through" }}>Expirations discovered by the surveyor</div>
 
             <div style={{ fontSize: "14px", fontWeight: "700", color: "#0d2742" }}>Alerts escalate before anything lapses</div>
       </div>
 
           <div style={{ border: "1px solid #e5eaf0", borderRadius: "12px", padding: "18px", display: "flex", flexDirection: "column", gap: "10px" }}>
 
-            <div style={{ fontSize: "13.5px", color: "#8a99a8", textDecoration: "line-through" }}>Nine spreadsheets, one person who gets them</div>
+            <div style={{ fontSize: "13.5px", color: "#5d7084", textDecoration: "line-through" }}>Nine spreadsheets, one person who gets them</div>
 
             <div style={{ fontSize: "14px", fontWeight: "700", color: "#0d2742" }}>One record every role works from</div>
       </div>
@@ -840,7 +840,7 @@ export default function Landing() {
 
             <div>
               <span style={{ fontSize: "38px", fontWeight: "800", color: "#0d2742", letterSpacing: "-0.02em" }}>{STARTER_PRICE}</span>
-              <span style={{ fontSize: "14px", color: "#64768a" }}> / facility / month</span></div>
+              <span style={{ fontSize: "14px", color: "#5d7084" }}> / facility / month</span></div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "13.5px", color: "#33465c" }}>
 
@@ -868,7 +868,7 @@ export default function Landing() {
 
             <div>
               <span style={{ fontSize: "38px", fontWeight: "800", color: "#0d2742", letterSpacing: "-0.02em" }}>{GROWTH_PRICE}</span>
-              <span style={{ fontSize: "14px", color: "#64768a" }}> / facility / month</span></div>
+              <span style={{ fontSize: "14px", color: "#5d7084" }}> / facility / month</span></div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "13.5px", color: "#33465c" }}>
 
@@ -914,7 +914,7 @@ export default function Landing() {
       </div>
     </div>
 
-        <p style={{ margin: "18px auto 0", maxWidth: "640px", textAlign: "center", fontSize: "12.5px", color: "#64768a" }}>These prices feed the
+        <p style={{ margin: "18px auto 0", maxWidth: "640px", textAlign: "center", fontSize: "12.5px", color: "#5d7084" }}>These prices feed the
           <Link href="/savings">
             <strong>savings worksheet below</strong></Link> automatically — model your net opportunity with your own coordination hours and tool spend, risk avoidance excluded.</p>
   </div>
@@ -975,7 +975,7 @@ export default function Landing() {
                 <strong>Export your first binder</strong> — see your real compliance picture the same day.</span></div>
       </div>
 
-          <div style={{ fontSize: "13px", color: "#64768a", marginTop: "6px" }}>Stuck on something?
+          <div style={{ fontSize: "13px", color: "#5d7084", marginTop: "6px" }}>Stuck on something?
             <Link href="/faq">The FAQ</Link> answers the common questions;
             <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> answers async — never a required call.</div>
     </div>
@@ -998,7 +998,7 @@ export default function Landing() {
 
           <Link href="/signup" style={{ textAlign: "center", background: "#1b6fc2", color: "#ffffff", fontWeight: "700", fontSize: "15.5px", padding: "14px 16px", borderRadius: "9px", textDecoration: "none" }} className="hover:bg-[#14548f] hover:no-underline">Create your organization — free for {TRIAL_DAYS} days</Link>
 
-          <div style={{ fontSize: "12px", color: "#8a99a8", textAlign: "center" }}>Every module included · unlimited staff · cancel in-app, export everything ·
+          <div style={{ fontSize: "12px", color: "#5d7084", textAlign: "center" }}>Every module included · unlimited staff · cancel in-app, export everything ·
             <Link href="/privacy">Privacy</Link></div>
     </div>
   </div>

@@ -176,7 +176,7 @@ function MarketingHeader() {
           <LogoMark className="h-9 w-9" />
           <span className="flex min-w-0 flex-col leading-tight">
             <BrandName className="truncate text-[15px] font-extrabold" style={{ color: "#0d2742" }} />
-            <span className="hidden whitespace-nowrap text-[11px] font-semibold text-[#64768a] sm:block">
+            <span className="hidden whitespace-nowrap text-[11px] font-semibold text-[#5d7084] sm:block">
               PCH &amp; assisted living operations
             </span>
           </span>

@@ -311,7 +311,7 @@ export default function Features() {
                   gap: "8px",
                 }}
               >
-                <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.1em", color: "#64768a" }}>
+                <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.1em", color: "#5d7084" }}>
                   {group.title}
                 </div>
                 <div style={{ fontSize: "13px", color: "#33465c", display: "flex", flexDirection: "column", gap: "6px" }}>

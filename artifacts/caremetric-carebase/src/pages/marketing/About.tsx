@@ -15,7 +15,7 @@ function PhotoPlaceholder() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        color: "#8a99a8",
+        color: "#5d7084",
         fontSize: "12px",
         fontWeight: "700",
         background: "#fafbfc",
@@ -76,14 +76,14 @@ export default function About() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
             <div style={{ border: "1px dashed #b9c6d4", borderRadius: "14px", padding: "22px", display: "flex", gap: "16px", alignItems: "flex-start" }}>
               <div style={{ width: "96px", height: "96px", flexShrink: "0" }}><PhotoPlaceholder /></div>
-              <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "12px", lineHeight: "1.6", color: "#8a99a8" }}>[ founder name & title ]<br />[ 2–3 lines: background, connection to PA senior care, and why you're building CareBase ]</div>
+              <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "12px", lineHeight: "1.6", color: "#5d7084" }}>[ founder name & title ]<br />[ 2–3 lines: background, connection to PA senior care, and why you're building CareBase ]</div>
             </div>
             <div style={{ border: "1px dashed #b9c6d4", borderRadius: "14px", padding: "22px", display: "flex", gap: "16px", alignItems: "flex-start" }}>
               <div style={{ width: "96px", height: "96px", flexShrink: "0" }}><PhotoPlaceholder /></div>
-              <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "12px", lineHeight: "1.6", color: "#8a99a8" }}>[ operator-advisor name & facility ]<br />[ 2–3 lines: operational background and operational credibility ]</div>
+              <div style={{ fontFamily: "ui-monospace, monospace", fontSize: "12px", lineHeight: "1.6", color: "#5d7084" }}>[ operator-advisor name & facility ]<br />[ 2–3 lines: operational background and operational credibility ]</div>
             </div>
           </div>
-          <p style={{ margin: "14px 0 0", fontSize: "12.5px", color: "#8a99a8" }}>Placeholders on purpose — real names beat stock imagery. Drag your photos onto the circles; send the bios and we'll drop them in.</p>
+          <p style={{ margin: "14px 0 0", fontSize: "12.5px", color: "#5d7084" }}>Placeholders on purpose — real names beat stock imagery. Drag your photos onto the circles; send the bios and we'll drop them in.</p>
         </div>
       </section>
 

@@ -182,11 +182,11 @@ export default function HowItWorks() {
                 </span>
                 <div style={{ fontWeight: 700, fontSize: "15.5px", color: "#0d2742" }}>{step.title}</div>
                 <p style={{ margin: 0, fontSize: "13.5px", color: "#44566b" }}>{step.text}</p>
-                <div style={{ marginTop: "auto", fontSize: "12px", color: "#64768a", borderTop: "1px solid #eef2f6", paddingTop: "10px" }}>{step.note}</div>
+                <div style={{ marginTop: "auto", fontSize: "12px", color: "#5d7084", borderTop: "1px solid #eef2f6", paddingTop: "10px" }}>{step.note}</div>
               </div>
             ))}
           </div>
-          <p style={{ margin: "20px auto 0", textAlign: "center", fontSize: "13px", color: "#64768a" }}>
+          <p style={{ margin: "20px auto 0", textAlign: "center", fontSize: "13px", color: "#5d7084" }}>
             Setup is self-serve — most single facilities are entering real records the same day.
           </p>
 

@@ -3,6 +3,9 @@ import AxeBuilder from "@axe-core/playwright";
 
 test.describe("public release smoke journeys", () => {
   test("landing page exposes the primary conversion and sign-in paths", async ({ page }) => {
+    // Reduced motion keeps the marketing fade-in animations from being
+    // captured mid-fade, which would give axe blended low-contrast colors.
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
 
     await expect(page.getByRole("heading", {

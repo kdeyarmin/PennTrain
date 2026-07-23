@@ -302,13 +302,13 @@ export default function Savings() {
                     style={{
                       fontWeight: 700,
                       fontSize: 14.5,
-                      color: "#8a99a8",
+                      color: "#5d7084",
                       textDecoration: "line-through",
                     }}
                   >
                     {item.title}
                   </div>
-                  <p style={{ margin: "6px 0 0", fontSize: 13.5, color: "#64768a" }}>{item.body}</p>
+                  <p style={{ margin: "6px 0 0", fontSize: 13.5, color: "#5d7084" }}>{item.body}</p>
                 </div>
               ))}
             </div>
@@ -395,7 +395,7 @@ export default function Savings() {
                     fontFamily: "ui-monospace, monospace",
                     fontSize: 10.5,
                     letterSpacing: "0.08em",
-                    color: index === 3 ? "#0d2742" : "#64768a",
+                    color: index === 3 ? "#0d2742" : "#5d7084",
                     fontWeight: index === 3 ? 700 : undefined,
                     background: index === 3 ? "#eaf3fc" : "#fafbfc",
                     borderBottom: index === 3 ? "1px solid #cfe2f4" : "1px solid #e5eaf0",
@@ -415,7 +415,7 @@ export default function Savings() {
                         padding: cellIndex === 0 ? "12px 18px" : isCareBase ? "12px 18px 12px 14px" : "12px 14px",
                         borderBottom: isLastRow ? undefined : isCareBase ? "1px solid #dcebf8" : "1px solid #eef2f6",
                         background: isCareBase ? "#f3f9fe" : undefined,
-                        color: cellIndex === 0 || isCareBase ? "#0d2742" : "#64768a",
+                        color: cellIndex === 0 || isCareBase ? "#0d2742" : "#5d7084",
                         fontWeight: cellIndex === 0 ? 700 : isCareBase ? 600 : undefined,
                       }}
                     >
@@ -484,7 +484,7 @@ export default function Savings() {
                     onChange={(event) => setSlider(slider.key, event.currentTarget.value)}
                     style={{ accentColor: "#1b6fc2", width: "100%" }}
                   />
-                  <span style={{ fontWeight: 400, fontSize: 12, color: "#8a99a8" }}>{slider.help}</span>
+                  <span style={{ fontWeight: 400, fontSize: 12, color: "#5d7084" }}>{slider.help}</span>
                 </label>
               ))}
             </div>
