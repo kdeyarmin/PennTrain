@@ -444,7 +444,7 @@ function CitationCard({ item }: { item: Citation }) {
         </div>
 
         {(item.pch || item.alf) && item.note && (
-          <p className="-mt-1 font-mono text-[10.5px] uppercase tracking-[0.04em] text-[#8a99a8]">
+          <p className="-mt-1 font-mono text-[10.5px] uppercase tracking-[0.04em] text-[#5d7084]">
             {item.note}
           </p>
         )}
