@@ -90,9 +90,19 @@ async function remoteVersions(projectRef, token) {
       `Management API query failed (${response.status} ${response.statusText}) for project ${projectRef}. ${body}`.trim(),
     );
   }
-  const rows = await response.json();
-  if (!Array.isArray(rows)) {
-    throw new Error(`Unexpected Management API response shape: ${JSON.stringify(rows).slice(0, 200)}`);
+  const payload = await response.json();
+  // The Management API query endpoint returns a bare array of result rows (verified against
+  // this project). Also accept a `{ result: [...] }` / `{ rows: [...] }` wrapper so the check
+  // is resilient to response-shape differences (e.g. a proxy or a future API revision).
+  const rows = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.result)
+      ? payload.result
+      : Array.isArray(payload?.rows)
+        ? payload.rows
+        : null;
+  if (rows === null) {
+    throw new Error(`Unexpected Management API response shape: ${JSON.stringify(payload).slice(0, 200)}`);
   }
   return new Set(rows.map((row) => String(row.version)));
 }

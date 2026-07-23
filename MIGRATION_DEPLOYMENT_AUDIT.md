@@ -187,10 +187,10 @@ local stack) but nothing checked that they are *deployed*, and nothing was relia
 them:
 
 - **Deployment was effectively manual and lapsed.** The `supabase_migrations.schema_migrations`
-  `created_by` column shows every migration applied through Supabase's own tooling (stamped
-  `kdeyarmin@comcast.net`) ends at `20260714012155` (2026-07-14 01:21 UTC); the Supabase-tracked
-  production branch `main` last updated `2026-07-13T19:53:24Z`. After that only two ad-hoc
-  API/MCP applies happened, which is why the gap is scattered rather than a clean cliff.
+  `created_by` column shows every migration applied through Supabase's own tooling (stamped with
+  the project owner's Supabase account) ends at `20260714012155` (2026-07-14 01:21 UTC); the
+  Supabase-tracked production branch `main` last updated `2026-07-13T19:53:24Z`. After that only
+  two ad-hoc API/MCP applies happened, which is why the gap is scattered rather than a clean cliff.
 - **The Supabase GitHub integration does preview branching, not production deploy-on-merge.**
   It is connected (it comments on PRs) and the org is on the Pro plan, but all 71 pending
   migrations were merged to `main` via PRs over ~9 days and none deployed — so migrations were
@@ -206,8 +206,10 @@ reappears.
 ### 1. Automated deploy on merge — `.github/workflows/deploy-migrations.yml`
 
 Runs on every push to `main` that changes `supabase/migrations/**` (and on manual
-`workflow_dispatch`): it links the project, runs `supabase db push`, then runs the drift check
-to confirm the remote is in sync. This makes "merged to `main`" imply "deployed", independent
+`workflow_dispatch`): it links the project, runs `supabase db push --include-all`, then runs the
+drift check to confirm the remote is in sync. `--include-all` lets it backfill any pending
+version that sorts before an already-applied one (the out-of-order situation this audit found),
+which a plain `db push` would refuse. This makes "merged to `main`" imply "deployed", independent
 of whether Supabase's native GitHub integration is doing production deploys.
 
 **One-time setup — add two repository secrets** (Settings → Secrets and variables → Actions):

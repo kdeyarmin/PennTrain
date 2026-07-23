@@ -57,8 +57,11 @@ jobs:
       - name: Link Supabase project
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
+      # --include-all backfills any pending migration whose version sorts before one already
+      # applied on the remote (the out-of-order situation this project hit); a plain `db push`
+      # would refuse it and leave drift, which the verify step below would then flag.
       - name: Push pending migrations
-        run: supabase db push
+        run: supabase db push --include-all
 
       - name: Verify no migration drift remains
         run: node scripts/check-migration-drift.mjs
