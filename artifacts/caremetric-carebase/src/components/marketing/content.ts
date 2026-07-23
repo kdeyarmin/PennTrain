@@ -120,13 +120,13 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
   {
     id: "training-compliance",
     category: "Facility Compliance & Training Core",
-    blurb: "The system of record for staff requirements, facility evidence, and survey-ready training proof.",
+    blurb: "The system of record for staff requirements, facility documentation, and survey-ready training proof.",
     items: [
       {
         icon: ShieldCheck,
         title: "Compliance Tracking",
         description:
-          "Yearly in-services, credentials, medication practicums, resident-facing staff requirements, and facility evidence in one system of record, with automatic alerts before anything lapses.",
+          "Yearly in-services, credentials, medication practicums, resident-facing staff requirements, and facility documentation in one system of record, with automatic alerts before anything lapses.",
       },
       {
         icon: GraduationCap,
@@ -150,7 +150,7 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: SlidersHorizontal,
         title: "Custom Requirement Catalog",
         description:
-          "Beyond the built-in Pennsylvania training types, org admins can define their own — scoped to a specific facility type or all of them — with its own required hours, renewal interval, warning window, evidence-document requirement, and regulatory citation.",
+          "Beyond the built-in Pennsylvania training types, org admins can define their own — scoped to a specific facility type or all of them — with its own required hours, renewal interval, warning window, documentation-document requirement, and regulatory citation.",
       },
       {
         icon: LayoutGrid,
@@ -162,7 +162,7 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: BarChart3,
         title: "Compliance Reporting Center",
         description:
-          "Roll up staff compliance, certifications, practicums, and facility evidence by facility, requirement type, or employee — scoped to what each role is allowed to see.",
+          "Roll up staff compliance, certifications, practicums, and facility documentation by facility, requirement type, or employee — scoped to what each role is allowed to see.",
       },
       {
         icon: FolderLock,
@@ -323,7 +323,7 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: ShieldAlert,
         title: "Violation & Plan-of-Correction Workflow",
         description:
-          "Record a DHS-cited violation against its specific citation and due date, attach evidence for the follow-up visit, and generate a formatted Plan of Correction PDF — status moves through Open, POC Submitted, Corrected, and Verified as the case closes out.",
+          "Record a DHS-cited violation against its specific citation and due date, attach documentation for the follow-up visit, and generate a formatted Plan of Correction PDF — status moves through Open, POC Submitted, Corrected, and Verified as the case closes out.",
       },
       {
         icon: Flame,
@@ -341,8 +341,8 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
   },
   {
     id: "facility-operations",
-    category: "Facility Operations, Quality & Evidence",
-    blurb: "The operational controls that turn inspections, safety events, complaints, repairs, and improvement work into accountable evidence.",
+    category: "Facility Operations, Quality & Documentation",
+    blurb: "The operational controls that turn inspections, safety events, complaints, repairs, and improvement work into accountable documentation.",
     items: [
       {
         icon: Siren,
@@ -354,7 +354,7 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: SlidersHorizontal,
         title: "Maintenance & Work Orders",
         description:
-          "Open preventive or corrective work orders, record safety risk, protective action, vendor, parts, cost, downtime, and repair evidence, then require supervisor verification before the issue is treated as closed.",
+          "Open preventive or corrective work orders, record safety risk, protective action, vendor, parts, cost, downtime, and repair documentation, then require supervisor verification before the issue is treated as closed.",
       },
       {
         icon: ShieldAlert,
@@ -372,13 +372,13 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: ClipboardList,
         title: "Closed-Loop Work Queue",
         description:
-          "Assign remediation and operational tasks with owners, deadlines, dependencies, approvals, and evidence so a dashboard warning becomes completed work rather than another unresolved alert.",
+          "Assign remediation and operational tasks with owners, deadlines, dependencies, approvals, and documentation so a dashboard warning becomes completed work rather than another unresolved alert.",
       },
       {
         icon: FolderLock,
-        title: "Evidence Rooms & Regulatory Crosswalk",
+        title: "Documentation Rooms & Regulatory Crosswalk",
         description:
-          "Map Chapter 2600 and 2800 requirements to the records that prove them, assemble controlled evidence collections, and share a time-limited read-only room without granting an external reviewer application access.",
+          "Map Chapter 2600 and 2800 requirements to the records that prove them, assemble controlled documentation collections, and share a time-limited read-only room without granting an external reviewer application access.",
       },
     ],
   },
@@ -391,7 +391,7 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: BadgeCheck,
         title: "Credentials & Clearances Tracking",
         description:
-          "Tracks background clearances and professional licensure separately from training records — Act 34 criminal history, Act 73 FBI fingerprint, and Act 33 child abuse clearances, RN/LPN licenses, PA Nurse Aide Registry status, TB screening, and I-9 eligibility — each with its own expiration, verification method, and evidence document.",
+          "Tracks background clearances and professional licensure separately from training records — Act 34 criminal history, Act 73 FBI fingerprint, and Act 33 child abuse clearances, RN/LPN licenses, PA Nurse Aide Registry status, TB screening, and I-9 eligibility — each with its own expiration, verification method, and documentation document.",
       },
       {
         icon: ShieldQuestion,
@@ -447,7 +447,7 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
   {
     id: "access-onboarding",
     category: "Access, Alerts & Onboarding",
-    blurb: "Getting people and evidence in and out of the system safely.",
+    blurb: "Getting people and documentation in and out of the system safely.",
     items: [
       {
         icon: Users,
@@ -512,9 +512,9 @@ export const STEPS = [
       "Keep completions, signatures, documents, observations, approvals, and audit events attached to the correct employee, resident, facility, requirement, and deadline.",
   },
   {
-    title: "See risk and share evidence",
+    title: "See risk and share documentation",
     description:
-      "Use dashboards, alerts, work queues, reports, regulatory crosswalks, evidence rooms, and binder exports to fix gaps and answer leadership, auditors, or surveyors with the underlying record.",
+      "Use dashboards, alerts, work queues, reports, regulatory crosswalks, documentation rooms, and binder exports to fix gaps and answer leadership, auditors, or surveyors with the underlying record.",
   },
 ];
 
@@ -539,7 +539,7 @@ export const NEW_WAY = [
   "Training types configured once per organization — hours, renewal windows, and which facility types they apply to — instead of re-explained to every new hire",
   "Resident assessments, incidents, and DHS-cited violations tracked to a corrective action and a survey-ready plan of correction",
   "AI-drafted courses from your own source material, reviewed and approved by a real person before anyone sees them",
-  "Admissions, resident services, safety, maintenance, quality, and facility evidence routed through accountable work queues",
+  "Admissions, resident services, safety, maintenance, quality, and facility documentation routed through accountable work queues",
 ];
 
 export const SECURITY_FEATURES: IconItem[] = [
@@ -581,9 +581,9 @@ export const SECURITY_FEATURES: IconItem[] = [
   },
   {
     icon: Fingerprint,
-    title: "Version-Bound E-Signature Evidence",
+    title: "Version-Bound E-Signature Documentation",
     description:
-      "Policy attestations are written through a dedicated function that captures the signer, timestamp, IP address, user agent, and a content hash of the exact document version reviewed — evidence designed to support ESIGN/UETA recordkeeping, not a generic checkbox.",
+      "Policy attestations are written through a dedicated function that captures the signer, timestamp, IP address, user agent, and a content hash of the exact document version reviewed — documentation designed to support ESIGN/UETA recordkeeping, not a generic checkbox.",
   },
   {
     icon: KeyRound,

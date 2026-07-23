@@ -40,7 +40,7 @@ const SALES_CARDS: { icon: LucideIcon; label: string; detail: string }[] = [
   {
     icon: TrendingUp,
     label: "Show the upside",
-    detail: "Less admin chasing, faster manager action, cleaner evidence, and stronger survey confidence.",
+    detail: "Less admin chasing, faster manager action, cleaner documentation, and stronger survey confidence.",
   },
   {
     icon: Handshake,
@@ -278,7 +278,7 @@ export function MarketingAIBot() {
           </form>
           <div className="flex items-start gap-2 bg-muted/30 px-3 py-2 text-[11px] leading-4 text-muted-foreground sm:px-4">
             <FileCheck2 className="h-3.5 w-3.5" /> This guidance is informational; CareBase helps organize
-            evidence but does not replace your regulator, counsel, or compliance advisor.
+            documentation but does not replace your regulator, counsel, or compliance advisor.
           </div>
         </>
       )}

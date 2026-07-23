@@ -219,7 +219,7 @@ export function FacilityLicensingWorkspace({
             </CardTitle>
             <CardDescription>
               Certificate lifecycle, provisional or conditional terms, waivers,
-              deadlines, evidence references, and immutable change history.
+              deadlines, documentation references, and immutable change history.
             </CardDescription>
           </div>
           {canManage ? (
@@ -458,7 +458,7 @@ function LicensingEditor({
             {editor ? human(editor.kind) : "record"}
           </DialogTitle>
           <DialogDescription>
-            Dates and evidence references drive the facility deadline queue.
+            Dates and documentation references drive the facility deadline queue.
             Every save appends an immutable history entry.
           </DialogDescription>
         </DialogHeader>
@@ -533,13 +533,13 @@ function LicensingEditor({
                     onChange={(e) => set("issuingAuthority", e.target.value)}
                   />
                 </Field>
-                <Field label="Evidence label">
+                <Field label="Documentation label">
                   <Input
                     value={f.documentLabel}
                     onChange={(e) => set("documentLabel", e.target.value)}
                   />
                 </Field>
-                <Field label="Evidence storage path">
+                <Field label="Documentation storage path">
                   <Input
                     value={f.storagePath}
                     onChange={(e) => set("storagePath", e.target.value)}
@@ -679,13 +679,13 @@ function LicensingEditor({
                     onChange={(e) => set("authorityReference", e.target.value)}
                   />
                 </Field>
-                <Field label="Evidence label">
+                <Field label="Documentation label">
                   <Input
                     value={f.documentLabel}
                     onChange={(e) => set("documentLabel", e.target.value)}
                   />
                 </Field>
-                <Field label="Evidence storage path">
+                <Field label="Documentation storage path">
                   <Input
                     value={f.storagePath}
                     onChange={(e) => set("storagePath", e.target.value)}
@@ -766,13 +766,13 @@ function LicensingEditor({
                     }
                   />
                 </Field>
-                <Field label="Evidence label">
+                <Field label="Documentation label">
                   <Input
                     value={f.documentLabel}
                     onChange={(e) => set("documentLabel", e.target.value)}
                   />
                 </Field>
-                <Field label="Evidence storage path">
+                <Field label="Documentation storage path">
                   <Input
                     value={f.storagePath}
                     onChange={(e) => set("storagePath", e.target.value)}

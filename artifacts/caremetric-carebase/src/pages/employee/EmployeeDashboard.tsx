@@ -227,7 +227,7 @@ export default function EmployeeDashboard() {
             <HelpCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
             <div>
               <p className="font-medium">What should I do first?</p>
-              <p className="text-sm text-muted-foreground">Complete overdue items first, then anything due soon. If a record looks wrong, upload evidence or contact your facility manager.</p>
+              <p className="text-sm text-muted-foreground">Complete overdue items first, then anything due soon. If a record looks wrong, upload documentation or contact your facility manager.</p>
             </div>
           </div>
           <Button asChild variant="outline" size="sm"><Link href="/me/help">Get help</Link></Button>

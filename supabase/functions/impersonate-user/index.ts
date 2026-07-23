@@ -118,7 +118,7 @@ Deno.serve(async (req: Request) => {
       new_values: { reason: reason.trim(), target_email: targetProfile.email, assurance: "aal2" },
     });
     if (authorizationAuditError) {
-      return json({ error: "Failed to record authorization evidence; impersonation aborted." }, 500);
+      return json({ error: "Failed to record authorization documentation; impersonation aborted." }, 500);
     }
 
     const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({

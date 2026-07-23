@@ -38,7 +38,7 @@ describe("canSelfEnrollInCourse", () => {
     }], new Date("2026-12-16T05:00:00Z"))).toBe(true);
   });
 
-  it("uses protected completion evidence instead of a later mutable timestamp correction", () => {
+  it("uses protected completion documentation instead of a later mutable timestamp correction", () => {
     expect(canSelfEnrollInCourse(annualCourse, [{
       course_id: annualCourse.id,
       status: "completed",
@@ -104,7 +104,7 @@ describe("canSelfEnrollInCourse", () => {
     ], new Date("2027-02-01T00:00:00Z"))).toBe(false);
   });
 
-  it("uses the latest protected completion evidence across multiple cycles", () => {
+  it("uses the latest protected completion documentation across multiple cycles", () => {
     expect(canSelfEnrollInCourse(annualCourse, [
       {
         course_id: annualCourse.id,

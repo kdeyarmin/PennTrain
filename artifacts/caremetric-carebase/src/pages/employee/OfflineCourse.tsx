@@ -105,7 +105,7 @@ export default function OfflineCourse() {
         <Badge variant="outline" className="gap-1"><CloudOff className="h-3.5 w-3.5" />Offline mode</Badge>
       </div>
 
-      <Alert><ShieldCheck className="h-4 w-4" /><AlertTitle>Device-bound learning copy</AlertTitle><AlertDescription>Course content is decrypted only for this signed-in employee on this device. Viewed progress is queued locally and can sync when connected. Quizzes, attestations, and regulated completion evidence require the live course.</AlertDescription></Alert>
+      <Alert><ShieldCheck className="h-4 w-4" /><AlertTitle>Device-bound learning copy</AlertTitle><AlertDescription>Course content is decrypted only for this signed-in employee on this device. Viewed progress is queued locally and can sync when connected. Quizzes, attestations, and regulated completion documentation require the live course.</AlertDescription></Alert>
 
       <Card>
         <CardContent className="space-y-3 pt-6">
@@ -127,7 +127,7 @@ export default function OfflineCourse() {
           {current.type === "text" && <p className="whitespace-pre-wrap rounded-lg border bg-muted/20 p-4 text-sm leading-7">{textContent(current.body)}</p>}
           {current.type === "video" && <div className="space-y-3 rounded-lg border p-4"><p className="text-sm text-muted-foreground">Video assets are streamed only when a connection is available; the lesson title and sequence remain available offline.</p>{current.videoUrl && navigator.onLine && <Button asChild variant="outline"><a href={current.videoUrl} target="_blank" rel="noreferrer"><PlayCircle className="mr-2 h-4 w-4" />Open video</a></Button>}</div>}
           {(current.type === "pdf" || current.type === "scorm") && <p className="rounded-lg border p-4 text-sm text-muted-foreground">Protected document and package assets are not embedded in the offline copy. Reconnect and open the live course to view this lesson.</p>}
-          {current.type === "quiz" && <div className="space-y-4">{current.quiz?.questions?.map((question, index) => <div key={question.id} className="rounded-lg border p-4"><p className="font-medium">{index + 1}. {question.questionText}</p><div className="mt-3 space-y-2">{question.answers.map((answer) => <div key={answer.id} className="rounded border bg-muted/20 px-3 py-2 text-sm">{answer.answerText}</div>)}</div></div>)}<Alert><CheckCircle2 className="h-4 w-4" /><AlertTitle>Reconnect to submit</AlertTitle><AlertDescription>Answer keys are intentionally excluded from offline storage. Take this knowledge check in the live course so attempts and evidence are recorded.</AlertDescription></Alert></div>}
+          {current.type === "quiz" && <div className="space-y-4">{current.quiz?.questions?.map((question, index) => <div key={question.id} className="rounded-lg border p-4"><p className="font-medium">{index + 1}. {question.questionText}</p><div className="mt-3 space-y-2">{question.answers.map((answer) => <div key={answer.id} className="rounded border bg-muted/20 px-3 py-2 text-sm">{answer.answerText}</div>)}</div></div>)}<Alert><CheckCircle2 className="h-4 w-4" /><AlertTitle>Reconnect to submit</AlertTitle><AlertDescription>Answer keys are intentionally excluded from offline storage. Take this knowledge check in the live course so attempts and documentation are recorded.</AlertDescription></Alert></div>}
           {!(["text", "video", "pdf", "scorm", "quiz"].includes(current.type)) && <p className="whitespace-pre-wrap text-sm">{textContent(current.body)}</p>}
         </CardContent>
       </Card>}

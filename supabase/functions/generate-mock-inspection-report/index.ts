@@ -37,7 +37,7 @@ Deno.serve(async (req: Request) => {
     line(clean(finding.answer), { indent: 12 });
     const evidence = Array.isArray(finding.evidenceIds) ? finding.evidenceIds : [];
     const sources = Array.isArray(finding.sourceIds) ? finding.sourceIds : [];
-    line(`Evidence: ${evidence.length ? evidence.join(", ") : "none recorded"}`, { indent: 12, size: 8 });
+    line(`Documentation: ${evidence.length ? evidence.join(", ") : "none recorded"}`, { indent: 12, size: 8 });
     line(`Rule sources: ${sources.length ? sources.join(", ") : "none recorded"}`, { indent: 12, size: 8 }); y -= 5;
   }
   const bytes = await doc.save();

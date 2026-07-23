@@ -259,7 +259,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           ...(showPchAlrModules ? [{ href: "/app/regulatory-crosswalk", label: "Regulatory Crosswalk", icon: FileSearch }] : []),
           ...(showPchAlrModules ? [{ href: "/app/regulatory-copilot", label: "Regulatory Copilot", icon: Sparkles }] : []),
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
-          { href: "/app/evidence", label: "Evidence Room", icon: FolderLock },
+          { href: "/app/evidence", label: "Documentation Room", icon: FolderLock },
           { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
           { href: "/app/template-documents", label: "Template Documents", icon: FileStack },
           { href: "/app/dhs-forms", label: "DHS Forms Library", icon: Landmark },
@@ -275,7 +275,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           ...(role === "org_admin"
             ? [{ href: "/app/enterprise", label: "Enterprise Foundation", icon: Network }]
             : []),
-          // Phase 1 audit evidence carries facility scope, so managers see only their assigned
+          // Phase 1 audit documentation carries facility scope, so managers see only their assigned
           // facilities while org administrators retain organization-wide visibility.
           ...(["org_admin", "facility_manager"].includes(role ?? "")
             ? [{ href: "/app/audit", label: "Audit Log", icon: ShieldAlert }]
@@ -364,7 +364,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           ...(showPchAlrModules ? [{ href: "/app/regulatory-crosswalk", label: "Regulatory Crosswalk", icon: FileSearch }] : []),
           ...(showPchAlrModules ? [{ href: "/app/regulatory-copilot", label: "Regulatory Copilot", icon: Sparkles }] : []),
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
-          { href: "/app/evidence", label: "Evidence Room", icon: FolderLock },
+          { href: "/app/evidence", label: "Documentation Room", icon: FolderLock },
           { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
           { href: "/app/template-documents", label: "Template Documents", icon: FileStack },
           { href: "/app/dhs-forms", label: "DHS Forms Library", icon: Landmark },

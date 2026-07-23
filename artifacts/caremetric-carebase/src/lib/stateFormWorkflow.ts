@@ -65,7 +65,7 @@ export type WorkflowActionKey =
   | "download_official_blank" // official pa.gov PDF from getRequiredStateFormInfo
   | "upload_signed_form"      // opens the upload + complete dialog (the only path to compliant)
   | "mark_compliant"          // signed state form already linked; call the completion RPC
-  | "view_signed_form";       // item already compliant; open the attached evidence
+  | "view_signed_form";       // item already compliant; open the attached documentation
 
 export interface WorkflowAction {
   key: WorkflowActionKey;
@@ -119,7 +119,7 @@ export function deriveStateFormWorkflow(
 
   // Only artifacts explicitly linked to THIS item count -- legacy assessment forms saved before
   // compliance_item_id existed (or started against a different cycle's item) must not advance a
-  // renewal's pipeline, since each cycle needs its own current-year evidence.
+  // renewal's pipeline, since each cycle needs its own current-year documentation.
   const linkedForms = forms.filter((f) => f.compliance_item_id === item.id);
   const linkedDocs = documents.filter((d) => d.compliance_item_id === item.id);
 

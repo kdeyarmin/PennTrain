@@ -287,7 +287,7 @@ export default function InspectionReadiness() {
 
       {mockInspectionSummary ? (
         <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-          Latest mock inspection: <strong>{mockInspectionSummary.passed} pass</strong>, <strong>{mockInspectionSummary.attention} attention</strong>, and <strong>{mockInspectionSummary.indeterminate} manual review</strong>. Each result retains its governed source and row evidence IDs.
+          Latest mock inspection: <strong>{mockInspectionSummary.passed} pass</strong>, <strong>{mockInspectionSummary.attention} attention</strong>, and <strong>{mockInspectionSummary.indeterminate} manual review</strong>. Each result retains its governed source and row documentation IDs.
         </div>
       ) : null}
 
@@ -444,7 +444,7 @@ export default function InspectionReadiness() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Creates a human-review draft from the current action queue so managers can assign owners, due dates, and evidence requests without starting from a blank page.
+            Creates a human-review draft from the current action queue so managers can assign owners, due dates, and documentation requests without starting from a blank page.
           </p>
           {showDraftPlan && (
             <div className="space-y-3">
@@ -462,7 +462,7 @@ export default function InspectionReadiness() {
                       <Badge variant="outline">Due in {step.dueInDays} days</Badge>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">Owner: {step.owner}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Evidence: {step.evidence}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Documentation: {step.evidence}</p>
                   </div>
                 ))}
               </div>

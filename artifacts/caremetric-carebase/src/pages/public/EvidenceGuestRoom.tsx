@@ -14,7 +14,7 @@ import { consumePublicAccessToken } from "@/lib/publicAccessToken";
 
 const SESSION_TOKEN_KEY = "carebase-evidence-room-token";
 
-// Public, session-less evidence room for surveyors. The link token is the whole
+// Public, session-less documentation room for surveyors. The link token is the whole
 // credential: the server re-checks revocation/expiry/scope on every call and logs each
 // view and download, so this page only renders what the RPCs already authorized.
 
@@ -31,7 +31,7 @@ function Shell({ children }: { children: ReactNode }) {
         <div className="flex items-center gap-2 text-muted-foreground">
           <FolderLock className="h-5 w-5" />
           <span className="font-semibold tracking-tight text-foreground">CareMetric CareBase</span>
-          <span className="text-sm">· Evidence Room</span>
+          <span className="text-sm">· Documentation Room</span>
         </div>
         {children}
         <p className="text-xs text-muted-foreground text-center">
@@ -60,7 +60,7 @@ export default function EvidenceGuestRoom() {
       <Shell>
         <Card>
           <CardContent className="py-16 flex items-center justify-center gap-2 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" /> Opening the evidence room…
+            <Loader2 className="h-5 w-5 animate-spin" /> Opening the documentation room…
           </CardContent>
         </Card>
       </Shell>

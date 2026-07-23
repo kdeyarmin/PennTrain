@@ -108,7 +108,7 @@ export default function QapiDashboard() {
           </h1>
           <p className="text-muted-foreground">
             Measurable improvement projects grounded in existing CareBase
-            operational evidence.
+            operational documentation.
           </p>
         </div>
         <Button disabled={!fac} onClick={() => setOpen(true)}>

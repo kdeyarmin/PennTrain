@@ -82,7 +82,7 @@ describe("role-based page visibility", () => {
     expect(canViewPage("/app/pending-approvals", "employee")).toBe(false);
   });
 
-  it("exposes only facility-scoped audit evidence to facility managers", () => {
+  it("exposes only facility-scoped audit documentation to facility managers", () => {
     expect(canViewPage("/app/audit", "org_admin")).toBe(true);
     expect(canViewPage("/app/audit", "facility_manager")).toBe(true);
     expect(canViewPage("/app/audit", "auditor")).toBe(true);

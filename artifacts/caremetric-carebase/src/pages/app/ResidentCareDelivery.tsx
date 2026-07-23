@@ -123,7 +123,7 @@ export default function ResidentCareDelivery() {
         </TabsList>
         <TabsContent value="actions" className="grid gap-4 xl:grid-cols-3">
           <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><PackageCheck className="h-5 w-5" />Register DME</CardTitle><CardDescription>Preserves assignment history and repair/inspection evidence.</CardDescription></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2"><PackageCheck className="h-5 w-5" />Register DME</CardTitle><CardDescription>Preserves assignment history and repair/inspection documentation.</CardDescription></CardHeader>
             <CardContent className="space-y-3">
               <Label htmlFor="dme-resident">Resident</Label>
               <Select value={selectedResidentId} onValueChange={setResidentId}><SelectTrigger id="dme-resident"><SelectValue placeholder="Select resident" /></SelectTrigger><SelectContent>{residents.data?.map(r => <SelectItem key={r.id} value={r.id}>{r.last_name}, {r.first_name}</SelectItem>)}</SelectContent></Select>

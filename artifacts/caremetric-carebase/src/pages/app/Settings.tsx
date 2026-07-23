@@ -462,7 +462,7 @@ export default function Settings() {
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5"><Label htmlFor="idle-timeout">Standard idle timeout</Label><div className="flex items-center gap-2"><Input id="idle-timeout" type="number" min={5} max={480} value={form.idleTimeoutMinutes} onChange={(event) => field("idleTimeoutMinutes", event.target.value)} disabled={!canManage} className="w-28" /><span className="text-sm text-muted-foreground">minutes</span></div></div>
               <div className="space-y-1.5"><Label htmlFor="kiosk-idle-timeout">Kiosk idle timeout</Label><div className="flex items-center gap-2"><Input id="kiosk-idle-timeout" type="number" min={1} max={60} value={form.kioskIdleTimeoutMinutes} onChange={(event) => field("kioskIdleTimeoutMinutes", event.target.value)} disabled={!canManage} className="w-28" /><span className="text-sm text-muted-foreground">minutes</span></div></div>
-              <p className="text-xs text-muted-foreground sm:col-span-2">Organization administrators and facility managers must enroll and verify TOTP MFA. Irreversible actions—including deactivation, evidence-grant revocation, and unpublishing—require a fresh AAL2 session.</p>
+              <p className="text-xs text-muted-foreground sm:col-span-2">Organization administrators and facility managers must enroll and verify TOTP MFA. Irreversible actions—including deactivation, documentation-grant revocation, and unpublishing—require a fresh AAL2 session.</p>
             </CardContent>
           </Card>
 

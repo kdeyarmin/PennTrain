@@ -17,7 +17,7 @@ const RESIDENT_LIFECYCLE = [
     label: "02 — First 15 days",
     title: "First 15 days",
     description:
-      "The initial assessment lands on its own regulatory clock, the support plan opens automatically, and orientation evidence attaches to the record.",
+      "The initial assessment lands on its own regulatory clock, the support plan opens automatically, and orientation documentation attaches to the record.",
   },
   {
     label: "03 — Every day",
@@ -57,6 +57,7 @@ const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
     id: "training-compliance",
     title: "Training & compliance core",
     items: [
+      "Today — one daily command center for due work",
       "Compliance tracking & automatic alerts",
       "Built-in course builder with graded quizzes",
       "Competency checklists & templates",
@@ -70,11 +71,12 @@ const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
   {
     id: "ai-course-creation",
     anchorAliases: ["live-classes"],
-    title: "AI & live training",
+    title: "AI, copilot & live training",
     items: [
       "AI curriculum generation from your documents",
       "AI avatar video lessons",
       "Targeted block-level regeneration",
+      "Grounded compliance copilot — cited, read-only answers",
       "Live class scheduling & digital sign-in",
       "Rotating QR & kiosk PIN check-in",
       "Printable meeting notices with QR",
@@ -104,6 +106,7 @@ const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
     items: [
       "One-click compliance binder PDF",
       "Citation-weighted readiness score",
+      "Survey Day Mode command workspace",
       "Incident & complaint tracking with notification clocks",
       "Violations & plan-of-correction workflow",
       "Fire drills & life-safety records",
@@ -112,7 +115,7 @@ const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
       "Maintenance & work orders",
       "QAPI & quality projects",
       "Closed-loop work queue",
-      "Evidence rooms & regulatory crosswalk",
+      "Documentation rooms & regulatory crosswalk",
     ],
   },
   {
@@ -125,7 +128,7 @@ const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
       "Monthly OIG / SAM exclusion screening",
       "Administrator qualification & CE tracking",
       "Live pass-meds authorization roster",
-      "Policy attestation campaigns (ESIGN/UETA evidence)",
+      "Policy attestation campaigns (ESIGN/UETA documentation)",
       "Shift scheduling & auto-fill",
       "Cross-facility float staff",
     ],
@@ -166,7 +169,7 @@ const USER_ROLES = [
     title: "Trainer",
     sees: "class rosters, retraining queues, and course drafts.",
     does:
-      "runs classes with QR check-in, drafts AI-assisted courses, manages practicum evidence.",
+      "runs classes with QR check-in, drafts AI-assisted courses, manages practicum documentation.",
   },
   {
     title: "Employee",
@@ -175,8 +178,29 @@ const USER_ROLES = [
   },
   {
     title: "Auditor / surveyor",
-    sees: "read-only evidence scoped to exactly what was requested.",
+    sees: "read-only documentation scoped to exactly what was requested.",
     does: "reviews the record without the ability to change anything.",
+  },
+] as const;
+
+const RECENTLY_SHIPPED = [
+  {
+    tag: "Survey Day Mode",
+    title: "A single workspace for the entrance conference",
+    body:
+      "When a licensing surveyor arrives, one screen pins the entrance-conference checklist and its live readiness, your latest compliance binder, a searchable on-shift staff roster with training and clearance flags, and the documentation rooms you've prepared. Activation and closure are facility-scoped audit events, and nothing new is created or exposed — it surfaces the proof you already have.",
+  },
+  {
+    tag: "Compliance Copilot",
+    title: "Cited answers, grounded in your own records",
+    body:
+      "Ask why an employee is blocked, what's due in 30 days, which residents lack a current medical evaluation, or for a drafted Plan of Correction. Every answer is read-only synthesis over governed rule versions and your facility's own documentation, carrying its source, effective date, and citation — and human confirmation stays mandatory, so a draft is never approved or submitted on its own.",
+  },
+  {
+    tag: "Today",
+    title: "The daily home for everything that's due",
+    body:
+      "One screen shows the full count of work due across a single facility or the whole portfolio, with overdue items called out first — so the morning question of “what needs doing today” has one answer instead of six spreadsheets.",
   },
 ] as const;
 
@@ -208,6 +232,48 @@ export default function Features() {
             and residents.
           </p>
         </Reveal>
+      </section>
+
+      <section
+        id="recently-shipped"
+        className="scroll-mt-24 border-b border-[#e5eaf0] bg-white"
+      >
+        <div className="mx-auto max-w-[1160px] px-6 py-[72px]">
+          <Reveal className="mx-auto flex max-w-[640px] flex-col gap-2.5 text-center">
+            <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#1b6fc2]">
+              What's new
+            </p>
+            <h2 className="m-0 text-[32px] font-bold leading-tight tracking-[-0.01em] text-[#0d2742]">
+              The newest capabilities, explained
+            </h2>
+            <p className="m-0 text-[15px] text-[#44566b]">
+              All three are in the full index below too — but these change the
+              day-to-day the most, so they're worth a closer look.
+            </p>
+          </Reveal>
+          <div className="mt-9 grid gap-3.5 md:grid-cols-3">
+            {RECENTLY_SHIPPED.map((item, index) => (
+              <Reveal key={item.tag} delay={(index % 3) * 0.05}>
+                <article className="flex h-full flex-col gap-2.5 rounded-xl border border-[#dfe6ee] bg-[#f6f8fa] p-6">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-[#eaf6ec] px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#1e7a35]">
+                      New
+                    </span>
+                    <span className="font-mono text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#1b6fc2]">
+                      {item.tag}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-[#0d2742]">
+                    {item.title}
+                  </h3>
+                  <p className="text-[13.5px] leading-[1.55] text-[#44566b]">
+                    {item.body}
+                  </p>
+                </article>
+              </Reveal>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section

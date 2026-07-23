@@ -101,7 +101,7 @@ const billingCapabilities = [
     title: "Online-payment readiness",
     icon: Banknote,
     detail:
-      "Record ACH, card, check, cash, EFT, portal, and lockbox payments with receipt evidence today; keep payment gateway reconciliation fields explicit for integrations.",
+      "Record ACH, card, check, cash, EFT, portal, and lockbox payments with receipt documentation today; keep payment gateway reconciliation fields explicit for integrations.",
   },
   {
     title: "Statements and collections",
@@ -584,7 +584,7 @@ function BillingPlaybook() {
           <strong>Month-end workflow:</strong> validate census and care-level
           changes, post recurring and one-time charges, import or post payments,
           review aging, generate statements, create delinquency work items,
-          export accounting rows, and lock evidence through immutable history.
+          export accounting rows, and lock documentation through immutable history.
         </div>
       </CardContent>
     </Card>
@@ -660,7 +660,7 @@ function RateAndLedger({ data }: { data: FinancialWorkspace }) {
           <CardTitle>Rate agreement history</CardTitle>
           <CardDescription>
             Each amendment is a new immutable version linked to signed resident
-            agreement evidence when available.
+            agreement documentation when available.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -2198,7 +2198,7 @@ function FundEntryDialog({
         <DialogHeader>
           <DialogTitle>Post personal-funds transaction</DialogTitle>
           <DialogDescription>
-            Withdrawals require staff evidence. Corrections must be linked
+            Withdrawals require staff documentation. Corrections must be linked
             adjustments, and balances cannot go below zero.
           </DialogDescription>
         </DialogHeader>

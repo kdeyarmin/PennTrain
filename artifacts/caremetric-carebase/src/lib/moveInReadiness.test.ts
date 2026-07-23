@@ -20,7 +20,7 @@ describe("buildMoveInReadinessPacket", () => {
     expect(packet.items.map((item) => item.id)).toContain("contacts");
   });
 
-  it("marks a packet inspection-ready when required evidence is complete", () => {
+  it("marks a packet inspection-ready when required documentation is complete", () => {
     const complianceItems = [
       { id: "pre", item_type: "preadmission_screening", status: "completed", due_date: "2026-07-13", completed_date: "2026-07-13" },
       { id: "asp", item_type: "asp_assessment", status: "completed", due_date: "2026-07-13", completed_date: "2026-07-13" },

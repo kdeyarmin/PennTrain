@@ -27,7 +27,7 @@ describe("administrator rule packs", () => {
     expect(summarizeAdministratorRulePack(alr).status).toBe("needs_attention");
   });
 
-  it("flags expired administrator evidence", () => {
+  it("flags expired administrator documentation", () => {
     const rules = buildAdministratorRulePack("ALR", {
       today: "2026-07-13",
       profile: {

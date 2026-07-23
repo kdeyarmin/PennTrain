@@ -255,7 +255,7 @@ export default function QapiProjectDetail() {
           <CardHeader>
             <CardTitle>Action items</CardTitle>
             <CardDescription>
-              Actions are owned work items with due dates, approval, evidence,
+              Actions are owned work items with due dates, approval, documentation,
               and effectiveness.
             </CardDescription>
           </CardHeader>

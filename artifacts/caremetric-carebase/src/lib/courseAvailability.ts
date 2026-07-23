@@ -44,7 +44,7 @@ export function latestCourseAssignment(
 
 /**
  * Mirrors self_enroll_course(): open work is reused, canceled work can be replaced,
- * and protected completion evidence becomes renewable during the final 30 days
+ * and protected completion documentation becomes renewable during the final 30 days
  * of its recurrence cycle, measured on the Pennsylvania training day.
  */
 export function canSelfEnrollInCourse(
@@ -58,7 +58,7 @@ export function canSelfEnrollInCourse(
   }
 
   // Mirrors the RPC's second lookup: canceled rows do not hide protected
-  // completion evidence, and renewal follows the latest recorded completion
+  // completion documentation, and renewal follows the latest recorded completion
   // rather than whichever assignment happened to be created most recently.
   const latestCompletion = courseAssignments
     .filter(assignment => assignment.status === "completed")

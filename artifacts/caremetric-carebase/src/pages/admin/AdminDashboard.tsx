@@ -359,7 +359,7 @@ export default function AdminDashboard() {
       title: "Compliance Oversight",
       Icon: ShieldAlert,
       status: `${suspendedOrgs} suspended`,
-      finding: "Platform admins need quick access to alerts, audit evidence, and governance.",
+      finding: "Platform admins need quick access to alerts, audit documentation, and governance.",
       enhancement: "Review alerts and security governance before enabling troubled tenants.",
       links: [
         { href: "/admin/alerts", label: "Alerts" },

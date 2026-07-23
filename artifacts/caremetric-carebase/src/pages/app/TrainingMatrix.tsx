@@ -370,7 +370,7 @@ function CellDetailDialog({
 
 // ---------------------------------------------------------------------------
 // Batch/cohort entry -- records ONE training event (type, date, hours, trainer, optional shared
-// evidence document) against MULTIPLE employees at once, e.g. a 15-person in-service that would
+// documentation document) against MULTIPLE employees at once, e.g. a 15-person in-service that would
 // otherwise be 15 separate CellDetailDialog round-trips. Same fan-out-over-mutateAsync +
 // Promise.allSettled + one settled-summary toast shape as PolicyDocumentDetail.tsx's
 // AssignCampaignDialog.
@@ -464,7 +464,7 @@ function RecordForMultipleDialog({
 
     setSubmitting(true);
 
-    // Evidence is optional and shared across the whole batch (one sign-in sheet/roster covering
+    // Documentation is optional and shared across the whole batch (one sign-in sheet/roster covering
     // every selected employee). training_documents.facility_id is NOT NULL and RLS ties
     // facility_manager/trainer visibility to that exact facility (is_assigned_to_facility(facility_id)) --
     // uploading a single copy scoped to just one employee's facility would make it unreadable to
@@ -491,7 +491,7 @@ function RecordForMultipleDialog({
       } catch (err) {
         setSubmitting(false);
         toast({
-          title: "Failed to upload evidence document",
+          title: "Failed to upload documentation document",
           description: err instanceof Error ? err.message : String(err),
           variant: "destructive",
         });
@@ -609,7 +609,7 @@ function RecordForMultipleDialog({
               />
             </div>
             <div className="col-span-2 space-y-1.5">
-              <Label className="text-[13px]">Evidence Document</Label>
+              <Label className="text-[13px]">Documentation Document</Label>
               <div className="flex items-center gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                   <Upload className="h-3.5 w-3.5 mr-2" /> {evidenceFile ? "Change File" : "Choose File"}
@@ -632,7 +632,7 @@ function RecordForMultipleDialog({
                 onChange={e => setEvidenceFile(e.target.files?.[0] ?? null)}
               />
               <p className="text-xs text-muted-foreground">
-                Optional shared roster/sign-in sheet, attached as evidence to every selected employee's record.
+                Optional shared roster/sign-in sheet, attached as documentation to every selected employee's record.
               </p>
             </div>
           </div>

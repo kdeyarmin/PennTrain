@@ -39,7 +39,7 @@ describe("CareMetric Copilot", () => {
   });
 
   it("does not surface unauthorized platform links", () => {
-    const answer = answerCareMetricCopilot("help me with inspection evidence", user("platform_admin"), "/admin/alerts");
+    const answer = answerCareMetricCopilot("help me with inspection documentation", user("platform_admin"), "/admin/alerts");
 
     expect(answer.links.some((link) => link.href === "/app/alerts")).toBe(false);
     expect(answer.links.every((link) => link.href.startsWith("/app/") || link.href.startsWith("/admin/"))).toBe(true);

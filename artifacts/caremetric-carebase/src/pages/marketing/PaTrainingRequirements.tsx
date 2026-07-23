@@ -114,7 +114,7 @@ const CLINICAL_PATHS = [
 
 const LIMITS = [
   "Unlicensed medication administration — requires the DHS-approved program and testing; insulin and epinephrine carry additional requirements.",
-  "CPR / first aid, qualified fire-safety training, and facility-plan exercises — require certified trainers or facilitators with retained external evidence.",
+  "CPR / first aid, qualified fire-safety training, and facility-plan exercises — require certified trainers or facilitators with retained external documentation.",
   "Administrator continuing education — approved-provider rules apply; a completion certificate is not, by itself, accepted administrator CE.",
   "A certificate of course completion is never, by itself, a claim of Department, CMS, or professional-board approval.",
 ] as const;

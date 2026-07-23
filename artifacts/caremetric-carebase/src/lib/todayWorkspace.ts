@@ -41,7 +41,7 @@ export interface TodayDestinations {
 export function getTodayDestinations(role: string | undefined): TodayDestinations {
   if (role === "auditor") {
     return {
-      primary: { href: "/app/evidence", label: "Open Evidence Room" },
+      primary: { href: "/app/evidence", label: "Open Documentation Room" },
       handoffs: "/app/audit",
       coverage: "/app/reports",
       inspection: "/app/evidence",

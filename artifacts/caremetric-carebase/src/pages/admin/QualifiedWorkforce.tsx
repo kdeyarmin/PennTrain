@@ -92,7 +92,7 @@ function QualificationCommand() {
     <div className="space-y-4">
       <div className="space-y-2"><Label htmlFor="phase3-qualification">Qualification ID</Label><Input id="phase3-qualification" value={qualificationId} onChange={(e) => setQualificationId(e.target.value)} /></div>
       <div className="space-y-2"><Label>Resulting state</Label><Select value={state} onValueChange={setState}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["active", "suspended", "revoked"].map((value) => <SelectItem key={value} value={value}>{labelFor(value)}</SelectItem>)}</SelectContent></Select></div>
-      <div className="space-y-2"><Label htmlFor="phase3-qualification-reason">Reason</Label><Textarea id="phase3-qualification-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Evidence-backed reason" /></div>
+      <div className="space-y-2"><Label htmlFor="phase3-qualification-reason">Reason</Label><Textarea id="phase3-qualification-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Documentation-backed reason" /></div>
       <CommandCard title="Qualification lifecycle" description="Records an append-only lifecycle event. Revocation is terminal." rpc="set_employee_qualification_state" args={{ p_qualification_id: qualificationId, p_state: state, p_reason: reason }} disabled={!qualificationId || reason.trim().length < 5} buttonLabel="Record state change" />
     </div>
   );
@@ -130,7 +130,7 @@ function EligibilityCommand() {
   };
   return (
     <Card>
-      <CardHeader><CardTitle>Explainable schedule eligibility</CardTitle><CardDescription>Uses the same engine as assignments, open shifts, and swaps. Results include exact blocks, warnings, and evidence checksum.</CardDescription></CardHeader>
+      <CardHeader><CardTitle>Explainable schedule eligibility</CardTitle><CardDescription>Uses the same engine as assignments, open shifts, and swaps. Results include exact blocks, warnings, and documentation checksum.</CardDescription></CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2"><Label htmlFor="phase3-employee">Employee ID</Label><Input id="phase3-employee" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} /></div>
         <div className="space-y-2"><Label htmlFor="phase3-facility">Facility ID</Label><Input id="phase3-facility" value={facilityId} onChange={(e) => setFacilityId(e.target.value)} /></div>
@@ -159,7 +159,7 @@ function EligibilityResultView({ result }: { result: EnterpriseJson }) {
   const overrides = stringArray(record.appliedOverrideIds);
   return (
     <div className="space-y-4 rounded-lg border p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-medium">Eligibility result</p><p className="text-xs text-muted-foreground">Evidence checksum {String(record.sourceChecksumSha256 ?? "unavailable").slice(0, 16)}...</p></div><Badge variant={outcome === "eligible" ? "default" : outcome === "blocked" ? "destructive" : "secondary"}>{labelFor(outcome)}</Badge></div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-medium">Eligibility result</p><p className="text-xs text-muted-foreground">Documentation checksum {String(record.sourceChecksumSha256 ?? "unavailable").slice(0, 16)}...</p></div><Badge variant={outcome === "eligible" ? "default" : outcome === "blocked" ? "destructive" : "secondary"}>{labelFor(outcome)}</Badge></div>
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-md bg-muted p-3"><p className="text-xs text-muted-foreground">Existing weekly hours</p><p className="text-lg font-semibold">{String(source.weeklyHoursBefore ?? 0)}</p></div>
         <div className="rounded-md bg-muted p-3"><p className="text-xs text-muted-foreground">Requested hours</p><p className="text-lg font-semibold">{String(source.requestedHours ?? 0)}</p></div>
@@ -230,7 +230,7 @@ function WorkforceSelfServiceQueue() {
           <Card><CardHeader><CardTitle className="text-base">Shift swaps ({queues.data?.shiftSwaps.length ?? 0})</CardTitle></CardHeader><CardContent className="space-y-3">{(queues.data?.shiftSwaps ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No swaps awaiting review.</p> : (queues.data?.shiftSwaps ?? []).map((swap) => <div key={String(swap.id)} className="space-y-2 rounded-lg border p-3 text-sm"><p className="font-medium">{personName(swap.requester)} ↔ {personName(swap.target)}</p><p className="text-muted-foreground">{String(swap.reason)}</p><div className="flex gap-2"><Button size="sm" onClick={() => openDecision({ kind: "swap", id: String(swap.id), approve: true, title: "Approve shift swap" })}>Approve</Button><Button size="sm" variant="outline" onClick={() => openDecision({ kind: "swap", id: String(swap.id), approve: false, title: "Reject shift swap" })}>Reject</Button></div></div>)}</CardContent></Card>
         </div>
       )}
-      <Dialog open={Boolean(decision)} onOpenChange={(open) => !open && setDecision(null)}><DialogContent><DialogHeader><DialogTitle>{decision?.title}</DialogTitle><DialogDescription>Record the evidence-backed operational reason. Approvals that change assignments run a fresh eligibility check.</DialogDescription></DialogHeader><div className="space-y-2 py-2"><Label htmlFor="queue-decision-reason">Decision reason</Label><Textarea id="queue-decision-reason" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={1000} /></div><DialogFooter><Button variant="outline" onClick={() => setDecision(null)}>Cancel</Button><Button variant={decision?.approve ? "default" : "destructive"} onClick={() => void submitDecision()} disabled={reason.trim().length < 5 || pending}>Record decision</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={Boolean(decision)} onOpenChange={(open) => !open && setDecision(null)}><DialogContent><DialogHeader><DialogTitle>{decision?.title}</DialogTitle><DialogDescription>Record the documentation-backed operational reason. Approvals that change assignments run a fresh eligibility check.</DialogDescription></DialogHeader><div className="space-y-2 py-2"><Label htmlFor="queue-decision-reason">Decision reason</Label><Textarea id="queue-decision-reason" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={1000} /></div><DialogFooter><Button variant="outline" onClick={() => setDecision(null)}>Cancel</Button><Button variant={decision?.approve ? "default" : "destructive"} onClick={() => void submitDecision()} disabled={reason.trim().length < 5 || pending}>Record decision</Button></DialogFooter></DialogContent></Dialog>
     </div>
   );
 }
@@ -246,7 +246,7 @@ export default function QualifiedWorkforce() {
         <div><h1 className="text-2xl font-bold">Qualified workforce operations</h1><p className="text-muted-foreground">Govern HRIS imports, qualifications, renewals, instructor-led completion, and scheduling eligibility.</p></div>
         <Button variant="outline" onClick={() => void snapshot.refetch()} disabled={snapshot.isFetching}><RefreshCw className={`mr-2 h-4 w-4 ${snapshot.isFetching ? "animate-spin" : ""}`} />Refresh</Button>
       </div>
-      <Alert><UsersRound className="h-4 w-4" /><AlertTitle>Evidence before automation</AlertTitle><AlertDescription>OCR is advisory, duplicate identities require an explicit decision, and compliance overrides are bounded and audited.</AlertDescription></Alert>
+      <Alert><UsersRound className="h-4 w-4" /><AlertTitle>Documentation before automation</AlertTitle><AlertDescription>OCR is advisory, duplicate identities require an explicit decision, and compliance overrides are bounded and audited.</AlertDescription></Alert>
       <div className="grid gap-4 xl:grid-cols-3">
         <MetricPanel title="HRIS imports" description="Source, run, and exception health." values={data.hris} />
         <MetricPanel title="Qualifications" description="Certification lifecycle and review queue." values={data.qualifications} />

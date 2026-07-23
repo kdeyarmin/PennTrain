@@ -204,7 +204,7 @@ export default function MoveInWorkspaceDetail() {
       />
 
       <Card>
-        <CardHeader><CardTitle>Admission task checklist</CardTitle><CardDescription>Tasks cannot complete until their dependencies and required evidence are satisfied.</CardDescription></CardHeader>
+        <CardHeader><CardTitle>Admission task checklist</CardTitle><CardDescription>Tasks cannot complete until their dependencies and required documentation are satisfied.</CardDescription></CardHeader>
         <CardContent className="space-y-3">
           {tasks.map(task => (
             <div key={task.id} className="grid gap-3 rounded-lg border p-4 lg:grid-cols-[1fr_180px_190px_auto] lg:items-center">
@@ -253,7 +253,7 @@ export default function MoveInWorkspaceDetail() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><History className="h-5 w-5" />Move-in history</CardTitle><CardDescription>Append-only task assignment, evidence, approval, exception, and guest-signature events.</CardDescription></CardHeader>
+          <CardHeader><CardTitle className="flex items-center gap-2"><History className="h-5 w-5" />Move-in history</CardTitle><CardDescription>Append-only task assignment, documentation, approval, exception, and guest-signature events.</CardDescription></CardHeader>
           <CardContent className="space-y-3">
             {!history.data?.length ? <p className="text-sm text-muted-foreground">No task events yet.</p> : history.data.slice(0, 20).map(event => (
               <div key={event.id} className="flex justify-between gap-3 border-b pb-2 text-sm">
@@ -277,7 +277,7 @@ export default function MoveInWorkspaceDetail() {
 
       <Dialog open={!!selectedTask} onOpenChange={value => !value && setSelectedTask(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{selectedTask?.title}</DialogTitle><DialogDescription>Attach evidence, capture a staff-assisted signature, document an exception, or advance the task.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{selectedTask?.title}</DialogTitle><DialogDescription>Attach documentation, capture a staff-assisted signature, document an exception, or advance the task.</DialogDescription></DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1"><Label>New state</Label><Select value={targetState} onValueChange={setTargetState}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{TASK_STATES.map(state => <SelectItem key={state} value={state}>{humanize(state)}</SelectItem>)}</SelectContent></Select></div>
             {selectedTask?.requires_document && (

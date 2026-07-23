@@ -23,7 +23,7 @@ import { todayISO, addDaysISO, computeDueDate, computeStatus } from "@/lib/compl
 import { ClipboardCheck, FileText, ExternalLink, Check, X, Inbox } from "lucide-react";
 
 // The three document_type values that can carry an external training credential. 'roster',
-// 'practicum_form' and 'competency_attachment' are evidence for other workflows entirely and
+// 'practicum_form' and 'competency_attachment' are documentation for other workflows entirely and
 // never need this review step.
 const EXTERNAL_CERT_DOC_TYPES: TrainingDocument["document_type"][] = ["certificate", "external_certificate", "transcript"];
 
@@ -36,7 +36,7 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 type DecisionAction = "pending" | "approved" | "rejected";
 
 // Matches employee_training_records_insert/_update RLS. Auditors are intentionally not routed to
-// this operational queue; everyone who can reach it can review external training evidence.
+// this operational queue; everyone who can reach it can review external training documentation.
 const PENDING_APPROVAL_MANAGE_ROLES = ["org_admin", "facility_manager", "trainer"];
 
 // Default age cutoff for the "New Submissions" tab -- a document uploaded this long ago without
@@ -113,7 +113,7 @@ function buildDecisionPayload(action: DecisionAction, input: DecisionInput): Tra
   if (action === "rejected") {
     // A rejected credential shouldn't leave behind a completion/due date that could read as
     // partial compliance elsewhere (e.g. TrainingMatrix), so we clear both and fall back to
-    // 'missing' -- the employee still needs valid evidence for this training type.
+    // 'missing' -- the employee still needs valid documentation for this training type.
     return {
       ...base,
       completion_date: null,

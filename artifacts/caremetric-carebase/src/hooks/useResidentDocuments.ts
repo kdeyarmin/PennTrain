@@ -85,7 +85,7 @@ export interface GeneratedStateFormPrefill {
 
 // Downloads the official DHS PDF for an upload-only item (preadmission screening / DME) with the
 // resident's demographics prefilled -- a "start from this" drafting aid stored is_state_form=false,
-// never completion evidence. Idempotent server-side: a second call returns the existing document.
+// never completion documentation. Idempotent server-side: a second call returns the existing document.
 export function useGenerateStateFormPrefill() {
   const queryClient = useQueryClient();
   return useMutation({

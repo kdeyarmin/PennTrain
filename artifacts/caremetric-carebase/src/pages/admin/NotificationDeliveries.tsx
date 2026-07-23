@@ -314,7 +314,7 @@ export default function NotificationDeliveries() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Notification Deliveries</h1>
-        <p className="text-muted-foreground">Provider outcomes, fallback evidence, templates, retries, and estimated spend.</p>
+        <p className="text-muted-foreground">Provider outcomes, fallback documentation, templates, retries, and estimated spend.</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -439,7 +439,7 @@ export default function NotificationDeliveries() {
                     <TableHead>Channel</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Provider evidence</TableHead>
+                    <TableHead>Provider documentation</TableHead>
                     <TableHead>Created / Sent</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -490,7 +490,7 @@ export default function NotificationDeliveries() {
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <Button size="sm" variant="ghost" onClick={() => setEvidenceDeliveryId(delivery.id)}>
-                              <Eye className="h-4 w-4 mr-1" />Evidence
+                              <Eye className="h-4 w-4 mr-1" />Documentation
                             </Button>
                             {delivery.status === "failed" && (
                             <Button
@@ -517,7 +517,7 @@ export default function NotificationDeliveries() {
       {evidenceDeliveryId && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />Delivery evidence</CardTitle>
+            <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />Delivery documentation</CardTitle>
             <Button variant="ghost" size="sm" onClick={() => setEvidenceDeliveryId(null)}>Close</Button>
           </CardHeader>
           <CardContent>
@@ -560,7 +560,7 @@ export default function NotificationDeliveries() {
                           <TableCell className="font-mono text-xs">{event.provider_event_id}</TableCell>
                           <TableCell className="text-xs">{new Date(event.occurred_at).toLocaleString()}</TableCell>
                         </TableRow>
-                      )) : <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">No callback evidence yet.</TableCell></TableRow>}
+                      )) : <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">No callback documentation yet.</TableCell></TableRow>}
                     </TableBody>
                   </Table>
                 </div>
