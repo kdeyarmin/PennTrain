@@ -76,6 +76,7 @@ import {
   HeartPulse,
   History,
   Gauge,
+  ScrollText,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -113,6 +114,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/admin/ai-generations", label: "AI Generation Log", icon: BarChart3 },
           { href: "/admin/document-analyzer", label: "Document Analyzer", icon: ScanText },
           { href: "/admin/help-content", label: "Help Center Content", icon: HelpCircle },
+          { href: "/admin/regulatory-updates", label: "Regulatory Updates", icon: ScrollText },
         ]
       },
       {

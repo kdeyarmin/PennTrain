@@ -58,6 +58,12 @@ export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
     description:
       "The 15 most frequently cited 55 Pa. Code Chapter 2600 and 2800 regulations from Pennsylvania DHS — medication records, staff training, fire drills, and more — with why each citation is issued and how to avoid it. Ranked from the 2025 BHSL Annual Report.",
   },
+  "/regulatory-updates": {
+    title:
+      "PA Regulatory Updates for PCH & Assisted Living (2026) | CareBase",
+    description:
+      "New Pennsylvania regulations, clarifications, and guidance for personal care homes and assisted living facilities — Chapter 2600 & 2800, in plain language. Subscribe for email updates.",
+  },
   "/faq": {
     title: "CareBase FAQ — PA Personal Care Home & Assisted Living Software",
     description:

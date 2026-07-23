@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "file": "20260723120000_regulatory_updates_and_newsletter.sql",
+    "rule": "anon-public-grant",
+    "match": "public.list_regulatory_updates",
+    "rationale": "Intentional public read path for the signed-out marketing regulatory-updates page, mirroring public.verify_certificate. list_regulatory_updates is SECURITY DEFINER with a fixed status='published' filter and search_path pinned to 'public', so anon callers can only read already-published feed rows -- draft/archived content and the base table stay unreachable (no anon table grant)."
+  }
+]

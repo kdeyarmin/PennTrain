@@ -20,6 +20,7 @@ const Faq = lazy(() => import("@/pages/marketing/Faq"));
 const About = lazy(() => import("@/pages/marketing/About"));
 const PaTrainingRequirements = lazy(() => import("@/pages/marketing/PaTrainingRequirements"));
 const PaDhsCitations = lazy(() => import("@/pages/marketing/PaDhsCitations"));
+const RegulatoryUpdates = lazy(() => import("@/pages/marketing/RegulatoryUpdates"));
 const Privacy = lazy(() => import("@/pages/marketing/Privacy"));
 const Terms = lazy(() => import("@/pages/marketing/Terms"));
 const RequestDemo = lazy(() => import("@/pages/marketing/RequestDemo"));
@@ -54,6 +55,7 @@ const SecurityGovernance = lazy(() => import("@/pages/admin/SecurityGovernance")
 const AdminSupportTickets = lazy(() => import("@/pages/admin/SupportTickets"));
 const AdminSupportTicketDetail = lazy(() => import("@/pages/admin/SupportTicketDetail"));
 const AdminHelpContent = lazy(() => import("@/pages/admin/HelpContent"));
+const AdminRegulatoryUpdates = lazy(() => import("@/pages/admin/RegulatoryUpdates"));
 const ImprovementRoadmap = lazy(() => import("@/pages/admin/ImprovementRoadmap"));
 const DocumentAnalyzer = lazy(() => import("@/pages/admin/DocumentAnalyzer"));
 
@@ -406,6 +408,7 @@ function Router() {
       <Route path="/savings" component={Savings} />
       <Route path="/pa-training-requirements" component={PaTrainingRequirements} />
       <Route path="/pa-dhs-citations" component={PaDhsCitations} />
+      <Route path="/regulatory-updates" component={RegulatoryUpdates} />
       <Route path="/faq" component={Faq} />
       <Route path="/about" component={About} />
       <Route path="/privacy" component={Privacy} />
@@ -516,6 +519,9 @@ function Router() {
       </Route>
       <Route path="/admin/help-content">
         {() => <ProtectedRoute component={AdminHelpContent} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/regulatory-updates">
+        {() => <ProtectedRoute component={AdminRegulatoryUpdates} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
       <Route path="/admin/document-analyzer">
         {() => <ProtectedRoute component={DocumentAnalyzer} allowedRoles={PLATFORM_ADMIN} />}

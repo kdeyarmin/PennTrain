@@ -342,7 +342,8 @@ const ALF_TOP_10 = [
 
 const HOW_CITATIONS_WORK = [
   {
-      "A personal care home must comply with roughly 500 individual regulatory requirements; an assisted living facility (the regulation calls it an \"assisted living residence\") with even more. When a licensing inspector finds non-compliance with any one of them, they record a violation against that section. A full inspection measures every regulation at once.",
+    label: "What triggers a citation",
+    body: "A personal care home must comply with roughly 500 individual regulatory requirements; an assisted living facility (the regulation calls it an \"assisted living residence\") with even more. When a licensing inspector finds non-compliance with any one of them, they record a violation against that section. A full inspection measures every regulation at once.",
   },
   {
     label: "Correction timeframes",
