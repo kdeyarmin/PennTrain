@@ -1,16 +1,18 @@
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parseFromAddress } from "../_shared/notificationDelivery.ts";
 
 // Public, unauthenticated "email me my savings model" intake for the /savings marketing
 // calculator (requires verify_jwt:false for [functions.email-savings-model] in
 // supabase/config.toml, the same registration as request-demo/signup-organization). There is no
 // caller session, so abuse is gated the same way the rest of the public marketing intake is: a
-// Cloudflare Turnstile proof (single-use, server-verified) is required before any mail is sent,
-// and a best-effort per-IP burst cap runs in-process as defense in depth.
+// Cloudflare Turnstile proof (single-use, server-verified) plus a hashed-IP submission cap, both
+// enforced before any mail is sent.
 //
 // The email body is generated entirely server-side from validated numeric inputs recomputed here
 // -- no user-supplied free text is ever placed in the message and the recipient is the address the
-// visitor entered -- so the endpoint cannot be used as an arbitrary-content relay. Nothing is
-// persisted; unlike request-demo this is worksheet delivery, not lead storage.
+// visitor entered -- so the endpoint cannot be used as an arbitrary-content relay. Each request is
+// stored as a warm-lead row in public.savings_model_requests (service-role write only), which also
+// backs the per-IP rate limit.
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -91,41 +93,9 @@ async function verifyTurnstile(token: string | undefined, ip: string): Promise<v
   }
 }
 
-// Best-effort, in-process burst cap keyed by hashed IP. It resets on cold start and is not shared
-// across instances, so it is defense in depth on top of Turnstile (the real control) -- enough to
-// blunt repeat clicks from a single warm instance without a durable store.
-const BURST_WINDOW_MS = 60 * 60 * 1000;
-const BURST_MAX_PER_HOUR = 10;
-// Hard ceiling on distinct IP hashes retained so a warm instance can't grow the map without bound.
-const BURST_MAX_TRACKED_IPS = 10_000;
-const recentByIpHash = new Map<string, number[]>();
-
-function pruneBurstMap(now: number): void {
-  if (recentByIpHash.size <= BURST_MAX_TRACKED_IPS) return;
-  // First drop entries whose window has fully expired.
-  for (const [key, timestamps] of recentByIpHash) {
-    const live = timestamps.filter((ts) => now - ts < BURST_WINDOW_MS);
-    if (live.length === 0) recentByIpHash.delete(key);
-    else recentByIpHash.set(key, live);
-  }
-  // If sustained distinct-IP load keeps it over the cap, evict oldest-inserted keys until under it
-  // (Map preserves insertion order, so the first key is the oldest).
-  while (recentByIpHash.size > BURST_MAX_TRACKED_IPS) {
-    const oldest = recentByIpHash.keys().next().value;
-    if (oldest === undefined) break;
-    recentByIpHash.delete(oldest);
-  }
-}
-
-function enforceBurstCap(ipHash: string): void {
-  const now = Date.now();
-  pruneBurstMap(now);
-  const hits = (recentByIpHash.get(ipHash) ?? []).filter((ts) => now - ts < BURST_WINDOW_MS);
-  if (hits.length >= BURST_MAX_PER_HOUR) {
-    throw new HttpError(429, "rate_limited", "Too many requests. Please try again later.");
-  }
-  hits.push(now);
-  recentByIpHash.set(ipHash, hits);
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
@@ -322,15 +292,54 @@ Deno.serve(async (req: Request) => {
     return json({ ok: false, error: "Enter a valid email address" }, 400);
   }
 
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+
   const ip = clientIp(req);
-  const pepper = Deno.env.get("DEMO_RATE_LIMIT_PEPPER") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "savings-model";
+  // Pepper the IP hash with a secret so it can't be reversed by enumeration, falling back to the
+  // service-role key (also secret) -- never a non-secret literal. Same pattern as request-demo.
+  const pepper = Deno.env.get("DEMO_RATE_LIMIT_PEPPER") ?? serviceRoleKey;
   const ipHash = await sha256Hex(`ip:${ip}:${pepper}`);
 
   try {
     await verifyTurnstile(body.turnstile_token, ip);
-    enforceBurstCap(ipHash);
+
+    // Durable, cross-instance per-IP hourly cap -- counts recent rows by hashed IP, the same
+    // approach request-demo uses for its public intake.
+    const maxPerHour = parsePositiveInteger(Deno.env.get("SAVINGS_MAX_IP_REQUESTS_PER_HOUR"), 5);
+    const windowStart = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count, error: countError } = await adminClient
+      .from("savings_model_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("ip_hash", ipHash)
+      .gte("created_at", windowStart);
+    if (countError) {
+      throw new HttpError(500, "rate_limit_unavailable", "Email delivery is temporarily unavailable. Please try again later.", countError.message);
+    }
+    if ((count ?? 0) >= maxPerHour) {
+      throw new HttpError(429, "rate_limited", "Too many requests. Please try again later.");
+    }
 
     const model = computeModel(body);
+
+    // Persist the lead (and rate-limit record) before sending, so a failed delivery still counts
+    // against the cap and the sales team keeps the lead.
+    const { error: insertError } = await adminClient.from("savings_model_requests").insert({
+      email,
+      weekly_admin_hours: model.hours,
+      loaded_hourly_rate: model.rate,
+      monthly_tool_spend: model.tools,
+      expected_reduction_percent: model.cut,
+      facility_count: model.fac,
+      gross_opportunity: Math.round(model.grossPerYear),
+      net_after_carebase: Math.round(model.netPerYear),
+      ip_hash: ipHash,
+    });
+    if (insertError) {
+      throw new HttpError(500, "lead_insert_failed", "We couldn't process your request. Please try again later.", insertError.message);
+    }
+
     const { subject, text, html } = buildEmail(model);
     await sendViaSendGrid(email, subject, text, html);
 

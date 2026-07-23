@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { LogoMark } from "@/components/brand/Logo";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
+import { ProductTour } from "@/components/marketing/ProductTour";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
@@ -769,6 +770,10 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      <div id="product-tour" className="scroll-mt-[72px]">
+        <ProductTour />
+      </div>
 
       <section className="bg-gradient-to-r from-[#1b6fc2] to-[#143a5c] text-white">
         <div className="mx-auto flex max-w-[1160px] flex-col gap-5 px-6 py-9 sm:flex-row sm:items-center sm:justify-between">
