@@ -292,13 +292,15 @@ Deno.serve(async (req: Request) => {
     return json({ ok: false, error: "Enter a valid email address" }, 400);
   }
 
-  const ip = clientIp(req);
-  const pepper = Deno.env.get("DEMO_RATE_LIMIT_PEPPER") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "savings-model";
-  const ipHash = await sha256Hex(`ip:${ip}:${pepper}`);
-
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+
+  const ip = clientIp(req);
+  // Pepper the IP hash with a secret so it can't be reversed by enumeration, falling back to the
+  // service-role key (also secret) -- never a non-secret literal. Same pattern as request-demo.
+  const pepper = Deno.env.get("DEMO_RATE_LIMIT_PEPPER") ?? serviceRoleKey;
+  const ipHash = await sha256Hex(`ip:${ip}:${pepper}`);
 
   try {
     await verifyTurnstile(body.turnstile_token, ip);
