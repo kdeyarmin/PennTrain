@@ -1,12 +1,18 @@
 import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu } from "lucide-react";
+import { ChevronDown, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
-import { MARKETING_NAV, stripBase } from "@/lib/publicPaths";
+import { MARKETING_NAV, MARKETING_RESOURCES_NAV, stripBase } from "@/lib/publicPaths";
 import { MarketingAIBot } from "@/components/marketing/MarketingAIBot";
 
 /**
@@ -176,6 +182,7 @@ function MarketingHeader() {
   const [location] = useLocation();
   const { isAuthenticated } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const resourcesActive = MARKETING_RESOURCES_NAV.some((item) => item.href === location);
 
   // Close the mobile menu on any route change.
   useEffect(() => {
@@ -198,7 +205,7 @@ function MarketingHeader() {
           </div>
         </Link>
 
-        <nav className="hidden items-center gap-5 lg:flex" aria-label="Primary">
+        <nav className="hidden items-center gap-5 xl:flex" aria-label="Primary">
           {MARKETING_NAV.map((item) => {
             const active = location === item.href;
             return (
@@ -216,10 +223,43 @@ function MarketingHeader() {
               </NavAnchorLink>
             );
           })}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "flex items-center gap-1 whitespace-nowrap text-sm font-semibold outline-none transition-colors",
+                  resourcesActive
+                    ? "text-foreground"
+                    : "text-foreground/70 hover:text-foreground"
+                )}
+              >
+                Resources
+                <ChevronDown className="h-4 w-4 opacity-70" aria-hidden />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              {MARKETING_RESOURCES_NAV.map((item) => {
+                const active = location === item.href;
+                return (
+                  <DropdownMenuItem key={item.href} asChild>
+                    <Link
+                      href={item.href}
+                      aria-current={active ? "page" : undefined}
+                      className={cn("cursor-pointer", active && "font-semibold text-foreground")}
+                    >
+                      {item.label}
+                    </Link>
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </nav>
 
         {/* Desktop actions */}
-        <div className="hidden lg:flex items-center gap-3 shrink-0">
+        <div className="hidden xl:flex items-center gap-3 shrink-0">
           {isAuthenticated ? (
             <Button asChild size="sm" data-testid="button-open-app">
               {/* "/" redirects signed-in visitors to their role's home. */}
@@ -254,7 +294,7 @@ function MarketingHeader() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 shrink-0 lg:hidden"
+              className="h-9 w-9 shrink-0 xl:hidden"
               aria-label="Open menu"
             >
               <Menu className="h-5 w-5" />
@@ -264,6 +304,29 @@ function MarketingHeader() {
             <SheetTitle className="sr-only">Navigation menu</SheetTitle>
             <nav className="mt-8 flex flex-col gap-1">
               {MARKETING_NAV.map((item) => {
+                const active = location === item.href;
+                return (
+                  <NavAnchorLink
+                    key={item.href}
+                    href={item.href}
+                    onNavigate={() => setMenuOpen(false)}
+                    className={cn(
+                      "rounded-md px-3 py-2 text-sm font-medium",
+                      active
+                        ? "bg-muted text-foreground"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                    )}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    {item.label}
+                  </NavAnchorLink>
+                );
+              })}
+
+              <p className="mt-3 px-3 pb-1 font-mono text-[10.5px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/70">
+                Resources
+              </p>
+              {MARKETING_RESOURCES_NAV.map((item) => {
                 const active = location === item.href;
                 return (
                   <NavAnchorLink

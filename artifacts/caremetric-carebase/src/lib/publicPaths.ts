@@ -1,21 +1,35 @@
 /**
  * Single source of truth for the public (signed-out) surface of the site.
  *
- * Two consumers must agree on this list, so it lives in one place:
+ * Several consumers must agree on this list, so it lives in one place:
  *  - MarketingLayout renders these in the header nav and footer.
  *  - AuthProvider allows these paths for signed-out visitors; anything else
  *    bounces to /login. If a marketing page isn't listed here, loading it
  *    directly (refresh, bookmark, new tab) would redirect to login.
+ *
+ * The header is deliberately split into a short row of primary links plus a
+ * grouped "Resources" menu: ten top-level links overflowed the bar and
+ * collided with the logo. MARKETING_NAV holds the primary links;
+ * MARKETING_RESOURCES_NAV holds the secondary (mostly PA regulatory) pages
+ * that fold into the dropdown. Both are still public pages, so both feed the
+ * auth allow-list below.
  */
 export const MARKETING_NAV = [
   { href: "/#platform", label: "Platform" },
-  { href: "/how-it-works", label: "How it works" },
   { href: "/features", label: "Features" },
-  { href: "/#pricing", label: "Pricing" },
+  { href: "/how-it-works", label: "How it works" },
   { href: "/savings", label: "Savings" },
-  { href: "/pa-training-requirements", label: "Requirements" },
-  { href: "/pa-dhs-citations", label: "Citations" },
-  { href: "/regulatory-updates", label: "Updates" },
+  { href: "/#pricing", label: "Pricing" },
+] as const;
+
+/**
+ * Secondary links grouped under the header's "Resources" dropdown (and listed
+ * flat, under a heading, in the mobile menu). Each is a standalone public page.
+ */
+export const MARKETING_RESOURCES_NAV = [
+  { href: "/pa-training-requirements", label: "PA requirements guide" },
+  { href: "/pa-dhs-citations", label: "Top DHS citations" },
+  { href: "/regulatory-updates", label: "Regulatory updates" },
   { href: "/faq", label: "FAQ" },
   { href: "/about", label: "About" },
 ] as const;
@@ -40,6 +54,7 @@ const MARKETING_PATHS: readonly string[] = [
   // Nav entries may be landing-page hash links (e.g. "/#pricing"); only real
   // pathnames belong in the auth guard's allow list.
   ...MARKETING_NAV.map((item) => item.href).filter((href) => !href.includes("#")),
+  ...MARKETING_RESOURCES_NAV.map((item) => item.href).filter((href) => !href.includes("#")),
   ...MARKETING_EXTRA_PATHS,
 ];
 
