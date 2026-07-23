@@ -207,7 +207,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/admin/help-content", label: "Help center content", domain: "support", roles: PLATFORM_ADMIN, keywords: ["articles", "knowledge base"] },
   { path: "/admin/regulatory-updates", label: "Regulatory updates", domain: "support", roles: PLATFORM_ADMIN, keywords: ["regulations", "clarifications", "guidance", "newsletter", "compliance changes"] },
   { path: "/admin/settings", label: "Platform settings", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["feature flags", "maintenance", "signup"] },
-  { path: "/admin/roadmap", label: "Improvement roadmap", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["phases", "planning", "suggestions", "implementation"] },
+  { path: "/admin/roadmap", label: "Product roadmap", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["changelog", "released", "shipped", "release flags", "what's new"] },
 
   { path: "/app", label: "Organization dashboard", domain: "tenant", roles: ORG_HOME_ROLES, keywords: ["overview", "compliance"] },
   { path: "/app/today", label: "Today", domain: "tenant", roles: ORG_HOME_ROLES, keywords: ["daily", "priorities", "huddle", "exceptions", "decisions"] },

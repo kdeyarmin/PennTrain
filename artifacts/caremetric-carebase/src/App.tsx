@@ -169,6 +169,8 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { KioskLayout } from "@/components/layout/KioskLayout";
 import MaintenanceBanner from "@/components/layout/MaintenanceBanner";
 import { useAuth } from "@/lib/auth";
+import { usePlatformStatus } from "@/hooks/usePlatformSettings";
+import { shouldBlockForMaintenance } from "@/lib/maintenanceMode";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { helpBasePathForRole } from "@/lib/appDomains";
 import { PCH_ALR_ONLY_FACILITY_TYPES, hasAnyFacilityType } from "@/lib/facilityTypes";
@@ -184,6 +186,24 @@ function FullPageLoading({ label = "Loading CareBase" }: { label?: string }) {
       <span className="sr-only">{label}…</span>
     </div>
   );
+}
+
+// Lazily loaded: it only renders while a platform admin has maintenance mode on, so keeping it
+// out of the eager app shell (which the bundle budget watches closely) costs nothing in the
+// overwhelmingly common non-maintenance case. Rendered under the Router's <Suspense> boundary.
+const MaintenanceGate = lazy(() => import("@/components/layout/MaintenanceGate"));
+
+// Wraps a data-bearing public/guest route (safety intake, kiosk check-in, evidence/move-in/
+// resident-agreement portals, designated-person portal) so maintenance mode holds those tenant
+// read/write flows too -- not just the authenticated app. Guests have no app role, so any confirmed
+// maintenance blocks them (shouldBlockForMaintenance treats a missing role as non-admin). Fails open
+// while status is unknown. Read-only public verification routes (/verify, /passport) stay open.
+function MaintenanceGatedRoute({ component: Component }: { component: ComponentType }) {
+  const { data: platformStatus } = usePlatformStatus();
+  if (shouldBlockForMaintenance(platformStatus?.maintenanceMode, undefined)) {
+    return <MaintenanceGate showSignOut={false} />;
+  }
+  return <Component />;
 }
 
 function ProtectedRoute({
@@ -203,6 +223,10 @@ function ProtectedRoute({
   const { user, isLoading, isAuthenticated } = useAuth();
   const moduleAccess = useProductModuleAccess();
   const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
+  // Shares the cached ["platform-status"] query that MaintenanceBanner already runs, so this
+  // adds no extra request. Fails open: `data` is undefined while loading and resolves to
+  // maintenanceMode:false on any error, so the gate below only ever engages on a confirmed true.
+  const { data: platformStatus } = usePlatformStatus();
 
   if (isLoading || moduleAccess.isLoading) {
     return <FullPageLoading />;
@@ -211,6 +235,14 @@ function ProtectedRoute({
   if (!isAuthenticated) {
     const loginPath = loginPathWithNext(window.location.pathname, window.location.search, window.location.hash);
     return <Redirect to={loginPath} />;
+  }
+
+  // Maintenance mode holds every non-platform-admin out of the authenticated app until a
+  // platform admin turns it back off; admins pass through so they can reach /admin/settings and
+  // do exactly that. Applied before the role/module checks so a maintenance user always lands on
+  // the explanatory screen rather than being bounced between routes.
+  if (shouldBlockForMaintenance(platformStatus?.maintenanceMode, user?.role)) {
+    return <MaintenanceGate />;
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role as UserRole)) {
@@ -363,20 +395,20 @@ function Router() {
       <Route path="/legal/facility-signup" component={FacilitySignupLegal} />
       <Route path="/verify/:slug" component={VerifyCertificate} />
       <Route path="/passport/:slug" component={TrainingPassport} />
-      <Route path="/report-safety" component={SafetyReport} />
+      <Route path="/report-safety">{() => <MaintenanceGatedRoute component={SafetyReport} />}</Route>
       {/* Bare, chrome-less public page intentionally left outside ProtectedRoute/MainLayout so
           signed-out visitors can open it directly after scanning a QR code. */}
-      <Route path="/checkin/:token" component={CheckIn} />
-      <Route path="/checkin" component={CheckIn} />
+      <Route path="/checkin/:token">{() => <MaintenanceGatedRoute component={CheckIn} />}</Route>
+      <Route path="/checkin">{() => <MaintenanceGatedRoute component={CheckIn} />}</Route>
       {/* Guest pages immediately move path credentials into tab-scoped storage and replace
           browser history with the matching clean route below. */}
-      <Route path="/evidence-access/:token" component={EvidenceGuestRoom} />
-      <Route path="/evidence-access" component={EvidenceGuestRoom} />
-      <Route path="/move-in-access/:token" component={MoveInGuestPortal} />
-      <Route path="/move-in-access" component={MoveInGuestPortal} />
-      <Route path="/resident-agreement-access/:token" component={ResidentAgreementGuestPortal} />
-      <Route path="/resident-agreement-access" component={ResidentAgreementGuestPortal} />
-      <Route path="/resident-portal" component={ResidentDesignatedPersonPortal} />
+      <Route path="/evidence-access/:token">{() => <MaintenanceGatedRoute component={EvidenceGuestRoom} />}</Route>
+      <Route path="/evidence-access">{() => <MaintenanceGatedRoute component={EvidenceGuestRoom} />}</Route>
+      <Route path="/move-in-access/:token">{() => <MaintenanceGatedRoute component={MoveInGuestPortal} />}</Route>
+      <Route path="/move-in-access">{() => <MaintenanceGatedRoute component={MoveInGuestPortal} />}</Route>
+      <Route path="/resident-agreement-access/:token">{() => <MaintenanceGatedRoute component={ResidentAgreementGuestPortal} />}</Route>
+      <Route path="/resident-agreement-access">{() => <MaintenanceGatedRoute component={ResidentAgreementGuestPortal} />}</Route>
+      <Route path="/resident-portal">{() => <MaintenanceGatedRoute component={ResidentDesignatedPersonPortal} />}</Route>
 
       <Route path="/account/security">
         {() => <ProtectedRoute component={MfaSettings} allowedRoles={ANY_ROLE} />}

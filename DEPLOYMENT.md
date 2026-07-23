@@ -250,12 +250,32 @@ sandbox live.
 - **Local dev:** `supabase/seed.sql` already creates matching auth users for every role (all
   password `demo123`). Copy the ready-made `VITE_DEMO_ACCOUNTS_JSON` line from `.env.example`
   into your `.env` and the sandbox works immediately.
-- **Hosted / prod:** never reuse the seed passwords. Create dedicated public-demo auth users
-  (synthetic credentials only) attached to the demo organization, then set
-  `VITE_DEMO_ACCOUNTS_JSON` to those. The demo tenant's sample data and its
-  reset-to-baseline routine live in
+- **Hosted / prod:** never reuse the seed passwords. Provision dedicated public-demo auth users
+  (synthetic credentials only) attached to the demo organization with the
+  **`provision-demo-tenant`** Edge Function, then set `VITE_DEMO_ACCOUNTS_JSON` to the value it
+  returns. The demo tenant's sample data and its reset-to-baseline routine live in
   `supabase/migrations/20260717163659_demo_playground_seed_and_reset.sql`
   (`app_private.seed_demo_organization` / `public.restore_demo_baseline`).
+
+  1. Set the two secrets (the account password is inherently public — it ships in the browser
+     bundle via `VITE_DEMO_ACCOUNTS_JSON` — but the provisioning call must still be authorized):
+     ```bash
+     npx supabase secrets set \
+       DEMO_PROVISION_SECRET="$(openssl rand -hex 32)" \
+       DEMO_ACCOUNT_PASSWORD='choose-a-synthetic-demo-password'
+     ```
+  2. Deploy and invoke it once (it is idempotent — safe to re-run):
+     ```bash
+     npx supabase functions deploy provision-demo-tenant
+     curl -sS -X POST \
+       "https://<project-ref>.supabase.co/functions/v1/provision-demo-tenant" \
+       -H "x-demo-provision-secret: <the DEMO_PROVISION_SECRET value>"
+     ```
+     It ensures the demo org, creates the five `org_admin`/`facility_manager`/`trainer`/`employee`/
+     `auditor` accounts (never a `platform_admin`), seeds the tenant, and returns a
+     `viteDemoAccountsJson` field.
+  3. Copy that `viteDemoAccountsJson` string into the Railway build variable
+     `VITE_DEMO_ACCOUNTS_JSON` and redeploy the frontend.
 - Because it is a `VITE_` value, changing it requires a **rebuild/redeploy**, not just a restart.
 
 ### Deployment asset continuity
