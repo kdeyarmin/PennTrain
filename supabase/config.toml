@@ -141,6 +141,12 @@ verify_jwt = false
 [functions.request-demo]
 verify_jwt = false
 
+# Public, unauthenticated "email me my savings model" delivery for the /savings calculator --
+# visitors have no session. The function verifies Turnstile and generates the email body entirely
+# from validated numeric inputs (no user free text, no persistence) before sending via SendGrid.
+[functions.email-savings-model]
+verify_jwt = false
+
 # Real session impersonation ("log in as user") for platform_admin support use. Authorization is
 # enforced inside the function itself (caller JWT must resolve to an active platform_admin
 # profile), not via verify_jwt -- verify_jwt only confirms the request carries *a* valid JWT, not
