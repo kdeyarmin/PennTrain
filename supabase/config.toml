@@ -141,6 +141,12 @@ verify_jwt = false
 [functions.request-demo]
 verify_jwt = false
 
+# Public, unauthenticated newsletter/regulatory-update signup -- subscribers have no session.
+# Enforces Turnstile and a hashed-IP submission cap before its service-role upsert into
+# newsletter_subscribers, which has no anon/authenticated INSERT policy. Mirrors request-demo.
+[functions.subscribe-updates]
+verify_jwt = false
+
 # Real session impersonation ("log in as user") for platform_admin support use. Authorization is
 # enforced inside the function itself (caller JWT must resolve to an active platform_admin
 # profile), not via verify_jwt -- verify_jwt only confirms the request carries *a* valid JWT, not
