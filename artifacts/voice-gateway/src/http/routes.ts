@@ -14,12 +14,22 @@ import {
   type PendingSessionStore,
 } from "../session/pending-sessions.js";
 import type { ActiveSessionTracker } from "../session/voice-session.js";
+import type { PhoneRuntime } from "../transports/twilio-media.js";
+import { validateTwilioSignature } from "../phone/signature.js";
+import {
+  connectStreamTwiml,
+  dialTwiml,
+  hangupTwiml,
+  unavailableTwiml,
+} from "../phone/twiml.js";
 
 export interface GatewayHttpDeps {
   config: GatewayConfig | null;
   registry: AppRegistry;
   pendingStore: PendingSessionStore;
   tracker: ActiveSessionTracker;
+  /** Shared-phone-number runtime; null when the phone channel is unconfigured. */
+  phone: PhoneRuntime | null;
   fetchImpl?: typeof fetch;
 }
 
@@ -53,7 +63,80 @@ export function buildHttpApp(deps: GatewayHttpDeps): express.Express {
       ok: true,
       configured: deps.config !== null,
       apps: [...deps.registry.keys()],
+      phone: deps.phone !== null,
     });
+  });
+
+  // ---- Shared phone number (Twilio webhooks) -----------------------------
+  // Point the ONE shared Twilio number's Voice webhook at /phone/inbound.
+  // Both endpoints are gated by the Twilio request signature.
+
+  const urlencoded = express.urlencoded({ extended: false });
+
+  const twilioParams = (body: unknown): Record<string, string> =>
+    Object.fromEntries(
+      Object.entries((body ?? {}) as Record<string, unknown>).map(
+        ([key, value]) => [key, String(value)],
+      ),
+    );
+
+  const twilioGate = (
+    req: Request,
+    path: string,
+  ): Record<string, string> | null => {
+    const config = deps.config;
+    if (!config?.twilioAuthToken || !config.publicBaseUrl) return null;
+    const params = twilioParams(req.body);
+    const ok = validateTwilioSignature(
+      config.twilioAuthToken,
+      req.headers["x-twilio-signature"] as string | undefined,
+      `${config.publicBaseUrl}${path}`,
+      params,
+    );
+    return ok ? params : null;
+  };
+
+  app.post("/phone/inbound", urlencoded, (req, res) => {
+    if (!deps.config || !deps.phone) {
+      res.status(503).type("text/xml").send(unavailableTwiml());
+      return;
+    }
+    const params = twilioGate(req, "/phone/inbound");
+    if (!params) {
+      res.status(403).json({ error: "invalid_twilio_signature" });
+      return;
+    }
+    const sid = crypto.randomUUID();
+    deps.phone.pendingStore.register({
+      sid,
+      callSid: params.CallSid ?? "",
+      from: params.From ?? "",
+    });
+    const wsBase = (deps.config.publicBaseUrl ?? "").replace(/^http/, "ws");
+    res
+      .type("text/xml")
+      .send(
+        connectStreamTwiml(
+          `${wsBase}/phone/stream?sid=${sid}`,
+          `${deps.config.publicBaseUrl}/phone/after`,
+        ),
+      );
+  });
+
+  // Fetched by Twilio when the media stream ends: either the triage agent
+  // parked a transfer for this call (dial it) or the call is simply over.
+  app.post("/phone/after", urlencoded, (req, res) => {
+    if (!deps.config || !deps.phone) {
+      res.status(503).type("text/xml").send(hangupTwiml());
+      return;
+    }
+    const params = twilioGate(req, "/phone/after");
+    if (!params) {
+      res.status(403).json({ error: "invalid_twilio_signature" });
+      return;
+    }
+    const number = deps.phone.transferStore.take(params.CallSid ?? "");
+    res.type("text/xml").send(number ? dialTwiml(number) : hangupTwiml());
   });
 
   app.options("/apps/:appId/sessions", (req, res) => {

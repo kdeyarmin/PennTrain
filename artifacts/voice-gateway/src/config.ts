@@ -25,6 +25,19 @@ export interface GatewayConfig {
   /** Per-tool-call HTTP timeout for app callbacks. */
   toolTimeoutMs: number;
   /**
+   * Twilio auth token — validates X-Twilio-Signature on phone webhooks.
+   * Absent → the phone channel is unconfigured (503) while browser voice
+   * keeps working.
+   */
+  twilioAuthToken?: string;
+  /**
+   * Public https origin of THIS gateway (e.g.
+   * "https://voice-gateway.up.railway.app"). Required for the phone
+   * channel: Twilio signatures are computed over the exact webhook URL,
+   * and the TwiML stream/action URLs must be publicly reachable.
+   */
+  publicBaseUrl?: string;
+  /**
    * How long the browser sink waits for delivered audio to finish playing
    * before a graceful close (a fixed grace — the browser transport has no
    * playback acknowledgement channel yet). Tests shrink this.
@@ -59,6 +72,8 @@ export function readGatewayConfig(
     maxConcurrentSessions: intFromEnv(env, "VOICE_MAX_CONCURRENT_SESSIONS", 5),
     maxSessionsPerUser: intFromEnv(env, "VOICE_MAX_SESSIONS_PER_USER", 1),
     toolTimeoutMs: intFromEnv(env, "VOICE_TOOL_TIMEOUT_MS", 60_000),
+    twilioAuthToken: env.TWILIO_AUTH_TOKEN || undefined,
+    publicBaseUrl: env.VOICE_PUBLIC_BASE_URL?.replace(/\/+$/, "") || undefined,
     playbackGraceMs: intFromEnv(env, "VOICE_PLAYBACK_GRACE_MS", 1_500),
   };
 }

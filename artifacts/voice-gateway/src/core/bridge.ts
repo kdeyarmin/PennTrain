@@ -97,8 +97,8 @@ const DEFAULT_PLAYBACK_DRAIN_TIMEOUT_MS = 3_000;
 export class VoiceBridge extends EventEmitter {
   private readonly client: RealtimeClientLike;
   private readonly sink: AudioSink;
-  private readonly tools: AppToolSet;
-  private readonly dispatcher: ToolDispatcher;
+  private tools: AppToolSet;
+  private dispatcher: ToolDispatcher;
   private readonly playbackDrainTimeoutMs: number;
   /** Partial transcript text accumulated per item id until its done event. */
   private readonly partialTurns = new Map<
@@ -151,6 +151,16 @@ export class VoiceBridge extends EventEmitter {
    */
   requestGreeting(): void {
     this.client.requestResponse();
+  }
+
+  /**
+   * Swap the tool surface mid-session (paired with the client's
+   * updateSession) — the phone triage → app handoff. Tool calls already
+   * in flight complete against the dispatcher they started with.
+   */
+  rebind(tools: AppToolSet, dispatcher: ToolDispatcher): void {
+    this.tools = tools;
+    this.dispatcher = dispatcher;
   }
 
   /**

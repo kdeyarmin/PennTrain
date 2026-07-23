@@ -368,12 +368,10 @@ describe("gateway session flow", () => {
     );
   });
 
-  it("rejects the twilio-media upgrade with the stub 503", async () => {
+  it("rejects the phone stream upgrade with 503 when the phone channel is unconfigured", async () => {
     const { fetchImpl } = makeFetchStub();
     const base = await startServer({ fetchImpl, sockets: [] });
-    const stub = connect(
-      `${base.replace("http", "ws")}/apps/testapp/twilio-media`,
-    );
+    const stub = connect(`${base.replace("http", "ws")}/phone/stream?sid=x`);
     openSockets.push(stub.ws);
     expect(await stub.rejectionStatus).toBe(503);
   });

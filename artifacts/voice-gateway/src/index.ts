@@ -12,7 +12,15 @@ import {
   handleBrowserUpgrade,
   type BrowserTransportDeps,
 } from "./transports/browser-ws.js";
-import { handleTwilioUpgrade } from "./transports/twilio-media.js";
+import {
+  handlePhoneUpgrade,
+  type PhoneRuntime,
+} from "./transports/twilio-media.js";
+import { buildPhoneTargets } from "./phone/targets.js";
+import {
+  PhonePendingStore,
+  TransferActionStore,
+} from "./phone/pending-calls.js";
 import {
   InMemoryPendingSessionStore,
   type PendingSessionStore,
@@ -25,20 +33,39 @@ export interface GatewayServerOptions {
   pendingStore?: PendingSessionStore;
   fetchImpl?: typeof fetch;
   webSocketFactory?: BrowserTransportDeps["webSocketFactory"];
+  env?: NodeJS.ProcessEnv;
 }
 
 const REALTIME_PATH = /^\/apps\/([^/]+)\/realtime$/;
-const TWILIO_PATH = /^\/apps\/([^/]+)\/twilio-media$/;
+const PHONE_STREAM_PATH = "/phone/stream";
+
+/** Phone channel needs the OpenAI key, Twilio token, a public base URL,
+ *  and at least one routable target — otherwise it stays dark (503). */
+function buildPhoneRuntime(opts: GatewayServerOptions): PhoneRuntime | null {
+  if (!opts.config?.twilioAuthToken || !opts.config.publicBaseUrl) return null;
+  const targets = buildPhoneTargets(
+    opts.registry,
+    opts.env ?? process.env,
+  );
+  if (targets.length === 0) return null;
+  return {
+    targets,
+    pendingStore: new PhonePendingStore(),
+    transferStore: new TransferActionStore(),
+  };
+}
 
 export function createGatewayServer(opts: GatewayServerOptions): http.Server {
   const pendingStore = opts.pendingStore ?? new InMemoryPendingSessionStore();
   const tracker = new ActiveSessionTracker();
+  const phone = buildPhoneRuntime(opts);
 
   const app = buildHttpApp({
     config: opts.config,
     registry: opts.registry,
     pendingStore,
     tracker,
+    phone,
     fetchImpl: opts.fetchImpl,
   });
 
@@ -74,8 +101,24 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
       return;
     }
 
-    if (TWILIO_PATH.test(pathname)) {
-      handleTwilioUpgrade(socket);
+    if (pathname === PHONE_STREAM_PATH) {
+      if (!opts.config || !phone) {
+        socket.write("HTTP/1.1 503 Service Unavailable\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+      handlePhoneUpgrade(
+        {
+          config: opts.config,
+          registry: opts.registry,
+          phone,
+          webSocketFactory: opts.webSocketFactory,
+        },
+        wss,
+        req,
+        socket,
+        head,
+      );
       return;
     }
 

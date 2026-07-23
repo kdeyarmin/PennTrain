@@ -304,6 +304,31 @@ export class RealtimeClient extends EventEmitter {
     this.sendJson({ type: "response.create" });
   }
 
+  /**
+   * Swap the session's brain mid-call: new instructions + tool surface,
+   * same audio path and conversation history. This powers the shared
+   * phone number's triage → app handoff — the GA API merges the partial
+   * session, so audio config is untouched.
+   */
+  updateSession(update: {
+    instructions: string;
+    tools: readonly ToolDescriptor[];
+    allowedToolNames: ReadonlySet<string>;
+  }): void {
+    this.opts.instructions = update.instructions;
+    this.opts.tools = update.tools;
+    this.opts.allowedToolNames = update.allowedToolNames;
+    this.sendJson({
+      type: "session.update",
+      session: {
+        type: "realtime",
+        instructions: update.instructions,
+        tools: this.enabledTools(),
+        tool_choice: "auto",
+      },
+    });
+  }
+
   close(code = 1000, reason = "client_close"): void {
     if (this.closed) return;
     this.preOpenAudio.length = 0;

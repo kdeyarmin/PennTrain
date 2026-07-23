@@ -40,4 +40,15 @@ export interface AppDefinition {
   noiseReduction?: RealtimeNoiseReduction;
   /** Greet the user before they speak (true for the in-app assistant). */
   agentSpeaksFirst: boolean;
+  /**
+   * Shared-phone-number presence. Phone callers are ANONYMOUS (no JWT), so
+   * this brain must serve only public knowledge — the app's authenticated
+   * tools are never exposed on this path.
+   */
+  phone?: {
+    /** One spoken line the triage agent uses to describe this software. */
+    blurb: string;
+    /** Instructions for the anonymous phone brain (public knowledge only). */
+    buildInstructions(): string;
+  };
 }

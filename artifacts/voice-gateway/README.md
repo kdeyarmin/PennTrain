@@ -15,8 +15,13 @@ Browser mic ── PCM16 @ 24kHz over WS ──► voice-gateway ── WS ─�
                                             ▼
                           app tool endpoint (e.g. Supabase edge fn
                           voice-tools) — RLS + role checks apply
-Phone (Twilio Media Streams) ── stub today; engine is µ-law-ready (see
-src/transports/twilio-media.ts for the port map)
+
+ONE shared phone number ── Twilio ── /phone/inbound ──► triage agent
+  "Which software are you calling about?"        (µ-law Media Stream WS)
+        ├─► gateway app (CareBase): brain swap IN-SESSION — same call,
+        │     anonymous PUBLIC knowledge only, no app tools
+        └─► external agent (PennFit): announce + warm transfer — the
+              stream ends and /phone/after answers <Dial>
 ```
 
 Security posture (inherited from PennFit's ADR):
@@ -52,6 +57,9 @@ Security posture (inherited from PennFit's ADR):
 | `VOICE_MAX_CONCURRENT_SESSIONS` | no | Global cap (default 5). |
 | `VOICE_MAX_SESSIONS_PER_USER` | no | Per-user cap (default 1). |
 | `VOICE_TOOL_TIMEOUT_MS` | no | Tool callback timeout (default 60000 — the compliance copilot can take ~30-60s). |
+| `TWILIO_AUTH_TOKEN` | phone | Validates `X-Twilio-Signature` on phone webhooks. Absent → phone channel dark (503), browser voice unaffected. |
+| `VOICE_PUBLIC_BASE_URL` | phone | Public https origin of this gateway (e.g. `https://voice-gateway.up.railway.app`) — used for signature validation and the TwiML stream/action URLs. |
+| `PENNFIT_TRANSFER_NUMBER` | no | PennFit's existing Twilio number (E.164). Present → the triage agent offers PennFit and warm-transfers callers to it. |
 
 ## Deploying on Railway (one-time UI steps)
 
@@ -72,6 +80,29 @@ repo**:
 Railway supports WebSockets through its edge proxy (PennFit runs Twilio
 Media Streams on it). Keep the WS origin on the `*.railway.app` host — a
 CDN/WAF in front of a custom domain can silently break WS upgrades.
+
+## Shared phone number (one number for everything)
+
+One Twilio number fronts every product. A triage agent answers, asks which
+software the call is about, and routes:
+
+- **Gateway apps** (CareBase today): the brain is swapped **in the same
+  call** via a Realtime `session.update` — no new call leg, conversation
+  context kept. Phone callers are anonymous, so gateway apps serve their
+  PUBLIC phone brain only (product + general PA compliance knowledge for
+  CareBase); anything account-specific is directed to the logged-in in-app
+  assistant.
+- **External agents** (PennFit today, until it migrates onto the gateway):
+  the triage agent says one transfer line, the media stream closes, and
+  Twilio's `<Connect action>` webhook (`/phone/after`) answers `<Dial>` to
+  PennFit's existing number.
+
+Setup: buy/pick ONE Twilio number → set its Voice webhook (HTTP POST) to
+`https://<gateway>/phone/inbound` → set `TWILIO_AUTH_TOKEN`,
+`VOICE_PUBLIC_BASE_URL`, and (optionally) `PENNFIT_TRANSFER_NUMBER` on the
+gateway service. `GET /health` shows `"phone": true` when the channel is
+live. All phone webhooks are Twilio-signature-validated; caller numbers are
+logged as digit prefixes only and no audio is ever stored.
 
 ## Local development
 
@@ -124,13 +155,14 @@ VITE_VOICE_GATEWAY_URL=http://localhost:8787 pnpm dev
 
 ## Known limits / follow-ups
 
-- **In-memory session store**: a deploy drops in-flight handoffs and live
-  sessions; the browser recovers with one click. A DB-backed
-  `PendingSessionStore` is a **prerequisite for the phone channel** and for
-  running more than one gateway instance.
-- **Phone channel is a stub**: `src/transports/twilio-media.ts` documents
-  the exact PennFit pieces to port (TwiML connect, signature validation,
-  µ-law passthrough, mark-based playback drain).
+- **In-memory stores**: a deploy drops in-flight browser handoffs (one-click
+  retry) and — more importantly — LIVE phone calls mid-handshake (pennfit's
+  error-31920 lesson). Accepted for the pilot; DB-backed
+  `PendingSessionStore`/`PhonePendingStore`/`TransferActionStore` swaps
+  behind the same interfaces are the prerequisite for scaling out.
+- **Phone brains are knowledge-only**: anonymous callers get no app tools.
+  Caller-ID account lookup (like PennFit's patient flow) is a separate
+  schema + threat-model project.
 - **Transcript persistence**: client-side only today; a
   `voice_assistant_sessions` table + sink edge function is the follow-up if
   durable transcripts are wanted.
