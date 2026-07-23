@@ -75,7 +75,7 @@ describe("MarketingAIBot sales engine", () => {
       "Tailor dashboards and permissions for owner/executive",
     ]);
     expect(decodeURIComponent(buildDemoMailtoHref(profile))).toContain(
-      "Sales context: owner/executive · multi-site · spreadsheets · survey soon",
+      "My context: owner/executive · multi-site · spreadsheets · survey soon",
     );
   });
 });

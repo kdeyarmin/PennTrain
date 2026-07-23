@@ -135,7 +135,7 @@ export function MarketingAIBot() {
             size="icon"
             className="h-8 w-8 text-white hover:bg-white/10"
             onClick={() => setMinimized((value) => !value)}
-            aria-label="Minimize AI guide"
+            aria-label="Minimize customer service assistant"
           >
             <Minimize2 className="h-4 w-4" />
           </Button>
@@ -144,7 +144,7 @@ export function MarketingAIBot() {
             size="icon"
             className="h-8 w-8 text-white hover:bg-white/10"
             onClick={() => setOpen(false)}
-            aria-label="Close AI guide"
+            aria-label="Close customer service assistant"
           >
             <X className="h-4 w-4" />
           </Button>
@@ -262,7 +262,7 @@ export function MarketingAIBot() {
               <a href={demoMailtoHref}>Email your context</a>
             </Button>
             <Button asChild variant="link" size="sm" className="ml-2 h-auto p-0 text-xs">
-              <a href={prospectEmail.mailtoHref}>Send prospect email</a>
+              <a href={prospectEmail.mailtoHref}>Email a summary</a>
             </Button>
           </div>
           <form onSubmit={submit} className="flex gap-2 border-t border-border/60 p-2 sm:p-3">

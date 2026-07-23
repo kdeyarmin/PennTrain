@@ -247,7 +247,7 @@ export const buildDemoMailtoHref = (profile: LeadProfile) => {
     "Hi CareMetric team,",
     "",
     "I am interested in a CareBase demo.",
-    `Sales context: ${context}`,
+    `My context: ${context}`,
     "",
     "Suggested demo agenda:",
     ...agenda.map((item) => `- ${item}`),
