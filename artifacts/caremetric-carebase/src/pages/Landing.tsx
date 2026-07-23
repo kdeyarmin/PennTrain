@@ -78,7 +78,7 @@ const HERO_METRICS: HeroMetric[] = [
   },
   {
     value: "Ch. 2600 + 2800",
-    label: "PA regulations crosswalked to the records that prove them",
+    label: "PA regulations matched to the records that prove them",
   },
   { value: "60+", label: "survey-ready form templates included" },
   {
@@ -92,15 +92,15 @@ const PLAIN_ENGLISH: PlainEnglishCard[] = [
     number: "01",
     eyebrow: "Survey readiness",
     title: "Pass your next survey",
-    copy: "Every §2600 / §2800 requirement lives on its own clock with evidence attached as work happens. When the surveyor knocks, the binder is an export — not a lost weekend.",
+    copy: "Every Chapter 2600 and 2800 requirement has its own due date, and the proof is saved as the work gets done. When the surveyor shows up, your binder is ready to export — not a weekend of scrambling.",
     href: "/how-it-works",
     link: "See how it works →",
   },
   {
     number: "02",
-    eyebrow: "Education spend",
-    title: "Spend less on required education",
-    copy: "The course builder, AI course creation from your own policies, live QR classes, and certificates are built in — stop paying per-seat LMS fees and yearly content libraries for the same mandatory topics.",
+    eyebrow: "Training costs",
+    title: "Spend less on required training",
+    copy: "The course builder, AI courses built from your own policies, live QR-code classes, and certificates are all included — so you can stop paying per-person LMS fees and yearly content libraries for the same required topics.",
     href: "/savings",
     link: "See where the money comes from →",
   },
@@ -108,7 +108,7 @@ const PLAIN_ENGLISH: PlainEnglishCard[] = [
     number: "03",
     eyebrow: "Your time",
     title: "Get your evenings back",
-    copy: "The system nags, routes, escalates, and files so compliance stops living in one person's memory — and stops following you home in a tote bag of binders.",
+    copy: "The system sends the reminders, assigns the work, follows up on what's overdue, and files the proof — so compliance no longer lives in one person's head, or comes home with you in a bag of binders.",
   },
 ];
 
@@ -116,19 +116,19 @@ const PERSONAS: Persona[] = [
   {
     chapter: "55 Pa. Code Chapter 2600",
     title: "I run a personal care home",
-    copy: "Your surveyor wants 12 annual in-service hours per direct care worker (§2600.65, up to 6 on-the-job), current RASP assessments and support plans, medication practicums, Act 34 clearances, and fire drill logs — with proof for each.",
+    copy: "Your surveyor expects 12 hours of training a year per direct care worker (§2600.65, up to 6 on the job), current RASP assessments and support plans, medication practicums, Act 34 clearances, and fire drill logs — with proof for each.",
     warning:
-      "Your usual failure mode isn't missing training — it's the sign-in sheet nobody can find. CareBase logs the hours as they happen and keeps the evidence attached.",
-    tags: ["12-hr buckets auto-applied", "+6 hrs secured dementia unit", "Ch. 2600 crosswalk"],
+      "Most homes don't get cited for skipping training — they get cited because the sign-in sheet can't be found. CareBase logs the hours as they happen and keeps the proof attached.",
+    tags: ["12 hrs applied automatically", "+6 hrs for secured dementia units", "Ch. 2600 mapped for you"],
     cta: "Set up your PCH in minutes →",
   },
   {
     chapter: "55 Pa. Code Chapter 2800",
     title: "I run an assisted living facility",
-    copy: "You carry the heavier load: 16 annual hours per direct care worker (§2800.65), dementia training that doesn't count toward the 16 (§2800.69), special-care-unit add-ons, and ASP assessments on their own clocks.",
+    copy: "You carry the heavier load: 16 hours a year per direct care worker (§2800.65), separate dementia training that doesn't count toward the 16 (§2800.69), special-care-unit add-ons, and ASP assessments — each with its own due date.",
     warning:
-      "The dementia-hours carve-out is where ALFs get cited. CareBase tracks the buckets separately so nothing double-counts.",
-    tags: ["16-hr buckets auto-applied", "Dementia hrs tracked separately", "Ch. 2800 crosswalk"],
+      "Those separate dementia hours are where assisted living facilities get cited. CareBase tracks them apart from the 16 so nothing is counted twice.",
+    tags: ["16 hrs applied automatically", "Dementia hrs tracked separately", "Ch. 2800 mapped for you"],
     cta: "Set up your ALF in minutes →",
   },
 ];
@@ -136,9 +136,9 @@ const PERSONAS: Persona[] = [
 const DOMAINS: Domain[] = [
   {
     label: "Residents",
-    title: "From inquiry to discharge",
+    title: "From first inquiry to move-out",
     intro:
-      "Resident-level compliance and the daily work around it — each item on its own due-date clock.",
+      "Resident compliance and the daily work around it — each item with its own due date.",
     tags: [
       "Admissions & census",
       "RASP / ASP assessments",
@@ -149,14 +149,14 @@ const DOMAINS: Domain[] = [
       "Appointments & transport",
       "Resident finance subledger",
     ],
-    note: "Not an EHR or eMAR — CareBase runs the non-clinical operation around the chart, and routes medication events from your external source.",
+    note: "Not an EHR or eMAR — CareBase handles the non-clinical work around the chart and pulls medication events in from your existing system.",
     mockup: <ResidentMockup />,
   },
   {
     label: "Workforce",
-    title: "Hire to qualified, on its own clock",
+    title: "Every new hire, ready on schedule",
     intro:
-      "Every requirement a new hire needs — training, clearances, screenings, competencies — routed and tracked automatically by role and facility type.",
+      "Every requirement a new hire needs — training, clearances, screenings, competencies — assigned and tracked automatically by role and facility type.",
     tags: [
       "Training plans by role",
       "Live classes · QR check-in",
@@ -172,9 +172,9 @@ const DOMAINS: Domain[] = [
   },
   {
     label: "Facility & safety",
-    title: "The building, on the record too",
+    title: "The building, documented too",
     intro:
-      "Incidents, drills, repairs, complaints, and emergencies each generate their own survey-ready PDF trail.",
+      "Incidents, drills, repairs, complaints, and emergencies each leave their own survey-ready PDF trail.",
     tags: [
       "Incidents & notification clocks",
       "Violations & plans of correction",
@@ -189,8 +189,8 @@ const DOMAINS: Domain[] = [
   },
   {
     label: "Survey evidence",
-    title: "Ready before the entrance conference",
-    intro: "Proof is collected as work happens, so the binder is an export — not a project.",
+    title: "Ready before the surveyor sits down",
+    intro: "Proof is collected as the work happens, so your binder is ready to export — not a project to assemble.",
     tags: [
       "One-click binder PDF",
       "Citation-weighted readiness score",
@@ -206,19 +206,19 @@ const DOMAINS: Domain[] = [
 
 const DIFF_ITEMS: DiffItem[] = [
   {
-    old: "Sign-in sheets reconciled once a year",
-    carebase: "Hours logged as training happens",
+    old: "Sign-in sheets added up once a year",
+    carebase: "Hours logged as the training happens",
   },
   {
-    old: "Binder night before the survey",
-    carebase: "Binder PDF generated from live records",
+    old: "A late night building the binder before each survey",
+    carebase: "A binder PDF built from your live records",
   },
   {
-    old: "Expirations discovered by the surveyor",
-    carebase: "Alerts escalate before anything lapses",
+    old: "Expired credentials found by the surveyor",
+    carebase: "Reminders that escalate before anything lapses",
   },
   {
-    old: "Nine spreadsheets, one person who gets them",
+    old: "Nine spreadsheets only one person understands",
     carebase: "One record every role works from",
   },
 ];
@@ -226,19 +226,19 @@ const DIFF_ITEMS: DiffItem[] = [
 const DIFFERENTIATORS: Differentiator[] = [
   {
     icon: GraduationCap,
-    title: "AI course creation with a human gate",
+    title: "AI course creation, with a human sign-off",
     body: [
-      "Paste a regulation, policy, or reference document and CareBase drafts the complete course — modules, lesson text or video scripts, and graded quizzes — grounded strictly in your source. It flags gaps instead of inventing citations.",
-      "Add an AI avatar presenter video if you want one. Nothing publishes until a named reviewer signs off — and the sign-off clears automatically the moment any block is regenerated.",
+      "Paste in a regulation, policy, or reference document and CareBase drafts the whole course — modules, lesson text or video scripts, and graded quizzes — based only on your source. It points out gaps instead of inventing citations.",
+      "Add an AI presenter video if you want one. Nothing goes live until a named reviewer signs off — and that sign-off clears automatically the moment any section is regenerated.",
     ],
     footer: "Reviewed by a real person, every time",
   },
   {
     icon: ClipboardCheck,
-    title: "Citation-weighted readiness score",
+    title: "A readiness score weighted by real citations",
     body: [
-      "A live, per-facility score weighted by how often DHS actually cites each regulation — not a generic checklist percentage.",
-      "Training, credentials, background checks, inspections, incidents, and policy attestations roll into one number, sorted so your most-citable exposure surfaces first.",
+      "A live score for each facility, weighted by how often DHS actually cites each regulation — not a generic checklist percentage.",
+      "Training, credentials, background checks, inspections, incidents, and signed policies combine into one number, sorted so your gaps in the most-cited areas surface first.",
     ],
     footer: "See what the surveyor will flag, first",
   },
@@ -310,16 +310,16 @@ const START_STEPS = [
   ["Import your roster", "one CSV brings every employee in; add facilities as you go."],
   [
     "Requirements apply themselves",
-    "hour buckets, renewal windows, and alerts start from your facility type and each person's role.",
+    "required hours, renewal windows, and alerts are set automatically from your facility type and each person's role.",
   ],
-  ["Export your first binder", "see your real compliance picture the same day."],
+  ["Export your first binder", "see where your facility really stands the same day."],
 ] as const;
 
 const FAQS: Faq[] = [
   {
     question: "What is CareBase?",
     answer:
-      "The operations, workforce-compliance, and survey-readiness platform for Pennsylvania personal care homes and assisted living facilities. Not an EHR or eMAR.",
+      "It's the operations, staff-compliance, and survey-readiness software for Pennsylvania personal care homes and assisted living facilities. It's not an EHR or eMAR.",
   },
   {
     question: "How much does it cost?",
@@ -333,7 +333,7 @@ const FAQS: Faq[] = [
   {
     question: "What does it replace — and not replace?",
     answer:
-      "Replaces training spreadsheets, paper binders, point trackers, and basic scheduling. Works alongside — never replaces — your eMAR, EHR, payroll, HRIS, and accounting.",
+      "It replaces training spreadsheets, paper binders, attendance-point trackers, and basic scheduling. It works alongside — and never replaces — your eMAR, EHR, payroll, HR system, and accounting.",
   },
   {
     question: "Can a surveyor or auditor get access?",
@@ -540,7 +540,7 @@ function EvidenceMockup() {
         </div>
         <div className="flex flex-col gap-2.5">
           <div className={`font-mono text-[10.5px] uppercase tracking-[0.08em] ${aaMutedText}`}>Citation-weighted risk</div>
-          <div className="text-[12.5px] text-[#44566b]">Topics surface in the order DHS actually cites them — the most-cited regulation your facility is exposed on appears first.</div>
+          <div className="text-[12.5px] text-[#44566b]">Topics show up in the order DHS actually cites them — the one cited most often appears first.</div>
           <span className="mt-auto rounded-lg bg-[#0d2742] px-3.5 py-2.5 text-center text-[13px] font-bold text-white">Generate binder PDF</span>
           <div className={`text-center text-[11.5px] ${aaMutedText}`}>Rebuilt from live records · delivered via short-lived secure link</div>
         </div>
@@ -610,7 +610,7 @@ export default function Landing() {
             </h1>
             <Reveal delay={0.08}>
               <p className="max-w-[34ch] text-[19px] leading-[1.5] text-white/85">
-                Know you're survey-ready before the knock — without running your facility out of spreadsheets, binders, and one person's memory.
+                Know you're ready for your next survey — without running your facility out of spreadsheets, binders, and one person's memory.
               </p>
             </Reveal>
             <Reveal delay={0.14} className="flex flex-wrap items-center gap-3">
@@ -687,7 +687,7 @@ export default function Landing() {
           <Reveal className="mx-auto flex max-w-[780px] flex-col gap-3.5 text-center">
             <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#1b6fc2]">In plain English</p>
             <h2 className="text-balance text-3xl font-bold tracking-[-0.015em] text-[#0d2742] sm:text-4xl">One system that proves your facility is doing its job</h2>
-            <p className="text-[16.5px] leading-[1.6] text-[#44566b]">CareBase tracks every training hour, credential, clearance, resident assessment, incident, and inspection your Pennsylvania license requires — assigns the work to the right person before it's late, and turns the proof into a binder your surveyor can't argue with.</p>
+            <p className="text-[16.5px] leading-[1.6] text-[#44566b]">CareBase tracks every training hour, credential, clearance, resident assessment, incident, and inspection your Pennsylvania license requires — assigns the work to the right person before it's late, and turns the proof into a binder you can hand straight to the surveyor.</p>
           </Reveal>
           <div className="mt-10 grid gap-4 md:grid-cols-3">
             {PLAIN_ENGLISH.map((card, i) => (
@@ -722,7 +722,7 @@ export default function Landing() {
               </Reveal>
             ))}
           </div>
-          <p className={`mx-auto mt-4 text-center text-[13px] ${aaMutedText}`}>Group home, nursing, home health, or hospice? The <Link href="/pa-training-requirements" className="font-medium text-[#1b6fc2] hover:underline">requirements guide</Link> covers your pathway too. Rules change — the <Link href="/regulatory-updates" className="font-medium text-[#1b6fc2] hover:underline">regulatory updates feed</Link> tracks new regulations, clarifications, and guidance as they land.</p>
+          <p className={`mx-auto mt-4 text-center text-[13px] ${aaMutedText}`}>Group home, nursing, home health, or hospice? The <Link href="/pa-training-requirements" className="font-medium text-[#1b6fc2] hover:underline">requirements guide</Link> covers your path too. Rules change — the <Link href="/regulatory-updates" className="font-medium text-[#1b6fc2] hover:underline">regulatory updates feed</Link> tracks new regulations, clarifications, and guidance as they come out.</p>
         </div>
       </section>
 
@@ -731,7 +731,7 @@ export default function Landing() {
           <Reveal className="max-w-[640px]">
             <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#1b6fc2]">The whole facility, one record</p>
             <h2 className="mt-3 text-balance text-[34px] font-bold leading-tight tracking-[-0.015em] text-[#0d2742]">Stop being the person who remembers everything</h2>
-            <p className="mt-3 text-[#44566b]">Residents, staff, the building, and the survey — every deadline on its own clock, every task owned, every completion leaving proof. Pick a domain to see the actual workflow.</p>
+            <p className="mt-3 text-[#44566b]">Residents, staff, the building, and the survey — every deadline tracked, every task assigned to someone, and every finished task leaving proof behind. Pick an area to see how it actually works.</p>
           </Reveal>
           <Reveal className="mt-7 flex flex-wrap gap-2">
             {DOMAINS.map((domain, index) => (
@@ -817,7 +817,7 @@ export default function Landing() {
           <Reveal className="mx-auto max-w-[560px] text-center">
             <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#1b6fc2]">Pricing</p>
             <h2 className="mt-2.5 text-[30px] font-extrabold leading-tight tracking-[-0.02em] text-[#0d2742]">Priced per facility. Every module included.</h2>
-            <p className="mt-2 text-[15px] text-[#44566b]">No per-seat math, no module upsells. Unlimited employees and residents on every plan.</p>
+            <p className="mt-2 text-[15px] text-[#44566b]">No per-person math, no add-on modules to buy. Unlimited employees and residents on every plan.</p>
           </Reveal>
           <div className="mt-9 grid gap-4 lg:grid-cols-3">
             {PLANS.map((plan, i) => (
@@ -834,14 +834,14 @@ export default function Landing() {
               </Reveal>
             ))}
           </div>
-          <p className={`mx-auto mt-4 max-w-[640px] text-center text-[12.5px] ${aaMutedText}`}>These prices feed the <Link href="/savings" className="font-bold text-[#1b6fc2] hover:underline">savings worksheet</Link> automatically — model your net opportunity with your own coordination hours and tool spend, risk avoidance excluded.</p>
+          <p className={`mx-auto mt-4 max-w-[640px] text-center text-[12.5px] ${aaMutedText}`}>These prices flow into the <Link href="/savings" className="font-bold text-[#1b6fc2] hover:underline">savings worksheet</Link> automatically — estimate your net savings using your own admin hours and tool costs (savings from avoided risk are left out).</p>
         </div>
       </section>
 
       <section className="bg-[#071626] text-white">
         <div className="mx-auto flex max-w-[1160px] flex-wrap items-center justify-center gap-x-6 gap-y-2 px-6 py-6 text-center text-[13.5px]">
           <span className="text-white/88">No guaranteed survey outcomes</span><span className="text-white/35">·</span>
-          <span className="text-white/88">No per-seat fees</span><span className="text-white/35">·</span>
+          <span className="text-white/88">No per-person fees</span><span className="text-white/35">·</span>
           <span className="text-white/88">Your data exports if you leave</span>
           <Link href="/how-it-works#promises" className="font-bold text-[#8ec8ff] hover:text-white hover:underline">Read our promises →</Link>
         </div>
@@ -852,7 +852,7 @@ export default function Landing() {
           <Reveal className="flex flex-col gap-3">
             <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#1b6fc2]">Fully self-service</p>
             <h2 className="text-balance text-[30px] font-extrabold leading-tight tracking-[-0.02em] text-[#0d2742]">Signup to survey-ready, without talking to anyone</h2>
-            <p className="text-[15px] text-[#44566b]">No sales call. No onboarding call. No "book time with our team." Every module is live the moment your organization exists.</p>
+            <p className="text-[15px] text-[#44566b]">No sales call. No onboarding call. No "book time with our team." Every module is live the moment your organization is created.</p>
             <div className="mt-2 space-y-2.5 text-[13.5px] text-[#33465c]">
               {START_STEPS.map(([title, detail], index) => (
                 <div key={title} className="flex gap-2.5"><span className="font-extrabold text-[#1b6fc2]">{index + 1}</span><span><strong>{title}</strong> — {detail}</span></div>

@@ -42,9 +42,9 @@ const SECURITY_CONTROLS = [
   },
   {
     icon: ClipboardCheck,
-    title: "Human review gate on AI content",
+    title: "Human review required for AI content",
     description:
-      "AI-touched training content can't publish until a named reviewer signs off — and the approval clears automatically the moment any block is regenerated.",
+      "AI-touched training content can't go live until a named reviewer signs off — and the approval clears automatically the moment any section is regenerated.",
   },
   {
     icon: KeyRound,

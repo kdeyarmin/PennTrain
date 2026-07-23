@@ -207,7 +207,7 @@ export default function PaTrainingRequirements() {
             </h2>
             <p className="mt-1.5 text-[14.5px] leading-6 text-[#44566b]">
               Annual in-service minimums per direct care worker or aide. Details,
-              dementia add-ons, and role carve-outs follow below.
+              dementia add-ons, and role-by-role exceptions follow below.
             </p>
           </Reveal>
           <Reveal delay={0.08}>

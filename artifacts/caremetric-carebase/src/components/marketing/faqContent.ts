@@ -30,7 +30,7 @@ export const FAQS: MarketingFaq[] = [
     category: "Product & replacement",
     question: "What is CareMetric CareBase?",
     answer:
-      "A multi-tenant operations, workforce-compliance, and survey-readiness platform built first for Pennsylvania personal care homes and assisted living facilities. It connects training, credentials, resident operations, incidents, inspections, scheduling, documents, and evidence in one role-based system. It is not an EHR or eMAR.",
+      "An operations, staff-compliance, and survey-readiness platform built first for Pennsylvania personal care homes and assisted living facilities. It connects training, credentials, resident operations, incidents, inspections, scheduling, documents, and evidence in one system, with each role seeing only what it should. It is not an EHR or eMAR.",
   },
   {
     category: "Product & replacement",
@@ -58,7 +58,7 @@ export const FAQS: MarketingFaq[] = [
     category: "Product & replacement",
     question: "Where do the savings come from?",
     answer:
-      "Less duplicate entry and reconciliation, retired point tools, auto-filled schedules, bulk roster import, automatic reminders, one work queue, and reports generated from live records. We don't promise a universal percentage — the savings worksheet uses your own numbers and excludes risk avoidance.",
+      "Less double entry and cross-checking, tools you no longer need, auto-filled schedules, bulk roster import, automatic reminders, one work queue, and reports generated from live records. We don't promise a set percentage — the savings worksheet uses your own numbers and leaves out savings from avoided risk.",
   },
   {
     category: "Compliance boundaries",
@@ -162,7 +162,7 @@ export const FAQS: MarketingFaq[] = [
     category: "The questions owners actually ask",
     question: "Can I cancel and keep my records?",
     answer:
-      "Yes. Your organization owns its data. If you cancel, you export everything during the wind-down window — records are yours, not hostages.",
+      "Yes. Your organization owns its data. If you cancel, you export everything during the wind-down window — your records are yours to keep.",
   },
   {
     category: "The questions owners actually ask",

@@ -14,9 +14,9 @@ const GROWTH_PRICE = 299;
 
 const EDUCATION_COSTS = [
   {
-    title: "A per-seat LMS subscription",
+    title: "A per-person LMS subscription",
     description:
-      "Generic courses priced per employee per month — that still don't match your §2600 / §2800 topic list.",
+      "Generic courses priced per employee per month — that still don't match your Chapter 2600 / 2800 topic list.",
   },
   {
     title: "Content libraries & repeat instructor fees",
@@ -35,7 +35,7 @@ const INCLUDED_FEATURES = [
   "AI course creation from your own policies — human-approved before publishing",
   "Live classes with QR sign-in — hours log themselves",
   "Up to 6 on-the-job hours captured, the way §2600.65 allows",
-  "Unlimited staff — no per-seat math, ever",
+  "Unlimited staff — no per-person math, ever",
 ] as const;
 
 const COMPARISON_ROWS = [
@@ -61,13 +61,13 @@ const COMPARISON_ROWS = [
     "Resident assessments",
     "Wall calendar & memory",
     "—",
-    "RASP/ASP on their own due-date clocks + drafting tool",
+    "RASP/ASP, each with its own due date, plus a drafting tool",
   ],
   [
     "Incidents & corrections",
     "Word docs in a folder",
     "—",
-    "Notification clocks + generated incident & POC PDFs",
+    "Notification deadlines, plus generated incident & POC PDFs",
   ],
   [
     "Shift scheduling",
@@ -307,9 +307,9 @@ export default function Savings() {
             Where the money comes from
           </h1>
           <p className="m-0 max-w-[56ch] text-pretty text-[16.5px] text-white/85">
-            Coordination labor you stop paying for, tools you retire, and an
-            education line item you stop paying three times over. Model it with
-            your own numbers — risk avoidance deliberately excluded.
+            The admin time you stop paying for, the tools you can drop, and the
+            training you stop paying for three times over. Run the numbers with
+            your own figures — savings from avoided risk are left out.
           </p>
         </div>
       </section>
@@ -382,8 +382,8 @@ export default function Savings() {
               Compared with what you're using now
             </h2>
             <p className="m-0 text-[15px] text-[#44566b]">
-              If you only need course delivery, a basic LMS is cheaper. CareBase
-              is for operators who need the whole record to agree.
+              If you only need to deliver courses, a basic LMS is cheaper.
+              CareBase is for operators who need every record to line up.
             </p>
           </Reveal>
 
@@ -461,9 +461,9 @@ export default function Savings() {
               Build the case with your own numbers
             </h2>
             <p className="m-0 text-[15px] text-[#44566b]">
-              Starting values are an illustration, not a customer result. Risk
-              avoidance — citations, penalties, turnover — is deliberately
-              excluded.
+              The starting values are just an example, not a real customer's
+              result. Savings from avoided risk — citations, penalties, turnover
+              — are left out on purpose.
             </p>
 
             <div className="mt-3.5 flex flex-col gap-5">
@@ -507,11 +507,11 @@ export default function Savings() {
             className="sticky top-[88px] flex flex-col gap-3.5 rounded-[14px] bg-[#0d2742] p-7 text-white shadow-[0_20px_50px_rgba(13,39,66,0.25)] max-lg:static"
           >
             <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-[#8ec8ff]">
-              Modeled annual opportunity
+              Your estimated annual savings
             </span>
             {[
-              ["Current coordination labor", `${money(labor)} /yr`],
-              ["Replaceable tool spend", `${money(toolSpend)} /yr`],
+              ["Current admin time cost", `${money(labor)} /yr`],
+              ["Tool costs you could drop", `${money(toolSpend)} /yr`],
               [
                 <>
                   CareBase at your size{" "}
@@ -539,7 +539,7 @@ export default function Savings() {
 
             <div>
               <div className="text-[12.5px] text-white/70">
-                Gross opportunity before CareBase
+                Total savings before CareBase's cost
               </div>
               <div className="break-all font-mono text-4xl font-bold tracking-[-0.01em] text-[#8ec8ff]">
                 {money(gross)}
@@ -549,7 +549,7 @@ export default function Savings() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-[10px] border border-white/15 bg-white/[0.07] p-3.5">
                 <div className="text-[11.5px] text-white/70">
-                  Net after CareBase
+                  Net savings after CareBase
                 </div>
                 <div
                   className={`break-all font-mono text-xl font-bold ${
@@ -562,7 +562,7 @@ export default function Savings() {
               </div>
               <div className="rounded-[10px] border border-white/15 bg-white/[0.07] p-3.5">
                 <div className="text-[11.5px] text-white/70">
-                  Modeled payback
+                  Estimated payback
                 </div>
                 <div className="font-mono text-xl font-bold">
                   {payback === null ? "—" : `${Math.round(payback * 10) / 10} mo`}
@@ -571,9 +571,9 @@ export default function Savings() {
             </div>
 
             <p className="m-0 text-[11.5px] leading-normal text-white/65">
-              Applies your chosen reduction to labor only and assumes the tool
-              spend is fully removable. A planning estimate — not a quote or a
-              guarantee.
+              Applies your chosen reduction to admin time only, and assumes
+              those tool costs go away completely. A planning estimate — not a
+              quote or a guarantee.
             </p>
             <Button
               asChild

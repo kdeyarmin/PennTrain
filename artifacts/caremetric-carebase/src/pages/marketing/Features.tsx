@@ -225,7 +225,7 @@ export default function Features() {
             <p className="m-0 text-[15px] text-white/82">
               Staff compliance is half the job. The other half — assessments,
               support plans, daily services — is where surveyors spend their
-              afternoon. Same record, same clocks.
+              afternoon. Same record, same due dates.
             </p>
           </Reveal>
           <div className="mt-8 grid gap-3.5 md:grid-cols-2 lg:grid-cols-3">
@@ -256,7 +256,7 @@ export default function Features() {
               Everything included
             </p>
             <h2 className="m-0 text-[32px] font-bold leading-tight tracking-[-0.01em] text-[#0d2742]">
-              50+ capabilities. One price. No module upsells.
+              50+ capabilities. One price. No add-on modules.
             </h2>
             <p className="m-0 text-[15px] text-[#44566b]">
               Every plan ships the complete platform — this is the full index.
@@ -306,7 +306,7 @@ export default function Features() {
               Six roles, each scoped to exactly their job
             </h2>
             <p className="m-0 text-[15px] text-[#44566b]">
-              Access is enforced by database policy — not just hidden menus.
+              Access is enforced in the database itself — not just by hiding menus.
             </p>
           </Reveal>
 

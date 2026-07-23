@@ -50,7 +50,7 @@ const SWITCHING_POINTS = [
   },
   {
     lead: "Your data leaves with you.",
-    text: "Export everything if you cancel — records are yours, not hostages.",
+    text: "Export everything if you cancel — your records are yours to keep.",
   },
 ] as const;
 
@@ -94,11 +94,11 @@ const SPECIFIC_PROMISES = [
 
 const TRUST_NOTES = [
   {
-    lead: "Real binder DNA.",
-    text: "The 60+ forms are adapted from an actual PA survey-readiness binder, not invented.",
+    lead: "Built from a real binder.",
+    text: "The 60+ forms are adapted from an actual PA survey-readiness binder, not made up.",
   },
   {
-    lead: "Citation-weighted.",
+    lead: "Ranked by real citations.",
     text: "Readiness scoring is ranked by what DHS actually cites, not a generic checklist.",
   },
 ] as const;
