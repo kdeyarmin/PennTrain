@@ -220,7 +220,7 @@ export default function Security() {
             asChild
             className="mt-1.5 bg-white px-5 py-3 text-[14.5px] font-bold text-[#0d2742] hover:bg-[#dcebfa]"
           >
-            <Link href="/signup">Start the free trial</Link>
+            <Link href="/signup">Start a free trial</Link>
           </Button>
         </div>
       </section>

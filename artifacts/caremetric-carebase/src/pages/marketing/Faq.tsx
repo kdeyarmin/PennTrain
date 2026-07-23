@@ -95,7 +95,7 @@ export default function Faq() {
             </p>
             <Button asChild className="mt-1 bg-[#1b6fc2] px-[18px] py-[11px] text-sm font-bold hover:bg-[#14548f]">
               <Link href="/signup">
-                Start the free trial
+                Start a free trial
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>

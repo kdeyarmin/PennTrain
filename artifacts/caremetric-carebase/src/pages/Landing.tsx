@@ -805,7 +805,7 @@ export default function Landing() {
               </Reveal>
             ))}
           </div>
-          <p className={`mx-auto mt-4 max-w-[640px] text-center text-[12.5px] ${aaMutedText}`}>These prices feed the <Link href="/savings" className="font-bold text-[#1b6fc2] hover:underline">savings worksheet below</Link> automatically — model your net opportunity with your own coordination hours and tool spend, risk avoidance excluded.</p>
+          <p className={`mx-auto mt-4 max-w-[640px] text-center text-[12.5px] ${aaMutedText}`}>These prices feed the <Link href="/savings" className="font-bold text-[#1b6fc2] hover:underline">savings worksheet</Link> automatically — model your net opportunity with your own coordination hours and tool spend, risk avoidance excluded.</p>
         </div>
       </section>
 
