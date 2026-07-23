@@ -122,7 +122,13 @@ as $function$
   where u.status = 'published'
     and u.published_at is not null
     and (p_category is null or u.category = p_category)
-    and (p_facility_type is null or p_facility_type = any(u.facility_types))
+    -- An empty facility_types array means "applies to every facility type", so a facility-type
+    -- filter must still surface those broadly-applicable updates alongside the matching ones.
+    and (
+      p_facility_type is null
+      or cardinality(u.facility_types) = 0
+      or p_facility_type = any(u.facility_types)
+    )
   order by u.is_featured desc, u.published_at desc
   limit greatest(1, least(coalesce(p_limit, 50), 200));
 $function$;
@@ -194,8 +200,8 @@ values
   (
     'pch-annual-training-hours-2600-65',
     'Personal care home annual training requirement stays at 12 hours',
-    'Chapter 2600 continues to require 12 hours of annual training for direct-care staff, with orientation and first-aid/CPR tracked separately. A quick refresher on how the hours break down.',
-    E'Under 55 Pa. Code § 2600.65, each direct-care staff person in a personal care home must complete a minimum of 12 hours of annual training relevant to their job duties.\n\nThe 12 annual hours are separate from the initial orientation and from first-aid/CPR certification, which carry their own requirements. Administrators must complete their own annual training in addition to staff hours.\n\nCareBase tracks each staff member''s annual hours against their assignment date, flags shortfalls before the anniversary, and produces the per-employee training summary surveyors ask for.',
+    'Chapter 2600 continues to require 12 hours of annual training for direct-care staff, of which up to 6 may be on-the-job training. A quick refresher on how the hours work.',
+    E'Under 55 Pa. Code § 2600.65, each direct-care staff person in a personal care home must complete a minimum of 12 hours of annual training relevant to their job duties, of which no more than 6 hours may be on-the-job training (§ 2600.65(f)-(g)).\n\nStaff must separately maintain current first-aid and CPR certification, and administrators complete their own annual continuing education in addition to staff hours.\n\nCareBase tracks each staff member''s annual hours against their assignment date, flags shortfalls before the anniversary, and produces the per-employee training summary surveyors ask for.',
     'clarification',
     array['PCH'],
     '55 Pa. Code § 2600.65',
@@ -209,11 +215,11 @@ values
   (
     'alf-annual-training-hours-2800-65',
     'Assisted living facilities: 16 annual training hours confirmed',
-    'Chapter 2800 requires 16 hours of annual training for direct-care staff at assisted living facilities — four more than personal care homes. Here is what counts and how to evidence it.',
-    E'Direct-care staff at an assisted living facility must complete at least 16 hours of annual training under 55 Pa. Code § 2800.65 — four hours more than the personal care home standard.\n\nDementia-specific training, medication administration, and job-specific competencies all count toward the total when documented. Keep the completion evidence (rosters, certificates, competency sign-offs) attached to each staff record so it is producible on survey day.\n\nCareBase applies the correct 16-hour target automatically to facilities coded as assisted living and surfaces the gap per employee.',
+    'Chapter 2800 requires 16 hours of annual training for direct-care staff at assisted living facilities — four more than personal care homes. Here is what counts toward the 16, and what is additional.',
+    E'Direct-care staff at an assisted living facility must complete at least 16 hours of annual training under 55 Pa. Code § 2800.65 — four hours more than the personal care home standard.\n\nMedication administration and job-specific competencies count toward the 16 when documented. The § 2800.69 dementia-specific training is additional to the 16 hours and does not count toward them — a common source of citations. Keep the completion evidence (rosters, certificates, competency sign-offs) attached to each staff record so it is producible on survey day.\n\nCareBase applies the correct 16-hour target automatically to facilities coded as assisted living, tracks the § 2800.69 dementia hours in their own bucket, and surfaces the gap per employee.',
     'update',
     array['ALR'],
-    '55 Pa. Code § 2800.65',
+    '55 Pa. Code §§ 2800.65, 2800.69',
     'PA Department of Human Services',
     'https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/055/chapter2800/chap2800toc.html',
     date '2026-01-01',
@@ -258,7 +264,7 @@ values
     E'Personal care homes and assisted living facilities must conduct unannounced fire drills on a recurring basis, rotating across shifts so that every shift is drilled over time. Each drill must be documented — date, time of day, shift, evacuation time, and any problems identified with corrective follow-up.\n\nSurveyors frequently review the drill log for shift coverage and for evidence that identified problems were corrected.\n\nCareBase logs each fire drill, tracks shift coverage across the required window, and flags when a shift has not been drilled recently.',
     'guidance',
     array['PCH', 'ALR'],
-    '55 Pa. Code §§ 2600.131, 2800.131',
+    '55 Pa. Code §§ 2600.132, 2800.132',
     'PA Department of Human Services',
     'https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/055/chapter2800/chap2800toc.html',
     date '2026-03-20',

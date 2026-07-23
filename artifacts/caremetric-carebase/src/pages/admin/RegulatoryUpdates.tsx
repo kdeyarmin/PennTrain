@@ -48,6 +48,9 @@ interface FormState {
   effectiveDate: string;
   status: RegulatoryUpdateStatus;
   isFeatured: boolean;
+  // Carried through so editing a published row preserves its original publish date instead of
+  // restamping it to "now" on every save; blank for never-published rows.
+  publishedAt: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -64,6 +67,7 @@ const EMPTY_FORM: FormState = {
   effectiveDate: "",
   status: "draft",
   isFeatured: false,
+  publishedAt: "",
 };
 
 function updateToForm(u: AdminRegulatoryUpdate): FormState {
@@ -81,6 +85,7 @@ function updateToForm(u: AdminRegulatoryUpdate): FormState {
     effectiveDate: u.effective_date ?? "",
     status: u.status,
     isFeatured: u.is_featured,
+    publishedAt: u.published_at ?? "",
   };
 }
 
@@ -99,6 +104,9 @@ function formToInput(form: FormState): RegulatoryUpdateInput {
     effective_date: form.effectiveDate || null,
     status: form.status,
     is_featured: form.isFeatured,
+    // Preserved existing value on edits; withPublishTimestamp() only stamps "now" when a row is
+    // being published for the first time (published_at still null).
+    published_at: form.publishedAt || null,
   };
 }
 
