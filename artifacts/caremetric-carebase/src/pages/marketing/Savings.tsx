@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { Link } from "wouter";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { Button } from "@/components/ui/button";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
+import { useEmailSavingsModel } from "@/hooks/useEmailSavingsModel";
+import { useToast } from "@/hooks/use-toast";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 const STARTER_PRICE = 349;
@@ -154,6 +156,16 @@ export default function Savings() {
   const [calculator, setCalculator] =
     useState<CalculatorState>(INITIAL_CALCULATOR);
   const [modelSent, setModelSent] = useState(false);
+  const [modelEmail, setModelEmail] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileError, setTurnstileError] = useState<string | null>(null);
+  const turnstileContainerRef = useRef<HTMLDivElement | null>(null);
+  const turnstileWidgetIdRef = useRef<string | null>(null);
+  const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as
+    | string
+    | undefined;
+  const { toast } = useToast();
+  const { mutate: emailModel, isPending: isEmailing } = useEmailSavingsModel();
 
   usePageMeta({ ...MARKETING_ROUTE_META["/savings"], path: "/savings" });
 
@@ -167,6 +179,120 @@ export default function Savings() {
 
   const updateCalculator = (key: SliderKey, value: string) => {
     setCalculator((current) => ({ ...current, [key]: Number(value) }));
+  };
+
+  // Explicit-render Turnstile lifecycle, matching RequestDemo.tsx / Signup.tsx — the global
+  // `window.turnstile` typing is declared in Signup.tsx.
+  useEffect(() => {
+    if (!turnstileSiteKey) return;
+    let cancelled = false;
+
+    const renderTurnstile = () => {
+      if (
+        cancelled ||
+        !window.turnstile ||
+        !turnstileContainerRef.current ||
+        turnstileWidgetIdRef.current
+      )
+        return;
+      turnstileWidgetIdRef.current = window.turnstile.render(
+        turnstileContainerRef.current,
+        {
+          sitekey: turnstileSiteKey,
+          callback: (token) => {
+            setTurnstileToken(token);
+            setTurnstileError(null);
+          },
+          "expired-callback": () => {
+            setTurnstileToken("");
+            setTurnstileError("Verification expired. Please complete it again.");
+          },
+          "error-callback": () => {
+            setTurnstileToken("");
+            setTurnstileError(
+              "Verification could not load. Refresh the page or email us instead.",
+            );
+          },
+        },
+      );
+    };
+
+    if (window.turnstile) {
+      renderTurnstile();
+    } else {
+      const scriptId = "cloudflare-turnstile-api";
+      let script = document.getElementById(scriptId) as HTMLScriptElement | null;
+      if (!script) {
+        script = document.createElement("script");
+        script.id = scriptId;
+        script.src =
+          "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+      }
+      script.addEventListener("load", renderTurnstile);
+      const handleScriptError = () =>
+        setTurnstileError(
+          "Verification could not load. Check your connection and refresh the page.",
+        );
+      script.addEventListener("error", handleScriptError);
+      return () => {
+        cancelled = true;
+        script?.removeEventListener("load", renderTurnstile);
+        script?.removeEventListener("error", handleScriptError);
+        if (turnstileWidgetIdRef.current)
+          window.turnstile?.remove?.(turnstileWidgetIdRef.current);
+        turnstileWidgetIdRef.current = null;
+      };
+    }
+
+    return () => {
+      cancelled = true;
+      if (turnstileWidgetIdRef.current)
+        window.turnstile?.remove?.(turnstileWidgetIdRef.current);
+      turnstileWidgetIdRef.current = null;
+    };
+  }, [turnstileSiteKey]);
+
+  const resetTurnstile = () => {
+    if (turnstileWidgetIdRef.current)
+      window.turnstile?.reset(turnstileWidgetIdRef.current);
+    setTurnstileToken("");
+  };
+
+  const handleEmailModel = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!modelEmail.trim()) return;
+    if (!turnstileToken) {
+      setTurnstileError("Please complete the verification first.");
+      return;
+    }
+    emailModel(
+      {
+        email: modelEmail.trim(),
+        hours: calculator.hours,
+        rate: calculator.rate,
+        tools: calculator.tools,
+        cut: calculator.cut,
+        fac: calculator.fac,
+        turnstileToken,
+      },
+      {
+        onSuccess: () => setModelSent(true),
+        onError: (error) => {
+          resetTurnstile();
+          toast({
+            variant: "destructive",
+            title: "Could not send your savings model",
+            description:
+              error instanceof Error && error.message
+                ? error.message
+                : "Something went wrong. Try again, or email hello@caremetric.ai.",
+          });
+        },
+      },
+    );
   };
 
   return (
@@ -456,14 +582,12 @@ export default function Savings() {
               <Link href="/signup">Verify these numbers in your trial</Link>
             </Button>
 
-            {!modelSent ? (
-              <form
-                className="flex gap-2 max-sm:flex-col"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  setModelSent(true);
-                }}
-              >
+            {modelSent ? (
+              <div className="text-center text-[13px] font-semibold text-[#8fd9a0]">
+                ✓ Sent — check your inbox for the worksheet with these numbers.
+              </div>
+            ) : turnstileSiteKey ? (
+              <form className="flex flex-col gap-2" onSubmit={handleEmailModel}>
                 <label htmlFor="savings-model-email" className="sr-only">
                   Email address for your savings model
                 </label>
@@ -471,20 +595,36 @@ export default function Savings() {
                   id="savings-model-email"
                   type="email"
                   required
+                  value={modelEmail}
+                  onChange={(event) => setModelEmail(event.target.value)}
                   placeholder="you@yourfacility.com"
                   className="min-w-0 flex-1 rounded-lg border border-white/25 bg-white/10 px-3 py-2.5 text-[13px] text-white placeholder:text-white/55"
                 />
+                <div ref={turnstileContainerRef} />
+                {turnstileError && (
+                  <p className="text-[12px] text-[#f2a9a0]" role="alert">
+                    {turnstileError}
+                  </p>
+                )}
                 <button
                   type="submit"
-                  className="whitespace-nowrap rounded-lg border border-white/25 bg-white/[0.14] px-3.5 py-2.5 text-[13px] font-bold text-white"
+                  disabled={isEmailing || !turnstileToken}
+                  className="whitespace-nowrap rounded-lg border border-white/25 bg-white/[0.14] px-3.5 py-2.5 text-[13px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Email my model
+                  {isEmailing ? "Sending…" : "Email my model"}
                 </button>
               </form>
             ) : (
-              <div className="text-center text-[13px] font-semibold text-[#8fd9a0]">
-                ✓ Sent — check your inbox for the worksheet with these numbers.
-              </div>
+              <p className="text-[12px] leading-5 text-white/70">
+                Emailing the worksheet isn&apos;t configured for this deployment.{" "}
+                <Link
+                  href="/signup"
+                  className="font-semibold text-[#8ec8ff] hover:underline"
+                >
+                  Start a free trial
+                </Link>{" "}
+                to verify these numbers on your own facility.
+              </p>
             )}
           </Reveal>
         </div>

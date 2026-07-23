@@ -1,0 +1,328 @@
+// @ts-nocheck
+import { parseFromAddress } from "../_shared/notificationDelivery.ts";
+
+// Public, unauthenticated "email me my savings model" intake for the /savings marketing
+// calculator (requires verify_jwt:false for [functions.email-savings-model] in
+// supabase/config.toml, the same registration as request-demo/signup-organization). There is no
+// caller session, so abuse is gated the same way the rest of the public marketing intake is: a
+// Cloudflare Turnstile proof (single-use, server-verified) is required before any mail is sent,
+// and a best-effort per-IP burst cap runs in-process as defense in depth.
+//
+// The email body is generated entirely server-side from validated numeric inputs recomputed here
+// -- no user-supplied free text is ever placed in the message and the recipient is the address the
+// visitor entered -- so the endpoint cannot be used as an arbitrary-content relay. Nothing is
+// persisted; unlike request-demo this is worksheet delivery, not lead storage.
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Per-facility list price and the multi-site threshold shown on /savings (Savings.tsx
+// STARTER_PRICE / GROWTH_PRICE). Kept in sync with the marketing page so the emailed numbers match
+// exactly what the visitor saw. These are compile-time marketing constants, not DB-driven.
+const STARTER_PRICE = 349;
+const GROWTH_PRICE = 299;
+const MULTI_SITE_THRESHOLD = 3;
+
+const SITE_URL = Deno.env.get("PUBLIC_SITE_URL") ?? "https://cmcarebase.com";
+
+// Validation ranges mirror the /savings sliders (Savings.tsx SLIDERS). Inputs are clamped to these
+// bounds rather than rejected, so a legitimate slider value can never fail while tampered payloads
+// are still bounded before they reach the math.
+const RANGES = {
+  hours: { min: 1, max: 60 },
+  rate: { min: 18, max: 80 },
+  tools: { min: 0, max: 2000 },
+  cut: { min: 5, max: 60 },
+  fac: { min: 1, max: 1000 },
+} as const;
+
+class HttpError extends Error {
+  constructor(public status: number, public code: string, message: string, public internalDetail?: string) {
+    super(message);
+  }
+}
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+  });
+}
+
+function clientIp(req: Request): string {
+  return (
+    req.headers.get("cf-connecting-ip") ??
+    req.headers.get("x-real-ip") ??
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    "unknown"
+  );
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function verifyTurnstile(token: string | undefined, ip: string): Promise<void> {
+  const secret = Deno.env.get("TURNSTILE_SECRET_KEY");
+  if (!secret) {
+    throw new HttpError(500, "turnstile_not_configured", "Email delivery verification is not configured");
+  }
+  if (!token) {
+    throw new HttpError(400, "turnstile_required", "Please complete the verification first");
+  }
+
+  const form = new FormData();
+  form.set("secret", secret);
+  form.set("response", token);
+  if (ip !== "unknown") form.set("remoteip", ip);
+
+  const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+    method: "POST",
+    body: form,
+  });
+  const data = (await response.json().catch(() => null)) as { success?: boolean; "error-codes"?: string[] } | null;
+  if (!response.ok || !data?.success) {
+    console.warn("Turnstile verification failed", data?.["error-codes"] ?? response.status);
+    throw new HttpError(400, "turnstile_failed", "Verification failed. Refresh and try again.");
+  }
+}
+
+// Best-effort, in-process burst cap keyed by hashed IP. It resets on cold start and is not shared
+// across instances, so it is defense in depth on top of Turnstile (the real control) -- enough to
+// blunt repeat clicks from a single warm instance without a durable store.
+const recentByIpHash = new Map<string, number[]>();
+function enforceBurstCap(ipHash: string): void {
+  const windowMs = 60 * 60 * 1000;
+  const maxPerHour = 10;
+  const now = Date.now();
+  const hits = (recentByIpHash.get(ipHash) ?? []).filter((ts) => now - ts < windowMs);
+  if (hits.length >= maxPerHour) {
+    throw new HttpError(429, "rate_limited", "Too many requests. Please try again later.");
+  }
+  hits.push(now);
+  recentByIpHash.set(ipHash, hits);
+}
+
+function clampInt(value: unknown, min: number, max: number, fallback: number): number {
+  const parsed = Math.round(Number(value));
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+const money = (value: number) => `$${Math.round(value).toLocaleString("en-US")}`;
+
+interface SavingsModel {
+  hours: number;
+  rate: number;
+  tools: number;
+  cut: number;
+  fac: number;
+  laborPerYear: number;
+  toolSpendPerYear: number;
+  grossPerYear: number;
+  carebasePerYear: number;
+  netPerYear: number;
+  paybackMonths: number | null;
+  rateLabel: string;
+}
+
+// Single source of truth for the math the /savings results card renders (Savings.tsx). Recomputed
+// server-side from the clamped inputs so the emailed worksheet is authoritative, never trusting
+// client-sent totals.
+function computeModel(raw: { hours?: unknown; rate?: unknown; tools?: unknown; cut?: unknown; fac?: unknown }): SavingsModel {
+  const hours = clampInt(raw.hours, RANGES.hours.min, RANGES.hours.max, 10);
+  const rate = clampInt(raw.rate, RANGES.rate.min, RANGES.rate.max, 35);
+  const tools = clampInt(raw.tools, RANGES.tools.min, RANGES.tools.max, 400);
+  const cut = clampInt(raw.cut, RANGES.cut.min, RANGES.cut.max, 25);
+  const fac = clampInt(raw.fac, RANGES.fac.min, RANGES.fac.max, 2);
+
+  const laborPerYear = hours * 52 * rate;
+  const toolSpendPerYear = tools * 12;
+  const grossPerYear = (laborPerYear * cut) / 100 + toolSpendPerYear;
+  const unitPrice = fac >= MULTI_SITE_THRESHOLD ? GROWTH_PRICE : STARTER_PRICE;
+  const carebasePerYear = unitPrice * 12 * fac;
+  const netPerYear = grossPerYear - carebasePerYear;
+  const paybackMonths = grossPerYear > 0 ? Math.round((carebasePerYear / (grossPerYear / 12)) * 10) / 10 : null;
+
+  return {
+    hours,
+    rate,
+    tools,
+    cut,
+    fac,
+    laborPerYear,
+    toolSpendPerYear,
+    grossPerYear,
+    carebasePerYear,
+    netPerYear,
+    paybackMonths,
+    rateLabel: fac >= MULTI_SITE_THRESHOLD ? "organization rate" : "single-facility rate",
+  };
+}
+
+function buildEmail(model: SavingsModel): { subject: string; text: string; html: string } {
+  const subject = "Your CareBase savings model";
+  const netLine = `${model.netPerYear < 0 ? "−" : ""}${money(Math.abs(model.netPerYear))} / yr`;
+  const payback = model.paybackMonths === null ? "—" : `${model.paybackMonths} months`;
+
+  const assumptions = [
+    ["Weekly admin hours coordinating records", `${model.hours} hrs/wk`],
+    ["Loaded hourly labor cost", `$${model.rate}/hr`],
+    ["Monthly spend on tools you could retire", `$${model.tools}/mo`],
+    ["Expected reduction in coordination time", `${model.cut}%`],
+    ["Facilities", String(model.fac)],
+  ] as const;
+
+  const results = [
+    ["Current coordination labor", `${money(model.laborPerYear)} / yr`],
+    ["Replaceable tool spend", `${money(model.toolSpendPerYear)} / yr`],
+    [`CareBase at your size (${model.rateLabel})`, `${money(model.carebasePerYear)} / yr`],
+    ["Gross opportunity before CareBase", `${money(model.grossPerYear)} / yr`],
+    ["Net after CareBase", netLine],
+    ["Modeled payback", payback],
+  ] as const;
+
+  const text = [
+    "Here's the savings model you built on cmcarebase.com/savings.",
+    "",
+    "Your assumptions",
+    ...assumptions.map(([label, value]) => `  • ${label}: ${value}`),
+    "",
+    "Modeled annual opportunity",
+    ...results.map(([label, value]) => `  • ${label}: ${value}`),
+    "",
+    "This applies your chosen reduction to labor only and assumes the tool spend is fully removable.",
+    "It's a planning estimate — not a quote or a guarantee — and it deliberately excludes risk",
+    "avoidance (citations, penalties, turnover).",
+    "",
+    `Verify these numbers on your own facility during the free trial: ${SITE_URL}/signup`,
+    `Revisit the calculator anytime: ${SITE_URL}/savings`,
+    "",
+    "— CareMetric CareBase",
+  ].join("\n");
+
+  const row = (label: string, value: string, strong = false) =>
+    `<tr><td style="padding:6px 0;color:#44566b;font-size:14px;">${label}</td>` +
+    `<td style="padding:6px 0;text-align:right;font-weight:${strong ? 700 : 600};color:#0d2742;font-size:14px;white-space:nowrap;">${value}</td></tr>`;
+
+  const html = `<!doctype html><html><body style="margin:0;background:#f6f8fa;padding:24px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #dfe6ee;border-radius:14px;overflow:hidden;">
+    <div style="background:#0d2742;padding:20px 24px;color:#ffffff;">
+      <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#8ec8ff;">CareMetric CareBase</div>
+      <div style="font-size:20px;font-weight:700;margin-top:4px;">Your savings model</div>
+    </div>
+    <div style="padding:24px;">
+      <p style="margin:0 0 16px;color:#33465c;font-size:14px;line-height:1.6;">Here's the model you built on <a href="${SITE_URL}/savings" style="color:#1b6fc2;">cmcarebase.com/savings</a>.</p>
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#1b6fc2;margin-bottom:6px;">Your assumptions</div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">${assumptions.map(([l, v]) => row(l, v)).join("")}</table>
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#1b6fc2;margin-bottom:6px;">Modeled annual opportunity</div>
+      <table style="width:100%;border-collapse:collapse;">
+        ${row("Current coordination labor", `${money(model.laborPerYear)} / yr`)}
+        ${row("Replaceable tool spend", `${money(model.toolSpendPerYear)} / yr`)}
+        ${row(`CareBase at your size (${model.rateLabel})`, `${money(model.carebasePerYear)} / yr`)}
+        <tr><td colspan="2" style="border-top:1px solid #eef2f6;padding-top:8px;"></td></tr>
+        ${row("Gross opportunity before CareBase", `${money(model.grossPerYear)} / yr`, true)}
+        ${row("Net after CareBase", netLine, true)}
+        ${row("Modeled payback", payback, true)}
+      </table>
+      <p style="margin:20px 0 0;color:#5d7084;font-size:12px;line-height:1.6;">Applies your chosen reduction to labor only and assumes the tool spend is fully removable. A planning estimate — not a quote or a guarantee — with risk avoidance (citations, penalties, turnover) deliberately excluded.</p>
+      <div style="margin-top:24px;">
+        <a href="${SITE_URL}/signup" style="display:inline-block;background:#1b6fc2;color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;padding:12px 20px;border-radius:9px;">Verify these numbers in your trial</a>
+      </div>
+    </div>
+  </div>
+</body></html>`;
+
+  return { subject, text, html };
+}
+
+async function sendViaSendGrid(to: string, subject: string, text: string, html: string): Promise<void> {
+  const apiKey = Deno.env.get("SENDGRID_API_KEY");
+  if (!apiKey) {
+    throw new HttpError(500, "email_not_configured", "Email delivery is not configured for this deployment", "SENDGRID_API_KEY is not set");
+  }
+
+  const from = parseFromAddress(
+    Deno.env.get("NOTIFICATION_FROM_EMAIL") || "CareMetric CareBase <notifications@cmcarebase.com>",
+  );
+
+  const resp = await fetch("https://api.sendgrid.com/v3/mail/send", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      personalizations: [{ to: [{ email: to }] }],
+      from,
+      subject,
+      content: [
+        { type: "text/plain", value: text },
+        { type: "text/html", value: html },
+      ],
+    }),
+  });
+
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({}));
+    const detail =
+      Array.isArray(data?.errors) && typeof data.errors[0]?.message === "string"
+        ? data.errors[0].message
+        : `SendGrid API returned ${resp.status}`;
+    throw new HttpError(502, "email_send_failed", "We couldn't send the email. Please try again later.", detail);
+  }
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  let body: {
+    email?: string;
+    hours?: number | string;
+    rate?: number | string;
+    tools?: number | string;
+    cut?: number | string;
+    fac?: number | string;
+    turnstile_token?: string;
+  };
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+
+  const email = body.email?.trim().toLowerCase();
+  if (!email || email.length < 3 || email.length > 320 || !EMAIL_RE.test(email)) {
+    return json({ ok: false, error: "Enter a valid email address" }, 400);
+  }
+
+  const ip = clientIp(req);
+  const pepper = Deno.env.get("DEMO_RATE_LIMIT_PEPPER") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "savings-model";
+  const ipHash = await sha256Hex(`ip:${ip}:${pepper}`);
+
+  try {
+    await verifyTurnstile(body.turnstile_token, ip);
+    enforceBurstCap(ipHash);
+
+    const model = computeModel(body);
+    const { subject, text, html } = buildEmail(model);
+    await sendViaSendGrid(email, subject, text, html);
+
+    return json({ ok: true });
+  } catch (error) {
+    const status = error instanceof HttpError ? error.status : 500;
+    const isHttpError = error instanceof HttpError;
+    const message = isHttpError ? (error as HttpError).message : "An unexpected error occurred. Please try again.";
+    const internalDetail = isHttpError ? (error as HttpError).internalDetail : undefined;
+    if (!isHttpError || status >= 500 || internalDetail) {
+      console.error(isHttpError ? "email-savings-model HttpError:" : "Unexpected email-savings-model error:", error, internalDetail ?? "");
+    }
+    return json({ ok: false, error: message }, status);
+  }
+});
