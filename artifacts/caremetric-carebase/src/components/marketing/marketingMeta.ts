@@ -78,9 +78,9 @@ export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
       "Tell us about your Pennsylvania personal care home or assisted living facility and we'll walk through how CareMetric CareBase fits your workflow.",
   },
   "/demo": {
-    title: "Demo Access — CareMetric CareBase",
+    title: "Live Demo — Explore CareMetric CareBase",
     description:
-      "Request a dedicated demo account to explore CareMetric CareBase with sample facility data before signing up.",
+      "Log into a sandbox with sample PA facility data and explore CareMetric CareBase by role — no signup and no sales call required.",
   },
   "/login": {
     title: "Log In — CareMetric CareBase",

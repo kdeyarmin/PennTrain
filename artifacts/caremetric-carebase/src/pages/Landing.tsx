@@ -616,12 +616,12 @@ export default function Landing() {
               <Button asChild size="lg" className="bg-white font-bold text-[#0d2742] hover:bg-[#dcebfa]" data-testid="button-hero-signup">
                 <Link href="/signup">Start a Free Trial</Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="border-white/30 bg-white/[0.06] font-bold text-white hover:bg-white/15">
-                <Link href="/how-it-works">See how it works</Link>
+              <Button asChild size="lg" variant="outline" className="border-white/30 bg-white/[0.06] font-bold text-white hover:bg-white/15" data-testid="button-hero-demo">
+                <Link href="/demo">Explore the live demo</Link>
               </Button>
             </Reveal>
             <Reveal delay={0.18}>
-              <p className="text-[13px] text-white/75">Fully self-service — signup to first binder without a phone call. {TRIAL_DAYS}-day free trial.</p>
+              <p className="text-[13px] text-white/75">Fully self-service — log into a sandbox or start your own {TRIAL_DAYS}-day trial, no phone call. <Link href="/how-it-works" className="font-semibold text-[#b9e4ff] hover:text-white hover:underline">See how it works →</Link></p>
             </Reveal>
           </div>
 
@@ -863,6 +863,7 @@ export default function Landing() {
               <CheckLine>Optional: a roster CSV for bulk import</CheckLine>
             </div>
             <Button asChild size="lg" className="bg-[#1b6fc2] font-bold text-white hover:bg-[#14548f]"><Link href="/signup">Create your organization — free for {TRIAL_DAYS} days</Link></Button>
+            <Link href="/demo" className="text-center text-[13px] font-semibold text-[#1b6fc2] hover:underline" data-testid="link-start-demo">Prefer to look around first? Explore the live demo — no signup needed →</Link>
             <div className={`text-center text-xs ${aaMutedText}`}>Every module included · unlimited staff · cancel in-app, export everything · <Link href="/privacy" className="text-[#1b6fc2] hover:underline">Privacy</Link></div>
           </Reveal>
         </div>
