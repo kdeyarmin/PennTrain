@@ -227,6 +227,13 @@ function MarketingHeader() {
           ) : (
             <>
               <Link
+                href="/demo"
+                className="text-sm font-semibold text-foreground/70 hover:text-foreground"
+                data-testid="link-demo"
+              >
+                Live demo
+              </Link>
+              <Link
                 href="/login"
                 className="text-sm font-semibold text-foreground/70 hover:text-foreground"
                 data-testid="link-login"
@@ -285,6 +292,11 @@ function MarketingHeader() {
               ) : (
                 <>
                   <Button asChild variant="outline" className="w-full">
+                    <Link href="/demo" onClick={() => setMenuOpen(false)}>
+                      Explore the live demo
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" className="w-full">
                     <Link href="/login" onClick={() => setMenuOpen(false)}>
                       Log In
                     </Link>
@@ -341,6 +353,7 @@ function MarketingFooter() {
             </h2>
             <Link href="/login" className={footerLink}>Log in</Link>
             <Link href="/signup" className={footerLink}>Start free trial</Link>
+            <Link href="/demo" className={footerLink}>Live demo</Link>
             <Link href="/#start" className={footerLink}>Get started</Link>
           </div>
 
