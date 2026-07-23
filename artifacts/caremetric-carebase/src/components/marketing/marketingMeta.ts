@@ -21,40 +21,56 @@ export type RouteMeta = {
 export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
   "/": {
     title:
-      "CareMetric CareBase — Personal Care Home & Assisted Living Software for Pennsylvania",
+      "CareMetric CareBase — Survey-Ready Operations for PA Personal Care Homes & Assisted Living",
     description:
-      "Operations, workforce compliance, training, and survey-evidence software for Pennsylvania personal care homes and assisted living facilities under 55 Pa. Code Chapters 2600 and 2800.",
+      "Training compliance, resident assessments, incidents, scheduling, and one-click survey binders for Pennsylvania PCH and ALF operators. Per-facility pricing, free trial.",
   },
   "/features": {
-    title: "Features — CareMetric CareBase Operations & Compliance Software",
-    description:
-      "See CareMetric CareBase features across staff compliance, training, resident and facility operations, quality, safety, scheduling, documents, and survey evidence.",
-  },
-  "/who-its-for": {
     title:
-      "Who It's For — CareMetric CareBase for Pennsylvania PCH & Assisted Living",
+      "CareBase Features — 50+ Capabilities for PCH & Assisted Living | CareMetric",
     description:
-      "CareMetric CareBase provides full operations and compliance workflows for Pennsylvania personal care homes and assisted living facilities, plus matched workforce-training pathways for adjacent providers.",
+      "Every CareBase capability: training compliance, AI course creation, resident assessments, incidents, scheduling, credentials, and survey evidence — one per-facility price.",
   },
   "/security": {
-    title: "Security — CareMetric CareBase",
+    title: "Security & Trust — CareBase for PA Senior Care Facilities",
     description:
-      "See the database-enforced roles, private storage, audit controls, MFA support, review gates, and evidence boundaries built into CareMetric CareBase.",
+      "Row-level security, private evidence storage, immutable audit trails, and read-only auditor access — controls you can verify in a CareBase demo.",
   },
   "/how-it-works": {
-    title: "How It Works — CareMetric CareBase",
+    title: "How CareBase Works — From Spreadsheet Chaos to Survey-Ready",
     description:
-      "See how CareMetric CareBase moves from facility setup and role-aware work to live risk visibility, accountable follow-up, and survey-ready evidence.",
+      "The four moves every CareBase module follows, what switching from binders and spreadsheets actually takes, and what a week looks like once it runs your PA facility.",
   },
   "/savings": {
-    title: "Value & Savings — CareMetric CareBase",
+    title: "Where the Money Comes From — CareBase Savings for PCH & ALF",
     description:
-      "See what CareMetric CareBase can replace, what it should work alongside, and model potential labor and software savings using your own facility assumptions.",
+      "Coordination labor you stop paying for, tools you retire, and the education line item you stop paying three times. Model your own numbers — risk avoidance excluded.",
+  },
+  "/pa-training-requirements": {
+    title:
+      "PA Annual Training Requirements by Facility Type (2026 Guide) | CareBase",
+    description:
+      "Pennsylvania annual training hours for personal care homes (12 hrs, §2600.65), assisted living (16 hrs, §2800.65), Chapter 6400, nursing, home health, and hospice — with citations.",
   },
   "/faq": {
-    title: "FAQ — CareMetric CareBase",
+    title: "CareBase FAQ — PA Personal Care Home & Assisted Living Software",
     description:
-      "Answers about what CareMetric CareBase is, what it replaces, where savings come from, compliance boundaries, facility operations, training, resident workflows, security, and implementation.",
+      "Straight answers: what CareBase replaces, PA training-hour requirements, resident assessments, security, pricing, and how fast a facility can start.",
+  },
+  "/about": {
+    title: "About CareBase — Built in Pennsylvania with Real Operators",
+    description:
+      "Why CareMetric is building CareBase, the principles behind it, the team, and the founding-partner program for PA PCH and ALF operators.",
+  },
+  "/privacy": {
+    title: "Privacy Policy — CareMetric CareBase",
+    description:
+      "How CareMetric CareBase collects, uses, stores, and protects information for Pennsylvania personal care home and assisted living facility organizations.",
+  },
+  "/terms": {
+    title: "Terms of Service — CareMetric CareBase",
+    description:
+      "The terms that govern use of CareMetric CareBase, including accounts, subscriptions, data ownership, acceptable use, and compliance boundaries.",
   },
   "/request-demo": {
     title: "Request a Demo — CareMetric CareBase",
