@@ -309,7 +309,7 @@ export default function Savings() {
           <p className="m-0 max-w-[56ch] text-pretty text-[16.5px] text-white/85">
             The admin time you stop paying for, the tools you can drop, and the
             training you stop paying for three times over. Run the numbers with
-            your own figures — savings from avoided fines are left out.
+            your own figures — savings from avoided risk are left out.
           </p>
         </div>
       </section>

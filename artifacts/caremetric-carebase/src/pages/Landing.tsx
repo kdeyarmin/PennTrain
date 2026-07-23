@@ -238,7 +238,7 @@ const DIFFERENTIATORS: Differentiator[] = [
     title: "A readiness score weighted by real citations",
     body: [
       "A live score for each facility, weighted by how often DHS actually cites each regulation — not a generic checklist percentage.",
-      "Training, credentials, background checks, inspections, incidents, and signed policies combine into one number, sorted so the areas you're most likely to be cited on show up first.",
+      "Training, credentials, background checks, inspections, incidents, and signed policies combine into one number, sorted so your gaps in the most-cited areas surface first.",
     ],
     footer: "See what the surveyor will flag, first",
   },
@@ -540,7 +540,7 @@ function EvidenceMockup() {
         </div>
         <div className="flex flex-col gap-2.5">
           <div className={`font-mono text-[10.5px] uppercase tracking-[0.08em] ${aaMutedText}`}>Citation-weighted risk</div>
-          <div className="text-[12.5px] text-[#44566b]">Topics show up in the order DHS actually cites them — the one your facility is most likely to be cited on appears first.</div>
+          <div className="text-[12.5px] text-[#44566b]">Topics show up in the order DHS actually cites them — the one cited most often appears first.</div>
           <span className="mt-auto rounded-lg bg-[#0d2742] px-3.5 py-2.5 text-center text-[13px] font-bold text-white">Generate binder PDF</span>
           <div className={`text-center text-[11.5px] ${aaMutedText}`}>Rebuilt from live records · delivered via short-lived secure link</div>
         </div>
@@ -834,7 +834,7 @@ export default function Landing() {
               </Reveal>
             ))}
           </div>
-          <p className={`mx-auto mt-4 max-w-[640px] text-center text-[12.5px] ${aaMutedText}`}>These prices flow into the <Link href="/savings" className="font-bold text-[#1b6fc2] hover:underline">savings worksheet</Link> automatically — estimate your net savings using your own admin hours and tool costs (savings from avoided fines are left out).</p>
+          <p className={`mx-auto mt-4 max-w-[640px] text-center text-[12.5px] ${aaMutedText}`}>These prices flow into the <Link href="/savings" className="font-bold text-[#1b6fc2] hover:underline">savings worksheet</Link> automatically — estimate your net savings using your own admin hours and tool costs (savings from avoided risk are left out).</p>
         </div>
       </section>
 
