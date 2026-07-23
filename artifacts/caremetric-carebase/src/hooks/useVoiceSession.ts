@@ -64,11 +64,19 @@ export function useVoiceSession(facilityId: string) {
   const teardown = useCallback(() => {
     const live = resources.current;
     live.playback?.clear();
-    if (live.ws && live.ws.readyState <= WebSocket.OPEN) {
-      try {
-        live.ws.close();
-      } catch {
-        // Already closing.
+    if (live.ws) {
+      // Detach handlers BEFORE closing: a dangling onclose would fire
+      // finish() later and clobber state set after this teardown (e.g.
+      // the fresh idle state on a facility switch).
+      live.ws.onmessage = null;
+      live.ws.onclose = null;
+      live.ws.onerror = null;
+      if (live.ws.readyState <= WebSocket.OPEN) {
+        try {
+          live.ws.close();
+        } catch {
+          // Already closing.
+        }
       }
     }
     live.stream?.getTracks().forEach((track) => track.stop());
@@ -250,8 +258,21 @@ export function useVoiceSession(facilityId: string) {
     }
   }, [finish]);
 
-  // Unmount / facility switch: drop any live session.
-  useEffect(() => teardown, [facilityId, teardown]);
+  // Unmount / facility switch: drop any live session AND reset the UI
+  // state — teardown alone would leave the panel showing "Live" for the
+  // new facility with no socket behind it.
+  useEffect(
+    () => () => {
+      teardown();
+      setStatus("idle");
+      setTurns([]);
+      setLivePartial(null);
+      setNotice(null);
+      setError(null);
+      setEndMessage(null);
+    },
+    [facilityId, teardown],
+  );
 
   return {
     status,

@@ -98,7 +98,7 @@ Deno.serve(async (req: Request) => {
   if (!["PCH", "ALR"].includes(facility.facility_type)) {
     return toolError(
       "facility_type_unsupported",
-      "Voice compliance tools cover Personal Care Homes and Assisted Living Facilities only.",
+      "Voice compliance tools cover Personal Care Homes and Assisted Living Facilities (ALFs) only.",
     );
   }
 
