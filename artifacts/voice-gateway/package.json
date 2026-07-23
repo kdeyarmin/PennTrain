@@ -1,0 +1,27 @@
+{
+  "name": "@workspace/voice-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Central multi-app AI voice-agent service: bridges browser/phone audio to the OpenAI Realtime API and executes app tools via authenticated HTTPS callbacks.",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.18.0",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.23",
+    "@types/node": "catalog:",
+    "@types/ws": "^8.18.1",
+    "tsx": "catalog:",
+    "typescript": "~5.9.2",
+    "vitest": "catalog:"
+  }
+}
