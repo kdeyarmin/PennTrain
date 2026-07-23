@@ -7,18 +7,24 @@
  *    bounces to /login. If a marketing page isn't listed here, loading it
  *    directly (refresh, bookmark, new tab) would redirect to login.
  *
- * The header is deliberately split into a short row of primary links plus a
- * grouped "Resources" menu: ten top-level links overflowed the bar and
- * collided with the logo. MARKETING_NAV holds the primary links;
- * MARKETING_RESOURCES_NAV holds the secondary (mostly PA regulatory) pages
- * that fold into the dropdown. Both are still public pages, so both feed the
- * auth allow-list below.
+ * The header is deliberately condensed into two dropdowns plus one direct
+ * link: ten top-level links overflowed the bar and collided with the logo.
+ *  - MARKETING_PRODUCT_NAV   -> the "Product" dropdown (overview pages).
+ *  - MARKETING_NAV           -> inline links that stand on their own (Pricing;
+ *                               high-intent, kept one click away).
+ *  - MARKETING_RESOURCES_NAV -> the "Resources" dropdown (PA regulatory
+ *                               guides, updates, FAQ, About).
+ * Every entry is a public page, so all three feed the auth allow-list below.
  */
-export const MARKETING_NAV = [
+export const MARKETING_PRODUCT_NAV = [
   { href: "/#platform", label: "Platform" },
   { href: "/features", label: "Features" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/savings", label: "Savings" },
+] as const;
+
+/** Inline (non-grouped) header links. */
+export const MARKETING_NAV = [
   { href: "/#pricing", label: "Pricing" },
 ] as const;
 
@@ -54,6 +60,7 @@ const MARKETING_PATHS: readonly string[] = [
   // Nav entries may be landing-page hash links (e.g. "/#pricing"); only real
   // pathnames belong in the auth guard's allow list.
   ...MARKETING_NAV.map((item) => item.href).filter((href) => !href.includes("#")),
+  ...MARKETING_PRODUCT_NAV.map((item) => item.href).filter((href) => !href.includes("#")),
   ...MARKETING_RESOURCES_NAV.map((item) => item.href).filter((href) => !href.includes("#")),
   ...MARKETING_EXTRA_PATHS,
 ];

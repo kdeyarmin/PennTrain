@@ -12,7 +12,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
-import { MARKETING_NAV, MARKETING_RESOURCES_NAV, stripBase } from "@/lib/publicPaths";
+import {
+  MARKETING_NAV,
+  MARKETING_PRODUCT_NAV,
+  MARKETING_RESOURCES_NAV,
+  stripBase,
+} from "@/lib/publicPaths";
 import { MarketingAIBot } from "@/components/marketing/MarketingAIBot";
 
 /**
@@ -178,11 +183,55 @@ function NavAnchorLink({
   );
 }
 
+/** A header dropdown that groups several nav links under one label (desktop). */
+function NavDropdown({
+  label,
+  items,
+}: {
+  label: string;
+  items: readonly { readonly href: string; readonly label: string }[];
+}) {
+  const [location] = useLocation();
+  const groupActive = items.some((item) => item.href === location);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex items-center gap-1 whitespace-nowrap text-sm font-semibold outline-none transition-colors",
+            groupActive ? "text-foreground" : "text-foreground/70 hover:text-foreground"
+          )}
+        >
+          {label}
+          <ChevronDown className="h-4 w-4 opacity-70" aria-hidden />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-56">
+        {items.map((item) => {
+          const active = location === item.href;
+          return (
+            <DropdownMenuItem key={item.href} asChild>
+              <Link
+                href={item.href}
+                onClick={hashNavClickHandler(item.href)}
+                aria-current={active ? "page" : undefined}
+                className={cn("cursor-pointer", active && "font-semibold text-foreground")}
+              >
+                {item.label}
+              </Link>
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function MarketingHeader() {
   const [location] = useLocation();
   const { isAuthenticated } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
-  const resourcesActive = MARKETING_RESOURCES_NAV.some((item) => item.href === location);
 
   // Close the mobile menu on any route change.
   useEffect(() => {
@@ -205,7 +254,9 @@ function MarketingHeader() {
           </div>
         </Link>
 
-        <nav className="hidden items-center gap-5 xl:flex" aria-label="Primary">
+        <nav className="hidden items-center gap-5 lg:flex" aria-label="Primary">
+          <NavDropdown label="Product" items={MARKETING_PRODUCT_NAV} />
+
           {MARKETING_NAV.map((item) => {
             const active = location === item.href;
             return (
@@ -224,42 +275,11 @@ function MarketingHeader() {
             );
           })}
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className={cn(
-                  "flex items-center gap-1 whitespace-nowrap text-sm font-semibold outline-none transition-colors",
-                  resourcesActive
-                    ? "text-foreground"
-                    : "text-foreground/70 hover:text-foreground"
-                )}
-              >
-                Resources
-                <ChevronDown className="h-4 w-4 opacity-70" aria-hidden />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              {MARKETING_RESOURCES_NAV.map((item) => {
-                const active = location === item.href;
-                return (
-                  <DropdownMenuItem key={item.href} asChild>
-                    <Link
-                      href={item.href}
-                      aria-current={active ? "page" : undefined}
-                      className={cn("cursor-pointer", active && "font-semibold text-foreground")}
-                    >
-                      {item.label}
-                    </Link>
-                  </DropdownMenuItem>
-                );
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <NavDropdown label="Resources" items={MARKETING_RESOURCES_NAV} />
         </nav>
 
         {/* Desktop actions */}
-        <div className="hidden xl:flex items-center gap-3 shrink-0">
+        <div className="hidden lg:flex items-center gap-3 shrink-0">
           {isAuthenticated ? (
             <Button asChild size="sm" data-testid="button-open-app">
               {/* "/" redirects signed-in visitors to their role's home. */}
@@ -294,7 +314,7 @@ function MarketingHeader() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 shrink-0 xl:hidden"
+              className="h-9 w-9 shrink-0 lg:hidden"
               aria-label="Open menu"
             >
               <Menu className="h-5 w-5" />
@@ -303,7 +323,10 @@ function MarketingHeader() {
           <SheetContent side="right" className="w-[280px] max-w-[85vw]">
             <SheetTitle className="sr-only">Navigation menu</SheetTitle>
             <nav className="mt-8 flex flex-col gap-1">
-              {MARKETING_NAV.map((item) => {
+              {/* Mobile lists everything flat (no dropdowns) -- the product
+                  pages that fold into the desktop "Product" menu plus the
+                  inline links (Pricing). */}
+              {[...MARKETING_PRODUCT_NAV, ...MARKETING_NAV].map((item) => {
                 const active = location === item.href;
                 return (
                   <NavAnchorLink
