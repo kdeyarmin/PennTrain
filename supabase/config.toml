@@ -166,6 +166,13 @@ verify_jwt = true
 [functions.get-platform-status]
 verify_jwt = false
 
+# Public-demo sandbox provisioning (creates the synthetic /demo login accounts + seeds data). Not
+# JWT-gated because it is a one-off ops/deploy step, not a signed-in user action; it authorizes on
+# the DEMO_PROVISION_SECRET header instead and refuses to run unless that secret and
+# DEMO_ACCOUNT_PASSWORD are configured. Never provisions a platform_admin account.
+[functions.provision-demo-tenant]
+verify_jwt = false
+
 # Public error intake is available before authentication so login and lazy-chunk failures are
 # observable. The handler accepts only a small allowlisted, length-bounded, server-redacted
 # payload and writes structured events to Supabase function logs; it performs no database writes.
