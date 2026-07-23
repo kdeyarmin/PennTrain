@@ -570,7 +570,7 @@ function StatusBadge({ tone, children }: { tone: string; children: ReactNode }) 
 function useHeroCountUp(target: number) {
   const [value, setValue] = useState(target);
   useEffect(() => {
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
     let tick = 0;
     setValue(0);
     const id = window.setInterval(() => {
