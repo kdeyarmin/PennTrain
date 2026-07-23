@@ -1,0 +1,64 @@
+name: Deploy migrations
+
+# Deploys committed migrations to the production Supabase project when they land on main.
+#
+# Root cause this closes (see MIGRATION_DEPLOYMENT_AUDIT.md): CI validated the migration
+# chain on a throwaway local stack but nothing deployed it to the remote, so migrations
+# merged to main could sit undeployed indefinitely. This job runs `supabase db push` on every
+# migration change to main and then fails if any drift remains, so "merged" implies "deployed".
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   SUPABASE_ACCESS_TOKEN  -- a Supabase personal access token (https://supabase.com/dashboard/account/tokens)
+#   SUPABASE_DB_PASSWORD   -- the project's database password (Project Settings -> Database)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "supabase/migrations/**"
+  workflow_dispatch: {}
+
+# Never let two deploys run against the database at once; queue them instead of cancelling,
+# since cancelling a half-applied `db push` is worse than waiting.
+concurrency:
+  group: deploy-migrations
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: xsqobvvreaovwibxwyvv
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+
+      # Pin both the setup action and the CLI version to match the CI database job, so
+      # push behavior reproduces what CI validated.
+      - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.109.1
+
+      - name: Verify deploy secrets are configured
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD repository secrets must be set before this workflow can deploy. See MIGRATION_DEPLOYMENT_AUDIT.md."
+            exit 1
+          fi
+
+      - name: Link Supabase project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+
+      - name: Push pending migrations
+        run: supabase db push
+
+      - name: Verify no migration drift remains
+        run: node scripts/check-migration-drift.mjs

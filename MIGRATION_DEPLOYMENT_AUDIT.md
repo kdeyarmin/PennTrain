@@ -183,21 +183,53 @@ order through the project's `database/query` endpoint, followed by an insert int
 ## Root cause
 
 CI proves migrations are *internally consistent* (it reapplies the whole chain on a throwaway
-local stack) but nothing checks that they are *deployed*. Remote deployment is a manual step
-(`supabase db push`, or the Supabase GitHub integration) with no gate that fails when the repo
-is ahead of the remote — so migrations accumulated in the repo for ~10 days without being
-applied, and nothing surfaced it.
+local stack) but nothing checked that they are *deployed*, and nothing was reliably deploying
+them:
+
+- **Deployment was effectively manual and lapsed.** The `supabase_migrations.schema_migrations`
+  `created_by` column shows every migration applied through Supabase's own tooling (stamped
+  `kdeyarmin@comcast.net`) ends at `20260714012155` (2026-07-14 01:21 UTC); the Supabase-tracked
+  production branch `main` last updated `2026-07-13T19:53:24Z`. After that only two ad-hoc
+  API/MCP applies happened, which is why the gap is scattered rather than a clean cliff.
+- **The Supabase GitHub integration does preview branching, not production deploy-on-merge.**
+  It is connected (it comments on PRs) and the org is on the Pro plan, but all 71 pending
+  migrations were merged to `main` via PRs over ~9 days and none deployed — so migrations were
+  never being pushed to production automatically on merge.
+- **No drift gate.** Nothing failed when the repo got ahead of the remote, so the backlog was
+  invisible until this audit.
 
 ## Preventing recurrence
 
-`scripts/check-migration-drift.mjs` (npm script `check:migration-drift`) reproduces this audit
-on demand. It compares local migration versions against the remote
-`schema_migrations` table and exits non-zero when the repo is ahead of (or behind) the remote:
+Two layers close the gap — automated deployment, plus a check that fails loudly if drift ever
+reappears.
+
+### 1. Automated deploy on merge — `.github/workflows/deploy-migrations.yml`
+
+Runs on every push to `main` that changes `supabase/migrations/**` (and on manual
+`workflow_dispatch`): it links the project, runs `supabase db push`, then runs the drift check
+to confirm the remote is in sync. This makes "merged to `main`" imply "deployed", independent
+of whether Supabase's native GitHub integration is doing production deploys.
+
+**One-time setup — add two repository secrets** (Settings → Secrets and variables → Actions):
+
+| Secret | Where to get it |
+| --- | --- |
+| `SUPABASE_ACCESS_TOKEN` | https://supabase.com/dashboard/account/tokens |
+| `SUPABASE_DB_PASSWORD` | Project Settings → Database (reset if unknown) |
+
+Until both are set the workflow fails fast with a clear message. (Alternatively, enable
+production deploy-on-merge in the Supabase dashboard's GitHub integration / Branching settings
+and rely on the drift check below as the backstop.)
+
+### 2. Drift gate — `scripts/check-migration-drift.mjs` (`pnpm run check:migration-drift`)
+
+Reproduces this audit on demand: compares local migration versions against the remote
+`schema_migrations` table and exits non-zero when the repo is ahead of (or behind) the remote.
 
 ```bash
 SUPABASE_ACCESS_TOKEN=sbp_... pnpm run check:migration-drift
 ```
 
-Run it after every deploy, or wire it into the deploy pipeline (it needs a Supabase access
-token, so it belongs in a credentialed deploy step rather than untrusted PR CI). A green run is
-the proof that "every migration is deployed."
+It needs a Supabase access token, so it belongs in the credentialed deploy job above (where it
+already runs as the final step) rather than untrusted PR CI. A green run is the proof that
+"every migration is deployed."
