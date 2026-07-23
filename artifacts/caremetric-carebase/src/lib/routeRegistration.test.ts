@@ -18,7 +18,12 @@ const storageBackedCleanPaths = PUBLIC_ACCESS_FLOWS
 
 const registrationSources: RouteRegistrationSource[] = [
   { source: "APP_PAGES role/navigation metadata", paths: APP_PAGES.map((page) => page.path) },
-  { source: "MARKETING_NAV public navigation metadata", paths: MARKETING_NAV.map((item) => item.href) },
+  {
+    source: "MARKETING_NAV public navigation metadata",
+    // Nav entries may be landing-page hash links (e.g. "/#pricing"); the
+    // registered route is the pathname portion.
+    paths: MARKETING_NAV.map((item) => item.href.split("#")[0] || "/"),
+  },
   { source: "LEGACY_ROUTE_REDIRECTS source routes", paths: legacyRedirectSources },
   { source: "LEGACY_ROUTE_REDIRECTS canonical destinations", paths: legacyRedirectDestinations },
   { source: "PUBLIC_ACCESS_FLOWS token routes", paths: PUBLIC_ACCESS_FLOWS.map((flow) => flow.tokenPath) },

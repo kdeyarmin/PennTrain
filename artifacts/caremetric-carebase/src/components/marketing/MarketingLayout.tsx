@@ -313,7 +313,8 @@ function MarketingFooter() {
           <div className="flex flex-col gap-2.5">
             <Link href="/" className="flex items-center gap-2.5">
               <LogoMark className="h-8 w-8" />
-              <BrandName className="text-sm font-extrabold text-white" />
+              {/* Not BrandName: its fixed two-tone gray fails contrast on the dark footer. */}
+              <span className="text-sm font-extrabold text-white">CareMetric CareBase</span>
             </Link>
             <p className="max-w-[34ch] text-[13px] text-white/70">
               Operations, compliance, and survey readiness for personal care
