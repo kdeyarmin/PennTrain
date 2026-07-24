@@ -14,6 +14,7 @@ import {
   type PendingSessionStore,
 } from "../session/pending-sessions.js";
 import type { ActiveSessionTracker } from "../session/voice-session.js";
+import type { UsageLimits } from "../session/usage-limits.js";
 import type { PhoneRuntime } from "../transports/twilio-media.js";
 import { validateTwilioSignature } from "../phone/signature.js";
 import {
@@ -29,6 +30,7 @@ export interface GatewayHttpDeps {
   registry: AppRegistry;
   pendingStore: PendingSessionStore;
   tracker: ActiveSessionTracker;
+  usage: UsageLimits;
   /** Shared-phone-number runtime; null when the phone channel is unconfigured. */
   phone: PhoneRuntime | null;
   fetchImpl?: typeof fetch;
@@ -99,44 +101,73 @@ export function buildHttpApp(deps: GatewayHttpDeps): express.Express {
 
   app.post("/phone/inbound", urlencoded, (req, res) => {
     if (!deps.config || !deps.phone) {
-      res.status(503).type("text/xml").send(unavailableTwiml());
+      // HTTP 200 on purpose: Twilio only renders TwiML bodies on 2xx, so a
+      // 5xx would play its generic error instead of this message.
+      res.status(200).type("text/xml").send(unavailableTwiml());
       return;
     }
+    const config = deps.config;
+    const phone = deps.phone;
     const params = twilioGate(req, "/phone/inbound");
     if (!params) {
       res.status(403).json({ error: "invalid_twilio_signature" });
       return;
     }
-    // Phone calls share the browser sessions' cost caps: at capacity, a
-    // polite busy line beats opening an uncapped Realtime session.
     const callSid = params.CallSid ?? "";
-    if (!deps.tracker.canStart(`phone:${callSid}`, deps.config)) {
+    const from = params.From ?? "";
+    const respondConnect = (sid: string): void => {
+      const wsBase = (config.publicBaseUrl ?? "").replace(/^http/, "ws");
+      res
+        .type("text/xml")
+        .send(
+          connectStreamTwiml(
+            `${wsBase}/phone/stream?sid=${sid}`,
+            `${config.publicBaseUrl}/phone/after`,
+            { sid },
+          ),
+        );
+    };
+    // CallSid idempotency: a Twilio retry (or a replayed capture of the
+    // signed request) reuses the live ticket rather than minting another
+    // Realtime handoff; once the call has connected, replays get busy.
+    if (callSid) {
+      const existing = phone.pendingStore.activeTicketFor(callSid);
+      if (existing) {
+        respondConnect(existing.sid);
+        return;
+      }
+      if (phone.pendingStore.wasClaimed(callSid)) {
+        res.type("text/xml").send(busyTwiml());
+        return;
+      }
+    }
+    // Cost controls, all BEFORE any Realtime session opens: the global
+    // daily minutes budget, this caller's rolling-hour call/minute caps,
+    // and the phone-channel + global concurrency budgets.
+    if (deps.usage.dailyBudget.isExhausted(config)) {
+      res.type("text/xml").send(busyTwiml());
+      return;
+    }
+    if (deps.usage.phoneCallers.check(from, config) !== "ok") {
+      res.type("text/xml").send(busyTwiml());
+      return;
+    }
+    if (!deps.tracker.canStart(`phone:${callSid}`, config, "phone")) {
       res.type("text/xml").send(busyTwiml());
       return;
     }
     const sid = crypto.randomUUID();
-    deps.phone.pendingStore.register({
-      sid,
-      callSid,
-      from: params.From ?? "",
-    });
-    const wsBase = (deps.config.publicBaseUrl ?? "").replace(/^http/, "ws");
-    res
-      .type("text/xml")
-      .send(
-        connectStreamTwiml(
-          `${wsBase}/phone/stream?sid=${sid}`,
-          `${deps.config.publicBaseUrl}/phone/after`,
-          { sid },
-        ),
-      );
+    phone.pendingStore.register({ sid, callSid, from });
+    deps.usage.phoneCallers.recordCall(from);
+    respondConnect(sid);
   });
 
   // Fetched by Twilio when the media stream ends: either the triage agent
   // parked a transfer for this call (dial it) or the call is simply over.
   app.post("/phone/after", urlencoded, (req, res) => {
     if (!deps.config || !deps.phone) {
-      res.status(503).type("text/xml").send(hangupTwiml());
+      // 200 for the same reason as /phone/inbound: TwiML on 5xx is ignored.
+      res.status(200).type("text/xml").send(hangupTwiml());
       return;
     }
     const params = twilioGate(req, "/phone/after");
@@ -198,6 +229,13 @@ export function buildHttpApp(deps: GatewayHttpDeps): express.Express {
         res
           .status(verified.failure.status)
           .json({ error: verified.failure.code });
+        return;
+      }
+
+      // Daily minutes kill-switch (both channels share the budget). After
+      // auth on purpose: anonymous probes learn nothing about spend state.
+      if (deps.usage.dailyBudget.isExhausted(deps.config)) {
+        res.status(503).json({ error: "voice_budget_exhausted" });
         return;
       }
 

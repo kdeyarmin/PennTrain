@@ -62,6 +62,10 @@ const CONFIG: GatewayConfig = {
   idleTimeoutSeconds: 60,
   maxConcurrentSessions: 2,
   maxSessionsPerUser: 1,
+  maxConcurrentPhoneSessions: 1,
+  phoneCallsPerHour: 4,
+  phoneMinutesPerHour: 20,
+  dailyMinutesBudget: 240,
   toolTimeoutMs: 10_000,
   playbackGraceMs: 100,
 };

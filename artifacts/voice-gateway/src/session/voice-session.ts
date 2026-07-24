@@ -30,23 +30,41 @@ export type ServerControlMessage =
   | { type: "warning"; code: string; message: string }
   | { type: "closed"; reason: string };
 
-/** Global + per-user concurrency accounting (cost control). */
+export type SessionChannel = "browser" | "phone";
+
+/**
+ * Global + per-user concurrency accounting (cost control), with a separate
+ * phone-channel budget: phone sessions count against BOTH the phone cap
+ * and the global cap, browser sessions only against the global cap — so
+ * anonymous phone traffic can never exhaust the pool authenticated in-app
+ * users share.
+ */
 export class ActiveSessionTracker {
   private total = 0;
+  private phoneTotal = 0;
   private readonly perUser = new Map<string, number>();
 
-  canStart(userId: string, config: GatewayConfig): boolean {
+  canStart(
+    userId: string,
+    config: GatewayConfig,
+    channel: SessionChannel = "browser",
+  ): boolean {
     if (this.total >= config.maxConcurrentSessions) return false;
+    if (channel === "phone" && this.phoneTotal >= config.maxConcurrentPhoneSessions) {
+      return false;
+    }
     return (this.perUser.get(userId) ?? 0) < config.maxSessionsPerUser;
   }
 
-  start(userId: string): void {
+  start(userId: string, channel: SessionChannel = "browser"): void {
     this.total += 1;
+    if (channel === "phone") this.phoneTotal += 1;
     this.perUser.set(userId, (this.perUser.get(userId) ?? 0) + 1);
   }
 
-  finish(userId: string): void {
+  finish(userId: string, channel: SessionChannel = "browser"): void {
     this.total = Math.max(0, this.total - 1);
+    if (channel === "phone") this.phoneTotal = Math.max(0, this.phoneTotal - 1);
     const count = (this.perUser.get(userId) ?? 1) - 1;
     if (count <= 0) this.perUser.delete(userId);
     else this.perUser.set(userId, count);

@@ -26,6 +26,7 @@ import {
   type PendingSessionStore,
 } from "./session/pending-sessions.js";
 import { ActiveSessionTracker } from "./session/voice-session.js";
+import { createUsageLimits } from "./session/usage-limits.js";
 
 export interface GatewayServerOptions {
   config: GatewayConfig | null;
@@ -52,12 +53,14 @@ function buildPhoneRuntime(opts: GatewayServerOptions): PhoneRuntime | null {
     targets,
     pendingStore: new PhonePendingStore(),
     transferStore: new TransferActionStore(),
+    unclaimedSockets: { count: 0 },
   };
 }
 
 export function createGatewayServer(opts: GatewayServerOptions): http.Server {
   const pendingStore = opts.pendingStore ?? new InMemoryPendingSessionStore();
   const tracker = new ActiveSessionTracker();
+  const usage = createUsageLimits();
   const phone = buildPhoneRuntime(opts);
 
   const app = buildHttpApp({
@@ -65,6 +68,7 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
     registry: opts.registry,
     pendingStore,
     tracker,
+    usage,
     phone,
     fetchImpl: opts.fetchImpl,
   });
@@ -89,6 +93,7 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
           registry: opts.registry,
           pendingStore,
           tracker,
+          usage,
           fetchImpl: opts.fetchImpl,
           webSocketFactory: opts.webSocketFactory,
         },
@@ -113,6 +118,7 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
           registry: opts.registry,
           phone,
           tracker,
+          usage,
           webSocketFactory: opts.webSocketFactory,
         },
         wss,

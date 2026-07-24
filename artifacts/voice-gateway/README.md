@@ -37,7 +37,15 @@ Security posture (inherited from PennFit's ADR):
   immutable `compliance_copilot_runs` receipt, which voice questions
   produce automatically).
 - Cost controls: max session duration, idle timeout, global and per-user
-  concurrency caps, per-response token backstop.
+  concurrency caps, a separate phone-channel concurrency budget, per-caller
+  rolling-hour call/minute caps, a global daily minutes kill-switch, and a
+  per-response token backstop.
+- Platform kill-switch reach: the `voice_assistant_enabled` platform
+  setting hides the in-app voice UI and makes `voice-tools` refuse every
+  tool call (fail-closed), but it does NOT reach the Realtime conversation
+  itself — an already-open session can keep talking from public knowledge.
+  Fully stopping the voice channel still requires env-level shutdown
+  (unset `OPENAI_API_KEY` / scale the service down) and a redeploy.
 
 ## Environment variables
 
@@ -52,11 +60,16 @@ Security posture (inherited from PennFit's ADR):
 | `OPENAI_REALTIME_MODEL` | no | Model override (default `gpt-realtime-2`). |
 | `VOICE_DEFAULT_VOICE` | no | Realtime voice (default `cedar`). |
 | `VOICE_PUBLIC_WS_ORIGIN` | no | e.g. `wss://voice-gateway.up.railway.app`; derived from forwarded headers when unset. |
-| `VOICE_MAX_SESSION_SECONDS` | no | Hard cap per session (default 600). |
-| `VOICE_IDLE_TIMEOUT_SECONDS` | no | End after silence (default 90). |
-| `VOICE_MAX_CONCURRENT_SESSIONS` | no | Global cap (default 5). |
+| `VOICE_MAX_SESSION_SECONDS` | no | Hard cap per session (default 600; boot validation clamps anything above 3600 and warns). |
+| `VOICE_IDLE_TIMEOUT_SECONDS` | no | End after silence (default 90; must outlast `VOICE_TOOL_TIMEOUT_MS` — boot validation clamps it up past the tool timeout and warns otherwise). |
+| `VOICE_MAX_CONCURRENT_SESSIONS` | no | Global cap, both channels (default 5). |
 | `VOICE_MAX_SESSIONS_PER_USER` | no | Per-user cap (default 1). |
+| `VOICE_MAX_CONCURRENT_PHONE_SESSIONS` | no | Phone-channel concurrency budget (default 3). Phone sessions count against this AND the global cap; browser sessions only against the global cap — phone traffic can never exhaust the pool in-app users share. |
+| `VOICE_PHONE_CALLS_PER_HOUR` | no | Per-caller (Twilio `From`) cap: calls answered per rolling hour (default 4). Over-cap callers hear the polite busy line before any Realtime session opens. |
+| `VOICE_PHONE_MINUTES_PER_HOUR` | no | Per-caller (Twilio `From`) cap: cumulative session minutes per rolling hour (default 20). |
+| `VOICE_DAILY_MINUTES_BUDGET` | no | Global kill-switch: cumulative session minutes per UTC day across both channels (default 240). Exhausted → phone answers busy TwiML, new browser sessions get 503 `voice_budget_exhausted`. |
 | `VOICE_TOOL_TIMEOUT_MS` | no | Tool callback timeout (default 75000 — must outlast voice-tools' 65s copilot window so app-owned, speakable errors surface instead of a generic dispatcher failure). |
+| `VOICE_PLAYBACK_GRACE_MS` | no | How long the browser sink waits for delivered audio to finish playing before a graceful close (default 1500). The browser transport has no playback acknowledgement channel, so this fixed grace keeps a goodbye from being clipped. |
 | `TWILIO_AUTH_TOKEN` | phone | Validates `X-Twilio-Signature` on phone webhooks. Absent → phone channel dark (503), browser voice unaffected. |
 | `VOICE_PUBLIC_BASE_URL` | phone | Public https origin of this gateway (e.g. `https://voice-gateway.up.railway.app`) — used for signature validation and the TwiML stream/action URLs. |
 | `PENNFIT_TRANSFER_NUMBER` | no | PennFit's existing Twilio number (E.164). Present → the triage agent offers PennFit and warm-transfers callers to it. |
@@ -82,6 +95,16 @@ Media Streams on it). Keep the WS origin on the `*.railway.app` host — a
 CDN/WAF in front of a custom domain can silently break WS upgrades.
 
 ## Shared phone number (one number for everything)
+
+> **NOT READY FOR A PUBLICLY PUBLISHED NUMBER.** The claim/transfer stores
+> (`PhonePendingStore`, `TransferActionStore`, `PendingSessionStore`) are
+> in-memory: any deploy drops live calls mid-handoff (pennfit's error-31920
+> lesson). Publishing the number publicly requires (1) the DB-backed store
+> swap behind these same interfaces and (2) the abuse caps below. The caps
+> now exist — per-caller rolling-hour call/minute limits, a separate
+> phone-channel concurrency budget, a daily minutes kill-switch, CallSid
+> idempotency, and an unclaimed-socket cap — the durable store does not.
+> Until it lands, share the number with pilot users only.
 
 One Twilio number fronts every product. A triage agent answers, asks which
 software the call is about, and routes:
