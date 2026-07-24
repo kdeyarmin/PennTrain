@@ -2,7 +2,8 @@
 
 A generic, user-definable facility **compliance requirement register** for CareMetric CareBase —
 the "compliance command center" that surrounds the pharmacy eMAR rather than duplicating it. This
-document is both the feature reference and the required implementation summary.
+document is the Area 1 feature reference; the branch-wide consolidated report for all ten enhancement
+areas lives in [`PLATFORM_ENHANCEMENTS.md`](./PLATFORM_ENHANCEMENTS.md).
 
 ## Why this was built
 
@@ -80,110 +81,7 @@ managers), and escalate overdue occurrences to org admins + assigned facility ma
 
 ---
 
-## Implementation summary (required report)
-
-### 1. Repository areas reviewed
-Full review of routing (`App.tsx`, `routeManifest.ts`), navigation/authorization (`appDomains.ts`,
-`productModules.ts`, `productModuleAccess.tsx`, `Sidebar.tsx`), auth/roles (`auth.tsx`,
-`ARCHITECTURE.md`), the RLS + migration conventions (391 existing migrations; `stamp_scope` triggers,
-`SECURITY DEFINER` RPCs, `audit_log_trigger`, pg_cron patterns), the shared component/design system,
-and every one of the 10 requested feature areas against the current code (assisted by four parallel
-gap-analysis agents plus the maintainers' own 07-24 review/backlog docs and `ROADMAP.md`).
-
-### 2. Existing features enhanced
-This work is deliberately **additive** — no existing module was rewritten. The compliance navigation
-domain (`appDomains.ts`), the Compliance product-module path set (`productModules.ts`), the router
-(`App.tsx`), the role-aware sidebar (`Sidebar.tsx`), and the generated DB types
-(`database.types.ts`) were extended to surface the new register alongside the existing compliance
-suite (Inspection Readiness, Survey Day, Compliance Binder, Regulatory Crosswalk, Violations/POCs).
-
-### 3. New features added
-The **Compliance Command Center** (task Area 1): a generic user-definable recurring compliance
-requirement register with categories, PA Ch. 2600/2800 tagging, the full 7-status lifecycle, building
-dimension, responsible-person assignment, recurrence schedules, automatic reminders, supervisor
-escalation, supporting-document evidence, notes/comments, completion verification, full audit history,
-facility compliance score, drill-down metric views, filters, CSV export, and cross-facility
-templates. This also closes several Area 5 (survey readiness) and Area 9 (drill-down) gaps within the
-compliance domain.
-
-### 4. Database migrations created
-- `supabase/migrations/20260726000000_compliance_command_center_core.sql` — 4 tables, RLS, grants,
-  indexes, triggers, `compliance-evidence` storage bucket + policies, notifications type extension.
-- `supabase/migrations/20260726000100_compliance_command_center_rpcs.sql` — 11 workflow RPCs, the
-  recurrence generator, the daily maintenance function, and the cron schedule.
-- Rollback: `docs/migrations/20260726000000_compliance_command_center_rollback.sql`.
-
-### 5. New permissions / roles added
-No new roles. Access reuses the existing matrix: `org_admin` + `facility_manager` manage (create/edit
-requirements, transition occurrences, upload evidence, copy templates) via
-`app_private.assert_compliance_manager`; `auditor` has org-wide read; `facility_manager` is scoped to
-assigned facilities; `platform_admin` and the service role (cron) bypass. Four new
-`notifications.notification_type` values were added (`compliance_requirement_assigned`,
-`_due_soon`, `_overdue`, `_awaiting_review`). Route/module gating: `/app/compliance-command-center`
-is in the Compliance product module, visible to `REPORTS_VIEW_ROLES`.
-
-### 6. Tests added and results
-`src/lib/complianceCommandCenter.test.ts` — 13 unit tests for labels, cadence formatting, effective
-status derivation, due-soon / overdue / missing-evidence predicates, the facility score, and the
-roll-up summary. **Result: all 13 pass.** Full suite: **439/439 tests pass** (83 files), including the
-route-contract, `appDomains`, and sitemap tests that validate the new nav wiring.
-
-### 7. Lint, type-check, and build results
-- `pnpm run typecheck` — **pass** (whole workspace).
-- `pnpm run check:migration-policies` — **pass** (no anon/public grants; RLS on every new table;
-  `search_path` on every SECURITY DEFINER function; no duplicate versions).
-- `node scripts/check-migration-drift.mjs --self-test` — **pass**.
-- `pnpm run build` — **pass** (source-integrity + typecheck + Vite build + prerender + precompress).
-  The page is a lazy chunk (41 KB / 10.8 KB gzip).
-- `pnpm run check:bundle` — **pass** (exit 0). Note: the repo's aggregate JS budget is pre-existingly
-  tight (~98%); the new lazy route does not affect the initial shell.
-
-### 8. Requirements that could not be completed, with the exact reason
-- **Live database migration verification** — this environment has no Docker/Supabase CLI, so
-  `pnpm run check:database` (local stack apply + `db lint` + advisors + type regen) could not run. The
-  two migrations were authored strictly to existing conventions and pass the text-level migration
-  policy lint, but were not applied to a live Postgres here. `database.types.ts` was hand-extended to
-  match the new tables (codegen requires a DB).
-- **Areas 2–4, 6–10** were **reviewed but intentionally not re-implemented**: the agents and the
-  maintainers' own docs confirm these are already built to a high degree (RASP/resident assessment,
-  incident→QAPI, executive dashboard, admissions e-sign, care-level/billing review, and the
-  regulation-aware AI governance are all present). Per the task's "enhance, don't duplicate" rule, the
-  one genuine net-new capability gap (a generic compliance requirement register) was prioritized and
-  completed end-to-end rather than spreading shallow edits across already-built modules.
-
-### 9. Recommended next development phase
-High-value, low-risk gaps surfaced during review (verified against current code):
-1. **Wire the orphaned `run_shift_handoff_escalations()` cron** (Area 6) — the function is fully
-   written but has no scheduler, so overdue shift handoffs never escalate. Needs the service-role
-   invocation pattern its sibling escalators use.
-2. **Make executive dashboard KPI tiles clickable** (Area 9) — `Dashboard.tsx` tiles are static
-   `div`s; deep-link them to filtered lists (the list pages already read `?facility/status/severity`).
-3. **Incident → QAPI escalation button** (Area 4) — `create_qapi_project` already accepts
-   `source_type`/`source_id`; add the button.
-4. **Surface the built-but-unwired support-plan approval lifecycle** (Area 2) — `resident_support_plans`
-   / `support_plan_proposals` (incl. `conflict_warnings`) and their RPCs have no UI callers.
-5. **Add PDF/spreadsheet export + TOC/page numbering to the compliance binder** (Area 5), and let the
-   binder pull the new Command Center register as an evidence section.
-6. **Per-employee readiness verdict engine** (Area 3) — compute Ready/Conditionally Ready/Expiring
-   Soon/Incomplete/Restricted/Not Eligible with a "why" explanation.
-
-### 10. Files changed
-**New:**
-`supabase/migrations/20260726000000_compliance_command_center_core.sql`,
-`supabase/migrations/20260726000100_compliance_command_center_rpcs.sql`,
-`docs/migrations/20260726000000_compliance_command_center_rollback.sql`,
-`artifacts/caremetric-carebase/src/lib/complianceCommandCenter.ts`,
-`artifacts/caremetric-carebase/src/lib/complianceCommandCenter.test.ts`,
-`artifacts/caremetric-carebase/src/hooks/useComplianceRequirements.ts`,
-`artifacts/caremetric-carebase/src/pages/app/ComplianceCommandCenter.tsx`,
-`artifacts/caremetric-carebase/src/components/compliance/RequirementEditorDialog.tsx`,
-`artifacts/caremetric-carebase/src/components/compliance/InstanceDetailDialog.tsx`,
-`artifacts/caremetric-carebase/src/components/compliance/CopyTemplateDialog.tsx`,
-`COMPLIANCE_COMMAND_CENTER.md`.
-
-**Modified (additive wiring only):**
-`artifacts/caremetric-carebase/src/App.tsx`,
-`artifacts/caremetric-carebase/src/lib/appDomains.ts`,
-`artifacts/caremetric-carebase/src/lib/productModules.ts`,
-`artifacts/caremetric-carebase/src/lib/database.types.ts`,
-`artifacts/caremetric-carebase/src/components/layout/Sidebar.tsx`.
+The branch-wide consolidated report for all ten enhancement areas — including the required
+implementation summary (repository areas reviewed, features enhanced vs. added, migrations,
+permissions, tests, lint/build results, incomplete items, next phase, and files changed) — lives in
+[`PLATFORM_ENHANCEMENTS.md`](./PLATFORM_ENHANCEMENTS.md).
