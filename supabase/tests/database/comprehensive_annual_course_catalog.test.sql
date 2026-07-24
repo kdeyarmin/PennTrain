@@ -51,8 +51,8 @@ select is(
       and c.status = 'published'
       and c.catalog_code is not null
   ),
-  70,
-  'the published system catalog contains 70 individual annual modules'
+  74,
+  'the published system catalog contains 74 individually cataloged modules (73 annual, plus one one-time new-hire orientation)'
 );
 
 select results_eq(
@@ -140,6 +140,7 @@ select is(
     join public.course_blocks cb on cb.course_version_id = c.current_version_id
     where c.organization_id is null
       and c.status = 'published'
+      and cb.block_type = 'text'
       and cb.body ->> 'activity_type' in ('instruction', 'scenario', 'practice')
       and cardinality(
         regexp_split_to_array(btrim(coalesce(cb.body ->> 'content', '')), E'\\s+')

@@ -69,11 +69,14 @@ select results_eq(
       ('PA-DHS-ANNUAL-OAPSA-REPORTING'::text),
       ('PA-DHS-ANNUAL-RESIDENT-RIGHTS'::text),
       ('PA-DHS-ANNUAL-SAFE-MANAGEMENT'::text),
+      ('PA-DHS-STANDALONE-ABUSE-REPORTING'::text),
+      ('PA-DHS-STANDALONE-FIRE-SAFETY'::text),
+      ('PA-DHS-STANDALONE-RESIDENT-RIGHTS'::text),
       ('PA-PCH-2600-236-DEMENTIA-FOUNDATIONS'::text),
       ('PA-PCH-ANNUAL-ASSESSED-NEEDS'::text),
       ('PA-PCH-ANNUAL-PERSONAL-CARE-SERVICES'::text)
   $$,
-  'the stable individual PA DHS catalog contains all 20 seeded courses'
+  'the stable individual PA DHS catalog contains all 23 seeded courses'
 );
 
 select results_eq(
@@ -83,6 +86,11 @@ select results_eq(
     left join public.course_versions cv on cv.id = c.current_version_id
     where c.organization_id is null
       and c.catalog_code is not null
+      and (
+        c.catalog_code like 'PA-DHS-%'
+        or c.catalog_code like 'PA-PCH-%'
+        or c.catalog_code like 'PA-ALR-%'
+      )
       and (
         c.status <> 'published'
         or c.current_version_id is null
