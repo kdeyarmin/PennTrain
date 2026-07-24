@@ -10,8 +10,23 @@
 // cf-connecting-ip is only meaningful when Cloudflare verifiably fronts the functions (it is
 // otherwise just another attacker-settable request header), so it is honored solely when the
 // deployment opts in via CF_FRONTED="true".
-export function clientIp(req: Request): string {
-  if (Deno.env.get("CF_FRONTED") === "true") {
+export interface ClientIpOptions {
+  // Overrides the CF_FRONTED env lookup; tests inject this so the module never needs
+  // env permission (scripts/check-edge-functions.mjs runs `deno test` without --allow-env).
+  cfFronted?: boolean;
+}
+
+function envSaysCfFronted(): boolean {
+  try {
+    return Deno.env.get("CF_FRONTED") === "true";
+  } catch {
+    // No env permission: fail closed to the trusted x-forwarded-for path.
+    return false;
+  }
+}
+
+export function clientIp(req: Request, options: ClientIpOptions = {}): string {
+  if (options.cfFronted ?? envSaysCfFronted()) {
     const cf = req.headers.get("cf-connecting-ip")?.trim();
     if (cf) return cf;
   }
