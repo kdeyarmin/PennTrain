@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { daysUntil, formatDateForDisplay } from "@/lib/dateUtils";
 import { useUrlState } from "@/hooks/useUrlState";
 import { useListEmployees } from "@/hooks/useEmployees";
 import type { Employee } from "@/hooks/useEmployees";
@@ -775,13 +775,13 @@ export default function TrainingMatrix() {
     return "compliant";
   };
 
+  // Compare as calendar days (daysUntil parses YYYY-MM-DD in local time) -- naive
+  // new Date("YYYY-MM-DD") parses as UTC midnight, which in US timezones lands on
+  // the previous local evening and silently drops records due today.
   const isDueWithinWindow = (row: MatrixRow, days: number): boolean => {
-    const now = new Date();
-    const cutoff = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
     return row.cells.some(c => {
-      if (!c.dueDate) return false;
-      const due = new Date(c.dueDate);
-      return due >= now && due <= cutoff;
+      const remaining = daysUntil(c.dueDate);
+      return remaining !== null && remaining >= 0 && remaining <= days;
     });
   };
 

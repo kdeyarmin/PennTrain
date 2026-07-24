@@ -30,8 +30,9 @@ import { useToast } from "@/hooks/use-toast";
 import { FACILITY_TYPES, PCH_ALR_ONLY_FACILITY_TYPES, facilityTypeBadgeClass, facilityTypeLabel, type FacilityType } from "@/lib/facilityTypes";
 import { FREQUENCY_OPTIONS, responsiblePartyOptions } from "@/lib/residentAssessmentFormSchema";
 import { getComplianceFormLabel } from "@/lib/residentCompliance";
-import { useListAdministratorProfiles } from "@/hooks/useAdministratorProfiles";
-import { buildAdministratorRulePack, summarizeAdministratorRulePack } from "@/lib/administratorRulePacks";
+import { useListAdministratorProfiles, useListAdministratorCeEntriesByOrganization } from "@/hooks/useAdministratorProfiles";
+import { buildBestAdministratorRulePack, summarizeAdministratorRulePack } from "@/lib/administratorRulePacks";
+import { selectCurrentTrainingRecords } from "@/lib/currentTrainingRecords";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { buildSpecialCareComplianceSummary } from "@/lib/specialCareCompliance";
 import { FacilityLicensingWorkspace } from "@/components/facilities/FacilityLicensingWorkspace";
@@ -101,21 +102,28 @@ export default function FacilityDetail() {
   const { data: incidents, isLoading: incidentsLoading } = useListIncidents({ facilityId: id });
   const { data: inspectionItems, isLoading: inspectionsLoading } = useListInspectionItems({ facilityId: id, isActive: true });
   const { data: administratorProfiles, isLoading: administratorsLoading } = useListAdministratorProfiles(user?.organizationId ?? undefined);
+  const { data: administratorCeEntries } = useListAdministratorCeEntriesByOrganization(user?.organizationId ?? undefined);
   const { data: units } = useListFacilityUnits({ facilityId: id });
   const { data: schedulePreferences } = useListEmployeeSchedulePreferences({ facilityId: id });
 
   const trainingTypeName = (typeId: string) => trainingTypes?.find(t => t.id === typeId)?.name ?? "Unknown requirement";
-  const relevantRecords = (trainingRecords ?? []).filter(r => RELEVANT_STATUSES.has(r.status));
+  // Renewal cycles insert fresh training rows and leave prior ones "expired"; the
+  // facility compliance picture must only grade the current record per requirement.
+  const currentTrainingRecords = useMemo(() => selectCurrentTrainingRecords(trainingRecords ?? []), [trainingRecords]);
+  const relevantRecords = currentTrainingRecords.filter(r => RELEVANT_STATUSES.has(r.status));
   const compliantCount = relevantRecords.filter(r => r.status === "compliant").length;
   const compliancePct = relevantRecords.length > 0 ? Math.round((compliantCount / relevantRecords.length) * 100) : 100;
-  const dueSoonRecords = (trainingRecords ?? []).filter(r => r.status === "due_soon");
-  const expiredRecords = (trainingRecords ?? []).filter(r => r.status === "expired");
-  const administratorRulePack = useMemo(() => {
-    if (!facility || !(facility.facility_type === "PCH" || facility.facility_type === "ALR")) return [];
-    const profile = (administratorProfiles ?? [])[0] ?? null;
-    return buildAdministratorRulePack(facility.facility_type, { profile, ceEntries: [], today: toLocalIsoDate() });
-  }, [administratorProfiles, facility]);
-  const administratorRuleSummary = useMemo(() => summarizeAdministratorRulePack(administratorRulePack), [administratorRulePack]);
+  const dueSoonRecords = currentTrainingRecords.filter(r => r.status === "due_soon");
+  const expiredRecords = currentTrainingRecords.filter(r => r.status === "expired");
+  const administratorEvaluation = useMemo(() => {
+    if (!facility || !(facility.facility_type === "PCH" || facility.facility_type === "ALR")) return null;
+    return buildBestAdministratorRulePack(facility.facility_type, {
+      profiles: administratorProfiles ?? [],
+      ceEntries: administratorCeEntries ?? [],
+      today: toLocalIsoDate(),
+    });
+  }, [administratorProfiles, administratorCeEntries, facility]);
+  const administratorRuleSummary = administratorEvaluation?.summary ?? summarizeAdministratorRulePack([]);
   const specialCareSummary = useMemo(() => buildSpecialCareComplianceSummary({
     units: units ?? [],
     residents: residents ?? [],

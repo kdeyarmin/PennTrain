@@ -17,6 +17,7 @@ import { useListPolicyAttestations } from "@/hooks/usePolicyAttestations";
 import { useListTrainingPlans } from "@/hooks/useTrainingPlans";
 import { todayIso } from "@/lib/scheduleDates";
 import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { selectCurrentTrainingRecords } from "@/lib/currentTrainingRecords";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -97,13 +98,17 @@ export default function AdminDashboard() {
   const expiringCredentials = credentials?.filter((credential) => credential.expiration_date && credential.expiration_date >= today && credential.expiration_date <= soonIso).length ?? 0;
   const openIncidents = incidents?.filter((incident) => incident.status !== "closed").length ?? 0;
   const openViolations = violations?.filter((violation) => violation.status !== "verified").length ?? 0;
-  const openCorrectiveActions = correctiveActions?.filter((action) => action.status !== "completed").length ?? 0;
-  const overdueCorrectiveActions = correctiveActions?.filter((action) => action.status !== "completed" && action.due_date && action.due_date < today).length ?? 0;
+  const openCorrectiveActions = correctiveActions?.filter((action) => action.status !== "completed" && action.status !== "cancelled").length ?? 0;
+  const overdueCorrectiveActions = correctiveActions?.filter((action) => action.status !== "completed" && action.status !== "cancelled" && action.due_date && action.due_date < today).length ?? 0;
   const publishedCourses = courses?.filter((course) => course.status === "published").length ?? 0;
   const draftCourses = courses?.filter((course) => course.status !== "published").length ?? 0;
   const incompleteAssignments = courseAssignments?.filter((assignment) => assignment.status !== "completed").length ?? 0;
   const overdueAssignments = courseAssignments?.filter((assignment) => assignment.status !== "completed" && assignment.due_date && assignment.due_date < today).length ?? 0;
-  const overdueTrainingRecords = trainingRecords?.filter((record) => (record.status === "expired" || record.status === "due_soon") && record.due_date && record.due_date < today).length ?? 0;
+  // Renewals leave superseded rows "expired" forever; only the current record per
+  // (employee, training type) may count toward past-due exposure.
+  const overdueTrainingRecords = selectCurrentTrainingRecords(trainingRecords ?? [])
+    .filter((record) => (record.status === "expired" || record.status === "due_soon") && record.due_date && record.due_date < today)
+    .length;
   const pendingAttestations = policyAttestations?.filter((attestation) => attestation.status === "pending").length ?? 0;
   const overdueAttestations = policyAttestations?.filter((attestation) => attestation.status === "pending" && attestation.due_date && attestation.due_date < today).length ?? 0;
 

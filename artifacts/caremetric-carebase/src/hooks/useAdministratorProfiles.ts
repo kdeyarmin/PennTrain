@@ -72,6 +72,24 @@ export function useListAdministratorCeEntries(administratorProfileId: string | u
   });
 }
 
+// Org-wide CE fetch for readiness views that must evaluate every administrator
+// profile's rule pack (administrator_profiles have no facility binding).
+export function useListAdministratorCeEntriesByOrganization(organizationId: string | undefined) {
+  return useQuery({
+    queryKey: ["administrator_profiles", "ce_entries", "org", organizationId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("administrator_ce_entries")
+        .select("*")
+        .eq("organization_id", organizationId!)
+        .order("completed_date", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!organizationId,
+  });
+}
+
 export function useAddAdministratorCeEntry() {
   const queryClient = useQueryClient();
   return useMutation({

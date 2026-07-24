@@ -143,17 +143,30 @@ export default function Facilities() {
           onError: (e: Error) => toast({ title: "Failed to update facility", description: e.message, variant: "destructive" }),
         },
       );
-    } else if (user?.organizationId) {
-      createFacility(
-        { ...payload, organization_id: user.organizationId },
-        {
-          onSuccess: () => { toast({ title: "Facility created" }); setShowForm(false); setForm(EMPTY_FORM); },
-          onError: (e: Error) => toast({ title: "Failed to create facility", description: e.message, variant: "destructive" }),
-        },
-      );
-    } else {
-      toast({ title: "No organization found for your account", variant: "destructive" });
+      return;
     }
+    // Platform admins have no organization_id of their own; the org they are
+    // "viewing as" determines which org the new facility belongs to.
+    const targetOrgId = user?.organizationId ?? viewingOrgId;
+    if (!targetOrgId) {
+      if (user?.role === "platform_admin") {
+        toast({
+          title: "Select an organization first",
+          description: "Choose an organization in the header's \"Viewing as\" picker to set which organization this facility belongs to.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "No organization found for your account", variant: "destructive" });
+      }
+      return;
+    }
+    createFacility(
+      { ...payload, organization_id: targetOrgId },
+      {
+        onSuccess: () => { toast({ title: "Facility created" }); setShowForm(false); setForm(EMPTY_FORM); },
+        onError: (e: Error) => toast({ title: "Failed to create facility", description: e.message, variant: "destructive" }),
+      },
+    );
   };
 
   const field = (k: keyof FacilityFormData, v: string | boolean) =>
