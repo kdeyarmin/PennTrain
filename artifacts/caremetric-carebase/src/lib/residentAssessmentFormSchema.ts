@@ -8,9 +8,12 @@
 // resident_documents row flagged is_state_form = true before an item can be marked compliant, so
 // finalizing this digital form alone never completes the resident's compliance record.
 //
-// This is the one place in the app that stores real clinical/functional-assessment content -- the
-// no-EHR posture governing every other resident-compliance table does not apply here, by
-// deliberate, explicit product decision (see Tier 3.6 plan, Phase 6).
+// This stores real clinical/functional-assessment content mirroring the DHS RASP/ASP forms.
+// It was historically the ONE exception to a "no-EHR posture" that governed every other
+// resident-compliance table. That posture has since been superseded: clinical (EHR) capability
+// is now a first-class part of the product, living in dedicated native clinical_* and FHIR
+// fhir_* tables (see the 2026-07 EHR foundation migration and docs/HIPAA_CLINICAL_DATA.md).
+// Clinical assessments authored here can bridge to the clinical assessment records.
 
 export type FormType = "RASP" | "ASP";
 export type AssessmentReason =

@@ -1781,6 +1781,182 @@ export type Database = {
           },
         ]
       }
+      clinical_observation_amendments: {
+        Row: {
+          amended_by_profile_id: string | null
+          amendment_type: string
+          created_at: string
+          facility_id: string
+          id: string
+          observation_id: string
+          organization_id: string
+          prior_value: Json
+          reason: string
+        }
+        Insert: {
+          amended_by_profile_id?: string | null
+          amendment_type: string
+          created_at?: string
+          facility_id: string
+          id?: string
+          observation_id: string
+          organization_id: string
+          prior_value?: Json
+          reason: string
+        }
+        Update: {
+          amended_by_profile_id?: string | null
+          amendment_type?: string
+          created_at?: string
+          facility_id?: string
+          id?: string
+          observation_id?: string
+          organization_id?: string
+          prior_value?: Json
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_observation_amendmen_observation_id_organization__fkey"
+            columns: ["observation_id", "organization_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "clinical_observations"
+            referencedColumns: ["id", "organization_id", "facility_id"]
+          },
+          {
+            foreignKeyName: "clinical_observation_amendments_amended_by_profile_id_fkey"
+            columns: ["amended_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_observation_amendments_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_observation_amendments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clinical_observations: {
+        Row: {
+          abnormal_flag: string
+          created_at: string
+          custom_label: string | null
+          entered_in_error: boolean
+          error_reason: string | null
+          facility_id: string
+          fhir_observation_id: string | null
+          id: string
+          loinc_code: string | null
+          note: string | null
+          observation_type: string
+          observed_at: string
+          organization_id: string
+          recorded_by_name: string | null
+          recorded_by_profile_id: string | null
+          resident_id: string
+          source: string
+          unit: string | null
+          updated_at: string
+          value_numeric: number | null
+          value_secondary: number | null
+          value_text: string | null
+        }
+        Insert: {
+          abnormal_flag?: string
+          created_at?: string
+          custom_label?: string | null
+          entered_in_error?: boolean
+          error_reason?: string | null
+          facility_id: string
+          fhir_observation_id?: string | null
+          id?: string
+          loinc_code?: string | null
+          note?: string | null
+          observation_type: string
+          observed_at: string
+          organization_id: string
+          recorded_by_name?: string | null
+          recorded_by_profile_id?: string | null
+          resident_id: string
+          source?: string
+          unit?: string | null
+          updated_at?: string
+          value_numeric?: number | null
+          value_secondary?: number | null
+          value_text?: string | null
+        }
+        Update: {
+          abnormal_flag?: string
+          created_at?: string
+          custom_label?: string | null
+          entered_in_error?: boolean
+          error_reason?: string | null
+          facility_id?: string
+          fhir_observation_id?: string | null
+          id?: string
+          loinc_code?: string | null
+          note?: string | null
+          observation_type?: string
+          observed_at?: string
+          organization_id?: string
+          recorded_by_name?: string | null
+          recorded_by_profile_id?: string | null
+          resident_id?: string
+          source?: string
+          unit?: string | null
+          updated_at?: string
+          value_numeric?: number | null
+          value_secondary?: number | null
+          value_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_observations_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_observations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_observations_recorded_by_profile_id_fkey"
+            columns: ["recorded_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_observations_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_observations_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competency_record_items: {
         Row: {
           competency_record_id: string
@@ -25725,6 +25901,7 @@ export type Database = {
           bed_id: string | null
           case_manager_name: string | null
           case_manager_phone: string | null
+          clinical_data_consent: string
           communication_preferences: string | null
           contract_document_id: string | null
           contract_effective_date: string | null
@@ -25780,6 +25957,7 @@ export type Database = {
           bed_id?: string | null
           case_manager_name?: string | null
           case_manager_phone?: string | null
+          clinical_data_consent?: string
           communication_preferences?: string | null
           contract_document_id?: string | null
           contract_effective_date?: string | null
@@ -25835,6 +26013,7 @@ export type Database = {
           bed_id?: string | null
           case_manager_name?: string | null
           case_manager_phone?: string | null
+          clinical_data_consent?: string
           communication_preferences?: string | null
           contract_document_id?: string | null
           contract_effective_date?: string | null
@@ -31306,6 +31485,18 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      amend_clinical_observation: {
+        Args: {
+          p_amendment_type: string
+          p_note?: string
+          p_observation_id: string
+          p_reason: string
+          p_value_numeric?: number
+          p_value_secondary?: number
+          p_value_text?: string
+        }
+        Returns: boolean
+      }
       apply_employee_lifecycle_transition: {
         Args: {
           p_effective_on?: string
@@ -33281,6 +33472,44 @@ export type Database = {
         Args: { p_facility_id: string; p_from: string; p_through: string }
         Returns: Json
       }
+      get_resident_clinical_observations: {
+        Args: {
+          p_include_retracted?: boolean
+          p_limit?: number
+          p_observation_type?: string
+          p_resident_id: string
+        }
+        Returns: {
+          abnormal_flag: string
+          created_at: string
+          custom_label: string | null
+          entered_in_error: boolean
+          error_reason: string | null
+          facility_id: string
+          fhir_observation_id: string | null
+          id: string
+          loinc_code: string | null
+          note: string | null
+          observation_type: string
+          observed_at: string
+          organization_id: string
+          recorded_by_name: string | null
+          recorded_by_profile_id: string | null
+          resident_id: string
+          source: string
+          unit: string | null
+          updated_at: string
+          value_numeric: number | null
+          value_secondary: number | null
+          value_text: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "clinical_observations"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_resident_list_summary: {
         Args: {
           p_facility_id?: string
@@ -33710,6 +33939,16 @@ export type Database = {
           start_time: string
           unit_name: string
         }[]
+      }
+      log_clinical_access: {
+        Args: {
+          p_access_kind: string
+          p_clinical_domain?: string
+          p_correlation_id?: string
+          p_minimum_necessary_reason?: string
+          p_resident_id: string
+        }
+        Returns: undefined
       }
       log_document_access: {
         Args: { p_document_id: string; p_document_table: string }
@@ -34185,6 +34424,21 @@ export type Database = {
           p_status: string
         }
         Returns: boolean
+      }
+      record_clinical_observation: {
+        Args: {
+          p_custom_label?: string
+          p_loinc_code?: string
+          p_note?: string
+          p_observation_type: string
+          p_observed_at: string
+          p_resident_id: string
+          p_unit?: string
+          p_value_numeric?: number
+          p_value_secondary?: number
+          p_value_text?: string
+        }
+        Returns: string
       }
       record_credential_renewal_extraction: {
         Args: {
@@ -36544,4 +36798,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
