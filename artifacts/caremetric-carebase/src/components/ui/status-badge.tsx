@@ -34,11 +34,11 @@ const EXACT_STATUS_BUCKET: Record<string, Bucket> = {
   complete: 'success', passed: 'success', current: 'success', published: 'success',
   confirmed: 'success', delivered: 'success', sent: 'success', approved: 'success',
   cleared: 'success', verified: 'success', met: 'success', paid: 'success', good: 'success',
-  attended: 'success', present: 'success',
+  attended: 'success', present: 'success', succeeded: 'success', healthy: 'success',
 
   trial: 'info', pending_review: 'info', scheduled: 'info', upcoming: 'info',
   assigned: 'info', draft: 'info', in_progress: 'info', review: 'info', invited: 'info',
-  new: 'info', queued: 'info', processing: 'info',
+  new: 'info', queued: 'info', processing: 'info', running: 'info',
 
   due_soon: 'warning', on_leave: 'warning', expiring: 'warning', past_due: 'warning',
   pending: 'warning', waiting: 'warning', partial: 'warning', not_started: 'warning',
@@ -47,6 +47,7 @@ const EXACT_STATUS_BUCKET: Record<string, Bucket> = {
   open: 'danger', failed: 'danger', rejected: 'danger', denied: 'danger',
   canceled: 'danger', cancelled: 'danger', suspended: 'danger', no_show: 'danger',
   called_off: 'danger', escalated: 'danger', unmet: 'danger', excused: 'danger', declined: 'danger',
+  stale: 'danger',
 
   missing: 'missing',
 
