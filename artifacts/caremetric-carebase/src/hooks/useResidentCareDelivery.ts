@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import type { Json } from "@/lib/database.types";
+import type { Json, Tables } from "@/lib/database.types";
 
 export interface ResidentCareAnalyticsMetric {
   numerator?: number;
@@ -80,6 +80,95 @@ export function useCreateSupportPlanDraft() {
       return data as string;
     },
     onSuccess: () => invalidateResidentCare(queryClient),
+  });
+}
+
+export type ResidentSupportPlan = Tables<"resident_support_plans">;
+export type SupportPlanProposal = Tables<"support_plan_proposals">;
+
+function invalidateSupportPlans(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ["resident-support-plans"] });
+  queryClient.invalidateQueries({ queryKey: ["support-plan-proposals"] });
+}
+
+export function useResidentSupportPlans(residentId: string | undefined) {
+  return useQuery({
+    queryKey: ["resident-support-plans", residentId],
+    enabled: !!residentId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("resident_support_plans")
+        .select("*")
+        .eq("resident_id", residentId!)
+        .order("version_number", { ascending: false });
+      if (error) throw error;
+      return data as ResidentSupportPlan[];
+    },
+  });
+}
+
+export function useResidentSupportPlanProposals(residentId: string | undefined) {
+  return useQuery({
+    queryKey: ["support-plan-proposals", residentId],
+    enabled: !!residentId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("support_plan_proposals")
+        .select("*")
+        .eq("resident_id", residentId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as SupportPlanProposal[];
+    },
+  });
+}
+
+export function useSubmitSupportPlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (planId: string) => {
+      const { data, error } = await supabase.rpc("submit_support_plan_for_review" as never, { p_plan_id: planId } as never);
+      if (error) throw error;
+      return data as boolean;
+    },
+    onSuccess: () => invalidateSupportPlans(queryClient),
+  });
+}
+
+export function useApproveSupportPlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { planId: string; effectiveDate: string; reviewDueDate: string; staffSignature?: Json }) => {
+      const { data, error } = await supabase.rpc("approve_support_plan" as never, {
+        p_plan_id: input.planId,
+        p_effective_date: input.effectiveDate,
+        p_review_due_date: input.reviewDueDate,
+        p_staff_signature: input.staffSignature ?? {},
+      } as never);
+      if (error) throw error;
+      return data as boolean;
+    },
+    onSuccess: () => {
+      invalidateSupportPlans(queryClient);
+      invalidateResidentCare(queryClient);
+    },
+  });
+}
+
+export function useReviewSupportPlanProposal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { proposalId: string; decision: "accepted" | "modified" | "rejected"; rationale: string; modifiedProposal?: Json }) => {
+      const { data, error } = await supabase.rpc("review_support_plan_proposal" as never, {
+        p_proposal_id: input.proposalId,
+        p_decision: input.decision,
+        p_rationale: input.rationale,
+        p_modified_proposal: input.modifiedProposal ?? null,
+      } as never);
+      if (error) throw error;
+      return data as boolean;
+    },
+    onSuccess: () => invalidateSupportPlans(queryClient),
   });
 }
 
