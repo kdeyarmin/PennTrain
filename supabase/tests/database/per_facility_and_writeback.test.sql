@@ -1,5 +1,5 @@
 begin;
-select plan(29);
+select plan(32);
 
 -- Structure + hardened grants -----------------------------------------------------------
 select has_table('public', 'fhir_writeback_queue', 'outbound FHIR write-back queue exists');
@@ -182,6 +182,18 @@ select is(
   'Observation',
   'the queued payload is a serialized FHIR Observation'
 );
+-- Blood pressure serializes to systolic/diastolic components, never a single valueQuantity.
+select is(
+  (select fhir_payload->'component'->1->'valueQuantity'->>'value' from public.fhir_writeback_queue
+   where id = (select id from wb_ids where key = 'wb1')),
+  '80',
+  'the blood-pressure write-back preserves the diastolic value as a FHIR component'
+);
+select ok(
+  not ((select fhir_payload from public.fhir_writeback_queue
+        where id = (select id from wb_ids where key = 'wb1')) ? 'valueQuantity'),
+  'the blood-pressure write-back does not collapse to a single systolic valueQuantity'
+);
 
 -- Queueing for a resident with no write-back-enabled mapping is refused.
 select pg_temp.act_as('e5000000-0000-4000-8000-000000000101');
@@ -215,6 +227,27 @@ select is(
    where id = (select id from wb_ids where key = 'wb1')),
   'sent:ext-obs-1',
   'a completed write-back is marked sent with the external resource id'
+);
+
+-- A write-back stuck in_flight past the staleness window is reclaimed (self-healing drain).
+reset role;
+alter table public.fhir_writeback_queue disable trigger set_updated_at;
+insert into public.fhir_writeback_queue(
+  organization_id, facility_id, source_id, resident_id, fhir_patient_id,
+  resource_type, origin_kind, origin_id, fhir_payload, status, target_url, updated_at
+) values (
+  'e5000000-0000-4000-8000-000000000001', 'e5000000-0000-4000-8000-000000000011',
+  'e5000000-0000-4000-8000-000000000401', 'e5000000-0000-4000-8000-000000000301', 'patient-301',
+  'Observation', 'clinical_observation', 'e5000000-0000-4000-8000-0000000004ff',
+  '{"resourceType":"Observation"}'::jsonb, 'in_flight', 'https://fhir.test.invalid/r4',
+  now() - interval '30 minutes'
+);
+alter table public.fhir_writeback_queue enable trigger set_updated_at;
+select pg_temp.act_as('e5000000-0000-4000-8000-000000000000', 'service_role');
+select is(
+  (select count(*)::integer from public.claim_fhir_writeback_batch(10, 300)),
+  1,
+  'a write-back stuck in_flight past the staleness window is reclaimed by the drain'
 );
 
 -- Browser roles cannot drive the drain.

@@ -33334,7 +33334,7 @@ export type Database = {
         }[]
       }
       claim_fhir_writeback_batch: {
-        Args: { p_limit?: number }
+        Args: { p_limit?: number; p_stale_after_seconds?: number }
         Returns: {
           attempts: number
           created_at: string

@@ -87,9 +87,28 @@ begin
       'text', replace(v_obs.observation_type, '_', ' ')),
     'subject', jsonb_build_object('reference', 'Patient/' || v_map.fhir_patient_id),
     'effectiveDateTime', v_obs.observed_at,
-    'valueQuantity', case when v_obs.value_numeric is not null then jsonb_build_object(
-      'value', v_obs.value_numeric, 'unit', v_obs.unit,
-      'system', 'http://unitsofmeasure.org', 'code', v_obs.unit) else null end,
+    -- Blood pressure with a diastolic reading is serialized as FHIR R4 systolic/diastolic
+    -- components (LOINC 8480-6 / 8462-4) under the panel code, never as a single valueQuantity
+    -- (which would silently drop the diastolic). Everything else uses a single value.
+    'component', case
+      when v_obs.observation_type = 'blood_pressure' and v_obs.value_secondary is not null then jsonb_build_array(
+        jsonb_build_object(
+          'code', jsonb_build_object('coding', jsonb_build_array(jsonb_build_object(
+            'system', 'http://loinc.org', 'code', '8480-6', 'display', 'Systolic blood pressure'))),
+          'valueQuantity', jsonb_build_object('value', v_obs.value_numeric,
+            'unit', v_obs.unit, 'system', 'http://unitsofmeasure.org', 'code', v_obs.unit)),
+        jsonb_build_object(
+          'code', jsonb_build_object('coding', jsonb_build_array(jsonb_build_object(
+            'system', 'http://loinc.org', 'code', '8462-4', 'display', 'Diastolic blood pressure'))),
+          'valueQuantity', jsonb_build_object('value', v_obs.value_secondary,
+            'unit', v_obs.unit, 'system', 'http://unitsofmeasure.org', 'code', v_obs.unit)))
+      else null end,
+    'valueQuantity', case
+      when v_obs.value_numeric is not null
+        and not (v_obs.observation_type = 'blood_pressure' and v_obs.value_secondary is not null)
+      then jsonb_build_object(
+        'value', v_obs.value_numeric, 'unit', v_obs.unit,
+        'system', 'http://unitsofmeasure.org', 'code', v_obs.unit) else null end,
     'valueString', case when v_obs.value_numeric is null then v_obs.value_text else null end,
     'note', case when v_obs.note is not null then jsonb_build_array(jsonb_build_object('text', v_obs.note)) else null end
   ));
@@ -111,14 +130,23 @@ $$;
 
 -- Drain support (service role): claim a batch and record the outcome. The edge function performs
 -- the actual outbound POST between these two calls.
-create or replace function public.claim_fhir_writeback_batch(p_limit integer default 20)
+-- Claims pending rows plus any left stuck in_flight past the staleness window (a worker that
+-- crashed or timed out after claiming but before completing), so the queue is self-healing
+-- instead of stalling that row forever. attempts is bumped on every (re)claim.
+create or replace function public.claim_fhir_writeback_batch(
+  p_limit integer default 20, p_stale_after_seconds integer default 300
+)
 returns setof public.fhir_writeback_queue language plpgsql security definer set search_path = '' as $$
 begin
   return query
   update public.fhir_writeback_queue q set status = 'in_flight', attempts = q.attempts + 1, updated_at = now()
   where q.id in (
     select id from public.fhir_writeback_queue
-    where status = 'pending' and target_url is not null
+    where target_url is not null and (
+      status = 'pending'
+      or (status = 'in_flight'
+          and updated_at < now() - make_interval(secs => greatest(coalesce(p_stale_after_seconds, 300), 30)))
+    )
     order by created_at limit least(greatest(coalesce(p_limit, 20), 1), 100)
     for update skip locked
   )
@@ -168,7 +196,7 @@ grant select on table public.fhir_writeback_queue to authenticated;
 
 revoke all on function public.queue_clinical_observation_writeback(uuid) from public, anon, service_role;
 grant execute on function public.queue_clinical_observation_writeback(uuid) to authenticated;
-revoke all on function public.claim_fhir_writeback_batch(integer), public.complete_fhir_writeback(uuid, boolean, text, text)
+revoke all on function public.claim_fhir_writeback_batch(integer, integer), public.complete_fhir_writeback(uuid, boolean, text, text)
   from public, anon, authenticated;
-grant execute on function public.claim_fhir_writeback_batch(integer), public.complete_fhir_writeback(uuid, boolean, text, text)
+grant execute on function public.claim_fhir_writeback_batch(integer, integer), public.complete_fhir_writeback(uuid, boolean, text, text)
   to service_role;
