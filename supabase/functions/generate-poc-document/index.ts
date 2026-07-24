@@ -208,10 +208,13 @@ Deno.serve(async (req: Request) => {
   if (violationError) return json({ error: violationError.message }, 500);
   if (!violation) return json({ error: "Violation not found" }, 404);
 
-  const { data: correctiveActions } = await callerClient
+  const { data: correctiveActions, error: correctiveActionsError } = await callerClient
     .from("corrective_actions")
     .select("description, due_date, completed_date, status, owner_name, course_assignment_id")
     .eq("violation_id", violationId);
+  // A POC without its corrective tasks reads as an empty remediation plan -- fail the
+  // request instead of rendering an incomplete document on a transient query error.
+  if (correctiveActionsError) return json({ error: correctiveActionsError.message }, 500);
 
   const organizationName = (violation.organizations as unknown as { name: string } | null)?.name ?? "";
   const facilityName = (violation.facilities as unknown as { name: string } | null)?.name ?? "";
@@ -248,8 +251,11 @@ Deno.serve(async (req: Request) => {
 
   // Keep exactly one 'poc' document row per violation (the generated PDF supersedes any prior
   // draft) -- delete-then-insert rather than upsert since there's no natural conflict key besides
-  // violation_id, and evidence rows (document_type='evidence') must be left untouched.
-  await adminClient.from("violation_documents").delete().eq("violation_id", violationId).eq("document_type", "poc");
+  // violation_id, and evidence rows (document_type='evidence') must be left untouched. The delete
+  // error is checked: a silently failed delete followed by a successful insert would leave
+  // duplicate 'poc' rows for the violation.
+  const { error: deleteError } = await adminClient.from("violation_documents").delete().eq("violation_id", violationId).eq("document_type", "poc");
+  if (deleteError) return json({ error: deleteError.message }, 500);
   const { error: docError } = await adminClient.from("violation_documents").insert({
     organization_id: violation.organization_id,
     facility_id: violation.facility_id,

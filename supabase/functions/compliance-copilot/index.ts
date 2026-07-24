@@ -222,12 +222,15 @@ async function collectEmployeeBlocked(client: any, facilityId: string, employeeI
 
 async function collectDue(client: any, facilityId: string, asOf: string) {
   const through = addDays(asOf, 30);
+  // Every query orders by its due column before limiting -- an unordered `.limit(100)`
+  // would ground the answer (and the immutable run evidence) on an arbitrary subset
+  // instead of the nearest deadlines once a facility has >100 due items.
   const [training, credentials, residentItems, workItems, inspections] = await Promise.all([
-    queryOrThrow(client.from("employee_training_records").select("id,employee_id,training_type_id,status,due_date").eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through).limit(100), "training due dates"),
-    queryOrThrow(client.from("employee_credentials").select("id,employee_id,credential_type,credential_label,status,expiration_date").eq("facility_id", facilityId).gte("expiration_date", asOf).lte("expiration_date", through).limit(100), "credential expirations"),
-    queryOrThrow(client.from("resident_compliance_items").select("id,resident_id,item_type,status,due_date").eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through).limit(100), "resident compliance due dates"),
-    queryOrThrow(client.from("work_items").select("id,title,state,priority,due_at,source_type").eq("facility_id", facilityId).neq("state", "closed").gte("due_at", `${asOf}T00:00:00Z`).lte("due_at", `${through}T23:59:59Z`).limit(100), "work item due dates"),
-    queryOrThrow(client.from("inspection_items").select("id,label,status,next_due_date,item_type").eq("facility_id", facilityId).eq("is_active", true).gte("next_due_date", asOf).lte("next_due_date", through).limit(100), "inspection due dates"),
+    queryOrThrow(client.from("employee_training_records").select("id,employee_id,training_type_id,status,due_date").eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through).order("due_date", { ascending: true }).limit(100), "training due dates"),
+    queryOrThrow(client.from("employee_credentials").select("id,employee_id,credential_type,credential_label,status,expiration_date").eq("facility_id", facilityId).gte("expiration_date", asOf).lte("expiration_date", through).order("expiration_date", { ascending: true }).limit(100), "credential expirations"),
+    queryOrThrow(client.from("resident_compliance_items").select("id,resident_id,item_type,status,due_date").eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through).order("due_date", { ascending: true }).limit(100), "resident compliance due dates"),
+    queryOrThrow(client.from("work_items").select("id,title,state,priority,due_at,source_type").eq("facility_id", facilityId).neq("state", "closed").gte("due_at", `${asOf}T00:00:00Z`).lte("due_at", `${through}T23:59:59Z`).order("due_at", { ascending: true }).limit(100), "work item due dates"),
+    queryOrThrow(client.from("inspection_items").select("id,label,status,next_due_date,item_type").eq("facility_id", facilityId).eq("is_active", true).gte("next_due_date", asOf).lte("next_due_date", through).order("next_due_date", { ascending: true }).limit(100), "inspection due dates"),
   ]) as QueryRow[][];
   const [employees, residents] = await Promise.all([
     employeeNames(client, [...training, ...credentials].map((row) => row.employee_id)),
@@ -246,15 +249,20 @@ async function collectDue(client: any, facilityId: string, asOf: string) {
 }
 
 async function collectResidentCompliance(client: any, facilityId: string, asOf: string, itemType: string, overdueOnly: boolean) {
-  const rows = await queryOrThrow(
-    client.from("resident_compliance_items")
-      .select("id,resident_id,item_type,status,due_date,completed_date,citation_topic_id")
-      .eq("facility_id", facilityId).eq("item_type", itemType).limit(200),
+  // The gap filters are pushed into the query (not applied after `.limit`): filtering
+  // an unordered first-200 page in memory can miss every real gap once a facility has
+  // mostly-completed history, making "missing X" intents falsely report all clear.
+  let query = client.from("resident_compliance_items")
+    .select("id,resident_id,item_type,status,due_date,completed_date,citation_topic_id")
+    .eq("facility_id", facilityId).eq("item_type", itemType)
+    .is("completed_date", null);
+  query = overdueOnly
+    ? query.or(`status.eq.expired,due_date.lt.${asOf}`)
+    : query.in("status", ["missing", "due_soon", "expired"]);
+  const matching = await queryOrThrow(
+    query.order("due_date", { ascending: true, nullsFirst: false }).limit(200),
     "resident compliance items",
   ) as any[];
-  const matching = rows.filter((row) => !row.completed_date && (overdueOnly
-    ? row.status === "expired" || (row.due_date && row.due_date < asOf)
-    : ["missing", "due_soon", "expired"].includes(row.status)));
   const names = await residentNames(client, matching.map((row) => row.resident_id));
   return {
     evidence: matching.map((row) => evidence(

@@ -329,6 +329,60 @@ async function runWorkerBatch(req: Request, adminClient: any): Promise<Response>
   return json({ success: !batchError, attempted, succeeded, failed });
 }
 
+// PostgREST caps unpaged selects (1000 rows by default), so every binder list query
+// pages via .range() until a short page -- otherwise a large org's binder would
+// silently compute its census, tallies, and readiness % from an arbitrary first page
+// while presenting them as complete. Callers pass a builder so each page issues a
+// fresh query; the builder must include a stable ORDER BY for deterministic paging.
+const FETCH_PAGE_SIZE = 1000;
+async function fetchAllRows(buildQuery: () => any): Promise<any[]> {
+  const rows: any[] = [];
+  for (let from = 0; ; from += FETCH_PAGE_SIZE) {
+    const { data, error } = await buildQuery().range(from, from + FETCH_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+    if (!data || data.length < FETCH_PAGE_SIZE) return rows;
+  }
+}
+
+// Renewal cycles insert fresh training rows and leave prior ones 'expired' forever;
+// binder tallies and gap lists must grade only the current record per (employee,
+// training type) -- the same rule as the app's selectCurrentTrainingRecords.
+function selectCurrentTrainingRecords(records: any[]): any[] {
+  const currency = (r: any) => [r.due_date ?? "", r.completion_date ?? "", r.created_at ?? ""];
+  const byKey = new Map<string, any>();
+  for (const record of records) {
+    const key = `${record.employee_id}\u0000${record.training_type_id}`;
+    const current = byKey.get(key);
+    if (!current) { byKey.set(key, record); continue; }
+    const a = currency(record);
+    const b = currency(current);
+    for (let i = 0; i < 3; i++) {
+      if (a[i] === b[i]) continue;
+      if (a[i] > b[i]) byKey.set(key, record);
+      break;
+    }
+  }
+  return [...byKey.values()];
+}
+
+// Practicums are one row per (employee, year); prior years stay 'expired' forever,
+// so only each employee's latest-year practicum reflects the live obligation.
+function selectCurrentPracticums(practicums: any[]): any[] {
+  const byEmployee = new Map<string, any>();
+  for (const practicum of practicums) {
+    const current = byEmployee.get(practicum.employee_id);
+    if (
+      !current
+      || practicum.practicum_year > current.practicum_year
+      || (practicum.practicum_year === current.practicum_year && (practicum.due_date ?? "") > (current.due_date ?? ""))
+    ) {
+      byEmployee.set(practicum.employee_id, practicum);
+    }
+  }
+  return [...byEmployee.values()];
+}
+
 // Renders the full binder PDF for one organization (optionally scoped to specific
 // facilities -- the scope is resolved and validated at enqueue time). Runs on the
 // service-role client; throws on any data error so the worker records a retryable
@@ -346,107 +400,68 @@ async function buildBinderPdf(
     .single();
   if (orgError || !org) throw new Error("organization not found");
 
-  let facilitiesQuery = adminClient.from("facilities").select("id, name, facility_type, license_number").eq("organization_id", orgId).eq("is_sandbox", false).order("name");
-  let employeesQuery = adminClient.from("employees").select("id, first_name, last_name, facility_id, status").eq("organization_id", orgId);
-  let recordsQuery = adminClient
-    .from("employee_training_records")
-    .select("status, due_date, employee_id, facility_id, training_types(name, citation_topic_id)")
-    .eq("organization_id", orgId);
-  let practicumsQuery = adminClient.from("practicums").select("status, due_date, employee_id, facility_id").eq("organization_id", orgId);
-  let certCountQuery = adminClient.from("certificates").select("id", { count: "exact", head: true }).eq("organization_id", orgId);
-  let alertsQuery = adminClient.from("alerts").select("severity, title, created_at").eq("organization_id", orgId).eq("status", "open").order("severity");
-  let attestationsQuery = adminClient
-    .from("policy_attestations")
-    .select(
-      "status, due_date, attested_at, auth_method, ip_address, employee_id, facility_id, " +
-        "policy_attestation_campaigns(name, policy_documents(title))",
-    )
-    .eq("organization_id", orgId);
-  let credentialsQuery = adminClient
-    .from("employee_credentials")
-    .select("status, expiration_date, employee_id, facility_id, credential_type, citation_topic_id")
-    .eq("organization_id", orgId);
-  let incidentsQuery = adminClient
-    .from("incidents")
-    .select("id, incident_type, severity, status, occurred_at, final_report_submitted_at, facility_id")
-    .eq("organization_id", orgId)
-    .order("occurred_at", { ascending: false });
-  let inspectionItemsQuery = adminClient
-    .from("inspection_items")
-    .select("status, next_due_date, label, item_type, facility_id, citation_topic_id")
-    .eq("organization_id", orgId)
-    .eq("is_active", true);
-  let correctiveActionsQuery = adminClient
-    .from("corrective_actions")
-    .select("description, due_date, status, facility_id")
-    .eq("organization_id", orgId)
-    .neq("status", "completed");
-  let residentsQuery = adminClient.from("residents").select("id, first_name, last_name, facility_id, status, sdcu, hospice").eq("organization_id", orgId);
-  let residentComplianceQuery = adminClient
-    .from("resident_compliance_items")
-    .select("status, item_type, due_date, resident_id, facility_id, citation_topic_id")
-    .eq("organization_id", orgId);
-  const citationTopicsQuery = adminClient.from("dhs_citation_topics").select("id, chapter, citation_ref, category, title, frequency_weight").order("sort_order");
+  const scoped = (query: any) => (facilityScope ? query.in("facility_id", facilityScope) : query);
 
-  if (facilityScope) {
-    facilitiesQuery = facilitiesQuery.in("id", facilityScope);
-    employeesQuery = employeesQuery.in("facility_id", facilityScope);
-    recordsQuery = recordsQuery.in("facility_id", facilityScope);
-    practicumsQuery = practicumsQuery.in("facility_id", facilityScope);
-    certCountQuery = certCountQuery.in("facility_id", facilityScope);
-    alertsQuery = alertsQuery.in("facility_id", facilityScope);
-    attestationsQuery = attestationsQuery.in("facility_id", facilityScope);
-    credentialsQuery = credentialsQuery.in("facility_id", facilityScope);
-    incidentsQuery = incidentsQuery.in("facility_id", facilityScope);
-    inspectionItemsQuery = inspectionItemsQuery.in("facility_id", facilityScope);
-    correctiveActionsQuery = correctiveActionsQuery.in("facility_id", facilityScope);
-    residentsQuery = residentsQuery.in("facility_id", facilityScope);
-    residentComplianceQuery = residentComplianceQuery.in("facility_id", facilityScope);
-  }
+  let certCountQuery = adminClient.from("certificates").select("id", { count: "exact", head: true }).eq("organization_id", orgId);
+  if (facilityScope) certCountQuery = certCountQuery.in("facility_id", facilityScope);
 
   const [
-    facilitiesRes, employeesRes, recordsRes, practicumsRes, certCountRes, alertsRes, attestationsRes,
-    credentialsRes, incidentsRes, inspectionItemsRes, correctiveActionsRes, citationTopicsRes,
-    residentsRes, residentComplianceRes,
+    facilities, employees, allRecords, allPracticums, certCountRes, alerts, attestations,
+    credentials, incidents, inspectionItems, correctiveActionsRaw, citationTopics,
+    residents, residentCompliance,
   ] = await Promise.all([
-    facilitiesQuery,
-    employeesQuery,
-    recordsQuery,
-    practicumsQuery,
+    fetchAllRows(() => {
+      const query = adminClient.from("facilities").select("id, name, facility_type, license_number").eq("organization_id", orgId).eq("is_sandbox", false).order("name").order("id");
+      return facilityScope ? query.in("id", facilityScope) : query;
+    }),
+    fetchAllRows(() => scoped(adminClient.from("employees").select("id, first_name, last_name, facility_id, status").eq("organization_id", orgId).order("id"))),
+    fetchAllRows(() => scoped(adminClient
+      .from("employee_training_records")
+      .select("id, status, due_date, completion_date, created_at, employee_id, training_type_id, facility_id, training_types(name, citation_topic_id)")
+      .eq("organization_id", orgId).order("id"))),
+    fetchAllRows(() => scoped(adminClient.from("practicums").select("id, status, due_date, practicum_year, employee_id, facility_id").eq("organization_id", orgId).order("id"))),
     certCountQuery,
-    alertsQuery,
-    attestationsQuery,
-    credentialsQuery,
-    incidentsQuery,
-    inspectionItemsQuery,
-    correctiveActionsQuery,
-    citationTopicsQuery,
-    residentsQuery,
-    residentComplianceQuery,
+    fetchAllRows(() => scoped(adminClient.from("alerts").select("id, severity, title, created_at").eq("organization_id", orgId).eq("status", "open").order("severity").order("id"))),
+    fetchAllRows(() => scoped(adminClient
+      .from("policy_attestations")
+      .select(
+        "id, status, due_date, attested_at, auth_method, ip_address, employee_id, facility_id, " +
+          "policy_attestation_campaigns(name, policy_documents(title))",
+      )
+      .eq("organization_id", orgId).order("id"))),
+    fetchAllRows(() => scoped(adminClient
+      .from("employee_credentials")
+      .select("id, status, expiration_date, employee_id, facility_id, credential_type, citation_topic_id")
+      .eq("organization_id", orgId).order("id"))),
+    fetchAllRows(() => scoped(adminClient
+      .from("incidents")
+      .select("id, incident_type, severity, status, occurred_at, final_report_submitted_at, facility_id")
+      .eq("organization_id", orgId)
+      .order("occurred_at", { ascending: false }).order("id"))),
+    fetchAllRows(() => scoped(adminClient
+      .from("inspection_items")
+      .select("id, status, next_due_date, label, item_type, facility_id, citation_topic_id")
+      .eq("organization_id", orgId)
+      .eq("is_active", true).order("id"))),
+    fetchAllRows(() => scoped(adminClient
+      .from("corrective_actions")
+      .select("id, description, due_date, status, facility_id")
+      .eq("organization_id", orgId)
+      .neq("status", "completed").order("id"))),
+    fetchAllRows(() => adminClient.from("dhs_citation_topics").select("id, chapter, citation_ref, category, title, frequency_weight").order("sort_order").order("id")),
+    fetchAllRows(() => scoped(adminClient.from("residents").select("id, first_name, last_name, facility_id, status, sdcu, hospice").eq("organization_id", orgId).order("id"))),
+    fetchAllRows(() => scoped(adminClient
+      .from("resident_compliance_items")
+      .select("id, status, item_type, due_date, resident_id, facility_id, citation_topic_id")
+      .eq("organization_id", orgId).order("id"))),
   ]);
 
-  const sectionErrors = [
-    facilitiesRes.error, employeesRes.error, recordsRes.error, practicumsRes.error,
-    alertsRes.error, attestationsRes.error, credentialsRes.error, incidentsRes.error,
-    inspectionItemsRes.error, correctiveActionsRes.error, citationTopicsRes.error,
-    residentsRes.error, residentComplianceRes.error,
-  ].filter(Boolean);
-  if (sectionErrors.length > 0) throw new Error(sectionErrors[0].message);
-
-  const facilities = facilitiesRes.data ?? [];
-  const employees = employeesRes.data ?? [];
-  const records = recordsRes.data ?? [];
-  const practicums = practicumsRes.data ?? [];
+  if (certCountRes.error) throw new Error(certCountRes.error.message);
   const certCount = certCountRes.count ?? 0;
-  const credentials = credentialsRes.data ?? [];
-  const incidents = incidentsRes.data ?? [];
-  const inspectionItems = inspectionItemsRes.data ?? [];
-  const correctiveActions = correctiveActionsRes.data ?? [];
-  const citationTopics = citationTopicsRes.data ?? [];
-  const alerts = alertsRes.data ?? [];
-  const attestations = attestationsRes.data ?? [];
-  const residents = residentsRes.data ?? [];
-  const residentCompliance = residentComplianceRes.data ?? [];
+  const records = selectCurrentTrainingRecords(allRecords);
+  const practicums = selectCurrentPracticums(allPracticums);
+  // Cancelled corrective actions are closed work, not open gaps.
+  const correctiveActions = correctiveActionsRaw.filter((action: any) => action.status !== "cancelled");
 
   const facilityMap = new Map(facilities.map((f) => [f.id, f]));
   const employeeMap = new Map(employees.map((e) => [e.id, e]));

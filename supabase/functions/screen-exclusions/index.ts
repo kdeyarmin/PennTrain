@@ -228,18 +228,35 @@ async function loadSamGov(
   adminClient: ReturnType<typeof createClient>,
   apiKey: string,
 ): Promise<ExclusionListEntryRow[]> {
-  const { data: employees, error } = await adminClient
-    .from("employees")
-    .select("first_name, last_name")
-    .eq("status", "active");
-  if (error) {
-    throw new Error(
-      `Failed to load roster for SAM.gov screening: ${error.message}`,
-    );
+  // Page the roster: PostgREST caps unpaged selects at 1000 rows, so a single
+  // .select() would silently stop screening staff hired after the platform's
+  // first ~1000 active employees while the refresh still reported success.
+  const pageSize = 1000;
+  const employees: Array<{ first_name: string; last_name: string }> = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await adminClient
+      .from("employees")
+      .select("first_name, last_name")
+      .eq("status", "active")
+      .order("id")
+      .range(from, from + pageSize - 1);
+    if (error) {
+      throw new Error(
+        `Failed to load roster for SAM.gov screening: ${error.message}`,
+      );
+    }
+    employees.push(...((data ?? []) as Array<{ first_name: string; last_name: string }>));
+    if (!data || data.length < pageSize) break;
   }
 
+  // Screen each distinct name pair once -- staff sharing a name would otherwise
+  // trigger duplicate SAM.gov queries for identical results.
+  const seenNames = new Set<string>();
   const entries: ExclusionListEntryRow[] = [];
-  for (const employee of employees ?? []) {
+  for (const employee of employees) {
+    const nameKey = `${employee.first_name}\u0000${employee.last_name}`.toLowerCase();
+    if (seenNames.has(nameKey)) continue;
+    seenNames.add(nameKey);
     entries.push(
       ...(await loadSamGovForEmployee(
         apiKey,
