@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { clientIp } from "../_shared/clientIp.ts";
 
 // Public, unauthenticated signup endpoint by design (see verify_jwt:false in
 // supabase/config.toml). Abuse controls live here because there is no caller session yet:
@@ -47,15 +48,6 @@ function slugify(name: string): string {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
       .slice(0, 60) || "org"
-  );
-}
-
-function clientIp(req: Request): string {
-  return (
-    req.headers.get("cf-connecting-ip") ??
-    req.headers.get("x-real-ip") ??
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "unknown"
   );
 }
 

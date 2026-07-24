@@ -3,7 +3,8 @@ Allow: /
 Disallow: /app/
 Disallow: /admin/
 Disallow: /trainer/
-Disallow: /employee/
+Disallow: /me/
+Disallow: /account/
 Disallow: /reset-password
 Disallow: /forgot-password
 Disallow: /checkin/

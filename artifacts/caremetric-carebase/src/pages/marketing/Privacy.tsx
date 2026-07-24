@@ -34,17 +34,37 @@ const PRIVACY_SECTIONS = [
     ),
   },
   {
-    title: "3. How we use information",
+    title: "3. Marketing site",
+    body: (
+      <>
+        If you use this site&apos;s public forms, we keep what you submit:
+        demo requests (name, work email, organization, facility count, and your
+        message), savings-worksheet emails (your email and the numbers you
+        entered), and regulatory-update newsletter subscriptions (email and
+        optional name/organization). We use these only to respond, deliver
+        what you asked for, and send the updates you subscribed to — every
+        newsletter email includes an unsubscribe link. Your IP address is not
+        stored with these submissions; we keep only a peppered one-way hash of
+        it, used solely for rate limiting. To have any of this removed, email{" "}
+        <a className="font-semibold text-primary hover:underline" href="mailto:hello@caremetric.ai">
+          hello@caremetric.ai
+        </a>
+        .
+      </>
+    ),
+  },
+  {
+    title: "4. How we use information",
     body:
       "To provide and secure the service; to deliver alerts, reminders, and reports your organization configures; to provide support; to maintain audit and compliance documentation; and to improve the product. We do not sell personal information and we do not use resident or employee records for advertising.",
   },
   {
-    title: "4. Your organization controls its data",
+    title: "5. Your organization controls its data",
     body:
       "Your organization is the controller of the records it enters; CareBase processes them to provide the service. Access within the service is scoped by organization, facility, and role, enforced at the database layer. Individuals seeking access to or correction of records held by a facility should contact that facility's administrator.",
   },
   {
-    title: "5. Storage and security",
+    title: "6. Storage and security",
     body: (
       <>
         Data is stored with established cloud infrastructure providers.
@@ -60,22 +80,22 @@ const PRIVACY_SECTIONS = [
     ),
   },
   {
-    title: "6. Sharing and subprocessors",
+    title: "7. Sharing and subprocessors",
     body:
       "We share data only with service providers needed to operate CareBase — cloud hosting and database infrastructure, payment processing for subscription billing, and email/SMS delivery providers for the notifications your organization enables — under agreements limiting their use of the data. We may disclose information when required by law. A current subprocessor list is available on request at hello@caremetric.ai.",
   },
   {
-    title: "7. Retention and deletion",
+    title: "8. Retention and deletion",
     body:
       "Records are retained while your organization's account is active and as needed for its regulatory retention obligations. On termination, your organization may export its data; we delete or de-identify it after a wind-down period, except where retention is required by law.",
   },
   {
-    title: "8. Children",
+    title: "9. Children",
     body:
       "The service is for use by care organizations and their staff; it is not directed to children under 13.",
   },
   {
-    title: "9. Changes and contact",
+    title: "10. Changes and contact",
     body: (
       <>
         We will post changes to this policy here with an updated effective date.

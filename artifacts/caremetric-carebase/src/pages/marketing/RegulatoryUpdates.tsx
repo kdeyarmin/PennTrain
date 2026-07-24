@@ -253,7 +253,7 @@ export default function RegulatoryUpdates() {
               <div className="rounded-2xl border border-[#e5eaf0] bg-white p-8 text-center">
                 <p className="text-sm font-medium text-[#0d2742]">No updates in this category yet.</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Subscribe below and we&apos;ll email you the moment something changes.
+                  We post changes here — subscribe below to get periodic email digests.
                 </p>
               </div>
             )}
@@ -277,9 +277,9 @@ export default function RegulatoryUpdates() {
               Get regulatory updates by email
             </h2>
             <p className="mt-3 max-w-[46ch] text-[15px] leading-7 text-[#44566b]">
-              Join Pennsylvania PCH and ALF operators who get a plain-language note whenever a
-              requirement changes. No spam — just what changed and what to do about it. It&apos;s the
-              easiest way to stay survey-ready between reviews.
+              We post changes here and email subscribers periodic plain-language digests. No spam —
+              just what changed and what to do about it. It&apos;s the easiest way to stay
+              survey-ready between reviews.
             </p>
             <ul className="mt-5 grid gap-2 text-sm text-[#44566b]">
               {[

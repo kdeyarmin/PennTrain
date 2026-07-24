@@ -1,18 +1,14 @@
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Link } from "wouter";
 import {
   ArrowRight,
-  Bot,
+  BookOpen,
   CheckCircle2,
   FileCheck2,
-  Handshake,
   MessageCircle,
   Minimize2,
   Send,
-  Target,
-  TrendingUp,
   X,
-  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,30 +20,10 @@ import {
   buildProspectEmail,
   getFollowUpPrompts,
   leadProfileSummary,
-  leadScore,
-  leadStage,
   type ContextChip,
   type LeadProfile,
   type Message,
 } from "@/lib/marketingAIBotSales";
-
-const SALES_CARDS: { icon: LucideIcon; label: string; detail: string }[] = [
-  {
-    icon: Target,
-    label: "Find the pain",
-    detail: "Missed renewals, survey panic, duplicated records, and binders that are never truly ready.",
-  },
-  {
-    icon: TrendingUp,
-    label: "Show the upside",
-    detail: "Less admin chasing, faster manager action, cleaner documentation, and stronger survey confidence.",
-  },
-  {
-    icon: Handshake,
-    label: "Close the next step",
-    detail: "Route serious buyers to a trial, demo, rollout plan, or savings conversation.",
-  },
-];
 
 export function MarketingAIBot() {
   const [open, setOpen] = useState(false);
@@ -58,19 +34,31 @@ export function MarketingAIBot() {
     {
       role: "assistant",
       content:
-        "Hi — I’m the CareBase customer service assistant. Tell me what you are trying to fix, and I’ll show how CareBase can reduce admin work, strengthen survey readiness, and prove value to your team.",
+        "Hi — I’m the CareBase Guide. Ask what the platform does, how pricing works, or what a rollout would look like for your facility, and I’ll answer from our product guide.",
       bullets: [
-        "I can walk you through the platform, answer questions, explain ROI, compare against an LMS, or help you prepare for a demo.",
+        "I can walk you through the platform, explain the savings model, compare CareBase with a basic LMS, or help you prepare for a demo.",
       ],
       closer: "Start with one question, choose a context, or tap a prompt below.",
       cta: { label: "Start your free trial", href: "/signup" },
     },
   ]);
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const launcherRef = useRef<HTMLButtonElement>(null);
+  const hasOpenedRef = useRef(false);
+
+  // Focus management: move focus into the panel when it opens, and return it to the
+  // launcher when it closes (but never steal focus on initial page load).
+  useEffect(() => {
+    if (open) {
+      hasOpenedRef.current = true;
+      panelRef.current?.focus();
+    } else if (hasOpenedRef.current) {
+      launcherRef.current?.focus();
+    }
+  }, [open]);
 
   const profileLabel = leadProfileSummary(leadProfile);
-  const currentLeadScore = leadScore(leadProfile, messages.length);
-  const currentLeadStage = leadStage(currentLeadScore);
   const followUpPrompts = useMemo(() => getFollowUpPrompts(leadProfile), [leadProfile]);
   const demoMailtoHref = useMemo(() => buildDemoMailtoHref(leadProfile), [leadProfile]);
   const prospectEmail = useMemo(() => buildProspectEmail(leadProfile), [leadProfile]);
@@ -99,15 +87,23 @@ export function MarketingAIBot() {
     ask(input);
   };
 
+  const handlePanelKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      setOpen(false);
+    }
+  };
+
   if (!open) {
     return (
-      <aside className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3 sm:right-6" aria-label="CareBase customer service assistant">
+      <aside className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3 sm:right-6" aria-label="CareBase Guide">
         <Button
+          ref={launcherRef}
           className="h-11 rounded-full px-4 text-sm shadow-lg"
           onClick={() => setOpen(true)}
           data-testid="button-open-marketing-ai-bot"
         >
-          <MessageCircle className="mr-2 h-4 w-4" /> Ask Customer Service
+          <MessageCircle className="mr-2 h-4 w-4" /> Ask the CareBase Guide
         </Button>
       </aside>
     );
@@ -115,17 +111,20 @@ export function MarketingAIBot() {
 
   return (
     <aside
-      className="fixed inset-x-3 bottom-3 z-50 max-h-[calc(100dvh-1.5rem)] overflow-hidden rounded-3xl border border-border/70 bg-background shadow-2xl sm:inset-x-auto sm:right-6 sm:bottom-4 sm:w-[28rem] md:w-[30rem]"
-      aria-label="CareBase customer service assistant"
+      ref={panelRef}
+      tabIndex={-1}
+      onKeyDown={handlePanelKeyDown}
+      className="fixed inset-x-3 bottom-3 z-50 max-h-[calc(100dvh-1.5rem)] overflow-hidden rounded-3xl border border-border/70 bg-background shadow-2xl outline-none sm:inset-x-auto sm:right-6 sm:bottom-4 sm:w-[28rem] md:w-[30rem]"
+      aria-label="CareBase Guide"
     >
       <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-[#071626] to-[#2552b8] p-3 text-white sm:p-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/12">
-            <Bot className="h-5 w-5" />
+            <BookOpen className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <div className="truncate font-semibold">CareBase Customer Service AI</div>
-            <div className="truncate text-xs text-white/70">Answers to help you get the most from CareBase</div>
+            <div className="truncate font-semibold">CareBase Guide</div>
+            <div className="truncate text-xs text-white/70">Instant answers from our product guide</div>
           </div>
         </div>
         <div className="flex gap-1">
@@ -134,7 +133,7 @@ export function MarketingAIBot() {
             size="icon"
             className="h-8 w-8 text-white hover:bg-white/10"
             onClick={() => setMinimized((value) => !value)}
-            aria-label="Minimize customer service assistant"
+            aria-label={minimized ? "Expand the CareBase Guide" : "Minimize the CareBase Guide"}
           >
             <Minimize2 className="h-4 w-4" />
           </Button>
@@ -143,7 +142,7 @@ export function MarketingAIBot() {
             size="icon"
             className="h-8 w-8 text-white hover:bg-white/10"
             onClick={() => setOpen(false)}
-            aria-label="Close customer service assistant"
+            aria-label="Close the CareBase Guide"
           >
             <X className="h-4 w-4" />
           </Button>
@@ -151,46 +150,25 @@ export function MarketingAIBot() {
       </div>
       {!minimized && (
         <>
-          <div className="border-b border-border/60 bg-primary/5 px-3 py-2 text-xs">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="font-semibold text-primary">{currentLeadStage.label}</div>
-                <div className="truncate text-muted-foreground">
-                  {profileLabel ? `Your context: ${profileLabel}` : currentLeadStage.detail}
-                </div>
+          {profileLabel ? (
+            <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-primary/5 px-3 py-2 text-xs">
+              <div className="truncate text-muted-foreground">
+                Your context: <span className="font-medium text-foreground">{profileLabel}</span>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <span className="rounded-full bg-background px-2 py-1 font-mono text-[10px] text-muted-foreground">
-                  {Math.min(currentLeadScore, 100)}% fit
-                </span>
-                {profileLabel ? (
-                  <button
-                    type="button"
-                    className="font-medium text-muted-foreground hover:text-foreground"
-                    onClick={() => setLeadProfile({})}
-                  >
-                    Clear
-                  </button>
-                ) : null}
-              </div>
+              <button
+                type="button"
+                className="shrink-0 font-medium text-muted-foreground hover:text-foreground"
+                onClick={() => setLeadProfile({})}
+              >
+                Clear
+              </button>
             </div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-background">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-primary to-[#59b2ff] transition-all"
-                style={{ width: `${Math.min(currentLeadScore, 100)}%` }}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-2 border-b border-border/60 bg-muted/30 p-2 sm:p-3">
-            {SALES_CARDS.map((card) => (
-              <div key={card.label} className="rounded-xl bg-background p-2 text-[11px] sm:text-xs">
-                <card.icon className="mb-1 h-4 w-4 text-primary" />
-                <div className="font-semibold">{card.label}</div>
-                <div className="mt-1 hidden text-muted-foreground sm:line-clamp-3 sm:block">{card.detail}</div>
-              </div>
-            ))}
-          </div>
-          <div ref={transcriptRef} className="max-h-[min(48dvh,28rem)] space-y-3 overflow-y-auto overscroll-contain p-3 sm:p-4">
+          ) : null}
+          <div
+            ref={transcriptRef}
+            aria-live="polite"
+            className="max-h-[min(48dvh,28rem)] space-y-3 overflow-y-auto overscroll-contain p-3 sm:p-4"
+          >
             {messages.map((message, index) => (
               <div
                 key={`${message.role}-${index}`}
@@ -253,12 +231,12 @@ export function MarketingAIBot() {
             </div>
           </div>
           <div className="border-t border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">Next best action:</span> {currentLeadStage.detail}.
+            <span className="font-semibold text-foreground">Next steps:</span>
             <Button asChild variant="link" size="sm" className="ml-1 h-auto p-0 text-xs">
               <Link href="/signup">Start your free trial</Link>
             </Button>
             <Button asChild variant="link" size="sm" className="ml-2 h-auto p-0 text-xs">
-              <a href={demoMailtoHref}>Email your context</a>
+              <a href={demoMailtoHref}>Email us your context</a>
             </Button>
             <Button asChild variant="link" size="sm" className="ml-2 h-auto p-0 text-xs">
               <a href={prospectEmail.mailtoHref}>Email a summary</a>
@@ -268,16 +246,17 @@ export function MarketingAIBot() {
             <Input
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Ask customer service about ROI, fit, demo, rollout..."
-              aria-label="Ask the CareBase customer service assistant"
+              placeholder="Ask about features, pricing, rollout, security..."
+              aria-label="Ask the CareBase Guide"
             />
             <Button type="submit" size="icon" aria-label="Send question">
               <Send className="h-4 w-4" />
             </Button>
           </form>
           <div className="flex items-start gap-2 bg-muted/30 px-3 py-2 text-[11px] leading-4 text-muted-foreground sm:px-4">
-            <FileCheck2 className="h-3.5 w-3.5" /> This guidance is informational; CareBase helps organize
-            documentation but does not replace your regulator, counsel, or compliance advisor.
+            <FileCheck2 className="h-3.5 w-3.5" /> Answers come from our product guide. This guidance is
+            informational; CareBase helps organize documentation but does not replace your regulator,
+            counsel, or compliance advisor.
           </div>
         </>
       )}
