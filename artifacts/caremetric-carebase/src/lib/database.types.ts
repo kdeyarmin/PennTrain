@@ -34778,6 +34778,10 @@ export type Database = {
         Args: { p_facility_id: string; p_from: string; p_through: string }
         Returns: Json
       }
+      get_resident_clinical_chart: {
+        Args: { p_minimum_necessary_reason?: string; p_resident_id: string }
+        Returns: Json
+      }
       get_resident_clinical_observations: {
         Args: {
           p_include_retracted?: boolean

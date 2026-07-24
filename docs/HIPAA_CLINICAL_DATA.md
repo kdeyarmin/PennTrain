@@ -12,7 +12,7 @@ implies.
   medications/eMAR, allergies, diagnoses/problem list, and physician orders arrive as FHIR R4
   resources from a connected EHR/pharmacy. Read-only in CareBase; it never becomes the clinical
   source of truth. Built by extending the existing medication-integration boundary + Phase 2
-  signed integration hub. _(Planned: milestones M2–M3.)_
+  signed integration hub. _(Delivered: milestones M2–M3.)_
 - **Lane B — native clinical capture (facility staff are the source):** vitals/observations,
   care plans, clinical assessments, and progress notes are authored in-app. Built by extending
   the structured change-of-condition pattern (SELECT-only grants, all writes via SECURITY
@@ -29,7 +29,7 @@ A single **Resident Clinical Chart** (`/app/residents/:id/chart`) composes both 
 | M2 | FHIR pipe via medications (`MedicationRequest`/`MedicationAdministration`) | **Delivered** |
 | M3 | FHIR allergies, diagnoses/problem list, orders, documents | **Delivered** |
 | M4 | Native care plans, assessments, progress notes (sign-and-lock) | **Delivered** |
-| M5 | Chart consolidation, timeline, hardening, optional write-back | Planned |
+| M5 | Chart consolidation, unified timeline, hardening; write-back reserved (disabled) | **Delivered** |
 
 ## Data model (delivered in M0–M1)
 
