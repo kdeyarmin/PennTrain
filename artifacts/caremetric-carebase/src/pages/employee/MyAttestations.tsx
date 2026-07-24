@@ -185,7 +185,9 @@ export default function MyAttestations() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setReviewing(null)}>Cancel</Button>
             {reviewing?.status === "pending" && (
-              <Button onClick={handleAttest} disabled={attesting}>
+              // The attestation is a legal signature -- never allow sign-off
+              // unless the document actually loaded and could be read.
+              <Button onClick={handleAttest} disabled={attesting || !pdfUrl}>
                 {attesting ? "Recording..." : "I Have Read and Understood"}
               </Button>
             )}
