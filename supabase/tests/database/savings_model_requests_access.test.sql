@@ -33,7 +33,7 @@ insert into public.profiles(id,organization_id,email,first_name,last_name,role,i
 on conflict(id) do update set organization_id=excluded.organization_id,role=excluded.role,is_active=true;
 select set_config('app.privileged_write','off',true);
 
-insert into public.savings_model_requests(email,weekly_admin_hours,loaded_hourly_rate,facility_count) values
+insert into public.savings_model_requests(email,weekly_admin_hours,loaded_hourly_rate,resident_count) values
   ('pgtap-savings-lead@test.local',10,35,2);
 
 create or replace function pg_temp.act_as(p_id uuid,p_role text default 'authenticated')
