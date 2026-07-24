@@ -6,7 +6,9 @@
 // with SPA fallback routing, and (b) expose GET /health for Railway's
 // healthcheck, since `vite preview` cannot do either safely in production.
 import { createServer } from "node:http";
+import { createReadStream } from "node:fs";
 import { cp, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
+import { pipeline } from "node:stream/promises";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -249,6 +251,18 @@ function parseRange(header, size) {
   return { start, end };
 }
 
+// Streams a file (or a byte range of it) to the response. Browsers abort media
+// range requests constantly while seeking, so a connection dropped mid-stream is
+// normal operation, not a server error worth logging or rethrowing.
+async function streamFileBody(filePath, res, options) {
+  try {
+    await pipeline(createReadStream(filePath, options), res);
+  } catch (error) {
+    if (error?.code === "ERR_STREAM_PREMATURE_CLOSE" || error?.code === "ECONNRESET") return;
+    throw error;
+  }
+}
+
 async function serveFile(filePath, req, res, { cacheControl }) {
   const ext = extname(filePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || "application/octet-stream";
@@ -314,32 +328,38 @@ async function serveFile(filePath, req, res, { cacheControl }) {
     return;
   }
 
-  const data = await readFile(servedPath);
-
-  // Byte-range support for identity bodies so browser media controls can fetch
-  // metadata and seek without pulling the whole file (mp4 posters/videos).
-  // Skipped for content-encoded bodies, where a client's range refers to the
-  // identity resource, not the compressed bytes we would send.
+  // Identity bodies stream straight from disk -- never buffered whole -- so large
+  // media (multi-MB marketing mp4s) can't pile up in memory. That matters most for
+  // byte ranges: a browser seeking a video issues many small ranges against the
+  // same large file, and buffering the full file for each one is an OOM risk.
+  // Ranges are skipped for content-encoded bodies, where a client's range refers
+  // to the identity resource, not the compressed bytes we would send.
   if (!encoded) {
     headers["Accept-Ranges"] = "bytes";
-    const range = parseRange(req.headers["range"], data.byteLength);
+    const range = parseRange(req.headers["range"], fileInfo.size);
     if (range === "unsatisfiable") {
-      res.writeHead(416, { ...headers, "Content-Range": `bytes */${data.byteLength}` });
+      res.writeHead(416, { ...headers, "Content-Range": `bytes */${fileInfo.size}` });
       res.end();
       return;
     }
     if (range) {
-      const chunk = data.subarray(range.start, range.end + 1);
       res.writeHead(206, {
         ...headers,
-        "Content-Range": `bytes ${range.start}-${range.end}/${data.byteLength}`,
-        "Content-Length": chunk.byteLength,
+        "Content-Range": `bytes ${range.start}-${range.end}/${fileInfo.size}`,
+        "Content-Length": range.end - range.start + 1,
       });
-      res.end(chunk);
+      await streamFileBody(servedPath, res, { start: range.start, end: range.end });
       return;
     }
+    headers["Content-Length"] = fileInfo.size;
+    res.writeHead(200, headers);
+    await streamFileBody(servedPath, res);
+    return;
   }
 
+  // Precompressed siblings only exist for small text assets; buffering them
+  // whole is fine.
+  const data = await readFile(servedPath);
   headers["Content-Length"] = data.byteLength;
   res.writeHead(200, headers);
   res.end(data);

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryState";
 import { ArrowLeft, Send, Paperclip, X } from "lucide-react";
 import {
   useGetSupportTicket, useListSupportTicketMessages, useSendSupportTicketMessage, useUpdateSupportTicket,
@@ -50,7 +51,7 @@ export default function SupportTicketDetail() {
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: ticket, isLoading } = useGetSupportTicket(id);
+  const { data: ticket, isLoading, isError, error, refetch } = useGetSupportTicket(id);
   const { data: messages, isLoading: messagesLoading } = useListSupportTicketMessages(id);
   const { data: orgNameMap } = useOrganizationNameMap();
   const { data: profileNameMap } = useProfileNameMap();
@@ -92,6 +93,10 @@ export default function SupportTicketDetail() {
         <Skeleton className="h-40 w-full" />
       </div>
     );
+  }
+
+  if (isError) {
+    return <QueryError what="this support ticket" error={error} onRetry={() => void refetch()} />;
   }
 
   if (!ticket) {

@@ -65,6 +65,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryState";
 import {
   ArrowLeft,
   ArrowRight,
@@ -726,7 +727,7 @@ export default function ResidentAssessmentFormEditor() {
 
   const { data: resident } = useGetResident(residentId);
   const { data: facilities } = useListFacilities();
-  const { data: form, isLoading } = useGetResidentAssessmentForm(formId);
+  const { data: form, isLoading, isError, error, refetch } = useGetResidentAssessmentForm(formId);
   const { data: residentDocuments } = useListResidentDocuments(residentId);
   const saveDraft = useSaveResidentAssessmentFormDraft();
   const finalize = useFinalizeResidentAssessmentForm();
@@ -1158,6 +1159,10 @@ ${text}` : text;
       onError: (e: Error) => toast({ title: "Failed to finalize", description: e.message, variant: "destructive" }),
     });
   };
+
+  if (isError) {
+    return <QueryError what="this assessment form" error={error} onRetry={() => void refetch()} />;
+  }
 
   if (isLoading || !content || !form) {
     return (

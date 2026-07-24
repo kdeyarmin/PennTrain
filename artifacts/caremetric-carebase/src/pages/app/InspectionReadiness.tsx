@@ -9,7 +9,7 @@ import { useListInspectionItems } from "@/hooks/useInspectionItems";
 import { useListIncidents } from "@/hooks/useIncidents";
 import { useListCorrectiveActions } from "@/hooks/useCorrectiveActions";
 import { useListPolicyAttestations } from "@/hooks/usePolicyAttestations";
-import { useListAdministratorProfiles } from "@/hooks/useAdministratorProfiles";
+import { useListAdministratorProfiles, useListAdministratorCeEntriesByOrganization } from "@/hooks/useAdministratorProfiles";
 import { useListResidents } from "@/hooks/useResidents";
 import { useListFacilityUnits } from "@/hooks/useFacilityUnits";
 import { useListEmployeeSchedulePreferences } from "@/hooks/useEmployeeSchedulePreferences";
@@ -26,8 +26,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertTriangle, ClipboardCheck, Copy, Download, FileArchive, Loader2, ShieldAlert, Sparkles } from "lucide-react";
 import { Link } from "wouter";
 import { toLocalIsoDate } from "@/lib/dateUtils";
-import { buildAdministratorRulePack, summarizeAdministratorRulePack } from "@/lib/administratorRulePacks";
+import { buildBestAdministratorRulePack } from "@/lib/administratorRulePacks";
 import { buildSpecialCareComplianceSummary } from "@/lib/specialCareCompliance";
+import { selectCurrentTrainingRecords } from "@/lib/currentTrainingRecords";
 import { supabase } from "@/lib/supabase";
 
 const BACKGROUND_CHECK_CREDENTIAL_TYPES = ["act34_criminal_history", "act73_fbi_fingerprint", "act33_child_abuse"];
@@ -75,6 +76,7 @@ export default function InspectionReadiness() {
   const { data: correctiveActions } = useListCorrectiveActions({ facilityId: activeFacilityId || undefined });
   const { data: policyAttestations } = useListPolicyAttestations({});
   const { data: administratorProfiles } = useListAdministratorProfiles(user?.organizationId ?? undefined);
+  const { data: administratorCeEntries } = useListAdministratorCeEntriesByOrganization(user?.organizationId ?? undefined);
   const { data: residents } = useListResidents({ facilityId: activeFacilityId || undefined });
   const { data: units } = useListFacilityUnits({ facilityId: activeFacilityId || undefined });
   const { data: schedulePreferences } = useListEmployeeSchedulePreferences({ facilityId: activeFacilityId || undefined });
@@ -118,7 +120,9 @@ export default function InspectionReadiness() {
         return count > 0 ? { level: "ready", detail: `${count} active` } : { level: "attention", detail: "no active staff on file" };
       }
       case "training": {
-        const rows = trainingRecords ?? [];
+        // Renewals insert fresh rows and leave prior ones "expired" forever, so
+        // only the current record per (employee, training type) may count here.
+        const rows = selectCurrentTrainingRecords(trainingRecords ?? []);
         const outstanding = rows.filter((r) => r.status === "expired" || r.status === "due_soon" || r.status === "missing");
         return outstanding.length === 0
           ? { level: "ready" }
@@ -150,7 +154,7 @@ export default function InspectionReadiness() {
           (i) => i.occurred_at >= oneYearAgo && !i.final_report_submitted_at
         );
         const overdueActions = (correctiveActions ?? []).filter(
-          (a) => a.status !== "completed" && a.due_date < today
+          (a) => a.status !== "completed" && a.status !== "cancelled" && a.due_date < today
         );
         const outstanding = openIncidents.length + overdueActions.length;
         return outstanding === 0 ? { level: "ready" } : { level: "attention", detail: `${outstanding} outstanding` };
@@ -164,12 +168,11 @@ export default function InspectionReadiness() {
         if (!activeFacility || !(activeFacility.facility_type === "PCH" || activeFacility.facility_type === "ALR")) {
           return { level: "unknown", detail: "not a PCH/ALF facility" };
         }
-        const rulePack = buildAdministratorRulePack(activeFacility.facility_type, {
-          profile: (administratorProfiles ?? [])[0] ?? null,
-          ceEntries: [],
+        const { summary } = buildBestAdministratorRulePack(activeFacility.facility_type, {
+          profiles: administratorProfiles ?? [],
+          ceEntries: administratorCeEntries ?? [],
           today,
         });
-        const summary = summarizeAdministratorRulePack(rulePack);
         return summary.ready
           ? { level: "ready", detail: `${summary.total} rule-pack items ready` }
           : { level: "attention", detail: `${summary.blockingCount} administrator blocker(s)` };
@@ -190,7 +193,7 @@ export default function InspectionReadiness() {
         detail: result.detail,
       };
     }),
-    [checklistItems, employees, trainingRecords, credentials, inspectionItems, incidents, correctiveActions, policyAttestations, administratorProfiles, activeFacility, activeFacilityId, oneYearAgo, today],
+    [checklistItems, employees, trainingRecords, credentials, inspectionItems, incidents, correctiveActions, policyAttestations, administratorProfiles, administratorCeEntries, activeFacility, activeFacilityId, oneYearAgo, today],
   );
 
   const actionQueue = useMemo(() => buildInspectionReadinessActions({

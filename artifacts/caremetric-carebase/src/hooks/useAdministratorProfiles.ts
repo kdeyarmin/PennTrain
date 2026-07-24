@@ -72,6 +72,24 @@ export function useListAdministratorCeEntries(administratorProfileId: string | u
   });
 }
 
+// Org-wide CE fetch for readiness views that must evaluate every administrator
+// profile's rule pack (administrator_profiles have no facility binding).
+export function useListAdministratorCeEntriesByOrganization(organizationId: string | undefined) {
+  return useQuery({
+    queryKey: ["administrator_profiles", "ce_entries", "org", organizationId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("administrator_ce_entries")
+        .select("*")
+        .eq("organization_id", organizationId!)
+        .order("completed_date", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!organizationId,
+  });
+}
+
 export function useAddAdministratorCeEntry() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -87,7 +105,10 @@ export function useAddAdministratorCeEntry() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["administrator_profiles", "ce_entries", data.administrator_profile_id] }),
+    // Prefix-invalidate every CE list: the per-profile key (..., "ce_entries", <profileId>)
+    // AND the org-wide key (..., "ce_entries", "org", <orgId>) that Inspection Readiness and
+    // Facility Detail read -- invalidating only the profile key leaves readiness math stale.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["administrator_profiles", "ce_entries"] }),
   });
 }
 
@@ -99,7 +120,7 @@ export function useDeleteAdministratorCeEntry() {
       if (error) throw error;
       return { administratorProfileId };
     },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["administrator_profiles", "ce_entries", data.administratorProfileId] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["administrator_profiles", "ce_entries"] }),
   });
 }
 

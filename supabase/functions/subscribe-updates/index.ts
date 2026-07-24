@@ -6,6 +6,7 @@ import {
   buildUnsubscribeUrl,
   listUnsubscribeHeaders,
 } from "../_shared/marketingEmails.ts";
+import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 import { clientIp } from "../_shared/clientIp.ts";
 
 // Public, unauthenticated newsletter/regulatory-update signup (requires verify_jwt:false for
@@ -179,8 +180,9 @@ Deno.serve(async (req: Request) => {
     turnstile_token?: string;
   };
   try {
-    body = await req.json();
-  } catch {
+    body = await readJsonBody(req);
+  } catch (error) {
+    if (error instanceof RequestBodyError) return json({ error: error.message }, error.status);
     return json({ error: "Invalid JSON body" }, 400);
   }
 

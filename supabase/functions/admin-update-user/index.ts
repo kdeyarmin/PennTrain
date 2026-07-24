@@ -114,7 +114,18 @@ Deno.serve(async (req: Request) => {
   const assurance = await requireFreshAal2(callerClient, "identity_admin");
   if (!assurance.ok) return json({ error: assurance.error }, assurance.status);
 
-  // auth.users-level changes (email/password) via the Admin API.
+  // auth.users-level changes (email/password) via the Admin API. When changing the email,
+  // capture the previous value first so a subsequent profile-RPC failure can be compensated --
+  // otherwise Auth would hold the new login email while profiles kept the old one, splitting
+  // the user's identity with no automatic repair path.
+  let previousEmail: string | null = null;
+  if (email !== undefined) {
+    const { data: targetAuthUser, error: targetAuthError } = await adminClient.auth.admin.getUserById(user_id);
+    if (targetAuthError || !targetAuthUser?.user) {
+      return json({ error: targetAuthError?.message ?? "target auth user not found" }, 400);
+    }
+    previousEmail = targetAuthUser.user.email ?? null;
+  }
   if (email !== undefined || password !== undefined) {
     const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(user_id, {
       ...(email !== undefined ? { email, email_confirm: true } : {}),
@@ -135,7 +146,22 @@ Deno.serve(async (req: Request) => {
     p_is_active: is_active ?? null,
     p_email: email ?? null,
   });
-  if (rpcError) return json({ error: rpcError.message }, 400);
+  if (rpcError) {
+    // Compensate the already-applied Auth email change so login email and profile email
+    // stay consistent. (Passwords need no compensation: profiles never store them.)
+    if (email !== undefined && previousEmail && previousEmail !== email) {
+      const { error: revertError } = await adminClient.auth.admin.updateUserById(user_id, {
+        email: previousEmail,
+        email_confirm: true,
+      });
+      if (revertError) {
+        return json({
+          error: `${rpcError.message} (additionally, reverting the login email failed: ${revertError.message} -- the login email is now ${email} while the profile still shows ${previousEmail})`,
+        }, 500);
+      }
+    }
+    return json({ error: rpcError.message }, 400);
+  }
 
   return json({ success: true, profile: updatedProfile });
 });

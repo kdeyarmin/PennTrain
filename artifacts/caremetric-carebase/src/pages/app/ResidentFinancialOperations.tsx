@@ -37,6 +37,7 @@ import {
   type FinancialWorkspace,
   type ResidentAccountingExport,
 } from "@/hooks/useResidentFinancialOperations";
+import { csvEscape } from "@/lib/csv";
 import { toDateTimeLocal, toLocalIsoDate } from "@/lib/dateUtils";
 import {
   monthlyChargePreviews,
@@ -2506,12 +2507,11 @@ function downloadExport(item: ResidentAccountingExport) {
     type = "application/json";
   } else {
     const headers = rows.length ? Object.keys(rows[0]) : [];
-    const cell = (value: unknown) =>
-      `"${String(value ?? "").replace(/"/g, '""')}"`;
+    // csvEscape also neutralizes formula injection (leading = + - @) in payee/memo text.
     content = [
-      headers.map(cell).join(","),
+      headers.map(csvEscape).join(","),
       ...rows.map((row) =>
-        headers.map((header) => cell(row[header])).join(","),
+        headers.map((header) => csvEscape(row[header])).join(","),
       ),
     ].join("\n");
     type = "text/csv;charset=utf-8";

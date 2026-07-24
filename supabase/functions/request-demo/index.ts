@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 import { clientIp } from "../_shared/clientIp.ts";
 
 // Public, unauthenticated demo-request intake by design (requires verify_jwt:false for
@@ -99,8 +100,9 @@ Deno.serve(async (req: Request) => {
     turnstile_token?: string;
   };
   try {
-    body = await req.json();
-  } catch {
+    body = await readJsonBody(req);
+  } catch (error) {
+    if (error instanceof RequestBodyError) return json({ error: error.message }, error.status);
     return json({ error: "Invalid JSON body" }, 400);
   }
 

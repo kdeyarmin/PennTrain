@@ -8,6 +8,7 @@ import { useListResidents } from "@/hooks/useResidents";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { summarizeResidentComplianceAnalytics } from "@/lib/residentComplianceAnalytics";
 import { facilityTypeLabel, hasAnyFacilityType, PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
+import { csvEscape } from "@/lib/csv";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { formatTimestampLabel } from "@/lib/freshness";
 import { useAuth } from "@/lib/auth";
@@ -284,13 +285,7 @@ export default function OrgDashboard() {
       ]),
     ];
 
-    const escapeCsvValue = (value: unknown) => {
-      const raw = String(value);
-      const safe = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
-      return `"${safe.replaceAll('"', '""')}"`;
-    };
-
-    const csv = rows.map((row) => row.map(escapeCsvValue).join(",")).join("\n");
+    const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");

@@ -6,6 +6,7 @@ import {
   buildAuthEmailMessages,
 } from "../_shared/authEmail.ts";
 import { parseFromAddress } from "../_shared/notificationDelivery.ts";
+import { readTextBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 // Supabase Auth "Send Email" hook (Authentication -> Hooks in the dashboard): when enabled,
 // Supabase Auth calls this function instead of using SMTP/its default mailer for every
@@ -85,7 +86,15 @@ Deno.serve(async (req: Request) => {
     return errorResponse(500, "SEND_EMAIL_HOOK_SECRET is not set");
   }
 
-  const payload = await req.text();
+  let payload: string;
+  try {
+    // Auth hook payloads are small; cap well below abuse size while keeping headroom
+    // for long email_action_links.
+    payload = await readTextBody(req, 65_536);
+  } catch (error) {
+    if (error instanceof RequestBodyError) return errorResponse(error.status, error.message);
+    return errorResponse(400, "invalid body");
+  }
   const headers = Object.fromEntries(req.headers);
 
   let user: AuthEmailUser;

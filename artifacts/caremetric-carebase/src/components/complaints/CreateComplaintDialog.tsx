@@ -62,7 +62,13 @@ export function CreateComplaintDialog({ open, onOpenChange, organizationId }: {
   const close = (next: boolean) => {
     onOpenChange(next);
     if (!next) {
-      setDescription(""); setImmediateAction(""); setReportable([]); setName(""); setContact("");
+      // Reset EVERY field, not just the text ones -- a stale facility/category/risk/
+      // investigator carrying over to the next open risks filing a complaint against
+      // the wrong facility without the user noticing.
+      setFacilityId(""); setDateReceived(toDateTimeLocal()); setMethod("in_person");
+      setComplainantType("resident"); setName(""); setContact(""); setAnonymous(false);
+      setResidentId("none"); setCategory("service"); setDescription(""); setRisk("none");
+      setImmediateAction(""); setInvestigator(user?.id ?? "none"); setReportable([]);
     }
   };
   const submit = () => create.mutate({

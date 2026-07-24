@@ -22,6 +22,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { csvEscape } from "@/lib/csv";
 import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
 import { escapeOrValue } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -373,21 +374,9 @@ function defaultDateWindow(): { from: string; to: string } {
   return { from: toLocalIsoDate(from), to: toLocalIsoDate(to) };
 }
 
+// csvEscape also neutralizes formula injection (leading = + - @) for user-entered text.
 function toCsv(headers: string[], rows: string[][]): string {
-  const allRows = [headers, ...rows];
-  return allRows
-    .map((row) =>
-      row
-        .map((cell) => {
-          const str = String(cell ?? "");
-          if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-            return `"${str.replace(/"/g, '""')}"`;
-          }
-          return str;
-        })
-        .join(",")
-    )
-    .join("\n");
+  return [headers, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
 }
 
 function downloadCsv(csv: string, filename: string) {

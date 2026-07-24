@@ -240,11 +240,19 @@ Deno.serve(async (req: Request) => {
   if (incidentError) return json({ error: incidentError.message }, 500);
   if (!incident) return json({ error: "Incident not found" }, 404);
 
-  const [{ data: staff }, { data: notifications }, { data: correctiveActions }] = await Promise.all([
+  const [staffRes, notificationsRes, correctiveActionsRes] = await Promise.all([
     callerClient.from("incident_staff_involved").select("involvement_type, employees(first_name, last_name)").eq("incident_id", incidentId),
     callerClient.from("incident_notifications").select("notification_type, due_at, completed_at, status, notification_method, recipient, reference_number").eq("incident_id", incidentId),
     callerClient.from("corrective_actions").select("description, due_date, completed_date, status, owner_name").eq("incident_id", incidentId),
   ]);
+  // A failed related-record query must fail the request -- otherwise a transient error
+  // yields a "successful" PDF silently missing staff, notifications, or corrective
+  // actions, and that incomplete document reads as authoritative survey evidence.
+  const relatedError = staffRes.error ?? notificationsRes.error ?? correctiveActionsRes.error;
+  if (relatedError) return json({ error: relatedError.message }, 500);
+  const { data: staff } = staffRes;
+  const { data: notifications } = notificationsRes;
+  const { data: correctiveActions } = correctiveActionsRes;
 
   const organizationName = (incident.organizations as unknown as { name: string } | null)?.name ?? "";
   const facilityName = (incident.facilities as unknown as { name: string } | null)?.name ?? "";

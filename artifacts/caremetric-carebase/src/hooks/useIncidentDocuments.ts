@@ -49,7 +49,10 @@ export function useUploadIncidentDocument() {
         })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        await supabase.storage.from("incident-documents").remove([path]);
+        throw error;
+      }
       return data;
     },
     onSuccess: (_data, variables) => queryClient.invalidateQueries({ queryKey: ["incident_documents", variables.incidentId] }),

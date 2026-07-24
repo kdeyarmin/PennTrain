@@ -13,6 +13,7 @@ import { facilityTypeLabel } from "@/lib/facilityTypes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { QueryError } from "@/components/QueryState";
 import {
   Building2,
   ShieldCheck,
@@ -24,11 +25,16 @@ import {
 
 export default function RetrainingMonitor() {
   const { user } = useAuth();
-  const { data: facilities, isLoading: facilitiesLoading } = useListFacilities();
-  const { data: employees, isLoading: employeesLoading } = useListEmployees();
-  const { data: practicums, isLoading: practicumsLoading } = useListPracticums({
-    year: new Date().getFullYear(),
-  });
+  const facilitiesQuery = useListFacilities();
+  const employeesQuery = useListEmployees();
+  const practicumsQuery = useListPracticums({ year: new Date().getFullYear() });
+  const { data: facilities, isLoading: facilitiesLoading } = facilitiesQuery;
+  const { data: employees, isLoading: employeesLoading } = employeesQuery;
+  const { data: practicums, isLoading: practicumsLoading } = practicumsQuery;
+  // A failed fetch must not read as "No facilities found" or as a compliant
+  // facility list computed from empty employees/practicums.
+  const primaryQueries = [facilitiesQuery, employeesQuery, practicumsQuery];
+  const primaryError = primaryQueries.find((query) => query.isError);
 
   const hasOrgWideVisibility = !user?.role || ORG_WIDE_VISIBILITY_ROLES.has(user.role);
   const { data: myAssignments, isLoading: assignmentsLoading } = useListMyFacilityAssignments(
@@ -142,7 +148,13 @@ export default function RetrainingMonitor() {
         </Card>
       </div>
 
-      {isLoading ? (
+      {primaryError ? (
+        <QueryError
+          what="retraining compliance"
+          error={primaryError.error}
+          onRetry={() => primaryQueries.forEach((query) => void query.refetch())}
+        />
+      ) : isLoading ? (
         <div className="space-y-4">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="h-32 bg-muted animate-pulse rounded-xl" />

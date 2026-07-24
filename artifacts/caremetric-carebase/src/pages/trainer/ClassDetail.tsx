@@ -20,6 +20,7 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useGetDocument, useDocumentSignedUrl } from "@/hooks/useDocuments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { QueryError } from "@/components/QueryState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -221,8 +222,13 @@ export default function ClassDetail() {
   const { user } = useAuth();
   const classId = params?.id;
 
-  const { data: cls, isLoading } = useGetTrainingClass(classId);
-  const { data: attendees } = useListClassAttendees(classId);
+  const { data: cls, isLoading, isError, error, refetch } = useGetTrainingClass(classId);
+  const {
+    data: attendees,
+    isError: attendeesError,
+    error: attendeesErrorDetail,
+    refetch: refetchAttendees,
+  } = useListClassAttendees(classId);
   const { data: allEmployees } = useListEmployees();
   const { data: facilities } = useListFacilities();
   const { data: trainingTypes } = useListTrainingTypes();
@@ -422,9 +428,18 @@ export default function ClassDetail() {
         })
         .select()
         .single();
-      if (docError) throw docError;
+      if (docError) {
+        await supabase.storage.from("signin-sheets").remove([path]);
+        throw docError;
+      }
 
-      await updateTrainingClass.mutateAsync({ id: classId, roster_document_id: doc.id });
+      try {
+        await updateTrainingClass.mutateAsync({ id: classId, roster_document_id: doc.id });
+      } catch (linkError) {
+        await supabase.storage.from("signin-sheets").remove([path]);
+        await supabase.from("training_documents").delete().eq("id", doc.id);
+        throw linkError;
+      }
       toast({ title: "Roster uploaded" });
     } catch (err) {
       toast({
@@ -469,6 +484,10 @@ export default function ClassDetail() {
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
+  }
+
+  if (isError) {
+    return <QueryError what="this class" error={error} onRetry={() => void refetch()} />;
   }
 
   if (!cls) {
@@ -700,7 +719,11 @@ export default function ClassDetail() {
           </div>
         </CardHeader>
         <CardContent>
-          {allAttendees.length === 0 ? (
+          {/* A failed roster fetch must not read as an empty roster -- a trainer
+              could otherwise complete the class thinking nobody attended. */}
+          {attendeesError ? (
+            <QueryError what="the class roster" error={attendeesErrorDetail} onRetry={() => void refetchAttendees()} />
+          ) : allAttendees.length === 0 ? (
             <div className="text-center py-8">
               <Users className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
               <p className="text-muted-foreground text-sm mb-3">

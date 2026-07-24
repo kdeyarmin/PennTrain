@@ -14,6 +14,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryState";
 import { ArrowLeft, ArrowUp, ArrowDown, ListChecks, Pencil, Plus, Trash2, Lock } from "lucide-react";
 import {
   useGetQuiz, useUpdateQuiz,
@@ -269,7 +270,7 @@ export default function QuizBuilder() {
 
   const canManage = user?.role === "platform_admin";
 
-  const { data: quiz, isLoading: quizLoading } = useGetQuiz(quizId);
+  const { data: quiz, isLoading: quizLoading, isError: quizError, error: quizErr, refetch: refetchQuiz } = useGetQuiz(quizId);
   const { data: courseBlock } = useGetCourseBlock(quiz?.course_block_id);
   const { data: courseVersion } = useGetCourseVersion(courseBlock?.course_version_id);
   const { data: course } = useGetCourse(courseVersion?.course_id);
@@ -427,6 +428,10 @@ export default function QuizBuilder() {
         <Skeleton className="h-64" />
       </div>
     );
+  }
+
+  if (quizError) {
+    return <QueryError what="this quiz" error={quizErr} onRetry={() => void refetchQuiz()} />;
   }
 
   if (!quiz) {

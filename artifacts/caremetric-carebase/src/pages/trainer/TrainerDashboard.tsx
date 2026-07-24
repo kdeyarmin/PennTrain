@@ -14,6 +14,7 @@ import { todayIso } from "@/lib/scheduleDates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { QueryError } from "@/components/QueryState";
 import {
   GraduationCap,
   Users,
@@ -30,13 +31,19 @@ import { Link } from "wouter";
 export default function TrainerDashboard() {
   const { user } = useAuth();
 
-  const { data: facilities } = useListFacilities();
-  const { data: employees } = useListEmployees();
-  const { data: classes } = useListTrainingClasses();
+  const facilitiesQuery = useListFacilities();
+  const employeesQuery = useListEmployees();
+  const classesQuery = useListTrainingClasses();
+  const practicumsQuery = useListPracticums({ year: new Date().getFullYear() });
+  const { data: facilities } = facilitiesQuery;
+  const { data: employees } = employeesQuery;
+  const { data: classes } = classesQuery;
   const { data: attendeeCounts } = useClassAttendeeCounts();
-  const { data: practicums, isLoading: practicumsLoading } = useListPracticums({
-    year: new Date().getFullYear(),
-  });
+  const { data: practicums, isLoading: practicumsLoading } = practicumsQuery;
+  // Every widget on this page derives from these four queries; a failed fetch
+  // must not render as "0 classes / all facilities compliant".
+  const primaryQueries = [facilitiesQuery, employeesQuery, classesQuery, practicumsQuery];
+  const primaryError = primaryQueries.find((query) => query.isError);
 
   const hasOrgWideVisibility = !user?.role || ORG_WIDE_VISIBILITY_ROLES.has(user.role);
   const { data: myAssignments } = useListMyFacilityAssignments(user?.id, !hasOrgWideVisibility);
@@ -91,6 +98,15 @@ export default function TrainerDashboard() {
         </Link>
       </div>
 
+      {primaryError && (
+        <QueryError
+          what="the training dashboard"
+          error={primaryError.error}
+          onRetry={() => primaryQueries.forEach((query) => void query.refetch())}
+        />
+      )}
+      {!primaryError && (
+      <>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
@@ -299,6 +315,8 @@ export default function TrainerDashboard() {
           </CardContent>
         </Card>
       </div>
+      </>
+      )}
     </div>
   );
 }

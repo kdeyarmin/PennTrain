@@ -187,7 +187,7 @@ function evaluateEvidence(obligation: RegulatoryObligation, input: CrosswalkEvid
     const incidents = input.incidents ?? [];
     const actions = input.correctiveActions ?? [];
     const incidentGaps = incidents.filter((incident) => !statusIs(incident.status, ["closed", "resolved"]) || !incident.final_report_submitted_at);
-    const actionGaps = actions.filter((action) => !statusIs(action.status, ["completed", "closed"]) && isOverdue(action.due_date, today));
+    const actionGaps = actions.filter((action) => !statusIs(action.status, ["completed", "cancelled"]) && isOverdue(action.due_date, today));
     return summarize(incidents.length + actions.length, incidentGaps.length + actionGaps.length, dueDates(actions), today);
   }
   if (obligation.evidenceSource === "physical_site") {
@@ -196,7 +196,11 @@ function evaluateEvidence(obligation: RegulatoryObligation, input: CrosswalkEvid
       ...(input.violations ?? []).map((violation) => ({ status: violation.status })),
       ...(input.correctiveActions ?? []),
     ];
-    const gaps = records.filter((record) => statusIs(record.status, ["missing", "expired", "due_soon", "open", "draft", "in_progress"]) || isOverdue(recordDate(record), today));
+    // Completed/cancelled corrective actions keep their past due_date forever;
+    // they must not register as permanent physical-site gaps via the overdue check.
+    const gaps = records.filter((record) =>
+      statusIs(record.status, ["missing", "expired", "due_soon", "open", "draft", "in_progress"])
+      || (!statusIs(record.status, ["completed", "cancelled"]) && isOverdue(recordDate(record), today)));
     return summarize(records.length, gaps.length, dueDates(records), today);
   }
   if (obligation.evidenceSource === "policy") {

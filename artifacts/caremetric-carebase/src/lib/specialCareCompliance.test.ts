@@ -25,4 +25,30 @@ describe("special care compliance", () => {
     expect(summary.staffingGapCount).toBe(1);
     expect(summary.status).toBe("needs_attention");
   });
+
+  it("is not inspection-ready when SDCU residents have no assigned staff at all", () => {
+    const summary = buildSpecialCareComplianceSummary({
+      units: [{ id: "u1", name: "Memory Care Wing", is_active: true }],
+      residents: [{ id: "r1", sdcu: true, status: "active" }],
+      schedulePreferences: [],
+      trainingTypes: [{ id: "t1", name: "Dementia Care Training", code: "DEMENTIA" }],
+      trainingRecords: [],
+    });
+
+    expect(summary.assignedStaffCount).toBe(0);
+    expect(summary.staffingGapCount).toBe(0);
+    expect(summary.status).toBe("needs_attention");
+  });
+
+  it("stays inspection-ready for a designated unit with no residents or staff yet", () => {
+    const summary = buildSpecialCareComplianceSummary({
+      units: [{ id: "u1", name: "Memory Care Wing", is_active: true }],
+      residents: [],
+      schedulePreferences: [],
+      trainingTypes: [{ id: "t1", name: "Dementia Care Training", code: "DEMENTIA" }],
+      trainingRecords: [],
+    });
+
+    expect(summary.status).toBe("inspection_ready");
+  });
 });

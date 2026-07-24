@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { ArrowLeft, ClipboardCheck, Upload, FileText, Megaphone, Plus, Search, ChevronDown, ChevronRight } from "lucide-react";
 import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { QueryError } from "@/components/QueryState";
 
 function fmtDate(iso: string | null | undefined): string {
   return formatDateForDisplay(iso, { dateStyle: "medium" });
@@ -403,7 +404,7 @@ function CampaignsTab({ documentId, currentVersionId }: { documentId: string; cu
 
 export default function PolicyDocumentDetail() {
   const { id } = useParams<{ id: string }>();
-  const { data: document, isLoading } = useGetPolicyDocument(id);
+  const { data: document, isLoading, isError, error, refetch } = useGetPolicyDocument(id);
   const { data: versions } = useListPolicyDocumentVersions(id);
   const { data: campaigns } = useListPolicyAttestationCampaigns({ policyDocumentId: id });
   const { data: attestations } = useListPolicyAttestations({});
@@ -417,11 +418,23 @@ export default function PolicyDocumentDetail() {
     today: toLocalIsoDate(),
   }), [document?.current_version_id, versions, campaigns, attestations, campaignIds]);
 
-  if (isLoading || !document) {
+  if (isLoading) {
     return (
       <div className="space-y-4">
         <div className="h-8 w-64 bg-muted animate-pulse rounded" />
         <div className="h-40 bg-muted animate-pulse rounded" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return <QueryError what="this policy document" error={error} onRetry={() => void refetch()} />;
+  }
+
+  if (!document) {
+    return (
+      <div className="py-16 text-center text-muted-foreground">
+        Policy document not found.
       </div>
     );
   }

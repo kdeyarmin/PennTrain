@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Building2, Search, ChevronRight, Plus, Download } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { csvEscape } from "@/lib/csv";
 import { humanize } from "@/lib/utils";
 
 // Every subscription_status the organizations table's check constraint allows (see
@@ -28,21 +29,9 @@ const ORGANIZATIONS_URL_DEFAULTS = {
   status: "all",
 };
 
+// csvEscape also neutralizes formula injection (leading = + - @) for user-entered text.
 function toCsv(headers: string[], rows: string[][]): string {
-  const allRows = [headers, ...rows];
-  return allRows
-    .map((row) =>
-      row
-        .map((cell) => {
-          const str = String(cell ?? "");
-          if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-            return `"${str.replace(/"/g, '""')}"`;
-          }
-          return str;
-        })
-        .join(",")
-    )
-    .join("\n");
+  return [headers, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
 }
 
 function downloadCsv(csv: string, filename: string) {

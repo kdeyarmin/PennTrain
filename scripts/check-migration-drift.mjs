@@ -347,6 +347,10 @@ async function run() {
     return;
   }
 
+  // Always validate local migration filenames next so duplicate versions and
+  // malformed names fail without requiring network credentials.
+  const local = await localMigrations();
+
   const token = process.env.SUPABASE_ACCESS_TOKEN;
   if (!token) {
     console.error(
@@ -358,7 +362,6 @@ async function run() {
   }
 
   const projectRef = await resolveProjectRef();
-  const local = await localMigrations();
   const remote = await remoteMigrations(projectRef, token);
   const allowlist = await loadContentAllowlist();
 

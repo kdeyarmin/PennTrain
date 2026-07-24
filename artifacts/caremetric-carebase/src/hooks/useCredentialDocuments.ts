@@ -58,7 +58,10 @@ export function useUploadCredentialDocument() {
         })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        await supabase.storage.from("credential-documents").remove([path]);
+        throw error;
+      }
       return data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["credential_documents"] }),

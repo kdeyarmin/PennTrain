@@ -16,6 +16,7 @@ import { useListCitationTopics } from "@/hooks/useCitationTopics";
 import { useListCourses } from "@/hooks/useCourses";
 import { StatusPill } from "./Violations";
 import { CorrectiveActionForm, CorrectiveActionStatusBadge } from "@/components/CorrectiveActionForm";
+import { QueryError } from "@/components/QueryState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,7 +52,7 @@ export default function ViolationDetail() {
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
 
-  const { data: violation, isLoading } = useGetViolation(id);
+  const { data: violation, isLoading, isError, error, refetch } = useGetViolation(id);
   usePageTitle(violation?.citation_ref ?? undefined);
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees();
@@ -143,6 +144,10 @@ export default function ViolationDetail() {
         <Skeleton className="h-40" />
       </div>
     );
+  }
+
+  if (isError) {
+    return <QueryError what="this violation" error={error} onRetry={() => void refetch()} />;
   }
 
   if (!violation) {

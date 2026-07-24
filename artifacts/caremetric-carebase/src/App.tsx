@@ -268,8 +268,11 @@ function ProtectedRoute({
     }
     // Only redirect on a confirmed non-match -- a query error isn't "confirmed no", and should
     // fail open (render the page) rather than silently bounce the user away with no explanation.
+    // platform_admin always passes (useVisibleFacilityTypes returns every type).
     if (!facilityTypesError && !hasAnyFacilityType(facilityTypes, requireFacilityTypes)) {
       if (user.role === "trainer") return <Redirect to="/trainer" />;
+      if (user.role === "employee") return <Redirect to="/me" />;
+      if (user.role === "platform_admin") return <Redirect to="/admin" />;
       return <Redirect to="/app" />;
     }
   }

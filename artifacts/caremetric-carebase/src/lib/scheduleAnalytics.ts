@@ -57,7 +57,8 @@ export function summarizeScheduleAnalytics({
   dates: string[];
   unitIds: string[];
 }): ScheduleAnalyticsSummary {
-  const activeAssignments = assignments.filter((a) => a.status !== "called_off");
+  // Match staffing-ratio logic: called_off and no_show do not staff a unit or count as hours.
+  const activeAssignments = assignments.filter((a) => a.status !== "called_off" && a.status !== "no_show");
   const hoursByEmployee = new Map<string, { name: string; hours: number }>();
   let scheduledHours = 0;
   let autoFilledShifts = 0;
@@ -65,11 +66,12 @@ export function summarizeScheduleAnalytics({
   let exceptionShifts = 0;
 
   for (const assignment of assignments) {
-    const hours = assignment.status === "called_off" ? 0 : shiftDurationHours(assignment.start_time, assignment.end_time);
+    const isException = assignment.status === "called_off" || assignment.status === "no_show";
+    const hours = isException ? 0 : shiftDurationHours(assignment.start_time, assignment.end_time);
     scheduledHours += hours;
     if (assignment.source === "auto_fill") autoFilledShifts += 1;
     else manualShifts += 1;
-    if (assignment.status === "called_off" || assignment.status === "no_show") exceptionShifts += 1;
+    if (isException) exceptionShifts += 1;
 
     const existing = hoursByEmployee.get(assignment.employee_id) ?? {
       name: assignment.employees ? `${assignment.employees.first_name} ${assignment.employees.last_name}` : "Unknown employee",

@@ -36,9 +36,13 @@ export interface MedicationSafetySummary {
 
 const CLOSED = new Set(["closed", "resolved", "completed"]);
 
-export function classifyMedicationEvent(incidentType: string | null | undefined): MedicationEventType {
+// Returns null for incidents that are not medication-related at all, and
+// "other" for medication incidents without a recognizable subtype -- notably
+// the canonical `medication_error` incident type, which must still be counted
+// in the safety summary rather than dropped.
+export function classifyMedicationEvent(incidentType: string | null | undefined): MedicationEventType | null {
   const value = (incidentType ?? "").toLowerCase();
-  if (!/(med|medication|drug|dose|mar|insulin|refusal|adverse|near miss)/.test(value)) return "other";
+  if (!/(med|medication|drug|dose|mar|insulin|refusal|adverse|near miss)/.test(value)) return null;
   if (/near miss/.test(value)) return "near_miss";
   if (/refusal/.test(value)) return "refusal";
   if (/adverse|reaction/.test(value)) return "adverse_reaction";
@@ -52,7 +56,7 @@ export function classifyMedicationEvent(incidentType: string | null | undefined)
 }
 
 export function buildMedicationSafetySummary({ incidents, correctiveActions, today }: { incidents: MedicationIncidentLike[]; correctiveActions: MedicationCorrectiveActionLike[]; today: string }): MedicationSafetySummary {
-  const medIncidents = incidents.filter((incident) => classifyMedicationEvent(incident.incident_type) !== "other");
+  const medIncidents = incidents.filter((incident) => classifyMedicationEvent(incident.incident_type) !== null);
   const actionsByIncident = new Map<string, MedicationCorrectiveActionLike[]>();
   for (const action of correctiveActions) {
     if (!action.incident_id) continue;
@@ -67,7 +71,7 @@ export function buildMedicationSafetySummary({ incidents, correctiveActions, tod
   } satisfies Record<MedicationEventType, number>;
 
   const events = medIncidents.map((incident) => {
-    const eventType = classifyMedicationEvent(incident.incident_type);
+    const eventType = classifyMedicationEvent(incident.incident_type) ?? "other";
     byType[eventType] += 1;
     const actions = actionsByIncident.get(incident.id) ?? [];
     const isClosed = CLOSED.has(incident.status ?? "") && Boolean(incident.final_report_submitted_at);

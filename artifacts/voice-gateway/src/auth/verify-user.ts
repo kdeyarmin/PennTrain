@@ -43,7 +43,13 @@ export async function verifyAppUser(
   if (!userRes.ok) {
     return { ok: false, failure: { status: 401, code: "invalid_token" } };
   }
-  const user = (await userRes.json()) as { id?: unknown };
+  let user: { id?: unknown };
+  try {
+    user = (await userRes.json()) as { id?: unknown };
+  } catch {
+    // A 200 with a malformed body is an auth-service anomaly, not a bad token.
+    return { ok: false, failure: { status: 502, code: "auth_unreachable" } };
+  }
   if (typeof user.id !== "string" || !user.id) {
     return { ok: false, failure: { status: 401, code: "invalid_token" } };
   }
@@ -62,10 +68,12 @@ export async function verifyAppUser(
   if (!profileRes.ok) {
     return { ok: false, failure: { status: 403, code: "no_profile" } };
   }
-  const profile = (await profileRes.json()) as {
-    role?: unknown;
-    is_active?: unknown;
-  };
+  let profile: { role?: unknown; is_active?: unknown };
+  try {
+    profile = (await profileRes.json()) as { role?: unknown; is_active?: unknown };
+  } catch {
+    return { ok: false, failure: { status: 502, code: "auth_unreachable" } };
+  }
   if (
     profile.is_active !== true ||
     typeof profile.role !== "string" ||

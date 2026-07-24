@@ -140,7 +140,10 @@ export function useUploadDocument() {
         })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        await supabase.storage.from(bucket).remove([path]);
+        throw error;
+      }
       return data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["documents"] }),

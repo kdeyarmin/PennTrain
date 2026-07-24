@@ -218,11 +218,11 @@ export type CreateCompetencyRecordPayload = CompetencyRecordInsert & {
 //
 // IMPORTANT: this is NOT a database transaction. PostgREST issues these as
 // two separate HTTP requests, so if step 2 fails, step 1's row is NOT rolled
-// back -- the record row will exist with zero items. To make that failure
-// mode visible instead of silently swallowing it, the items-insert error is
-// re-thrown as a new Error whose message calls out that the header saved and
-// includes the record's id, so a caller/toast can tell the user "the record
-// saved, but items didn't" rather than reporting total failure.
+// back automatically. A zero-item record reads like a finished evaluation in
+// Competency Records, so on items failure we delete the just-created header
+// (same compensating-rollback pattern as the storage-upload hooks) and report
+// a clean failure the evaluator can simply retry. If even the rollback fails,
+// the error message calls out the orphaned record id so it can be repaired.
 // ---------------------------------------------------------------------------
 export function useCreateCompetencyRecord() {
   const queryClient = useQueryClient();
@@ -244,9 +244,13 @@ export function useCreateCompetencyRecord() {
         }));
         const { error: itemsError } = await supabase.from("competency_record_items").insert(itemRows);
         if (itemsError) {
-          throw new Error(
-            `The competency record was saved, but its checklist items failed to save: ${itemsError.message}. Record id: ${record.id}.`,
-          );
+          const { error: rollbackError } = await supabase.from("competency_records").delete().eq("id", record.id);
+          if (rollbackError) {
+            throw new Error(
+              `The competency record was saved, but its checklist items failed to save: ${itemsError.message}. Record id: ${record.id}.`,
+            );
+          }
+          throw new Error(`The checklist items failed to save, so the record was not created: ${itemsError.message}. Please try again.`);
         }
       }
 

@@ -20,7 +20,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { GraduationCap, FileCheck2, Send, Upload, Trash2, Download } from "lucide-react";
 import { buildAdministratorRulePack, summarizeAdministratorRulePack } from "@/lib/administratorRulePacks";
 import { toLocalIsoDate } from "@/lib/dateUtils";
-import type { FacilityType } from "@/lib/facilityTypes";
+import { facilityTypeLabel, type FacilityType } from "@/lib/facilityTypes";
+import { supabase } from "@/lib/supabase";
 
 const CE_SOURCE_OPTIONS = ["In-Service", "Conference", "Webinar", "Online Course", "Other"];
 const ROLLING_WINDOW_HOURS_REQUIRED = 24;
@@ -33,7 +34,7 @@ function fmtDate(iso: string | null | undefined): string {
 
 function DocumentUploadRow({
   label, path, organizationId, profileId, onUploaded,
-}: { label: string; path: string | null; organizationId: string; profileId: string; onUploaded: (path: string) => void }) {
+}: { label: string; path: string | null; organizationId: string; profileId: string; onUploaded: (path: string) => void | Promise<void> }) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const upload = useUploadAdministratorDocument();
@@ -42,11 +43,15 @@ function DocumentUploadRow({
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    let newPath: string | null = null;
     try {
-      const newPath = await upload.mutateAsync({ file, organizationId, profileId });
-      onUploaded(newPath);
+      newPath = await upload.mutateAsync({ file, organizationId, profileId });
+      await onUploaded(newPath);
       toast({ title: "Document uploaded" });
     } catch (err) {
+      if (newPath) {
+        await supabase.storage.from("administrator-documents").remove([newPath]);
+      }
       toast({ variant: "destructive", title: "Upload failed", description: err instanceof Error ? err.message : String(err) });
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -112,7 +117,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
   );
   const administratorRuleSummary = useMemo(() => summarizeAdministratorRulePack(administratorRulePack), [administratorRulePack]);
 
-  const save = async (patch: Partial<AdministratorProfile>) => {
+  const save = async (patch: Partial<AdministratorProfile>, options?: { rethrow?: boolean }) => {
     try {
       await upsertProfile({
         organization_id: organizationId,
@@ -134,6 +139,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
       toast({ title: "Saved" });
     } catch (e) {
       toast({ variant: "destructive", title: "Couldn't save", description: e instanceof Error ? e.message : String(e) });
+      if (options?.rethrow) throw e;
     }
   };
 
@@ -176,7 +182,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
             <Select value={facilityTypePreview} onValueChange={(v) => setFacilityTypePreview(v as FacilityType)}>
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {facilityTypeOptions.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+                {facilityTypeOptions.map((type) => <SelectItem key={type} value={type}>{facilityTypeLabel(type)}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -239,7 +245,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
                   path={profile.hundred_hour_course_document_path}
                   organizationId={organizationId}
                   profileId={profileId}
-                  onUploaded={(path) => save({ hundred_hour_course_document_path: path })}
+                  onUploaded={(path) => save({ hundred_hour_course_document_path: path }, { rethrow: true })}
                 />
               </div>
             </div>
@@ -285,7 +291,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
             path={profile?.regional_office_verification_document_path ?? null}
             organizationId={organizationId}
             profileId={profileId}
-            onUploaded={(path) => save({ regional_office_verification_document_path: path })}
+            onUploaded={(path) => save({ regional_office_verification_document_path: path }, { rethrow: true })}
           />
         </CardContent>
       </Card>

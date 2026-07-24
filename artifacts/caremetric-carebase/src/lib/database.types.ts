@@ -34814,6 +34814,10 @@ export type Database = {
         Args: { p_entry_id: string; p_resolution_note: string }
         Returns: boolean
       }
+      resolve_stale_compliance_alerts: {
+        Args: { p_organization_id?: string }
+        Returns: undefined
+      }
       respond_resident_portal_schedule_event: {
         Args: {
           p_calendar_event_id: string

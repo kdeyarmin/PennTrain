@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryState";
 import { ArrowLeft, Flame, ClipboardList, Plus, Check, Printer, AlertTriangle, ShieldAlert, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -102,7 +103,7 @@ export default function InspectionItemDetail() {
   // link shown to either would be a dead end too.
   const canViewViolation = ["org_admin", "facility_manager", "auditor"].includes(user?.role ?? "");
 
-  const { data: item, isLoading } = useGetInspectionItem(id);
+  const { data: item, isLoading, isError, error, refetch } = useGetInspectionItem(id);
   const { data: facilities } = useListFacilities();
   const { data: events, isLoading: eventsLoading } = useListInspectionEvents(id);
   const { data: workOrders } = useListWorkOrders({ inspectionItemId: id });
@@ -210,6 +211,10 @@ export default function InspectionItemDetail() {
         <Skeleton className="h-40" />
       </div>
     );
+  }
+
+  if (isError) {
+    return <QueryError what="this inspection item" error={error} onRetry={() => void refetch()} />;
   }
 
   if (!item) {

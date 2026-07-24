@@ -43,6 +43,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { QueryError } from "@/components/QueryState";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -147,9 +148,21 @@ export default function TakeCourse() {
   const backLabel = isEmployeeRole ? "Back to My Training Records" : "Back to My Training";
 
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
-  const { data: assignment, isLoading: assignmentLoading } = useGetCourseAssignment(assignmentId);
+  const {
+    data: assignment,
+    isLoading: assignmentLoading,
+    isError: assignmentError,
+    error: assignmentErrorDetail,
+    refetch: refetchAssignment,
+  } = useGetCourseAssignment(assignmentId);
   const { data: course } = useGetCourse(assignment?.course_id);
-  const { data: blocks, isLoading: blocksLoading } = useListCourseBlocks(assignment?.course_version_id);
+  const {
+    data: blocks,
+    isLoading: blocksLoading,
+    isError: blocksError,
+    error: blocksErrorDetail,
+    refetch: refetchBlocks,
+  } = useListCourseBlocks(assignment?.course_version_id);
   const { data: progress, isLoading: progressLoading } = useGetCourseProgress(assignmentId);
   const { data: quizAttempts } = useListQuizAttempts({ assignmentId });
   const ownsAssignment = !!assignment && !!employee && assignment.employee_id === employee.id;
@@ -605,6 +618,18 @@ useEffect(() => {
     );
   }
 
+  // A failed fetch must not be presented as a missing assignment.
+  if (assignmentError) {
+    return (
+      <div className="space-y-4">
+        <Button asChild variant="ghost" size="sm">
+          <Link href={backHref}><ArrowLeft className="mr-2 h-4 w-4" /> {backLabel}</Link>
+        </Button>
+        <QueryError what="this training assignment" error={assignmentErrorDetail} onRetry={() => void refetchAssignment()} />
+      </div>
+    );
+  }
+
   if (!employee || !assignment || assignment.employee_id !== employee.id) {
     return (
       <div className="text-center py-12">
@@ -646,6 +671,8 @@ useEffect(() => {
         <div className="space-y-2">
           {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded" />)}
         </div>
+      ) : blocksError ? (
+        <QueryError what="the course content" error={blocksErrorDetail} onRetry={() => void refetchBlocks()} />
       ) : !blocks || blocks.length === 0 ? (
         <Card>
           <CardContent className="py-8">

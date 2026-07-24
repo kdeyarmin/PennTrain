@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { AlertTriangle, CheckCircle2, Download, ExternalLink, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { csvEscape } from "@/lib/csv";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { buildRegulatoryCrosswalkRows, filterRegulatoryCrosswalkRows, type CrosswalkEvidenceSource, type CrosswalkStatus, type FacilityProgram } from "@/lib/regulatoryCrosswalk";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -101,7 +102,7 @@ export default function RegulatoryCrosswalk() {
       row.nextDueDate ?? "",
       row.binderLocation,
       row.route,
-    ])].map((line) => line.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n");
+    ])].map((line) => line.map(csvEscape).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");

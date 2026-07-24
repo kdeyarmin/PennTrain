@@ -459,19 +459,26 @@ Deno.serve(async (req: Request) => {
         setOutcome(item.subscription_id, "failed", "local_quantity_persistence_failed");
         return;
       }
-      const subscriptionPersistence = await admin.from("billing_subscriptions")
-        .update({ seat_quantity: quantity })
-        .eq("id", item.subscription_id)
-        .select("id");
-      if (subscriptionPersistence.error || (subscriptionPersistence.data ?? []).length === 0) {
-        failed++;
-        await admin.from("billing_provider_operations").update({
-          status: providerSucceeded ? "provider_succeeded" : "failed",
-          error_code: "subscription_quantity_persistence_failed",
-          updated_at: nowIso(),
-        }).eq("id", operationData.id);
-        setOutcome(item.subscription_id, "failed", "subscription_quantity_persistence_failed");
-        return;
+      // billing_subscriptions.seat_quantity means PURCHASED SEATS (people): entitlement
+      // seat caps and get_billing_reconciliation's purchasedSeats/seatLimitExceeded
+      // compare it against active profile counts. Only seat-denominated items may write
+      // it -- syncing a facility- or resident-metered item's quantity here would corrupt
+      // seat reconciliation (e.g. flag "seat limit exceeded" for an org with 3 buildings).
+      if (price.billing_metric === "active_learner" || price.billing_metric === "active_user") {
+        const subscriptionPersistence = await admin.from("billing_subscriptions")
+          .update({ seat_quantity: quantity })
+          .eq("id", item.subscription_id)
+          .select("id");
+        if (subscriptionPersistence.error || (subscriptionPersistence.data ?? []).length === 0) {
+          failed++;
+          await admin.from("billing_provider_operations").update({
+            status: providerSucceeded ? "provider_succeeded" : "failed",
+            error_code: "subscription_quantity_persistence_failed",
+            updated_at: nowIso(),
+          }).eq("id", operationData.id);
+          setOutcome(item.subscription_id, "failed", "subscription_quantity_persistence_failed");
+          return;
+        }
       }
       await admin.from("billing_provider_operations").update({
         status: "local_succeeded",

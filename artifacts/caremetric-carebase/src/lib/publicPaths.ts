@@ -96,8 +96,17 @@ export function isPublicPath(path: string): boolean {
     p === "/reset-password" ||
     p === "/report-safety" ||
     p === "/resident-portal" ||
+    // Anonymous guest-token portals: consumePublicAccessToken() stashes the token
+    // and immediately rewrites the URL to the BARE clean path, so both forms must
+    // be public -- with only the tokenized form listed, the auth guard bounced
+    // every guest to /login the instant the URL was scrubbed. (/checkin is
+    // deliberately absent: check-in requires a signed-in account, and its token
+    // survives the login round-trip in sessionStorage.)
+    p === "/evidence-access" ||
     p.startsWith("/evidence-access/") ||
+    p === "/move-in-access" ||
     p.startsWith("/move-in-access/") ||
+    p === "/resident-agreement-access" ||
     p.startsWith("/resident-agreement-access/") ||
     p.startsWith("/verify/") ||
     p.startsWith("/passport/") ||

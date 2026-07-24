@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryState";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -67,7 +68,7 @@ export default function ResidentDetail() {
     ? { href: "/admin/alerts", label: "Alerts" }
     : { href: residentPathPrefix, label: "Residents" };
 
-  const { data: resident, isLoading } = useGetResident(id);
+  const { data: resident, isLoading, isError, error, refetch } = useGetResident(id);
   usePageTitle(resident ? `${resident.last_name}, ${resident.first_name}` : undefined);
   const { data: facilities } = useListFacilities();
   const { data: items, isLoading: itemsLoading } = useListResidentComplianceItems(id);
@@ -252,6 +253,10 @@ export default function ResidentDetail() {
         <Skeleton className="h-40" />
       </div>
     );
+  }
+
+  if (isError) {
+    return <QueryError what="this resident" error={error} onRetry={() => void refetch()} />;
   }
 
   if (!resident) {

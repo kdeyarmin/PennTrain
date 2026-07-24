@@ -28,6 +28,22 @@ describe("schedule analytics", () => {
     });
   });
 
+  it("excludes no_show shifts from coverage and scheduled hours", () => {
+    const assignments = [
+      { employee_id: "e1", shift_date: "2026-07-10", start_time: "08:00", end_time: "16:00", status: "scheduled", source: "manual", unit_id: "u1", employees: { first_name: "Ava", last_name: "Aide" } },
+      { employee_id: "e2", shift_date: "2026-07-10", start_time: "08:00", end_time: "16:00", status: "no_show", source: "manual", unit_id: "u2", employees: { first_name: "Bo", last_name: "Aide" } },
+      { employee_id: "e1", shift_date: "2026-07-11", start_time: "08:00", end_time: "16:00", status: "called_off", source: "manual", unit_id: "u1", employees: { first_name: "Ava", last_name: "Aide" } },
+    ];
+
+    expect(summarizeScheduleAnalytics({ assignments, dates: ["2026-07-10", "2026-07-11"], unitIds: ["u1", "u2"] })).toMatchObject({
+      totalShifts: 3,
+      scheduledHours: 8,
+      exceptionShifts: 2,
+      unitDayCoverageGaps: 3,
+      employeesOver40Hours: [],
+    });
+  });
+
   it("calculates PPD and minimum staffing warnings from resident count", () => {
     const assignments = [
       { employee_id: "e1", shift_date: "2026-07-10", start_time: "08:00", end_time: "16:00", status: "scheduled", source: "manual", unit_id: "u1" },

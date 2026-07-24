@@ -68,7 +68,10 @@ export function useUploadResidentDocument() {
         })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        await supabase.storage.from("resident-documents").remove([path]);
+        throw error;
+      }
       return data;
     },
     onSuccess: (_data, variables) => queryClient.invalidateQueries({ queryKey: ["resident_documents", variables.residentId] }),
