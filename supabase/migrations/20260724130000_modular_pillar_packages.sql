@@ -268,6 +268,12 @@ begin
       ('evidence_guest_access_events', 'modules.compliance'),
       ('evidence_guest_comments', 'modules.compliance'),
       ('evidence_guest_grants', 'modules.compliance'),
+      -- Incident reporting is a DHS-reportable compliance surface and feeds inspection readiness, so
+      -- the incident registry is Compliance. Confidential incidents stay CareBase. Care Operations
+      -- pages keep access because the CareBase bundle includes Compliance.
+      ('incidents', 'modules.compliance'),
+      ('incident_notifications', 'modules.compliance'),
+      ('incident_staff_involved', 'modules.compliance'),
       ('inspection_events', 'modules.compliance'),
       ('inspection_items', 'modules.compliance'),
       ('inspection_war_room_requests', 'modules.compliance'),

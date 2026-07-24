@@ -1,5 +1,5 @@
 begin;
-select plan(52);
+select plan(53);
 
 select results_eq(
   $$ select feature_key from public.feature_definitions where feature_key like 'modules.%' order by feature_key $$,
@@ -180,8 +180,13 @@ select is(
 );
 select is(
   (select module_key from app_private.product_module_resources where resource_name = 'incidents'),
+  'modules.compliance',
+  'incident reporting data belongs to CareMetric Compliance'
+);
+select is(
+  (select module_key from app_private.product_module_resources where resource_name = 'work_orders'),
   'modules.carebase',
-  'incident data remains CareMetric Care Operations'
+  'maintenance work orders remain CareMetric Care Operations'
 );
 select is(
   (select features -> 'modules.compliance' from public.packages where name = 'CareMetric Essentials'),
@@ -240,9 +245,9 @@ select is(
   'the shared-core resident directory carries no module entitlement policy'
 );
 select is(
-  (select permissive from pg_policies where schemaname = 'public' and tablename = 'incidents' and policyname = 'product_module_entitlement'),
+  (select permissive from pg_policies where schemaname = 'public' and tablename = 'work_orders' and policyname = 'product_module_entitlement'),
   'RESTRICTIVE',
-  'Care operations data composes module access with existing incident RLS'
+  'Care operations data composes module access with existing work-order RLS'
 );
 select is(
   (select permissive from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'product_module_entitlement'),

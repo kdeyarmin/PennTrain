@@ -20,7 +20,7 @@ export const PRODUCT_MODULES = [
     entitlementKey: "modules.compliance",
     name: "CareMetric Compliance",
     shortName: "Compliance",
-    description: "Inspection readiness, survey day, violations, complaints, state forms, evidence, QAPI, and policies.",
+    description: "Inspection readiness, survey day, violations, complaints, incident reporting, state forms, evidence, QAPI, and policies.",
   },
   {
     id: "billing",
@@ -115,6 +115,7 @@ const WORKFORCE_PATHS = [
   "/app/exclusion-screening",
   "/app/administrator-qualification",
   "/app/practicums",
+  "/app/med-admin-roster",
   "/app/schedule",
   "/app/shift-handoffs",
   "/app/shift-log",
