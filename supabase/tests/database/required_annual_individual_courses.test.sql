@@ -84,6 +84,11 @@ select results_eq(
     where c.organization_id is null
       and c.catalog_code is not null
       and (
+        c.catalog_code like 'PA-DHS-%'
+        or c.catalog_code like 'PA-PCH-%'
+        or c.catalog_code like 'PA-ALR-%'
+      )
+      and (
         c.status <> 'published'
         or c.current_version_id is null
         or cv.status is distinct from 'published'

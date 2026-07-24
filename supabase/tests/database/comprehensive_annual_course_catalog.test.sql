@@ -140,6 +140,7 @@ select is(
     join public.course_blocks cb on cb.course_version_id = c.current_version_id
     where c.organization_id is null
       and c.status = 'published'
+      and cb.block_type = 'text'
       and cb.body ->> 'activity_type' in ('instruction', 'scenario', 'practice')
       and cardinality(
         regexp_split_to_array(btrim(coalesce(cb.body ->> 'content', '')), E'\\s+')
