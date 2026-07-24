@@ -42,6 +42,9 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
 import { usePageTitle } from "@/lib/pageTitle";
+import { IncidentQapiEscalation } from "@/components/IncidentQapiEscalation";
+import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
+import { hasAnyFacilityType, PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 
 function NotificationStatusBadge({ status }: { status: string }) {
   const className =
@@ -71,6 +74,10 @@ export default function IncidentDetail() {
   usePageTitle(incident ? humanize(incident.incident_type) : undefined);
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees();
+  // QAPI routes are PCH/ALF facility-type gated -- only surface the escalate action when the viewer
+  // can reach the QAPI workspace, so the deep link never bounces off the route guard.
+  const { facilityTypes } = useVisibleFacilityTypes();
+  const hasPchAlr = hasAnyFacilityType(facilityTypes, PCH_ALR_ONLY_FACILITY_TYPES);
   const { data: profiles } = useListProfiles();
   // Scoped to this incident's facility -- used only to resolve resident_identifier into a display
   // name when it holds a resident id (see residentDisplay below), not to power a picker here.
@@ -217,12 +224,15 @@ export default function IncidentDetail() {
           </div>
         </div>
         {canManage && (
-          <Select value={incident.status} onValueChange={(v) => updateIncident({ id: incident.id, status: v as typeof incident.status })}>
-            <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {["reported", "investigating", "closed"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-wrap items-center gap-2">
+            {hasPchAlr && <IncidentQapiEscalation incident={incident} />}
+            <Select value={incident.status} onValueChange={(v) => updateIncident({ id: incident.id, status: v as typeof incident.status })}>
+              <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {["reported", "investigating", "closed"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         )}
       </div>
 
