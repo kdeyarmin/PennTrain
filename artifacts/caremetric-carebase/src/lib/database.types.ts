@@ -2451,6 +2451,7 @@ export type Database = {
           model: string | null
           organization_id: string
           question: string
+          redaction: Json | null
           request_checksum_sha256: string
           requested_by: string
           response: Json
@@ -2477,6 +2478,7 @@ export type Database = {
           model?: string | null
           organization_id: string
           question: string
+          redaction?: Json | null
           request_checksum_sha256: string
           requested_by: string
           response?: Json
@@ -2503,6 +2505,7 @@ export type Database = {
           model?: string | null
           organization_id?: string
           question?: string
+          redaction?: Json | null
           request_checksum_sha256?: string
           requested_by?: string
           response?: Json

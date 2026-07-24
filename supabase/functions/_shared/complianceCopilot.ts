@@ -132,6 +132,7 @@ NON-NEGOTIABLE GROUNDING RULES
 6. Do not give legal advice. State important gaps and contradictions explicitly. Prefer a narrow answer over an unsupported one.
 7. For a Plan of Correction or mock-survey request, produce draft language only. Do not claim approval, submission, regulator acceptance, or completion.
 8. For staffing, explain only the recorded eligibility decision and its recorded blocks/warnings. Do not create or override an eligibility decision.
+9. Person names and room numbers in USER_QUESTION and SYSTEM_EVIDENCE are pseudonymized as stable aliases such as "Resident 1", "Staff 2", "Person 3", or "Room 1". Refer to people and rooms only by these aliases, written exactly as supplied; the application restores real names for authorized users after validation. Never guess or invent a real name, never remark on the pseudonymization, and never treat an alias as missing information.
 
 Call the emit_grounded_compliance_response tool exactly once.`;
 
