@@ -82,6 +82,12 @@ export default function ComprehensiveReport() {
   const facilityName = facilityId !== "all" ? facilities.find((f) => f.id === facilityId)?.name : undefined;
   const scopeFacilityId = facilityId === "all" ? undefined : facilityId;
 
+  // The portfolio operations snapshot is PCH/ALF-only; if the org also runs other facility types,
+  // the operations section carries a coverage caveat (see buildComprehensiveReport).
+  const orgHasOtherFacilityTypes = facilities.some(
+    (f) => !(PCH_ALR_ONLY_FACILITY_TYPES as readonly string[]).includes(f.facility_type),
+  );
+
   // Residents/census modules are PCH/ALF-only (see facilityTypes.ts). For a single-facility scope,
   // gate on that facility's own type; for "All facilities", fall back to the org-level union of
   // visible facility types. While a selected facility's row is still loading, fail closed (hide the
@@ -210,16 +216,21 @@ export default function ComprehensiveReport() {
         evidence: evidenceQuery.data,
         workItems: workItemsQuery.data,
         includeResidents,
-        errored: {
-          compliance: dashboardQuery.isError,
-          training: dashboardQuery.isError,
-          workforce: retentionQuery.isError,
-          facilities: dashboardQuery.isError,
+        facilityScopeName: facilityName,
+        orgHasOtherFacilityTypes,
+        // Per-source error flags. Single-source facets go unavailable when their source errors;
+        // multi-source facets (incidents, documentation) stay available on a partial failure and
+        // surface a warning naming what could not be loaded (see buildComprehensiveReport).
+        errors: {
+          dashboard: dashboardQuery.isError,
           operations: scopeFacilityId ? facilityOpsQuery.isError : portfolioOpsQuery.isError,
-          incidents: incidentsQuery.isError && complaintsQuery.isError && confidentialQuery.isError,
+          workforce: retentionQuery.isError,
+          incidents: incidentsQuery.isError,
+          complaints: complaintsQuery.isError,
+          confidential: confidentialQuery.isError,
           residents: residentsQuery.isError,
-          documentation: evidenceQuery.isError && dashboardQuery.isError && workItemsQuery.isError,
-          alerts: dashboardQuery.isError,
+          evidence: evidenceQuery.isError,
+          workItems: workItemsQuery.isError,
         },
       }),
     [
@@ -241,6 +252,8 @@ export default function ComprehensiveReport() {
       workItemsQuery.data,
       workItemsQuery.isError,
       includeResidents,
+      facilityName,
+      orgHasOtherFacilityTypes,
       scopeFacilityId,
       facilityOpsQuery.isError,
       portfolioOpsQuery.isError,
@@ -251,6 +264,23 @@ export default function ComprehensiveReport() {
   const visibleSections = report.sections.filter((s) => selectedFacets.has(s.id));
 
   const isInitialLoading = dashboardQuery.isLoading && !dashboardQuery.data;
+
+  // Print/PDF must not capture a half-loaded or previous-scope document. A query counts as "busy"
+  // when it has never loaded (isLoading) or is currently serving placeholder data from the prior
+  // scope while fetching the new one (isPlaceholderData). Background refetches of already-fresh
+  // current-scope data (e.g. the operations 60s poll) are neither, so they don't disable Print.
+  const relevantOpsQuery = scopeFacilityId ? facilityOpsQuery : portfolioOpsQuery;
+  const isReportBusy = [
+    dashboardQuery,
+    relevantOpsQuery,
+    incidentsQuery,
+    complaintsQuery,
+    confidentialQuery,
+    evidenceQuery,
+    workItemsQuery,
+    retentionQuery,
+    ...(includeResidents ? [residentsQuery] : []),
+  ].some((q) => q.isLoading || q.isPlaceholderData);
 
   const toggleFacet = (facet: ReportFacet) => {
     setSelectedFacets((prev) => {
@@ -297,12 +327,22 @@ export default function ComprehensiveReport() {
                 ))}
               </SelectContent>
             </Select>
-            <Button onClick={() => window.print()} disabled={isInitialLoading}>
-              <Printer className="mr-2 h-4 w-4" />
+            <Button onClick={() => window.print()} disabled={isInitialLoading || isReportBusy}>
+              {isReportBusy && !isInitialLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Printer className="mr-2 h-4 w-4" />
+              )}
               Print / Save as PDF
             </Button>
           </div>
         </div>
+        {isReportBusy && !isInitialLoading && (
+          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Updating the report for the selected scope… printing is disabled until every section is current.
+          </p>
+        )}
 
         <div className="rounded-xl border border-border/60 bg-card p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
@@ -417,6 +457,14 @@ export default function ComprehensiveReport() {
           <p className="creport-notes rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">{notes.trim()}</p>
         )}
 
+        {facilityName && (
+          <p className="creport-notes rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            Each section is labeled with the scope it reflects. Sections marked{" "}
+            <strong>Organization-wide</strong> are not filtered to {facilityName} — their underlying summary is
+            organization-level and covers every facility you can access.
+          </p>
+        )}
+
         {isInitialLoading ? (
           <div className="flex items-center justify-center gap-2 py-20 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -478,13 +526,23 @@ function ReportSection({ section }: { section: ReportSectionData }) {
       <div className="mb-1 flex flex-wrap items-center gap-2">
         <Building2 className="h-5 w-5 text-muted-foreground" />
         <h2 className="text-lg font-semibold">{section.title}</h2>
+        {section.scope && (
+          <Badge variant="outline" className="text-[10px] font-normal">
+            {section.scope}
+          </Badge>
+        )}
         {section.reference && (
           <Badge variant="secondary" className="text-[10px] font-normal">
             {section.reference}
           </Badge>
         )}
       </div>
-      {section.description && <p className="mb-3 text-sm text-muted-foreground">{section.description}</p>}
+      {section.description && <p className="mb-2 text-sm text-muted-foreground">{section.description}</p>}
+      {section.available && section.warning && (
+        <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {section.warning}
+        </p>
+      )}
 
       {!section.available ? (
         <p className="rounded-lg border border-dashed bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
