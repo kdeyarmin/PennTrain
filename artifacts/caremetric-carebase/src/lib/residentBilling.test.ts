@@ -52,15 +52,31 @@ describe("monthlyChargePreviews", () => {
 
 
 describe("receivableAgingSummary", () => {
-  it("buckets open statement balances by days past due", () => {
+  type Txn = FinancialWorkspace["transactions"][number];
+  type Stmt = FinancialWorkspace["statements"][number];
+
+  const debit = (effectiveOn: string, amount: number): Txn =>
+    ({ entry_side: "debit", amount, effective_on: effectiveOn, posted_at: `${effectiveOn}T12:00:00Z` }) as Txn;
+  const credit = (effectiveOn: string, amount: number): Txn =>
+    ({ entry_side: "credit", amount, effective_on: effectiveOn, posted_at: `${effectiveOn}T12:00:00Z` }) as Txn;
+  const statement = (periodEnd: string, dueDate: string, balanceDue: number): Stmt =>
+    ({ period_end: periodEnd, due_date: dueDate, balance_due: balanceDue }) as Stmt;
+
+  it("buckets open ledger charges by days past their billing statement's due date", () => {
     const workspace = workspaceWithRate({ room_rate: 1000 });
+    workspace.transactions = [
+      debit("2026-07-05", 100),
+      debit("2026-06-15", 200),
+      debit("2026-05-20", 300),
+      debit("2026-04-10", 400),
+      debit("2026-02-15", 500),
+    ];
     workspace.statements = [
-      { due_date: "2026-07-25", balance_due: 100 } as FinancialWorkspace["statements"][number],
-      { due_date: "2026-07-01", balance_due: 200 } as FinancialWorkspace["statements"][number],
-      { due_date: "2026-06-01", balance_due: 300 } as FinancialWorkspace["statements"][number],
-      { due_date: "2026-05-01", balance_due: 400 } as FinancialWorkspace["statements"][number],
-      { due_date: "2026-03-01", balance_due: 500 } as FinancialWorkspace["statements"][number],
-      { due_date: "2026-01-01", balance_due: 0 } as FinancialWorkspace["statements"][number],
+      statement("2026-07-15", "2026-07-25", 1500),
+      statement("2026-06-30", "2026-07-01", 1400),
+      statement("2026-05-31", "2026-06-01", 1200),
+      statement("2026-04-30", "2026-05-01", 900),
+      statement("2026-02-28", "2026-03-01", 500),
     ];
 
     const summary = receivableAgingSummary(workspace, "2026-07-21");
@@ -75,5 +91,72 @@ describe("receivableAgingSummary", () => {
     expect(summary.totalOpen).toBe(1500);
     expect(summary.oldestOpenDueDate).toBe("2026-03-01");
     expect(summary.highestRiskBucket).toBe("days90Plus");
+  });
+
+  it("does not double-count cumulative statement snapshots", () => {
+    const workspace = workspaceWithRate({ room_rate: 1000 });
+    workspace.transactions = [debit("2026-06-05", 1000), debit("2026-07-05", 1000)];
+    // The July statement is a cumulative snapshot: its 2000 balance already
+    // contains June's unpaid 1000. Naively summing balance_due reports 3000.
+    workspace.statements = [
+      statement("2026-06-30", "2026-07-01", 1000),
+      statement("2026-07-31", "2026-08-01", 2000),
+    ];
+
+    const summary = receivableAgingSummary(workspace, "2026-07-21");
+
+    expect(summary.totalOpen).toBe(2000);
+    expect(summary.buckets.find((bucket) => bucket.key === "days1To30")?.amount).toBe(1000);
+    expect(summary.buckets.find((bucket) => bucket.key === "current")?.amount).toBe(1000);
+    expect(summary.oldestOpenDueDate).toBe("2026-07-01");
+  });
+
+  it("applies post-statement payments to the oldest open charges first", () => {
+    const workspace = workspaceWithRate({ room_rate: 1000 });
+    workspace.transactions = [
+      debit("2026-06-05", 1000),
+      debit("2026-07-05", 1000),
+      credit("2026-07-10", 1500),
+    ];
+    workspace.statements = [
+      statement("2026-06-30", "2026-07-01", 1000),
+      statement("2026-07-31", "2026-08-01", 2000),
+    ];
+
+    const summary = receivableAgingSummary(workspace, "2026-07-21");
+
+    // 1500 closes June's 1000 entirely and 500 of July's charge.
+    expect(summary.totalOpen).toBe(500);
+    expect(summary.buckets.find((bucket) => bucket.key === "days1To30")?.amount).toBe(0);
+    expect(summary.buckets.find((bucket) => bucket.key === "current")?.amount).toBe(500);
+    expect(summary.oldestOpenDueDate).toBe("2026-08-01");
+    expect(summary.highestRiskBucket).toBe("current");
+  });
+
+  it("keeps not-yet-billed charges current with no due date", () => {
+    const workspace = workspaceWithRate({ room_rate: 1000 });
+    workspace.transactions = [debit("2026-07-20", 750)];
+
+    const summary = receivableAgingSummary(workspace, "2026-07-21");
+
+    expect(summary.totalOpen).toBe(750);
+    expect(summary.buckets.find((bucket) => bucket.key === "current")?.amount).toBe(750);
+    expect(summary.oldestOpenDueDate).toBeNull();
+  });
+
+  it("reports zero open receivables when credits cover every debit", () => {
+    const workspace = workspaceWithRate({ room_rate: 1000 });
+    workspace.transactions = [
+      debit("2026-06-05", 1000),
+      credit("2026-07-10", 1200),
+    ];
+    workspace.statements = [statement("2026-06-30", "2026-07-01", 1000)];
+
+    const summary = receivableAgingSummary(workspace, "2026-07-21");
+
+    expect(summary.totalOpen).toBe(0);
+    expect(summary.buckets.every((bucket) => bucket.amount === 0)).toBe(true);
+    expect(summary.oldestOpenDueDate).toBeNull();
+    expect(summary.highestRiskBucket).toBeNull();
   });
 });

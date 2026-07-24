@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { billingSessionFailureCopy, type BillingSessionErrorCopy } from "@/lib/billingErrors";
 import { cn } from "@/lib/utils";
 import type { Json } from "@/lib/database.types";
 import {
@@ -78,6 +79,18 @@ function subscriptionStateLabel(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
+function billingFailureDescription(copy: BillingSessionErrorCopy) {
+  if (!copy.actionPath) return copy.description;
+  return (
+    <span>
+      {copy.description}{" "}
+      <Link href={copy.actionPath} className="font-medium underline underline-offset-2">
+        {copy.actionLabel ?? "Open Account Security"}
+      </Link>
+    </span>
+  );
+}
+
 export function BillingPlanSelector() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -129,9 +142,10 @@ export function BillingPlanSelector() {
       });
       window.location.assign(result.data.url);
     } catch (error) {
+      const copy = billingSessionFailureCopy(error, "Billing portal could not be opened");
       toast({
-        title: "Billing portal could not be opened",
-        description: error instanceof Error ? error.message : "Unknown error",
+        title: copy.title,
+        description: billingFailureDescription(copy),
         variant: "destructive",
       });
     }
@@ -162,9 +176,10 @@ export function BillingPlanSelector() {
       });
       window.location.assign(result.data.url);
     } catch (error) {
+      const copy = billingSessionFailureCopy(error, "Secure checkout could not be opened");
       toast({
-        title: "Secure checkout could not be opened",
-        description: error instanceof Error ? error.message : "Unknown error",
+        title: copy.title,
+        description: billingFailureDescription(copy),
         variant: "destructive",
       });
     }

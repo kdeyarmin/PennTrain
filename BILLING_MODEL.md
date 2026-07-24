@@ -65,6 +65,7 @@ After Checkout, the monitored `billing-quantity-sync` job repeats the same measu
 
 - Organization administrators compare the active catalog, switch between monthly and annual pricing, see included units and overage, review their live measured quantities, and see a pre-tax recurring estimate.
 - New customers continue through hosted Stripe Checkout only when the selected cadence has an active primary `price_...` mapping.
+- The free trial is a single budget. Signup stamps `organizations.trial_ends_at` from `platform_settings.default_trial_days`; entitlement resolution downgrades a lapsed trial with no live subscription to core-only access (`past_due`); and Checkout forwards only the days still remaining on that window as Stripe `trial_period_days`, capped by the package's `trial_days`. A consumed or never-stamped trial starts billing immediately — checkout never grants a second free month on top of the in-app trial.
 - Customers with an existing trialing, active, grace, or past-due Stripe subscription are sent to the Stripe Customer Portal rather than creating a duplicate subscription.
 - Platform administrators use the same plan view for any selected organization and manage the catalog under **Admin > Packages & billing**.
 - Draft display prices remain visible to platform administrators, but customer Checkout stays disabled until the Stripe Price ID is connected.

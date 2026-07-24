@@ -58,22 +58,60 @@ function daysBetween(startIsoDate: string, endIsoDate: string) {
   return Math.floor((end - start) / 86_400_000);
 }
 
+/**
+ * Open accounts receivable derived from the live transaction ledger.
+ *
+ * Statements are cumulative immutable snapshots (each balance_due already
+ * contains every prior unpaid statement), so summing balance_due across
+ * statements double-counts carried balances and never sees post-statement
+ * payments. Instead: every open debit is a receivable, the credit pool is
+ * applied to the oldest debits first (FIFO), and each open remainder ages from
+ * the due date of the earliest statement that billed it. Charges not yet on
+ * any statement sit in the "current" bucket with no due date.
+ */
 export function receivableAgingSummary(data: FinancialWorkspace | undefined, asOfIsoDate: string): ReceivableAgingSummary {
   const buckets = agingBucketDefinitions.map(({ key, label }) => ({ key, label, amount: 0 }));
-  for (const statement of data?.statements ?? []) {
-    const balanceDue = normalizeAmount(statement.balance_due);
-    if (balanceDue <= 0) continue;
-    const daysPastDue = daysBetween(statement.due_date, asOfIsoDate);
+  const transactions = data?.transactions ?? [];
+  const statements = [...(data?.statements ?? [])]
+    .sort((left, right) => left.period_end.localeCompare(right.period_end));
+
+  const debits = transactions
+    .filter((transaction) => transaction.entry_side === "debit" && normalizeAmount(transaction.amount) > 0)
+    .sort((left, right) => left.effective_on.localeCompare(right.effective_on)
+      || (left.posted_at ?? "").localeCompare(right.posted_at ?? ""));
+  let creditPool = normalizeAmount(transactions
+    .filter((transaction) => transaction.entry_side === "credit")
+    .reduce((sum, transaction) => sum + normalizeAmount(transaction.amount), 0));
+
+  // A cumulative statement bills everything effective on or before its period
+  // end (older activity is inside its opening balance), so the first statement
+  // whose period_end covers the charge sets the demand's due date.
+  const billedDueDate = (effectiveOn: string): string | null =>
+    statements.find((statement) => statement.period_end >= effectiveOn)?.due_date ?? null;
+
+  let totalOpen = 0;
+  let oldestOpenDueDate: string | null = null;
+  for (const debit of debits) {
+    const amount = normalizeAmount(debit.amount);
+    const applied = Math.min(creditPool, amount);
+    creditPool = normalizeAmount(creditPool - applied);
+    const open = normalizeAmount(amount - applied);
+    if (open <= 0) continue;
+    totalOpen = normalizeAmount(totalOpen + open);
+    const dueDate = billedDueDate(debit.effective_on);
+    if (dueDate !== null && (oldestOpenDueDate === null || dueDate < oldestOpenDueDate)) {
+      oldestOpenDueDate = dueDate;
+    }
+    const daysPastDue = dueDate === null ? 0 : daysBetween(dueDate, asOfIsoDate);
     const definition = agingBucketDefinitions.find((bucket) => daysPastDue >= bucket.min && (bucket.max === undefined || daysPastDue <= bucket.max));
     const target = buckets.find((bucket) => bucket.key === (definition?.key ?? "current"));
-    if (target) target.amount = normalizeAmount(target.amount + balanceDue);
+    if (target) target.amount = normalizeAmount(target.amount + open);
   }
-  const openStatements = (data?.statements ?? []).filter((statement) => normalizeAmount(statement.balance_due) > 0);
-  const oldestOpenDueDate = openStatements.map((statement) => statement.due_date).sort()[0] ?? null;
+
   const highestRiskBucket = [...buckets].reverse().find((bucket) => bucket.amount > 0)?.key ?? null;
   return {
     buckets,
-    totalOpen: normalizeAmount(buckets.reduce((sum, bucket) => sum + bucket.amount, 0)),
+    totalOpen,
     oldestOpenDueDate,
     highestRiskBucket,
   };
