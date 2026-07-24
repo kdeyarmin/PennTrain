@@ -35,8 +35,11 @@ Deno.serve(async (req: Request) => {
 
   const inspectItem = async (item: typeof items[number]) => {
     try {
+      // The functions gateway also expects the anon key as `apikey` alongside the
+      // user JWT (same convention as voice-tools); a rejected call here would be
+      // silently absorbed into an "indeterminate" finding below.
       const response = await fetch(`${url}/functions/v1/compliance-copilot`, {
-        method: "POST", headers: { Authorization: auth, "Content-Type": "application/json" },
+        method: "POST", headers: { Authorization: auth, apikey: anon, "Content-Type": "application/json" },
         body: JSON.stringify({ facilityId: facility.id, intent: "mock_survey_request", asOfDate,
           question: `Evaluate only this entrance-conference item as a draft survey finding: ${item.prompt}` }),
         signal: AbortSignal.timeout(70_000),

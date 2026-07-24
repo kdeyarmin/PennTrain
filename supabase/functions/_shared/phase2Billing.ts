@@ -183,9 +183,16 @@ export function validatePhase2BillingReturnUrl(
     if (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname))) {
       return false;
     }
-    const allowed = new Set(configuredOrigins.map((origin) => new URL(origin).origin));
-    if (requestOrigin) allowed.add(new URL(requestOrigin).origin);
-    return allowed.has(url.origin);
+    // When BILLING_RETURN_URL_ORIGINS is configured it is authoritative: the
+    // request Origin header is attacker-controlled (curl, or a page on any
+    // origin holding a stolen JWT), so folding it into the allowlist would let
+    // Stripe redirect the session id to an arbitrary site. The Origin-match
+    // fallback only applies when no allowlist is configured (dev/preview).
+    if (configuredOrigins.length > 0) {
+      const allowed = new Set(configuredOrigins.map((origin) => new URL(origin).origin));
+      return allowed.has(url.origin);
+    }
+    return requestOrigin !== null && new URL(requestOrigin).origin === url.origin;
   } catch {
     return false;
   }

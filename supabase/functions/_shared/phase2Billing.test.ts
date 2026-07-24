@@ -80,4 +80,12 @@ Deno.test("billing status and provider ordering are deterministic", () => {
 Deno.test("billing redirects stay on configured origins", () => {
   assertEquals(validatePhase2BillingReturnUrl("https://app.example.test/billing", null, ["https://app.example.test"]), true);
   assertEquals(validatePhase2BillingReturnUrl("https://evil.example/collect", "https://app.example.test", []), false);
+  // The attacker-controlled Origin header must not extend a configured allowlist.
+  assertEquals(
+    validatePhase2BillingReturnUrl("https://evil.example/collect", "https://evil.example", ["https://app.example.test"]),
+    false,
+  );
+  // Without a configured allowlist, only a same-origin request may pass (dev fallback).
+  assertEquals(validatePhase2BillingReturnUrl("https://app.example.test/billing", "https://app.example.test", []), true);
+  assertEquals(validatePhase2BillingReturnUrl("https://app.example.test/billing", null, []), false);
 });
