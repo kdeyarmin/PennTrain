@@ -45,16 +45,25 @@ export interface MoveInReadinessPacket {
   items: MoveInChecklistItem[];
 }
 
-const COMPLETED = new Set(["completed", "current", "not_applicable"]);
+// resident_compliance_items.status is constrained to
+// missing | due_soon | expired | compliant | not_applicable (see
+// 20260705183118_resident_compliance_registry_core.sql). "completed"/"current"
+// are kept for forward-compat with callers passing derived statuses.
+const COMPLETED = new Set(["compliant", "completed", "current", "not_applicable"]);
 const OPEN = new Set(["missing", "expired", "due_soon", "overdue"]);
 
 function programFromFacilityType(facilityType: string | null | undefined): MoveInProgram {
   return facilityType === "ALR" ? "ALR" : "PCH";
 }
 
+// Names are tried in priority order so e.g. "initial_assessment" wins over a
+// generic "assessment" match against annual_reassessment when both exist.
 function findItem(items: MoveInComplianceItemLike[], names: string[]) {
-  const lowerNames = names.map((name) => name.toLowerCase());
-  return items.find((item) => lowerNames.some((name) => item.item_type.toLowerCase().includes(name)));
+  for (const name of names.map((value) => value.toLowerCase())) {
+    const match = items.find((item) => item.item_type.toLowerCase().includes(name));
+    if (match) return match;
+  }
+  return undefined;
 }
 
 function hasLinkedSignedStateForm(item: MoveInComplianceItemLike | undefined, documents: MoveInDocumentLike[]) {
@@ -85,12 +94,22 @@ export function buildMoveInReadinessPacket({
   officialContacts?: MoveInOfficialContactLike[];
 }): MoveInReadinessPacket {
   const program = programFromFacilityType(facilityType);
-  const preadmission = findItem(complianceItems, ["preadmission", "pre_admission"]);
-  const assessment = findItem(complianceItems, ["assessment", "rasp", "asp"]);
+  const assessment = findItem(complianceItems, ["initial_assessment", "assessment", "rasp", "asp"]);
   const supportPlan = findItem(complianceItems, ["support_plan", "support plan", "care_plan"]);
+  // ALR rule packs don't seed a separate preadmission item -- 2800.224 folds
+  // intake into the initial assessment / preliminary support plan cycle, so
+  // fall back to that item rather than flagging a permanently-missing row.
+  const preadmission = findItem(complianceItems, ["preadmission", "pre_admission"])
+    ?? (program === "ALR" ? assessment : undefined);
   const rightsDocument = documents.find((document) => (document.document_label ?? "").toLowerCase().includes("rights"));
   const contractDocument = documents.find((document) => /(contract|admission agreement|resident-home)/i.test(document.document_label ?? ""));
-  const medicationItem = findItem(complianceItems, ["medication", "self_administration", "self administration"]);
+  // No dedicated medication item type exists in the registry; the med
+  // self-administration/assistance determination is documented inside the
+  // assessment / support-plan evidence (see this row's `evidence` copy), so
+  // derive readiness from those items when no dedicated row is present.
+  const medicationItem = findItem(complianceItems, ["medication", "self_administration", "self administration"])
+    ?? supportPlan
+    ?? assessment;
   const contactTypes = new Set(officialContacts.filter((contact) => contact.name && contact.phone).map((contact) => contact.contact_type));
   const hasContactDetails = Boolean(resident.date_of_birth
     && (contactTypes.has("primary_care_provider") || (resident.primary_physician_name && resident.primary_physician_phone))
