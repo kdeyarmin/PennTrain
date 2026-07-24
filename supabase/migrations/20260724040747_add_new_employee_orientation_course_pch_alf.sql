@@ -26,6 +26,25 @@
 -- depending on a live HeyGen job or cron run that can only ever happen once,
 -- against the original project.
 --
+-- Known limitation: this migration replays the database rows correctly in any
+-- project (CI, local, a preview branch, a fork), but it cannot replay the
+-- underlying Storage objects -- SQL migrations carry no binary payloads.
+-- useCourseVideoUrl() (src/hooks/useCourseVideoUrl.ts) treats a stored
+-- video_url as a path locator and always re-derives a signed URL from the
+-- *currently configured* Supabase project's course-videos bucket, so these
+-- three video blocks only actually play back in the original
+-- xsqobvvreaovwibxwyvv project, where the real MP4s were uploaded by the live
+-- HeyGen+cron flow. Elsewhere, the same rows resolve to a missing storage
+-- object and the block shows as unavailable. That's a degraded-but-non-
+-- blocking experience today: the learning.video_watch_gate feature release
+-- that would hard-block course advancement on an unwatched video defaults to
+-- 'off' platform-wide and requires an explicit per-organization opt-in (see
+-- 20260712130000_video_watch_state.sql), so no environment enforces watching
+-- these specific videos to completion unless an org has deliberately turned
+-- that on. Seeding real Storage objects alongside the SQL migration chain
+-- would be a separate, cross-cutting piece of infrastructure this PR doesn't
+-- build.
+--
 -- The course_version stays 'draft' in this migration; a follow-up migration
 -- publishes it once get_comprehensive_course_version_issues returns an empty
 -- array.
