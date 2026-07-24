@@ -62,6 +62,11 @@ overrides:
   # GHSA-r28c-9q8g-f849 (path traversal in sourceMappingURL auto-loading -> arbitrary
   # .map disclosure); fixed in 8.5.18, pinned to the latest mature 8.5.x patch.
   'postcss@<=8.5.17': 8.5.22
+  # Patch transitive brace-expansion off the range flagged by GHSA-mh99-v99m-4gvg (DoS via
+  # unbounded expansion length -> out-of-memory crash). 5.0.8 is the only patched release; its
+  # `expand` API is unchanged and it still ships a CommonJS build via its exports map, so the
+  # older 2.x consumers keep working.
+  'brace-expansion@<=5.0.7': 5.0.8
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-arm64': '-'
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64': '-'
