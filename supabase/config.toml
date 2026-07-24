@@ -280,3 +280,9 @@ verify_jwt = true
 # list-membership oracle.
 [functions.unsubscribe-updates]
 verify_jwt = false
+
+# Internal cron-only weekly newsletter digest worker. pg_net sends no user JWT, so verify_jwt
+# stays false; the function rejects requests without X-CareMetric-Cron-Secret matching the
+# CRON_SHARED_SECRET Edge Function secret -- the same boundary as dispatch-notifications.
+[functions.send-regulatory-digest]
+verify_jwt = false
