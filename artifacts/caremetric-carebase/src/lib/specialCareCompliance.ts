@@ -82,6 +82,9 @@ export function buildSpecialCareComplianceSummary({
   );
   const staffingGapCount = Array.from(assignedStaff).filter((employeeId) => !trainedStaff.has(employeeId)).length;
   const applicable = designatedUnits.length > 0 || residentPlacements > 0;
+  // A unit housing SDCU residents with nobody assigned to it has no staffing
+  // "gaps" to count, but it is certainly not inspection-ready.
+  const staffed = residentPlacements === 0 || assignedStaff.size > 0;
 
   return {
     designatedUnits,
@@ -90,6 +93,6 @@ export function buildSpecialCareComplianceSummary({
     trainedStaffCount: trainedStaff.size,
     staffingGapCount,
     trainingTypeIds,
-    status: !applicable ? "not_applicable" : staffingGapCount === 0 && trainingTypeIds.length > 0 ? "inspection_ready" : "needs_attention",
+    status: !applicable ? "not_applicable" : staffed && staffingGapCount === 0 && trainingTypeIds.length > 0 ? "inspection_ready" : "needs_attention",
   };
 }

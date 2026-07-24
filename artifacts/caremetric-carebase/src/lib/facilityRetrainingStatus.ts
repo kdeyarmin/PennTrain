@@ -89,7 +89,12 @@ export function buildFacilityRetrainingStatus(
     const compliantCount = facilityPracticums.filter((p) => p.status === "compliant").length;
     const dueSoonCount = facilityPracticums.filter((p) => p.status === "due_soon").length;
     const expiredCount = facilityPracticums.filter((p) => p.status === "expired").length;
-    const missingCount = facilityPracticums.filter((p) => p.status === "missing").length;
+    // Active med-admin staff with no practicum row at all (e.g. never scheduled for
+    // the current year) are just as non-compliant as an explicit "missing" row --
+    // without this, a facility with zero practicum records reads as compliant.
+    const staffWithPracticums = new Set(facilityPracticums.map((p) => p.employee_id));
+    const staffWithoutPracticum = [...activeStaffIds].filter((id) => !staffWithPracticums.has(id)).length;
+    const missingCount = facilityPracticums.filter((p) => p.status === "missing").length + staffWithoutPracticum;
 
     const upcoming = facilityPracticums
       .filter((p) => p.due_date && (p.status === "due_soon" || p.status === "expired"))

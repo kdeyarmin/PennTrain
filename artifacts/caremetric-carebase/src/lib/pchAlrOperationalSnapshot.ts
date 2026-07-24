@@ -72,7 +72,7 @@ export function buildPchAlrOperationsQueue(input: PchAlrSnapshotInput): PchAlrOp
     !statusIn(incident.status, ["closed", "resolved"]) || !incident.final_report_submitted_at,
   ).length;
   const overdueActions = (input.correctiveActions ?? []).filter((action) =>
-    !statusIn(action.status, ["completed", "closed"]) && isOverdue(action.due_date, today),
+    !statusIn(action.status, ["completed", "cancelled"]) && isOverdue(action.due_date, today),
   ).length;
   const medicationFollowUps = (input.incidents ?? []).filter((incident) =>
     (incident.incident_type ?? "").toLowerCase().includes("med") && (!statusIn(incident.status, ["closed", "resolved"]) || !incident.final_report_submitted_at),

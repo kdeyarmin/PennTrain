@@ -19,6 +19,18 @@ describe("buildPchAlrOperationsQueue", () => {
     expect(queue.find((item) => item.id === "corrective-actions")?.count).toBe(1);
   });
 
+  it("does not count cancelled corrective actions as overdue", () => {
+    const queue = buildPchAlrOperationsQueue({
+      today: "2026-07-13",
+      correctiveActions: [
+        { status: "cancelled", due_date: "2026-07-01" },
+        { status: "open", due_date: "2026-07-01" },
+      ],
+    });
+
+    expect(queue.find((item) => item.id === "corrective-actions")?.count).toBe(1);
+  });
+
   it("summarizes ready and attention buckets", () => {
     const summary = summarizePchAlrQueue(buildPchAlrOperationsQueue({ today: "2026-07-13" }));
     expect(summary.totalOpen).toBe(0);

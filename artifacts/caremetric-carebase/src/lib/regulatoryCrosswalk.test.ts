@@ -39,6 +39,22 @@ describe("regulatory crosswalk", () => {
     expect(rows.every((row) => row.status === "overdue")).toBe(true);
   });
 
+  it("ignores completed and cancelled corrective actions past their due date", () => {
+    const rows = buildRegulatoryCrosswalkRows({
+      today: "2026-07-13",
+      incidents: [{ status: "closed", final_report_submitted_at: "2026-07-01" }],
+      correctiveActions: [
+        { status: "cancelled", due_date: "2026-07-01" },
+        { status: "completed", due_date: "2026-06-15" },
+      ],
+      inspectionItems: [{ status: "compliant", due_date: "2026-09-01" }],
+      violations: [],
+    }, "org_admin");
+
+    expect(rows.find((row) => row.id === "incident-reporting")?.gapCount).toBe(0);
+    expect(rows.find((row) => row.id === "physical-site-emergency")?.gapCount).toBe(0);
+  });
+
   it("keeps auditor access read-only", () => {
     expect(canManageRegulatoryCrosswalk("auditor")).toBe(false);
     expect(baseRows().every((row) => row.canEdit === false)).toBe(true);
