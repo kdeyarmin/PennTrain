@@ -419,7 +419,7 @@ function MarketingFooter() {
             </Link>
             <p className="max-w-[42ch] text-[13px] text-white/65">
               Operations, compliance, and survey readiness for personal care
-              homes and assisted living facilities.
+              homes and Assisted Living Facilities (ALF).
             </p>
           </div>
 
