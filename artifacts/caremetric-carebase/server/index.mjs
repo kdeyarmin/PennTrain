@@ -304,6 +304,16 @@ async function serveFile(filePath, req, res, { cacheControl }) {
     return;
   }
 
+  // HEAD gets the same headers the GET would produce (including Accept-Ranges for
+  // identity bodies) but no body -- and skips reading the file entirely.
+  if (req.method === "HEAD") {
+    if (!encoded) headers["Accept-Ranges"] = "bytes";
+    headers["Content-Length"] = fileInfo.size;
+    res.writeHead(200, headers);
+    res.end();
+    return;
+  }
+
   const data = await readFile(servedPath);
 
   // Byte-range support for identity bodies so browser media controls can fetch

@@ -71,8 +71,12 @@ function daysBetween(startIsoDate: string, endIsoDate: string) {
  */
 export function receivableAgingSummary(data: FinancialWorkspace | undefined, asOfIsoDate: string): ReceivableAgingSummary {
   const buckets = agingBucketDefinitions.map(({ key, label }) => ({ key, label, amount: 0 }));
-  const transactions = data?.transactions ?? [];
+  // An as-of summary must ignore activity after the as-of date: later credits would
+  // understate the historical receivable and future-dated debits would inflate it.
+  const transactions = (data?.transactions ?? [])
+    .filter((transaction) => transaction.effective_on <= asOfIsoDate);
   const statements = [...(data?.statements ?? [])]
+    .filter((statement) => statement.period_end <= asOfIsoDate)
     .sort((left, right) => left.period_end.localeCompare(right.period_end));
 
   const debits = transactions

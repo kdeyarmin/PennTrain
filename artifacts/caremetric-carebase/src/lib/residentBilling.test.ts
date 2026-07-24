@@ -125,11 +125,13 @@ describe("receivableAgingSummary", () => {
 
     const summary = receivableAgingSummary(workspace, "2026-07-21");
 
-    // 1500 closes June's 1000 entirely and 500 of July's charge.
+    // 1500 closes June's 1000 entirely and 500 of July's charge. As of 2026-07-21 the
+    // July statement's period has not closed, so the remaining 500 is not yet billed:
+    // current, with no due date.
     expect(summary.totalOpen).toBe(500);
     expect(summary.buckets.find((bucket) => bucket.key === "days1To30")?.amount).toBe(0);
     expect(summary.buckets.find((bucket) => bucket.key === "current")?.amount).toBe(500);
-    expect(summary.oldestOpenDueDate).toBe("2026-08-01");
+    expect(summary.oldestOpenDueDate).toBeNull();
     expect(summary.highestRiskBucket).toBe("current");
   });
 
@@ -158,5 +160,25 @@ describe("receivableAgingSummary", () => {
     expect(summary.buckets.every((bucket) => bucket.amount === 0)).toBe(true);
     expect(summary.oldestOpenDueDate).toBeNull();
     expect(summary.highestRiskBucket).toBeNull();
+  });
+
+  it("ignores ledger activity after the as-of date", () => {
+    const workspace = {
+      transactions: [
+        { entry_side: "debit", amount: 100, effective_on: "2026-06-01", posted_at: "2026-06-01" },
+        { entry_side: "credit", amount: 100, effective_on: "2026-07-10", posted_at: "2026-07-10" },
+        { entry_side: "debit", amount: 50, effective_on: "2026-08-01", posted_at: "2026-08-01" },
+      ],
+      statements: [
+        { period_end: "2026-06-30", due_date: "2026-07-05", balance_due: 100 },
+      ],
+    } as never;
+    // As of 2026-07-01: the June debit is billed and open; the July credit and the
+    // future August debit have not happened yet.
+    const asOfJuly1 = receivableAgingSummary(workspace, "2026-07-01");
+    expect(asOfJuly1.totalOpen).toBe(100);
+    // As of 2026-07-15 the credit has cleared the June charge and August has not begun.
+    const asOfJuly15 = receivableAgingSummary(workspace, "2026-07-15");
+    expect(asOfJuly15.totalOpen).toBe(0);
   });
 });

@@ -150,13 +150,26 @@ async function isAnalyzerEnabled(client: any): Promise<boolean | null> {
   return data?.value === true;
 }
 
-// PT-019: document_analyzer_jobs has no organization column, so the job's org context
-// is the requesting profile's organization_id. Uploaders are platform admins; vendor
-// staff without an organization (organization_id null) are platform-internal and are
-// gated only by the platform switch, while an org-bound requester is gated by their
-// organization's BAA state. Fails closed on a lookup error.
-async function analyzerJobOrgGate(adminClient: any, requestedBy: string | null | undefined): Promise<boolean> {
-  if (!requestedBy) return false;
+// PT-019: document_analyzer_jobs DOES carry organization_id, but it is normally null at
+// extraction time and only stamped once the analyzed form is bound to a facility. The
+// gate therefore checks the job's own organization first (a tenant-bound job is always
+// gated by that tenant's BAA state, regardless of who kicks the run), and falls back to
+// the requesting profile's organization for unbound jobs. A requester with no
+// organization (platform-internal staff) analyzing an unbound document is platform-scope
+// work gated only by the platform switch. Fails closed on any lookup error.
+async function analyzerJobOrgGate(
+  adminClient: any,
+  jobId: string | null | undefined,
+  requestedBy: string | null | undefined,
+): Promise<boolean> {
+  if (!jobId || !requestedBy) return false;
+  const { data: jobRow, error: jobRowError } = await adminClient
+    .from("document_analyzer_jobs")
+    .select("organization_id")
+    .eq("id", jobId)
+    .maybeSingle();
+  if (jobRowError || !jobRow) return false;
+  if (jobRow.organization_id) return await orgAiAllowed(adminClient, jobRow.organization_id);
   const { data: profile, error } = await adminClient
     .from("profiles")
     .select("organization_id")
@@ -176,7 +189,7 @@ async function processClaimedJob(
 ): Promise<string> {
   // Per-organization BAA gate before any provider work, enforced on both the cron and
   // user paths since every extraction flows through this function.
-  if (!(await analyzerJobOrgGate(adminClient, claim.requested_by))) {
+  if (!(await analyzerJobOrgGate(adminClient, claim.job_id, claim.requested_by))) {
     throw new AnalyzerJobError("org_ai_disabled", ORG_AI_DISABLED_MESSAGE);
   }
   const { data: blob, error: downloadError } = await adminClient.storage
@@ -343,7 +356,7 @@ Deno.serve(async (req: Request) => {
 
   // PT-019: surface a coded 403 before claiming so a denied kick does not burn one of
   // the job's limited extraction attempts. processClaimedJob re-checks the same gate.
-  if (!(await analyzerJobOrgGate(adminClient, job.requested_by))) {
+  if (!(await analyzerJobOrgGate(adminClient, job.id, job.requested_by))) {
     return json(orgAiDisabledBody(), 403);
   }
 
