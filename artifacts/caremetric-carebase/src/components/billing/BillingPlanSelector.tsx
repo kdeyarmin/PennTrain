@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   AlertTriangle,
+  CalendarClock,
   Check,
   CreditCard,
   Loader2,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { billingSessionFailureCopy, type BillingSessionErrorCopy } from "@/lib/billingErrors";
+import { isLiveSubscriptionState, resolveTrialPresentation } from "@/lib/trialStatus";
 import { cn } from "@/lib/utils";
 import type { Json } from "@/lib/database.types";
 import {
@@ -114,6 +116,16 @@ export function BillingPlanSelector() {
     [packagesQuery.data],
   );
   const currentSubscription = billingAccountQuery.data?.subscription;
+  const trialPresentation = useMemo(
+    () => (organizationQuery.data && billingAccountQuery.data
+      ? resolveTrialPresentation({
+        trialEndsAt: organizationQuery.data.trial_ends_at,
+        billingState: billingAccountQuery.data.account?.billing_state,
+        hasLiveSubscription: isLiveSubscriptionState(billingAccountQuery.data.subscription?.billing_state),
+      })
+      : { kind: "none" as const }),
+    [organizationQuery.data, billingAccountQuery.data],
+  );
   const currentPackageId = currentSubscription?.package_id ?? organizationQuery.data?.package_id;
   const hasManagedSubscription = !!currentSubscription;
   const hasCustomerPortal = !!billingAccountQuery.data?.account?.stripe_customer_id;
@@ -246,6 +258,28 @@ export function BillingPlanSelector() {
                   </TabsList>
                 </Tabs>
               </div>
+
+              {trialPresentation.kind === "trialing" ? (
+                <Alert>
+                  <CalendarClock className="h-4 w-4" />
+                  <AlertTitle>
+                    Trial ends {trialPresentation.endsAt.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}{" "}
+                    ({trialPresentation.daysLeft} {trialPresentation.daysLeft === 1 ? "day" : "days"} left)
+                  </AlertTitle>
+                  <AlertDescription>
+                    Choose a plan before the trial ends to keep uninterrupted access to your subscribed modules.
+                  </AlertDescription>
+                </Alert>
+              ) : trialPresentation.kind === "ended" ? (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Trial ended — choose a plan to continue</AlertTitle>
+                  <AlertDescription>
+                    The free trial ended on {trialPresentation.endsAt.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}.
+                    Module access is paused until a plan is selected; starting secure checkout below restores it immediately.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
 
               {isCatalogLoading ? (
                 <div className="flex items-center gap-2 rounded-lg border p-4 text-sm text-muted-foreground">

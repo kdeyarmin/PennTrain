@@ -33218,6 +33218,7 @@ export type Database = {
           question_id: string
         }[]
       }
+      get_regulatory_digest_state: { Args: never; Returns: Json }
       get_regulatory_rule_control_plane: {
         Args: never
         Returns: {
@@ -33661,6 +33662,23 @@ export type Database = {
           p_sso_connection_id: string
         }
         Returns: string
+      }
+      list_failed_stripe_billing_events: {
+        Args: { p_limit?: number }
+        Returns: {
+          correlation_id: string
+          event_created_at: string
+          event_id: string
+          event_type: string
+          failed_at: string
+          organization_id: string
+          organization_name: string
+          processing_error: string
+          received_at: string
+          stripe_customer_id: string
+          stripe_invoice_id: string
+          stripe_subscription_id: string
+        }[]
       }
       list_integration_events: {
         Args: {
@@ -34839,6 +34857,18 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      retry_failed_stripe_billing_event: {
+        Args: { p_event_id: string }
+        Returns: {
+          canonical_state: string
+          processing_error: string
+          processing_status: string
+          resolved_organization_id: string
+          was_applied: boolean
+          was_duplicate: boolean
+          was_stale: boolean
+        }[]
       }
       retry_notification_delivery: {
         Args: { p_delivery_id: string }
