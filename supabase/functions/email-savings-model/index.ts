@@ -39,7 +39,7 @@ const RANGES = {
   rate: { min: 18, max: 80 },
   tools: { min: 0, max: 2000 },
   cut: { min: 5, max: 60 },
-  residents: { min: 1, max: 1000 },
+  residents: { min: 5, max: 200 },
 } as const;
 
 class HttpError extends Error {
